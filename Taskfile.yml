@@ -1,0 +1,233 @@
+# https://taskfile.dev
+version: '3'
+
+vars:
+  ENGINE_DIR: ./crates/engine
+  PLAYER_DIR: ./crates/player
+  PROTOCOL_DIR: ./crates/protocol
+
+env:
+  RUST_LOG: info,wrldbldr_engine=debug,wrldbldr_player=debug
+
+tasks:
+  # ===========================================================================
+  # Development - Run Services
+  # ===========================================================================
+
+  dev:
+    desc: Run both backend and frontend using Overmind
+    cmds:
+      - overmind start -f Procfile.dev
+    interactive: true
+
+  backend:
+    desc: Run the Engine backend server
+    dir: "{{.ENGINE_DIR}}"
+    cmds:
+      - cargo run --bin wrldbldr-engine
+    env:
+      RUST_LOG: info,wrldbldr_engine=debug
+
+  web:dev:
+    desc: Run the Player frontend in web/WASM mode with hot reload
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - trunk serve --open
+    env:
+      RUST_LOG: info,wrldbldr_player=debug
+
+  desktop:dev:
+    desc: Run the Player frontend in desktop mode
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - cargo run --bin wrldbldr-player
+    env:
+      RUST_LOG: info,wrldbldr_player=debug
+
+  # ===========================================================================
+  # Build Tasks
+  # ===========================================================================
+
+  build:
+    desc: Build all crates (debug mode)
+    cmds:
+      - cargo build --workspace
+
+  build:release:
+    desc: Build all crates (release mode)
+    cmds:
+      - cargo build --workspace --release
+
+  build:engine:
+    desc: Build the Engine backend
+    cmds:
+      - cargo build -p wrldbldr-engine
+
+  build:player:
+    desc: Build the Player frontend (native)
+    cmds:
+      - cargo build -p wrldbldr-player
+
+  build:web:
+    desc: Build the Player frontend for web/WASM
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - trunk build --release
+
+  # ===========================================================================
+  # Check & Test Tasks
+  # ===========================================================================
+
+  check:
+    desc: Check all crates for errors
+    cmds:
+      - cargo check --workspace
+
+  check:engine:
+    desc: Check Engine crate
+    cmds:
+      - cargo check -p wrldbldr-engine
+
+  check:player:
+    desc: Check Player crate
+    cmds:
+      - cargo check -p wrldbldr-player
+
+  check:protocol:
+    desc: Check Protocol crate
+    cmds:
+      - cargo check -p wrldbldr-protocol
+
+  test:
+    desc: Run all tests
+    cmds:
+      - cargo test --workspace
+
+  test:engine:
+    desc: Run Engine tests
+    cmds:
+      - cargo test -p wrldbldr-engine
+
+  test:player:
+    desc: Run Player tests
+    cmds:
+      - cargo test -p wrldbldr-player
+
+  test:protocol:
+    desc: Run Protocol tests
+    cmds:
+      - cargo test -p wrldbldr-protocol
+
+  # ===========================================================================
+  # Code Quality
+  # ===========================================================================
+
+  fmt:
+    desc: Format all code
+    cmds:
+      - cargo fmt --all
+
+  fmt:check:
+    desc: Check code formatting
+    cmds:
+      - cargo fmt --all -- --check
+
+  clippy:
+    desc: Run Clippy linter
+    cmds:
+      - cargo clippy --workspace -- -D warnings
+
+  lint:
+    desc: Run all linting (fmt check + clippy)
+    cmds:
+      - task: fmt:check
+      - task: clippy
+
+  # ===========================================================================
+  # Frontend Tooling
+  # ===========================================================================
+
+  css:build:
+    desc: Build Tailwind CSS
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - npx tailwindcss -i styles/input.css -o styles/output.css
+
+  css:watch:
+    desc: Watch and rebuild Tailwind CSS
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - npx tailwindcss -i styles/input.css -o styles/output.css --watch
+
+  npm:install:
+    desc: Install npm dependencies for Player
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - npm install
+
+  # ===========================================================================
+  # Database & Infrastructure
+  # ===========================================================================
+
+  docker:up:
+    desc: Start Docker services (Neo4j, etc.)
+    dir: ./docker
+    cmds:
+      - docker-compose up -d
+
+  docker:down:
+    desc: Stop Docker services
+    dir: ./docker
+    cmds:
+      - docker-compose down
+
+  docker:logs:
+    desc: Show Docker service logs
+    dir: ./docker
+    cmds:
+      - docker-compose logs -f
+
+  # ===========================================================================
+  # Clean Tasks
+  # ===========================================================================
+
+  clean:
+    desc: Clean all build artifacts
+    cmds:
+      - cargo clean
+
+  clean:player:
+    desc: Clean Player build artifacts (including trunk dist)
+    dir: "{{.PLAYER_DIR}}"
+    cmds:
+      - cargo clean
+      - rm -rf dist/
+
+  # ===========================================================================
+  # Setup Tasks
+  # ===========================================================================
+
+  setup:
+    desc: Initial project setup
+    cmds:
+      - task: npm:install
+      - echo "Setup complete! Run 'task dev' to start development."
+
+  setup:wasm:
+    desc: Install WASM target for Rust
+    cmds:
+      - rustup target add wasm32-unknown-unknown
+
+  # ===========================================================================
+  # Documentation
+  # ===========================================================================
+
+  docs:
+    desc: Generate and open documentation
+    cmds:
+      - cargo doc --workspace --no-deps --open
+
+  docs:build:
+    desc: Generate documentation without opening
+    cmds:
+      - cargo doc --workspace --no-deps

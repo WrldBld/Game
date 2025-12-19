@@ -1,0 +1,12 @@
+# Procfile for Overmind - Development mode
+# Run with: overmind start -f Procfile.dev
+# Or simply: task dev
+
+# Backend Engine server
+backend: cd crates/engine && RUST_LOG=info,wrldbldr_engine=debug cargo run --bin wrldbldr-engine
+
+# Frontend Player (web/WASM with hot reload)
+frontend: cd crates/player && RUST_LOG=info,wrldbldr_player=debug trunk serve
+
+# Tailwind CSS watcher (optional - uncomment if needed)
+# css: cd crates/player && npx tailwindcss -i styles/input.css -o styles/output.css --watch
