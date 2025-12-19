@@ -45,6 +45,58 @@ pub struct LocationEventData {
     pub description: String,
 }
 
+/// Staging pending data (player waiting for DM to approve staging)
+#[derive(Clone, Debug, PartialEq)]
+pub struct StagingPendingData {
+    /// The region where staging is pending
+    pub region_id: String,
+    /// Region name for display
+    pub region_name: String,
+}
+
+/// Staged NPC data for DM approval UI
+#[derive(Clone, Debug, PartialEq)]
+pub struct StagedNpcData {
+    pub character_id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub reasoning: String,
+}
+
+/// Previous staging info for reference
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreviousStagingData {
+    pub staging_id: String,
+    pub approved_at: String,
+    pub npcs: Vec<StagedNpcData>,
+}
+
+/// PC waiting for staging approval
+#[derive(Clone, Debug, PartialEq)]
+pub struct WaitingPcData {
+    pub pc_id: String,
+    pub pc_name: String,
+    pub player_id: String,
+}
+
+/// Staging approval data for DM popup
+#[derive(Clone, Debug, PartialEq)]
+pub struct StagingApprovalData {
+    pub request_id: String,
+    pub region_id: String,
+    pub region_name: String,
+    pub location_id: String,
+    pub location_name: String,
+    pub game_time_display: String,
+    pub previous_staging: Option<PreviousStagingData>,
+    pub rule_based_npcs: Vec<StagedNpcData>,
+    pub llm_based_npcs: Vec<StagedNpcData>,
+    pub default_ttl_hours: i32,
+    pub waiting_pcs: Vec<WaitingPcData>,
+}
+
 /// Central game state stored as Dioxus signals
 #[derive(Clone)]
 pub struct GameState {
@@ -70,6 +122,10 @@ pub struct GameState {
     pub approach_event: Signal<Option<ApproachEventData>>,
     /// Active location event (location-wide event)
     pub location_event: Signal<Option<LocationEventData>>,
+    /// Staging pending for player (waiting for DM approval)
+    pub staging_pending: Signal<Option<StagingPendingData>>,
+    /// Pending staging approval for DM
+    pub pending_staging_approval: Signal<Option<StagingApprovalData>>,
 }
 
 impl GameState {
@@ -87,6 +143,8 @@ impl GameState {
             game_time: Signal::new(None),
             approach_event: Signal::new(None),
             location_event: Signal::new(None),
+            staging_pending: Signal::new(None),
+            pending_staging_approval: Signal::new(None),
         }
     }
 
@@ -169,6 +227,37 @@ impl GameState {
         self.location_event.set(None);
     }
 
+    /// Set staging as pending (player waiting for DM approval)
+    pub fn set_staging_pending(&mut self, region_id: String, region_name: String) {
+        self.staging_pending.set(Some(StagingPendingData {
+            region_id,
+            region_name,
+        }));
+    }
+
+    /// Clear staging pending (staging was approved or cancelled)
+    pub fn clear_staging_pending(&mut self) {
+        self.staging_pending.set(None);
+    }
+
+    /// Set pending staging approval data (for DM)
+    pub fn set_pending_staging_approval(&mut self, data: StagingApprovalData) {
+        self.pending_staging_approval.set(Some(data));
+    }
+
+    /// Clear pending staging approval (DM approved or dismissed)
+    pub fn clear_pending_staging_approval(&mut self) {
+        self.pending_staging_approval.set(None);
+    }
+
+    /// Update LLM suggestions in pending staging approval (after regeneration)
+    pub fn update_staging_llm_suggestions(&mut self, llm_based_npcs: Vec<StagedNpcData>) {
+        let mut current = self.pending_staging_approval.write();
+        if let Some(ref mut data) = *current {
+            data.llm_based_npcs = llm_based_npcs;
+        }
+    }
+
     /// Get the backdrop URL for the current scene
     pub fn backdrop_url(&self) -> Option<String> {
         // First check scene override, then location backdrop
@@ -201,6 +290,8 @@ impl GameState {
         self.game_time.set(None);
         self.approach_event.set(None);
         self.location_event.set(None);
+        self.staging_pending.set(None);
+        self.pending_staging_approval.set(None);
     }
 
     /// Clear all state

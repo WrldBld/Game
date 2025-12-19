@@ -17,6 +17,7 @@ mod player_character;
 mod scene;
 mod sheet_template;
 mod skill;
+mod staging;
 mod story_event;
 mod want;
 mod workflow_config;
@@ -47,12 +48,13 @@ pub use narrative_event::{
 };
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
 pub use player_character::PlayerCharacter;
-pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext, TimeOfDay};
+pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
 pub use sheet_template::{
     CharacterSheetData, CharacterSheetTemplate, FieldType, FieldValue, ItemListType,
     SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId,
 };
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
+pub use staging::{StagedNpc, Staging, StagingSource};
 pub use story_event::{
     ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoImportance, InfoType,
     InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,

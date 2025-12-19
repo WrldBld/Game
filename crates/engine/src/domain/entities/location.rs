@@ -38,6 +38,12 @@ pub struct Location {
     
     /// Sensory/emotional description of the location's atmosphere
     pub atmosphere: Option<String>,
+    
+    // Staging settings
+    /// Default staging duration in game hours (default: 3)
+    pub presence_cache_ttl_hours: i32,
+    /// Whether to use LLM for staging decisions (default: true)
+    pub use_llm_presence: bool,
 }
 
 impl Location {
@@ -53,6 +59,8 @@ impl Location {
             parent_map_bounds: None,
             default_region_id: None,
             atmosphere: None,
+            presence_cache_ttl_hours: 3,
+            use_llm_presence: true,
         }
     }
 
@@ -83,6 +91,16 @@ impl Location {
 
     pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
         self.atmosphere = Some(atmosphere.into());
+        self
+    }
+
+    pub fn with_presence_ttl(mut self, hours: i32) -> Self {
+        self.presence_cache_ttl_hours = hours;
+        self
+    }
+
+    pub fn with_llm_presence(mut self, enabled: bool) -> Self {
+        self.use_llm_presence = enabled;
         self
     }
 

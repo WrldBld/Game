@@ -26,6 +26,10 @@ pub struct CreateLocationRequest {
     pub parent_id: Option<LocationId>,
     pub backdrop_asset: Option<String>,
     pub atmosphere: Option<String>,
+    /// Staging TTL in game hours (uses global default if None)
+    pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging (uses global default if None)
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Request to update an existing location
@@ -36,6 +40,8 @@ pub struct UpdateLocationRequest {
     pub location_type: Option<LocationType>,
     pub backdrop_asset: Option<Option<String>>,
     pub atmosphere: Option<Option<String>>,
+    pub presence_cache_ttl_hours: Option<i32>,
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Request to create a connection between locations
@@ -292,6 +298,12 @@ impl LocationService for LocationServiceImpl {
         if let Some(atmosphere) = request.atmosphere {
             location = location.with_atmosphere(atmosphere);
         }
+        if let Some(ttl) = request.presence_cache_ttl_hours {
+            location = location.with_presence_ttl(ttl);
+        }
+        if let Some(use_llm) = request.use_llm_presence {
+            location = location.with_llm_presence(use_llm);
+        }
 
         // Create the location node
         self.location_repository
@@ -414,6 +426,12 @@ impl LocationService for LocationServiceImpl {
         }
         if let Some(atmosphere) = request.atmosphere {
             location.atmosphere = atmosphere;
+        }
+        if let Some(ttl) = request.presence_cache_ttl_hours {
+            location.presence_cache_ttl_hours = ttl;
+        }
+        if let Some(use_llm) = request.use_llm_presence {
+            location.use_llm_presence = use_llm;
         }
 
         self.location_repository
@@ -682,6 +700,8 @@ mod tests {
             parent_id: None,
             backdrop_asset: None,
             atmosphere: None,
+            presence_cache_ttl_hours: None,
+            use_llm_presence: None,
         };
         assert!(LocationServiceImpl::validate_create_request(&request).is_err());
 
@@ -694,6 +714,8 @@ mod tests {
             parent_id: None,
             backdrop_asset: None,
             atmosphere: None,
+            presence_cache_ttl_hours: None,
+            use_llm_presence: None,
         };
         assert!(LocationServiceImpl::validate_create_request(&request).is_ok());
     }

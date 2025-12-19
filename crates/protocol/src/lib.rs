@@ -52,6 +52,12 @@ pub use messages::{
     NpcMotivationData,
     ParticipantInfo,
     SplitPartyLocation,
+    // Staging types
+    ApprovedNpcInfo,
+    NpcPresentInfo,
+    PreviousStagingInfo,
+    StagedNpcInfo,
+    WaitingPcInfo,
 };
 
 // =============================================================================

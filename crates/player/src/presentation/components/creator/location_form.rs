@@ -76,6 +76,7 @@ pub fn LocationForm(
                                 parent_location_id: None,
                                 backdrop_asset: None,
                                 backdrop_regions: Vec::new(),
+                                presence_cache_ttl_hours: None,
                             }
                         }).collect();
                         parent_locations.set(parent_data);
@@ -412,6 +413,7 @@ pub fn LocationForm(
                                         parent_location_id: parent_location_id.read().clone(),
                                         backdrop_asset: None,
                                         backdrop_regions: Vec::new(),
+                                        presence_cache_ttl_hours: None, // TTL is set per-staging, not per-location
                                     };
 
                                     match if is_new {

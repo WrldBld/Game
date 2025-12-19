@@ -11,7 +11,9 @@ mod game_session;
 
 // Re-export all public types
 pub use errors::SessionError;
-pub use game_session::{GameSession, PendingApproval, SessionParticipant};
+pub use game_session::{
+    GameSession, PendingApproval, PendingStagingApproval, SessionParticipant, WaitingPc,
+};
 
 use std::collections::HashMap;
 use std::sync::Arc;

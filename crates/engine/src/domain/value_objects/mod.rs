@@ -13,6 +13,7 @@ mod region;
 mod relationship;
 mod rule_system;
 mod settings;
+mod staging_context;
 
 // Re-export shared types from protocol crate
 pub use wrldbldr_protocol::{
@@ -47,6 +48,9 @@ pub use rule_system::{
     DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition, SuccessComparison,
 };
 pub use settings::{AppSettings, SettingsFieldMetadata, settings_metadata};
+pub use staging_context::{
+    ActiveEventContext, NpcDialogueContext, RollResult, RuleBasedSuggestion, StagingContext,
+};
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)
 // ActantTarget is no longer used - targets are now Neo4j edges

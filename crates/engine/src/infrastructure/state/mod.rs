@@ -33,6 +33,7 @@ use crate::application::services::{
     SheetTemplateService, SkillServiceImpl, StoryEventService, RelationshipServiceImpl,
     WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService, SessionJoinService,
     OutcomeTriggerService, TriggerEvaluationService, EventEffectExecutor,
+    staging_service::StagingService,
 };
 use crate::application::services::generation_service::{GenerationService, GenerationEvent};
 use crate::application::dto::AppEvent;
@@ -44,7 +45,10 @@ use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
 use crate::infrastructure::export::Neo4jWorldExporter;
 use crate::infrastructure::ollama::OllamaClient;
-use crate::infrastructure::persistence::{Neo4jRepository, SqliteSettingsRepository};
+use crate::infrastructure::persistence::{
+    Neo4jNarrativeEventRepository, Neo4jRegionRepository, Neo4jRepository, 
+    Neo4jStagingRepository, SqliteSettingsRepository,
+};
 use crate::infrastructure::queues::QueueFactory;
 use crate::infrastructure::repositories::{
     SqliteAppEventRepository, SqliteGenerationReadStateRepository,
@@ -78,6 +82,13 @@ pub struct AppState {
     pub player: PlayerServices,
     pub events: EventInfrastructure,
     pub settings_service: Arc<SettingsService>,
+    /// Staging service for NPC presence management
+    pub staging_service: Arc<StagingService<
+        OllamaClient,
+        Neo4jRegionRepository,
+        Neo4jNarrativeEventRepository,
+        Neo4jStagingRepository,
+    >>,
 }
 
 impl AppState {
@@ -356,6 +367,19 @@ impl AppState {
             relationship_repo_for_effects,
         ));
 
+        // Create staging service (Staging System)
+        let staging_repo = Arc::new(repository.stagings());
+        let region_repo_for_staging = Arc::new(repository.regions());
+        let narrative_event_repo_for_staging = Arc::new(repository.narrative_events());
+        let llm_for_staging = Arc::new(llm_client.clone());
+        let staging_service = Arc::new(StagingService::new(
+            staging_repo,
+            region_repo_for_staging,
+            narrative_event_repo_for_staging,
+            story_event_service.clone(),
+            llm_for_staging,
+        ));
+
         // Create session join service
         let session_join_service = Arc::new(SessionJoinService::new(
             async_session_port.clone(),
@@ -435,6 +459,7 @@ impl AppState {
             player,
             events,
             settings_service,
+            staging_service,
         }, generation_event_rx))
     }
 }

@@ -55,7 +55,9 @@ impl Neo4jLocationRepository {
                 map_asset: $map_asset,
                 parent_map_bounds: $parent_map_bounds,
                 default_region_id: $default_region_id,
-                atmosphere: $atmosphere
+                atmosphere: $atmosphere,
+                presence_cache_ttl_hours: $presence_cache_ttl_hours,
+                use_llm_presence: $use_llm_presence
             })
             CREATE (w)-[:CONTAINS_LOCATION]->(l)
             RETURN l.id as id",
@@ -81,7 +83,9 @@ impl Neo4jLocationRepository {
         .param(
             "atmosphere",
             location.atmosphere.clone().unwrap_or_default(),
-        );
+        )
+        .param("presence_cache_ttl_hours", location.presence_cache_ttl_hours as i64)
+        .param("use_llm_presence", location.use_llm_presence);
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Created location: {}", location.name);
@@ -147,7 +151,9 @@ impl Neo4jLocationRepository {
                 l.map_asset = $map_asset,
                 l.parent_map_bounds = $parent_map_bounds,
                 l.default_region_id = $default_region_id,
-                l.atmosphere = $atmosphere
+                l.atmosphere = $atmosphere,
+                l.presence_cache_ttl_hours = $presence_cache_ttl_hours,
+                l.use_llm_presence = $use_llm_presence
             RETURN l.id as id",
         )
         .param("id", location.id.to_string())
@@ -170,7 +176,9 @@ impl Neo4jLocationRepository {
         .param(
             "atmosphere",
             location.atmosphere.clone().unwrap_or_default(),
-        );
+        )
+        .param("presence_cache_ttl_hours", location.presence_cache_ttl_hours as i64)
+        .param("use_llm_presence", location.use_llm_presence);
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Updated location: {}", location.name);
@@ -547,6 +555,8 @@ fn row_to_location(row: Row) -> Result<Location> {
     let parent_map_bounds_json: String = node.get("parent_map_bounds").unwrap_or_default();
     let default_region_id_str: String = node.get("default_region_id").unwrap_or_default();
     let atmosphere: String = node.get("atmosphere").unwrap_or_default();
+    let presence_cache_ttl_hours: i64 = node.get("presence_cache_ttl_hours").unwrap_or(3);
+    let use_llm_presence: bool = node.get("use_llm_presence").unwrap_or(true);
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -606,6 +616,8 @@ fn row_to_location(row: Row) -> Result<Location> {
         } else {
             Some(atmosphere)
         },
+        presence_cache_ttl_hours: presence_cache_ttl_hours as i32,
+        use_llm_presence,
     })
 }
 

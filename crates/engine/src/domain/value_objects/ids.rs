@@ -84,3 +84,4 @@ define_id!(QueueItemId);
 define_id!(PlayerCharacterId);
 define_id!(RegionId);
 define_id!(GoalId);
+define_id!(StagingId);

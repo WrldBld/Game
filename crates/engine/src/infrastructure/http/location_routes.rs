@@ -70,6 +70,8 @@ pub async fn create_location(
         parent_id,
         backdrop_asset: req.backdrop_asset,
         atmosphere: req.atmosphere,
+        presence_cache_ttl_hours: req.presence_cache_ttl_hours,
+        use_llm_presence: req.use_llm_presence,
     };
 
     let location = state
@@ -129,6 +131,8 @@ pub async fn update_location(
         location_type: Some(parse_location_type(&req.location_type)),
         backdrop_asset: req.backdrop_asset.map(Some),
         atmosphere: req.atmosphere.map(Some),
+        presence_cache_ttl_hours: req.presence_cache_ttl_hours,
+        use_llm_presence: req.use_llm_presence,
     };
 
     let location = state

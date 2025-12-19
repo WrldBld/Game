@@ -20,6 +20,12 @@ pub struct CreateLocationRequestDto {
     pub default_region_id: Option<String>,
     #[serde(default)]
     pub atmosphere: Option<String>,
+    /// Staging TTL in game hours (uses global default if not specified)
+    #[serde(default)]
+    pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging (uses global default if not specified)
+    #[serde(default)]
+    pub use_llm_presence: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +87,8 @@ pub struct LocationResponseDto {
     pub parent_map_bounds: Option<MapBoundsDto>,
     pub default_region_id: Option<String>,
     pub atmosphere: Option<String>,
+    pub presence_cache_ttl_hours: i32,
+    pub use_llm_presence: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -125,6 +133,8 @@ impl From<Location> for LocationResponseDto {
             parent_map_bounds: l.parent_map_bounds.map(MapBoundsDto::from),
             default_region_id: l.default_region_id.map(|id| id.to_string()),
             atmosphere: l.atmosphere,
+            presence_cache_ttl_hours: l.presence_cache_ttl_hours,
+            use_llm_presence: l.use_llm_presence,
         }
     }
 }

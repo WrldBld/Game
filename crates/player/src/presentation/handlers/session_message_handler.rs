@@ -769,6 +769,159 @@ pub fn handle_server_message(
             );
             // DM-only status update, no UI update needed for Player view
         }
+
+        // =========================================================================
+        // Staging System (NPC Presence Approval)
+        // =========================================================================
+
+        ServerMessage::StagingApprovalRequired {
+            request_id,
+            region_id,
+            region_name,
+            location_id,
+            location_name,
+            game_time_display,
+            previous_staging,
+            rule_based_npcs,
+            llm_based_npcs,
+            default_ttl_hours,
+            waiting_pcs,
+        } => {
+            tracing::info!(
+                "Staging approval required for region {} ({}): {} rule-based, {} LLM-based NPCs",
+                region_name,
+                region_id,
+                rule_based_npcs.len(),
+                llm_based_npcs.len()
+            );
+
+            // Convert protocol types to presentation types
+            use crate::presentation::state::game_state::{
+                StagingApprovalData, StagedNpcData, PreviousStagingData, WaitingPcData,
+            };
+
+            let previous = previous_staging.map(|p| PreviousStagingData {
+                staging_id: p.staging_id,
+                approved_at: p.approved_at,
+                npcs: p.npcs.into_iter().map(|n| StagedNpcData {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    reasoning: n.reasoning,
+                }).collect(),
+            });
+
+            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs.into_iter().map(|n| StagedNpcData {
+                character_id: n.character_id,
+                name: n.name,
+                sprite_asset: n.sprite_asset,
+                portrait_asset: n.portrait_asset,
+                is_present: n.is_present,
+                reasoning: n.reasoning,
+            }).collect();
+
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs.into_iter().map(|n| StagedNpcData {
+                character_id: n.character_id,
+                name: n.name,
+                sprite_asset: n.sprite_asset,
+                portrait_asset: n.portrait_asset,
+                is_present: n.is_present,
+                reasoning: n.reasoning,
+            }).collect();
+
+            let waiting: Vec<WaitingPcData> = waiting_pcs.into_iter().map(|p| WaitingPcData {
+                pc_id: p.pc_id,
+                pc_name: p.pc_name,
+                player_id: p.player_id,
+            }).collect();
+
+            game_state.set_pending_staging_approval(StagingApprovalData {
+                request_id,
+                region_id,
+                region_name: region_name.clone(),
+                location_id,
+                location_name: location_name.clone(),
+                game_time_display,
+                previous_staging: previous,
+                rule_based_npcs: rule_npcs,
+                llm_based_npcs: llm_npcs,
+                default_ttl_hours,
+                waiting_pcs: waiting,
+            });
+
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Staging approval needed for {} ({})", region_name, location_name),
+                true,
+                platform,
+            );
+        }
+
+        ServerMessage::StagingPending {
+            region_id,
+            region_name,
+        } => {
+            tracing::info!("Staging pending for region {} ({})", region_name, region_id);
+            game_state.set_staging_pending(region_id, region_name.clone());
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Setting the scene in {}...", region_name),
+                true,
+                platform,
+            );
+        }
+
+        ServerMessage::StagingReady {
+            region_id,
+            npcs_present,
+        } => {
+            tracing::info!(
+                "Staging ready for region {}: {} NPCs present",
+                region_id,
+                npcs_present.len()
+            );
+            
+            // Clear the pending staging overlay
+            game_state.clear_staging_pending();
+            
+            // Update NPCs present (the SceneChanged message will follow with full data)
+            let npcs: Vec<crate::application::dto::NpcPresenceData> = npcs_present
+                .into_iter()
+                .map(|n| crate::application::dto::NpcPresenceData {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                })
+                .collect();
+            game_state.npcs_present.set(npcs);
+        }
+
+        ServerMessage::StagingRegenerated {
+            request_id,
+            llm_based_npcs,
+        } => {
+            tracing::info!(
+                "Staging regenerated for request {}: {} LLM-based NPCs",
+                request_id,
+                llm_based_npcs.len()
+            );
+
+            // Update the LLM suggestions in the pending staging approval
+            use crate::presentation::state::game_state::StagedNpcData;
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs.into_iter().map(|n| StagedNpcData {
+                character_id: n.character_id,
+                name: n.name,
+                sprite_asset: n.sprite_asset,
+                portrait_asset: n.portrait_asset,
+                is_present: n.is_present,
+                reasoning: n.reasoning,
+            }).collect();
+
+            game_state.update_staging_llm_suggestions(llm_npcs);
+        }
     }
 }
 

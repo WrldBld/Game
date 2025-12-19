@@ -7,8 +7,11 @@ use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
 
 use crate::application::dto::WorldSnapshot;
-use crate::domain::value_objects::{GameTime, ProposedToolInfo, SessionId, TimeOfDay, WorldId};
+use crate::domain::value_objects::{
+    GameTime, LocationId, PlayerCharacterId, ProposedToolInfo, RegionId, SessionId, TimeOfDay, WorldId,
+};
 use crate::infrastructure::websocket::{ParticipantRole, ServerMessage};
+use crate::application::services::staging_service::StagingProposal;
 
 use super::conversation::ConversationTurn;
 use super::ClientId;
@@ -67,6 +70,77 @@ impl PendingApproval {
     }
 }
 
+/// Tracks a pending staging approval request
+///
+/// This structure maintains all information needed to process the DM's staging decision.
+#[derive(Debug, Clone)]
+pub struct PendingStagingApproval {
+    /// Request ID matching the StagingApprovalRequired message
+    pub request_id: String,
+    /// Region this staging is for
+    pub region_id: RegionId,
+    /// Location containing the region
+    pub location_id: LocationId,
+    /// World ID
+    pub world_id: WorldId,
+    /// Region name (for display)
+    pub region_name: String,
+    /// Location name (for display)
+    pub location_name: String,
+    /// The staging proposal with rule-based and LLM suggestions
+    pub proposal: StagingProposal,
+    /// PCs waiting for this staging to complete
+    pub waiting_pcs: Vec<WaitingPc>,
+    /// Timestamp when approval was requested
+    pub requested_at: DateTime<Utc>,
+}
+
+/// A PC waiting for staging approval
+#[derive(Debug, Clone)]
+pub struct WaitingPc {
+    pub pc_id: PlayerCharacterId,
+    pub pc_name: String,
+    pub client_id: ClientId,
+    pub user_id: String,
+}
+
+impl PendingStagingApproval {
+    pub fn new(
+        request_id: String,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        region_name: String,
+        location_name: String,
+        proposal: StagingProposal,
+    ) -> Self {
+        Self {
+            request_id,
+            region_id,
+            location_id,
+            world_id,
+            region_name,
+            location_name,
+            proposal,
+            waiting_pcs: Vec::new(),
+            requested_at: Utc::now(),
+        }
+    }
+
+    /// Add a PC to the waiting list
+    pub fn add_waiting_pc(&mut self, pc_id: PlayerCharacterId, pc_name: String, client_id: ClientId, user_id: String) {
+        // Avoid duplicates
+        if !self.waiting_pcs.iter().any(|w| w.pc_id == pc_id) {
+            self.waiting_pcs.push(WaitingPc {
+                pc_id,
+                pc_name,
+                client_id,
+                user_id,
+            });
+        }
+    }
+}
+
 /// An active game session
 #[derive(Debug)]
 pub struct GameSession {
@@ -84,6 +158,8 @@ pub struct GameSession {
     max_history_length: usize,
     /// Pending approval requests awaiting DM decision
     pending_approvals: HashMap<String, PendingApproval>,
+    /// Pending staging approval requests awaiting DM decision
+    pending_staging_approvals: HashMap<String, PendingStagingApproval>,
     /// Map of user_id -> PlayerCharacter for this session
     pub player_characters: HashMap<String, crate::domain::entities::PlayerCharacter>,
     /// In-game time tracking (Phase 23C)
@@ -114,6 +190,7 @@ impl GameSession {
             conversation_history: Vec::new(),
             max_history_length,
             pending_approvals: HashMap::new(),
+            pending_staging_approvals: HashMap::new(),
             player_characters: HashMap::new(),
             game_time: GameTime::new(),
         }
@@ -391,6 +468,54 @@ impl GameSession {
     /// Remove a pending approval request (after it's been processed)
     pub fn remove_pending_approval(&mut self, request_id: &str) -> Option<PendingApproval> {
         self.pending_approvals.remove(request_id)
+    }
+
+    // =========================================================================
+    // Staging Approval (Staging System)
+    // =========================================================================
+
+    /// Store a pending staging approval request
+    pub fn add_pending_staging_approval(&mut self, approval: PendingStagingApproval) {
+        self.pending_staging_approvals
+            .insert(approval.request_id.clone(), approval);
+    }
+
+    /// Retrieve a pending staging approval request by ID
+    pub fn get_pending_staging_approval(&self, request_id: &str) -> Option<&PendingStagingApproval> {
+        self.pending_staging_approvals.get(request_id)
+    }
+
+    /// Get a mutable pending staging approval request
+    pub fn get_pending_staging_approval_mut(&mut self, request_id: &str) -> Option<&mut PendingStagingApproval> {
+        self.pending_staging_approvals.get_mut(request_id)
+    }
+
+    /// Remove a pending staging approval request (after it's been processed)
+    pub fn remove_pending_staging_approval(&mut self, request_id: &str) -> Option<PendingStagingApproval> {
+        self.pending_staging_approvals.remove(request_id)
+    }
+
+    /// Find a pending staging approval for a specific region
+    pub fn get_pending_staging_for_region(&self, region_id: RegionId) -> Option<&PendingStagingApproval> {
+        self.pending_staging_approvals.values().find(|p| p.region_id == region_id)
+    }
+
+    /// Get a mutable pending staging approval for a specific region
+    pub fn get_pending_staging_for_region_mut(&mut self, region_id: RegionId) -> Option<&mut PendingStagingApproval> {
+        self.pending_staging_approvals.values_mut().find(|p| p.region_id == region_id)
+    }
+
+    /// Send a message to a specific client by ClientId
+    pub fn send_to_client(&self, client_id: ClientId, message: &ServerMessage) {
+        if let Some(participant) = self.participants.get(&client_id) {
+            if let Err(e) = participant.sender.send(message.clone()) {
+                tracing::warn!(
+                    "Failed to send message to client {}: {}",
+                    client_id,
+                    e
+                );
+            }
+        }
     }
 
     /// Send a message to a specific participant by user ID

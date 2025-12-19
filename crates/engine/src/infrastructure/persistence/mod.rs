@@ -19,6 +19,7 @@ mod scene_repository;
 mod settings_repository;
 mod sheet_template_repository;
 mod skill_repository;
+mod staging_repository;
 mod story_event_repository;
 mod workflow_repository;
 mod world_repository;
@@ -43,6 +44,7 @@ pub use scene_repository::Neo4jSceneRepository;
 pub use settings_repository::SqliteSettingsRepository;
 pub use sheet_template_repository::Neo4jSheetTemplateRepository;
 pub use skill_repository::Neo4jSkillRepository;
+pub use staging_repository::Neo4jStagingRepository;
 pub use story_event_repository::Neo4jStoryEventRepository;
 pub use workflow_repository::Neo4jWorkflowRepository;
 pub use world_repository::Neo4jWorldRepository;
@@ -128,5 +130,9 @@ impl Neo4jRepository {
 
     pub fn observations(&self) -> Neo4jObservationRepository {
         Neo4jObservationRepository::new(self.connection.clone())
+    }
+
+    pub fn stagings(&self) -> Neo4jStagingRepository {
+        Neo4jStagingRepository::new(self.connection.clone())
     }
 }

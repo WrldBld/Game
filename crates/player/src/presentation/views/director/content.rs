@@ -3,10 +3,13 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::{ChallengeData, SkillData};
-use crate::application::ports::outbound::{ApprovalDecision, Platform};
+use crate::application::ports::outbound::{ApprovalDecision, ApprovedNpcInfo, Platform};
 use crate::application::services::SessionCommandService;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
+use crate::presentation::components::dm_panel::staging_approval::{
+    StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest,
+};
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
 use crate::presentation::components::dm_panel::log_entry::DynamicLogEntry;
 use crate::presentation::services::{use_challenge_service, use_skill_service};
@@ -458,6 +461,69 @@ pub fn DirectorModeContent() -> Element {
                                 },
                                 on_close: move |_| show_trigger_challenge.set(false),
                             }
+                        }
+                    }
+                }
+            }
+
+            // Staging Approval Popup - shown when a PC is trying to enter a region
+            if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
+                {
+                    // Clone session_state for the closures
+                    let session_state_for_approve = use_session_state();
+                    let session_state_for_regenerate = use_session_state();
+                    let mut game_state_for_approve = game_state.clone();
+                    let mut game_state_for_close = game_state.clone();
+                    
+                    rsx! {
+                        StagingApprovalPopup {
+                            data: staging_data.clone(),
+                            on_approve: move |result: StagingApprovalResult| {
+                                tracing::info!("Staging approved for request {}: {} NPCs, ttl={} hours",
+                                    result.request_id, result.approved_npcs.len(), result.ttl_hours);
+                                
+                                // Send approval to engine
+                                if let Some(client) = session_state_for_approve.engine_client().read().as_ref() {
+                                    let approved_npcs: Vec<ApprovedNpcInfo> = result.approved_npcs
+                                        .into_iter()
+                                        .map(|(character_id, is_present)| ApprovedNpcInfo {
+                                            character_id,
+                                            is_present,
+                                            reasoning: None,
+                                        })
+                                        .collect();
+                                    
+                                    if let Err(e) = client.send_staging_approval(
+                                        &result.request_id,
+                                        approved_npcs,
+                                        result.ttl_hours,
+                                        &result.source,
+                                    ) {
+                                        tracing::error!("Failed to send staging approval: {}", e);
+                                    }
+                                }
+                                
+                                // Clear the pending approval
+                                game_state_for_approve.clear_pending_staging_approval();
+                            },
+                            on_regenerate: move |request: StagingRegenerateRequest| {
+                                tracing::info!("Regenerating staging for request {}: {}",
+                                    request.request_id, request.guidance);
+                                
+                                // Send regenerate request to engine
+                                if let Some(client) = session_state_for_regenerate.engine_client().read().as_ref() {
+                                    if let Err(e) = client.request_staging_regenerate(
+                                        &request.request_id,
+                                        &request.guidance,
+                                    ) {
+                                        tracing::error!("Failed to send staging regenerate request: {}", e);
+                                    }
+                                }
+                            },
+                            on_close: move |_| {
+                                // Clear without sending approval (dismiss)
+                                game_state_for_close.clear_pending_staging_approval();
+                            },
                         }
                     }
                 }

@@ -520,44 +520,32 @@ impl From<TimeContextStored> for TimeContext {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 enum TimeOfDayStored {
-    Dawn,
     Morning,
-    Midday,
     Afternoon,
     Evening,
-    Dusk,
     Night,
-    Midnight,
 }
 
-impl From<crate::domain::entities::TimeOfDay> for TimeOfDayStored {
-    fn from(value: crate::domain::entities::TimeOfDay) -> Self {
-        use crate::domain::entities::TimeOfDay as T;
+impl From<crate::domain::value_objects::TimeOfDay> for TimeOfDayStored {
+    fn from(value: crate::domain::value_objects::TimeOfDay) -> Self {
+        use crate::domain::value_objects::TimeOfDay as T;
         match value {
-            T::Dawn => Self::Dawn,
             T::Morning => Self::Morning,
-            T::Midday => Self::Midday,
             T::Afternoon => Self::Afternoon,
             T::Evening => Self::Evening,
-            T::Dusk => Self::Dusk,
             T::Night => Self::Night,
-            T::Midnight => Self::Midnight,
         }
     }
 }
 
-impl From<TimeOfDayStored> for crate::domain::entities::TimeOfDay {
+impl From<TimeOfDayStored> for crate::domain::value_objects::TimeOfDay {
     fn from(value: TimeOfDayStored) -> Self {
-        use crate::domain::entities::TimeOfDay as T;
+        use crate::domain::value_objects::TimeOfDay as T;
         match value {
-            TimeOfDayStored::Dawn => T::Dawn,
             TimeOfDayStored::Morning => T::Morning,
-            TimeOfDayStored::Midday => T::Midday,
             TimeOfDayStored::Afternoon => T::Afternoon,
             TimeOfDayStored::Evening => T::Evening,
-            TimeOfDayStored::Dusk => T::Dusk,
             TimeOfDayStored::Night => T::Night,
-            TimeOfDayStored::Midnight => T::Midnight,
         }
     }
 }

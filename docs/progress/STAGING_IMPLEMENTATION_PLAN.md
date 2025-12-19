@@ -1,8 +1,8 @@
 # Staging System Implementation Plan
 
 **Created:** 2025-12-19
-**Status:** Ready to Implement
-**Estimated Effort:** ~16.5 hours
+**Status:** Parts A-F Complete, Part G Pending
+**Estimated Effort:** ~16.5 hours (15.5 hours completed)
 **Phase:** 3 of Code Review Remediation
 
 This plan implements the **Staging System** which manages NPC presence in regions with DM approval workflow, combining rule-based logic with LLM reasoning.
@@ -54,15 +54,15 @@ The Staging System's LLM needs context about recent dialogues with NPCs to make 
 
 ## Task Breakdown
 
-### Part A: Dialogue Tracking (2.5 hours)
+### Part A: Dialogue Tracking (2.5 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| A1 | Add `get_dialogues_with_npc` to StoryEventRepositoryPort | 20m | ⏳ | `ports/outbound/story_event_repository_port.rs` |
-| A2 | Implement Cypher query in StoryEventRepository | 30m | ⏳ | `persistence/story_event_repository.rs` |
-| A3 | Call `record_dialogue_exchange` in DMApprovalQueueService | 30m | ⏳ | `dm_approval_queue_service.rs` |
-| A4 | Add SPOKE_TO edge creation/update in StoryEventRepository | 30m | ⏳ | `persistence/story_event_repository.rs` |
-| A5 | Create StoryEventService method for dialogue summary | 30m | ⏳ | `story_event_service.rs` |
+| A1 | Add `get_dialogues_with_npc` to StoryEventRepositoryPort | 20m | ✅ | `ports/outbound/story_event_repository_port.rs` |
+| A2 | Implement Cypher query in StoryEventRepository | 30m | ✅ | `persistence/story_event_repository.rs` |
+| A3 | Call `record_dialogue_exchange` in DMApprovalQueueService | 30m | ✅ | `dm_approval_queue_service.rs` |
+| A4 | Add SPOKE_TO edge creation/update in StoryEventRepository | 30m | ✅ | `persistence/story_event_repository.rs` |
+| A5 | Create StoryEventService method for dialogue summary | 30m | ✅ | `story_event_service.rs` |
 
 **Cypher for A2:**
 ```cypher
@@ -84,15 +84,15 @@ SET r.last_dialogue_at = datetime(),
 
 ---
 
-### Part B: Staging Domain (2 hours)
+### Part B: Staging Domain (2 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| B1 | Create Staging entity | 30m | ⏳ | `entities/staging.rs`, `entities/mod.rs` |
-| B2 | Create StagingContext value objects | 30m | ⏳ | `value_objects/staging_context.rs` |
-| B3 | Add Location entity fields (TTL, use_llm) | 20m | ⏳ | `entities/location.rs` |
-| B4 | Update LocationRepository for new fields | 20m | ⏳ | `persistence/location_repository.rs` |
-| B5 | Update Location HTTP routes for settings | 20m | ⏳ | `http/location_routes.rs` |
+| B1 | Create Staging entity | 30m | ✅ | `entities/staging.rs`, `entities/mod.rs` |
+| B2 | Create StagingContext value objects | 30m | ✅ | `value_objects/staging_context.rs` |
+| B3 | Add Location entity fields (TTL, use_llm) | 20m | ✅ | `entities/location.rs` |
+| B4 | Update LocationRepository for new fields | 20m | ✅ | `persistence/location_repository.rs` |
+| B5 | Update Location HTTP routes for settings | 20m | ✅ | `http/location_routes.rs` |
 
 **B1 - Staging Entity:**
 ```rust
@@ -167,14 +167,14 @@ pub struct Location {
 
 ---
 
-### Part C: Staging Infrastructure (3 hours)
+### Part C: Staging Infrastructure (3 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| C1 | Create StagingRepositoryPort trait | 20m | ⏳ | `ports/outbound/staging_repository_port.rs` |
-| C2 | Implement StagingRepository (Neo4j) | 1h | ⏳ | `persistence/staging_repository.rs` |
-| C3 | Add protocol messages | 30m | ⏳ | `protocol/messages.rs` |
-| C4 | Wire StagingService to AppState | 30m | ⏳ | `state/mod.rs`, `state/game_services.rs` |
+| C1 | Create StagingRepositoryPort trait | 20m | ✅ | `ports/outbound/staging_repository_port.rs` |
+| C2 | Implement StagingRepository (Neo4j) | 1h | ✅ | `persistence/staging_repository.rs` |
+| C3 | Add protocol messages | 30m | ✅ | `protocol/messages.rs` |
+| C4 | Wire StagingService to AppState | 30m | ✅ | `state/mod.rs`, `state/game_services.rs` |
 
 **C1 - Repository Port:**
 ```rust
@@ -227,12 +227,12 @@ Server → Client (Player):
 
 ---
 
-### Part D: Staging Service (2 hours)
+### Part D: Staging Service (2 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| D1 | Create StagingContextProvider | 45m | ⏳ | `services/staging_context.rs` |
-| D2 | Create StagingService | 1.25h | ⏳ | `services/staging_service.rs` |
+| D1 | Create StagingContextProvider | 45m | ✅ | `services/staging_context.rs` |
+| D2 | Create StagingService | 1.25h | ✅ | `services/staging_service.rs` |
 
 **D2 - StagingService methods:**
 ```rust
@@ -300,12 +300,14 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 ---
 
-### Part E: Engine Integration (1.5 hours)
+### Part E: Engine Integration (1.5 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| E1 | Update WebSocket for staging flow | 1h | ⏳ | `websocket.rs` |
-| E2 | Add staging to approval queue worker | 30m | ⏳ | `queue_workers.rs` |
+| E1 | Update WebSocket for staging flow | 1h | ✅ | `websocket.rs` |
+| E2 | Add PendingStagingApproval tracking | 30m | ✅ | `game_session.rs` |
+
+**Note:** E2 was changed from queue_workers to game_session tracking for pending approvals.
 
 **E1 - WebSocket MoveToRegion handler changes:**
 ```rust
@@ -333,16 +335,16 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 ---
 
-### Part F: Player UI (4.5 hours)
+### Part F: Player UI (4.5 hours) ✅ COMPLETE
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| F1 | Add staging state to GameState | 20m | ⏳ | `state/game_state.rs` |
-| F2 | Add staging message handlers | 30m | ⏳ | `handlers/session_message_handler.rs` |
-| F3 | Create StagingApproval popup component | 1.5h | ⏳ | `dm_panel/staging_approval.rs` |
-| F4 | Create PreStaging UI (location tab) | 1h | ⏳ | `dm_panel/location_staging.rs` |
-| F5 | Add StagingPending overlay to PC view | 30m | ⏳ | `views/pc_view.rs` |
-| F6 | Update Location editor for TTL settings | 30m | ⏳ | `creator/location_editor.rs` |
+| F1 | Add staging state to GameState | 20m | ✅ | `state/game_state.rs` |
+| F2 | Add staging message handlers | 30m | ✅ | `handlers/session_message_handler.rs` |
+| F3 | Create StagingApproval popup component | 1.5h | ✅ | `dm_panel/staging_approval.rs` |
+| F4 | Create PreStaging UI (location tab) | 1h | ✅ | `dm_panel/location_staging.rs` |
+| F5 | Add StagingPending overlay to PC view | 30m | ✅ | `views/pc_view.rs` |
+| F6 | Update Location editor for TTL settings | 30m | ✅ | `services/location_service.rs` (LocationFormData) |
 
 **F1 - State signals:**
 ```rust
@@ -380,13 +382,13 @@ if let Some(_region_id) = staging_pending.read().as_ref() {
 
 ---
 
-### Part G: Finalization (1 hour)
+### Part G: Finalization (1 hour) ⏳ PARTIAL
 
 | # | Task | Est. | Status | Files |
 |---|------|------|--------|-------|
-| G1 | Integration testing | 30m | ⏳ | Manual testing |
-| G2 | Remove/deprecate old PresenceService | 15m | ⏳ | `presence_service.rs` |
-| G3 | Update CODE_REVIEW_REMEDIATION_PLAN.md | 15m | ⏳ | `docs/progress/` |
+| G1 | Integration testing | 30m | ⏳ | Manual testing (deferred) |
+| G2 | Remove/deprecate old PresenceService | 15m | ✅ | Deleted `presence_service.rs` |
+| G3 | Update CODE_REVIEW_REMEDIATION_PLAN.md | 15m | ✅ | `docs/progress/` |
 
 ---
 
@@ -437,12 +439,12 @@ if let Some(_region_id) = staging_pending.read().as_ref() {
 
 ## Rollback Plan
 
-If issues arise during implementation:
+**Note:** Legacy PresenceService has been removed. The Staging System is now the only implementation.
 
-1. **Part A issues**: Dialogue tracking is additive; can skip if problematic
-2. **Part B-D issues**: Keep old PresenceService as fallback
-3. **Part E issues**: Feature flag to use old inline presence logic
-4. **Part F issues**: Disable staging UI, use fallback approval
+If issues arise:
+1. **Database issues**: Staging data is in Neo4j; can be cleared with `MATCH (s:Staging) DETACH DELETE s`
+2. **WebSocket issues**: Check `websocket.rs` handlers for staging flow
+3. **UI issues**: Staging approval popup can be dismissed; pre-staging is optional
 
 ---
 
@@ -460,3 +462,12 @@ If issues arise during implementation:
 | Date | Part | Task | Status | Notes |
 |------|------|------|--------|-------|
 | 2025-12-19 | - | Plan created | Done | |
+| 2025-12-19 | A | Dialogue Tracking | Done | All A1-A5 tasks completed |
+| 2025-12-19 | B | Staging Domain | Done | All B1-B5 tasks completed |
+| 2025-12-19 | C | Staging Infrastructure | Done | All C1-C4 tasks completed |
+| 2025-12-19 | D | Staging Service | Done | All D1-D2 tasks completed |
+| 2025-12-19 | E | Engine Integration | Done | WebSocket handlers, pending approval tracking |
+| 2025-12-19 | F | Player UI | Done | All F1-F6 tasks completed |
+| 2025-12-19 | G | Finalization | Partial | G2-G3 done, G1 testing deferred |
+| 2025-12-19 | G2 | Remove PresenceService | Done | Deleted presence_service.rs |
+| 2025-12-19 | G3 | Update documentation | Done | Updated all tracking files |

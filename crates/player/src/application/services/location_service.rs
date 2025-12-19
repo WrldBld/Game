@@ -38,6 +38,9 @@ pub struct LocationFormData {
     pub backdrop_asset: Option<String>,
     #[serde(default)]
     pub backdrop_regions: Vec<serde_json::Value>,
+    /// Default TTL in hours for staging cache in this location (default: 4 hours)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_cache_ttl_hours: Option<i32>,
 }
 
 /// Location connection data

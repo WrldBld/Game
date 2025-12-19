@@ -367,6 +367,83 @@ impl GameConnectionPort for EngineGameConnection {
         }
     }
 
+    fn send_staging_approval(
+        &self,
+        request_id: &str,
+        approved_npcs: Vec<crate::application::ports::outbound::ApprovedNpcInfo>,
+        ttl_hours: i32,
+        source: &str,
+    ) -> Result<()> {
+        let msg = ClientMessage::StagingApprovalResponse {
+            request_id: request_id.to_string(),
+            approved_npcs,
+            ttl_hours,
+            source: source.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send staging approval: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> Result<()> {
+        let msg = ClientMessage::StagingRegenerateRequest {
+            request_id: request_id.to_string(),
+            guidance: guidance.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send staging regenerate request: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn pre_stage_region(
+        &self,
+        region_id: &str,
+        npcs: Vec<crate::application::ports::outbound::ApprovedNpcInfo>,
+        ttl_hours: i32,
+    ) -> Result<()> {
+        let msg = ClientMessage::PreStageRegion {
+            region_id: region_id.to_string(),
+            npcs,
+            ttl_hours,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send pre-stage region: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn on_state_change(&self, callback: Box<dyn FnMut(PortConnectionState) + Send + 'static>) {
         let state_slot = Arc::clone(&self.state);

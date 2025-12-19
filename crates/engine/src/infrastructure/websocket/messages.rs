@@ -37,4 +37,10 @@ pub use wrldbldr_protocol::{
     ApprovalDecision,
     ChallengeSuggestionInfo,
     NarrativeEventSuggestionInfo,
+    // Staging types
+    StagedNpcInfo,
+    PreviousStagingInfo,
+    WaitingPcInfo,
+    NpcPresentInfo,
+    ApprovedNpcInfo,
 };

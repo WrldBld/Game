@@ -8,7 +8,7 @@
 //!
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
-use crate::domain::value_objects::{ActId, CharacterId, LocationId, SceneId};
+use crate::domain::value_objects::{ActId, CharacterId, LocationId, SceneId, TimeOfDay};
 
 /// A scene - a complete unit of storytelling
 ///
@@ -91,18 +91,7 @@ pub enum TimeContext {
     Custom(String),
 }
 
-/// Time of day
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TimeOfDay {
-    Dawn,
-    Morning,
-    Midday,
-    Afternoon,
-    Evening,
-    Dusk,
-    Night,
-    Midnight,
-}
+// TimeOfDay is imported from value_objects - the canonical 4-variant type
 
 /// Condition for entering a scene
 #[derive(Debug, Clone)]

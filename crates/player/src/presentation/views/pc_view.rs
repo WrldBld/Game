@@ -737,6 +737,53 @@ pub fn PCView() -> Element {
                     },
                 }
             }
+
+            // Staging pending overlay (player waiting for DM to set the scene)
+            if let Some(ref pending) = *game_state.staging_pending.read() {
+                StagingPendingOverlay {
+                    region_name: pending.region_name.clone(),
+                }
+            }
+        }
+    }
+}
+
+/// Overlay shown when player is waiting for DM to approve staging
+#[component]
+fn StagingPendingOverlay(region_name: String) -> Element {
+    rsx! {
+        div {
+            class: "fixed inset-0 bg-black/70 flex items-center justify-center z-[900] backdrop-blur-sm",
+
+            div {
+                class: "bg-gradient-to-br from-dark-surface to-dark-bg p-8 rounded-2xl max-w-md text-center border border-amber-500/30",
+
+                // Spinning loader
+                div {
+                    class: "mb-6",
+                    div {
+                        class: "w-16 h-16 mx-auto border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin",
+                    }
+                }
+
+                // Title
+                h2 {
+                    class: "text-2xl font-bold text-amber-400 mb-3",
+                    "Setting the Scene..."
+                }
+
+                // Region name
+                p {
+                    class: "text-gray-300 text-lg mb-4",
+                    "Entering {region_name}"
+                }
+
+                // Description
+                p {
+                    class: "text-gray-500 text-sm",
+                    "The DM is preparing the scene. Please wait..."
+                }
+            }
         }
     }
 }

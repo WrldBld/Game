@@ -1682,14 +1682,17 @@ async fn handle_message(
                 });
             }
 
-            // Get location for name
+            // Get location for name and staging settings
             let location = state.repository.locations().get(target_region.location_id).await
                 .ok().flatten();
             let location_name = location.as_ref().map(|l| l.name.clone()).unwrap_or_default();
             let backdrop = target_region.backdrop_asset.clone()
                 .or_else(|| location.as_ref().and_then(|l| l.backdrop_asset.clone()));
+            let world_id = location.as_ref().map(|l| l.world_id).unwrap_or_else(crate::domain::value_objects::WorldId::new);
+            let default_ttl = location.as_ref().map(|l| l.presence_cache_ttl_hours).unwrap_or(3);
+            let use_llm = location.as_ref().map(|l| l.use_llm_presence).unwrap_or(true);
 
-            // Get NPCs present (simple rule-based)
+            // Get game time
             let game_time = {
                 let sessions = state.sessions.read().await;
                 sessions.get_session(session_id)
@@ -1697,30 +1700,228 @@ async fn handle_message(
                     .unwrap_or_default()
             };
 
-            let npc_relationships = state.repository.characters()
-                .get_npcs_related_to_region(region_uuid)
-                .await
-                .unwrap_or_default();
+            // Get user ID for this PC
+            let user_id = state.async_session_port.get_client_user_id(&client_id_str).await
+                .unwrap_or_else(|| client_id_str.clone());
 
-            let time_of_day = game_time.time_of_day();
-            let npcs_present: Vec<messages::NpcPresenceData> = npc_relationships
-                .into_iter()
-                .filter_map(|(character, rel_type)| {
-                    let is_present = rel_type.is_npc_present(time_of_day);
-                    if is_present {
-                        Some(messages::NpcPresenceData {
-                            character_id: character.id.to_string(),
-                            name: character.name,
-                            sprite_asset: character.sprite_asset,
-                            portrait_asset: character.portrait_asset,
-                        })
-                    } else {
-                        None
+            // =====================================================================
+            // Staging System Integration
+            // =====================================================================
+            
+            // Check for existing valid staging
+            let existing_staging = state.staging_service.get_current_staging(region_uuid, &game_time).await.ok().flatten();
+
+            let npcs_present: Vec<messages::NpcPresenceData> = if let Some(staging) = existing_staging {
+                // Use existing staging
+                tracing::debug!("Using existing staging {} for region {}", staging.id, region_uuid);
+                staging.npcs
+                    .into_iter()
+                    .filter(|npc| npc.is_present)
+                    .map(|npc| messages::NpcPresenceData {
+                        character_id: npc.character_id.to_string(),
+                        name: npc.name,
+                        sprite_asset: npc.sprite_asset,
+                        portrait_asset: npc.portrait_asset,
+                    })
+                    .collect()
+            } else {
+                // No valid staging - check if there's already a pending approval for this region
+                let has_pending = {
+                    let sessions = state.sessions.read().await;
+                    sessions.get_session(session_id)
+                        .and_then(|s| s.get_pending_staging_for_region(region_uuid))
+                        .is_some()
+                };
+
+                if has_pending {
+                    // Add this PC to the waiting list and send StagingPending
+                    {
+                        let mut sessions = state.sessions.write().await;
+                        if let Some(session) = sessions.get_session_mut(session_id) {
+                            if let Some(pending) = session.get_pending_staging_for_region_mut(region_uuid) {
+                                pending.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
+                            }
+                        }
                     }
-                })
-                .collect();
 
-            // Get navigation options
+                    // Send StagingPending to this player
+                    let _ = sender.send(ServerMessage::StagingPending {
+                        region_id: region_uuid.to_string(),
+                        region_name: target_region.name.clone(),
+                    });
+
+                    tracing::info!(
+                        pc_id = %pc_id,
+                        region_id = %region_id,
+                        "PC added to existing pending staging, waiting for DM approval"
+                    );
+
+                    return None; // Return early, will send SceneChanged when staging approved
+                }
+
+                // No pending staging - generate a new proposal
+                tracing::info!("No valid staging for region {}, generating proposal", region_uuid);
+
+                // Send StagingPending to player immediately
+                let _ = sender.send(ServerMessage::StagingPending {
+                    region_id: region_uuid.to_string(),
+                    region_name: target_region.name.clone(),
+                });
+
+                // Generate staging proposal
+                let proposal = match state.staging_service.generate_proposal(
+                    world_id,
+                    region_uuid,
+                    target_region.location_id,
+                    &location_name,
+                    &game_time,
+                    default_ttl,
+                    None, // No DM guidance yet
+                ).await {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::error!("Failed to generate staging proposal: {}", e);
+                        // Fall back to simple rule-based presence
+                        let npc_relationships = state.repository.characters()
+                            .get_npcs_related_to_region(region_uuid)
+                            .await
+                            .unwrap_or_default();
+
+                        let time_of_day = game_time.time_of_day();
+                        return Some(ServerMessage::SceneChanged {
+                            pc_id: pc_id.clone(),
+                            region: messages::RegionData {
+                                id: region_uuid.to_string(),
+                                name: target_region.name.clone(),
+                                location_id: target_region.location_id.to_string(),
+                                location_name: location_name.clone(),
+                                backdrop_asset: backdrop.clone(),
+                                atmosphere: target_region.atmosphere.clone(),
+                            },
+                            npcs_present: npc_relationships
+                                .into_iter()
+                                .filter_map(|(character, rel_type)| {
+                                    if rel_type.is_npc_present(time_of_day) {
+                                        Some(messages::NpcPresenceData {
+                                            character_id: character.id.to_string(),
+                                            name: character.name,
+                                            sprite_asset: character.sprite_asset,
+                                            portrait_asset: character.portrait_asset,
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                            navigation: messages::NavigationData {
+                                connected_regions: Vec::new(),
+                                exits: Vec::new(),
+                            },
+                        });
+                    }
+                };
+
+                let request_id = proposal.request_id.clone();
+
+                // Get previous staging for reference
+                let previous_staging = state.staging_service.get_previous_staging(region_uuid).await.ok().flatten();
+                let previous_staging_info = previous_staging.map(|s| messages::PreviousStagingInfo {
+                    staging_id: s.id.to_string(),
+                    approved_at: s.approved_at.to_rfc3339(),
+                    npcs: s.npcs.into_iter().map(|npc| messages::StagedNpcInfo {
+                        character_id: npc.character_id.to_string(),
+                        name: npc.name,
+                        sprite_asset: npc.sprite_asset,
+                        portrait_asset: npc.portrait_asset,
+                        is_present: npc.is_present,
+                        reasoning: npc.reasoning,
+                    }).collect(),
+                });
+
+                // Convert proposal NPCs to protocol format
+                let rule_based_npcs: Vec<messages::StagedNpcInfo> = proposal.rule_based_npcs
+                    .iter()
+                    .map(|npc| messages::StagedNpcInfo {
+                        character_id: npc.character_id.clone(),
+                        name: npc.name.clone(),
+                        sprite_asset: npc.sprite_asset.clone(),
+                        portrait_asset: npc.portrait_asset.clone(),
+                        is_present: npc.is_present,
+                        reasoning: npc.reasoning.clone(),
+                    })
+                    .collect();
+
+                let llm_based_npcs: Vec<messages::StagedNpcInfo> = if use_llm {
+                    proposal.llm_based_npcs
+                        .iter()
+                        .map(|npc| messages::StagedNpcInfo {
+                            character_id: npc.character_id.clone(),
+                            name: npc.name.clone(),
+                            sprite_asset: npc.sprite_asset.clone(),
+                            portrait_asset: npc.portrait_asset.clone(),
+                            is_present: npc.is_present,
+                            reasoning: npc.reasoning.clone(),
+                        })
+                        .collect()
+                } else {
+                    Vec::new() // Don't include LLM suggestions if disabled
+                };
+
+                // Store pending staging approval
+                let mut pending_approval = crate::infrastructure::session::PendingStagingApproval::new(
+                    request_id.clone(),
+                    region_uuid,
+                    target_region.location_id,
+                    world_id,
+                    target_region.name.clone(),
+                    location_name.clone(),
+                    proposal,
+                );
+                pending_approval.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
+
+                {
+                    let mut sessions = state.sessions.write().await;
+                    if let Some(session) = sessions.get_session_mut(session_id) {
+                        session.add_pending_staging_approval(pending_approval);
+                    }
+                }
+
+                // Send StagingApprovalRequired to DM
+                let approval_msg = ServerMessage::StagingApprovalRequired {
+                    request_id,
+                    region_id: region_uuid.to_string(),
+                    region_name: target_region.name.clone(),
+                    location_id: target_region.location_id.to_string(),
+                    location_name: location_name.clone(),
+                    game_time_display: game_time.display_date(),
+                    previous_staging: previous_staging_info,
+                    rule_based_npcs,
+                    llm_based_npcs,
+                    default_ttl_hours: default_ttl,
+                    waiting_pcs: vec![messages::WaitingPcInfo {
+                        pc_id: pc_id.clone(),
+                        pc_name: pc.name.clone(),
+                        player_id: user_id,
+                    }],
+                };
+
+                {
+                    let sessions = state.sessions.read().await;
+                    if let Some(session) = sessions.get_session(session_id) {
+                        session.send_to_dm(&approval_msg);
+                    }
+                }
+
+                tracing::info!(
+                    pc_id = %pc_id,
+                    region_id = %region_id,
+                    "Staging approval request sent to DM"
+                );
+
+                return None; // Return early, will send SceneChanged when staging approved
+            };
+
+            // Get navigation options (only reached if we have valid staging)
             let connections = state.repository.regions().get_connections(region_uuid).await.unwrap_or_default();
             let exits = state.repository.regions().get_exits(region_uuid).await.unwrap_or_default();
 
@@ -1951,6 +2152,453 @@ async fn handle_message(
                     exits: exit_targets,
                 },
             })
+        }
+
+        // =====================================================================
+        // Staging System (NPC Presence Approval)
+        // =====================================================================
+
+        ClientMessage::StagingApprovalResponse {
+            request_id,
+            approved_npcs,
+            ttl_hours,
+            source,
+        } => {
+            tracing::info!(
+                request_id = %request_id,
+                npc_count = approved_npcs.len(),
+                ttl_hours = ttl_hours,
+                source = %source,
+                "Staging approval response received"
+            );
+
+            let client_id_str = client_id.to_string();
+            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
+                Some(sid) => sid,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_SESSION".to_string(),
+                        message: "Client is not in a session".to_string(),
+                    });
+                }
+            };
+
+            // Get the pending staging approval
+            let pending = {
+                let sessions = state.sessions.read().await;
+                let session = match sessions.get_session(session_id) {
+                    Some(s) => s,
+                    None => {
+                        return Some(ServerMessage::Error {
+                            code: "SESSION_NOT_FOUND".to_string(),
+                            message: "Session not found".to_string(),
+                        });
+                    }
+                };
+                session.get_pending_staging_approval(&request_id).cloned()
+            };
+
+            let pending = match pending {
+                Some(p) => p,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "STAGING_NOT_FOUND".to_string(),
+                        message: format!("Pending staging request {} not found", request_id),
+                    });
+                }
+            };
+
+            // Parse staging source
+            let staging_source = match source.as_str() {
+                "rule" => crate::domain::entities::StagingSource::RuleBased,
+                "llm" => crate::domain::entities::StagingSource::LlmBased,
+                "custom" => crate::domain::entities::StagingSource::DmCustomized,
+                _ => crate::domain::entities::StagingSource::DmCustomized,
+            };
+
+            // Get character data for approved NPCs
+            let mut approved_npc_data = Vec::new();
+            for npc_info in &approved_npcs {
+                let char_id = match uuid::Uuid::parse_str(&npc_info.character_id) {
+                    Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                    Err(_) => continue,
+                };
+
+                // Find character in proposal to get name and assets
+                let (name, sprite, portrait) = pending.proposal.rule_based_npcs
+                    .iter()
+                    .chain(pending.proposal.llm_based_npcs.iter())
+                    .find(|n| n.character_id == npc_info.character_id)
+                    .map(|n| (n.name.clone(), n.sprite_asset.clone(), n.portrait_asset.clone()))
+                    .unwrap_or_else(|| ("Unknown".to_string(), None, None));
+
+                approved_npc_data.push(crate::application::services::staging_service::ApprovedNpcData {
+                    character_id: char_id,
+                    name,
+                    sprite_asset: sprite,
+                    portrait_asset: portrait,
+                    is_present: npc_info.is_present,
+                    reasoning: npc_info.reasoning.clone().unwrap_or_else(|| "DM approved".to_string()),
+                });
+            }
+
+            // Get game time
+            let game_time = {
+                let sessions = state.sessions.read().await;
+                sessions.get_session(session_id)
+                    .map(|s| s.game_time().clone())
+                    .unwrap_or_default()
+            };
+
+            // Get DM user ID for approved_by
+            let dm_user_id = state.async_session_port.get_client_user_id(&client_id_str).await
+                .unwrap_or_else(|| client_id_str.clone());
+
+            // Approve the staging
+            let staging = match state.staging_service.approve_staging(
+                pending.region_id,
+                pending.location_id,
+                pending.world_id,
+                &game_time,
+                approved_npc_data,
+                ttl_hours,
+                staging_source,
+                &dm_user_id,
+                None,
+            ).await {
+                Ok(s) => s,
+                Err(e) => {
+                    return Some(ServerMessage::Error {
+                        code: "STAGING_APPROVAL_FAILED".to_string(),
+                        message: format!("Failed to approve staging: {}", e),
+                    });
+                }
+            };
+
+            // Build the NPC presence list for players
+            let npcs_present: Vec<messages::NpcPresentInfo> = staging.npcs
+                .iter()
+                .filter(|npc| npc.is_present)
+                .map(|npc| messages::NpcPresentInfo {
+                    character_id: npc.character_id.to_string(),
+                    name: npc.name.clone(),
+                    sprite_asset: npc.sprite_asset.clone(),
+                    portrait_asset: npc.portrait_asset.clone(),
+                })
+                .collect();
+
+            // Send StagingReady to all waiting PCs
+            let staging_ready = ServerMessage::StagingReady {
+                region_id: pending.region_id.to_string(),
+                npcs_present: npcs_present.clone(),
+            };
+
+            {
+                let sessions = state.sessions.read().await;
+                if let Some(session) = sessions.get_session(session_id) {
+                    for waiting_pc in &pending.waiting_pcs {
+                        session.send_to_client(waiting_pc.client_id, &staging_ready);
+                        
+                        // Also send SceneChanged with the NPCs
+                        // Get region data for the scene change
+                        if let Ok(Some(region)) = state.repository.regions().get(pending.region_id).await {
+                            let connections = state.repository.regions().get_connections(pending.region_id).await.unwrap_or_default();
+                            let exits = state.repository.regions().get_exits(pending.region_id).await.unwrap_or_default();
+
+                            let mut connected_regions = Vec::new();
+                            for conn in connections {
+                                if let Ok(Some(target)) = state.repository.regions().get(conn.to_region).await {
+                                    connected_regions.push(messages::NavigationTarget {
+                                        region_id: conn.to_region.to_string(),
+                                        name: target.name,
+                                        is_locked: conn.is_locked,
+                                        lock_description: conn.lock_description,
+                                    });
+                                }
+                            }
+
+                            let mut exit_targets = Vec::new();
+                            for exit in exits {
+                                if let Ok(Some(target_loc)) = state.repository.locations().get(exit.to_location).await {
+                                    exit_targets.push(messages::NavigationExit {
+                                        location_id: exit.to_location.to_string(),
+                                        location_name: target_loc.name,
+                                        arrival_region_id: exit.arrival_region_id.to_string(),
+                                        description: exit.description,
+                                    });
+                                }
+                            }
+
+                            let scene_changed = ServerMessage::SceneChanged {
+                                pc_id: waiting_pc.pc_id.to_string(),
+                                region: messages::RegionData {
+                                    id: pending.region_id.to_string(),
+                                    name: region.name.clone(),
+                                    location_id: pending.location_id.to_string(),
+                                    location_name: pending.location_name.clone(),
+                                    backdrop_asset: region.backdrop_asset.clone(),
+                                    atmosphere: region.atmosphere.clone(),
+                                },
+                                npcs_present: npcs_present.iter().map(|npc| messages::NpcPresenceData {
+                                    character_id: npc.character_id.clone(),
+                                    name: npc.name.clone(),
+                                    sprite_asset: npc.sprite_asset.clone(),
+                                    portrait_asset: npc.portrait_asset.clone(),
+                                }).collect(),
+                                navigation: messages::NavigationData {
+                                    connected_regions,
+                                    exits: exit_targets,
+                                },
+                            };
+                            session.send_to_client(waiting_pc.client_id, &scene_changed);
+                        }
+                    }
+                }
+            }
+
+            // Remove the pending staging approval
+            {
+                let mut sessions = state.sessions.write().await;
+                if let Some(session) = sessions.get_session_mut(session_id) {
+                    session.remove_pending_staging_approval(&request_id);
+                }
+            }
+
+            tracing::info!(
+                request_id = %request_id,
+                region_id = %pending.region_id,
+                waiting_pcs = pending.waiting_pcs.len(),
+                "Staging approved and sent to waiting PCs"
+            );
+
+            None // No direct response to DM
+        }
+
+        ClientMessage::StagingRegenerateRequest {
+            request_id,
+            guidance,
+        } => {
+            tracing::info!(
+                request_id = %request_id,
+                guidance = %guidance,
+                "Staging regenerate request received"
+            );
+
+            let client_id_str = client_id.to_string();
+            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
+                Some(sid) => sid,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_SESSION".to_string(),
+                        message: "Client is not in a session".to_string(),
+                    });
+                }
+            };
+
+            // Get the pending staging approval
+            let pending = {
+                let sessions = state.sessions.read().await;
+                let session = match sessions.get_session(session_id) {
+                    Some(s) => s,
+                    None => {
+                        return Some(ServerMessage::Error {
+                            code: "SESSION_NOT_FOUND".to_string(),
+                            message: "Session not found".to_string(),
+                        });
+                    }
+                };
+                session.get_pending_staging_approval(&request_id).cloned()
+            };
+
+            let pending = match pending {
+                Some(p) => p,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "STAGING_NOT_FOUND".to_string(),
+                        message: format!("Pending staging request {} not found", request_id),
+                    });
+                }
+            };
+
+            // Get game time
+            let game_time = {
+                let sessions = state.sessions.read().await;
+                sessions.get_session(session_id)
+                    .map(|s| s.game_time().clone())
+                    .unwrap_or_default()
+            };
+
+            // Regenerate LLM suggestions
+            let new_suggestions = match state.staging_service.regenerate_suggestions(
+                pending.world_id,
+                pending.region_id,
+                &pending.location_name,
+                &game_time,
+                &guidance,
+            ).await {
+                Ok(s) => s,
+                Err(e) => {
+                    return Some(ServerMessage::Error {
+                        code: "REGENERATION_FAILED".to_string(),
+                        message: format!("Failed to regenerate suggestions: {}", e),
+                    });
+                }
+            };
+
+            // Convert to protocol format
+            let llm_based_npcs: Vec<messages::StagedNpcInfo> = new_suggestions
+                .into_iter()
+                .map(|npc| messages::StagedNpcInfo {
+                    character_id: npc.character_id,
+                    name: npc.name,
+                    sprite_asset: npc.sprite_asset,
+                    portrait_asset: npc.portrait_asset,
+                    is_present: npc.is_present,
+                    reasoning: npc.reasoning,
+                })
+                .collect();
+
+            tracing::info!(
+                request_id = %request_id,
+                new_count = llm_based_npcs.len(),
+                "Staging suggestions regenerated"
+            );
+
+            Some(ServerMessage::StagingRegenerated {
+                request_id,
+                llm_based_npcs,
+            })
+        }
+
+        ClientMessage::PreStageRegion {
+            region_id,
+            npcs,
+            ttl_hours,
+        } => {
+            tracing::info!(
+                region_id = %region_id,
+                npc_count = npcs.len(),
+                ttl_hours = ttl_hours,
+                "Pre-stage region request received"
+            );
+
+            let client_id_str = client_id.to_string();
+            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
+                Some(sid) => sid,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_SESSION".to_string(),
+                        message: "Client is not in a session".to_string(),
+                    });
+                }
+            };
+
+            // Parse region ID
+            let region_uuid = match uuid::Uuid::parse_str(&region_id) {
+                Ok(uuid) => crate::domain::value_objects::RegionId::from_uuid(uuid),
+                Err(_) => {
+                    return Some(ServerMessage::Error {
+                        code: "INVALID_REGION_ID".to_string(),
+                        message: "Invalid region ID format".to_string(),
+                    });
+                }
+            };
+
+            // Get region and location
+            let region = match state.repository.regions().get(region_uuid).await {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    return Some(ServerMessage::Error {
+                        code: "REGION_NOT_FOUND".to_string(),
+                        message: "Region not found".to_string(),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Error {
+                        code: "DATABASE_ERROR".to_string(),
+                        message: format!("Failed to fetch region: {}", e),
+                    });
+                }
+            };
+
+            let location = match state.repository.locations().get(region.location_id).await {
+                Ok(Some(l)) => l,
+                Ok(None) => {
+                    return Some(ServerMessage::Error {
+                        code: "LOCATION_NOT_FOUND".to_string(),
+                        message: "Location not found".to_string(),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Error {
+                        code: "DATABASE_ERROR".to_string(),
+                        message: format!("Failed to fetch location: {}", e),
+                    });
+                }
+            };
+
+            // Get game time
+            let game_time = {
+                let sessions = state.sessions.read().await;
+                sessions.get_session(session_id)
+                    .map(|s| s.game_time().clone())
+                    .unwrap_or_default()
+            };
+
+            // Get DM user ID
+            let dm_user_id = state.async_session_port.get_client_user_id(&client_id_str).await
+                .unwrap_or_else(|| client_id_str.clone());
+
+            // Build approved NPC data
+            let mut approved_npc_data = Vec::new();
+            for npc_info in &npcs {
+                let char_id = match uuid::Uuid::parse_str(&npc_info.character_id) {
+                    Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                    Err(_) => continue,
+                };
+
+                // Fetch character for name and assets
+                let (name, sprite, portrait) = match state.repository.characters().get(char_id).await {
+                    Ok(Some(c)) => (c.name, c.sprite_asset, c.portrait_asset),
+                    _ => ("Unknown".to_string(), None, None),
+                };
+
+                approved_npc_data.push(crate::application::services::staging_service::ApprovedNpcData {
+                    character_id: char_id,
+                    name,
+                    sprite_asset: sprite,
+                    portrait_asset: portrait,
+                    is_present: npc_info.is_present,
+                    reasoning: npc_info.reasoning.clone().unwrap_or_else(|| "Pre-staged by DM".to_string()),
+                });
+            }
+
+            // Pre-stage the region
+            match state.staging_service.pre_stage_region(
+                region_uuid,
+                region.location_id,
+                location.world_id,
+                &game_time,
+                approved_npc_data,
+                ttl_hours,
+                &dm_user_id,
+            ).await {
+                Ok(staging) => {
+                    tracing::info!(
+                        staging_id = %staging.id,
+                        region_id = %region_id,
+                        npc_count = staging.npcs.len(),
+                        "Region pre-staged successfully"
+                    );
+                    None // Success, no response needed
+                }
+                Err(e) => {
+                    Some(ServerMessage::Error {
+                        code: "PRESTAGE_FAILED".to_string(),
+                        message: format!("Failed to pre-stage region: {}", e),
+                    })
+                }
+            }
         }
     }
 }

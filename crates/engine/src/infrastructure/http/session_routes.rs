@@ -223,6 +223,8 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
                 parent_map_bounds: None,
                 default_region_id: None,
                 atmosphere: l.atmosphere.clone(),
+                presence_cache_ttl_hours: 3,
+                use_llm_presence: true,
             }
         })
         .collect();

@@ -41,7 +41,8 @@ pub mod suggestion_service;
 pub mod tool_execution_service;
 pub mod trigger_evaluation_service;
 pub mod event_effect_executor;
-pub mod presence_service;
+pub mod staging_context_provider;
+pub mod staging_service;
 pub mod workflow_config_service;
 pub mod workflow_service;
 pub mod world_service;
@@ -175,7 +176,8 @@ pub use event_effect_executor::{
     EventEffectExecutor, EffectExecutionError, EffectExecutionResult, OutcomeExecutionResult,
 };
 
-// Re-export presence service (Phase 23C)
-pub use presence_service::{NpcPresenceResult, PresenceService, PresenceServiceConfig};
+// Re-export staging services (Staging System - replaces legacy PresenceService)
+pub use staging_context_provider::{StagingContextProvider, build_staging_prompt};
+pub use staging_service::{StagingService, StagingProposal};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

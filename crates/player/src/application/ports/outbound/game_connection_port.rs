@@ -7,6 +7,7 @@
 // Re-export types from protocol via dto
 pub use crate::application::dto::websocket_messages::{
     ApprovalDecision,
+    ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,
     DiceInputType,
     DirectorialContext,
@@ -106,6 +107,15 @@ pub trait GameConnectionPort: Send + Sync {
     /// Exit to a different location
     fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> anyhow::Result<()>;
 
+    /// Send a staging approval response (DM only)
+    fn send_staging_approval(&self, request_id: &str, approved_npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32, source: &str) -> anyhow::Result<()>;
+
+    /// Request regeneration of staging suggestions (DM only)
+    fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> anyhow::Result<()>;
+
+    /// Pre-stage a region before player arrival (DM only)
+    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> anyhow::Result<()>;
+
     /// Register a callback for state changes
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>);
 
@@ -185,6 +195,15 @@ pub trait GameConnectionPort {
 
     /// Exit to a different location
     fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> anyhow::Result<()>;
+
+    /// Send a staging approval response (DM only)
+    fn send_staging_approval(&self, request_id: &str, approved_npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32, source: &str) -> anyhow::Result<()>;
+
+    /// Request regeneration of staging suggestions (DM only)
+    fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> anyhow::Result<()>;
+
+    /// Pre-stage a region before player arrival (DM only)
+    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> anyhow::Result<()>;
 
     /// Register a callback for state changes
     ///

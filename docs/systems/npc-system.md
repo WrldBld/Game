@@ -222,11 +222,14 @@ Result: List of NPCs with presence suggestions and reasoning
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `src/domain/value_objects/region.rs` | RegionRelationship types |
-| Application | `src/application/services/presence_service.rs` | Presence calculation |
+| Domain | `src/domain/entities/staging.rs` | Staging entity |
+| Application | `src/application/services/staging_service.rs` | Staging workflow |
+| Application | `src/application/services/staging_context_provider.rs` | Context for LLM |
 | Infrastructure | `src/infrastructure/persistence/character_repository.rs` | NPC-Region queries |
 | Infrastructure | `src/infrastructure/persistence/region_repository.rs` | Region queries |
+| Infrastructure | `src/infrastructure/persistence/staging_repository.rs` | Staging persistence |
 | Infrastructure | `src/infrastructure/websocket.rs` | DM event handlers |
-| Infrastructure | `src/infrastructure/websocket/messages.rs` | Event message types |
+| Protocol | `crates/protocol/src/messages.rs` | Staging message types |
 
 ### Player
 

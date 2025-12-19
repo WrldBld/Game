@@ -10,6 +10,7 @@ mod queue_port;
 mod repository_port;
 mod session_management_port;
 mod settings_port;
+mod staging_repository_port;
 mod world_exporter_port;
 mod generation_read_state_port;
 
@@ -62,3 +63,5 @@ pub use async_session_port::{
     AsyncSessionError, AsyncSessionPort, SessionJoinInfo,
     SessionParticipantInfo, SessionParticipantRole, SessionWorldData,
 };
+
+pub use staging_repository_port::{StagedNpcRow, StagingRepositoryPort};

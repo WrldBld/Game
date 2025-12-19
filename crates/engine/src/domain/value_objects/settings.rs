@@ -69,6 +69,18 @@ pub struct AppSettings {
     pub default_max_stat_value: i32,
 
     // ============================================================================
+    // Staging System
+    // ============================================================================
+    
+    /// Default NPC presence cache TTL in game hours for new locations
+    #[serde(default = "default_presence_cache_ttl_hours")]
+    pub default_presence_cache_ttl_hours: i32,
+    
+    /// Whether to use LLM for staging decisions by default
+    #[serde(default = "default_use_llm_presence")]
+    pub default_use_llm_presence: bool,
+
+    // ============================================================================
     // Challenge System
     // ============================================================================
     
@@ -100,6 +112,8 @@ fn default_outcome_branch_min() -> usize { 1 }
 fn default_outcome_branch_max() -> usize { 4 }
 fn default_conversation_history_turns() -> usize { 20 }
 fn default_suggestion_tokens_per_branch() -> u32 { 200 }
+fn default_presence_cache_ttl_hours() -> i32 { 3 }
+fn default_use_llm_presence() -> bool { true }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -116,6 +130,8 @@ impl Default for AppSettings {
             typewriter_pause_delay_ms: 80,
             typewriter_char_delay_ms: 30,
             default_max_stat_value: 20,
+            default_presence_cache_ttl_hours: 3,
+            default_use_llm_presence: true,
             outcome_branch_count: 2,
             outcome_branch_min: 1,
             outcome_branch_max: 4,
@@ -144,6 +160,8 @@ impl AppSettings {
             typewriter_pause_delay_ms: env_or("WRLDBLDR_TYPEWRITER_PAUSE_DELAY", defaults.typewriter_pause_delay_ms),
             typewriter_char_delay_ms: env_or("WRLDBLDR_TYPEWRITER_CHAR_DELAY", defaults.typewriter_char_delay_ms),
             default_max_stat_value: env_or("WRLDBLDR_DEFAULT_MAX_STAT", defaults.default_max_stat_value),
+            default_presence_cache_ttl_hours: env_or("WRLDBLDR_DEFAULT_PRESENCE_CACHE_TTL_HOURS", defaults.default_presence_cache_ttl_hours),
+            default_use_llm_presence: env_or("WRLDBLDR_DEFAULT_USE_LLM_PRESENCE", defaults.default_use_llm_presence),
             outcome_branch_count: env_or("WRLDBLDR_OUTCOME_BRANCH_COUNT", defaults.outcome_branch_count),
             outcome_branch_min: env_or("WRLDBLDR_OUTCOME_BRANCH_MIN", defaults.outcome_branch_min),
             outcome_branch_max: env_or("WRLDBLDR_OUTCOME_BRANCH_MAX", defaults.outcome_branch_max),
@@ -476,6 +494,29 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             min_value: Some(serde_json::json!(1)),
             max_value: Some(serde_json::json!(100)),
             category: "Game".into(),
+            requires_restart: false,
+        },
+        // Staging System
+        SettingsFieldMetadata {
+            key: "default_presence_cache_ttl_hours".into(),
+            display_name: "Default Staging TTL (hours)".into(),
+            description: "Default duration for NPC presence approvals in game hours. Busy venues: 1-2h, Calm locations: 3-4h, Static locations: 8-24h.".into(),
+            field_type: "integer".into(),
+            default_value: serde_json::json!(3),
+            min_value: Some(serde_json::json!(1)),
+            max_value: Some(serde_json::json!(24)),
+            category: "Staging".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "default_use_llm_presence".into(),
+            display_name: "Use LLM for Staging".into(),
+            description: "Whether to use LLM reasoning for NPC presence suggestions by default. When disabled, only rule-based logic is used.".into(),
+            field_type: "boolean".into(),
+            default_value: serde_json::json!(true),
+            min_value: None,
+            max_value: None,
+            category: "Staging".into(),
             requires_restart: false,
         },
     ]
