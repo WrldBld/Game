@@ -1,0 +1,77 @@
+# =============================================================================
+# WrldBldr Engine - Multi-stage Docker Build
+# =============================================================================
+# Build: docker build -f docker/Dockerfile.engine -t wrldbldr-engine .
+# Run:   docker run -p 3000:3000 wrldbldr-engine
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM rust:1.83-bookworm AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace manifests first for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY crates/protocol/Cargo.toml crates/protocol/
+COPY crates/engine/Cargo.toml crates/engine/
+COPY crates/player/Cargo.toml crates/player/
+
+# Create dummy source files for dependency pre-build
+RUN mkdir -p crates/protocol/src && \
+    echo "pub fn dummy() {}" > crates/protocol/src/lib.rs && \
+    mkdir -p crates/engine/src && \
+    echo "fn main() {}" > crates/engine/src/main.rs && \
+    mkdir -p crates/player/src && \
+    echo "fn main() {}" > crates/player/src/main.rs
+
+# Build dependencies only (this layer is cached)
+RUN cargo build --release -p wrldbldr-engine 2>/dev/null || true
+
+# Remove dummy source files
+RUN rm -rf crates/*/src
+
+# Copy actual source code
+COPY crates/protocol/src crates/protocol/src
+COPY crates/engine/src crates/engine/src
+
+# Build the actual application
+RUN touch crates/protocol/src/lib.rs crates/engine/src/main.rs && \
+    cargo build --release -p wrldbldr-engine
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/target/release/wrldbldr-engine /app/wrldbldr-engine
+
+# Create non-root user for security
+RUN useradd -m -u 1000 wrldbldr && \
+    chown -R wrldbldr:wrldbldr /app
+USER wrldbldr
+
+# Expose the API port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget -q --spider http://localhost:3000/health || exit 1
+
+# Run the server
+CMD ["/app/wrldbldr-engine"]

@@ -1,10 +1,13 @@
 version: '3.8'
 
 services:
+  # =============================================================================
+  # Backend Engine Server
+  # =============================================================================
   engine:
     build:
-      context: ./Engine
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.engine
     ports:
       - "3000:3000"
     environment:
@@ -12,9 +15,9 @@ services:
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-wrldbldr123}
       - NEO4J_DATABASE=neo4j
-      - OLLAMA_BASE_URL=http://10.8.0.6:11434/v1
-      - OLLAMA_MODEL=qwen3-vl:30b
-      - COMFYUI_BASE_URL=http://10.8.0.6:8188
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3-vl:30b}
+      - COMFYUI_BASE_URL=${COMFYUI_BASE_URL:-http://host.docker.internal:8188}
       - SERVER_PORT=3000
       - RUST_LOG=wrldbldr_engine=debug,tower_http=debug
     depends_on:
@@ -24,14 +27,36 @@ services:
       - wrldbldr-network
     restart: unless-stopped
 
+  # =============================================================================
+  # Player Web Frontend (Nginx serving WASM)
+  # =============================================================================
+  player-web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.player-web
+    ports:
+      - "8080:80"
+    environment:
+      - ENGINE_WS_URL=${ENGINE_WS_URL:-ws://localhost:3000/ws}
+    depends_on:
+      - engine
+    networks:
+      - wrldbldr-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # Neo4j Database
+  # =============================================================================
   neo4j:
     image: neo4j:5.26-community
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      - "7474:7474"  # HTTP browser
+      - "7687:7687"  # Bolt protocol
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-wrldbldr_secret}
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-wrldbldr123}
       - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
