@@ -344,6 +344,7 @@ async fn process_dm_action(
                     portrait_asset: c.portrait_asset.clone(),
                     position: CharacterPosition::Center,
                     is_speaking: false,
+                    emotion: None, // Engine doesn't track emotion state yet
                 })
                 .collect();
 

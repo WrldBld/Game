@@ -1,6 +1,5 @@
 //! Value objects - Immutable objects defined by their attributes
 
-mod approval;
 mod archetype;
 mod comfyui_config;
 mod context_budget;
@@ -15,9 +14,20 @@ mod relationship;
 mod rule_system;
 mod settings;
 
-pub use approval::{ApprovalDecision, ProposedToolInfo};
+// Re-export shared types from protocol crate
+pub use wrldbldr_protocol::{
+    // Approval types
+    ApprovalDecision, ProposedToolInfo,
+    // Challenge/navigation suggestion types
+    ChallengeSuggestionInfo, NarrativeEventSuggestionInfo,
+};
+
+// Engine-specific game_time has richer implementation than protocol's simple wire format
 pub use game_time::{GameTime, TimeOfDay};
+
+// Engine-specific archetype with methods (protocol version is simpler wire format)
 pub use archetype::{ArchetypeChange, CampbellArchetype};
+
 pub use comfyui_config::ComfyUIConfig;
 pub use context_budget::{
     AssembledContext, CategoryContext, ContextBudgetConfig, ContextCategory,

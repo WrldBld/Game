@@ -31,10 +31,13 @@ pub use app_events::AppEvent;
 
 // Queue items (used by queue services)
 pub use queue_items::{
-    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem, ChallengeSuggestionInfo,
-    DMAction, DMActionItem, DecisionType, DecisionUrgency, LLMRequestItem,
-    LLMRequestType, NarrativeEventSuggestionInfo, PlayerActionItem,
+    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem,
+    DMAction, DMActionItem, DecisionType, DecisionUrgency,
+    EnhancedChallengeSuggestion, EnhancedOutcomes, OutcomeDetail,
+    LLMRequestItem, LLMRequestType, PlayerActionItem,
 };
+// Re-export suggestion types from protocol (via domain)
+pub use crate::domain::value_objects::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo};
 
 // Asset DTOs
 pub use asset::{

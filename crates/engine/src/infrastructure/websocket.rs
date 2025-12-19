@@ -377,6 +377,7 @@ async fn handle_message(
                                                     portrait_asset: c.portrait_asset.clone(),
                                                     position: CharacterPosition::Center,
                                                     is_speaking: false,
+                                                    emotion: None, // Engine doesn't track emotion state yet
                                                 })
                                                 .collect();
 
@@ -688,6 +689,7 @@ async fn handle_message(
                     portrait_asset: c.portrait_asset.clone(),
                     position: CharacterPosition::Center, // Default position, could be enhanced
                     is_speaking: false,
+                    emotion: None, // Engine doesn't track emotion state yet
                 })
                 .collect();
 

@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::value_objects::{
-    ApprovalDecision, GamePromptRequest, ProposedToolInfo, QueueItemId, SceneId, SessionId,
+    ApprovalDecision, ChallengeSuggestionInfo, GamePromptRequest, NarrativeEventSuggestionInfo,
+    ProposedToolInfo, QueueItemId, SceneId, SessionId,
 };
 
 /// Player action waiting to be processed
@@ -109,19 +110,7 @@ pub struct ApprovalItem {
     pub narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
 }
 
-/// Challenge suggestion information for DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChallengeSuggestionInfo {
-    pub challenge_id: String,
-    pub challenge_name: String,
-    pub skill_name: String,
-    pub difficulty_display: String,
-    pub confidence: String,
-    pub reasoning: String,
-    /// Target player character ID for skill modifier lookup
-    #[serde(default)]
-    pub target_pc_id: Option<String>,
-}
+// ChallengeSuggestionInfo is now imported from protocol via value_objects
 
 /// Enhanced challenge suggestion with detailed outcomes and tool receipts
 ///
@@ -172,17 +161,7 @@ pub struct OutcomeDetail {
     pub proposed_tools: Vec<ProposedToolInfo>,
 }
 
-/// Narrative event suggestion information for DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NarrativeEventSuggestionInfo {
-    pub event_id: String,
-    pub event_name: String,
-    pub description: String,
-    pub scene_direction: String,
-    pub confidence: String,
-    pub reasoning: String,
-    pub matched_triggers: Vec<String>,
-}
+// NarrativeEventSuggestionInfo is now imported from protocol via value_objects
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
