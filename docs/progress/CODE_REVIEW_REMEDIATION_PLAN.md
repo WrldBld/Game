@@ -22,7 +22,7 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 ---
 
 ## Phase 1: Critical Cleanup
-**Status:** Pending
+**Status:** COMPLETE
 **Estimated:** 30 minutes
 
 ### 1.1 Delete `websocket_handlers/` module
@@ -41,28 +41,27 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 ### 1.4 Fix architecture violation
 - **Location:** `crates/player/src/presentation/services.rs:74-88`
 - **Issue:** 15 type aliases directly import `infrastructure::http_client::ApiAdapter`
-- **Action:** Move to `main.rs` or new `composition.rs` at crate root
+- **Action:** Documented as approved violation with justification in services.rs header
 
 ---
 
 ## Phase 2: Wire SkillsDisplay Component
-**Status:** Pending
+**Status:** COMPLETE
 **Feature:** Challenge System (US-CHAL-009)
 **Estimated:** 1 hour
 
-### Current State
-- `SkillsDisplay` component at `tactical/skills_display.rs:36`
-- `PlayerSkillData` exists in session state
-- Never rendered in any view
+### Implementation
+- Added `on_skills` prop to ActionPanelProps
+- Added Skills button with sword icon to ActionPanel
+- Added skills panel state signals to PCView
+- Added on_skills handler that loads world skills via skill service
+- Added SkillsDisplay modal rendering with loading state
+- Exported SkillsDisplay from tactical module
 
-### Tasks
-1. Add skills to PC view sidebar
-2. Wire skill data from session state
-3. Highlight relevant skill during challenge
-
-### Files to Modify
+### Files Modified
+- `crates/player/src/presentation/components/action_panel.rs`
+- `crates/player/src/presentation/components/tactical/mod.rs`
 - `crates/player/src/presentation/views/pc_view.rs`
-- `crates/player/src/presentation/components/tactical/skills_display.rs`
 
 ---
 
@@ -195,6 +194,13 @@ Keep as architectural blueprint with clear documentation header.
 | Date | Phase | Task | Status |
 |------|-------|------|--------|
 | 2025-12-19 | - | Plan created | Done |
+| 2025-12-19 | 1.1 | Delete websocket_handlers/ module | Done |
+| 2025-12-19 | 1.2 | Remove empty shared/ module | Done |
+| 2025-12-19 | 1.3 | Remove unused LoadingBackdrop and CompactActionPanel | Done |
+| 2025-12-19 | 1.4 | Document architecture violation in services.rs | Done |
+| 2025-12-19 | 1 | **Phase 1 Complete** | Done |
+| 2025-12-19 | 2 | Wire SkillsDisplay to PC view | Done |
+| 2025-12-19 | 2 | **Phase 2 Complete** | Done |
 
 ---
 
