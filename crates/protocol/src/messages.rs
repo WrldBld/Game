@@ -440,7 +440,7 @@ pub enum ServerMessage {
 // =============================================================================
 
 /// Information about a session participant
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParticipantInfo {
     pub user_id: String,
     pub role: ParticipantRole,
@@ -448,7 +448,7 @@ pub struct ParticipantInfo {
 }
 
 /// Location information for split party notification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SplitPartyLocation {
     pub location_id: String,
     pub location_name: String,
@@ -457,7 +457,7 @@ pub struct SplitPartyLocation {
 }
 
 /// Directorial context from DM
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DirectorialContext {
     pub scene_notes: String,
     pub tone: String,
@@ -466,7 +466,7 @@ pub struct DirectorialContext {
 }
 
 /// NPC motivation data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NpcMotivationData {
     pub character_id: String,
     pub mood: String,
@@ -479,7 +479,7 @@ pub struct NpcMotivationData {
 // =============================================================================
 
 /// Scene data from server
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SceneData {
     pub id: String,
     pub name: String,
@@ -491,7 +491,7 @@ pub struct SceneData {
 }
 
 /// Character data for display
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterData {
     pub id: String,
     pub name: String,
@@ -514,8 +514,20 @@ pub enum CharacterPosition {
     OffScreen,
 }
 
+impl CharacterPosition {
+    /// Get Tailwind CSS classes for positioning
+    pub fn as_tailwind_classes(&self) -> &'static str {
+        match self {
+            CharacterPosition::Left => "left-[10%]",
+            CharacterPosition::Center => "left-1/2 -translate-x-1/2",
+            CharacterPosition::Right => "right-[10%]",
+            CharacterPosition::OffScreen => "hidden",
+        }
+    }
+}
+
 /// Available interaction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InteractionData {
     pub id: String,
     pub name: String,
@@ -525,7 +537,7 @@ pub struct InteractionData {
 }
 
 /// Dialogue choice for player
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueChoice {
     pub id: String,
     pub text: String,
@@ -548,7 +560,7 @@ pub struct RegionData {
 }
 
 /// NPC presence data for scene display
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NpcPresenceData {
     pub character_id: String,
     pub name: String,
@@ -586,7 +598,7 @@ pub struct NavigationExit {
 // =============================================================================
 
 /// Dice input type for challenge rolls
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum DiceInputType {
     /// Roll dice using a formula string like "1d20+5"
@@ -596,7 +608,7 @@ pub enum DiceInputType {
 }
 
 /// Ad-hoc challenge outcomes for DM-created challenges
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdHocOutcomes {
     pub success: String,
     pub failure: String,
@@ -607,7 +619,7 @@ pub struct AdHocOutcomes {
 }
 
 /// Outcome detail data for regenerated outcomes
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutcomeDetailData {
     pub flavor_text: String,
     pub scene_direction: String,
@@ -616,7 +628,7 @@ pub struct OutcomeDetailData {
 }
 
 /// DM's decision on a challenge outcome (wire format)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum ChallengeOutcomeDecisionData {
     /// Accept the outcome as-is
@@ -631,7 +643,7 @@ pub enum ChallengeOutcomeDecisionData {
 }
 
 /// Outcome branch data for DM selection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutcomeBranchData {
     pub id: String,
     pub title: String,

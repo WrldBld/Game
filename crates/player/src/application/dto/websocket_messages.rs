@@ -33,6 +33,7 @@ pub use wrldbldr_protocol::{
     ProposedToolInfo,
     ApprovalDecision,
     ChallengeSuggestionInfo,
+    ChallengeSuggestionOutcomes,
     NarrativeEventSuggestionInfo,
 };
 

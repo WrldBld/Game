@@ -4,7 +4,15 @@
 //! allowing application services to manage real-time game sessions without
 //! depending on concrete WebSocket client implementations.
 
-pub use crate::application::dto::websocket_messages::{ChallengeOutcomeDecisionData, DiceInputType};
+// Re-export types from protocol via dto
+pub use crate::application::dto::websocket_messages::{
+    ApprovalDecision,
+    ChallengeOutcomeDecisionData,
+    DiceInputType,
+    DirectorialContext,
+    NpcMotivationData as NpcMotivation,
+    ParticipantRole,
+};
 
 /// Connection state for the game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,52 +27,6 @@ pub enum ConnectionState {
     Reconnecting,
     /// Connection failed
     Failed,
-}
-
-/// Role of a participant in the game session
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParticipantRole {
-    /// Game master / Dungeon master
-    DungeonMaster,
-    /// Player character
-    Player,
-    /// Observer only
-    Spectator,
-}
-
-/// Approval decision from the DM
-#[derive(Debug, Clone)]
-pub enum ApprovalDecision {
-    /// Accept the LLM response as-is
-    Accept,
-    /// Accept with modifications
-    AcceptWithModification {
-        modified_dialogue: String,
-        approved_tools: Vec<String>,
-        rejected_tools: Vec<String>,
-    },
-    /// Reject and ask for regeneration
-    Reject { feedback: String },
-    /// DM takes over the response
-    TakeOver { dm_response: String },
-}
-
-/// Directorial context for a scene
-#[derive(Debug, Clone)]
-pub struct DirectorialContext {
-    pub scene_notes: String,
-    pub tone: String,
-    pub npc_motivations: Vec<NpcMotivation>,
-    pub forbidden_topics: Vec<String>,
-}
-
-/// NPC motivation data
-#[derive(Debug, Clone)]
-pub struct NpcMotivation {
-    pub character_id: String,
-    pub mood: String,
-    pub immediate_goal: String,
-    pub secret_agenda: Option<String>,
 }
 
 /// Game Connection Port trait for Engine WebSocket operations

@@ -21,7 +21,7 @@ pub enum ParticipantRole {
 // =============================================================================
 
 /// Proposed tool call information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProposedToolInfo {
     pub id: String,
     pub name: String,
@@ -30,7 +30,7 @@ pub struct ProposedToolInfo {
 }
 
 /// DM's decision on an approval request
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "decision")]
 pub enum ApprovalDecision {
     Accept,
@@ -52,7 +52,7 @@ pub enum ApprovalDecision {
 // =============================================================================
 
 /// Challenge suggestion information for DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChallengeSuggestionInfo {
     pub challenge_id: String,
     pub challenge_name: String,
@@ -63,10 +63,26 @@ pub struct ChallengeSuggestionInfo {
     /// Target player character ID for skill modifier lookup
     #[serde(default)]
     pub target_pc_id: Option<String>,
+    /// Optional editable outcomes for DM modification
+    #[serde(default)]
+    pub outcomes: Option<ChallengeSuggestionOutcomes>,
+}
+
+/// Editable challenge outcomes for DM modification
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ChallengeSuggestionOutcomes {
+    #[serde(default)]
+    pub success: Option<String>,
+    #[serde(default)]
+    pub failure: Option<String>,
+    #[serde(default)]
+    pub critical_success: Option<String>,
+    #[serde(default)]
+    pub critical_failure: Option<String>,
 }
 
 /// Narrative event suggestion information for DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NarrativeEventSuggestionInfo {
     pub event_id: String,
     pub event_name: String,
@@ -75,6 +91,9 @@ pub struct NarrativeEventSuggestionInfo {
     pub confidence: String,
     pub reasoning: String,
     pub matched_triggers: Vec<String>,
+    /// Suggested outcome (can be cleared/modified by DM)
+    #[serde(default)]
+    pub suggested_outcome: Option<String>,
 }
 
 // =============================================================================

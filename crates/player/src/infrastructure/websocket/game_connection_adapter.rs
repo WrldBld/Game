@@ -10,15 +10,12 @@ use std::sync::{
 };
 
 use crate::application::ports::outbound::{
-    ApprovalDecision as PortApprovalDecision, ChallengeOutcomeDecisionData, ConnectionState as PortConnectionState,
-    DirectorialContext as PortDirectorialContext, GameConnectionPort, NpcMotivation as PortNpcMotivation,
-    ParticipantRole as PortParticipantRole,
+    ApprovalDecision, ChallengeOutcomeDecisionData, ConnectionState as PortConnectionState,
+    DirectorialContext, GameConnectionPort, NpcMotivation,
+    ParticipantRole,
 };
 
-use crate::application::dto::{
-    ApprovalDecision as InfraApprovalDecision, ClientMessage, DirectorialContext as InfraDirectorialContext,
-    NpcMotivationData as InfraNpcMotivationData, ParticipantRole as InfraParticipantRole,
-};
+use crate::application::dto::ClientMessage;
 use super::{ConnectionState as InfraConnectionState, EngineClient};
 
 fn map_state(state: InfraConnectionState) -> PortConnectionState {
@@ -48,49 +45,6 @@ fn u8_to_state(v: u8) -> PortConnectionState {
         3 => PortConnectionState::Reconnecting,
         4 => PortConnectionState::Failed,
         _ => PortConnectionState::Disconnected,
-    }
-}
-
-fn map_role(role: PortParticipantRole) -> InfraParticipantRole {
-    match role {
-        PortParticipantRole::DungeonMaster => InfraParticipantRole::DungeonMaster,
-        PortParticipantRole::Player => InfraParticipantRole::Player,
-        PortParticipantRole::Spectator => InfraParticipantRole::Spectator,
-    }
-}
-
-fn map_npc_motivation(m: PortNpcMotivation) -> InfraNpcMotivationData {
-    InfraNpcMotivationData {
-        character_id: m.character_id,
-        mood: m.mood,
-        immediate_goal: m.immediate_goal,
-        secret_agenda: m.secret_agenda,
-    }
-}
-
-fn map_directorial_context(ctx: PortDirectorialContext) -> InfraDirectorialContext {
-    InfraDirectorialContext {
-        scene_notes: ctx.scene_notes,
-        tone: ctx.tone,
-        npc_motivations: ctx.npc_motivations.into_iter().map(map_npc_motivation).collect(),
-        forbidden_topics: ctx.forbidden_topics,
-    }
-}
-
-fn map_approval_decision(decision: PortApprovalDecision) -> InfraApprovalDecision {
-    match decision {
-        PortApprovalDecision::Accept => InfraApprovalDecision::Accept,
-        PortApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-        } => InfraApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-        },
-        PortApprovalDecision::Reject { feedback } => InfraApprovalDecision::Reject { feedback },
-        PortApprovalDecision::TakeOver { dm_response } => InfraApprovalDecision::TakeOver { dm_response },
     }
 }
 
@@ -170,10 +124,9 @@ impl GameConnectionPort for EngineGameConnection {
     fn join_session(
         &self,
         user_id: &str,
-        role: PortParticipantRole,
+        role: ParticipantRole,
         world_id: Option<String>,
     ) -> Result<()> {
-        let role = map_role(role);
         #[cfg(target_arch = "wasm32")]
         {
             self.client.join_session(user_id, role, world_id)
@@ -230,8 +183,8 @@ impl GameConnectionPort for EngineGameConnection {
         }
     }
 
-    fn send_directorial_update(&self, context: PortDirectorialContext) -> Result<()> {
-        let msg = ClientMessage::DirectorialUpdate { context: map_directorial_context(context) };
+    fn send_directorial_update(&self, context: DirectorialContext) -> Result<()> {
+        let msg = ClientMessage::DirectorialUpdate { context };
         #[cfg(target_arch = "wasm32")]
         {
             self.client.send(msg)
@@ -248,10 +201,10 @@ impl GameConnectionPort for EngineGameConnection {
         }
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: PortApprovalDecision) -> Result<()> {
+    fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> Result<()> {
         let msg = ClientMessage::ApprovalDecision {
             request_id: request_id.to_string(),
-            decision: map_approval_decision(decision),
+            decision,
         };
         #[cfg(target_arch = "wasm32")]
         {
@@ -332,7 +285,7 @@ impl GameConnectionPort for EngineGameConnection {
         }
     }
 
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: crate::application::dto::websocket_messages::DiceInputType) -> Result<()> {
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: crate::application::ports::outbound::DiceInputType) -> Result<()> {
         let msg = ClientMessage::ChallengeRollInput {
             challenge_id: challenge_id.to_string(),
             input_type: input,

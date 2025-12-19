@@ -415,15 +415,17 @@ pub fn handle_server_message(
                     if let Some(challenge) = &mut approval.challenge_suggestion {
                         if let Some(ref mut outcomes) = challenge.outcomes {
                             // Map outcome_type string to the appropriate field
+                            // Store the flavor_text as the outcome description
+                            let outcome_text = new_outcome.flavor_text.clone();
                             match outcome_type.as_str() {
-                                "success" => outcomes.success = Some(new_outcome.clone()),
-                                "failure" => outcomes.failure = Some(new_outcome.clone()),
-                                "critical_success" => outcomes.critical_success = Some(new_outcome.clone()),
-                                "critical_failure" => outcomes.critical_failure = Some(new_outcome.clone()),
+                                "success" => outcomes.success = Some(outcome_text),
+                                "failure" => outcomes.failure = Some(outcome_text),
+                                "critical_success" => outcomes.critical_success = Some(outcome_text),
+                                "critical_failure" => outcomes.critical_failure = Some(outcome_text),
                                 // "all" or unknown: update success/failure as a minimal default
                                 _ => {
-                                    outcomes.success = Some(new_outcome.clone());
-                                    outcomes.failure = Some(new_outcome.clone());
+                                    outcomes.success = Some(outcome_text.clone());
+                                    outcomes.failure = Some(outcome_text);
                                 }
                             }
                         }

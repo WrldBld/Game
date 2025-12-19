@@ -228,6 +228,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", cs.confidence),
                                                 reasoning: cs.reasoning,
                                                 target_pc_id: request.pc_id.map(|id| id.to_string()),
+                                                outcomes: None,
                                             })
                                         }
                                         Ok(None) => {
@@ -240,6 +241,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", cs.confidence),
                                                 reasoning: cs.reasoning.clone(),
                                                 target_pc_id: request.pc_id.map(|id| id.to_string()),
+                                                outcomes: None,
                                             })
                                         }
                                         Err(e) => {
@@ -252,6 +254,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", cs.confidence),
                                                 reasoning: cs.reasoning.clone(),
                                                 target_pc_id: request.pc_id.map(|id| id.to_string()),
+                                                outcomes: None,
                                             })
                                         }
                                     }
@@ -266,6 +269,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", cs.confidence),
                                                 reasoning: cs.reasoning,
                                                 target_pc_id: request.pc_id.map(|id| id.to_string()),
+                                                outcomes: None,
                                             })
                                         }
                                     }
@@ -292,6 +296,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", nes.confidence),
                                                 reasoning: nes.reasoning.clone(),
                                                 matched_triggers: nes.matched_triggers.clone(),
+                                                suggested_outcome: None,
                                             })
                                         }
                                         Ok(None) => {
@@ -304,6 +309,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", nes.confidence),
                                                 reasoning: nes.reasoning.clone(),
                                                 matched_triggers: nes.matched_triggers.clone(),
+                                                suggested_outcome: None,
                                             })
                                         }
                                         Err(e) => {
@@ -316,6 +322,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", nes.confidence),
                                                 reasoning: nes.reasoning.clone(),
                                                 matched_triggers: nes.matched_triggers.clone(),
+                                                suggested_outcome: None,
                                             })
                                         }
                                     }
@@ -330,6 +337,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                                 confidence: format!("{:?}", nes.confidence),
                                                 reasoning: nes.reasoning,
                                                 matched_triggers: nes.matched_triggers,
+                                                suggested_outcome: None,
                                             })
                                         }
                                     }

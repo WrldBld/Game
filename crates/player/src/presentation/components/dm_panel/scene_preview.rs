@@ -5,17 +5,6 @@
 use dioxus::prelude::*;
 use crate::application::dto::websocket_messages::{SceneCharacterState, CharacterPosition};
 
-impl CharacterPosition {
-    fn as_tailwind_classes(&self) -> &'static str {
-        match self {
-            CharacterPosition::Left => "left-[10%]",
-            CharacterPosition::Center => "left-1/2 -translate-x-1/2",
-            CharacterPosition::Right => "right-[10%]",
-            CharacterPosition::OffScreen => "hidden",
-        }
-    }
-}
-
 /// Scene preview state for UI display (view model)
 #[derive(Clone, PartialEq)]
 pub struct ScenePreviewState {
@@ -162,10 +151,12 @@ fn CharacterSpritePreview(character: SceneCharacterState) -> Element {
             }
 
             // Emotion indicator
-            if !character.emotion.is_empty() {
-                div {
-                    class: "absolute -top-2 -right-2 bg-purple-500 text-white text-xs py-1 px-2 rounded-md whitespace-nowrap",
-                    "{character.emotion}"
+            if let Some(emotion) = &character.emotion {
+                if !emotion.is_empty() {
+                    div {
+                        class: "absolute -top-2 -right-2 bg-purple-500 text-white text-xs py-1 px-2 rounded-md whitespace-nowrap",
+                        "{emotion}"
+                    }
                 }
             }
         }

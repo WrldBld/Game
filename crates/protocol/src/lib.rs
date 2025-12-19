@@ -66,6 +66,7 @@ pub use types::{
     // Approval types
     ApprovalDecision,
     ChallengeSuggestionInfo,
+    ChallengeSuggestionOutcomes,
     NarrativeEventSuggestionInfo,
     ProposedToolInfo,
     // Character archetypes
