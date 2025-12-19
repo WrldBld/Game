@@ -16,7 +16,7 @@ use crate::application::dto::{
     UpdateEventChainRequestDto,
 };
 use crate::domain::entities::EventChain;
-use crate::domain::value_objects::{ActId, EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 use crate::infrastructure::state::AppState;
 
 // NOTE: event chain request/response DTOs + conversions live in `application/dto/event_chain.rs`.

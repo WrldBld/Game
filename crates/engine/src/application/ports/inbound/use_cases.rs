@@ -10,7 +10,7 @@
 
 use async_trait::async_trait;
 
-use crate::domain::value_objects::{WorldId, CharacterId, LocationId, SceneId};
+use wrldbldr_domain::{CharacterId, LocationId, SceneId, WorldId};
 
 // ============================================================================
 // Error Types

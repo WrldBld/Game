@@ -18,7 +18,8 @@ use crate::application::services::{
     PlayerCharacterService, SkillService,
 };
 use crate::domain::entities::OutcomeType;
-use crate::domain::value_objects::{ChallengeId, DiceRollInput, SessionId, PlayerCharacterId, SkillId};
+use crate::domain::value_objects::DiceRollInput;
+use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SessionId, SkillId};
 use tracing::{debug, info};
 
 /// Dice input type for challenge rolls
@@ -94,7 +95,7 @@ fn error_message(code: &str, message: &str) -> Option<serde_json::Value> {
 struct ChallengePreamble {
     challenge: crate::domain::entities::Challenge,
     /// Skill ID fetched from REQUIRES_SKILL edge (may be None if no skill is set)
-    skill_id: Option<crate::domain::value_objects::SkillId>,
+    skill_id: Option<wrldbldr_domain::SkillId>,
     session_id: Option<SessionId>,
     player_name: String,
     character_modifier: i32,

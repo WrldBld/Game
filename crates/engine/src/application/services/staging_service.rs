@@ -20,10 +20,8 @@ use crate::application::services::{
     StoryEventService, StagingContextProvider, build_staging_prompt,
 };
 use crate::domain::entities::{Staging, StagedNpc, StagingSource};
-use crate::domain::value_objects::{
-    CharacterId, GameTime, LocationId, RegionId, RuleBasedSuggestion, 
-    StagingContext, StagingId, WorldId,
-};
+use crate::domain::value_objects::{GameTime, RuleBasedSuggestion, StagingContext};
+use wrldbldr_domain::{CharacterId, LocationId, RegionId, StagingId, WorldId};
 
 /// Configuration for the staging service
 #[derive(Debug, Clone)]
@@ -197,7 +195,7 @@ where
                 // Enrich with sprite/portrait from character data
                 if let Some((character, _)) = npcs_with_relationships
                     .iter()
-                    .find(|(c, _)| c.id == s.character_id)
+                    .find(|(c, _)| c.id == s.character_id.into())
                 {
                     proposal.sprite_asset = character.sprite_asset.clone();
                     proposal.portrait_asset = character.portrait_asset.clone();
@@ -456,7 +454,7 @@ where
             // Enrich with sprite/portrait
             if let Some((character, _)) = npcs_with_relationships
                 .iter()
-                .find(|(c, _)| c.id == suggestion.character_id)
+                .find(|(c, _)| c.id == suggestion.character_id.into())
             {
                 proposal.sprite_asset = character.sprite_asset.clone();
                 proposal.portrait_asset = character.portrait_asset.clone();

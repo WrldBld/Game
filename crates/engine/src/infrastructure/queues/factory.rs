@@ -144,14 +144,14 @@ impl<T> crate::application::ports::outbound::ApprovalQueuePort<T> for QueueBacke
 where
     T: Send + Sync + Clone + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
-    async fn list_by_session(&self, session_id: crate::domain::value_objects::SessionId) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
+    async fn list_by_session(&self, session_id: wrldbldr_domain::SessionId) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.list_by_session(session_id).await,
             QueueBackendEnum::Sqlite(q) => q.list_by_session(session_id).await,
         }
     }
 
-    async fn get_history(&self, session_id: crate::domain::value_objects::SessionId, limit: usize) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
+    async fn get_history(&self, session_id: wrldbldr_domain::SessionId, limit: usize) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.get_history(session_id, limit).await,
             QueueBackendEnum::Sqlite(q) => q.get_history(session_id, limit).await,
@@ -237,11 +237,11 @@ impl<T> crate::application::ports::outbound::ApprovalQueuePort<T> for Arc<QueueB
 where
     T: Send + Sync + Clone + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
-    async fn list_by_session(&self, session_id: crate::domain::value_objects::SessionId) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
+    async fn list_by_session(&self, session_id: wrldbldr_domain::SessionId) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
         self.as_ref().list_by_session(session_id).await
     }
 
-    async fn get_history(&self, session_id: crate::domain::value_objects::SessionId, limit: usize) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
+    async fn get_history(&self, session_id: wrldbldr_domain::SessionId, limit: usize) -> Result<Vec<crate::application::ports::outbound::QueueItem<T>>, crate::application::ports::outbound::QueueError> {
         self.as_ref().get_history(session_id, limit).await
     }
 

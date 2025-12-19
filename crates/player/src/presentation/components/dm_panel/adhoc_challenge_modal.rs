@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 use crate::application::dto::AdHocOutcomes;
-use crate::application::dto::websocket_messages::SceneCharacterState;
+use wrldbldr_protocol::CharacterData as SceneCharacterState;
 
 /// Data for an ad-hoc challenge creation
 #[derive(Debug, Clone, PartialEq)]

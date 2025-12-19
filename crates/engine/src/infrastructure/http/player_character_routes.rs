@@ -17,9 +17,7 @@ use crate::application::services::{
 };
 use crate::domain::entities::PlayerCharacter;
 use crate::domain::entities::{CharacterSheetData, FieldValue};
-use crate::domain::value_objects::{
-    LocationId, PlayerCharacterId, RegionId, SessionId, WorldId,
-};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
 use crate::infrastructure::state::AppState;
 
 /// Extract user ID from X-User-Id header, falling back to a default if not provided

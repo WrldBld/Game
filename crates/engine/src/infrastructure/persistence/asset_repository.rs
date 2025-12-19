@@ -10,7 +10,7 @@ use crate::application::ports::outbound::AssetRepositoryPort;
 use crate::domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
-use crate::domain::value_objects::{AssetId, BatchId};
+use wrldbldr_domain::{AssetId, BatchId};
 
 /// Repository for GalleryAsset operations
 pub struct Neo4jAssetRepository {
@@ -335,7 +335,7 @@ impl Neo4jAssetRepository {
     }
 
     /// List all non-terminal batches for a specific world
-    pub async fn list_active_batches_by_world(&self, world_id: crate::domain::value_objects::WorldId) -> Result<Vec<GenerationBatch>> {
+    pub async fn list_active_batches_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<GenerationBatch>> {
         let q = query(
             "MATCH (b:GenerationBatch)
             WHERE b.world_id = $world_id
@@ -494,7 +494,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset> {
 }
 
 fn row_to_generation_batch(row: Row) -> Result<GenerationBatch> {
-    use crate::domain::value_objects::WorldId;
+    use wrldbldr_domain::WorldId;
     
     let node: neo4rs::Node = row.get("b")?;
 
@@ -700,7 +700,7 @@ impl AssetRepositoryPort for Neo4jAssetRepository {
         Neo4jAssetRepository::update_batch_assets(self, id, assets).await
     }
 
-    async fn list_active_batches_by_world(&self, world_id: crate::domain::value_objects::WorldId) -> Result<Vec<GenerationBatch>> {
+    async fn list_active_batches_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<GenerationBatch>> {
         Neo4jAssetRepository::list_active_batches_by_world(self, world_id).await
     }
 

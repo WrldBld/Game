@@ -87,8 +87,8 @@ impl RegionRelationshipType {
     /// - WorksAt: depends on shift (day workers in morning/afternoon, night workers evening/night)
     /// - Frequents: depends on frequency (often=always, sometimes=afternoon/evening, rarely=never)
     /// - Avoids: never present
-    pub fn is_npc_present(&self, time_of_day: super::game_time::TimeOfDay) -> bool {
-        use super::game_time::TimeOfDay;
+    pub fn is_npc_present(&self, time_of_day: super::TimeOfDay) -> bool {
+        use super::TimeOfDay;
         
         match self {
             RegionRelationshipType::Home => {
@@ -113,7 +113,7 @@ impl RegionRelationshipType {
     }
     
     /// Get a human-readable reasoning for presence at the given time of day.
-    pub fn presence_reasoning(&self, time_of_day: super::game_time::TimeOfDay) -> String {
+    pub fn presence_reasoning(&self, time_of_day: super::TimeOfDay) -> String {
         match self {
             RegionRelationshipType::Home => {
                 format!("Lives here. {} is typically home time.", time_of_day.display_name())
@@ -132,9 +132,9 @@ impl RegionRelationshipType {
 }
 
 /// A character's relationship to a region
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RegionRelationship {
-    pub region_id: super::RegionId,
+    pub region_id: wrldbldr_domain::RegionId,
     pub region_name: String,
     pub relationship_type: RegionRelationshipType,
 }

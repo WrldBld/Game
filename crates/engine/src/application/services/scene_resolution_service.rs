@@ -12,9 +12,7 @@ use crate::application::ports::outbound::{
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
 };
 use crate::domain::entities::Scene;
-use crate::domain::value_objects::{
-    LocationId, PlayerCharacterId, SessionId,
-};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, SessionId};
 
 /// Result of scene resolution
 #[derive(Debug, Clone)]

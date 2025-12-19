@@ -19,7 +19,8 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::domain::value_objects::{RuleSystemVariant, WorldId};
+use wrldbldr_domain::{WorldId};
+use crate::domain::value_objects::{RuleSystemVariant};
 
 /// Unique identifier for a sheet template
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

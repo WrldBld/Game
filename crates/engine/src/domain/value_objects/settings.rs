@@ -17,14 +17,15 @@
 use serde::{Deserialize, Serialize};
 
 use super::context_budget::ContextBudgetConfig;
-use super::WorldId;
+use uuid::Uuid;
+use wrldbldr_domain::WorldId;
 
 /// All configurable application settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppSettings {
     /// World ID for per-world settings. None = global defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub world_id: Option<WorldId>,
+    pub world_id: Option<Uuid>,
 
     // ============================================================================
     // Session & Conversation
@@ -186,7 +187,7 @@ impl AppSettings {
     /// Create settings for a specific world, starting from global defaults
     pub fn for_world(world_id: WorldId) -> Self {
         let mut settings = Self::from_env();
-        settings.world_id = Some(world_id);
+        settings.world_id = Some(world_id.into());
         settings
     }
 

@@ -44,9 +44,7 @@ pub async fn suggest(
     let request_id = Uuid::new_v4().to_string();
 
     // Parse world_id for routing
-    let world_id = uuid::Uuid::parse_str(&req.world_id)
-        .map(crate::domain::value_objects::WorldId::from_uuid)
-        .ok();
+    let world_id = uuid::Uuid::parse_str(&req.world_id).ok();
 
     // Create LLM request item
     let llm_request = LLMRequestItem {

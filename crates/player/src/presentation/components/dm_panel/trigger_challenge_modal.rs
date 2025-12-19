@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 use crate::application::dto::ChallengeData;
-use crate::application::dto::websocket_messages::SceneCharacterState;
+use wrldbldr_protocol::CharacterData as SceneCharacterState;
 
 /// Props for TriggerChallengeModal
 #[derive(Props, Clone, PartialEq)]

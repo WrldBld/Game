@@ -4,7 +4,8 @@
 //! - Default skills from a rule system preset
 //! - Custom skills created by the DM
 
-use crate::domain::value_objects::{RuleSystemVariant, SkillId, WorldId};
+use wrldbldr_domain::{SkillId, WorldId};
+use crate::domain::value_objects::{RuleSystemVariant};
 
 /// A skill that characters can use for challenges
 #[derive(Debug, Clone)]

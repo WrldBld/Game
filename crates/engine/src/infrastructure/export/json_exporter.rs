@@ -6,7 +6,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::RuleSystemConfigDto;
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 use crate::infrastructure::persistence::Neo4jRepository;
 
 /// Complete snapshot of a world for export

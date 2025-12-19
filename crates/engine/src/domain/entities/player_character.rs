@@ -1,10 +1,10 @@
 //! Player Character entity - PCs created by players, distinct from NPCs
 
 use chrono::{DateTime, Utc};
-use crate::domain::value_objects::{
+use crate::domain::entities::sheet_template::CharacterSheetData;
+use wrldbldr_domain::{
     LocationId, PlayerCharacterId, RegionId, SessionId, WorldId,
 };
-use crate::domain::entities::sheet_template::CharacterSheetData;
 
 /// A player character (PC) - distinct from NPCs
 ///

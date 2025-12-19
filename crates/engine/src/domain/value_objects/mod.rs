@@ -5,9 +5,8 @@ mod comfyui_config;
 mod context_budget;
 mod dice;
 mod directorial;
-mod game_time;
 mod game_tools;
-mod ids;
+// IDs live in `wrldbldr-domain`
 mod llm_context;
 mod region;
 mod relationship;
@@ -15,16 +14,7 @@ mod rule_system;
 mod settings;
 mod staging_context;
 
-// Re-export shared types from protocol crate
-pub use wrldbldr_protocol::{
-    // Approval types
-    ApprovalDecision, ProposedToolInfo,
-    // Challenge/navigation suggestion types
-    ChallengeSuggestionInfo, NarrativeEventSuggestionInfo,
-};
-
-// Engine-specific game_time has richer implementation than protocol's simple wire format
-pub use game_time::{GameTime, TimeOfDay};
+pub use wrldbldr_domain::{GameTime, TimeOfDay};
 
 // Engine-specific archetype with methods (protocol version is simpler wire format)
 pub use archetype::{ArchetypeChange, CampbellArchetype};
@@ -37,7 +27,6 @@ pub use context_budget::{
 pub use dice::DiceRollInput;
 pub use directorial::{DirectorialNotes};
 pub use game_tools::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
-pub use ids::*;
 pub use llm_context::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
     GamePromptRequest, PlayerActionContext, SceneContext,

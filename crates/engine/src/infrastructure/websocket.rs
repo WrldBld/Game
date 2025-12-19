@@ -14,6 +14,8 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 
+use chrono::Timelike;
+
 use crate::application::dto::{AdHocOutcomesDto, ChallengeOutcomeDecision, DMAction};
 use crate::application::services::scene_service::SceneService;
 use crate::application::services::scene_resolution_service::SceneResolutionService;
@@ -23,9 +25,15 @@ use crate::application::services::interaction_service::InteractionService;
 use crate::application::services::session_join_service as sjs;
 use crate::application::services::challenge_resolution_service as crs;
 use crate::application::ports::outbound::{PlayerCharacterRepositoryPort, SessionParticipantRole};
-use crate::domain::value_objects::{TimeOfDay, ActionId, RegionRelationshipType};
+use crate::domain::value_objects::{RegionRelationshipType, TimeOfDay};
 use crate::infrastructure::session::ClientId;
 use crate::infrastructure::state::AppState;
+use wrldbldr_domain::ActionId;
+use wrldbldr_protocol as messages;
+use wrldbldr_protocol::{
+    CharacterData, CharacterPosition, ClientMessage, InteractionData, ParticipantInfo,
+    ParticipantRole, SceneData, ServerMessage,
+};
 
 // Conversion helpers for adapting between infrastructure message types and service DTOs
 
@@ -295,7 +303,7 @@ async fn handle_message(
                 if let Some(location_id_str) = target.as_ref() {
                     // Parse location ID
                     let location_uuid = match uuid::Uuid::parse_str(location_id_str) {
-                        Ok(uuid) => crate::domain::value_objects::LocationId::from_uuid(uuid),
+                        Ok(uuid) => wrldbldr_domain::LocationId::from_uuid(uuid),
                         Err(_) => {
                             return Some(ServerMessage::Error {
                                 code: "INVALID_LOCATION_ID".to_string(),
@@ -446,7 +454,7 @@ async fn handle_message(
                                                     for (loc_id_str, pcs_at_loc) in location_pcs.iter() {
                                                         if let Ok(location) = state
                                                             .core.location_service
-                                                            .get_location(crate::domain::value_objects::LocationId::from_uuid(
+                                                            .get_location(wrldbldr_domain::LocationId::from_uuid(
                                                                 uuid::Uuid::parse_str(loc_id_str).unwrap_or_default()
                                                             ))
                                                             .await
@@ -608,7 +616,7 @@ async fn handle_message(
 
             // Parse scene_id
             let scene_uuid = match uuid::Uuid::parse_str(&scene_id) {
-                Ok(uuid) => crate::domain::value_objects::SceneId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::SceneId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_SCENE_ID".to_string(),
@@ -1201,7 +1209,7 @@ async fn handle_message(
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-                Ok(uuid) => crate::domain::value_objects::PlayerCharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_PC_ID".to_string(),
@@ -1210,7 +1218,7 @@ async fn handle_message(
                 }
             };
             let npc_uuid = match uuid::Uuid::parse_str(&npc_id) {
-                Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::CharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_NPC_ID".to_string(),
@@ -1219,7 +1227,7 @@ async fn handle_message(
                 }
             };
             let location_uuid = match uuid::Uuid::parse_str(&location_id) {
-                Ok(uuid) => crate::domain::value_objects::LocationId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::LocationId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_LOCATION_ID".to_string(),
@@ -1228,7 +1236,7 @@ async fn handle_message(
                 }
             };
             let region_uuid = match uuid::Uuid::parse_str(&region_id) {
-                Ok(uuid) => crate::domain::value_objects::RegionId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::RegionId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_REGION_ID".to_string(),
@@ -1319,7 +1327,7 @@ async fn handle_message(
 
             // Parse NPC ID and get NPC details
             let npc_uuid = match uuid::Uuid::parse_str(&npc_id) {
-                Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::CharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_NPC_ID".to_string(),
@@ -1347,7 +1355,7 @@ async fn handle_message(
 
             // Parse PC ID and get PC details (for region)
             let pc_uuid = match uuid::Uuid::parse_str(&target_pc_id) {
-                Ok(uuid) => crate::domain::value_objects::PlayerCharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_PC_ID".to_string(),
@@ -1488,15 +1496,18 @@ async fn handle_message(
             };
 
             // Advance game time in session
-            let game_time_info = {
+            let game_time = {
                 let mut sessions = state.sessions.write().await;
                 match sessions.get_session_mut(session_id) {
                     Some(session) => {
                         session.advance_time_hours(hours);
-                        (
-                            session.display_game_time(),
-                            session.time_of_day().to_string(),
-                            session.is_time_paused(),
+
+                        let gt = session.game_time();
+                        wrldbldr_protocol::GameTime::new(
+                            gt.day_ordinal(),
+                            gt.current().hour() as u8,
+                            gt.current().minute() as u8,
+                            gt.is_paused(),
                         )
                     }
                     None => {
@@ -1509,11 +1520,7 @@ async fn handle_message(
             };
 
             // Build the GameTimeUpdated message
-            let time_updated = ServerMessage::GameTimeUpdated {
-                display: game_time_info.0,
-                time_of_day: game_time_info.1,
-                is_paused: game_time_info.2,
-            };
+            let time_updated = ServerMessage::GameTimeUpdated { game_time };
 
             // Broadcast to all in session
             if let Ok(msg_json) = serde_json::to_value(&time_updated) {
@@ -1545,7 +1552,7 @@ async fn handle_message(
 
             // Parse PC ID
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-                Ok(uuid) => crate::domain::value_objects::PlayerCharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_PC_ID".to_string(),
@@ -1596,7 +1603,7 @@ async fn handle_message(
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-                Ok(uuid) => crate::domain::value_objects::PlayerCharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_PC_ID".to_string(),
@@ -1605,7 +1612,7 @@ async fn handle_message(
                 }
             };
             let region_uuid = match uuid::Uuid::parse_str(&region_id) {
-                Ok(uuid) => crate::domain::value_objects::RegionId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::RegionId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_REGION_ID".to_string(),
@@ -1688,7 +1695,7 @@ async fn handle_message(
             let location_name = location.as_ref().map(|l| l.name.clone()).unwrap_or_default();
             let backdrop = target_region.backdrop_asset.clone()
                 .or_else(|| location.as_ref().and_then(|l| l.backdrop_asset.clone()));
-            let world_id = location.as_ref().map(|l| l.world_id).unwrap_or_else(crate::domain::value_objects::WorldId::new);
+            let world_id = location.as_ref().map(|l| l.world_id).unwrap_or_else(wrldbldr_domain::WorldId::new);
             let default_ttl = location.as_ref().map(|l| l.presence_cache_ttl_hours).unwrap_or(3);
             let use_llm = location.as_ref().map(|l| l.use_llm_presence).unwrap_or(true);
 
@@ -1893,7 +1900,12 @@ async fn handle_message(
                     region_name: target_region.name.clone(),
                     location_id: target_region.location_id.to_string(),
                     location_name: location_name.clone(),
-                    game_time_display: game_time.display_date(),
+                    game_time: wrldbldr_protocol::GameTime::new(
+                        game_time.day_ordinal(),
+                        game_time.current().hour() as u8,
+                        game_time.current().minute() as u8,
+                        game_time.is_paused(),
+                    ),
                     previous_staging: previous_staging_info,
                     rule_based_npcs,
                     llm_based_npcs,
@@ -1983,7 +1995,7 @@ async fn handle_message(
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-                Ok(uuid) => crate::domain::value_objects::PlayerCharacterId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_PC_ID".to_string(),
@@ -1992,7 +2004,7 @@ async fn handle_message(
                 }
             };
             let location_uuid = match uuid::Uuid::parse_str(&location_id) {
-                Ok(uuid) => crate::domain::value_objects::LocationId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::LocationId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_LOCATION_ID".to_string(),
@@ -2021,7 +2033,7 @@ async fn handle_message(
             // Determine arrival region
             let arrival_region_uuid = if let Some(arrival_id) = arrival_region_id {
                 match uuid::Uuid::parse_str(&arrival_id) {
-                    Ok(uuid) => crate::domain::value_objects::RegionId::from_uuid(uuid),
+                    Ok(uuid) => wrldbldr_domain::RegionId::from_uuid(uuid),
                     Err(_) => {
                         return Some(ServerMessage::Error {
                             code: "INVALID_REGION_ID".to_string(),
@@ -2220,7 +2232,7 @@ async fn handle_message(
             let mut approved_npc_data = Vec::new();
             for npc_info in &approved_npcs {
                 let char_id = match uuid::Uuid::parse_str(&npc_info.character_id) {
-                    Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                    Ok(uuid) => wrldbldr_domain::CharacterId::from_uuid(uuid),
                     Err(_) => continue,
                 };
 
@@ -2495,7 +2507,7 @@ async fn handle_message(
 
             // Parse region ID
             let region_uuid = match uuid::Uuid::parse_str(&region_id) {
-                Ok(uuid) => crate::domain::value_objects::RegionId::from_uuid(uuid),
+                Ok(uuid) => wrldbldr_domain::RegionId::from_uuid(uuid),
                 Err(_) => {
                     return Some(ServerMessage::Error {
                         code: "INVALID_REGION_ID".to_string(),
@@ -2553,7 +2565,7 @@ async fn handle_message(
             let mut approved_npc_data = Vec::new();
             for npc_info in &npcs {
                 let char_id = match uuid::Uuid::parse_str(&npc_info.character_id) {
-                    Ok(uuid) => crate::domain::value_objects::CharacterId::from_uuid(uuid),
+                    Ok(uuid) => wrldbldr_domain::CharacterId::from_uuid(uuid),
                     Err(_) => continue,
                 };
 
@@ -2603,9 +2615,3 @@ async fn handle_message(
     }
 }
 
-// Re-export message types from the dedicated messages module
-pub mod messages;
-pub use messages::{
-    CharacterData, CharacterPosition, ClientMessage, InteractionData,
-    ParticipantInfo, ParticipantRole, SceneData, ServerMessage,
-};

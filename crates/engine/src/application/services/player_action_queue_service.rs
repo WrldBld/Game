@@ -28,17 +28,17 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     /// Enqueue a player action for processing
     pub async fn enqueue_action(
         &self,
-        session_id: crate::domain::value_objects::SessionId,
+        session_id: wrldbldr_domain::SessionId,
         player_id: String,
-        pc_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+        pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
         action_type: String,
         target: Option<String>,
         dialogue: Option<String>,
     ) -> Result<QueueItemId, QueueError> {
         let item = PlayerActionItem {
-            session_id,
+            session_id: session_id.into(),
             player_id,
-            pc_id,
+            pc_id: pc_id.map(Into::into),
             action_type,
             target,
             dialogue,

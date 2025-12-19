@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 
 use crate::application::ports::outbound::{AsyncSessionPort, AsyncSessionError, PlayerWorldSnapshot, SessionParticipantInfo, SessionParticipantRole, SessionWorldData};
 use crate::application::services::world_service::{WorldService, WorldServiceImpl};
-use crate::domain::value_objects::{SessionId, WorldId};
+use wrldbldr_domain::{SessionId, WorldId};
 
 /// Participant information DTO for session join responses
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -60,17 +60,10 @@ impl SessionJoinService {
         client_id: String,
         user_id: String,
         role: SessionParticipantRole,
-        world_id: Option<String>,
+        world_id: Option<uuid::Uuid>,
         sender: mpsc::UnboundedSender<serde_json::Value>,
     ) -> Result<SessionJoinedInfo, AsyncSessionError> {
-        // Parse the world ID if provided
-        let world_id = if let Some(id_str) = world_id {
-            let uuid = uuid::Uuid::parse_str(&id_str)
-                .map_err(|_| AsyncSessionError::WorldNotFound(id_str.clone()))?;
-            Some(WorldId::from_uuid(uuid))
-        } else {
-            None
-        };
+        let world_id = world_id.map(WorldId::from_uuid);
 
         // Try to find an existing session for this world
         if let Some(wid) = world_id {

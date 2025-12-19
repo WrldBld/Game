@@ -11,7 +11,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::{SkillRepositoryPort, WorldRepositoryPort};
 use crate::domain::entities::{default_skills_for_variant, Skill, SkillCategory};
-use crate::domain::value_objects::{SkillId, WorldId};
+use wrldbldr_domain::{SkillId, WorldId};
 
 /// Request to create a new skill
 #[derive(Debug, Clone)]

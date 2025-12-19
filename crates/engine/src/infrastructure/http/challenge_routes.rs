@@ -22,7 +22,7 @@ use crate::application::dto::{
 };
 use crate::application::services::{ChallengeService, WorldService};
 use crate::domain::entities::{Challenge, ChallengePrerequisite};
-use crate::domain::value_objects::{ChallengeId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, SceneId, SkillId, WorldId};
 use crate::infrastructure::state::AppState;
 
 // ============================================================================

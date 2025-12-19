@@ -1,0 +1,26 @@
+[package]
+name = "wrldbldr-engine-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Engine App - Application services and use-cases"
+
+[dependencies]
+wrldbldr-domain = { workspace = true }
+wrldbldr-protocol = { workspace = true }
+wrldbldr-core-ports = { workspace = true }
+wrldbldr-engine-ports = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+validator = { workspace = true }
+
+[lints]
+workspace = true

@@ -18,9 +18,8 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::{StagedNpcRow, StagingRepositoryPort};
 use crate::domain::entities::{StagedNpc, Staging, StagingSource};
-use crate::domain::value_objects::{
-    CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId,
-};
+use crate::domain::value_objects::{GameTime};
+use wrldbldr_domain::{CharacterId, LocationId, RegionId, StagingId, WorldId};
 
 pub struct Neo4jStagingRepository {
     connection: Neo4jConnection,

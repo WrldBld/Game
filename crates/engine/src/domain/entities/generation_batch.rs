@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 
 use super::gallery_asset::{AssetType, EntityType};
-use crate::domain::value_objects::{AssetId, BatchId, WorldId};
+use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Status of a generation batch
 #[derive(Debug, Clone, PartialEq)]

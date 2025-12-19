@@ -8,8 +8,10 @@ use std::sync::Arc;
 use crate::application::dto::{
     SessionWorldSnapshot, InteractionData, NavigationData, NpcPresenceData,
 };
-use crate::application::dto::websocket_messages::{
-    SceneCharacterState, SceneSnapshot, SceneRegionInfo,
+use wrldbldr_protocol::{
+    SceneData as SceneSnapshot,
+    CharacterData as SceneCharacterState,
+    RegionData as SceneRegionInfo,
 };
 
 /// Game time display data

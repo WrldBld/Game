@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use crate::domain::value_objects::{AppSettings, WorldId};
+use crate::domain::value_objects::AppSettings;
+use wrldbldr_domain::WorldId;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {

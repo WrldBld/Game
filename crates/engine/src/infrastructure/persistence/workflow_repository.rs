@@ -11,7 +11,7 @@ use crate::application::dto::{InputDefaultDto, PromptMappingDto};
 use crate::domain::entities::{
     InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot,
 };
-use crate::domain::value_objects::WorkflowConfigId;
+use wrldbldr_domain::WorkflowConfigId;
 use crate::infrastructure::persistence::Neo4jConnection;
 
 /// Repository for workflow configuration persistence

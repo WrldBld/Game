@@ -5,7 +5,8 @@ use crate::domain::entities::{
     CharacterSheetTemplate, FieldType, ItemListType, SectionLayout, SelectOption, SheetField,
     SheetSection,
 };
-use crate::domain::value_objects::{RuleSystemVariant, WorldId};
+use crate::domain::value_objects::RuleSystemVariant;
+use wrldbldr_domain::WorldId;
 
 /// Response for a sheet template.
 #[derive(Debug, Serialize)]

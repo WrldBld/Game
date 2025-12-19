@@ -14,7 +14,7 @@ use crate::application::ports::outbound::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueueNotificationPort, QueuePort,
 };
-use crate::domain::value_objects::SessionId;
+use wrldbldr_domain::SessionId;
 
 /// SQLite queue implementation
 pub struct SqliteQueue<T, N: QueueNotificationPort> {
@@ -130,7 +130,6 @@ where
         let id_str: String = row.get("id");
         let id = uuid::Uuid::parse_str(&id_str)
             .map_err(|e| QueueError::Backend(format!("Invalid UUID: {}", e)))?;
-        let id = QueueItemId::from_uuid(id);
 
         let payload_json: String = row.get("payload_json");
         let payload: T = serde_json::from_str(&payload_json)?;
@@ -193,7 +192,7 @@ where
     T: Send + Sync + Clone + Serialize + DeserializeOwned + 'static,
 {
     async fn enqueue(&self, payload: T, priority: u8) -> Result<QueueItemId, QueueError> {
-        let id = QueueItemId::new();
+        let id = uuid::Uuid::new_v4();
         let payload_json = serde_json::to_string(&payload)?;
         let now = Utc::now();
         let now_str = now.to_rfc3339();
@@ -259,7 +258,6 @@ where
             let id_str: String = row.get("id");
             let id = uuid::Uuid::parse_str(&id_str)
                 .map_err(|e| QueueError::Backend(format!("Invalid UUID: {}", e)))?;
-            let id = QueueItemId::from_uuid(id);
 
             // Fetch the full item with all fields
             self.get(id).await

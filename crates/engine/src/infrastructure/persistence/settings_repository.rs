@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use crate::application::ports::outbound::{SettingsRepositoryPort, SettingsError};
-use crate::domain::value_objects::{AppSettings, WorldId};
+use wrldbldr_domain::{WorldId};
+use crate::domain::value_objects::{AppSettings};
 
 pub struct SqliteSettingsRepository {
     pool: SqlitePool,
@@ -175,7 +176,7 @@ impl SettingsRepositoryPort for SqliteSettingsRepository {
     async fn get_for_world(&self, world_id: WorldId) -> Result<AppSettings, SettingsError> {
         // Start with global settings
         let mut settings = self.get().await?;
-        settings.world_id = Some(world_id);
+        settings.world_id = Some(world_id.into());
 
         // Override with world-specific values
         let rows: Vec<(String, String)> = sqlx::query_as(
@@ -219,7 +220,7 @@ impl SettingsRepositoryPort for SqliteSettingsRepository {
 
         // Return global settings with world_id set
         let mut settings = self.get().await?;
-        settings.world_id = Some(world_id);
+        settings.world_id = Some(world_id.into());
         Ok(settings)
     }
 

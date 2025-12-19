@@ -16,10 +16,12 @@ use crate::application::ports::outbound::{
 use crate::application::services::llm::LLMService;
 use crate::application::services::generation_service::GenerationEvent;
 use crate::application::dto::{
-    ApprovalItem, ChallengeSuggestionInfo, DecisionType, DecisionUrgency, LLMRequestItem,
-    LLMRequestType, NarrativeEventSuggestionInfo,
+    ApprovalItem, DecisionType, DecisionUrgency, LLMRequestItem, LLMRequestType,
 };
-use crate::domain::value_objects::ProposedToolInfo;
+use wrldbldr_domain::WorldId;
+use wrldbldr_protocol::{
+    ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo,
+};
 
 /// Priority constants for queue operations
 const PRIORITY_NORMAL: u8 = 0;
@@ -103,7 +105,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         _ => String::new(),
                     },
                     error: "Cancelled by user".to_string(),
-                    world_id: item.payload.world_id.clone(),
+                    world_id: item.payload.world_id.clone().map(WorldId::from_uuid),
                 });
                 
                 return Ok(true);
@@ -188,7 +190,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                 let challenge_suggestion = if let Some(cs) = response.challenge_suggestion {
                                     // Parse the challenge ID from string
                                     let challenge_id_result = uuid::Uuid::parse_str(&cs.challenge_id)
-                                        .map(crate::domain::value_objects::ChallengeId::from_uuid);
+                                        .map(wrldbldr_domain::ChallengeId::from_uuid);
                                     
                                     match challenge_id_result {
                                         Ok(challenge_id) => {
@@ -282,7 +284,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                 let narrative_event_suggestion = if let Some(nes) = response.narrative_event_suggestion {
                                     // Parse the narrative event ID from string
                                     let event_id_result = uuid::Uuid::parse_str(&nes.event_id)
-                                        .map(crate::domain::value_objects::NarrativeEventId::from_uuid);
+                                        .map(wrldbldr_domain::NarrativeEventId::from_uuid);
                                     
                                     match event_id_result {
                                         Ok(event_id) => {
@@ -424,7 +426,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             request_id: request_id.clone(),
                             field_type: field_type_clone.clone(),
                             entity_id: entity_id_clone.clone(),
-                            world_id: world_id_clone.clone(),
+                            world_id: world_id_clone.clone().map(WorldId::from_uuid),
                         });
                         
                         // Create suggestion service
@@ -450,7 +452,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
-                                    world_id: world_id_clone.clone(),
+                                    world_id: world_id_clone.clone().map(WorldId::from_uuid),
                                 });
                                 let _ = queue_clone.fail(item_id, &error).await;
                                 return;
@@ -464,7 +466,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     suggestions,
-                                    world_id: world_id_clone,
+                                    world_id: world_id_clone.map(WorldId::from_uuid),
                                 });
                                 let _ = queue_clone.complete(item_id).await;
                             }
@@ -475,7 +477,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
-                                    world_id: world_id_clone,
+                                    world_id: world_id_clone.map(WorldId::from_uuid),
                                 });
                                 let _ = queue_clone.fail(item_id, &error).await;
                             }

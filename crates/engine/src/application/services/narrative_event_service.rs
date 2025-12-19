@@ -20,7 +20,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::NarrativeEventRepositoryPort;
 use crate::domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
-use crate::domain::value_objects::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
+use wrldbldr_domain::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
 
 /// NarrativeEvent service trait defining the application use cases
 #[async_trait]

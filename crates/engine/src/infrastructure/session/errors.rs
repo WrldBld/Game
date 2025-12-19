@@ -1,6 +1,6 @@
 //! Session error types
 
-use crate::domain::value_objects::{SessionId};
+use wrldbldr_domain::{SessionId};
 use super::ClientId;
 
 /// Error types for session operations

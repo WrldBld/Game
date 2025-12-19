@@ -16,11 +16,8 @@ use crate::application::ports::outbound::{
 };
 use crate::application::services::StoryEventService;
 use crate::domain::entities::{Character, NarrativeEvent};
-use crate::domain::value_objects::{
-    ActiveEventContext, CharacterId, GameTime, NpcDialogueContext, 
-    RegionId, RegionRelationshipType, RuleBasedSuggestion, StagingContext,
-    TimeOfDay, WorldId,
-};
+use crate::domain::value_objects::{ActiveEventContext, GameTime, NpcDialogueContext, RegionRelationshipType, RuleBasedSuggestion, StagingContext, TimeOfDay};
+use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 
 /// Service for gathering context needed for staging decisions
 pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> {
@@ -83,7 +80,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
             region.name,
             region.description,
             location_name,
-            time_of_day,
+            time_of_day.to_string(),
             game_time.display_time(),
         )
         .with_active_events(active_events)
@@ -115,7 +112,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
                 // For frequents relationships, we could add probabilistic logic
                 // For now, use deterministic rules
                 RuleBasedSuggestion {
-                    character_id: character.id,
+                    character_id: character.id.into(),
                     character_name: character.name,
                     is_present,
                     reasoning,
@@ -185,7 +182,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
         match summary {
             Some(summary_text) => {
                 Ok(Some(NpcDialogueContext::new(
-                    npc_id,
+                    npc_id.into(),
                     npc_name,
                     summary_text,
                     "Recent".to_string(), // TODO: Add actual timestamp
@@ -217,7 +214,7 @@ Time: {} ({})
         context.region_name,
         context.location_name,
         context.region_description,
-        context.time_of_day.display_name(),
+        context.time_of_day,
         context.time_display,
     );
 
@@ -292,7 +289,7 @@ mod tests {
             "Town Square",
             "A busy marketplace in the center of town",
             "Riverside Village",
-            TimeOfDay::Morning,
+            TimeOfDay::Morning.to_string(),
             "8:00 AM",
         );
 
@@ -318,7 +315,7 @@ mod tests {
             "Dark Alley",
             "A shadowy back alley",
             "City of Shadows",
-            TimeOfDay::Night,
+            TimeOfDay::Night.to_string(),
             "11:00 PM",
         );
 

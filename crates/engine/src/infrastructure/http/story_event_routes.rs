@@ -15,9 +15,7 @@ use crate::application::dto::{
     CreateDmMarkerRequestDto, ListStoryEventsQueryDto, PaginatedStoryEventsResponseDto,
     StoryEventResponseDto, UpdateStoryEventRequestDto,
 };
-use crate::domain::value_objects::{
-    CharacterId, LocationId, SceneId, SessionId, StoryEventId, WorldId,
-};
+use wrldbldr_domain::{CharacterId, LocationId, SceneId, SessionId, StoryEventId, WorldId};
 use crate::infrastructure::state::AppState;
 // NOTE: story event request/response DTOs live in `application/dto/story_event.rs`.
 

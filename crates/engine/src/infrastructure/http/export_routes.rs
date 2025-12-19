@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::application::dto::ExportQueryDto;
 use crate::application::ports::outbound::PlayerWorldSnapshot;
 use crate::application::services::WorldService;
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
 
 /// Export a world as JSON snapshot

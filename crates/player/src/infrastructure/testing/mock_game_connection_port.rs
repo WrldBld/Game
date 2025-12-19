@@ -194,11 +194,11 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: crate::application::dto::websocket_messages::DiceInputType) -> anyhow::Result<()> {
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: wrldbldr_protocol::DiceInputType) -> anyhow::Result<()> {
         // For mock purposes, extract the value and use the existing roll tracking
         let roll_value = match &input {
-            crate::application::dto::websocket_messages::DiceInputType::Manual(v) => *v,
-            crate::application::dto::websocket_messages::DiceInputType::Formula(_) => 0, // Formula parsing not implemented in mock
+            wrldbldr_protocol::DiceInputType::Manual(v) => *v,
+            wrldbldr_protocol::DiceInputType::Formula(_) => 0, // Formula parsing not implemented in mock
         };
         let mut s = self.state.lock().unwrap();
         s.sent_rolls.push((challenge_id.to_string(), roll_value));

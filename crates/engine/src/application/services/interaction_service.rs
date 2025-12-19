@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::InteractionRepositoryPort;
 use crate::domain::entities::InteractionTemplate;
-use crate::domain::value_objects::{InteractionId, SceneId};
+use wrldbldr_domain::{InteractionId, SceneId};
 
 /// Interaction service trait defining the application use cases
 #[async_trait]

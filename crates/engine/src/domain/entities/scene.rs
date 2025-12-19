@@ -8,7 +8,8 @@
 //!
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
-use crate::domain::value_objects::{ActId, CharacterId, LocationId, SceneId, TimeOfDay};
+use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
+use crate::domain::value_objects::{TimeOfDay};
 
 /// A scene - a complete unit of storytelling
 ///
@@ -99,9 +100,9 @@ pub enum SceneCondition {
     /// Must have completed another scene
     CompletedScene(SceneId),
     /// Must have a specific item
-    HasItem(crate::domain::value_objects::ItemId),
+    HasItem(wrldbldr_domain::ItemId),
     /// Must have a relationship with a character
-    KnowsCharacter(crate::domain::value_objects::CharacterId),
+    KnowsCharacter(wrldbldr_domain::CharacterId),
     /// A flag must be set
     FlagSet(String),
     /// Custom condition expression

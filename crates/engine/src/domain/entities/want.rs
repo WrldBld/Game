@@ -19,7 +19,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::WantId;
+use wrldbldr_domain::WantId;
 
 /// A character's desire or goal (Actantial model)
 ///

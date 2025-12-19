@@ -10,7 +10,7 @@
 //! (want:Want)-[:TARGETS]->(goal:Goal)
 //! ```
 
-use crate::domain::value_objects::{GoalId, WorldId};
+use wrldbldr_domain::{GoalId, WorldId};
 
 /// Abstract desire target (for Wants that don't target a Character or Item)
 #[derive(Debug, Clone)]

@@ -55,7 +55,7 @@ pub fn handle_server_message(
                                 .and_then(|l| l.backdrop_asset.clone()));
 
                         // Build scene data
-                        let initial_scene = crate::application::dto::websocket_messages::SceneSnapshot {
+                        let initial_scene = wrldbldr_protocol::SceneData {
                             id: first_scene.id.clone(),
                             name: first_scene.name.clone(),
                             location_id: first_scene.location_id.clone(),
@@ -66,15 +66,17 @@ pub fn handle_server_message(
                         };
 
                         // Get characters featured in the scene
-                        let scene_characters: Vec<crate::application::dto::websocket_messages::SceneCharacterState> = first_scene.featured_characters.iter()
+                        let scene_characters: Vec<wrldbldr_protocol::CharacterData> = first_scene
+                            .featured_characters
+                            .iter()
                             .filter_map(|char_id| {
                                 snapshot.characters.iter().find(|c| &c.id == char_id).map(|c| {
-                                    crate::application::dto::websocket_messages::SceneCharacterState {
+                                    wrldbldr_protocol::CharacterData {
                                         id: c.id.clone(),
                                         name: c.name.clone(),
                                         sprite_asset: c.sprite_asset.clone(),
                                         portrait_asset: c.portrait_asset.clone(),
-                                        position: crate::application::dto::websocket_messages::CharacterPosition::Center,
+                                        position: wrldbldr_protocol::CharacterPosition::Center,
                                         is_speaking: false,
                                         emotion: None,
                                     }
@@ -707,25 +709,21 @@ pub fn handle_server_message(
         // Phase 23F: Game Time Control
         // =========================================================================
 
-        ServerMessage::GameTimeUpdated {
-            display: time_display,
-            time_of_day,
-            is_paused,
-        } => {
+        ServerMessage::GameTimeUpdated { game_time } => {
+            let time_display = game_time.display_date();
+            let time_of_day = game_time.time_of_day().to_string();
+            let is_paused = game_time.is_paused;
+
             tracing::info!(
                 "Game time updated: {} ({}, paused: {})",
                 time_display,
                 time_of_day,
                 is_paused
             );
-            
+
             // Update game state with time data
-            game_state.apply_game_time_update(
-                time_display.clone(),
-                time_of_day,
-                is_paused,
-            );
-            
+            game_state.apply_game_time_update(time_display.clone(), time_of_day, is_paused);
+
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Time is now: {}", time_display),
@@ -780,7 +778,7 @@ pub fn handle_server_message(
             region_name,
             location_id,
             location_name,
-            game_time_display,
+            game_time,
             previous_staging,
             rule_based_npcs,
             llm_based_npcs,
@@ -843,7 +841,7 @@ pub fn handle_server_message(
                 region_name: region_name.clone(),
                 location_id,
                 location_name: location_name.clone(),
-                game_time_display,
+                game_time_display: game_time.display_date(),
                 previous_staging: previous,
                 rule_based_npcs: rule_npcs,
                 llm_based_npcs: llm_npcs,

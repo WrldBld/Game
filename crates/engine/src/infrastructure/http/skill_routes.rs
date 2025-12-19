@@ -14,9 +14,11 @@ use crate::application::services::{
     CreateSkillRequest as ServiceCreateRequest, SkillService,
     UpdateSkillRequest as ServiceUpdateRequest,
 };
-use crate::domain::value_objects::{SkillId, WorldId};
-use crate::application::dto::{CreateSkillRequestDto, SkillResponseDto, UpdateSkillRequestDto};
+use crate::application::dto::{
+    CreateSkillRequestDto, SkillResponseDto, UpdateSkillRequestDto,
+};
 use crate::infrastructure::state::AppState;
+use wrldbldr_domain::{SkillId, WorldId};
 
 /// List all skills for a world
 ///

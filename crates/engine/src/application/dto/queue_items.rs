@@ -5,20 +5,21 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-use crate::domain::value_objects::{
-    ApprovalDecision, ChallengeSuggestionInfo, GamePromptRequest, NarrativeEventSuggestionInfo,
-    ProposedToolInfo, QueueItemId, SceneId, SessionId,
+use crate::domain::value_objects::GamePromptRequest;
+use wrldbldr_protocol::{
+    ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo,
 };
 
 /// Player action waiting to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerActionItem {
-    pub session_id: SessionId,
+    pub session_id: Uuid,
     pub player_id: String,
     /// The player character ID performing this action (for challenge targeting)
     #[serde(default)]
-    pub pc_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+    pub pc_id: Option<Uuid>,
     pub action_type: String,
     pub target: Option<String>,
     pub dialogue: Option<String>,
@@ -28,7 +29,7 @@ pub struct PlayerActionItem {
 /// DM action waiting to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DMActionItem {
-    pub session_id: SessionId,
+    pub session_id: Uuid,
     pub dm_id: String,
     pub action: DMAction,
     pub timestamp: DateTime<Utc>,
@@ -49,7 +50,7 @@ pub enum DMAction {
         event_id: String,
     },
     TransitionScene {
-        scene_id: SceneId,
+        scene_id: Uuid,
     },
 }
 
@@ -57,13 +58,13 @@ pub enum DMAction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LLMRequestItem {
     pub request_type: LLMRequestType,
-    pub session_id: Option<SessionId>,
+    pub session_id: Option<Uuid>,
     /// World ID for routing suggestion responses (world-scoped events)
     #[serde(default)]
-    pub world_id: Option<crate::domain::value_objects::WorldId>,
+    pub world_id: Option<Uuid>,
     /// The player character ID associated with this request (for challenge targeting)
     #[serde(default)]
-    pub pc_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+    pub pc_id: Option<Uuid>,
     #[serde(default)]
     pub prompt: Option<GamePromptRequest>, // None for suggestions
     #[serde(default)]
@@ -74,7 +75,7 @@ pub struct LLMRequestItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum LLMRequestType {
-    NPCResponse { action_item_id: QueueItemId },
+    NPCResponse { action_item_id: Uuid },
     Suggestion { field_type: String, entity_id: Option<String> },
     ChallengeReasoning { challenge_id: String },
 }
@@ -82,7 +83,7 @@ pub enum LLMRequestType {
 /// Asset generation request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetGenerationItem {
-    pub session_id: Option<SessionId>,
+    pub session_id: Option<Uuid>,
     pub entity_type: String,
     pub entity_id: String,
     pub workflow_id: String,
@@ -93,16 +94,16 @@ pub struct AssetGenerationItem {
 /// Decision awaiting DM approval
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalItem {
-    pub session_id: SessionId,
-    pub source_action_id: QueueItemId, // Links back to PlayerActionItem
+    pub session_id: Uuid,
+    pub source_action_id: Uuid, // Links back to PlayerActionItem
     pub decision_type: DecisionType,
     pub urgency: DecisionUrgency,
     /// World ID for story event recording
     #[serde(default)]
-    pub world_id: Option<crate::domain::value_objects::WorldId>,
+    pub world_id: Option<Uuid>,
     /// Player character ID for SPOKE_TO edge creation
     #[serde(default)]
-    pub pc_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+    pub pc_id: Option<Uuid>,
     /// NPC character ID for story event recording
     #[serde(default)]
     pub npc_id: Option<String>,
@@ -200,7 +201,7 @@ pub struct ChallengeOutcomeApprovalItem {
     /// Unique ID for this resolution
     pub resolution_id: String,
     /// Session where the challenge occurred
-    pub session_id: SessionId,
+    pub session_id: Uuid,
     /// ID of the challenge
     pub challenge_id: String,
     /// Name of the challenge

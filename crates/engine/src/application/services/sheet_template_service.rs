@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::application::ports::outbound::SheetTemplateRepositoryPort;
 use crate::domain::entities::{CharacterSheetTemplate, SheetTemplateId};
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 
 /// Service for managing character sheet templates
 pub struct SheetTemplateService {

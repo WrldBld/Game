@@ -7,10 +7,9 @@ use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
 
 use crate::application::dto::WorldSnapshot;
-use crate::domain::value_objects::{
-    GameTime, LocationId, PlayerCharacterId, ProposedToolInfo, RegionId, SessionId, TimeOfDay, WorldId,
-};
-use crate::infrastructure::websocket::{ParticipantRole, ServerMessage};
+use wrldbldr_domain::{GameTime, TimeOfDay};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+use wrldbldr_protocol::{ParticipantRole, ProposedToolInfo, ServerMessage};
 use crate::application::services::staging_service::StagingProposal;
 
 use super::conversation::ConversationTurn;
@@ -325,7 +324,7 @@ impl GameSession {
     pub fn update_pc_location(
         &mut self,
         user_id: &str,
-        location_id: crate::domain::value_objects::LocationId,
+        location_id: wrldbldr_domain::LocationId,
     ) -> Result<(), String> {
         if let Some(pc) = self.player_characters.get_mut(user_id) {
             pc.update_location(location_id);

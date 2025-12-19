@@ -8,16 +8,17 @@ use std::time::Duration;
 
 use tokio::sync::RwLock;
 
-use crate::application::dto::{ChallengeSuggestionInfo, DMAction, DMActionItem, NarrativeEventSuggestionInfo};
+use crate::application::dto::{DMAction, DMActionItem};
 use crate::application::ports::outbound::{AsyncSessionPort, QueueNotificationPort};
 use crate::application::services::{
     DMActionQueueService, DMApprovalQueueService, InteractionService, InteractionServiceImpl,
     NarrativeEventService, NarrativeEventServiceImpl, SceneService, SceneServiceImpl,
 };
-use crate::domain::value_objects::{NarrativeEventId, ProposedToolInfo};
 use crate::infrastructure::session::SessionManager;
-use crate::infrastructure::websocket::messages::{
-    CharacterData, CharacterPosition, InteractionData, SceneData, ServerMessage,
+use wrldbldr_domain::{NarrativeEventId, SceneId, SessionId};
+use wrldbldr_protocol::{
+    ChallengeSuggestionInfo, CharacterData, CharacterPosition, InteractionData,
+    NarrativeEventSuggestionInfo, ProposedToolInfo, SceneData, ServerMessage,
 };
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
@@ -55,7 +56,7 @@ pub async fn approval_notification_worker(
                 // Check if we've already notified and register via async port
                 let was_registered = async_session_port
                     .register_pending_approval(
-                        item.payload.session_id,
+                        SessionId::from_uuid(item.payload.session_id),
                         approval_id.clone(),
                         item.payload.npc_name.clone(),
                         item.payload.proposed_dialogue.clone(),
@@ -173,7 +174,7 @@ async fn process_dm_action(
         } => {
             // Parse request_id as QueueItemId (UUID string)
             let approval_item_id = match uuid::Uuid::parse_str(&request_id) {
-                Ok(uuid) => crate::domain::value_objects::QueueItemId::from_uuid(uuid),
+                Ok(uuid) => uuid,
                 Err(_) => {
                     tracing::error!("Invalid approval item ID: {}", request_id);
                     return Err(crate::application::ports::outbound::QueueError::NotFound(request_id.clone()));
@@ -187,11 +188,12 @@ async fn process_dm_action(
             // The service now only needs SessionManagementPort (session manager) and session_id
             let mut sessions_write = sessions.write().await;
             // Verify session exists
-            if sessions_write.get_session_mut(action.session_id).is_some() {
+            let session_id = SessionId::from_uuid(action.session_id);
+            if sessions_write.get_session_mut(session_id).is_some() {
                 // Use the approval service's process_decision method
                 // The service expects domain ApprovalDecision which matches what we have
                 match approval_queue_service
-                    .process_decision(&mut *sessions_write, action.session_id, approval_item_id, decision.clone())
+                    .process_decision(&mut *sessions_write, session_id, approval_item_id, decision.clone())
                     .await
                 {
                     Ok(outcome) => {
@@ -221,7 +223,9 @@ async fn process_dm_action(
                 choices: vec![],
             };
             if let Ok(msg_json) = serde_json::to_value(&response) {
-                let _ = async_session_port.broadcast_to_players(action.session_id, msg_json).await;
+                let _ = async_session_port
+                    .broadcast_to_players(SessionId::from_uuid(action.session_id), msg_json)
+                    .await;
             }
         }
         DMAction::TriggerEvent { event_id } => {
@@ -270,7 +274,9 @@ async fn process_dm_action(
                 message: format!("Narrative event '{}' has been triggered", narrative_event.name),
             };
             if let Ok(msg_json) = serde_json::to_value(&notification) {
-                let _ = async_session_port.broadcast_to_players(action.session_id, msg_json).await;
+                let _ = async_session_port
+                    .broadcast_to_players(SessionId::from_uuid(action.session_id), msg_json)
+                    .await;
             }
 
             tracing::info!(
@@ -282,7 +288,10 @@ async fn process_dm_action(
         }
         DMAction::TransitionScene { scene_id } => {
             // Load scene with relations
-            let scene_with_relations = match scene_service.get_scene_with_relations(*scene_id).await {
+            let scene_with_relations = match scene_service
+                .get_scene_with_relations(SceneId::from_uuid(*scene_id))
+                .await
+            {
                 Ok(Some(scene_data)) => scene_data,
                 Ok(None) => {
                     tracing::error!("Scene not found: {}", scene_id);
@@ -300,7 +309,7 @@ async fn process_dm_action(
 
             // Load interactions for the scene
             let interactions = match interaction_service
-                .list_interactions(*scene_id)
+                .list_interactions(SceneId::from_uuid(*scene_id))
                 .await
             {
                 Ok(interactions) => interactions
@@ -372,9 +381,14 @@ async fn process_dm_action(
             };
 
             // Update session's current scene and broadcast via async port
-            let _ = async_session_port.update_session_scene(action.session_id, scene_id.to_string()).await;
+            let session_id = SessionId::from_uuid(action.session_id);
+            let _ = async_session_port
+                .update_session_scene(session_id, scene_id.to_string())
+                .await;
             if let Ok(scene_json) = serde_json::to_value(&scene_update) {
-                let _ = async_session_port.broadcast_to_session(action.session_id, scene_json).await;
+                let _ = async_session_port
+                    .broadcast_to_session(session_id, scene_json)
+                    .await;
             }
 
             tracing::info!(

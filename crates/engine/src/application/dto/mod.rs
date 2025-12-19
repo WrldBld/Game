@@ -36,8 +36,8 @@ pub use queue_items::{
     EnhancedChallengeSuggestion, EnhancedOutcomes, OutcomeDetail,
     LLMRequestItem, LLMRequestType, PlayerActionItem,
 };
-// Re-export suggestion types from protocol (via domain)
-pub use crate::domain::value_objects::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo};
+// Suggestion info types are protocol-owned; import directly from `wrldbldr_protocol`
+// at call sites (Decision D6, no re-export shims).
 
 // Asset DTOs
 pub use asset::{

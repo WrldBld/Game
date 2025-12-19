@@ -11,7 +11,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::{ItemId, WorldId};
+use wrldbldr_domain::{ItemId, WorldId};
 
 /// An object that can be possessed or interacted with
 #[derive(Debug, Clone)]

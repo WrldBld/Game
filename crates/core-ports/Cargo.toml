@@ -1,0 +1,16 @@
+[package]
+name = "wrldbldr-core-ports"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Core Ports - Shared port traits (cross-app)"
+
+[dependencies]
+wrldbldr-domain = { workspace = true }
+wrldbldr-protocol = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

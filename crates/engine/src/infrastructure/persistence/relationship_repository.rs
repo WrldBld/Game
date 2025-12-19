@@ -7,10 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::{RelationshipRepositoryPort, SocialNetwork, CharacterNode, RelationshipEdge};
-use crate::domain::value_objects::{
-    CharacterId, FamilyRelation, Relationship, RelationshipEvent, RelationshipId, RelationshipType,
-    WorldId,
-};
+use crate::domain::value_objects::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};
+use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
 /// Repository for Relationship (character social network) operations
 pub struct Neo4jRelationshipRepository {

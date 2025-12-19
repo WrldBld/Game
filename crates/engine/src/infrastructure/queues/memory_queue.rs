@@ -14,7 +14,7 @@ use crate::application::ports::outbound::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueueNotificationPort, QueuePort,
 };
-use crate::domain::value_objects::SessionId;
+use wrldbldr_domain::SessionId;
 
 /// In-memory queue implementation
 pub struct InMemoryQueue<T, N: QueueNotificationPort> {

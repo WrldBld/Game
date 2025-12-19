@@ -5,6 +5,7 @@
 //! and Player (sending ClientMessage, receiving ServerMessage).
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::types::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ParticipantRole,
@@ -25,7 +26,7 @@ pub enum ClientMessage {
         role: ParticipantRole,
         /// Optional world ID to join (creates demo session if not provided)
         #[serde(default)]
-        world_id: Option<String>,
+        world_id: Option<Uuid>,
     },
     /// Player performs an action
     PlayerAction {
@@ -458,11 +459,7 @@ pub enum ServerMessage {
     MovementBlocked { pc_id: String, reason: String },
 
     /// Game time has been updated (broadcast to all)
-    GameTimeUpdated {
-        display: String,
-        time_of_day: String,
-        is_paused: bool,
-    },
+    GameTimeUpdated { game_time: crate::types::GameTime },
 
     // =========================================================================
     // Staging System (NPC Presence Approval)
@@ -476,7 +473,7 @@ pub enum ServerMessage {
         region_name: String,
         location_id: String,
         location_name: String,
-        game_time_display: String,
+        game_time: crate::types::GameTime,
         /// Previous staging if expired (for reference)
         #[serde(default)]
         previous_staging: Option<PreviousStagingInfo>,

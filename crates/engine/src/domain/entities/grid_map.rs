@@ -1,6 +1,6 @@
 //! Grid map for tactical combat
 
-use crate::domain::value_objects::{GridMapId, WorldId};
+use wrldbldr_domain::{GridMapId, WorldId};
 
 /// A tactical grid map for combat
 #[derive(Debug, Clone)]

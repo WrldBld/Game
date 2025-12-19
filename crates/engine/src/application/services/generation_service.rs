@@ -17,7 +17,7 @@ use crate::application::ports::outbound::{AssetRepositoryPort, ComfyUIPort};
 use crate::domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
-use crate::domain::value_objects::{AssetId, BatchId, WorldId};
+use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Events emitted by the generation service
 #[derive(Debug, Clone)]

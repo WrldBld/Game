@@ -4,7 +4,7 @@
 //! Connections between locations use CONNECTED_TO edges.
 //! Regions are separate nodes with HAS_REGION edges (see region.rs).
 
-use crate::domain::value_objects::{LocationId, RegionId, WorldId};
+use wrldbldr_domain::{LocationId, RegionId, WorldId};
 use super::region::MapBounds;
 
 /// A location in the world

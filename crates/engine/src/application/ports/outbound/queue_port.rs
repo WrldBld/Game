@@ -10,7 +10,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::domain::value_objects::{QueueItemId, SessionId};
+use uuid::Uuid;
+
+use wrldbldr_domain::SessionId;
+
+pub type QueueItemId = Uuid;
 
 /// Generic queue item with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +36,7 @@ impl<T> QueueItem<T> {
     pub fn new(payload: T, priority: u8) -> Self {
         let now = Utc::now();
         Self {
-            id: QueueItemId::new(),
+            id: Uuid::new_v4(),
             payload,
             status: QueueItemStatus::Pending,
             priority,

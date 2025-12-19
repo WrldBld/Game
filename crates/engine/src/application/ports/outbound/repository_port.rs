@@ -16,13 +16,13 @@ use crate::domain::entities::{
     NarrativeEvent, PlayerCharacter, Region, Scene, SceneCharacter, SceneCharacterRole, SheetTemplateId,
     Skill, StoryEvent, Want, World, WorkflowConfiguration,
 };
-use crate::domain::value_objects::{
+use crate::domain::entities::WorkflowSlot;
+use crate::domain::value_objects::{RegionRelationshipType, Relationship};
+use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
     InteractionId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
-    RegionRelationshipType, Relationship, RelationshipId, SceneId, SessionId, SkillId,
-    StoryEventId, WantId, WorldId,
+    RelationshipId, SceneId, SessionId, SkillId, StoryEventId, WantId, WorldId,
 };
-use crate::domain::entities::WorkflowSlot;
 
 // =============================================================================
 // Social Network DTOs
@@ -1126,7 +1126,7 @@ pub trait StoryEventRepositoryPort: Send + Sync {
     /// Used by the Staging System to understand PC-NPC relationship history.
     async fn update_spoke_to_edge(
         &self,
-        pc_id: crate::domain::value_objects::PlayerCharacterId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
         npc_id: CharacterId,
         topic: Option<String>,
     ) -> Result<()>;

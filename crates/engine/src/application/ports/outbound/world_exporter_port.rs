@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::RuleSystemConfigDto;
-use crate::domain::value_objects::{SceneId, WorldId};
+use wrldbldr_domain::{SceneId, WorldId};
 
 /// Simplified world snapshot for Player clients
 ///

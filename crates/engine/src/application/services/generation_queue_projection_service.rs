@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use crate::application::dto::{AppEvent, GenerationBatchResponseDto};
 use crate::application::ports::outbound::{AppEventRepositoryPort, GenerationReadKind, GenerationReadStatePort};
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 
 /// Snapshot DTO for suggestion tasks, mirrored from `infrastructure::http::queue_routes`.
 #[derive(Debug, serde::Serialize)]

@@ -8,7 +8,7 @@ use crate::domain::entities::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis, WorkflowConfiguration,
     WorkflowInput, WorkflowSlot,
 };
-use crate::domain::value_objects::WorkflowConfigId;
+use wrldbldr_domain::WorkflowConfigId;
 
 // ============================================================================
 // DTOs for workflow configuration + analysis payloads

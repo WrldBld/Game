@@ -17,7 +17,7 @@ use crate::application::dto::{
 use crate::domain::entities::{
     CharacterSheetTemplate, SheetField, SheetSection, SheetTemplateId,
 };
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
 // NOTE: sheet template request/response DTOs live in `application/dto/sheet_template.rs`.
 

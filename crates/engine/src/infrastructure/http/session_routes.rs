@@ -5,15 +5,17 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::Timelike;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     application::dto::{SessionInfo, WorldSnapshot},
     application::ports::outbound::PlayerWorldSnapshot,
     application::services::world_service::WorldService,
-    domain::value_objects::{SessionId, WorldId},
     infrastructure::state::AppState,
 };
+
+use wrldbldr_domain::{SessionId, WorldId};
 
 /// List all active sessions.
 pub async fn list_sessions(State(state): State<Arc<AppState>>) -> Json<Vec<SessionInfo>> {
@@ -33,7 +35,7 @@ pub async fn list_sessions(State(state): State<Arc<AppState>>) -> Json<Vec<Sessi
             let active_player_count = session
                 .participants
                 .values()
-                .filter(|p| p.role == crate::infrastructure::websocket::messages::ParticipantRole::Player)
+                .filter(|p| p.role == wrldbldr_protocol::ParticipantRole::Player)
                 .count();
 
             SessionInfo {
@@ -76,7 +78,7 @@ pub async fn list_world_sessions(
             let active_player_count = session
                 .participants
                 .values()
-                .filter(|p| p.role == crate::infrastructure::websocket::messages::ParticipantRole::Player)
+                .filter(|p| p.role == wrldbldr_protocol::ParticipantRole::Player)
                 .count();
 
             SessionInfo {
@@ -117,12 +119,14 @@ pub async fn create_or_get_dm_session(
                     .or_else(|| session.get_dm().map(|p| p.user_id.clone()))
                     .unwrap_or(body.dm_user_id.clone());
 
-                let active_player_count = session
-                    .participants
-                    .values()
-                    .filter(|p| p.role
-                        == crate::infrastructure::websocket::messages::ParticipantRole::Player)
-                    .count();
+                    let active_player_count = session
+                        .participants
+                        .values()
+                        .filter(|p| p.role == wrldbldr_protocol::ParticipantRole::Player)
+                        .count();
+
+
+
 
                 let info = SessionInfo {
                     session_id: session_id.to_string(),
@@ -182,9 +186,8 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
     use crate::domain::entities::{
         Character, Location, LocationType, Scene, StatBlock, TimeContext, World,
     };
-    use crate::domain::value_objects::{
-        ActId, CampbellArchetype, CharacterId, LocationId, RuleSystemConfig, SceneId,
-    };
+    use crate::domain::value_objects::{CampbellArchetype, RuleSystemConfig};
+    use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
     use chrono::Utc;
 
     // Convert world data
@@ -306,16 +309,8 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
 /// Response DTO for game time
 #[derive(Debug, Clone, Serialize)]
 pub struct GameTimeResponse {
-    /// Display string (e.g., "Day 3, 2:30 PM")
-    pub display: String,
-    /// Date display (e.g., "Year 1, Month 1, Day 3")
-    pub date_display: String,
-    /// Time display (e.g., "2:30 PM")
-    pub time_display: String,
-    /// Time of day (Morning, Afternoon, Evening, Night)
-    pub time_of_day: String,
-    /// Whether time is paused
-    pub is_paused: bool,
+    /// Canonical wire representation of game time.
+    pub game_time: wrldbldr_protocol::GameTime,
 }
 
 /// Request DTO for advancing game time
@@ -345,15 +340,15 @@ pub async fn get_game_time(
         .get_session(session_id)
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Session not found".to_string()))?;
 
-    let game_time = session.game_time();
+    let gt = session.game_time();
+    let game_time = wrldbldr_protocol::GameTime::new(
+        gt.day_ordinal(),
+        gt.current().hour() as u8,
+        gt.current().minute() as u8,
+        gt.is_paused(),
+    );
 
-    Ok(Json(GameTimeResponse {
-        display: game_time.display_date(),
-        date_display: game_time.display_date(),
-        time_display: game_time.display_time(),
-        time_of_day: game_time.time_of_day().to_string(),
-        is_paused: game_time.is_paused(),
-    }))
+    Ok(Json(GameTimeResponse { game_time }))
 }
 
 /// Advance game time for a session
@@ -381,13 +376,13 @@ pub async fn advance_game_time(
         session.advance_time_days(req.days);
     }
 
-    let game_time = session.game_time();
+    let gt = session.game_time();
+    let game_time = wrldbldr_protocol::GameTime::new(
+        gt.day_ordinal(),
+        gt.current().hour() as u8,
+        gt.current().minute() as u8,
+        gt.is_paused(),
+    );
 
-    Ok(Json(GameTimeResponse {
-        display: game_time.display_date(),
-        date_display: game_time.display_date(),
-        time_display: game_time.display_time(),
-        time_of_day: game_time.time_of_day().to_string(),
-        is_paused: game_time.is_paused(),
-    }))
+    Ok(Json(GameTimeResponse { game_time }))
 }

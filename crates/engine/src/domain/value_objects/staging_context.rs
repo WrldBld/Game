@@ -3,9 +3,9 @@
 //! This captures the story context needed for intelligent NPC presence decisions.
 
 use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
-use crate::domain::value_objects::CharacterId;
-use super::TimeOfDay;
+use uuid::Uuid;
 
 /// Complete context for staging decisions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,7 +14,7 @@ pub struct StagingContext {
     pub region_name: String,
     pub region_description: String,
     pub location_name: String,
-    pub time_of_day: TimeOfDay,
+    pub time_of_day: String,
     pub time_display: String,
     
     // Story context
@@ -36,7 +36,7 @@ pub struct ActiveEventContext {
 /// Context about recent dialogues with an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NpcDialogueContext {
-    pub character_id: CharacterId,
+    pub character_id: Uuid,
     pub character_name: String,
     pub last_dialogue_summary: String,
     pub game_time_of_dialogue: String,
@@ -46,7 +46,7 @@ pub struct NpcDialogueContext {
 /// Rule-based NPC presence suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleBasedSuggestion {
-    pub character_id: CharacterId,
+    pub character_id: Uuid,
     pub character_name: String,
     pub is_present: bool,
     pub reasoning: String,
@@ -66,14 +66,14 @@ impl StagingContext {
         region_name: impl Into<String>,
         region_description: impl Into<String>,
         location_name: impl Into<String>,
-        time_of_day: TimeOfDay,
+        time_of_day: impl Into<String>,
         time_display: impl Into<String>,
     ) -> Self {
         Self {
             region_name: region_name.into(),
             region_description: region_description.into(),
             location_name: location_name.into(),
-            time_of_day,
+            time_of_day: time_of_day.into(),
             time_display: time_display.into(),
             active_events: Vec::new(),
             npc_dialogues: Vec::new(),
@@ -113,7 +113,7 @@ impl ActiveEventContext {
 
 impl NpcDialogueContext {
     pub fn new(
-        character_id: CharacterId,
+        character_id: Uuid,
         character_name: impl Into<String>,
         last_dialogue_summary: impl Into<String>,
         game_time_of_dialogue: impl Into<String>,
@@ -135,7 +135,7 @@ impl NpcDialogueContext {
 
 impl RuleBasedSuggestion {
     pub fn present(
-        character_id: CharacterId,
+        character_id: Uuid,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {
@@ -149,7 +149,7 @@ impl RuleBasedSuggestion {
     }
 
     pub fn absent(
-        character_id: CharacterId,
+        character_id: Uuid,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {

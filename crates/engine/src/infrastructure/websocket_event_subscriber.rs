@@ -11,7 +11,7 @@ use crate::application::dto::AppEvent;
 use crate::application::ports::outbound::{AppEventRepositoryPort, AsyncSessionPort};
 use crate::infrastructure::event_bus::InProcessEventNotifier;
 use crate::infrastructure::session::SessionManager;
-use crate::infrastructure::websocket::ServerMessage;
+use wrldbldr_protocol::ServerMessage;
 
 /// WebSocket event subscriber
 pub struct WebSocketEventSubscriber {
@@ -91,7 +91,7 @@ impl WebSocketEventSubscriber {
                 if let Some(ref session_id_str) = target_session {
                     // Prefer session-scoped routing when session_id is present.
                     if let Ok(session_uuid) = uuid::Uuid::parse_str(session_id_str) {
-                        let session_id = crate::domain::value_objects::SessionId::from_uuid(session_uuid);
+                        let session_id = wrldbldr_domain::SessionId::from_uuid(session_uuid);
                         sessions.broadcast_to_session(session_id, &message);
                     } else {
                         tracing::warn!("Invalid session_id on AppEvent: {}", session_id_str);

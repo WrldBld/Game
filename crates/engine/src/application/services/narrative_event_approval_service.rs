@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::application::ports::outbound::AsyncSessionPort;
 use crate::application::services::{NarrativeEventService, StoryEventService};
-use crate::domain::value_objects::{NarrativeEventId, SessionId};
+use wrldbldr_domain::{NarrativeEventId, SessionId};
 
 /// Narrative event triggered message DTO
 #[derive(Debug, Clone, serde::Serialize)]

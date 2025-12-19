@@ -19,10 +19,7 @@ use crate::domain::entities::{
     ChallengeEventOutcome, DmMarkerType, InfoImportance, InfoType, InvolvedCharacter,
     ItemSource, MarkerImportance, StoryEvent, StoryEventType,
 };
-use crate::domain::value_objects::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId,
-    WorldId,
-};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId, WorldId};
 
 /// Service for recording gameplay events to the story timeline
 #[derive(Clone)]
@@ -680,7 +677,7 @@ impl StoryEventService {
     /// the relationship metadata used by the Staging System.
     pub async fn update_spoke_to_edge(
         &self,
-        pc_id: crate::domain::value_objects::PlayerCharacterId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
         npc_id: CharacterId,
         topic: Option<String>,
     ) -> Result<()> {

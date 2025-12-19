@@ -155,12 +155,14 @@ impl Default for MonomythStage {
 /// Game time representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameTime {
-    /// Day number (1-based)
+    /// Day number (currently ordinal-style, 1-based; calendar is planned)
     pub day: u32,
     /// Hour (0-23)
     pub hour: u8,
     /// Minute (0-59)
     pub minute: u8,
+    /// Whether time is paused
+    pub is_paused: bool,
 }
 
 impl Default for GameTime {
@@ -169,14 +171,40 @@ impl Default for GameTime {
             day: 1,
             hour: 8,
             minute: 0,
+            is_paused: true,
         }
     }
 }
 
 impl GameTime {
     /// Create a new game time
-    pub fn new(day: u32, hour: u8, minute: u8) -> Self {
-        Self { day, hour, minute }
+    pub fn new(day: u32, hour: u8, minute: u8, is_paused: bool) -> Self {
+        Self {
+            day,
+            hour,
+            minute,
+            is_paused,
+        }
+    }
+
+    pub fn display_time(&self) -> String {
+        let hour = self.hour;
+        let minute = self.minute;
+
+        let period = if hour >= 12 { "PM" } else { "AM" };
+        let display_hour = if hour == 0 {
+            12
+        } else if hour > 12 {
+            hour - 12
+        } else {
+            hour
+        };
+
+        format!("{}:{:02} {}", display_hour, minute, period)
+    }
+
+    pub fn display_date(&self) -> String {
+        format!("Day {}, {}", self.day, self.display_time())
     }
 
     /// Get time of day category
@@ -198,4 +226,21 @@ pub enum TimeOfDay {
     Afternoon,
     Evening,
     Night,
+}
+
+impl TimeOfDay {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            TimeOfDay::Morning => "Morning",
+            TimeOfDay::Afternoon => "Afternoon",
+            TimeOfDay::Evening => "Evening",
+            TimeOfDay::Night => "Night",
+        }
+    }
+}
+
+impl std::fmt::Display for TimeOfDay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
 }

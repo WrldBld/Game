@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use crate::application::ports::outbound::{SettingsRepositoryPort, SettingsError};
-use crate::domain::value_objects::{AppSettings, WorldId};
+use crate::domain::value_objects::AppSettings;
+use wrldbldr_domain::WorldId;
 
 pub struct SettingsService {
     repository: Arc<dyn SettingsRepositoryPort>,
@@ -76,7 +77,7 @@ impl SettingsService {
             Err(_) => {
                 // Fall back to global settings with world_id set
                 let mut settings = self.get().await;
-                settings.world_id = Some(world_id);
+                settings.world_id = Some(world_id.into());
                 settings
             }
         }
@@ -84,7 +85,7 @@ impl SettingsService {
 
     /// Update per-world settings
     pub async fn update_for_world(&self, world_id: WorldId, mut settings: AppSettings) -> Result<(), SettingsError> {
-        settings.world_id = Some(world_id);
+        settings.world_id = Some(world_id.into());
         self.repository.save_for_world(world_id, &settings).await?;
         self.world_cache.write().await.insert(world_id, settings);
         Ok(())

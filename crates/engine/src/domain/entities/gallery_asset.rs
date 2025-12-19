@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::{AssetId, BatchId};
+use wrldbldr_domain::{AssetId, BatchId};
 
 /// Type of entity that owns this asset
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

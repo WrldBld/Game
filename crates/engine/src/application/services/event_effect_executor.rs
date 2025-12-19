@@ -32,7 +32,7 @@ use crate::application::ports::outbound::{
     RelationshipRepositoryPort,
 };
 use crate::domain::entities::EventEffect;
-use crate::domain::value_objects::SessionId;
+use wrldbldr_domain::SessionId;
 
 // =============================================================================
 // Error Types
@@ -267,7 +267,7 @@ impl EventEffectExecutor {
 
     async fn execute_enable_challenge(
         &self,
-        challenge_id: crate::domain::value_objects::ChallengeId,
+        challenge_id: wrldbldr_domain::ChallengeId,
         challenge_name: &str,
         session_id: SessionId,
     ) -> EffectExecutionResult {
@@ -297,7 +297,7 @@ impl EventEffectExecutor {
 
     async fn execute_disable_challenge(
         &self,
-        challenge_id: crate::domain::value_objects::ChallengeId,
+        challenge_id: wrldbldr_domain::ChallengeId,
         challenge_name: &str,
         session_id: SessionId,
     ) -> EffectExecutionResult {
@@ -327,7 +327,7 @@ impl EventEffectExecutor {
 
     async fn execute_enable_event(
         &self,
-        event_id: crate::domain::value_objects::NarrativeEventId,
+        event_id: wrldbldr_domain::NarrativeEventId,
         event_name: &str,
         session_id: SessionId,
     ) -> EffectExecutionResult {
@@ -357,7 +357,7 @@ impl EventEffectExecutor {
 
     async fn execute_disable_event(
         &self,
-        event_id: crate::domain::value_objects::NarrativeEventId,
+        event_id: wrldbldr_domain::NarrativeEventId,
         event_name: &str,
         session_id: SessionId,
     ) -> EffectExecutionResult {
@@ -449,9 +449,9 @@ impl EventEffectExecutor {
 
     async fn execute_modify_relationship(
         &self,
-        from_character: crate::domain::value_objects::CharacterId,
+        from_character: wrldbldr_domain::CharacterId,
         from_name: &str,
-        to_character: crate::domain::value_objects::CharacterId,
+        to_character: wrldbldr_domain::CharacterId,
         to_name: &str,
         sentiment_change: f32,
         reason: &str,
@@ -501,7 +501,7 @@ impl EventEffectExecutor {
 
     async fn execute_modify_stat(
         &self,
-        _character_id: crate::domain::value_objects::CharacterId,
+        _character_id: wrldbldr_domain::CharacterId,
         character_name: &str,
         stat_name: &str,
         modifier: i32,
@@ -523,7 +523,7 @@ impl EventEffectExecutor {
 
     async fn execute_trigger_scene(
         &self,
-        _scene_id: crate::domain::value_objects::SceneId,
+        _scene_id: wrldbldr_domain::SceneId,
         scene_name: &str,
         session_id: SessionId,
     ) -> EffectExecutionResult {

@@ -19,7 +19,7 @@ use crate::application::ports::outbound::ChallengeRepositoryPort;
 use crate::domain::entities::{
     Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeType,
 };
-use crate::domain::value_objects::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
 
 /// Repository for Challenge operations
 pub struct Neo4jChallengeRepository {

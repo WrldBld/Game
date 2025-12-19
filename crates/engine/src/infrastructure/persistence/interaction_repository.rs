@@ -10,7 +10,7 @@ use crate::application::ports::outbound::InteractionRepositoryPort;
 use crate::domain::entities::{
     InteractionCondition, InteractionTarget, InteractionTemplate, InteractionType,
 };
-use crate::domain::value_objects::{CharacterId, InteractionId, ItemId, SceneId};
+use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
 
 /// Repository for InteractionTemplate operations
 pub struct Neo4jInteractionRepository {
@@ -449,7 +449,7 @@ impl InteractionRepositoryPort for Neo4jInteractionRepository {
     async fn set_target_region(
         &self,
         interaction_id: InteractionId,
-        region_id: crate::domain::value_objects::RegionId,
+        region_id: wrldbldr_domain::RegionId,
     ) -> Result<()> {
         self.remove_target(interaction_id).await?;
 

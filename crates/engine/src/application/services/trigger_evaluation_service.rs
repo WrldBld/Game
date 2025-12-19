@@ -29,9 +29,7 @@ use crate::application::ports::outbound::{
     PlayerCharacterRepositoryPort, StoryEventRepositoryPort,
 };
 use crate::domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
-use crate::domain::value_objects::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SessionId, WorldId,
-};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SessionId, WorldId};
 
 // =============================================================================
 // Error Types
@@ -375,7 +373,7 @@ impl TriggerEvaluationService {
         &self,
         world_id: WorldId,
         _session_id: SessionId,
-        player_character_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+        player_character_id: Option<wrldbldr_domain::PlayerCharacterId>,
         immediate_context: Option<ImmediateContext>,
     ) -> Result<GameStateSnapshot, TriggerEvaluationError> {
         let mut snapshot = GameStateSnapshot::default();

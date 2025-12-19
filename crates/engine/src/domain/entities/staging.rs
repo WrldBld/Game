@@ -6,7 +6,7 @@
 //! - `(Staging)-[:INCLUDES_NPC {is_present, reasoning}]->(Character)` - NPCs in staging
 
 use chrono::{DateTime, Utc};
-use crate::domain::value_objects::{CharacterId, LocationId, RegionId, StagingId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, RegionId, StagingId, WorldId};
 
 /// A DM-approved configuration of NPC presence for a region
 #[derive(Debug, Clone)]

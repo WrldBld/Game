@@ -182,6 +182,11 @@ mod desktop {
             role: ParticipantRole,
             world_id: Option<String>,
         ) -> Result<()> {
+            let world_id = match world_id.as_deref() {
+                Some(s) => Some(uuid::Uuid::parse_str(s)?),
+                None => None,
+            };
+
             self.send(ClientMessage::JoinSession {
                 user_id: user_id.to_string(),
                 role,
@@ -385,6 +390,11 @@ mod wasm {
             role: ParticipantRole,
             world_id: Option<String>,
         ) -> Result<()> {
+            let world_id = match world_id.as_deref() {
+                Some(s) => Some(uuid::Uuid::parse_str(s)?),
+                None => None,
+            };
+
             self.send(ClientMessage::JoinSession {
                 user_id: user_id.to_string(),
                 role,

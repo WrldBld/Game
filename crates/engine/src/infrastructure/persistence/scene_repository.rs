@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::SceneRepositoryPort;
 use crate::domain::entities::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
-use crate::domain::value_objects::{ActId, CharacterId, ItemId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, CharacterId, ItemId, LocationId, SceneId};
 
 /// Repository for Scene operations
 pub struct Neo4jSceneRepository {

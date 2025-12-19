@@ -9,7 +9,8 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::{RelationshipRepositoryPort, SocialNetwork};
-use crate::domain::value_objects::{CharacterId, Relationship, RelationshipId, WorldId};
+use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
+use crate::domain::value_objects::{Relationship};
 
 /// Relationship service trait defining the application use cases
 #[async_trait]

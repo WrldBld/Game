@@ -26,8 +26,8 @@ use crate::application::ports::outbound::{
     BroadcastMessage, CharacterContextInfo, PendingApprovalInfo,
     SessionManagementError, SessionManagementPort, SessionWorldContext,
 };
-use crate::domain::value_objects::{SessionId, WorldId};
-use crate::infrastructure::websocket::{ParticipantRole, ServerMessage};
+use wrldbldr_domain::{SessionId, WorldId};
+use wrldbldr_protocol::{ParticipantRole, ServerMessage};
 
 /// Unique identifier for a connected client
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -13,10 +13,7 @@ use crate::domain::entities::{
     ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoImportance, InfoType,
     InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
 };
-use crate::domain::value_objects::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId,
-    WorldId,
-};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId, WorldId};
 
 // ============================================================================
 // Storage DTOs for StoryEventType
@@ -1746,7 +1743,7 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
     /// This edge tracks conversation history metadata for the Staging System.
     async fn update_spoke_to_edge(
         &self,
-        pc_id: crate::domain::value_objects::PlayerCharacterId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
         npc_id: CharacterId,
         topic: Option<String>,
     ) -> Result<()> {

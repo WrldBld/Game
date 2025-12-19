@@ -15,7 +15,8 @@ use crate::application::dto::{
     UploadAssetRequestDto,
 };
 use crate::domain::entities::{BatchStatus, EntityType, GenerationBatch, GenerationRequest};
-use crate::domain::value_objects::{AssetId, BatchId, WorldId};
+use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{AssetId, BatchId};
 use crate::infrastructure::state::AppState;
 // NOTE: asset request/response DTOs live in `application/dto/asset.rs`.
 

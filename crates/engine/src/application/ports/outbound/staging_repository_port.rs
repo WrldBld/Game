@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use anyhow::Result;
 
 use crate::domain::entities::Staging;
-use crate::domain::value_objects::{CharacterId, GameTime, RegionId, StagingId};
+use crate::domain::value_objects::GameTime;
+use wrldbldr_domain::{CharacterId, RegionId, StagingId};
 
 /// Row data for staged NPC (from INCLUDES_NPC edge)
 #[derive(Debug, Clone)]

@@ -1,0 +1,22 @@
+[package]
+name = "wrldbldr-player-ports"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Player Ports - Player-specific port traits"
+
+[dependencies]
+wrldbldr-domain = { workspace = true }
+wrldbldr-protocol = { workspace = true }
+wrldbldr-core-ports = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

@@ -11,7 +11,7 @@
 //!
 //! Conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
-use crate::domain::value_objects::{CharacterId, InteractionId, ItemId, SceneId};
+use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
 
 /// A template defining an available interaction within a scene
 ///

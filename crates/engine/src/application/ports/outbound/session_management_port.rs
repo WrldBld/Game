@@ -4,7 +4,8 @@
 //! allowing the infrastructure to provide the concrete implementation while
 //! maintaining hexagonal architecture boundaries.
 
-use crate::domain::value_objects::{ProposedToolInfo, SessionId, WorldId};
+use wrldbldr_domain::{SessionId, WorldId};
+use wrldbldr_protocol::ProposedToolInfo;
 use std::collections::HashMap;
 
 use super::SessionParticipantRole;

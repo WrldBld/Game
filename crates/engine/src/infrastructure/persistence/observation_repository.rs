@@ -9,7 +9,7 @@ use neo4rs::query;
 
 use super::connection::Neo4jConnection;
 use crate::domain::entities::{NpcObservation, ObservationSummary, ObservationType};
-use crate::domain::value_objects::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
 /// Repository for NPC observations
 pub struct Neo4jObservationRepository {

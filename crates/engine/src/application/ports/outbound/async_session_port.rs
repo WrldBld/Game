@@ -8,7 +8,7 @@
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-use crate::domain::value_objects::{SessionId, WorldId};
+use wrldbldr_domain::{SessionId, WorldId};
 
 /// Participant role in a session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -200,6 +200,6 @@ pub trait AsyncSessionPort: Send + Sync {
         npc_name: String,
         proposed_dialogue: String,
         internal_reasoning: Option<String>,
-        proposed_tools: Vec<crate::domain::value_objects::ProposedToolInfo>,
+        proposed_tools: Vec<wrldbldr_protocol::ProposedToolInfo>,
     ) -> Result<bool, AsyncSessionError>;
 }

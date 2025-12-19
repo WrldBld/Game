@@ -2,7 +2,8 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::{RuleSystemConfig, WorldId};
+use wrldbldr_domain::{WorldId};
+use crate::domain::value_objects::{RuleSystemConfig};
 
 /// A complete campaign world
 #[derive(Debug, Clone)]
@@ -95,7 +96,7 @@ impl MonomythStage {
 /// A story arc within a world
 #[derive(Debug, Clone)]
 pub struct Act {
-    pub id: crate::domain::value_objects::ActId,
+    pub id: wrldbldr_domain::ActId,
     pub world_id: WorldId,
     pub name: String,
     pub stage: MonomythStage,
@@ -111,7 +112,7 @@ impl Act {
         order: u32,
     ) -> Self {
         Self {
-            id: crate::domain::value_objects::ActId::new(),
+            id: wrldbldr_domain::ActId::new(),
             world_id,
             name: name.into(),
             stage,

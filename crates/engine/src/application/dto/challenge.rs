@@ -5,7 +5,7 @@ use crate::domain::entities::{
     Challenge, ChallengeOutcomes, ChallengeType, Difficulty, DifficultyDescriptor, Outcome,
     OutcomeTrigger, TriggerCondition, TriggerType,
 };
-use crate::domain::value_objects::{ChallengeId, SceneId};
+use wrldbldr_domain::{ChallengeId, SceneId};
 
 // ============================================================================
 // DTO enums + mapping
@@ -726,7 +726,7 @@ pub struct ChallengeOutcomePendingNotification {
     pub total: i32,
     pub outcome_type: String,
     pub outcome_description: String,
-    pub outcome_triggers: Vec<crate::domain::value_objects::ProposedToolInfo>,
+    pub outcome_triggers: Vec<wrldbldr_protocol::ProposedToolInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roll_breakdown: Option<String>,
 }
@@ -744,7 +744,7 @@ impl ChallengeOutcomePendingNotification {
         total: i32,
         outcome_type: String,
         outcome_description: String,
-        outcome_triggers: Vec<crate::domain::value_objects::ProposedToolInfo>,
+        outcome_triggers: Vec<wrldbldr_protocol::ProposedToolInfo>,
         roll_breakdown: Option<String>,
     ) -> Self {
         Self {

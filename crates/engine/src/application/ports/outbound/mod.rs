@@ -48,9 +48,8 @@ pub use settings_port::{SettingsError, SettingsRepositoryPort};
 pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 
 pub use queue_port::{
-    ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemStatus, QueuePort,
+    ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
 };
-pub use crate::domain::value_objects::QueueItemId;
 
 pub use world_exporter_port::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData,

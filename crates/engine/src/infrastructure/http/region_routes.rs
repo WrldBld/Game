@@ -14,9 +14,13 @@ use uuid::Uuid;
 
 use crate::application::dto::{CharacterResponseDto, CreateRegionRequestDto, MapBoundsDto, RegionResponseDto};
 use crate::domain::entities::{MapBounds, NpcObservation, Region, RegionConnection, RegionExit};
-use crate::domain::value_objects::{CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SessionId, TimeOfDay, WorldId};
-use crate::infrastructure::persistence::{RegionRelationshipType, RegionShift, RegionFrequency};
+use crate::infrastructure::persistence::{
+    RegionFrequency, RegionRelationshipType, RegionShift,
+};
 use crate::infrastructure::state::AppState;
+use wrldbldr_domain::{
+    CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SessionId, TimeOfDay, WorldId,
+};
 
 // =============================================================================
 // Request/Response DTOs specific to routes
@@ -633,21 +637,24 @@ pub struct NavigationExitDto {
     pub description: Option<String>,
 }
 
-/// DTO for game time display
+/// DTO for game time
 #[derive(Debug, Serialize)]
 pub struct GameTimeDto {
-    pub display: String,
-    pub time_of_day: String,
-    pub is_paused: bool,
+    pub game_time: wrldbldr_protocol::GameTime,
 }
 
 impl From<&GameTime> for GameTimeDto {
     fn from(gt: &GameTime) -> Self {
-        Self {
-            display: gt.display_date(),
-            time_of_day: gt.time_of_day().to_string(),
-            is_paused: gt.is_paused(),
-        }
+        use chrono::Timelike;
+
+        let game_time = wrldbldr_protocol::GameTime::new(
+            gt.day_ordinal(),
+            gt.current().hour() as u8,
+            gt.current().minute() as u8,
+            gt.is_paused(),
+        );
+
+        Self { game_time }
     }
 }
 

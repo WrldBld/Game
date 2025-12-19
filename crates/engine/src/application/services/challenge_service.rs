@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::ChallengeRepositoryPort;
 use crate::domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
-use crate::domain::value_objects::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
 
 /// Challenge service trait defining the application use cases
 #[async_trait]

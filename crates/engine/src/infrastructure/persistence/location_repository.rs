@@ -13,7 +13,7 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::LocationRepositoryPort;
 use crate::domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
-use crate::domain::value_objects::{GridMapId, LocationId, RegionId, WorldId};
+use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
 
 /// Repository for Location operations
 pub struct Neo4jLocationRepository {

@@ -13,7 +13,8 @@ use crate::application::ports::outbound::{
 };
 use crate::application::services::SettingsService;
 use crate::domain::entities::{Act, MonomythStage, World};
-use crate::domain::value_objects::{AppSettings, RuleSystemConfig, WorldId};
+use wrldbldr_domain::{WorldId};
+use crate::domain::value_objects::{AppSettings, RuleSystemConfig};
 
 /// Request to create a new world
 #[derive(Debug, Clone)]

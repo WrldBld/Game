@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::{LocationRepositoryPort, WorldRepositoryPort};
 use crate::domain::entities::{Location, LocationConnection, LocationType, Region};
-use crate::domain::value_objects::{GridMapId, LocationId, RegionId, WorldId};
+use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
 
 // Validation constants
 const MAX_LOCATION_NAME_LENGTH: usize = 255;

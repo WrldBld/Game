@@ -21,10 +21,8 @@ use crate::domain::entities::{
     ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel,
     InventoryItem, Item, StatBlock, Want,
 };
-use crate::domain::value_objects::{
-    ArchetypeChange, CampbellArchetype, CharacterId, ItemId, LocationId, RegionFrequency, RegionId,
-    RegionRelationship, RegionRelationshipType, RegionShift, SceneId, WantId, WorldId,
-};
+use crate::domain::value_objects::{ArchetypeChange, CampbellArchetype, RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {

@@ -1,6 +1,6 @@
 //! Character relationships for social network modeling
 
-use super::{CharacterId, RelationshipId};
+use wrldbldr_domain::{CharacterId, RelationshipId};
 
 /// A relationship between two characters
 #[derive(Debug, Clone)]

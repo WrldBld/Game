@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::application::ports::outbound::{ProcessingQueuePort, QueuePort, QueueItemStatus};
 use crate::application::services::GenerationQueueSnapshot;
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
 
 /// Create queue-related routes

@@ -18,7 +18,7 @@ use crate::application::dto::{
 };
 use crate::application::ports::outbound::{AsyncSessionPort, LlmPort};
 use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, SettingsService};
-use crate::domain::value_objects::SessionId;
+use wrldbldr_domain::SessionId;
 
 /// Error type for challenge outcome approval operations
 #[derive(Debug, thiserror::Error)]
@@ -90,7 +90,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         // Convert DTO to approval item
         let item = ChallengeOutcomeApprovalItem {
             resolution_id: resolution.resolution_id.clone(),
-            session_id,
+            session_id: session_id.into(),
             challenge_id: resolution.challenge_id,
             challenge_name: resolution.challenge_name.clone(),
             challenge_description: resolution.challenge_description,
@@ -105,7 +105,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             outcome_triggers: resolution
                 .outcome_triggers
                 .into_iter()
-                .map(|t| crate::domain::value_objects::ProposedToolInfo {
+                .map(|t| wrldbldr_protocol::ProposedToolInfo {
                     id: uuid::Uuid::new_v4().to_string(),
                     name: format!("{:?}", t),
                     description: String::new(),
@@ -155,7 +155,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify session matches
-        if item.session_id != session_id {
+        let session_uuid: uuid::Uuid = session_id.into();
+        if item.session_id != session_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
                 "Session mismatch".to_string(),
             ));
@@ -229,7 +230,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                     );
                                     match serde_json::to_value(&msg) {
                                         Ok(value) => {
-                                            if let Err(e) = sessions.send_to_dm(session_id, value).await {
+                                            if let Err(e) = sessions.send_to_dm(session_id.into(), value).await {
                                                 tracing::error!("Failed to send suggestions to DM: {}", e);
                                             }
                                         }
@@ -290,7 +291,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             let value = serde_json::to_value(&msg)
                 .map_err(|e| ChallengeOutcomeError::SessionError(format!("Failed to serialize: {}", e)))?;
             self.sessions
-                .send_to_dm(session_id, value)
+                .send_to_dm(SessionId::from_uuid(session_id), value)
                 .await
                 .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
@@ -308,7 +309,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         let pending = self.pending.read().await;
         pending
             .values()
-            .filter(|item| item.session_id == session_id)
+            .filter(|item| item.session_id == uuid::Uuid::from(session_id))
             .cloned()
             .collect()
     }
@@ -448,7 +449,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify session matches
-        if item.session_id != session_id {
+        let session_uuid: uuid::Uuid = session_id.into();
+        if item.session_id != session_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
                 "Session mismatch".to_string(),
             ));
@@ -525,7 +527,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                             );
                             match serde_json::to_value(&msg) {
                                 Ok(value) => {
-                                    if let Err(e) = sessions.send_to_dm(session_id, value).await {
+                                    if let Err(e) = sessions.send_to_dm(SessionId::from_uuid(session_id), value).await {
                                         tracing::error!("Failed to send branches to DM: {}", e);
                                     }
                                 }
@@ -580,7 +582,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify session matches
-        if item.session_id != session_id {
+        let session_uuid: uuid::Uuid = session_id.into();
+        if item.session_id != session_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
                 "Session mismatch".to_string(),
             ));

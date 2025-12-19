@@ -9,7 +9,7 @@ use uuid::Uuid;
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::EventChainRepositoryPort;
 use crate::domain::entities::{ChainStatus, EventChain};
-use crate::domain::value_objects::{ActId, EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 
 /// Repository for EventChain operations
 pub struct Neo4jEventChainRepository {

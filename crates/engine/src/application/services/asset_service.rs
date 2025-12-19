@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::AssetRepositoryPort;
 use crate::domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
-use crate::domain::value_objects::{AssetId, BatchId, WorldId};
+use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Request to create a new asset
 #[derive(Debug, Clone)]

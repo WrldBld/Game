@@ -10,7 +10,7 @@
 //! for physical dice rolls.
 
 use dioxus::prelude::*;
-use crate::application::dto::websocket_messages::DiceInputType;
+use wrldbldr_protocol::DiceInputType;
 use crate::application::ports::outbound::Platform;
 use crate::presentation::state::{RollSubmissionStatus, use_session_state};
 use crate::presentation::state::challenge_state::ChallengeResultData;

@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use crate::domain::value_objects::CharacterId;
+use wrldbldr_domain::CharacterId;
 
 /// Structured directorial notes for a scene
 #[derive(Debug, Clone, Default)]

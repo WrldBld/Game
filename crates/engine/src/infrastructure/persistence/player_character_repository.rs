@@ -10,9 +10,7 @@ use crate::application::ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
 use crate::domain::entities::PlayerCharacter;
 use crate::domain::entities::CharacterSheetData;
-use crate::domain::value_objects::{
-    LocationId, PlayerCharacterId, RegionId, SessionId,
-};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
@@ -358,7 +356,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
     async fn get_by_user_and_world(
         &self,
         user_id: &str,
-        world_id: crate::domain::value_objects::WorldId,
+        world_id: WorldId,
     ) -> Result<Vec<PlayerCharacter>> {
         let q = query(
             "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
@@ -408,7 +406,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
 
 /// Parse a PlayerCharacter from a Neo4j row
 fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
-    use crate::domain::value_objects::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
     use chrono::DateTime;
     
 

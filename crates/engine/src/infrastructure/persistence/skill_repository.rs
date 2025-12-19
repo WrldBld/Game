@@ -7,7 +7,7 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::SkillRepositoryPort;
 use crate::domain::entities::{Skill, SkillCategory};
-use crate::domain::value_objects::{SkillId, WorldId};
+use wrldbldr_domain::{SkillId, WorldId};
 
 /// Repository for Skill operations
 pub struct Neo4jSkillRepository {

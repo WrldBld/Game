@@ -1,46 +1,6 @@
-//! WebSocket protocol messages (Engine ↔ Player)
+//! WebSocket protocol message ownership
 //!
-//! This module re-exports wire-format DTOs from the shared protocol crate
-//! and provides any Engine-specific extensions.
+//! **Do not** re-export `wrldbldr_protocol` from engine modules.
+//! Import message DTOs directly from `wrldbldr_protocol` at call sites.
 
-// Re-export all message types from protocol crate
-pub use wrldbldr_protocol::{
-    // Main message enums
-    ClientMessage,
-    ServerMessage,
-    // Session types
-    ParticipantInfo,
-    ParticipantRole,
-    DirectorialContext,
-    NpcMotivationData,
-    SplitPartyLocation,
-    // Scene types
-    SceneData,
-    CharacterData,
-    CharacterPosition,
-    InteractionData,
-    DialogueChoice,
-    // Navigation types
-    RegionData,
-    NpcPresenceData,
-    NavigationData,
-    NavigationTarget,
-    NavigationExit,
-    // Challenge types
-    DiceInputType,
-    AdHocOutcomes,
-    OutcomeDetailData,
-    ChallengeOutcomeDecisionData,
-    OutcomeBranchData,
-    // Approval types
-    ProposedToolInfo,
-    ApprovalDecision,
-    ChallengeSuggestionInfo,
-    NarrativeEventSuggestionInfo,
-    // Staging types
-    StagedNpcInfo,
-    PreviousStagingInfo,
-    WaitingPcInfo,
-    NpcPresentInfo,
-    ApprovedNpcInfo,
-};
+// Intentionally empty.

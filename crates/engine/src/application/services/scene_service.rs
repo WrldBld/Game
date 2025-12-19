@@ -22,7 +22,7 @@ use crate::application::ports::outbound::{
 use crate::domain::entities::{
     Character, Location, Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
 };
-use crate::domain::value_objects::{ActId, CharacterId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 
 /// Request to create a new scene
 #[derive(Debug, Clone)]

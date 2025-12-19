@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::{ActId, EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 
 /// A chain of connected narrative events forming a story arc
 #[derive(Debug, Clone)]

@@ -12,7 +12,7 @@
 //! - `(Character)-[:HOME_REGION]->(Region)` - NPC lives here
 //! - `(Character)-[:AVOIDS_REGION]->(Region)` - NPC avoids this place
 
-use crate::domain::value_objects::{LocationId, RegionId};
+use wrldbldr_domain::{LocationId, RegionId};
 
 /// A region within a location - represents a distinct "screen" or area
 ///

@@ -17,7 +17,7 @@ use crate::application::dto::{
     ConnectionResponseDto, CreateConnectionRequestDto, CreateLocationRequestDto,
     LocationResponseDto, parse_location_type,
 };
-use crate::domain::value_objects::{LocationId, WorldId};
+use wrldbldr_domain::{LocationId, WorldId};
 use crate::infrastructure::state::AppState;
 
 /// List locations in a world

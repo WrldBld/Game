@@ -15,7 +15,7 @@
 //! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
 //! DEPRECATED and kept only for backward compatibility during migration.
 
-use crate::domain::value_objects::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
 
 /// A challenge that can be triggered during gameplay
 ///

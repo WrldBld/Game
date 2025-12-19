@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
-use crate::domain::value_objects::{ActId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, LocationId, SceneId};
 
 /// Query parameters for listing narrative events.
 #[derive(Debug, Deserialize)]

@@ -12,11 +12,8 @@ use crate::application::ports::outbound::{
     ChallengeRepositoryPort, CharacterRepositoryPort, LocationRepositoryPort,
     NarrativeEventRepositoryPort, SceneRepositoryPort,
 };
-use crate::domain::value_objects::{
-    ActiveChallengeContext, ActiveNarrativeEventContext, AssembledContext, CategoryContext,
-    CharacterContext, ContextBudgetConfig, ContextCategory, SceneContext, TokenCounter,
-    CharacterId, SceneId,
-};
+use crate::domain::value_objects::{ActiveChallengeContext, ActiveNarrativeEventContext, AssembledContext, CategoryContext, CharacterContext, ContextBudgetConfig, ContextCategory, SceneContext, TokenCounter};
+use wrldbldr_domain::{CharacterId, SceneId};
 
 /// Service for building LLM context from graph relationships
 pub struct LLMContextService {

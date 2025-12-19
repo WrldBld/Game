@@ -13,9 +13,7 @@ use crate::application::ports::outbound::{
 };
 use crate::domain::entities::PlayerCharacter;
 use crate::domain::entities::CharacterSheetData;
-use crate::domain::value_objects::{
-    LocationId, PlayerCharacterId, SessionId, SkillId, WorldId,
-};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, SessionId, SkillId, WorldId};
 
 /// Request to create a new player character
 #[derive(Debug, Clone)]

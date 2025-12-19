@@ -30,7 +30,7 @@ pub async fn build_prompt_from_action(
     // Get session context
     let sessions_read = sessions.read().await;
     let session = sessions_read
-        .get_session(action.session_id)
+        .get_session(wrldbldr_domain::SessionId::from_uuid(action.session_id))
         .ok_or_else(|| QueueError::Backend("Session not found".to_string()))?;
 
     let world_snapshot = &session.world_snapshot;

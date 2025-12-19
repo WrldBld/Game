@@ -13,9 +13,9 @@ use crate::application::ports::outbound::{
     AsyncSessionError, AsyncSessionPort, SessionJoinInfo, SessionParticipantInfo,
     SessionParticipantRole, SessionWorldData,
 };
-use crate::domain::value_objects::{ProposedToolInfo, SessionId, WorldId};
 use crate::infrastructure::session::{ClientId, PendingApproval, SessionError, SessionManager};
-use crate::infrastructure::websocket::messages::{ParticipantRole, ServerMessage};
+use wrldbldr_domain::{SessionId, WorldId};
+use wrldbldr_protocol::{ParticipantRole, ProposedToolInfo, ServerMessage};
 
 /// Adapter that wraps SessionManager and implements AsyncSessionPort
 pub struct SessionManagerAdapter {

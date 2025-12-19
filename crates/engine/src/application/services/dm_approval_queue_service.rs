@@ -15,7 +15,9 @@ use crate::application::ports::outbound::{
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use crate::application::services::StoryEventService;
 use crate::application::dto::ApprovalItem;
-use crate::domain::value_objects::{ApprovalDecision, CharacterId, GameTool, SessionId};
+use crate::domain::value_objects::GameTool;
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, SessionId};
+use wrldbldr_protocol::ApprovalDecision;
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
 const MAX_RETRY_COUNT: u32 = 3;
@@ -44,17 +46,17 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         // session_id (see SQLite/InMemory comments), so we defensively filter
         // here using the payload's session_id field.
         let items = self.queue.list_by_session(session_id).await?;
+        let session_uuid: uuid::Uuid = session_id.into();
         Ok(items
             .into_iter()
-            .filter(|item| item.payload.session_id == session_id)
+            .filter(|item| item.payload.session_id == session_uuid)
             .collect())
     }
 
     /// Get an approval item by its string ID
     pub async fn get_by_id(&self, id: &str) -> Result<Option<QueueItem<ApprovalItem>>, QueueError> {
-        let uuid = uuid::Uuid::parse_str(id)
+        let item_id = uuid::Uuid::parse_str(id)
             .map_err(|e| QueueError::Backend(format!("Invalid UUID: {}", e)))?;
-        let item_id = QueueItemId::from_uuid(uuid);
         self.queue.get(item_id).await
     }
 
@@ -376,6 +378,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
 
         // Update SPOKE_TO edge if we have both PC and NPC IDs
         if let Some(pc_id) = approval.pc_id {
+            let pc_id: PlayerCharacterId = pc_id.into();
             if let Err(e) = self
                 .story_event_service
                 .update_spoke_to_edge(pc_id, npc_id, None) // topic could be extracted in future
@@ -413,9 +416,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         limit: usize,
     ) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
         let items = self.queue.get_history(session_id, limit).await?;
+        let session_uuid: uuid::Uuid = session_id.into();
         Ok(items
             .into_iter()
-            .filter(|item| item.payload.session_id == session_id)
+            .filter(|item| item.payload.session_id == session_uuid)
             .collect())
     }
 
@@ -431,8 +435,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
     /// A new LLM request should be made for a non-challenge response.
     pub async fn discard_challenge(&self, _client_id: &str, request_id: &str) {
         // Parse request_id to item ID
-        if let Ok(uuid) = uuid::Uuid::parse_str(request_id) {
-            let item_id = QueueItemId::from_uuid(uuid);
+        if let Ok(item_id) = uuid::Uuid::parse_str(request_id) {
 
             // Mark the item as failed since the DM rejected the challenge
             if let Err(e) = self.queue.fail(item_id, "Challenge discarded by DM").await {
@@ -457,7 +460,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
     /// Parse ProposedToolInfo into GameTool
     fn parse_tool_from_info(
         &self,
-        tool_info: &crate::domain::value_objects::ProposedToolInfo,
+        tool_info: &wrldbldr_protocol::ProposedToolInfo,
     ) -> Result<GameTool, QueueError> {
         // Parse tool based on name and arguments (arguments is serde_json::Value)
         let args = &tool_info.arguments;

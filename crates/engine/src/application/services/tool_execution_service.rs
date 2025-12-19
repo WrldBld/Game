@@ -8,9 +8,8 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::SessionManagementPort;
-use crate::domain::value_objects::{
-    ChangeAmount, GameTool, InfoImportance, RelationshipChange, SessionId,
-};
+use crate::domain::value_objects::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
+use wrldbldr_domain::{SessionId};
 
 /// Result of executing a tool
 #[derive(Debug, Clone, Serialize, Deserialize)]

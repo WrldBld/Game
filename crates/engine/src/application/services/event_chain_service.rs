@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use crate::application::ports::outbound::EventChainRepositoryPort;
 use crate::domain::entities::{ChainStatus, EventChain};
-use crate::domain::value_objects::{EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{EventChainId, NarrativeEventId, WorldId};
 
 /// EventChain service trait defining the application use cases
 #[async_trait]

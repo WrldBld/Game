@@ -12,7 +12,7 @@ use crate::application::ports::outbound::{
 };
 use crate::application::services::tool_execution_service::StateChange;
 use crate::domain::entities::OutcomeTrigger;
-use crate::domain::value_objects::SessionId;
+use wrldbldr_domain::SessionId;
 
 /// Result of executing outcome triggers
 #[derive(Debug, Clone)]
@@ -417,7 +417,7 @@ mod tests {
 
         async fn list_by_scene(
             &self,
-            _scene_id: crate::domain::value_objects::SceneId,
+            _scene_id: wrldbldr_domain::SceneId,
         ) -> anyhow::Result<Vec<Challenge>> {
             Ok(vec![])
         }

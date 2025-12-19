@@ -12,7 +12,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::entities::{NpcObservation, ObservationSummary, ObservationType};
-use crate::domain::value_objects::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use crate::infrastructure::state::AppState;
 
 // =============================================================================

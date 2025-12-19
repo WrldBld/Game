@@ -1,0 +1,19 @@
+[package]
+name = "wrldbldr-domain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Domain - Core domain types and invariants"
+
+[dependencies]
+# Intentionally serde-free.
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true

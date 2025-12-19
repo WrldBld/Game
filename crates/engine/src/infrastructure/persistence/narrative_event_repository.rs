@@ -13,9 +13,7 @@ use crate::domain::entities::{
     ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
     NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerLogic,
 };
-use crate::domain::value_objects::{
-    ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId,
-};
+use wrldbldr_domain::{ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
 
 // ============================================================================
 // Storage DTOs for NarrativeTrigger and EventOutcome

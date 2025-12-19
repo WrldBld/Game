@@ -7,15 +7,12 @@
 //! TODO (Phase 16.3): replace infra re-exports with real application DTOs + conversions.
 
 pub mod session_dto;
-pub mod websocket_messages;
 pub mod world_snapshot;
 pub mod settings;
 
 // Re-export session DTOs
 pub use session_dto::AppConnectionStatus;
 
-// Re-export WebSocket protocol DTOs (application-owned).
-pub use websocket_messages::*;
 
 // Re-export Engine snapshot contracts (application-owned).
 pub use world_snapshot::{

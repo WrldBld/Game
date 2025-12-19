@@ -14,7 +14,7 @@ use crate::application::services::{
 };
 use crate::application::dto::{CreateSceneRequestDto, SceneResponseDto, UpdateNotesRequestDto};
 use crate::domain::entities::TimeContext;
-use crate::domain::value_objects::{ActId, CharacterId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 use crate::infrastructure::state::AppState;
 
 /// List scenes in an act

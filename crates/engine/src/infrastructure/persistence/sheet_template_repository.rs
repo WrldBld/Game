@@ -8,7 +8,7 @@ use super::connection::Neo4jConnection;
 use crate::application::ports::outbound::SheetTemplateRepositoryPort;
 use crate::application::dto::SheetTemplateStorageDto;
 use crate::domain::entities::{CharacterSheetTemplate, SheetTemplateId};
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 
 /// Repository for CharacterSheetTemplate operations
 pub struct Neo4jSheetTemplateRepository {

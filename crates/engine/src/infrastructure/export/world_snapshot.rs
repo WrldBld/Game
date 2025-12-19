@@ -11,7 +11,7 @@ use crate::application::ports::outbound::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,
     WorldExporterPort,
 };
-use crate::domain::value_objects::{SceneId, WorldId};
+use wrldbldr_domain::{SceneId, WorldId};
 use crate::infrastructure::persistence::Neo4jRepository;
 
 /// Load a complete world snapshot for a Player client

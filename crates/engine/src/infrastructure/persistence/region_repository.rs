@@ -16,9 +16,8 @@ use super::connection::Neo4jConnection;
 use crate::application::dto::parse_archetype;
 use crate::application::ports::outbound::RegionRepositoryPort;
 use crate::domain::entities::{Character, MapBounds, Region, RegionConnection, RegionExit, StatBlock};
-use crate::domain::value_objects::{
-    CharacterId, LocationId, RegionFrequency, RegionId, RegionRelationshipType, RegionShift, WorldId,
-};
+use crate::domain::value_objects::{RegionFrequency, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::{CharacterId, LocationId, RegionId, WorldId};
 
 /// Repository for Region operations
 pub struct Neo4jRegionRepository {

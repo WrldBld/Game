@@ -1,29 +1,24 @@
 //! WrldBldr Player - TTRPG gameplay client
 //!
-//! The Player app provides two views:
-//! - PC View: Visual novel gameplay experience for players
-//! - DM View: Directorial control panel for running the game
-
-mod application;
-mod domain;
-mod infrastructure;
-mod presentation;
-mod routes;
+//! This crate is the *composition root* for the player application.
+//! The UI lives in `wrldbldr-player-ui` and infrastructure adapters live in
+//! `wrldbldr-player-adapters`.
 
 use dioxus::prelude::*;
-use presentation::state::{DialogueState, GameState, GenerationState, SessionState};
-use presentation::Services;
-use routes::Route;
+use std::sync::Arc;
 
-// Composition root: Define concrete service types using infrastructure implementations
-use crate::infrastructure::http_client::ApiAdapter;
-pub type ConcreteServices = Services<ApiAdapter>;
+use wrldbldr_player_adapters::infrastructure::{http_client::ApiAdapter, platform};
+use wrldbldr_player_app::application::api::Api;
+use wrldbldr_player_ports::outbound::RawApiPort;
+use wrldbldr_player_ui::{
+    presentation::state::{DialogueState, GameState, GenerationState, SessionState},
+    Route,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() {
-    // Initialize logging (desktop only - WASM uses tracing-wasm)
     #[cfg(not(target_arch = "wasm32"))]
     tracing_subscriber::registry()
         .with(
@@ -40,46 +35,32 @@ fn main() {
     }
 
     tracing::info!("Starting WrldBldr Player");
-
-    // Launch the Dioxus application
-    dioxus::launch(App);
+    dioxus::launch(app);
 }
 
-/// Root application component with state providers and router
 #[component]
-fn App() -> Element {
-    // Provide platform services via context
-    let platform = infrastructure::platform::create_platform();
-
+fn app() -> Element {
+    // Platform is used throughout UI via `use_context::<Platform>()`.
+    let platform = platform::create_platform();
     use_context_provider(|| platform);
 
-    // Provide global state via context
+    // Global UI state.
     use_context_provider(GameState::new);
     use_context_provider(SessionState::new);
     use_context_provider(DialogueState::new);
     use_context_provider(GenerationState::new);
 
-    // Infrastructure instantiation happens HERE only (composition root)
-    let api = infrastructure::http_client::ApiAdapter::new();
+    // Concrete adapter chosen here only.
+    let raw_api: Arc<dyn RawApiPort> = Arc::new(ApiAdapter::new());
+    let api = Api::new(raw_api);
 
-    // Provide application services via context with the API adapter
-    use_context_provider(|| presentation::Services::new(api));
+    // UI consumes a typed `ApiPort` (the `Api` wrapper around `RawApiPort`).
+    use_context_provider(|| wrldbldr_player_ui::presentation::Services::new(api));
 
-    // Non-DM routes show a simple header, DM routes use their own layout
-    // Router handles all view switching
-    // Wrapper provides full viewport height for child views using height: 100%
     rsx! {
         div {
             style: "width: 100vw; height: 100vh; overflow: hidden;",
             Router::<Route> {}
         }
     }
-}
-
-/// User role in the game session
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UserRole {
-    DungeonMaster,
-    Player,
-    Spectator,
 }

@@ -16,7 +16,7 @@ use crate::application::dto::{
     UpdateNarrativeEventRequestDto,
 };
 use crate::domain::entities::NarrativeEvent;
-use crate::domain::value_objects::{NarrativeEventId, WorldId};
+use wrldbldr_domain::{NarrativeEventId, WorldId};
 use crate::infrastructure::state::AppState;
 // NOTE: narrative event request/response DTOs + conversions live in `application/dto/narrative_event.rs`.
 

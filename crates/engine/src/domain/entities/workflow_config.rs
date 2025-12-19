@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::value_objects::WorkflowConfigId;
+use wrldbldr_domain::WorkflowConfigId;
 
 /// Workflow configuration for a specific asset generation slot
 #[derive(Debug, Clone)]

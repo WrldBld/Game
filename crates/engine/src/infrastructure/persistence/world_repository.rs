@@ -8,7 +8,8 @@ use super::connection::Neo4jConnection;
 use crate::application::dto::RuleSystemConfigDto;
 use crate::application::ports::outbound::WorldRepositoryPort;
 use crate::domain::entities::{Act, MonomythStage, World};
-use crate::domain::value_objects::{ActId, RuleSystemConfig, WorldId};
+use wrldbldr_domain::{ActId, WorldId};
+use crate::domain::value_objects::{RuleSystemConfig};
 
 /// Repository for World aggregate operations
 pub struct Neo4jWorldRepository {

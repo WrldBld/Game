@@ -26,12 +26,12 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
     /// before player actions.
     pub async fn enqueue_action(
         &self,
-        session_id: crate::domain::value_objects::SessionId,
+        session_id: wrldbldr_domain::SessionId,
         dm_id: String,
         action: DMAction,
     ) -> Result<QueueItemId, QueueError> {
         let item = DMActionItem {
-            session_id,
+            session_id: session_id.into(),
             dm_id,
             action,
             timestamp: chrono::Utc::now(),

@@ -14,7 +14,7 @@ use crate::application::dto::{
     SetAvailabilityRequestDto,
 };
 use crate::domain::entities::InteractionTemplate;
-use crate::domain::value_objects::{InteractionId, SceneId};
+use wrldbldr_domain::{InteractionId, SceneId};
 use crate::infrastructure::state::AppState;
 
 /// List interactions in a scene

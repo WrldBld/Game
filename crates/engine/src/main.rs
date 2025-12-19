@@ -217,7 +217,7 @@ async fn main() -> anyhow::Result<()> {
     // ComfyUI state monitor (broadcasts connection state changes)
     let comfyui_state_monitor = {
         use crate::infrastructure::comfyui::ComfyUIConnectionState;
-        use crate::infrastructure::websocket::messages::ServerMessage;
+        use wrldbldr_protocol::ServerMessage;
         let comfyui_client = state.comfyui_client.clone();
         let sessions = state.sessions.clone();
         tokio::spawn(async move {

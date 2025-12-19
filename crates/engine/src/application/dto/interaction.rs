@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::domain::entities::{InteractionTarget, InteractionTemplate, InteractionType};
-use crate::domain::value_objects::{CharacterId, ItemId};
+use wrldbldr_domain::{CharacterId, ItemId};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateInteractionRequestDto {

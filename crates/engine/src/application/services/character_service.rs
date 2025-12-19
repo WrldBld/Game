@@ -20,9 +20,8 @@ use crate::application::ports::outbound::{
 };
 use crate::application::services::SettingsService;
 use crate::domain::entities::{Character, CharacterWant, StatBlock, Want};
-use crate::domain::value_objects::{
-    AppSettings, CampbellArchetype, CharacterId, Relationship, WantId, WorldId,
-};
+use crate::domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
+use wrldbldr_domain::{CharacterId, WantId, WorldId};
 
 /// Request to create a new character
 #[derive(Debug, Clone)]

@@ -16,7 +16,7 @@ use crate::application::dto::{
     ActResponseDto, CreateActRequestDto, CreateWorldRequestDto, UpdateWorldRequestDto,
     WorldResponseDto, parse_monomyth_stage,
 };
-use crate::domain::value_objects::WorldId;
+use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
 
 /// List all worlds

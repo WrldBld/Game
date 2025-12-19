@@ -7,7 +7,8 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 use crate::infrastructure::state::AppState;
-use crate::domain::value_objects::{AppSettings, WorldId, settings_metadata, SettingsFieldMetadata};
+use crate::domain::value_objects::{settings_metadata, AppSettings, SettingsFieldMetadata};
+use wrldbldr_domain::WorldId;
 
 pub fn settings_routes() -> Router<Arc<AppState>> {
     Router::new()
