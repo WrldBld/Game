@@ -2,7 +2,7 @@
 
 **Created:** 2025-12-19
 **Status:** In Progress
-**Estimated Effort:** ~13 hours
+**Estimated Effort:** ~25 hours (revised after Phase 3 expansion)
 
 This plan addresses findings from a comprehensive code review of the Engine and Player codebases, wiring unwired code to features rather than simply deleting it.
 
@@ -12,7 +12,7 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 
 | Item | Decision |
 |------|----------|
-| PresenceService | Wire with LLM + rule-based, DM confirmation via existing approval popup |
+| PresenceService | **Replaced by Staging System** - Full DM approval workflow with rule+LLM, pre-staging UI, configurable TTL |
 | GoalRepositoryPort | Implement (part of Actantial Model) |
 | Use Cases module | Keep as architectural blueprint |
 | Mobile/Compact views | Future - remove unused components for now |
@@ -65,43 +65,52 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 
 ---
 
-## Phase 3: Wire PresenceService for NPC System
-**Status:** Pending
-**Feature:** NPC Presence (US-NPC-001 through US-NPC-005)
-**Estimated:** 3 hours
+## Phase 3: Staging System (Replaces PresenceService)
+**Status:** Ready to Implement
+**Feature:** NPC Presence with DM Approval Workflow
+**Estimated:** 16.5 hours
 
-### Architecture
-```
-Player enters region → Engine calculates presence → 
-  Rule-based: Deterministic NPCs (workers, residents)
-  LLM-assisted: Probabilistic NPCs (frequents_sometimes)
-→ Both go to DM approval (existing popup) → DM confirms/modifies → NPCs appear in scene
-```
+> **Full details:** See [STAGING_IMPLEMENTATION_PLAN.md](./STAGING_IMPLEMENTATION_PLAN.md)
 
-### Tasks
-1. Add PresenceService to AppState
-2. Integrate with existing approval popup (ApprovalRequired message)
-3. Add approval message handler for presence decisions
-4. Integrate with scene resolution
-5. Replace simple presence helper with service
+### Overview
 
-### New Protocol Messages
-```rust
-// Reuse existing ApprovalRequired with new approval_type
-ApprovalType::PresenceSuggestion {
-    region_id: String,
-    region_name: String,
-    suggested_npcs: Vec<NpcPresenceSuggestion>,
-}
+The Staging System replaces the simple PresenceService with a comprehensive workflow:
+- **DM always approves** NPC presence before players see them
+- **Rule-based and LLM-based** options shown side-by-side
+- **Pre-staging UI** for DMs to set up regions before players arrive
+- **Configurable TTL** per location
+- **Persistent staging history** in Neo4j
+- **Background workflow** - player sees loading while DM approves
 
-struct NpcPresenceSuggestion {
-    npc_id: String,
-    npc_name: String,
-    reasoning: String,
-    source: PresenceSource,  // Rule | LLM
-    confidence: f32,
-}
-```
+### Sub-Parts
+
+| Part | Description | Est. | Status |
+|------|-------------|------|--------|
+| A | Dialogue Tracking Enhancement (dependency) | 2.5h | ⏳ |
+| B | Staging Domain (entities, value objects) | 2h | ⏳ |
+| C | Staging Infrastructure (repository, protocol) | 3h | ⏳ |
+| D | Staging Service (core logic) | 2h | ⏳ |
+| E | Engine Integration (WebSocket changes) | 1.5h | ⏳ |
+| F | Player UI (approval popup, pre-staging, settings) | 4.5h | ⏳ |
+| G | Finalization (testing, cleanup) | 1h | ⏳ |
+
+### Key Files to Create/Modify
+
+**Engine:**
+- `entities/staging.rs` (new)
+- `value_objects/staging_context.rs` (new)
+- `services/staging_service.rs` (new)
+- `persistence/staging_repository.rs` (new)
+- `websocket.rs` (modify for staging flow)
+
+**Player:**
+- `dm_panel/staging_approval.rs` (new)
+- `dm_panel/location_staging.rs` (new)
+- `views/pc_view.rs` (add StagingPending overlay)
+- `creator/location_editor.rs` (add TTL settings)
+
+**Protocol:**
+- `messages.rs` (add staging messages)
 
 ---
 
@@ -201,11 +210,18 @@ Keep as architectural blueprint with clear documentation header.
 | 2025-12-19 | 1 | **Phase 1 Complete** | Done |
 | 2025-12-19 | 2 | Wire SkillsDisplay to PC view | Done |
 | 2025-12-19 | 2 | **Phase 2 Complete** | Done |
+| 2025-12-19 | 3 | Phase 3 planning complete | Done |
+| 2025-12-19 | 3 | Created STAGING_IMPLEMENTATION_PLAN.md | Done |
+| 2025-12-19 | 3 | Created staging-system.md | Done |
+| 2025-12-19 | 3 | Updated npc-system.md | Done |
+| 2025-12-19 | 3 | Updated dialogue-system.md | Done |
 
 ---
 
 ## Related Documentation
 
+- [STAGING_IMPLEMENTATION_PLAN.md](./STAGING_IMPLEMENTATION_PLAN.md) - Detailed Phase 3 plan
+- [staging-system.md](../systems/staging-system.md) - Staging system specification
 - [ACTIVE_DEVELOPMENT.md](./ACTIVE_DEVELOPMENT.md) - Current sprint work
 - [ROADMAP.md](./ROADMAP.md) - Overall progress
 - [MVP.md](./MVP.md) - Acceptance criteria

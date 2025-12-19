@@ -2,7 +2,9 @@
 
 ## Overview
 
-The NPC System determines **where NPCs are** at any given time without simulating their movement. When the player enters a region, the system calculates which NPCs should be present based on their location relationships (works at, lives at, frequents, avoids) and the current game time. The DM can also trigger events that bring NPCs to players or narrate location-wide occurrences.
+The NPC System determines **where NPCs are** at any given time without simulating their movement. It defines NPC-Region relationships (works at, lives at, frequents, avoids) that describe an NPC's connection to locations. The DM can also trigger events that bring NPCs to players or narrate location-wide occurrences.
+
+> **Note**: The actual determination of which NPCs appear when a player enters a region is handled by the [Staging System](./staging-system.md), which uses these relationships as input for both rule-based and LLM-enhanced presence decisions, with DM approval.
 
 ---
 
@@ -23,8 +25,8 @@ This system creates a living world without the complexity of AI pathfinding or s
 ### Implemented
 
 - [x] **US-NPC-001**: As a player, I see relevant NPCs when I enter a region based on their schedules
-  - *Implementation*: `PresenceService` queries NPC-Region relationships, checks time of day
-  - *Files*: `Engine/src/application/services/presence_service.rs`
+  - *Implementation*: [Staging System](./staging-system.md) queries NPC-Region relationships, generates suggestions, and requires DM approval
+  - *Files*: `Engine/src/application/services/staging_service.rs` (replaces `presence_service.rs`)
 
 - [x] **US-NPC-002**: As a DM, I can define where NPCs work (region + shift)
   - *Implementation*: `WORKS_AT_REGION` edge with `shift` property (day/night/always)
@@ -143,6 +145,8 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 ### Presence Resolution Algorithm
 
+The rule-based presence algorithm uses the following logic:
+
 ```
 Query: "Which NPCs are present in region R at time T?"
 
@@ -162,23 +166,10 @@ Query: "Which NPCs are present in region R at time T?"
 4. Check AVOIDS_REGION edges
    - If NPC avoids here → NOT PRESENT (overrides above)
 
-Result: List of NPCs present with reasoning
+Result: List of NPCs with presence suggestions and reasoning
 ```
 
-### Presence Cache
-
-```rust
-pub struct PresenceCache {
-    entries: HashMap<(RegionId, CharacterId), PresenceCacheEntry>,
-}
-
-pub struct PresenceCacheEntry {
-    pub is_present: bool,
-    pub reasoning: String,       // For DM review
-    pub cached_at_game_time: DateTime<Utc>,
-    pub ttl_game_hours: u32,     // Invalidate after N in-game hours
-}
-```
+> **Note**: This algorithm provides the rule-based suggestions for the [Staging System](./staging-system.md). The Staging System also generates LLM-enhanced suggestions that can override rules based on narrative context. The DM reviews both options before approving the final staging.
 
 ---
 
@@ -217,8 +208,7 @@ pub struct PresenceCacheEntry {
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
 | NPC-Region Edges | ✅ | - | All 4 relationship types |
-| PresenceService | ✅ | - | Rule-based + probability |
-| Presence Cache | ✅ | - | TTL-based invalidation |
+| Staging System | ⏳ | ⏳ | Replaces PresenceService - see [Staging System](./staging-system.md) |
 | Approach Events | ✅ | ⏳ | Engine sends, Player pending |
 | Location Events | ✅ | ⏳ | Engine sends, Player pending |
 | Share NPC Location | ✅ | ⏳ | Engine sends, Player pending |
@@ -250,6 +240,7 @@ pub struct PresenceCacheEntry {
 ## Related Systems
 
 - **Depends on**: [Navigation System](./navigation-system.md) (regions, game time)
+- **Provides data to**: [Staging System](./staging-system.md) (NPC-Region relationships for presence calculation)
 - **Used by**: [Scene System](./scene-system.md) (NPCs in scene), [Dialogue System](./dialogue-system.md) (NPC context), [Observation System](./observation-system.md) (track NPC sightings)
 
 ---
@@ -259,3 +250,4 @@ pub struct PresenceCacheEntry {
 | Date | Change |
 |------|--------|
 | 2025-12-18 | Initial version extracted from MVP.md |
+| 2025-12-19 | Updated to reference Staging System for presence determination |

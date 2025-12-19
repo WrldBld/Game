@@ -1,0 +1,513 @@
+# Staging System
+
+## Overview
+
+The Staging System manages **which NPCs are present in a region** at any given time, combining rule-based logic with LLM reasoning and requiring DM approval. Unlike simple presence calculation, staging provides a complete workflow where the DM reviews and approves NPC presence before players see them, with results cached based on configurable TTL. The term "staging" comes from theatre, representing "who is on stage" in a scene.
+
+---
+
+## Game Design
+
+The Staging System creates a living, coherent world while maintaining DM control over narrative pacing:
+
+1. **DM-Approved Presence**: Every NPC appearance goes through DM approval, ensuring narrative consistency
+2. **Dual Decision Modes**: Rule-based (deterministic) and LLM-enhanced (contextual) options give DMs flexibility
+3. **Pre-Staging**: DMs can set up regions before players arrive for seamless gameplay
+4. **Smart Caching**: Approved stagings persist with configurable TTL to reduce repetitive approvals
+5. **Story-Aware LLM**: The LLM considers active narrative events and recent dialogues when suggesting presence
+6. **Background Workflow**: Players see a brief loading state while DM approves, minimizing interruption
+
+### Theatre Language
+
+WrldBldr uses theatre and story terminology throughout:
+- **Staging**: The configuration of NPCs present in a region (who's "on stage")
+- **Pre-staging**: Setting up a scene before the audience (players) arrives
+- **Scene**: The visual novel presentation (backdrop, sprites, dialogue)
+
+---
+
+## User Stories
+
+### Pending (Phase 3 Implementation)
+
+- [ ] **US-STG-001**: As a player, I see NPCs appear after entering a region when the DM approves
+  - *Implementation*: Background approval workflow with StagingPending → StagingReady messages
+  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Player/src/presentation/views/pc_view.rs`
+
+- [ ] **US-STG-002**: As a DM, I see a staging approval popup when a player enters an unstaged region
+  - *Implementation*: StagingApprovalRequired message triggers popup with rule/LLM options
+  - *Files*: `Player/src/presentation/components/dm_panel/staging_approval.rs`
+
+- [ ] **US-STG-003**: As a DM, I can choose between rule-based and LLM-based NPC suggestions
+  - *Implementation*: Both options shown side-by-side with reasoning
+  - *Files*: `Engine/src/application/services/staging_service.rs`
+
+- [ ] **US-STG-004**: As a DM, I can customize which NPCs are present by toggling checkboxes
+  - *Implementation*: Manual override of any suggestion before approval
+  - *Files*: `Player/src/presentation/components/dm_panel/staging_approval.rs`
+
+- [ ] **US-STG-005**: As a DM, I can regenerate LLM suggestions with additional guidance
+  - *Implementation*: Text field for DM guidance, re-query LLM with context
+  - *Files*: `Engine/src/application/services/staging_service.rs`
+
+- [ ] **US-STG-006**: As a DM, I can use the previous staging if it's still relevant
+  - *Implementation*: Previous staging shown with "Use Previous" button
+  - *Files*: `Player/src/presentation/components/dm_panel/staging_approval.rs`
+
+- [ ] **US-STG-007**: As a DM, I can pre-stage regions before players arrive
+  - *Implementation*: Dedicated pre-staging UI in location view
+  - *Files*: `Player/src/presentation/components/dm_panel/location_staging.rs`
+
+- [ ] **US-STG-008**: As a DM, I can view and manage stagings for all regions in a location
+  - *Implementation*: Location staging tab showing all regions with status
+  - *Files*: `Player/src/presentation/components/dm_panel/location_staging.rs`
+
+- [ ] **US-STG-009**: As a DM, I can configure default staging TTL per location
+  - *Implementation*: Location settings with `presence_cache_ttl_hours` field
+  - *Files*: `Player/src/presentation/components/creator/location_editor.rs`
+
+- [ ] **US-STG-010**: As a DM, I can set the cache duration when approving a staging
+  - *Implementation*: TTL dropdown in approval popup
+  - *Files*: `Player/src/presentation/components/dm_panel/staging_approval.rs`
+
+- [ ] **US-STG-011**: As a DM, I can view staging history for a region
+  - *Implementation*: History list in pre-staging UI
+  - *Files*: `Engine/src/infrastructure/persistence/staging_repository.rs`
+
+- [ ] **US-STG-012**: As a player, I see a loading indicator while staging is pending
+  - *Implementation*: Dimmed backdrop with "Setting the scene..." overlay
+  - *Files*: `Player/src/presentation/views/pc_view.rs`
+
+---
+
+## UI Mockups
+
+### DM Staging Approval Popup
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🎭 Stage the Scene                                              [X]        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  📍 The Bar Counter                                                         │
+│     Rusty Anchor Tavern                                                     │
+│  🕐 Day 3, Evening (7:30 PM)                                                │
+│                                                                             │
+│  👤 Waiting: Aldric the Ranger                                              │
+│                                                                             │
+│  ─── Previous Staging ────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ⏱️ Approved 4.5 hours ago (Day 3, Afternoon 3:00 PM)                │   │
+│  │ 📋 Marcus ✓, Old Sal ✓, Mysterious Stranger ✗                       │   │
+│  │                                              [Use Previous]          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ─── Choose Staging Method ───────────────────────────────────────────────  │
+│                                                                             │
+│  ┌─────────────────────────────────┐ ┌─────────────────────────────────┐   │
+│  │ 📋 RULES-BASED                  │ │ 🤖 LLM-ENHANCED                 │   │
+│  │                                 │ │                                 │   │
+│  │ [✓] Marcus the Bartender        │ │ [✓] Marcus the Bartender        │   │
+│  │     Works here (Evening)        │ │     "Working his usual shift"   │   │
+│  │                                 │ │                                 │   │
+│  │ [✓] Old Sal                     │ │ [✓] Old Sal                     │   │
+│  │     Frequents (Often, Evening)  │ │     "A regular, here as always" │   │
+│  │                                 │ │                                 │   │
+│  │ [ ] Mysterious Stranger         │ │ [ ] Mysterious Stranger         │   │
+│  │     Frequents (Sometimes) - 40% │ │     "Said he'd be at the docks" │   │
+│  │     ↳ Rolled: Not present       │ │                                 │   │
+│  │                                 │ │                                 │   │
+│  │         [Use Rules]             │ │         [Use LLM]               │   │
+│  └─────────────────────────────────┘ └─────────────────────────────────┘   │
+│                                                                             │
+│  ─── Or Customize ────────────────────────────────────────────────────────  │
+│                                                                             │
+│  Toggle NPCs manually:                                                      │
+│  [✓] Marcus    [✓] Old Sal    [ ] Mysterious Stranger                       │
+│                                                                             │
+│  ─── Cache Duration ──────────────────────────────────────────────────────  │
+│  Valid for: [▼ 3 hours ] (until 10:30 PM game time)                         │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                        ✓ Approve Staging                              │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  ─── Regenerate with Guidance ────────────────────────────────────────────  │
+│  [Consider that the party just had a loud fight outside...              ]   │
+│  [🔄 Regenerate LLM]                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+### Pre-Staging UI (Location View)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📍 The Rusty Anchor Tavern                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  [Overview] [Regions] [NPCs] [🎭 Staging] [Settings]                        │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Pre-stage regions before players arrive.                                   │
+│  Current game time: Day 3, Evening (7:30 PM)                                │
+│                                                                             │
+│  ─── Regions ─────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 🎭 Bar Counter                                                       │   │
+│  │                                                                      │   │
+│  │ Current Staging: ✓ Active (expires in 2.5 hours)                     │   │
+│  │ NPCs: Marcus ✓, Old Sal ✓                                            │   │
+│  │                                                                      │   │
+│  │ [View/Edit Staging]                   [Clear Staging]                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 🎭 Tables                                                            │   │
+│  │                                                                      │   │
+│  │ Current Staging: ⚠️ None (will prompt on player entry)               │   │
+│  │                                                                      │   │
+│  │ [Pre-Stage Now]                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 🔒 Back Room                                                         │   │
+│  │                                                                      │   │
+│  │ Current Staging: ⏸️ Expired (was set 6 hours ago)                    │   │
+│  │ Previous: Shady Dealer ✓                                             │   │
+│  │                                                                      │   │
+│  │ [Refresh Staging]                     [View Previous]                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+### Pre-Staging Editor Modal
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🎭 Pre-Stage: Tables                                            [X]        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Set up NPCs before players arrive at this region.                          │
+│  Current game time: Day 3, Evening (7:30 PM)                                │
+│                                                                             │
+│  ─── Quick Options ───────────────────────────────────────────────────────  │
+│                                                                             │
+│  [📋 Generate from Rules]    [🤖 Generate with LLM]    [📝 Manual Setup]   │
+│                                                                             │
+│  ─── NPCs Who Could Be Here ──────────────────────────────────────────────  │
+│                                                                             │
+│  Workers:                                                                   │
+│  [ ] Serving Wench Mira (Evening shift)                                     │
+│                                                                             │
+│  Regulars:                                                                  │
+│  [✓] Drunk Sailor Pete (Frequents Often)                                    │
+│  [✓] Card Shark Vince (Frequents Sometimes)                                 │
+│  [ ] Nervous Merchant (Frequents Rarely)                                    │
+│                                                                             │
+│  Residents:                                                                 │
+│  [ ] (none)                                                                 │
+│                                                                             │
+│  ─── Duration ────────────────────────────────────────────────────────────  │
+│  Valid for: [▼ 3 hours ] (until 10:30 PM game time)                         │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐ │
+│  │                        💾 Save Pre-Staging                            │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+### Location Settings (TTL Configuration)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  📍 The Rusty Anchor Tavern - Settings                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ─── Basic Info ──────────────────────────────────────────────────────────  │
+│  Name: [The Rusty Anchor Tavern                                 ]           │
+│  Type: [▼ Interior    ]                                                     │
+│                                                                             │
+│  ─── Staging Settings ────────────────────────────────────────────────────  │
+│                                                                             │
+│  Default staging duration: [▼ 3 hours    ]                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ℹ️  How long NPC presence approvals remain valid (in game time).    │   │
+│  │                                                                      │   │
+│  │    Quick presets:                                                    │   │
+│  │    • Busy venue (tavern, market): 1-2 hours                         │   │
+│  │    • Calm location (shop, home): 3-4 hours                          │   │
+│  │    • Static location (dungeon, ruins): 8-24 hours                   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  [✓] Use LLM for staging decisions                                          │
+│      When enabled, an AI considers story context to suggest NPC presence.   │
+│      When disabled, only rule-based logic is used.                          │
+│                                                                             │
+│  ┌────────────────────┐                                                     │
+│  │ 💾 Save Settings   │                                                     │
+│  └────────────────────┘                                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+### Player Loading State
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                                                                      │   │
+│  │                      [BACKDROP IMAGE - dimmed]                       │   │
+│  │                    The Rusty Anchor Tavern                           │   │
+│  │                                                                      │   │
+│  │                                                                      │   │
+│  │                      ┌─────────────────────┐                         │   │
+│  │                      │  🎭                  │                         │   │
+│  │                      │  Setting the scene...│                         │   │
+│  │                      │  [spinner]           │                         │   │
+│  │                      └─────────────────────┘                         │   │
+│  │                                                                      │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      [Dialogue box - empty]                          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+---
+
+## Data Model
+
+### Neo4j Nodes
+
+```cypher
+// Staging - a persisted approval of NPC presence for a region
+(:Staging {
+    id: "uuid",
+    region_id: "uuid",
+    location_id: "uuid",
+    world_id: "uuid",
+    game_time: datetime,        // Game time when approved
+    approved_at: datetime,      // Real time when approved
+    ttl_hours: 3,               // How long valid in game hours
+    approved_by: "client_id",   // Who approved
+    source: "llm",              // "rule" | "llm" | "custom" | "prestaged"
+    dm_guidance: null,          // Optional guidance text for regeneration
+    is_active: true             // Current active staging for region
+})
+
+// Location enhancement for staging settings
+(:Location {
+    // ... existing fields ...
+    presence_cache_ttl_hours: 3,  // Default TTL for this location
+    use_llm_presence: true        // Whether to use LLM suggestions
+})
+```
+
+### Neo4j Edges
+
+```cypher
+// Staging includes NPCs with presence status
+(staging:Staging)-[:INCLUDES_NPC {
+    is_present: true,
+    reasoning: "Works here during evening shift"
+}]->(character:Character)
+
+// Quick lookup: current staging for a region
+(region:Region)-[:CURRENT_STAGING]->(staging:Staging)
+
+// History: all stagings for a region
+(region:Region)-[:HAS_STAGING]->(staging:Staging)
+```
+
+### Staging Context (LLM Input)
+
+The LLM receives context to make informed decisions:
+
+```rust
+pub struct StagingContext {
+    // Region information
+    pub region_name: String,
+    pub region_description: String,
+    pub location_name: String,
+    pub time_of_day: TimeOfDay,
+    pub time_display: String,
+    
+    // Story context
+    pub active_events: Vec<ActiveEventContext>,
+    pub npc_dialogues: Vec<NpcDialogueContext>,
+    
+    // Extensible
+    pub additional_context: HashMap<String, String>,
+}
+```
+
+---
+
+## API
+
+### REST Endpoints
+
+| Method | Path | Description | Status |
+|--------|------|-------------|--------|
+| GET | `/api/regions/{id}/staging` | Get current staging | ⏳ |
+| GET | `/api/regions/{id}/staging/history` | Get staging history | ⏳ |
+| POST | `/api/regions/{id}/staging` | Create/approve staging | ⏳ |
+| DELETE | `/api/regions/{id}/staging` | Clear current staging | ⏳ |
+| PUT | `/api/locations/{id}` | Update location (incl. TTL settings) | ✅ (needs fields) |
+
+### WebSocket Messages
+
+#### Client → Server (DM only)
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `StagingApprovalResponse` | `request_id`, `approved_npcs`, `ttl_hours`, `source` | DM approves staging |
+| `StagingRegenerateRequest` | `request_id`, `guidance` | DM requests new LLM suggestions |
+| `PreStageRegion` | `region_id`, `npcs`, `ttl_hours` | DM pre-stages before player arrives |
+
+#### Server → Client (DM)
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `StagingApprovalRequired` | `request_id`, `region_id`, `region_name`, `location_name`, `game_time_display`, `previous_staging`, `rule_based_npcs`, `llm_based_npcs`, `default_ttl_hours`, `waiting_pcs` | Player entered unstaged region |
+
+#### Server → Client (Player)
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `StagingPending` | `region_id` | Staging approval in progress |
+| `StagingReady` | `region_id`, `npcs_present` | Staging approved, show NPCs |
+
+---
+
+## Implementation Status
+
+| Component | Engine | Player | Notes |
+|-----------|--------|--------|-------|
+| Staging Entity | ⏳ | - | `entities/staging.rs` |
+| StagingContext VO | ⏳ | - | `value_objects/staging_context.rs` |
+| Location TTL fields | ⏳ | - | Add to Location entity |
+| StagingRepository | ⏳ | - | Neo4j persistence |
+| StagingService | ⏳ | - | Core logic + LLM |
+| Protocol Messages | ⏳ | ⏳ | New message types |
+| WebSocket Integration | ⏳ | - | Approval workflow |
+| Staging State | - | ⏳ | `game_state.rs` |
+| Message Handlers | - | ⏳ | Handle staging messages |
+| StagingApproval Component | - | ⏳ | DM approval popup |
+| LocationStaging Component | - | ⏳ | Pre-staging UI |
+| StagingPending Overlay | - | ⏳ | Player loading state |
+| Location Settings UI | - | ⏳ | TTL configuration |
+
+---
+
+## Key Files
+
+### Engine
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Domain | `src/domain/entities/staging.rs` | Staging entity |
+| Domain | `src/domain/value_objects/staging_context.rs` | LLM context types |
+| Application | `src/application/services/staging_service.rs` | Core staging logic |
+| Application | `src/application/services/staging_context.rs` | Context provider |
+| Application | `src/application/ports/outbound/staging_repository_port.rs` | Repository trait |
+| Infrastructure | `src/infrastructure/persistence/staging_repository.rs` | Neo4j implementation |
+| Infrastructure | `src/infrastructure/websocket.rs` | Staging message handlers |
+
+### Player
+
+| Layer | File | Purpose |
+|-------|------|---------|
+| Application | `src/application/dto/staging.rs` | Staging DTOs |
+| Presentation | `src/presentation/state/game_state.rs` | Staging state signals |
+| Presentation | `src/presentation/handlers/session_message_handler.rs` | Handle staging messages |
+| Presentation | `src/presentation/components/dm_panel/staging_approval.rs` | Approval popup |
+| Presentation | `src/presentation/components/dm_panel/location_staging.rs` | Pre-staging UI |
+| Presentation | `src/presentation/views/pc_view.rs` | StagingPending overlay |
+| Presentation | `src/presentation/components/creator/location_editor.rs` | TTL settings |
+
+---
+
+## Related Systems
+
+- **Depends on**: [NPC System](./npc-system.md) (NPC-Region relationships), [Navigation System](./navigation-system.md) (region movement), [Dialogue System](./dialogue-system.md) (conversation history for LLM context), [Narrative System](./narrative-system.md) (active events for LLM context)
+- **Replaces**: PresenceService (simple rule-based presence calculation)
+- **Used by**: [Scene System](./scene-system.md) (NPCs in scene)
+
+---
+
+## LLM Prompt Structure
+
+The LLM receives a structured prompt combining rules and context:
+
+```
+You are helping determine which NPCs are present in a location for a TTRPG game.
+
+## Location
+The Bar Counter (Rusty Anchor Tavern)
+A worn wooden counter with brass fittings. The barkeep polishes glasses.
+Time: Evening (7:30 PM)
+
+## Rule-Based Suggestions
+The game rules suggest:
+- Marcus the Bartender: PRESENT (Works here, Evening shift)
+- Old Sal: PRESENT (Frequents here Often, Evening)
+- Mysterious Stranger: ABSENT (Frequents Sometimes - 40% chance, rolled absent)
+
+## Your Role
+You may AGREE with or OVERRIDE the rules based on narrative considerations.
+Consider: story reasons, interesting opportunities, conflicts, current context.
+
+## Active Story Elements
+- "The Festival Begins" event is active at this location
+  Relevance: The tavern is busier than usual
+
+## Recent NPC Interactions
+- Mysterious Stranger: Last spoke to party 2 hours ago
+  Summary: "Told the party he would meet them at the docks at sunset"
+  Mentioned locations: ["The Docks"]
+
+## DM Guidance (if provided)
+"Consider that the party just had a loud fight outside"
+
+## Response Format
+[
+  {
+    "name": "Marcus the Bartender",
+    "is_present": true,
+    "reasoning": "Agree with rules - Marcus is working his shift"
+  },
+  {
+    "name": "Mysterious Stranger",
+    "is_present": false,
+    "reasoning": "Override rules - He told the party he'd be at the docks"
+  }
+]
+```
+
+---
+
+## Revision History
+
+| Date | Change |
+|------|--------|
+| 2025-12-19 | Initial version - Phase 3 planning |

@@ -58,6 +58,22 @@ This is the heart of the AI game master experience:
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
   - *Files*: `Engine/src/domain/value_objects/context_budget.rs`, `Engine/src/infrastructure/http/settings_routes.rs`
 
+### Pending (Dialogue Tracking Enhancement)
+
+- [ ] **US-DLG-010**: As a system, I persist dialogue exchanges as StoryEvents for later querying
+  - *Implementation*: Call `record_dialogue_exchange` in DMApprovalQueueService after approval
+  - *Files*: `Engine/src/application/services/dm_approval_queue_service.rs`, `Engine/src/application/services/story_event_service.rs`
+
+- [ ] **US-DLG-011**: As a system, I can query the last dialogues with a specific NPC
+  - *Implementation*: Add `get_dialogues_with_npc` method to StoryEventRepository
+  - *Files*: `Engine/src/application/ports/outbound/story_event_repository_port.rs`, `Engine/src/infrastructure/persistence/story_event_repository.rs`
+
+- [ ] **US-DLG-012**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
+  - *Implementation*: SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
+  - *Files*: `Engine/src/infrastructure/persistence/story_event_repository.rs`
+
+> **Note**: These dialogue tracking enhancements are required by the [Staging System](./staging-system.md) to provide LLM context about recent NPC interactions (e.g., if an NPC said they'd be somewhere else).
+
 ---
 
 ## UI Mockups
@@ -214,7 +230,10 @@ pub enum GameTool {
 | Tool Parsing | ✅ | - | Parse LLM tool suggestions |
 | Tool Execution | ✅ | - | Execute approved tools |
 | DM Approval Flow | ✅ | ✅ | Full approval UI |
-| Conversation History | ✅ | ✅ | 30-turn limit |
+| Conversation History | ✅ | ✅ | 30-turn limit (in-memory) |
+| Dialogue Persistence | ⏳ | - | Store as StoryEvent::DialogueExchange |
+| NPC Dialogue Queries | ⏳ | - | get_dialogues_with_npc method |
+| SPOKE_TO Edges | ⏳ | - | Track PC-NPC conversation metadata |
 | Directorial Notes | ✅ | ✅ | DM guidance |
 | Dialogue Display | - | ✅ | Typewriter effect |
 | Choice Selection | - | ✅ | Player choices |
@@ -253,6 +272,7 @@ pub enum GameTool {
 ## Related Systems
 
 - **Depends on**: [Character System](./character-system.md) (NPC context), [Navigation System](./navigation-system.md) (location context), [Challenge System](./challenge-system.md) (challenge suggestions), [Narrative System](./narrative-system.md) (event suggestions)
+- **Provides data to**: [Staging System](./staging-system.md) (dialogue history for LLM context in presence decisions)
 - **Used by**: [Scene System](./scene-system.md) (dialogue in scenes)
 
 ---
@@ -262,3 +282,4 @@ pub enum GameTool {
 | Date | Change |
 |------|--------|
 | 2025-12-18 | Initial version extracted from MVP.md |
+| 2025-12-19 | Added dialogue tracking enhancements for Staging System |
