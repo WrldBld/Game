@@ -76,7 +76,7 @@ pub fn handle_server_message(
                                         portrait_asset: c.portrait_asset.clone(),
                                         position: crate::application::dto::websocket_messages::CharacterPosition::Center,
                                         is_speaking: false,
-                                        emotion: String::new(),
+                                        emotion: None,
                                     }
                                 })
                             })
@@ -730,6 +730,42 @@ pub fn handle_server_message(
                 true,
                 platform,
             );
+        }
+
+        // =========================================================================
+        // Queue Status (DM-only, can be ignored by Player view)
+        // =========================================================================
+
+        ServerMessage::ActionQueued {
+            action_id,
+            player_name,
+            action_type,
+            queue_depth,
+        } => {
+            tracing::debug!(
+                "Action queued: {} by {} (type: {}, depth: {})",
+                action_id,
+                player_name,
+                action_type,
+                queue_depth
+            );
+            // DM-only notification, no UI update needed for Player view
+        }
+
+        ServerMessage::QueueStatus {
+            player_actions_pending,
+            llm_requests_pending,
+            llm_requests_processing,
+            approvals_pending,
+        } => {
+            tracing::debug!(
+                "Queue status: actions={}, llm_pending={}, llm_processing={}, approvals={}",
+                player_actions_pending,
+                llm_requests_pending,
+                llm_requests_processing,
+                approvals_pending
+            );
+            // DM-only status update, no UI update needed for Player view
         }
     }
 }
