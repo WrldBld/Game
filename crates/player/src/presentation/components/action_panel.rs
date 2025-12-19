@@ -226,25 +226,4 @@ fn get_interaction_icon(interaction_type: &str) -> &'static str {
     }
 }
 
-/// Compact action panel for mobile or smaller views
-#[derive(Props, Clone, PartialEq)]
-pub struct CompactActionPanelProps {
-    /// Handler for menu button
-    pub on_menu: EventHandler<()>,
-}
 
-#[component]
-pub fn CompactActionPanel(props: CompactActionPanelProps) -> Element {
-    rsx! {
-        div {
-            class: "compact-action-panel absolute bottom-4 right-4 z-20",
-
-            button {
-                class: "btn btn-primary w-12 h-12 rounded-full text-2xl",
-                onclick: move |_| props.on_menu.call(()),
-
-                "≡"
-            }
-        }
-    }
-}

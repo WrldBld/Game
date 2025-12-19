@@ -59,25 +59,4 @@ pub fn Backdrop(props: BackdropProps) -> Element {
     }
 }
 
-/// A simple loading backdrop shown while assets are loading
-#[component]
-pub fn LoadingBackdrop() -> Element {
-    rsx! {
-        div {
-            class: "vn-backdrop absolute inset-0 flex items-center justify-center bg-gradient-to-b from-dark-surface to-dark-purple-end",
 
-            div {
-                class: "text-center text-gray-400",
-
-                div {
-                    class: "text-2xl mb-4",
-                    "Loading..."
-                }
-
-                div {
-                    class: "loading-spinner w-10 h-10 border-[3px] border-gray-700 border-t-[#d4af37] rounded-full animate-spin mx-auto",
-                }
-            }
-        }
-    }
-}
