@@ -12,7 +12,6 @@ pub mod mini_map;
 pub mod navigation_panel;
 pub mod pc;
 pub mod settings;
-pub mod shared;
 pub mod story_arc;
 pub mod tactical;
 pub mod visual_novel;
