@@ -29,6 +29,9 @@ pub struct ActionPanelProps {
     /// Handler for log button
     #[props(default)]
     pub on_log: Option<EventHandler<()>>,
+    /// Handler for skills button
+    #[props(default)]
+    pub on_skills: Option<EventHandler<()>>,
     /// Whether all action buttons should be disabled (e.g., while waiting for response)
     #[props(default = false)]
     pub disabled: bool,
@@ -93,6 +96,15 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 }
             }
 
+            if let Some(ref handler) = props.on_skills {
+                SystemButton {
+                    label: "Skills",
+                    icon: "skills",
+                    on_click: handler.clone(),
+                    disabled: props.disabled,
+                }
+            }
+
             // Divider between system and scene actions
             if !available_interactions.is_empty() {
                 div {
@@ -136,6 +148,7 @@ pub fn SystemButton(props: SystemButtonProps) -> Element {
         "map" => "🗺️",
         "people" => "👥",
         "scroll" => "📜",
+        "skills" => "⚔️",
         _ => "⚙️",
     };
 

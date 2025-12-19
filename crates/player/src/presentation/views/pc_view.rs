@@ -15,10 +15,10 @@ use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
 use crate::presentation::components::mini_map::{MiniMap, MapRegionData, MapBounds};
 use crate::presentation::components::navigation_panel::NavigationPanel;
-use crate::presentation::components::tactical::ChallengeRollModal;
+use crate::presentation::components::tactical::{ChallengeRollModal, PlayerSkillData, SkillsDisplay};
 use crate::presentation::components::visual_novel::{Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox};
 use crate::application::dto::InventoryItemData;
-use crate::presentation::services::{use_character_service, use_location_service, use_observation_service, use_world_service};
+use crate::presentation::services::{use_character_service, use_location_service, use_observation_service, use_skill_service, use_world_service};
 use crate::presentation::state::{use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect, RollSubmissionStatus};
 
 /// Player Character View - visual novel gameplay interface
@@ -36,6 +36,7 @@ pub fn PCView() -> Element {
     let character_service = use_character_service();
     let observation_service = use_observation_service();
     let location_service = use_location_service();
+    let skill_service = use_skill_service();
 
     // Character sheet viewer state
     let mut show_character_sheet = use_signal(|| false);
@@ -62,6 +63,11 @@ pub fn PCView() -> Element {
     let mut show_mini_map = use_signal(|| false);
     let mut map_regions: Signal<Vec<MapRegionData>> = use_signal(Vec::new);
     let mut is_loading_map = use_signal(|| false);
+
+    // Skills panel state
+    let mut show_skills_panel = use_signal(|| false);
+    let mut player_skills: Signal<Vec<PlayerSkillData>> = use_signal(Vec::new);
+    let mut is_loading_skills = use_signal(|| false);
 
     // Run typewriter effect
     use_typewriter_effect(&mut dialogue_state);
@@ -386,6 +392,66 @@ pub fn PCView() -> Element {
                 on_log: Some(EventHandler::new(move |_| {
                     tracing::info!("Open log");
                 })),
+                on_skills: Some(EventHandler::new({
+                    let game_state = game_state.clone();
+                    let skill_service = skill_service.clone();
+                    let character_sheet_values = character_sheet_values.clone();
+                    move |_| {
+                        tracing::info!("Open skills panel");
+                        show_skills_panel.set(true);
+                        is_loading_skills.set(true);
+
+                        // Get world ID
+                        let world_id = game_state.world.read().as_ref()
+                            .map(|w| w.world.id.clone());
+
+                        // Get character sheet values for modifiers
+                        let sheet_values = character_sheet_values.read().clone();
+
+                        if let Some(wid) = world_id {
+                            let skill_svc = skill_service.clone();
+                            spawn(async move {
+                                match skill_svc.list_skills(&wid).await {
+                                    Ok(skills) => {
+                                        // Convert SkillData to PlayerSkillData
+                                        let player_skill_data: Vec<PlayerSkillData> = skills
+                                            .into_iter()
+                                            .filter(|s| !s.is_hidden)
+                                            .map(|s| {
+                                                // Try to get modifier from character sheet
+                                                // Look for fields like "skill_persuasion" or just the skill name
+                                                let modifier = sheet_values
+                                                    .get(&format!("skill_{}", s.name.to_lowercase().replace(' ', "_")))
+                                                    .or_else(|| sheet_values.get(&s.name.to_lowercase()))
+                                                    .and_then(|v| match v {
+                                                        crate::application::dto::FieldValue::Number(n) => Some(*n as i32),
+                                                        _ => None,
+                                                    })
+                                                    .unwrap_or(0);
+
+                                                PlayerSkillData {
+                                                    id: s.id,
+                                                    name: s.name,
+                                                    category: s.category.display_name().to_string(),
+                                                    modifier,
+                                                    proficient: modifier > 0, // Simple heuristic
+                                                }
+                                            })
+                                            .collect();
+                                        player_skills.set(player_skill_data);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to load skills: {}", e);
+                                        player_skills.set(Vec::new());
+                                    }
+                                }
+                                is_loading_skills.set(false);
+                            });
+                        } else {
+                            is_loading_skills.set(false);
+                        }
+                    }
+                })),
             }
 
             // Character sheet viewer modal
@@ -619,6 +685,30 @@ pub fn PCView() -> Element {
                         }
                     },
                     on_close: move |_| show_mini_map.set(false),
+                }
+            }
+
+            // Skills panel modal
+            if *show_skills_panel.read() {
+                if *is_loading_skills.read() {
+                    // Loading state
+                    div {
+                        class: "fixed inset-0 bg-black/85 z-[1000] flex items-center justify-center",
+                        onclick: move |_| show_skills_panel.set(false),
+                        div {
+                            class: "bg-dark-surface rounded-xl p-8 text-center",
+                            onclick: move |e| e.stop_propagation(),
+                            div {
+                                class: "text-gray-400 text-xl",
+                                "Loading skills..."
+                            }
+                        }
+                    }
+                } else {
+                    SkillsDisplay {
+                        skills: player_skills.read().clone(),
+                        on_close: move |_| show_skills_panel.set(false),
+                    }
                 }
             }
 
