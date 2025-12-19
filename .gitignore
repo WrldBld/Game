@@ -1,0 +1,51 @@
+# Build artifacts
+/target/
+**/target/
+
+# Cargo lock is committed for applications but not libraries
+# Since this is a workspace with applications, we commit it
+# Cargo.lock - committed
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for Player's tailwind)
+node_modules/
+crates/player/node_modules/
+
+# WASM build artifacts
+crates/player/dist/
+crates/player/pkg/
+
+# Local cargo
+.cargo/registry/
+.cargo/git/
+
+# Nix
+result
+result-*
+
+# Editor backups
+*.bak
+*.orig
+
+# Test databases
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Log files
+*.log

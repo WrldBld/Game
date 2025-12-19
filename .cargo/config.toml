@@ -1,0 +1,19 @@
+[alias]
+# Build all crates
+b = "build --workspace"
+# Check all crates
+c = "check --workspace"
+# Test all crates
+t = "test --workspace"
+# Run engine
+engine = "run -p wrldbldr-engine"
+# Run player (desktop)
+player = "run -p wrldbldr-player"
+
+[build]
+# Incremental compilation for faster rebuilds
+incremental = true
+
+[net]
+# Use git CLI for fetching (faster on some systems)
+git-fetch-with-cli = true

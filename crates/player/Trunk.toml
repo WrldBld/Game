@@ -1,0 +1,45 @@
+[build]
+# Target directory for build output
+dist = "dist"
+
+# Public URL base path
+public_url = "/"
+
+# Build in release mode for production
+release = false
+
+[watch]
+# Additional paths to watch for changes
+watch = ["src", "assets", "styles", "index.html"]
+
+# Ignore patterns
+ignore = ["node_modules", "dist", ".cargo", "target"]
+
+[serve]
+# Development server address
+address = "127.0.0.1"
+
+# Development server port
+port = 8080
+
+# Open browser on start
+open = false
+
+# Enable WebSocket for hot reload
+ws_protocol = "ws"
+
+# [[hooks]]
+# Build Tailwind CSS before trunk build
+# stage = "pre_build"
+# command = "sh"
+# command_arguments = ["-c", "task css"]
+
+[tools]
+# SASS is not needed since we use Tailwind
+# sass = "1.69.5"
+
+# wasm-bindgen version (must match Cargo.toml dependency)
+wasm_bindgen = "0.2.106"
+
+# wasm-opt for production builds
+wasm_opt = "0.116.0"

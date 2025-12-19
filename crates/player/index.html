@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="WrldBldr Player - TTRPG Gameplay Client">
+    <meta name="theme-color" content="#2e3034">
+
+    <!-- PWA support for mobile -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WrldBldr">
+
+    <title>WrldBldr Player</title>
+
+    <!-- Preconnect to font providers -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS output -->
+    <link data-trunk rel="css" href="assets/css/output.css">
+
+    <!-- App icon -->
+    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
+    <!-- Trunk will inject the WASM loader here -->
+    <link data-trunk rel="rust" data-wasm-opt="z"/>
+</head>
+<body>
+    <!-- Loading screen shown while WASM loads -->
+    <div id="loading" class="fixed inset-0 bg-ink-900 flex items-center justify-center z-50">
+        <div class="text-center">
+            <h1 class="font-fantasy text-gold-400 text-3xl mb-4">WrldBldr</h1>
+            <div class="w-48 h-1 bg-ink-700 rounded-full overflow-hidden">
+                <div class="h-full bg-gold-500 animate-pulse" style="width: 100%"></div>
+            </div>
+            <p class="text-parchment-300 mt-4 text-sm">Loading adventure...</p>
+        </div>
+    </div>
+
+    <!-- Dioxus will mount here -->
+    <div id="main"></div>
+
+    <script>
+        // Hide loading screen once app is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dioxus will hide this when mounted
+            setTimeout(function() {
+                var loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    loading.style.transition = 'opacity 0.3s ease-out';
+                    setTimeout(function() {
+                        loading.style.display = 'none';
+                    }, 300);
+                }
+            }, 1000);
+        });
+
+        // Prevent pull-to-refresh on mobile (for app-like feel)
+        document.body.addEventListener('touchmove', function(e) {
+            if (e.target === document.body) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+
+    <!-- Inline critical styles for loading screen -->
+    <style>
+        .bg-ink-900 { background-color: #2e3034; }
+        .text-gold-400 { color: #fbbf24; }
+        .text-parchment-300 { color: #e9d9b5; }
+        .bg-ink-700 { background-color: #3f4148; }
+        .bg-gold-500 { background-color: #d4af37; }
+        .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</body>
+</html>

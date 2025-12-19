@@ -1,0 +1,491 @@
+//! Adapter implementing the application `GameConnectionPort` for `EngineClient`.
+//!
+//! This allows higher layers (presentation/application) to depend on the port
+//! rather than the concrete WebSocket client type.
+
+use anyhow::Result;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU8, Ordering},
+};
+
+use crate::application::ports::outbound::{
+    ApprovalDecision as PortApprovalDecision, ChallengeOutcomeDecisionData, ConnectionState as PortConnectionState,
+    DirectorialContext as PortDirectorialContext, GameConnectionPort, NpcMotivation as PortNpcMotivation,
+    ParticipantRole as PortParticipantRole,
+};
+
+use crate::application::dto::{
+    ApprovalDecision as InfraApprovalDecision, ClientMessage, DirectorialContext as InfraDirectorialContext,
+    NpcMotivationData as InfraNpcMotivationData, ParticipantRole as InfraParticipantRole,
+};
+use super::{ConnectionState as InfraConnectionState, EngineClient};
+
+fn map_state(state: InfraConnectionState) -> PortConnectionState {
+    match state {
+        InfraConnectionState::Disconnected => PortConnectionState::Disconnected,
+        InfraConnectionState::Connecting => PortConnectionState::Connecting,
+        InfraConnectionState::Connected => PortConnectionState::Connected,
+        InfraConnectionState::Reconnecting => PortConnectionState::Reconnecting,
+        InfraConnectionState::Failed => PortConnectionState::Failed,
+    }
+}
+
+fn state_to_u8(state: PortConnectionState) -> u8 {
+    match state {
+        PortConnectionState::Disconnected => 0,
+        PortConnectionState::Connecting => 1,
+        PortConnectionState::Connected => 2,
+        PortConnectionState::Reconnecting => 3,
+        PortConnectionState::Failed => 4,
+    }
+}
+
+fn u8_to_state(v: u8) -> PortConnectionState {
+    match v {
+        1 => PortConnectionState::Connecting,
+        2 => PortConnectionState::Connected,
+        3 => PortConnectionState::Reconnecting,
+        4 => PortConnectionState::Failed,
+        _ => PortConnectionState::Disconnected,
+    }
+}
+
+fn map_role(role: PortParticipantRole) -> InfraParticipantRole {
+    match role {
+        PortParticipantRole::DungeonMaster => InfraParticipantRole::DungeonMaster,
+        PortParticipantRole::Player => InfraParticipantRole::Player,
+        PortParticipantRole::Spectator => InfraParticipantRole::Spectator,
+    }
+}
+
+fn map_npc_motivation(m: PortNpcMotivation) -> InfraNpcMotivationData {
+    InfraNpcMotivationData {
+        character_id: m.character_id,
+        mood: m.mood,
+        immediate_goal: m.immediate_goal,
+        secret_agenda: m.secret_agenda,
+    }
+}
+
+fn map_directorial_context(ctx: PortDirectorialContext) -> InfraDirectorialContext {
+    InfraDirectorialContext {
+        scene_notes: ctx.scene_notes,
+        tone: ctx.tone,
+        npc_motivations: ctx.npc_motivations.into_iter().map(map_npc_motivation).collect(),
+        forbidden_topics: ctx.forbidden_topics,
+    }
+}
+
+fn map_approval_decision(decision: PortApprovalDecision) -> InfraApprovalDecision {
+    match decision {
+        PortApprovalDecision::Accept => InfraApprovalDecision::Accept,
+        PortApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+        } => InfraApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+        },
+        PortApprovalDecision::Reject { feedback } => InfraApprovalDecision::Reject { feedback },
+        PortApprovalDecision::TakeOver { dm_response } => InfraApprovalDecision::TakeOver { dm_response },
+    }
+}
+
+/// Concrete adapter wrapping an `EngineClient`.
+#[derive(Clone)]
+pub struct EngineGameConnection {
+    client: EngineClient,
+    state: Arc<AtomicU8>,
+}
+
+impl EngineGameConnection {
+    pub fn new(client: EngineClient) -> Self {
+        let initial = {
+            #[cfg(target_arch = "wasm32")]
+            {
+                state_to_u8(map_state(client.state()))
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                state_to_u8(PortConnectionState::Disconnected)
+            }
+        };
+
+        Self {
+            client,
+            state: Arc::new(AtomicU8::new(initial)),
+        }
+    }
+}
+
+impl GameConnectionPort for EngineGameConnection {
+    fn state(&self) -> PortConnectionState {
+        u8_to_state(self.state.load(Ordering::SeqCst))
+    }
+
+    fn url(&self) -> &str {
+        self.client.url()
+    }
+
+    fn connect(&self) -> Result<()> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.state.store(state_to_u8(PortConnectionState::Connecting), Ordering::SeqCst);
+            self.client.connect()
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            let state = Arc::clone(&self.state);
+            tokio::spawn(async move {
+                if let Err(e) = client.connect().await {
+                    tracing::error!("Failed to connect to Engine: {}", e);
+                    state.store(state_to_u8(PortConnectionState::Failed), Ordering::SeqCst);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn disconnect(&self) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.disconnect();
+            self.state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            let state = Arc::clone(&self.state);
+            tokio::spawn(async move {
+                client.disconnect().await;
+                state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
+            });
+        }
+    }
+
+    fn join_session(
+        &self,
+        user_id: &str,
+        role: PortParticipantRole,
+        world_id: Option<String>,
+    ) -> Result<()> {
+        let role = map_role(role);
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.join_session(user_id, role, world_id)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            let user_id = user_id.to_string();
+            let world_id = world_id.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.join_session(&user_id, role, world_id).await {
+                    tracing::error!("Failed to join session: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn send_action(&self, action_type: &str, target: Option<&str>, dialogue: Option<&str>) -> Result<()> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send_action(action_type, target, dialogue)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            let action_type = action_type.to_string();
+            let target = target.map(|s| s.to_string());
+            let dialogue = dialogue.map(|s| s.to_string());
+            tokio::spawn(async move {
+                if let Err(e) = client.send_action(&action_type, target.as_deref(), dialogue.as_deref()).await {
+                    tracing::error!("Failed to send action: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn request_scene_change(&self, scene_id: &str) -> Result<()> {
+        let msg = ClientMessage::RequestSceneChange { scene_id: scene_id.to_string() };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to request scene change: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn send_directorial_update(&self, context: PortDirectorialContext) -> Result<()> {
+        let msg = ClientMessage::DirectorialUpdate { context: map_directorial_context(context) };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send directorial update: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn send_approval_decision(&self, request_id: &str, decision: PortApprovalDecision) -> Result<()> {
+        let msg = ClientMessage::ApprovalDecision {
+            request_id: request_id.to_string(),
+            decision: map_approval_decision(decision),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send approval decision: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecisionData) -> Result<()> {
+        let msg = ClientMessage::ChallengeOutcomeDecision {
+            resolution_id: resolution_id.to_string(),
+            decision,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send challenge outcome decision: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
+        let msg = ClientMessage::TriggerChallenge {
+            challenge_id: challenge_id.to_string(),
+            target_character_id: target_character_id.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to trigger challenge: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
+        let msg = ClientMessage::ChallengeRoll {
+            challenge_id: challenge_id.to_string(),
+            roll,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to submit challenge roll: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: crate::application::dto::websocket_messages::DiceInputType) -> Result<()> {
+        let msg = ClientMessage::ChallengeRollInput {
+            challenge_id: challenge_id.to_string(),
+            input_type: input,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to submit challenge roll input: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn heartbeat(&self) -> Result<()> {
+        let msg = ClientMessage::Heartbeat;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send heartbeat: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn move_to_region(&self, pc_id: &str, region_id: &str) -> Result<()> {
+        let msg = ClientMessage::MoveToRegion {
+            pc_id: pc_id.to_string(),
+            region_id: region_id.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send move to region: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> Result<()> {
+        let msg = ClientMessage::ExitToLocation {
+            pc_id: pc_id.to_string(),
+            location_id: location_id.to_string(),
+            arrival_region_id: arrival_region_id.map(|s| s.to_string()),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to send exit to location: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn on_state_change(&self, callback: Box<dyn FnMut(PortConnectionState) + Send + 'static>) {
+        let state_slot = Arc::clone(&self.state);
+        let cb = Arc::new(tokio::sync::Mutex::new(callback));
+
+        let cb_for_engine = Arc::clone(&cb);
+        let state_for_engine = Arc::clone(&state_slot);
+        let client = self.client.clone();
+
+        tokio::spawn(async move {
+            client
+                .set_on_state_change(move |infra_state| {
+                    let port_state = map_state(infra_state);
+                    state_for_engine.store(state_to_u8(port_state), Ordering::SeqCst);
+
+                    let cb_for_call = Arc::clone(&cb_for_engine);
+                    tokio::spawn(async move {
+                        let mut cb = cb_for_call.lock().await;
+                        (cb)(port_state);
+                    });
+                })
+                .await;
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn on_state_change(&self, callback: Box<dyn FnMut(PortConnectionState) + 'static>) {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let state_slot = Arc::clone(&self.state);
+        let cb = Rc::new(RefCell::new(callback));
+
+        let cb_for_engine = Rc::clone(&cb);
+        self.client.set_on_state_change(move |infra_state| {
+            let port_state = map_state(infra_state);
+            state_slot.store(state_to_u8(port_state), Ordering::SeqCst);
+            (cb_for_engine.borrow_mut())(port_state);
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>) {
+        let cb = Arc::new(tokio::sync::Mutex::new(callback));
+        let cb_for_engine = Arc::clone(&cb);
+        let client = self.client.clone();
+
+        tokio::spawn(async move {
+            client
+                .set_on_message(move |msg| {
+                    let value = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
+                    let cb_for_call = Arc::clone(&cb_for_engine);
+                    tokio::spawn(async move {
+                        let mut cb = cb_for_call.lock().await;
+                        (cb)(value);
+                    });
+                })
+                .await;
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + 'static>) {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let cb = Rc::new(RefCell::new(callback));
+        let cb_for_engine = Rc::clone(&cb);
+        self.client.set_on_message(move |msg| {
+            let value = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
+            (cb_for_engine.borrow_mut())(value);
+        });
+    }
+}
+

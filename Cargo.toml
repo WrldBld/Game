@@ -1,0 +1,123 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+# Inherit package metadata across all crates
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Otto"]
+license = "MIT"
+repository = "https://github.com/WrldBld/Game"
+
+# Centralize ALL dependencies here
+[workspace.dependencies]
+# Internal crates
+wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }
+wrldbldr-engine = { path = "crates/engine", version = "0.1.0" }
+wrldbldr-player = { path = "crates/player", version = "0.1.0" }
+
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Unique identifiers - js feature for WASM compatibility
+uuid = { version = "1.11", features = ["v4", "serde", "js"] }
+
+# Date/time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Async traits
+async-trait = "0.1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Random number generation
+rand = "0.8"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# --- Engine-specific dependencies ---
+# Neo4j driver
+neo4rs = "0.8"
+
+# Web framework
+axum = { version = "0.8", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# HTTP client for Ollama and ComfyUI
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Async utilities
+futures-util = "0.3"
+futures-channel = "0.3"
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# SQLite for queue persistence
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+
+# --- Player-specific dependencies ---
+# Dioxus UI framework
+dioxus = { version = "0.7.2" }
+
+# URL handling
+url = "2.5"
+
+# Regex for dice parsing
+regex-lite = "0.1"
+
+# Random number generation (for WASM-compatible player)
+getrandom = { version = "0.2", features = ["js"] }
+
+# WebSocket client (desktop)
+tokio-tungstenite = "0.24"
+
+# WASM dependencies
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+serde-wasm-bindgen = "0.6"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "console",
+    "WebSocket",
+    "MessageEvent",
+    "BinaryType",
+    "CloseEvent",
+    "ErrorEvent",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+    "Headers",
+    "Storage",
+] }
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+tracing-wasm = "0.2"
+gloo-timers = "0.3"
+gloo-net = "0.5"
+
+# Shared workspace lints
+[workspace.lints.rust]
+unsafe_code = "warn"
+unused_lifetimes = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

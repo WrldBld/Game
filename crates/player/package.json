@@ -1,0 +1,15 @@
+{
+  "name": "wrldbldr-player",
+  "version": "0.1.0",
+  "description": "WrldBldr Player - TTRPG gameplay client",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./styles/input.css -o ./assets/css/output.css --minify",
+    "watch:css": "tailwindcss -i ./styles/input.css -o ./assets/css/output.css --watch",
+    "dev": "npm run watch:css",
+    "build": "npm run build:css"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

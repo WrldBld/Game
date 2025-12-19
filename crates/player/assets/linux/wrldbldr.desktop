@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=WrldBldr Player
+Exec=wrldbldr-player %u
+Type=Application
+MimeType=x-scheme-handler/wrldbldr;
+Categories=Game;
