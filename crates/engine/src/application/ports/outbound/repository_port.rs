@@ -1097,6 +1097,39 @@ pub trait StoryEventRepositoryPort: Send + Sync {
 
     /// List events that occurred in a specific scene
     async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<StoryEvent>>;
+
+    // =========================================================================
+    // Dialogue-Specific Query Methods
+    // =========================================================================
+
+    /// Get recent dialogue exchanges with a specific NPC
+    /// 
+    /// Returns DialogueExchange events involving the specified NPC,
+    /// ordered by timestamp descending (most recent first).
+    /// 
+    /// Used by the Staging System to provide LLM context about
+    /// recent conversations with NPCs who might be present.
+    async fn get_dialogues_with_npc(
+        &self,
+        world_id: WorldId,
+        npc_id: CharacterId,
+        limit: u32,
+    ) -> Result<Vec<StoryEvent>>;
+
+    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
+    ///
+    /// This edge tracks conversation history metadata:
+    /// - `last_dialogue_at`: When the most recent dialogue occurred
+    /// - `last_topic`: Primary topic of the last conversation (optional)
+    /// - `conversation_count`: Total number of conversations
+    ///
+    /// Used by the Staging System to understand PC-NPC relationship history.
+    async fn update_spoke_to_edge(
+        &self,
+        pc_id: crate::domain::value_objects::PlayerCharacterId,
+        npc_id: CharacterId,
+        topic: Option<String>,
+    ) -> Result<()>;
 }
 
 // =============================================================================

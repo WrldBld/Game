@@ -372,6 +372,10 @@ mod tests {
         ) -> Option<SessionWorldContext> {
             None
         }
+
+        fn get_session_world_id(&self, _session_id: SessionId) -> Option<WorldId> {
+            None
+        }
     }
 
     /// Fake challenge repository for testing

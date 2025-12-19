@@ -56,6 +56,9 @@ pub struct SceneContext {
 /// Context about the responding character
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterContext {
+    /// Character's unique identifier (for story event recording)
+    #[serde(default)]
+    pub character_id: Option<String>,
     /// Character's name
     pub name: String,
     /// Character archetype / personality summary

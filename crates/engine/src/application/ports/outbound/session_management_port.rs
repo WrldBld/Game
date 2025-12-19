@@ -174,6 +174,9 @@ pub trait SessionManagementPort: Send + Sync {
         &self,
         session_id: SessionId,
     ) -> Option<SessionWorldContext>;
+
+    /// Get the world ID for a session
+    fn get_session_world_id(&self, session_id: SessionId) -> Option<WorldId>;
 }
 
 /// World context data for building LLM prompts

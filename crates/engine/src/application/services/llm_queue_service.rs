@@ -180,8 +180,9 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     return;
                                 };
 
-                                // Extract NPC name from the prompt's responding character
+                                // Extract NPC name and ID from the prompt's responding character
                                 let npc_name = prompt.responding_character.name.clone();
+                                let npc_id = prompt.responding_character.character_id.clone();
 
                                 // Extract challenge suggestion from LLM response
                                 let challenge_suggestion = if let Some(cs) = response.challenge_suggestion {
@@ -350,6 +351,9 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     source_action_id: *action_item_id,
                                     decision_type: DecisionType::NPCResponse,
                                     urgency: DecisionUrgency::AwaitingPlayer,
+                                    world_id: request.world_id,
+                                    pc_id: request.pc_id,
+                                    npc_id,
                                     npc_name,
                                     proposed_dialogue: response.npc_dialogue.clone(),
                                     internal_reasoning: response.internal_reasoning.clone(),

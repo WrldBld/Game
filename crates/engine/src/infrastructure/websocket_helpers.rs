@@ -129,6 +129,7 @@ pub async fn build_prompt_from_action(
     };
 
     let character_context = CharacterContext {
+        character_id: Some(responding_character.id.to_string()),
         name: responding_character.name.clone(),
         archetype: format!("{:?}", responding_character.current_archetype),
         current_mood: None, // Character mood tracking not yet implemented

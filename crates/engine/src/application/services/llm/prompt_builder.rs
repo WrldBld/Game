@@ -483,6 +483,7 @@ mod tests {
         };
 
         let character = CharacterContext {
+            character_id: None,
             name: "Gorm".to_string(),
             archetype: "Gruff tavern keeper".to_string(),
             current_mood: Some("Suspicious".to_string()),

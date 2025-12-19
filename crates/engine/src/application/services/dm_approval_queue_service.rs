@@ -13,8 +13,9 @@ use crate::application::ports::outbound::{
     SessionManagementPort,
 };
 use crate::application::services::tool_execution_service::ToolExecutionService;
+use crate::application::services::StoryEventService;
 use crate::application::dto::ApprovalItem;
-use crate::domain::value_objects::{ApprovalDecision, GameTool, SessionId};
+use crate::domain::value_objects::{ApprovalDecision, CharacterId, GameTool, SessionId};
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
 const MAX_RETRY_COUNT: u32 = 3;
@@ -23,14 +24,17 @@ const MAX_RETRY_COUNT: u32 = 3;
 pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>> {
     pub(crate) queue: Arc<Q>,
     tool_execution_service: ToolExecutionService,
+    /// Story event service for recording dialogue exchanges
+    story_event_service: StoryEventService,
 }
 
 impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
     /// Create a new DM approval queue service
-    pub fn new(queue: Arc<Q>) -> Self {
+    pub fn new(queue: Arc<Q>, story_event_service: StoryEventService) -> Self {
         Self {
             queue,
             tool_execution_service: ToolExecutionService::new(),
+            story_event_service,
         }
     }
 
@@ -146,6 +150,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
             .add_to_conversation_history(session_id, &approval.npc_name, &approval.proposed_dialogue)
             .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
 
+        // Record dialogue exchange as a story event
+        self.record_dialogue_event(session, session_id, approval, &approval.proposed_dialogue)
+            .await;
+
         // Execute approved tool calls
         for tool_info in &approval.proposed_tools {
             // Convert ProposedToolInfo to GameTool
@@ -199,6 +207,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         session
             .add_to_conversation_history(session_id, &approval.npc_name, modified_dialogue)
             .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
+
+        // Record dialogue exchange as a story event (with modified dialogue)
+        self.record_dialogue_event(session, session_id, approval, modified_dialogue)
+            .await;
 
         // Execute approved tool calls (filter based on approved_tools list)
         // approved_tools contains tool IDs that should be executed
@@ -281,9 +293,108 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
             .add_to_conversation_history(session_id, &approval.npc_name, dm_response)
             .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
 
+        // Record dialogue exchange as a story event (with DM's response)
+        self.record_dialogue_event(session, session_id, approval, dm_response)
+            .await;
+
         Ok(ApprovalOutcome::Broadcast {
             dialogue: dm_response.to_string(),
         })
+    }
+
+    /// Record a dialogue exchange as a story event
+    ///
+    /// This is called after dialogue is broadcast to persist it to the story timeline.
+    /// Errors are logged but don't fail the approval flow.
+    async fn record_dialogue_event<S: SessionManagementPort>(
+        &self,
+        session: &S,
+        session_id: SessionId,
+        approval: &ApprovalItem,
+        npc_response: &str,
+    ) {
+        // Get world_id from session
+        let Some(world_id) = session.get_session_world_id(session_id) else {
+            tracing::warn!(
+                "Cannot record dialogue event: world_id not found for session {}",
+                session_id
+            );
+            return;
+        };
+
+        // Parse NPC ID from approval item
+        let npc_id = match &approval.npc_id {
+            Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+                Ok(uuid) => CharacterId::from_uuid(uuid),
+                Err(e) => {
+                    tracing::warn!("Cannot record dialogue event: invalid npc_id '{}': {}", id_str, e);
+                    return;
+                }
+            },
+            None => {
+                tracing::warn!(
+                    "Cannot record dialogue event: npc_id not set in approval for '{}'",
+                    approval.npc_name
+                );
+                return;
+            }
+        };
+
+        // Record the dialogue exchange
+        // Note: player_dialogue would ideally come from the original action, but for now
+        // we use an empty string as it's not stored in ApprovalItem
+        if let Err(e) = self
+            .story_event_service
+            .record_dialogue_exchange(
+                world_id,
+                session_id,
+                None, // scene_id - could be looked up from session if needed
+                None, // location_id - could be looked up from session if needed
+                npc_id,
+                approval.npc_name.clone(),
+                String::new(), // player_dialogue - not available in ApprovalItem
+                npc_response.to_string(),
+                Vec::new(), // topics - could be extracted from dialogue in future
+                None,       // tone
+                vec![npc_id], // involved_characters
+                None,       // game_time
+            )
+            .await
+        {
+            tracing::error!(
+                "Failed to record dialogue event for NPC '{}': {}",
+                approval.npc_name,
+                e
+            );
+        } else {
+            tracing::debug!(
+                "Recorded dialogue exchange with NPC '{}' in world {}",
+                approval.npc_name,
+                world_id
+            );
+        }
+
+        // Update SPOKE_TO edge if we have both PC and NPC IDs
+        if let Some(pc_id) = approval.pc_id {
+            if let Err(e) = self
+                .story_event_service
+                .update_spoke_to_edge(pc_id, npc_id, None) // topic could be extracted in future
+                .await
+            {
+                tracing::warn!(
+                    "Failed to update SPOKE_TO edge between PC {} and NPC {}: {}",
+                    pc_id,
+                    npc_id,
+                    e
+                );
+            } else {
+                tracing::debug!(
+                    "Updated SPOKE_TO edge: PC {} -> NPC '{}'",
+                    pc_id,
+                    approval.npc_name
+                );
+            }
+        }
     }
 
     /// Delay a decision for later

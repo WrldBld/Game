@@ -97,6 +97,15 @@ pub struct ApprovalItem {
     pub source_action_id: QueueItemId, // Links back to PlayerActionItem
     pub decision_type: DecisionType,
     pub urgency: DecisionUrgency,
+    /// World ID for story event recording
+    #[serde(default)]
+    pub world_id: Option<crate::domain::value_objects::WorldId>,
+    /// Player character ID for SPOKE_TO edge creation
+    #[serde(default)]
+    pub pc_id: Option<crate::domain::value_objects::PlayerCharacterId>,
+    /// NPC character ID for story event recording
+    #[serde(default)]
+    pub npc_id: Option<String>,
     pub npc_name: String,
     pub proposed_dialogue: String,
     pub internal_reasoning: String,

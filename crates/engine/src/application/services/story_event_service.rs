@@ -604,4 +604,86 @@ impl StoryEventService {
     pub async fn count_by_world(&self, world_id: WorldId) -> Result<u64> {
         self.repository.count_by_world(world_id).await
     }
+
+    // =========================================================================
+    // Dialogue Summary Methods (for Staging System LLM Context)
+    // =========================================================================
+
+    /// Get recent dialogue exchanges with a specific NPC
+    ///
+    /// Returns the raw DialogueExchange events for further processing.
+    pub async fn get_dialogues_with_npc(
+        &self,
+        world_id: WorldId,
+        npc_id: CharacterId,
+        limit: u32,
+    ) -> Result<Vec<StoryEvent>> {
+        self.repository.get_dialogues_with_npc(world_id, npc_id, limit).await
+    }
+
+    /// Get a summarized view of recent dialogues with an NPC for LLM context
+    ///
+    /// Returns a string summary suitable for including in LLM prompts.
+    /// The summary includes the last `limit` conversations with topics discussed.
+    pub async fn get_dialogue_summary_for_npc(
+        &self,
+        world_id: WorldId,
+        npc_id: CharacterId,
+        limit: u32,
+    ) -> Result<Option<String>> {
+        let events = self.repository.get_dialogues_with_npc(world_id, npc_id, limit).await?;
+        
+        if events.is_empty() {
+            return Ok(None);
+        }
+
+        let mut summaries = Vec::new();
+        for event in events {
+            if let StoryEventType::DialogueExchange {
+                npc_name,
+                topics_discussed,
+                tone,
+                ..
+            } = &event.event_type
+            {
+                let topics = if topics_discussed.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (topics: {})", topics_discussed.join(", "))
+                };
+                let tone_str = tone.as_ref().map(|t| format!(" [{}]", t)).unwrap_or_default();
+                
+                // Format: "Spoke with {name}{topics}{tone} - {summary}"
+                let summary_line = format!(
+                    "• Spoke with {}{}{}",
+                    npc_name,
+                    topics,
+                    tone_str
+                );
+                summaries.push(summary_line);
+            }
+        }
+
+        if summaries.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(format!(
+                "Recent conversations with this NPC:\n{}",
+                summaries.join("\n")
+            )))
+        }
+    }
+
+    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
+    ///
+    /// This should be called after a dialogue exchange is recorded to maintain
+    /// the relationship metadata used by the Staging System.
+    pub async fn update_spoke_to_edge(
+        &self,
+        pc_id: crate::domain::value_objects::PlayerCharacterId,
+        npc_id: CharacterId,
+        topic: Option<String>,
+    ) -> Result<()> {
+        self.repository.update_spoke_to_edge(pc_id, npc_id, topic).await
+    }
 }

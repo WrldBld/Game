@@ -292,7 +292,10 @@ impl AppState {
             queue_factory.asset_generation_notifier(),
         ));
 
-        let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(approval_queue.clone()));
+        let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(
+            approval_queue.clone(),
+            story_event_service.clone(),
+        ));
 
         // Create generation service (generation_event_tx already created above)
         let generation_service = Arc::new(GenerationService::new(

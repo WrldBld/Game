@@ -466,6 +466,7 @@ impl LLMContextService {
             .collect();
 
         Ok(CharacterContext {
+            character_id: Some(character_id.to_string()),
             name: character.name,
             archetype: character.current_archetype.description().to_string(),
             current_mood: None, // Character entity doesn't have mood - would need session state

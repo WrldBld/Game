@@ -545,6 +545,10 @@ impl SessionManagementPort for SessionManager {
             directorial_notes: current_scene.directorial_notes.clone(),
         })
     }
+
+    fn get_session_world_id(&self, session_id: SessionId) -> Option<WorldId> {
+        self.sessions.get(&session_id).map(|s| s.world_id)
+    }
 }
 
 #[cfg(test)]
