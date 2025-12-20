@@ -5,7 +5,8 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
 
-use wrldbldr_player_ports::outbound::{GameConnectionPort, ParticipantRole};
+use wrldbldr_protocol::types::ParticipantRole;
+use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

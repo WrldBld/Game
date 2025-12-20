@@ -1,20 +1,7 @@
 //! WrldBldr Player - TTRPG gameplay client
 //!
 //! This crate is the *composition root* for the player application.
-//! The UI lives in `wrldbldr-player-ui` and infrastructure adapters live in
-//! `wrldbldr-player-adapters`.
-
-use dioxus::prelude::*;
-use std::sync::Arc;
-
-use wrldbldr_player_adapters::infrastructure::{http_client::ApiAdapter, platform};
-use wrldbldr_player_app::application::api::Api;
-use wrldbldr_player_ports::outbound::RawApiPort;
-use wrldbldr_player_ui::{
-    presentation::state::{DialogueState, GameState, GenerationState, SessionState},
-    Route,
-};
-
+//! The UI lives in `wrldbldr-player-ui`.
 #[cfg(not(target_arch = "wasm32"))]
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -35,32 +22,44 @@ fn main() {
     }
 
     tracing::info!("Starting WrldBldr Player");
-    dioxus::launch(app);
-}
 
-#[component]
-fn app() -> Element {
-    // Platform is used throughout UI via `use_context::<Platform>()`.
-    let platform = platform::create_platform();
-    use_context_provider(|| platform);
+    let platform = wrldbldr_player_adapters::infrastructure::platform::create_platform();
+    let raw_api: std::sync::Arc<dyn wrldbldr_player_ports::outbound::RawApiPort> =
+        std::sync::Arc::new(wrldbldr_player_adapters::infrastructure::http_client::ApiAdapter::new());
 
-    // Global UI state.
-    use_context_provider(GameState::new);
-    use_context_provider(SessionState::new);
-    use_context_provider(DialogueState::new);
-    use_context_provider(GenerationState::new);
+    let api = wrldbldr_player_app::application::api::Api::new(raw_api);
 
-    // Concrete adapter chosen here only.
-    let raw_api: Arc<dyn RawApiPort> = Arc::new(ApiAdapter::new());
-    let api = Api::new(raw_api);
+    let shell = {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // On web, pick a shell based on screen size.
+            // We keep the default conservative and treat small widths as mobile.
+            let width = web_sys::window()
+                .and_then(|w| w.inner_width().ok())
+                .and_then(|v| v.as_f64())
+                .unwrap_or(1024.0);
 
-    // UI consumes a typed `ApiPort` (the `Api` wrapper around `RawApiPort`).
-    use_context_provider(|| wrldbldr_player_ui::presentation::Services::new(api));
-
-    rsx! {
-        div {
-            style: "width: 100vw; height: 100vh; overflow: hidden;",
-            Router::<Route> {}
+            if width < 768.0 {
+                wrldbldr_player_ports::config::ShellKind::Mobile
+            } else {
+                wrldbldr_player_ports::config::ShellKind::Desktop
+            }
         }
-    }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            std::env::var("WRLDBLDR_SHELL")
+                .ok()
+                .and_then(|s| s.parse::<wrldbldr_player_ports::config::ShellKind>().ok())
+                .unwrap_or_default()
+        }
+    };
+
+    let config = wrldbldr_player_ports::config::RunnerConfig { shell };
+
+    wrldbldr_player_runner::run(wrldbldr_player_runner::RunnerDeps {
+        platform,
+        api,
+        config,
+    });
 }

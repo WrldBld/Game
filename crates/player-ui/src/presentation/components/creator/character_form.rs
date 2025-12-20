@@ -5,7 +5,8 @@ use std::collections::HashMap;
 
 use super::asset_gallery::AssetGallery;
 use super::sheet_field_input::CharacterSheetForm;
-use super::suggestion_button::{SuggestionButton, SuggestionContext, SuggestionType};
+use super::suggestion_button::{SuggestionButton, SuggestionType};
+use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};

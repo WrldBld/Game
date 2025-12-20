@@ -6,7 +6,7 @@
 
 **Status**: IN PROGRESS
 
-**Last Updated**: 2025-12-19
+**Last Updated**: 2025-12-20 (shim enforcement expanded: re-exports + crate aliases)
 
 ### Recent Work Notes
 - Restored several engine files that were accidentally collapsed into single-line blobs during earlier scripted refactors.
@@ -16,11 +16,25 @@
 - Updated D7 to reflect chrono-backed canonical GameTime + standardized TimeOfDay mapping prior to implementing B6–B8.
 - Player split wiring: `wrldbldr-player-ui` now imports wire DTOs from `wrldbldr-protocol` (not `wrldbldr-player-app`), and `wrldbldr-player-adapters` no longer depends on UI routing types (deep links parse to an adapters-owned `DeepLink`).
 - Fixed `RawApiPort for ApiAdapter` recursion by disambiguating calls via `ApiPort::...`.
-- Verified `nix-shell --run "cargo check -p wrldbldr-player-ui"` and `-p wrldbldr-player-adapters` succeed.
+- Player ports dedupe: removed `crates/player-app/src/application/ports/` and switched `wrldbldr-player-app` to import port traits from `wrldbldr-player-ports`.
+- Protocol move: `AppEvent` now lives in `wrldbldr-protocol` (`wrldbldr_protocol::AppEvent`) and engine code imports it directly (per D6).
+- Engine ports export unblocked: `WorldExporterPort` (and related structs) is exported from `wrldbldr-engine-ports`; world export/persistence now uses `wrldbldr_protocol::RuleSystemConfig` instead of engine-app DTOs.
+- Verified `nix-shell --run "cargo check --workspace"` and `cargo xtask arch-check` succeed.
+- Shim enforcement tightened: removed remaining cross-crate re-export shims and crate-alias shims (`use wrldbldr_* as ...`).
+- `cargo xtask arch-check` now also detects:
+  - `pub* use ::?wrldbldr_*` re-export shims
+  - `use ::?wrldbldr_* as <alias>;` crate-alias shims
+  - `extern crate ::?wrldbldr_* as <alias>;` crate-alias shims
+  and reports the first offending line with its line number.
+- Engine ports consolidation: removed `crates/engine-app/src/application/ports/` shim and converted remaining services to import port traits directly from `wrldbldr_engine_ports`.
 
 ---
 
 ## Decisions (Locked)
+
+### D8. Player UI composition
+- Approved: `wrldbldr-player-ui` owns the Dioxus launch/composition root.
+- This allows `wrldbldr-player-ui -> wrldbldr-player-adapters` as an explicit (documented) dependency.
 
 ### D1. Base layer ownership
 - **Domain is the base** (core meaning of the system).
@@ -44,8 +58,6 @@ Constraints:
 - Ports are split per app:
   - `wrldbldr-engine-ports`
   - `wrldbldr-player-ports`
-- Optional shared crate:
-  - `wrldbldr-core-ports` (only for truly shared ports)
 
 ### D5. Domain serialization
 - Default: `wrldbldr-domain` is **serde-free**.
@@ -53,31 +65,42 @@ Constraints:
   - `wrldbldr-domain-serde` crate (preferred), or
   - feature-gated serde support (acceptable but less strict).
 
-### D6. No re-export shims (strict Option A)
-- **No re-exports** of `wrldbldr-domain` or `wrldbldr-protocol` types from Engine/Player modules.
+### D6. No shim imports (general policy; strict Option A)
+- **Do not re-export or alias** `wrldbldr-*` crates from “convenience” modules in other crates (Engine/Player app/adapters/bins).
 - Each file imports from the owning crate directly:
   - IDs from `wrldbldr_domain::...`
   - Wire DTOs from `wrldbldr_protocol::...`
+  - Ports from `wrldbldr_engine_ports::...` / `wrldbldr_player_ports::...`
+
+Rationale (why we avoid shims generally):
+- **Single source of truth**: prevents ambiguous “where does this type live?” and stops drift during refactors.
+- **Sharper boundaries**: shims hide dependencies; direct imports make layer boundaries visible in code review.
+- **Better enforcement**: `cargo xtask arch-check` + grep-based checks work best when imports point at true owners.
+- **Less churn later**: when a type moves crates, only direct call sites change; shims create “sticky” legacy paths.
+
+Allowed exception (rare, requires explicit justification):
+- A crate may re-export *its own* internal modules for ergonomics (e.g. `wrldbldr_engine_ports::outbound::*`), but other crates must not create additional alias layers like `engine-app::application::ports::*` or crate-alias shims like `use wrldbldr_protocol as messages;`.
 
 ### D7. Game time ownership + payload policy
 - Canonical `GameTime` lives in `wrldbldr-domain` (serde-free).
   - Current canonical internal representation is `chrono`-backed for now to preserve existing behavior:
     - `current: chrono::DateTime<Utc>`
     - `is_paused: bool`
-  - `TimeOfDay` mapping is standardized:
-    - `5..=11 => Morning`, `12..=17 => Afternoon`, `18..=21 => Evening`, `else => Night`
-  - Domain provides convenience helpers (including formatting) to avoid duplicated UI logic.
 
 - `wrldbldr-protocol` contains the serialized wire representation.
   - `wrldbldr_protocol::GameTime` is a boundary struct with:
     - `{ day: u32, hour: u8, minute: u8, is_paused: bool }`
-  - Protocol may include pure helper methods (e.g., `time_of_day()` and display helpers) but must remain serialization-only.
+  - Protocol must remain *serialization-only* (serde/uuid/chrono; no UI/axum/sqlx/etc).
+  - Protocol must not provide UI-facing formatting or display helpers.
 
 - WebSocket/HTTP must send **structured `GameTime` only**.
   - No `display` strings
   - No standalone `time_of_day` strings/enums
 
-- Player UI derives or formats display from structured `GameTime`.
+- Player UI derives time-of-day + formatting from structured `GameTime`.
+  - `TimeOfDay` is UI-local.
+  - The time-of-day mapping is standardized:
+    - `5..=11 => Morning`, `12..=17 => Afternoon`, `18..=21 => Evening`, `else => Night`
   - Current display uses ordinal-style output (future customizable calendar/settings planned).
 
 ---
@@ -89,7 +112,6 @@ Constraints:
 - `crates/protocol` → `wrldbldr-protocol` (expanded)
 
 ### Port crates
-- `crates/core-ports` → `wrldbldr-core-ports` (optional)
 - `crates/engine-ports` → `wrldbldr-engine-ports`
 - `crates/player-ports` → `wrldbldr-player-ports`
 
@@ -115,24 +137,22 @@ Core:
 - `protocol` → *(no internal deps)*
 
 Ports:
-- `core-ports` → `domain`, `protocol`
-- `engine-ports` → `domain`, `protocol`, `core-ports`
-- `player-ports` → `domain`, `protocol`, `core-ports`
+- `engine-ports` → `domain`, `protocol`
+- `player-ports` → `domain`, `protocol`
 
 Engine:
-- `engine-app` → `domain`, `protocol`, `engine-ports`, `core-ports`
+- `engine-app` → `domain`, `protocol`, `engine-ports`
 - `engine-adapters` → `engine-app`, `engine-ports`, `protocol`
 - `engine` (bin) → `engine-adapters`
 
 Player:
-- `player-app` → `domain`, `protocol`, `player-ports`, `core-ports`
+- `player-app` → `domain`, `protocol`, `player-ports`
 - `player-adapters` → `player-app`, `player-ports`, `protocol`
-- `player-ui` → `player-app`, `player-ports`, `protocol`
+- `player-ui` → `player-app`, `player-ports`, `protocol`, `player-adapters` *(approved: UI owns Dioxus launch/composition)*
 - `player` (bin) → `player-ui`
 
 ### Forbidden dependencies (examples)
 - `domain` must not depend on `protocol`, `axum`, `sqlx`, `dioxus`, etc.
-- `player-ui` must not depend on `player-adapters`.
 - `engine-app` must not depend on adapter crates or adapter libraries (axum/sqlx/neo4rs/reqwest/etc).
 
 ---
@@ -190,29 +210,29 @@ This refactor is executed as a single coordinated change-set on the refactor bra
 - [x] B5. Remove all domain/protocol re-export shims (strict Option A) (Engine: no `crate::domain::value_objects::*Id` / no protocol re-exports)
 - [x] B6. Canonicalize `GameTime` in `wrldbldr-domain` (serde-free)
 - [x] B7. Refactor WS/HTTP to send structured `GameTime` only
-- [ ] B8. Update Player UI to derive `TimeOfDay` + format display
+- [x] B8. Update Player UI to derive `TimeOfDay` + format display
 
 ### Phase C — Ports extraction
-- [ ] C1. Move Engine ports → `wrldbldr-engine-ports`
-- [ ] C2. Move Player ports → `wrldbldr-player-ports`
-- [ ] C3. Create `wrldbldr-core-ports` only if we find truly shared ports
+- [x] C1. Move Engine ports → `wrldbldr-engine-ports` *(done: engine-ports owns inbound+outbound; engine-app ports shim removed; services import ports directly)*
+- [x] C2. Move Player ports → `wrldbldr-player-ports` *(done: single source of port traits; `player-app` ports module removed)*
+- [x] C3. Create `wrldbldr-core-ports` only if we find truly shared ports (removed for now; can be reintroduced later)
 
 ### Phase D — Engine split
-- [ ] D1. Move application services → `wrldbldr-engine-app`
-- [ ] D2. Move infrastructure/adapters → `wrldbldr-engine-adapters`
-- [ ] D3. Reduce `wrldbldr-engine` to composition root
+- [x] D1. Move application services → `wrldbldr-engine-app`
+- [x] D2. Move infrastructure/adapters → `wrldbldr-engine-adapters`
+- [x] D3. Reduce `wrldbldr-engine` to composition root
 
 ### Phase E — Player split
 - [ ] E1. Move application services → `wrldbldr-player-app`
 - [x] E2. Move infrastructure/adapters → `wrldbldr-player-adapters`
 - [x] E3. Move presentation/routes/state → `wrldbldr-player-ui`
-- [ ] E4. Reduce `wrldbldr-player` to composition root
+- [x] E4. Reduce `wrldbldr-player` to composition root
 
 ### Phase F — Enforcement + build validation
-- [ ] F1. Add `xtask arch-check` validating the crate dependency DAG
-- [ ] F2. Run `cargo check --workspace` (via `nix-shell`)
-- [ ] F3. Run `cargo check -p wrldbldr-engine` / `wrldbldr-player` / `wrldbldr-protocol`
-- [ ] F4. Add a CI/local check to detect `pub use wrldbldr_{domain,protocol}` in engine/player crates
+- [x] F1. Add `xtask arch-check` validating the crate dependency DAG
+- [x] F2. Run `cargo check --workspace` (via `nix-shell`)
+- [x] F3. Run `cargo check -p wrldbldr-engine` / `wrldbldr-player` / `wrldbldr-protocol`
+- [x] F4. Add a CI/local check to detect cross-crate shims in non-owner crates (`pub* use ::?wrldbldr_*`, `use wrldbldr_* as ...`, `extern crate wrldbldr_* as ...`), reporting file:line
 
 Recent progress notes:
 - B6 done: canonical `wrldbldr_domain::GameTime` + `TimeOfDay` (serde-free) is the engine source of truth.

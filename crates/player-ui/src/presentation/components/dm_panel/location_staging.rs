@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_ports::outbound::ApprovedNpcInfo;
+use wrldbldr_protocol::ApprovedNpcInfo;
 use wrldbldr_player_app::application::services::CharacterSummary;
 use crate::presentation::services::{use_character_service, use_location_service};
 use crate::presentation::state::use_session_state;

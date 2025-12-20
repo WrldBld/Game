@@ -1,0 +1,23 @@
+[package]
+name = "wrldbldr-player-runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Player Runner - Dioxus launch + wiring"
+
+[dependencies]
+wrldbldr-player-ui = { workspace = true }
+wrldbldr-player-app = { workspace = true }
+wrldbldr-player-ports = { workspace = true }
+
+dioxus = { workspace = true }
+
+[lints]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dioxus = { version = "0.7.2", features = ["desktop", "router"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dioxus = { version = "0.7.2", features = ["web", "router"] }

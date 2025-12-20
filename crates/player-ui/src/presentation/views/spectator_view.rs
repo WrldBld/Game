@@ -200,7 +200,7 @@ pub(crate) struct ConversationEntry {
 #[derive(Props, Clone, PartialEq)]
 pub struct ConversationLogProps {
     /// Log entries
-    pub entries: Vec<ConversationEntry>,
+    pub(crate) entries: Vec<ConversationEntry>,
 }
 
 #[component]

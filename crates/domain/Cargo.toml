@@ -7,10 +7,13 @@ authors.workspace = true
 description = "WrldBldr Domain - Core domain types and invariants"
 
 [dependencies]
-# Intentionally serde-free.
 uuid = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+anyhow = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 default = []

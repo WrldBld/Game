@@ -103,4 +103,3 @@ define_id!(StagingId);
 
 // Misc IDs (present in codebase)
 define_id!(WorkflowId);
-define_id!(SheetTemplateId);

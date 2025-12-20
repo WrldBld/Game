@@ -7,7 +7,8 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
 
-use wrldbldr_player_ports::outbound::{ApprovalDecision, GameConnectionPort, ParticipantRole, Platform};
+use wrldbldr_protocol::types::{ApprovalDecision, ParticipantRole};
+use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 use crate::presentation::components::tactical::PlayerSkillData;
 
 // Re-export substates and their types

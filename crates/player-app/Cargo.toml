@@ -9,7 +9,6 @@ description = "WrldBldr Player App - Application services for client"
 [dependencies]
 wrldbldr-domain = { workspace = true }
 wrldbldr-protocol = { workspace = true }
-wrldbldr-core-ports = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }

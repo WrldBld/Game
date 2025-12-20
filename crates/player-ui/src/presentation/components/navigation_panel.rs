@@ -7,8 +7,9 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::{NavigationData, NavigationExit, NavigationTarget};
-use crate::presentation::state::GameTimeData;
+use wrldbldr_protocol::{GameTime, NavigationData, NavigationExit, NavigationTarget};
+
+use crate::presentation::game_time_format;
 
 /// Props for NavigationPanel component
 #[derive(Props, Clone, PartialEq)]
@@ -365,21 +366,21 @@ pub fn NavigationButtons(props: NavigationButtonsProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 pub struct GameTimeDisplayProps {
     /// Game time data
-    pub time: GameTimeData,
+    pub time: GameTime,
 }
 
 /// Compact game time display (for top-right corner)
 #[component]
 pub fn GameTimeDisplay(props: GameTimeDisplayProps) -> Element {
-    let time_icon = match props.time.time_of_day.to_lowercase().as_str() {
-        "morning" => "🌅",
-        "afternoon" => "☀️",
-        "evening" => "🌆",
-        "night" => "🌙",
-        _ => "🕐",
+    let time_icon = match game_time_format::time_of_day(props.time) {
+        game_time_format::TimeOfDay::Morning => "🌅",
+        game_time_format::TimeOfDay::Afternoon => "☀️",
+        game_time_format::TimeOfDay::Evening => "🌆",
+        game_time_format::TimeOfDay::Night => "🌙",
     };
 
     let pause_indicator = if props.time.is_paused { " ⏸" } else { "" };
+    let display = game_time_format::display_date(props.time);
 
     rsx! {
         div {
@@ -392,7 +393,7 @@ pub fn GameTimeDisplay(props: GameTimeDisplayProps) -> Element {
             }
             span {
                 class: if props.time.is_paused { "text-gray-400" } else { "text-white" },
-                "{props.time.display}{pause_indicator}"
+                "{display}{pause_indicator}"
             }
         }
     }

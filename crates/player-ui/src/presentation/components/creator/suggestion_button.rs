@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-pub use wrldbldr_player_app::application::services::SuggestionContext;
+use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_ports::outbound::Platform;
 use crate::presentation::services::use_suggestion_service;
 use crate::presentation::state::use_generation_state;

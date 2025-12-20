@@ -7,7 +7,6 @@
 use wrldbldr_player_app::application::services::port_connection_state_to_status;
 use wrldbldr_player_app::application::services::SessionEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, Platform};
-use wrldbldr_protocol::ServerMessage;
 
 use crate::presentation::handlers::handle_server_message;
 use crate::presentation::state::{
@@ -48,10 +47,14 @@ pub fn handle_session_event(
             }
         }
         SessionEvent::MessageReceived(message) => {
-            match serde_json::from_value::<ServerMessage>(message) {
-                Ok(msg) => handle_server_message(msg, session_state, game_state, dialogue_state, generation_state, platform),
-                Err(e) => tracing::warn!("Failed to parse server message JSON: {}", e),
-            }
+            handle_server_message(
+                message,
+                session_state,
+                game_state,
+                dialogue_state,
+                generation_state,
+                platform,
+            );
         }
     }
 }

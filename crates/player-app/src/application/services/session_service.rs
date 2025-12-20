@@ -14,9 +14,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use wrldbldr_player_ports::outbound::{
-    ConnectionState as PortConnectionState, GameConnectionPort, ParticipantRole as PortParticipantRole,
-};
+use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
+use wrldbldr_protocol::{ParticipantRole as PortParticipantRole, ServerMessage};
 
 use crate::application::dto::AppConnectionStatus;
 use futures_channel::mpsc;
@@ -24,10 +23,7 @@ use futures_channel::mpsc;
 /// Default WebSocket URL for the Engine server
 pub const DEFAULT_ENGINE_URL: &str = "ws://localhost:3000/ws";
 
-// Re-export port types for external use
-pub use wrldbldr_player_ports::outbound::{
-    ParticipantRole as ParticipantRolePort,
-};
+pub type ParticipantRolePort = wrldbldr_protocol::ParticipantRole;
 
 /// Convert port ConnectionState to application ConnectionStatus
 pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnectionStatus {
@@ -45,8 +41,8 @@ pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnect
 pub enum SessionEvent {
     /// Connection state changed (uses port type)
     StateChanged(PortConnectionState),
-    /// Raw server message payload (JSON)
-    MessageReceived(serde_json::Value),
+    /// Parsed server message payload
+    MessageReceived(ServerMessage),
 }
 
 /// Session service for managing Engine connection (cross-platform).
@@ -88,11 +84,18 @@ impl SessionService {
             }));
         }
 
-        // Forward raw messages
+        // Parse and forward server messages
         {
             let tx = tx.clone();
             self.connection.on_message(Box::new(move |value| {
-                let _ = tx.unbounded_send(SessionEvent::MessageReceived(value));
+                match serde_json::from_value::<ServerMessage>(value) {
+                    Ok(message) => {
+                        let _ = tx.unbounded_send(SessionEvent::MessageReceived(message));
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to parse server message JSON: {}", e);
+                    }
+                }
             }));
         }
 

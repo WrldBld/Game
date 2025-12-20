@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use wrldbldr_player_ports::outbound::{ApprovalDecision, DiceInputType, DirectorialContext, GameConnectionPort};
+use wrldbldr_protocol::messages::{DiceInputType, DirectorialContext};
+use wrldbldr_protocol::types::ApprovalDecision;
+use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Application service for sending session commands via the game connection.
 #[derive(Clone)]

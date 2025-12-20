@@ -9,7 +9,6 @@ description = "WrldBldr Player Ports - Player-specific port traits"
 [dependencies]
 wrldbldr-domain = { workspace = true }
 wrldbldr-protocol = { workspace = true }
-wrldbldr-core-ports = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }

@@ -8,27 +8,24 @@ description = "WrldBldr Player - TTRPG gameplay client with PC and DM views"
 
 [dependencies]
 # Internal crates (composition root only)
-wrldbldr-player-ui = { workspace = true }
+wrldbldr-player-runner = { workspace = true }
 wrldbldr-player-adapters = { workspace = true }
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
-
-# Dioxus UI framework - features controlled by build target
-dioxus = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
 
 # Desktop-specific dependencies
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-dioxus = { version = "0.7.2", features = ["desktop", "router"] }
 tracing-subscriber = { workspace = true }
 
 # Web/WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-dioxus = { version = "0.7.2", features = ["web", "router"] }
 console_error_panic_hook = { workspace = true }
 tracing-wasm = { workspace = true }
+web-sys = { workspace = true }
+getrandom = { workspace = true }
 
 [features]
 default = []

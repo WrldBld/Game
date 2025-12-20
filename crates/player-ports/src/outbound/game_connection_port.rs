@@ -4,8 +4,7 @@
 //! allowing application services to manage real-time game sessions without
 //! depending on concrete WebSocket client implementations.
 
-// Re-export protocol message DTOs for port consumers.
-pub use wrldbldr_protocol::{
+use wrldbldr_protocol::{
     ApprovalDecision,
     ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,

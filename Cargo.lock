@@ -7177,20 +7177,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
-name = "wrldbldr-core-ports"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "thiserror 2.0.17",
- "wrldbldr-domain",
- "wrldbldr-protocol",
-]
-
-[[package]]
 name = "wrldbldr-domain"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
  "thiserror 2.0.17",
  "uuid",
 ]
@@ -7200,28 +7194,8 @@ name = "wrldbldr-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
- "axum",
- "chrono",
- "config",
- "dotenvy",
- "futures-util",
- "neo4rs",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.17",
  "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "validator",
- "wrldbldr-domain",
- "wrldbldr-protocol",
+ "wrldbldr-engine-adapters",
 ]
 
 [[package]]
@@ -7250,7 +7224,6 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "validator",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-engine-app",
  "wrldbldr-engine-ports",
@@ -7268,10 +7241,10 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
+ "tokio",
  "tracing",
  "uuid",
  "validator",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",
@@ -7287,8 +7260,8 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
+ "tokio",
  "uuid",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-protocol",
 ]
@@ -7298,14 +7271,15 @@ name = "wrldbldr-player"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "dioxus",
+ "getrandom 0.2.16",
  "tracing",
  "tracing-subscriber",
  "tracing-wasm",
+ "web-sys",
  "wrldbldr-player-adapters",
  "wrldbldr-player-app",
  "wrldbldr-player-ports",
- "wrldbldr-player-ui",
+ "wrldbldr-player-runner",
 ]
 
 [[package]]
@@ -7337,7 +7311,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-player-app",
  "wrldbldr-player-ports",
@@ -7358,7 +7331,6 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "uuid",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-player-ports",
  "wrldbldr-protocol",
@@ -7375,9 +7347,18 @@ dependencies = [
  "thiserror 2.0.17",
  "url",
  "uuid",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-player-runner"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "wrldbldr-player-app",
+ "wrldbldr-player-ports",
+ "wrldbldr-player-ui",
 ]
 
 [[package]]
@@ -7386,7 +7367,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "console_error_panic_hook",
  "dioxus",
  "futures-util",
  "gloo-net 0.5.0",
@@ -7397,15 +7377,11 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "thiserror 2.0.17",
- "tokio",
  "tracing",
- "tracing-subscriber",
- "tracing-wasm",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wrldbldr-core-ports",
  "wrldbldr-domain",
  "wrldbldr-player-app",
  "wrldbldr-player-ports",
@@ -7514,6 +7490,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "regex-lite",
  "serde",
  "serde_json",
 ]

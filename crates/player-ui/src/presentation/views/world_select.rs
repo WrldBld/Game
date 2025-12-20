@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::dto::{
     DiceSystem, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemVariant,
-    StatDefinition, SuccessComparison, SessionWorldSnapshot,
+    StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::{WorldSummary, SessionInfo};
 use wrldbldr_player_ports::outbound::Platform;
@@ -90,19 +90,9 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
             spawn(async move {
                 is_loading.set(true);
                 match svc.load_world_snapshot(&world_id).await {
-                    Ok(snapshot_json) => {
-                        // Parse the JSON value into SessionWorldSnapshot
-                        match serde_json::from_value::<SessionWorldSnapshot>(snapshot_json) {
-                            Ok(snapshot) => {
-                                game_state.load_world(snapshot);
-                                // Signal that world is loaded - parent will navigate
-                                props.on_world_selected.call(world_id_for_callback);
-                            }
-                            Err(e) => {
-                                error.set(Some(format!("Failed to parse world snapshot: {}", e)));
-                                is_loading.set(false);
-                            }
-                        }
+                    Ok(snapshot) => {
+                        game_state.load_world(snapshot);
+                        props.on_world_selected.call(world_id_for_callback);
                     }
                     Err(e) => {
                         error.set(Some(format!("Failed to load world: {}", e)));

@@ -11,10 +11,7 @@ pub mod platform;
 
 pub use api_port::{ApiError, ApiPort};
 pub use raw_api_port::RawApiPort;
-pub use game_connection_port::{
-    ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ConnectionState, DiceInputType,
-    DirectorialContext, GameConnectionPort, NpcMotivation, ParticipantRole,
-};
+pub use game_connection_port::{ConnectionState, GameConnectionPort};
 pub use platform::{
     Platform, storage_keys,
 };

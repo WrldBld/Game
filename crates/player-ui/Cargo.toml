@@ -9,12 +9,10 @@ description = "WrldBldr Player UI - Presentation and routing"
 [dependencies]
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
-wrldbldr-core-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 wrldbldr-domain = { workspace = true }
 
 # Dioxus
-# Features controlled by build target, matching existing `wrldbldr-player`.
 dioxus = { workspace = true }
 
 # Shared
@@ -26,14 +24,13 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 
+
 futures-util = { workspace = true }
 regex-lite = { workspace = true }
 
 # Desktop
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dioxus = { version = "0.7.2", features = ["desktop", "router"] }
-tokio = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 # WASM
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -43,8 +40,6 @@ wasm-bindgen-futures = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 web-sys = { workspace = true }
 js-sys = { workspace = true }
-console_error_panic_hook = { workspace = true }
-tracing-wasm = { workspace = true }
 gloo-timers = { workspace = true }
 gloo-net = { workspace = true }
 

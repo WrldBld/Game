@@ -194,7 +194,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                             }
                             p {
                                 class: "text-gray-400 text-sm m-0",
-                                "{props.data.location_name} - {props.data.game_time_display}"
+                                "{props.data.location_name} - {crate::presentation::game_time_format::display_date(props.data.game_time)}"
                             }
                         }
 

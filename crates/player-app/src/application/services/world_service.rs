@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_player_ports::outbound::{ApiError, ApiPort};
 
+use crate::application::dto::SessionWorldSnapshot;
+
 /// Summary of a world for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorldSummary {
@@ -82,11 +84,8 @@ impl<A: ApiPort> WorldService<A> {
         self.api.get_optional(&path).await
     }
 
-    /// Load a full world snapshot for gameplay
-    ///
-    /// Returns the raw JSON value which can be parsed by the caller
-    /// into the appropriate WorldSnapshot type.
-    pub async fn load_world_snapshot(&self, id: &str) -> Result<serde_json::Value, ApiError> {
+    /// Load a gameplay world snapshot for the client.
+    pub async fn load_world_snapshot(&self, id: &str) -> Result<SessionWorldSnapshot, ApiError> {
         let path = format!("/api/worlds/{}/export/raw", id);
         self.api.get(&path).await
     }

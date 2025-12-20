@@ -711,19 +711,17 @@ pub fn handle_server_message(
         // =========================================================================
 
         ServerMessage::GameTimeUpdated { game_time } => {
-            let time_display = game_time.display_date();
-            let time_of_day = game_time.time_of_day().to_string();
-            let is_paused = game_time.is_paused;
+            let time_display = crate::presentation::game_time_format::display_date(game_time);
+            let time_of_day = crate::presentation::game_time_format::time_of_day(game_time);
 
             tracing::info!(
                 "Game time updated: {} ({}, paused: {})",
                 time_display,
                 time_of_day,
-                is_paused
+                game_time.is_paused
             );
 
-            // Update game state with time data
-            game_state.apply_game_time_update(time_display.clone(), time_of_day, is_paused);
+            game_state.apply_game_time_update(game_time);
 
             session_state.add_log_entry(
                 "System".to_string(),
@@ -842,7 +840,7 @@ pub fn handle_server_message(
                 region_name: region_name.clone(),
                 location_id,
                 location_name: location_name.clone(),
-                game_time_display: game_time.display_date(),
+                game_time,
                 previous_staging: previous,
                 rule_based_npcs: rule_npcs,
                 llm_based_npcs: llm_npcs,

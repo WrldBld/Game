@@ -40,7 +40,21 @@ WrldBldr uses hexagonal (ports & adapters) architecture to separate business log
 
 ## Directory Structure
 
-### Engine
+### Workspace (current)
+
+This repo is mid-migration from "single-crate per app" to a stricter, compile-time-enforced crate DAG.
+
+- `wrldbldr-domain`: typed IDs + core domain types (serde-free)
+- `wrldbldr-protocol`: wire DTOs for HTTP/WS (serde-only)
+- `wrldbldr-engine-app`: engine application services (use cases)
+- `wrldbldr-engine-adapters`: engine infrastructure (http/ws/db/queues)
+- `wrldbldr-engine`: thin bin (composition root)
+- `wrldbldr-player-app`: player application services
+- `wrldbldr-player-adapters`: player infrastructure (http/ws/platform)
+- `wrldbldr-player-ui`: Dioxus UI + (approved) composition / launch
+- `wrldbldr-player`: thin bin (composition root)
+
+### Engine (legacy layout, referenced by migrated code)
 
 ```
 Engine/src/

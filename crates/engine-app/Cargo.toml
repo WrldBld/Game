@@ -9,8 +9,11 @@ description = "WrldBldr Engine App - Application services and use-cases"
 [dependencies]
 wrldbldr-domain = { workspace = true }
 wrldbldr-protocol = { workspace = true }
-wrldbldr-core-ports = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }

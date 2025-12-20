@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
+regex-lite = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

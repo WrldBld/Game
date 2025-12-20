@@ -9,12 +9,10 @@ use std::sync::{
     atomic::{AtomicU8, Ordering},
 };
 
-use wrldbldr_player_ports::outbound::{
-    ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ConnectionState as PortConnectionState,
-    DiceInputType, DirectorialContext, GameConnectionPort, ParticipantRole,
+use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
+use wrldbldr_protocol::{
+    ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ClientMessage, DiceInputType, DirectorialContext, ParticipantRole,
 };
-
-use wrldbldr_protocol::ClientMessage;
 use super::{ConnectionState as InfraConnectionState, EngineClient};
 
 fn map_state(state: InfraConnectionState) -> PortConnectionState {

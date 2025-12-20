@@ -3,7 +3,9 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::dto::{ChallengeData, SkillData};
-use wrldbldr_player_ports::outbound::{ApprovalDecision, ApprovedNpcInfo, Platform};
+use wrldbldr_protocol::messages::ApprovedNpcInfo;
+use wrldbldr_protocol::types::ApprovalDecision;
+use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::services::SessionCommandService;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;

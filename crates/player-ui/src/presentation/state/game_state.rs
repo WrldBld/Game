@@ -8,6 +8,7 @@ use std::sync::Arc;
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
 use wrldbldr_protocol::{
     CharacterData as SceneCharacterState,
+    GameTime,
     InteractionData,
     NavigationData,
     NpcPresenceData,
@@ -15,16 +16,6 @@ use wrldbldr_protocol::{
     SceneData as SceneSnapshot,
 };
 
-/// Game time display data
-#[derive(Clone, Debug, PartialEq)]
-pub struct GameTimeData {
-    /// Display string (e.g., "Day 3, 2:30 PM")
-    pub display: String,
-    /// Time of day (Morning, Afternoon, Evening, Night)
-    pub time_of_day: String,
-    /// Whether time is paused
-    pub is_paused: bool,
-}
 
 /// Approach event data (NPC approaching player)
 #[derive(Clone, Debug, PartialEq)]
@@ -92,7 +83,7 @@ pub struct StagingApprovalData {
     pub region_name: String,
     pub location_id: String,
     pub location_name: String,
-    pub game_time_display: String,
+    pub game_time: GameTime,
     pub previous_staging: Option<PreviousStagingData>,
     pub rule_based_npcs: Vec<StagedNpcData>,
     pub llm_based_npcs: Vec<StagedNpcData>,
@@ -120,7 +111,7 @@ pub struct GameState {
     /// Currently selected PC ID
     pub selected_pc_id: Signal<Option<String>>,
     /// Current game time
-    pub game_time: Signal<Option<GameTimeData>>,
+    pub game_time: Signal<Option<GameTime>>,
     /// Active approach event (NPC approaching player)
     pub approach_event: Signal<Option<ApproachEventData>>,
     /// Active location event (location-wide event)
@@ -183,17 +174,8 @@ impl GameState {
     }
 
     /// Update from ServerMessage::GameTimeUpdated
-    pub fn apply_game_time_update(
-        &mut self,
-        display: String,
-        time_of_day: String,
-        is_paused: bool,
-    ) {
-        self.game_time.set(Some(GameTimeData {
-            display,
-            time_of_day,
-            is_paused,
-        }));
+    pub fn apply_game_time_update(&mut self, game_time: GameTime) {
+        self.game_time.set(Some(game_time));
     }
 
     /// Set an approach event (NPC approaching player)

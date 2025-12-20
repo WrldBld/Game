@@ -13,6 +13,7 @@
 //! 3. **WASM compatible** - Must compile for both native and wasm32 targets
 //! 4. **No domain IDs** - use raw `uuid::Uuid` in DTOs
 
+pub mod app_events;
 pub mod messages;
 pub mod rule_system;
 pub mod types;
@@ -56,6 +57,11 @@ pub use messages::{
 };
 
 // =============================================================================
+// App Events
+// =============================================================================
+pub use app_events::AppEvent;
+
+// =============================================================================
 // Rule System Types
 // =============================================================================
 pub use rule_system::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
@@ -74,7 +80,6 @@ pub use types::{
     CampbellArchetype,
     // Game time
     GameTime,
-    TimeOfDay,
     // Monomyth stages
     MonomythStage,
     // Participant roles
