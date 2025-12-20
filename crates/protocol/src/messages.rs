@@ -12,6 +12,10 @@ use crate::types::{
     ProposedToolInfo,
 };
 
+fn default_true() -> bool {
+    true
+}
+
 // =============================================================================
 // Client Messages (Player → Engine)
 // =============================================================================
@@ -153,7 +157,11 @@ pub enum ClientMessage {
         npc_id: String,
         target_pc_id: String,
         description: String,
+        /// When false, player sees "Unknown Figure" and no sprite
+        #[serde(default = "default_true")]
+        reveal: bool,
     },
+
 
     /// DM triggers a location event (narration for all PCs in a region)
     TriggerLocationEvent {
@@ -423,6 +431,9 @@ pub enum ServerMessage {
         npc_name: String,
         npc_sprite: Option<String>,
         description: String,
+        /// When false, player sees "Unknown Figure" and no sprite
+        #[serde(default = "default_true")]
+        reveal: bool,
     },
 
     /// A location event occurred (sent to all PCs in region)
@@ -742,6 +753,9 @@ pub struct StagedNpcInfo {
     pub portrait_asset: Option<String>,
     pub is_present: bool,
     pub reasoning: String,
+    /// When true, NPC is present but hidden from players
+    #[serde(default)]
+    pub is_hidden_from_players: bool,
 }
 
 /// Info about previous staging (for reference)
@@ -769,6 +783,9 @@ pub struct NpcPresentInfo {
     pub sprite_asset: Option<String>,
     #[serde(default)]
     pub portrait_asset: Option<String>,
+    /// When true, NPC is present but hidden from players
+    #[serde(default)]
+    pub is_hidden_from_players: bool,
 }
 
 /// DM's decision for an NPC in staging
@@ -779,4 +796,7 @@ pub struct ApprovedNpcInfo {
     /// Optional override reasoning (if DM modified)
     #[serde(default)]
     pub reasoning: Option<String>,
+    /// When true, NPC is present but hidden from players
+    #[serde(default)]
+    pub is_hidden_from_players: bool,
 }

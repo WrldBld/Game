@@ -75,6 +75,8 @@ pub struct NpcObservation {
     pub game_time: DateTime<Utc>,
     /// How the PC learned this information
     pub observation_type: ObservationType,
+    /// Whether the NPC's identity is revealed to the player
+    pub is_revealed_to_player: bool,
     /// Optional notes (e.g., "The bartender mentioned seeing them at the docks")
     pub notes: Option<String>,
     /// When this observation was recorded (real time)
@@ -90,6 +92,28 @@ impl NpcObservation {
         region_id: RegionId,
         game_time: DateTime<Utc>,
     ) -> Self {
+        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, true)
+    }
+
+    /// Create a new direct observation but keep identity unrevealed.
+    pub fn direct_unrevealed(
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        location_id: LocationId,
+        region_id: RegionId,
+        game_time: DateTime<Utc>,
+    ) -> Self {
+        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, false)
+    }
+
+    fn direct_with_reveal(
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        location_id: LocationId,
+        region_id: RegionId,
+        game_time: DateTime<Utc>,
+        is_revealed_to_player: bool,
+    ) -> Self {
         Self {
             pc_id,
             npc_id,
@@ -97,6 +121,7 @@ impl NpcObservation {
             region_id,
             game_time,
             observation_type: ObservationType::Direct,
+            is_revealed_to_player,
             notes: None,
             created_at: Utc::now(),
         }
@@ -118,6 +143,7 @@ impl NpcObservation {
             region_id,
             game_time,
             observation_type: ObservationType::HeardAbout,
+            is_revealed_to_player: true,
             notes,
             created_at: Utc::now(),
         }
@@ -139,6 +165,7 @@ impl NpcObservation {
             region_id,
             game_time,
             observation_type: ObservationType::Deduced,
+            is_revealed_to_player: true,
             notes,
             created_at: Utc::now(),
         }
@@ -160,6 +187,8 @@ pub struct ObservationSummary {
     pub npc_name: String,
     /// The NPC's portrait asset (if any)
     pub npc_portrait: Option<String>,
+    /// Whether the NPC's identity is revealed to the player
+    pub is_revealed_to_player: bool,
     /// The location name where they were observed
     pub location_name: String,
     /// The region name where they were observed
@@ -205,7 +234,22 @@ mod tests {
         let obs = NpcObservation::direct(pc_id, npc_id, location_id, region_id, game_time);
 
         assert_eq!(obs.observation_type, ObservationType::Direct);
+        assert!(obs.is_revealed_to_player);
         assert!(obs.notes.is_none());
+    }
+
+    #[test]
+    fn test_direct_unrevealed_observation() {
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let game_time = Utc::now();
+
+        let obs = NpcObservation::direct_unrevealed(pc_id, npc_id, location_id, region_id, game_time);
+
+        assert_eq!(obs.observation_type, ObservationType::Direct);
+        assert!(!obs.is_revealed_to_player);
     }
 
     #[test]
@@ -226,6 +270,7 @@ mod tests {
         );
 
         assert_eq!(obs.observation_type, ObservationType::HeardAbout);
+        assert!(obs.is_revealed_to_player);
         assert_eq!(obs.notes.as_deref(), Some("The bartender told me"));
     }
 }

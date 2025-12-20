@@ -209,11 +209,12 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                 if let Some(client) = session_state.engine_client().read().as_ref() {
                                     let npcs: Vec<ApprovedNpcInfo> = data.approved
                                         .into_iter()
-                                        .filter(|(_, is_present)| *is_present)
-                                        .map(|(character_id, is_present)| ApprovedNpcInfo {
+                                        .filter(|(_, is_present, _)| *is_present)
+                                        .map(|(character_id, is_present, is_hidden_from_players)| ApprovedNpcInfo {
                                             character_id,
                                             is_present,
                                             reasoning: None,
+                                            is_hidden_from_players,
                                         })
                                         .collect();
                                     
@@ -364,7 +365,7 @@ fn RegionStagingCard(props: RegionStagingCardProps) -> Element {
 /// Data for pre-stage approval
 #[derive(Clone, PartialEq)]
 pub struct PreStageApprovalData {
-    pub approved: Vec<(String, bool)>,
+    pub approved: Vec<(String, bool, bool)>,
     pub ttl_hours: i32,
 }
 
@@ -380,18 +381,18 @@ struct PreStageModalProps {
 #[component]
 fn PreStageModal(props: PreStageModalProps) -> Element {
     // Initialize NPC selections - all NPCs available, none selected by default
-    let mut selections: Signal<Vec<(String, String, bool)>> = use_signal(|| {
-        props.npcs.iter().map(|npc| (npc.id.clone(), npc.name.clone(), false)).collect()
+    let mut selections: Signal<Vec<(String, String, bool, bool)>> = use_signal(|| {
+        props.npcs.iter().map(|npc| (npc.id.clone(), npc.name.clone(), false, false)).collect()
     });
     let mut ttl_hours = use_signal(|| 4i32);
 
     let handle_approve = {
         let on_approve = props.on_approve.clone();
         move |_| {
-            let approved: Vec<(String, bool)> = selections
+            let approved: Vec<(String, bool, bool)> = selections
                 .read()
                 .iter()
-                .map(|(id, _, is_present)| (id.clone(), *is_present))
+                .map(|(id, _, is_present, is_hidden_from_players)| (id.clone(), *is_present, *is_hidden_from_players))
                 .collect();
             on_approve.call(PreStageApprovalData {
                 approved,
@@ -458,32 +459,59 @@ fn PreStageModal(props: PreStageModalProps) -> Element {
                         } else {
                             div {
                                 class: "space-y-2 max-h-[300px] overflow-y-auto",
-                                for (idx, (id, name, is_present)) in selections.read().iter().enumerate() {
+                                for (idx, (id, name, is_present, is_hidden_from_players)) in selections.read().iter().enumerate() {
                                     {
                                         let npc_id = id.clone();
                                         let npc_name = name.clone();
-                                        let checked = *is_present;
+                                        let checked_present = *is_present;
+                                        let checked_hidden = *is_hidden_from_players;
                                         rsx! {
-                                            label {
+                                            div {
                                                 key: "{npc_id}",
-                                                class: "flex items-center gap-3 p-3 bg-black/20 rounded-lg cursor-pointer hover:bg-black/30 transition-colors",
+                                                class: "flex items-center gap-3 p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors",
 
-                                                input {
-                                                    r#type: "checkbox",
-                                                    checked: checked,
-                                                    onchange: move |_| {
-                                                        let mut current = selections.read().clone();
-                                                        if idx < current.len() {
-                                                            current[idx].2 = !current[idx].2;
-                                                        }
-                                                        selections.set(current);
-                                                    },
-                                                    class: "w-5 h-5 rounded border-gray-600 bg-dark-bg text-amber-500",
+                                                label {
+                                                    class: "flex items-center gap-3 cursor-pointer",
+                                                    input {
+                                                        r#type: "checkbox",
+                                                        checked: checked_present,
+                                                        onchange: move |_| {
+                                                            let mut current = selections.read().clone();
+                                                            if idx < current.len() {
+                                                                current[idx].2 = !current[idx].2;
+                                                                if !current[idx].2 {
+                                                                    current[idx].3 = false;
+                                                                }
+                                                            }
+                                                            selections.set(current);
+                                                        },
+                                                        class: "w-5 h-5 rounded border-gray-600 bg-dark-bg text-amber-500",
+                                                    }
+
+                                                    span {
+                                                        class: "text-white",
+                                                        "{npc_name}"
+                                                    }
                                                 }
 
-                                                span {
-                                                    class: "text-white",
-                                                    "{npc_name}"
+                                                label {
+                                                    class: "ml-auto flex items-center gap-2 text-xs text-gray-400 select-none",
+                                                    input {
+                                                        r#type: "checkbox",
+                                                        checked: checked_hidden,
+                                                        disabled: !checked_present,
+                                                        onchange: move |_| {
+                                                            let mut current = selections.read().clone();
+                                                            if idx < current.len() {
+                                                                if current[idx].2 {
+                                                                    current[idx].3 = !current[idx].3;
+                                                                }
+                                                            }
+                                                            selections.set(current);
+                                                        },
+                                                        class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500 disabled:opacity-50",
+                                                    }
+                                                    "Hidden"
                                                 }
                                             }
                                         }

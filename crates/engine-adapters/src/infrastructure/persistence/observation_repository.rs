@@ -33,6 +33,7 @@ impl Neo4jObservationRepository {
                 r.region_id = $region_id,
                 r.game_time = $game_time,
                 r.observation_type = $observation_type,
+                r.is_revealed_to_player = $is_revealed_to_player,
                 r.notes = $notes,
                 r.created_at = $created_at
             RETURN r",
@@ -43,6 +44,7 @@ impl Neo4jObservationRepository {
         .param("region_id", observation.region_id.to_string())
         .param("game_time", observation.game_time.to_rfc3339())
         .param("observation_type", observation.observation_type.to_string())
+        .param("is_revealed_to_player", observation.is_revealed_to_player)
         .param("notes", observation.notes.clone().unwrap_or_default())
         .param("created_at", observation.created_at.to_rfc3339());
 
@@ -62,6 +64,7 @@ impl Neo4jObservationRepository {
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character)
             RETURN r.location_id as location_id, r.region_id as region_id,
                    r.game_time as game_time, r.observation_type as observation_type,
+                   coalesce(r.is_revealed_to_player, true) as is_revealed_to_player,
                    r.notes as notes, r.created_at as created_at,
                    npc.id as npc_id
             ORDER BY r.game_time DESC",
@@ -77,6 +80,7 @@ impl Neo4jObservationRepository {
             let region_id_str: String = row.get("region_id")?;
             let game_time_str: String = row.get("game_time")?;
             let observation_type_str: String = row.get("observation_type")?;
+            let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
             let created_at_str: String = row.get("created_at")?;
 
@@ -91,6 +95,7 @@ impl Neo4jObservationRepository {
                 observation_type: observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
+                is_revealed_to_player,
                 notes: if notes.is_empty() { None } else { Some(notes) },
                 created_at: DateTime::parse_from_rfc3339(&created_at_str)
                     .map(|dt| dt.with_timezone(&Utc))
@@ -112,11 +117,12 @@ impl Neo4jObservationRepository {
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character)
             MATCH (loc:Location {id: r.location_id})
             MATCH (reg:Region {id: r.region_id})
-            RETURN npc.id as npc_id, npc.name as npc_name, npc.portrait_asset as npc_portrait,
-                   loc.name as location_name, reg.name as region_name,
-                   r.game_time as game_time, r.observation_type as observation_type,
-                   r.notes as notes
-            ORDER BY r.game_time DESC",
+             RETURN npc.id as npc_id, npc.name as npc_name, npc.portrait_asset as npc_portrait,
+                    loc.name as location_name, reg.name as region_name,
+                    r.game_time as game_time, r.observation_type as observation_type,
+                    coalesce(r.is_revealed_to_player, true) as is_revealed_to_player,
+                    r.notes as notes
+             ORDER BY r.game_time DESC",
         )
         .param("pc_id", pc_id.to_string());
 
@@ -131,6 +137,7 @@ impl Neo4jObservationRepository {
             let region_name: String = row.get("region_name")?;
             let game_time_str: String = row.get("game_time")?;
             let observation_type_str: String = row.get("observation_type")?;
+            let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
 
             let game_time = DateTime::parse_from_rfc3339(&game_time_str)
@@ -145,6 +152,7 @@ impl Neo4jObservationRepository {
                 } else {
                     Some(npc_portrait)
                 },
+                is_revealed_to_player,
                 location_name,
                 region_name,
                 game_time,
@@ -169,6 +177,7 @@ impl Neo4jObservationRepository {
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
             RETURN r.location_id as location_id, r.region_id as region_id,
                    r.game_time as game_time, r.observation_type as observation_type,
+                   coalesce(r.is_revealed_to_player, true) as is_revealed_to_player,
                    r.notes as notes, r.created_at as created_at",
         )
         .param("pc_id", pc_id.to_string())
@@ -181,6 +190,7 @@ impl Neo4jObservationRepository {
             let region_id_str: String = row.get("region_id")?;
             let game_time_str: String = row.get("game_time")?;
             let observation_type_str: String = row.get("observation_type")?;
+            let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
             let created_at_str: String = row.get("created_at")?;
 
@@ -195,6 +205,7 @@ impl Neo4jObservationRepository {
                 observation_type: observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
+                is_revealed_to_player,
                 notes: if notes.is_empty() { None } else { Some(notes) },
                 created_at: DateTime::parse_from_rfc3339(&created_at_str)
                     .map(|dt| dt.with_timezone(&Utc))

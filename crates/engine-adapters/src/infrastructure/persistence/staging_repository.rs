@@ -107,6 +107,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
                     sprite_asset: row.sprite_asset,
                     portrait_asset: row.portrait_asset,
                     is_present: row.is_present,
+                    is_hidden_from_players: row.is_hidden_from_players,
                     reasoning: row.reasoning,
                 })
                 .collect();
@@ -161,6 +162,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
                     sprite_asset: row.sprite_asset,
                     portrait_asset: row.portrait_asset,
                     is_present: row.is_present,
+                    is_hidden_from_players: row.is_hidden_from_players,
                     reasoning: row.reasoning,
                 })
                 .collect();
@@ -214,17 +216,19 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         // Create INCLUDES_NPC edges for each NPC
         for npc in &staging.npcs {
             let npc_q = query(
-                "MATCH (s:Staging {id: $staging_id})
-                 MATCH (c:Character {id: $character_id})
-                 CREATE (s)-[:INCLUDES_NPC {
-                     is_present: $is_present,
-                     reasoning: $reasoning
-                 }]->(c)",
-            )
-            .param("staging_id", staging.id.to_string())
-            .param("character_id", npc.character_id.to_string())
-            .param("is_present", npc.is_present)
-            .param("reasoning", npc.reasoning.clone());
+                 "MATCH (s:Staging {id: $staging_id})
+                  MATCH (c:Character {id: $character_id})
+                  CREATE (s)-[:INCLUDES_NPC {
+                      is_present: $is_present,
+                      is_hidden_from_players: $is_hidden_from_players,
+                      reasoning: $reasoning
+                  }]->(c)",
+             )
+             .param("staging_id", staging.id.to_string())
+             .param("character_id", npc.character_id.to_string())
+             .param("is_present", npc.is_present)
+             .param("is_hidden_from_players", npc.is_hidden_from_players)
+             .param("reasoning", npc.reasoning.clone());
 
             self.connection
                 .graph()
@@ -340,6 +344,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
                     c.sprite_asset as sprite_asset,
                     c.portrait_asset as portrait_asset,
                     r.is_present as is_present,
+                    COALESCE(r.is_hidden_from_players, false) as is_hidden_from_players,
                     r.reasoning as reasoning",
         )
         .param("staging_id", staging_id.to_string());
@@ -353,6 +358,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
             let sprite_asset: String = row.get("sprite_asset").unwrap_or_default();
             let portrait_asset: String = row.get("portrait_asset").unwrap_or_default();
             let is_present: bool = row.get("is_present")?;
+            let is_hidden_from_players: bool = row.get("is_hidden_from_players")?;
             let reasoning: String = row.get("reasoning")?;
 
             let character_id =
@@ -372,6 +378,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
                     Some(portrait_asset)
                 },
                 is_present,
+                is_hidden_from_players,
                 reasoning,
             });
         }

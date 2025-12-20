@@ -73,6 +73,8 @@ pub struct StagedNpcProposal {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
     pub is_present: bool,
+    #[serde(default)]
+    pub is_hidden_from_players: bool,
     pub reasoning: String,
 }
 
@@ -84,6 +86,7 @@ impl From<RuleBasedSuggestion> for StagedNpcProposal {
             sprite_asset: None,
             portrait_asset: None,
             is_present: suggestion.is_present,
+            is_hidden_from_players: false,
             reasoning: suggestion.reasoning,
         }
     }
@@ -279,6 +282,7 @@ where
                     npc.is_present,
                     npc.reasoning,
                 );
+                staged.is_hidden_from_players = npc.is_hidden_from_players;
                 if let Some(sprite) = npc.sprite_asset {
                     staged = staged.with_sprite(sprite);
                 }
@@ -422,6 +426,8 @@ where
         struct LlmNpcResult {
             name: String,
             is_present: bool,
+            #[serde(default)]
+            is_hidden_from_players: bool,
             reasoning: String,
         }
 
@@ -435,11 +441,11 @@ where
                 .iter()
                 .find(|r| r.name.to_lowercase() == suggestion.character_name.to_lowercase());
 
-            let (is_present, reasoning) = if let Some(r) = llm_result {
-                (r.is_present, r.reasoning.clone())
+            let (is_present, is_hidden_from_players, reasoning) = if let Some(r) = llm_result {
+                (r.is_present, r.is_hidden_from_players, r.reasoning.clone())
             } else {
                 // Default to rule-based if LLM didn't mention this NPC
-                (suggestion.is_present, suggestion.reasoning.clone())
+                (suggestion.is_present, false, suggestion.reasoning.clone())
             };
 
             let mut proposal = StagedNpcProposal {
@@ -448,6 +454,7 @@ where
                 sprite_asset: None,
                 portrait_asset: None,
                 is_present,
+                is_hidden_from_players,
                 reasoning,
             };
 
@@ -475,6 +482,7 @@ pub struct ApprovedNpcData {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
     pub is_present: bool,
+    pub is_hidden_from_players: bool,
     pub reasoning: String,
 }
 

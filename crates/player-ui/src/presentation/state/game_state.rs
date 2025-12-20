@@ -57,6 +57,7 @@ pub struct StagedNpcData {
     pub portrait_asset: Option<String>,
     pub is_present: bool,
     pub reasoning: String,
+    pub is_hidden_from_players: bool,
 }
 
 /// Previous staging info for reference

@@ -17,6 +17,7 @@ pub struct StagedNpcRow {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
     pub is_present: bool,
+    pub is_hidden_from_players: bool,
     pub reasoning: String,
 }
 

@@ -584,6 +584,7 @@ pub fn handle_server_message(
             npc_name,
             npc_sprite,
             description,
+            reveal: _,
         } => {
             tracing::info!("NPC approach event: {} ({})", npc_name, npc_id);
             
@@ -807,6 +808,7 @@ pub fn handle_server_message(
                     portrait_asset: n.portrait_asset,
                     is_present: n.is_present,
                     reasoning: n.reasoning,
+                    is_hidden_from_players: n.is_hidden_from_players,
                 }).collect(),
             });
 
@@ -817,6 +819,7 @@ pub fn handle_server_message(
                 portrait_asset: n.portrait_asset,
                 is_present: n.is_present,
                 reasoning: n.reasoning,
+                is_hidden_from_players: n.is_hidden_from_players,
             }).collect();
 
             let llm_npcs: Vec<StagedNpcData> = llm_based_npcs.into_iter().map(|n| StagedNpcData {
@@ -826,6 +829,7 @@ pub fn handle_server_message(
                 portrait_asset: n.portrait_asset,
                 is_present: n.is_present,
                 reasoning: n.reasoning,
+                is_hidden_from_players: n.is_hidden_from_players,
             }).collect();
 
             let waiting: Vec<WaitingPcData> = waiting_pcs.into_iter().map(|p| WaitingPcData {
@@ -915,6 +919,7 @@ pub fn handle_server_message(
                 portrait_asset: n.portrait_asset,
                 is_present: n.is_present,
                 reasoning: n.reasoning,
+                is_hidden_from_players: n.is_hidden_from_players,
             }).collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);

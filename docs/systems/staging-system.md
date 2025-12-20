@@ -78,6 +78,20 @@ WrldBldr uses theatre and story terminology throughout:
   - *Implementation*: Dimmed backdrop with "Setting the scene..." overlay
   - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
 
+- [ ] **US-STG-013**: As a DM, I can stage NPCs as present but hidden from players
+  - *Design*: Hidden NPCs do not appear in player presence payloads (`SceneChanged`, `StagingReady`)
+  - *Design*: Hidden NPCs can still interact via DM-triggered approach events
+  - *Implementation (planned)*:
+    - Add `is_hidden_from_players` per NPC in staging (per region per staging entry)
+    - Persist flag on `INCLUDES_NPC` edge
+    - Filter hidden NPCs out of player-facing `npcs_present`
+    - DM UI shows hidden state and allows toggling
+  - *Key files*:
+    - `crates/domain/src/entities/staging.rs`
+    - `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs`
+    - `crates/engine-adapters/src/infrastructure/websocket.rs`
+    - `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+
 ---
 
 ## UI Mockups

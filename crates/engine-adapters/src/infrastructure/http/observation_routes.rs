@@ -43,6 +43,7 @@ pub struct ObservationResponse {
     pub region_id: String,
     pub game_time: String,
     pub observation_type: String,
+    pub is_revealed_to_player: bool,
     pub notes: Option<String>,
     pub created_at: String,
 }
@@ -55,6 +56,7 @@ impl From<NpcObservation> for ObservationResponse {
             region_id: obs.region_id.to_string(),
             game_time: obs.game_time.to_rfc3339(),
             observation_type: obs.observation_type.to_string(),
+            is_revealed_to_player: obs.is_revealed_to_player,
             notes: obs.notes,
             created_at: obs.created_at.to_rfc3339(),
         }
@@ -67,6 +69,7 @@ pub struct ObservationSummaryResponse {
     pub npc_id: String,
     pub npc_name: String,
     pub npc_portrait: Option<String>,
+    pub is_revealed_to_player: bool,
     pub location_name: String,
     pub region_name: String,
     pub game_time: String,
@@ -77,10 +80,17 @@ pub struct ObservationSummaryResponse {
 
 impl From<ObservationSummary> for ObservationSummaryResponse {
     fn from(summary: ObservationSummary) -> Self {
+        let (npc_name, npc_portrait) = if summary.is_revealed_to_player {
+            (summary.npc_name, summary.npc_portrait)
+        } else {
+            ("Unknown Figure".to_string(), None)
+        };
+
         Self {
             npc_id: summary.npc_id,
-            npc_name: summary.npc_name,
-            npc_portrait: summary.npc_portrait,
+            npc_name,
+            npc_portrait,
+            is_revealed_to_player: summary.is_revealed_to_player,
             location_name: summary.location_name,
             region_name: summary.region_name,
             game_time: summary.game_time.to_rfc3339(),

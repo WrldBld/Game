@@ -33,6 +33,48 @@ All Phase B stories have been implemented. See Completed section for details.
 
 Improve DM workflow. These don't block player gameplay.
 
+### US-STG-013 / US-OBS-006: Hidden NPCs + Unrevealed Interactions
+
+| Field | Value |
+|-------|-------|
+| **Status** | In Progress |
+| **Priority** | High |
+| **Effort** | 2-3 days |
+| **Systems** | [Staging](../systems/staging-system.md), [Observation](../systems/observation-system.md) |
+
+**Goal**: Support NPCs that are staged as present-but-hidden from players, while still allowing DM-triggered approach events that may or may not reveal identity.
+
+**Player-facing behavior**:
+- Hidden NPCs do not appear in `SceneChanged.npcs_present` or `StagingReady.npcs_present`.
+- Unrevealed approaches display as **"Unknown Figure"** with no sprite/portrait.
+- Unrevealed interactions are recorded as observations and shown as **"Unknown Figure"** in Known NPCs.
+
+**Implementation checklist**:
+- [ ] Protocol: add `reveal` to approach events
+- [ ] Protocol: add `is_hidden_from_players` to staged/approved NPCs
+- [ ] Engine: persist hidden flag in staging (`INCLUDES_NPC`)
+- [ ] Engine: filter hidden NPCs from player presence messages
+- [ ] Engine: add `is_revealed_to_player` to observations + persistence
+- [ ] Engine: scrub observation API for unrevealed entries
+- [ ] Engine: approach event handler supports `reveal=false`
+- [ ] Player UI: staging approval + pre-stage support hidden toggle
+- [ ] Player UI: observations refresh via shared state; show Unknown Figure
+- [ ] Security: stop `DerivedSceneRequest.pc_id` from auto-creating observations
+- [ ] Maintenance: audit/remove unused HTTP endpoints (e.g. `POST /api/regions/{region_id}/scene`)
+- [ ] Validate: `cargo check --workspace` and `cargo xtask arch-check`
+
+**Key files**:
+- `crates/protocol/src/messages.rs`
+- `crates/domain/src/entities/staging.rs`
+- `crates/domain/src/entities/observation.rs`
+- `crates/engine-adapters/src/infrastructure/websocket.rs`
+- `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs`
+- `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
+- `crates/engine-adapters/src/infrastructure/http/observation_routes.rs`
+- `crates/engine-adapters/src/infrastructure/http/region_routes.rs`
+- `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+- `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`
+
 ---
 
 ## Architecture Maintenance

@@ -1297,6 +1297,7 @@ async fn handle_message(
             npc_id,
             target_pc_id,
             description,
+            reveal,
         } => {
             tracing::info!(
                 "DM triggering approach event: NPC {} approaching PC {}",
@@ -1387,13 +1388,23 @@ async fn handle_message(
                         .unwrap_or_else(chrono::Utc::now)
                 };
 
-                let observation = wrldbldr_domain::entities::NpcObservation::direct(
-                    pc_uuid,
-                    npc_uuid,
-                    pc.current_location_id,
-                    region_id,
-                    game_time,
-                );
+                let observation = if reveal {
+                    wrldbldr_domain::entities::NpcObservation::direct(
+                        pc_uuid,
+                        npc_uuid,
+                        pc.current_location_id,
+                        region_id,
+                        game_time,
+                    )
+                } else {
+                    wrldbldr_domain::entities::NpcObservation::direct_unrevealed(
+                        pc_uuid,
+                        npc_uuid,
+                        pc.current_location_id,
+                        region_id,
+                        game_time,
+                    )
+                };
 
                 if let Err(e) = state.repository.observations().upsert(&observation).await {
                     tracing::warn!("Failed to create observation for approach event: {}", e);
@@ -1401,11 +1412,18 @@ async fn handle_message(
             }
 
             // Build the ApproachEvent message
+            let (npc_name, npc_sprite) = if reveal {
+                (npc.name.clone(), npc.sprite_asset.clone())
+            } else {
+                ("Unknown Figure".to_string(), None)
+            };
+
             let approach_event = ServerMessage::ApproachEvent {
                 npc_id: npc_id.clone(),
-                npc_name: npc.name.clone(),
-                npc_sprite: npc.sprite_asset.clone(),
+                npc_name,
+                npc_sprite,
                 description,
+                reveal,
             };
 
             // Broadcast to the target PC (via session broadcast)
@@ -1721,7 +1739,7 @@ async fn handle_message(
                 tracing::debug!("Using existing staging {} for region {}", staging.id, region_uuid);
                 staging.npcs
                     .into_iter()
-                    .filter(|npc| npc.is_present)
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
                     .map(|npc| wrldbldr_protocol::NpcPresenceData {
                         character_id: npc.character_id.to_string(),
                         name: npc.name,
@@ -1840,6 +1858,7 @@ async fn handle_message(
                         portrait_asset: npc.portrait_asset,
                         is_present: npc.is_present,
                         reasoning: npc.reasoning,
+                        is_hidden_from_players: npc.is_hidden_from_players,
                     }).collect(),
                 });
 
@@ -1853,6 +1872,7 @@ async fn handle_message(
                         portrait_asset: npc.portrait_asset.clone(),
                         is_present: npc.is_present,
                         reasoning: npc.reasoning.clone(),
+                        is_hidden_from_players: false,
                     })
                     .collect();
 
@@ -1866,6 +1886,7 @@ async fn handle_message(
                             portrait_asset: npc.portrait_asset.clone(),
                             is_present: npc.is_present,
                             reasoning: npc.reasoning.clone(),
+                            is_hidden_from_players: npc.is_hidden_from_players,
                         })
                         .collect()
                 } else {
@@ -2087,36 +2108,300 @@ async fn handle_message(
             let backdrop = arrival_region.backdrop_asset.clone()
                 .or_else(|| target_location.backdrop_asset.clone());
 
-            // Get NPCs present
+            // Get staging settings from location
+            let location_name = target_location.name.clone();
+            let world_id = target_location.world_id;
+            let default_ttl = target_location.presence_cache_ttl_hours;
+            let use_llm = target_location.use_llm_presence;
+
+            // Get game time
             let game_time = {
                 let sessions = state.sessions.read().await;
-                sessions.get_session(session_id)
+                sessions
+                    .get_session(session_id)
                     .map(|s| s.game_time().clone())
                     .unwrap_or_default()
             };
 
-            let npc_relationships = state.repository.characters()
-                .get_npcs_related_to_region(arrival_region_uuid)
-                .await
-                .unwrap_or_default();
+            // Get PC details (name used for waiting list)
+            let pc = match state.repository.player_characters().get(pc_uuid).await {
+                Ok(Some(pc)) => pc,
+                Ok(None) => {
+                    return Some(ServerMessage::Error {
+                        code: "PC_NOT_FOUND".to_string(),
+                        message: "Player character not found".to_string(),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Error {
+                        code: "DATABASE_ERROR".to_string(),
+                        message: format!("Failed to fetch PC: {}", e),
+                    });
+                }
+            };
 
-            let time_of_day = game_time.time_of_day();
-            let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = npc_relationships
-                .into_iter()
-                .filter_map(|(character, rel_type)| {
-                    let is_present = rel_type.is_npc_present(time_of_day);
-                    if is_present {
-                        Some(wrldbldr_protocol::NpcPresenceData {
-                            character_id: character.id.to_string(),
-                            name: character.name,
-                            sprite_asset: character.sprite_asset,
-                            portrait_asset: character.portrait_asset,
-                        })
-                    } else {
-                        None
+            // Get user ID for this PC
+            let user_id = state
+                .async_session_port
+                .get_client_user_id(&client_id_str)
+                .await
+                .unwrap_or_else(|| client_id_str.clone());
+
+            // =====================================================================
+            // Staging System Integration
+            // =====================================================================
+
+            // Check for existing valid staging
+            let existing_staging = state
+                .staging_service
+                .get_current_staging(arrival_region_uuid, &game_time)
+                .await
+                .ok()
+                .flatten();
+
+            let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = if let Some(staging) = existing_staging {
+                // Use existing staging
+                tracing::debug!(
+                    "Using existing staging {} for region {}",
+                    staging.id,
+                    arrival_region_uuid
+                );
+                staging
+                    .npcs
+                    .into_iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .map(|npc| wrldbldr_protocol::NpcPresenceData {
+                        character_id: npc.character_id.to_string(),
+                        name: npc.name,
+                        sprite_asset: npc.sprite_asset,
+                        portrait_asset: npc.portrait_asset,
+                    })
+                    .collect()
+            } else {
+                // No valid staging - check if there's already a pending approval for this region
+                let has_pending = {
+                    let sessions = state.sessions.read().await;
+                    sessions
+                        .get_session(session_id)
+                        .and_then(|s| s.get_pending_staging_for_region(arrival_region_uuid))
+                        .is_some()
+                };
+
+                if has_pending {
+                    // Add this PC to the waiting list and send StagingPending
+                    {
+                        let mut sessions = state.sessions.write().await;
+                        if let Some(session) = sessions.get_session_mut(session_id) {
+                            if let Some(pending) = session.get_pending_staging_for_region_mut(arrival_region_uuid) {
+                                pending.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
+                            }
+                        }
                     }
-                })
-                .collect();
+
+                    // Send StagingPending to this player
+                    let _ = sender.send(ServerMessage::StagingPending {
+                        region_id: arrival_region_uuid.to_string(),
+                        region_name: arrival_region.name.clone(),
+                    });
+
+                    tracing::info!(
+                        pc_id = %pc_id,
+                        region_id = %arrival_region_uuid,
+                        "PC added to existing pending staging, waiting for DM approval"
+                    );
+
+                    return None; // Return early, will send SceneChanged when staging approved
+                }
+
+                // No pending staging - generate a new proposal
+                tracing::info!(
+                    "No valid staging for region {}, generating proposal",
+                    arrival_region_uuid
+                );
+
+                // Send StagingPending to player immediately
+                let _ = sender.send(ServerMessage::StagingPending {
+                    region_id: arrival_region_uuid.to_string(),
+                    region_name: arrival_region.name.clone(),
+                });
+
+                // Generate staging proposal
+                let proposal = match state
+                    .staging_service
+                    .generate_proposal(
+                        world_id,
+                        arrival_region_uuid,
+                        location_uuid,
+                        &location_name,
+                        &game_time,
+                        default_ttl,
+                        None, // No DM guidance yet
+                    )
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        tracing::error!("Failed to generate staging proposal: {}", e);
+                        // Fall back to simple rule-based presence
+                        let npc_relationships = state
+                            .repository
+                            .characters()
+                            .get_npcs_related_to_region(arrival_region_uuid)
+                            .await
+                            .unwrap_or_default();
+
+                        let time_of_day = game_time.time_of_day();
+                        return Some(ServerMessage::SceneChanged {
+                            pc_id: pc_id.clone(),
+                            region: wrldbldr_protocol::RegionData {
+                                id: arrival_region_uuid.to_string(),
+                                name: arrival_region.name.clone(),
+                                location_id: location_uuid.to_string(),
+                                location_name: location_name.clone(),
+                                backdrop_asset: backdrop.clone(),
+                                atmosphere: arrival_region.atmosphere.clone(),
+                            },
+                            npcs_present: npc_relationships
+                                .into_iter()
+                                .filter_map(|(character, rel_type)| {
+                                    if rel_type.is_npc_present(time_of_day) {
+                                        Some(wrldbldr_protocol::NpcPresenceData {
+                                            character_id: character.id.to_string(),
+                                            name: character.name,
+                                            sprite_asset: character.sprite_asset,
+                                            portrait_asset: character.portrait_asset,
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                            navigation: wrldbldr_protocol::NavigationData {
+                                connected_regions: Vec::new(),
+                                exits: Vec::new(),
+                            },
+                        });
+                    }
+                };
+
+                let request_id = proposal.request_id.clone();
+
+                // Get previous staging for reference
+                let previous_staging = state
+                    .staging_service
+                    .get_previous_staging(arrival_region_uuid)
+                    .await
+                    .ok()
+                    .flatten();
+                let previous_staging_info = previous_staging.map(|s| wrldbldr_protocol::PreviousStagingInfo {
+                    staging_id: s.id.to_string(),
+                    approved_at: s.approved_at.to_rfc3339(),
+                    npcs: s
+                        .npcs
+                        .into_iter()
+                        .map(|npc| wrldbldr_protocol::StagedNpcInfo {
+                            character_id: npc.character_id.to_string(),
+                            name: npc.name,
+                            sprite_asset: npc.sprite_asset,
+                            portrait_asset: npc.portrait_asset,
+                            is_present: npc.is_present,
+                            reasoning: npc.reasoning,
+                            is_hidden_from_players: npc.is_hidden_from_players,
+                        })
+                        .collect(),
+                });
+
+                // Convert proposal NPCs to protocol format
+                let rule_based_npcs: Vec<wrldbldr_protocol::StagedNpcInfo> = proposal
+                    .rule_based_npcs
+                    .iter()
+                    .map(|npc| wrldbldr_protocol::StagedNpcInfo {
+                        character_id: npc.character_id.clone(),
+                        name: npc.name.clone(),
+                        sprite_asset: npc.sprite_asset.clone(),
+                        portrait_asset: npc.portrait_asset.clone(),
+                        is_present: npc.is_present,
+                        reasoning: npc.reasoning.clone(),
+                        is_hidden_from_players: false,
+                    })
+                    .collect();
+
+                let llm_based_npcs: Vec<wrldbldr_protocol::StagedNpcInfo> = if use_llm {
+                    proposal
+                        .llm_based_npcs
+                        .iter()
+                        .map(|npc| wrldbldr_protocol::StagedNpcInfo {
+                            character_id: npc.character_id.clone(),
+                            name: npc.name.clone(),
+                            sprite_asset: npc.sprite_asset.clone(),
+                            portrait_asset: npc.portrait_asset.clone(),
+                            is_present: npc.is_present,
+                            reasoning: npc.reasoning.clone(),
+                            is_hidden_from_players: npc.is_hidden_from_players,
+                        })
+                        .collect()
+                } else {
+                    Vec::new() // Don't include LLM suggestions if disabled
+                };
+
+                // Store pending staging approval
+                let mut pending_approval = crate::infrastructure::session::PendingStagingApproval::new(
+                    request_id.clone(),
+                    arrival_region_uuid,
+                    location_uuid,
+                    world_id,
+                    arrival_region.name.clone(),
+                    location_name.clone(),
+                    proposal,
+                );
+                pending_approval.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
+
+                {
+                    let mut sessions = state.sessions.write().await;
+                    if let Some(session) = sessions.get_session_mut(session_id) {
+                        session.add_pending_staging_approval(pending_approval);
+                    }
+                }
+
+                // Send StagingApprovalRequired to DM
+                let approval_msg = ServerMessage::StagingApprovalRequired {
+                    request_id,
+                    region_id: arrival_region_uuid.to_string(),
+                    region_name: arrival_region.name.clone(),
+                    location_id: location_uuid.to_string(),
+                    location_name: location_name.clone(),
+                    game_time: wrldbldr_protocol::GameTime::new(
+                        game_time.day_ordinal(),
+                        game_time.current().hour() as u8,
+                        game_time.current().minute() as u8,
+                        game_time.is_paused(),
+                    ),
+                    previous_staging: previous_staging_info,
+                    rule_based_npcs,
+                    llm_based_npcs,
+                    default_ttl_hours: default_ttl,
+                    waiting_pcs: vec![wrldbldr_protocol::WaitingPcInfo {
+                        pc_id: pc_id.clone(),
+                        pc_name: pc.name.clone(),
+                        player_id: user_id,
+                    }],
+                };
+
+                {
+                    let sessions = state.sessions.read().await;
+                    if let Some(session) = sessions.get_session(session_id) {
+                        session.send_to_dm(&approval_msg);
+                    }
+                }
+
+                tracing::info!(
+                    pc_id = %pc_id,
+                    region_id = %arrival_region_uuid,
+                    "Staging approval request sent to DM"
+                );
+
+                return None; // Return early, will send SceneChanged when staging approved
+            };
 
             // Get navigation options
             let connections = state.repository.regions().get_connections(arrival_region_uuid).await.unwrap_or_default();
@@ -2248,6 +2533,7 @@ async fn handle_message(
                     sprite_asset: sprite,
                     portrait_asset: portrait,
                     is_present: npc_info.is_present,
+                    is_hidden_from_players: npc_info.is_hidden_from_players,
                     reasoning: npc_info.reasoning.clone().unwrap_or_else(|| "DM approved".to_string()),
                 });
             }
@@ -2288,12 +2574,13 @@ async fn handle_message(
             // Build the NPC presence list for players
             let npcs_present: Vec<wrldbldr_protocol::NpcPresentInfo> = staging.npcs
                 .iter()
-                .filter(|npc| npc.is_present)
+                .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
                 .map(|npc| wrldbldr_protocol::NpcPresentInfo {
                     character_id: npc.character_id.to_string(),
                     name: npc.name.clone(),
                     sprite_asset: npc.sprite_asset.clone(),
                     portrait_asset: npc.portrait_asset.clone(),
+                    is_hidden_from_players: false,
                 })
                 .collect();
 
@@ -2465,6 +2752,7 @@ async fn handle_message(
                     portrait_asset: npc.portrait_asset,
                     is_present: npc.is_present,
                     reasoning: npc.reasoning,
+                    is_hidden_from_players: npc.is_hidden_from_players,
                 })
                 .collect();
 
@@ -2579,6 +2867,7 @@ async fn handle_message(
                     sprite_asset: sprite,
                     portrait_asset: portrait,
                     is_present: npc_info.is_present,
+                    is_hidden_from_players: npc_info.is_hidden_from_players,
                     reasoning: npc_info.reasoning.clone().unwrap_or_else(|| "Pre-staged by DM".to_string()),
                 });
             }

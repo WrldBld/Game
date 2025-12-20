@@ -16,6 +16,7 @@ pub struct NpcSelection {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
     pub is_present: bool,
+    pub is_hidden_from_players: bool,
     pub reasoning: String,
     pub source: String, // "rule" or "llm"
 }
@@ -25,7 +26,7 @@ pub struct NpcSelection {
 pub struct StagingApprovalResult {
     pub request_id: String,
     /// NPCs that were selected as present
-    pub approved_npcs: Vec<(String, bool)>, // (character_id, is_present)
+    pub approved_npcs: Vec<(String, bool, bool)>, // (character_id, is_present, is_hidden_from_players)
     pub ttl_hours: i32,
     /// How this was finalized: "rule", "llm", "custom", "previous"
     pub source: String,
@@ -66,6 +67,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                 sprite_asset: npc.sprite_asset.clone(),
                 portrait_asset: npc.portrait_asset.clone(),
                 is_present: npc.is_present,
+                is_hidden_from_players: npc.is_hidden_from_players,
                 reasoning: npc.reasoning.clone(),
                 source: "rule".to_string(),
             });
@@ -80,6 +82,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                     sprite_asset: npc.sprite_asset.clone(),
                     portrait_asset: npc.portrait_asset.clone(),
                     is_present: npc.is_present,
+                    is_hidden_from_players: npc.is_hidden_from_players,
                     reasoning: npc.reasoning.clone(),
                     source: "llm".to_string(),
                 });
@@ -105,6 +108,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
             for npc in &llm_npcs {
                 if let Some(sel) = current.iter_mut().find(|s| s.character_id == npc.character_id && s.source == "llm") {
                     sel.is_present = npc.is_present;
+                    sel.is_hidden_from_players = npc.is_hidden_from_players;
                     sel.reasoning = npc.reasoning.clone();
                 }
             }
@@ -117,10 +121,10 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
         let request_id = props.data.request_id.clone();
         let on_approve = props.on_approve.clone();
         move |_| {
-            let approved: Vec<(String, bool)> = selections
+            let approved: Vec<(String, bool, bool)> = selections
                 .read()
                 .iter()
-                .map(|s| (s.character_id.clone(), s.is_present))
+                .map(|s| (s.character_id.clone(), s.is_present, s.is_hidden_from_players))
                 .collect();
             
             on_approve.call(StagingApprovalResult {
@@ -138,9 +142,9 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
         let previous = props.data.previous_staging.clone();
         move |_| {
             if let Some(ref prev) = previous {
-                let approved: Vec<(String, bool)> = prev.npcs
+                let approved: Vec<(String, bool, bool)> = prev.npcs
                     .iter()
-                    .map(|n| (n.character_id.clone(), n.is_present))
+                    .map(|n| (n.character_id.clone(), n.is_present, n.is_hidden_from_players))
                     .collect();
                 
                 on_approve.call(StagingApprovalResult {
@@ -261,11 +265,24 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                                     NpcSelectionRow {
                                         key: "{npc.character_id}",
                                         npc: npc.clone(),
-                                        on_toggle: move |_| {
+                                        on_toggle_present: move |_| {
                                             let mut current = selections.read().clone();
                                             if idx < current.len() {
                                                 current[idx].is_present = !current[idx].is_present;
+                                                if !current[idx].is_present {
+                                                    current[idx].is_hidden_from_players = false;
+                                                }
                                                 source_type.set("custom".to_string());
+                                            }
+                                            selections.set(current);
+                                        },
+                                        on_toggle_hidden: move |_| {
+                                            let mut current = selections.read().clone();
+                                            if idx < current.len() {
+                                                if current[idx].is_present {
+                                                    current[idx].is_hidden_from_players = !current[idx].is_hidden_from_players;
+                                                    source_type.set("custom".to_string());
+                                                }
                                             }
                                             selections.set(current);
                                         },
@@ -426,7 +443,8 @@ fn PreviousStagingSection(
 #[component]
 fn NpcSelectionRow(
     npc: NpcSelection,
-    on_toggle: EventHandler<()>,
+    on_toggle_present: EventHandler<()>,
+    on_toggle_hidden: EventHandler<()>,
 ) -> Element {
     let source_badge = match npc.source.as_str() {
         "rule" => ("bg-blue-500/20 text-blue-300", "Rule"),
@@ -438,12 +456,25 @@ fn NpcSelectionRow(
         label {
             class: "flex items-center gap-4 p-3 bg-black/20 rounded-lg cursor-pointer hover:bg-black/30 transition-colors",
 
-            // Checkbox
+            // Present checkbox
             input {
                 r#type: "checkbox",
                 checked: npc.is_present,
-                onchange: move |_| on_toggle.call(()),
+                onchange: move |_| on_toggle_present.call(()),
                 class: "w-5 h-5 rounded border-gray-600 bg-dark-bg text-amber-500 focus:ring-amber-500",
+            }
+
+            // Hidden checkbox
+            label {
+                class: "flex items-center gap-2 text-xs text-gray-400 select-none",
+                input {
+                    r#type: "checkbox",
+                    checked: npc.is_hidden_from_players,
+                    disabled: !npc.is_present,
+                    onchange: move |_| on_toggle_hidden.call(()),
+                    class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500 focus:ring-purple-500 disabled:opacity-50",
+                }
+                "Hidden"
             }
 
             // Portrait/Avatar

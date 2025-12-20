@@ -488,10 +488,11 @@ pub fn DirectorModeContent() -> Element {
                                 if let Some(client) = session_state_for_approve.engine_client().read().as_ref() {
                                     let approved_npcs: Vec<ApprovedNpcInfo> = result.approved_npcs
                                         .into_iter()
-                                        .map(|(character_id, is_present)| ApprovedNpcInfo {
+                                        .map(|(character_id, is_present, is_hidden_from_players)| ApprovedNpcInfo {
                                             character_id,
                                             is_present,
                                             reasoning: None,
+                                            is_hidden_from_players,
                                         })
                                         .collect();
                                     

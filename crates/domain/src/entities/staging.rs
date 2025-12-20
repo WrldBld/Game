@@ -43,6 +43,8 @@ pub struct StagedNpc {
     pub portrait_asset: Option<String>,
     /// Whether NPC is present in this staging
     pub is_present: bool,
+    /// When true, NPC is present but hidden from players
+    pub is_hidden_from_players: bool,
     /// Reasoning for presence/absence (from rules or LLM)
     pub reasoning: String,
 }
@@ -106,6 +108,14 @@ impl Staging {
     pub fn present_npcs(&self) -> Vec<&StagedNpc> {
         self.npcs.iter().filter(|n| n.is_present).collect()
     }
+
+    /// Get present NPCs that are visible to players
+    pub fn present_visible_npcs(&self) -> Vec<&StagedNpc> {
+        self.npcs
+            .iter()
+            .filter(|n| n.is_present && !n.is_hidden_from_players)
+            .collect()
+    }
 }
 
 impl StagedNpc {
@@ -121,6 +131,7 @@ impl StagedNpc {
             sprite_asset: None,
             portrait_asset: None,
             is_present,
+            is_hidden_from_players: false,
             reasoning: reasoning.into(),
         }
     }
