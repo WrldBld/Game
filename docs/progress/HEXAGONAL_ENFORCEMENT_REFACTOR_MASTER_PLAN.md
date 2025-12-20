@@ -2,7 +2,7 @@
 
 **Purpose**: This is the master plan for the "hexagonal enforcement" refactor. It defines the target crate layout, dependency rules, DTO/ID ownership, enforcement tooling, and the progress checklist.
 
-**Goal**: Maximize **compile-time** enforcement of architecture boundaries by splitting the current large `wrldbldr-engine` and `wrldbldr-player` crates into smaller crates representing layers (domain, ports, application, adapters, UI).
+**Goal**: Maximize **compile-time** enforcement of architecture boundaries by splitting the current large Engine and Player crates into smaller crates representing layers (domain, ports, application, adapters, UI).
 
 **Status**: IN PROGRESS
 
@@ -11,12 +11,12 @@
 ### Recent Work Notes
 - Restored several engine files that were accidentally collapsed into single-line blobs during earlier scripted refactors.
 - Cleaned up remaining `use ...; use ...` manglings and re-applied D6 imports (typed IDs from `wrldbldr_domain`, wire DTOs/enums from `wrldbldr_protocol`).
-- Verified `nix-shell --run "RUSTFLAGS='-Awarnings' cargo check -p wrldbldr-engine"` succeeds.
-- Removed remaining serde derives from `crates/engine/src/domain/entities/observation.rs` to keep engine-domain serde-free (per D5).
+- Verified `nix-shell --run "RUSTFLAGS='-Awarnings' cargo check -p wrldbldr-engine-runner"` succeeds.
+- Removed remaining serde derives from `crates/engine-app/src/domain/entities/observation.rs` to keep engine-domain serde-free (per D5).
 - Updated D7 to reflect chrono-backed canonical GameTime + standardized TimeOfDay mapping prior to implementing B6–B8.
 - Player split wiring: `wrldbldr-player-ui` now imports wire DTOs from `wrldbldr-protocol` (not `wrldbldr-player-app`), and `wrldbldr-player-adapters` no longer depends on UI routing types (deep links parse to an adapters-owned `DeepLink`).
 - Fixed `RawApiPort for ApiAdapter` recursion by disambiguating calls via `ApiPort::...`.
-- Player ports dedupe: removed `crates/player-app/src/application/ports/` and switched `wrldbldr-player-app` to import port traits from `wrldbldr-player-ports`.
+- Player ports dedupe: removed the player-app “ports shim” directory and switched `wrldbldr-player-app` to import port traits from `wrldbldr-player-ports`.
 - Protocol move: `AppEvent` now lives in `wrldbldr-protocol` (`wrldbldr_protocol::AppEvent`) and engine code imports it directly (per D6).
 - Engine ports export unblocked: `WorldExporterPort` (and related structs) is exported from `wrldbldr-engine-ports`; world export/persistence now uses `wrldbldr_protocol::RuleSystemConfig` instead of engine-app DTOs.
 - Verified `nix-shell --run "cargo check --workspace"` and `cargo xtask arch-check` succeed.
@@ -26,15 +26,18 @@
   - `use ::?wrldbldr_* as <alias>;` crate-alias shims
   - `extern crate ::?wrldbldr_* as <alias>;` crate-alias shims
   and reports the first offending line with its line number.
-- Engine ports consolidation: removed `crates/engine-app/src/application/ports/` shim and converted remaining services to import port traits directly from `wrldbldr_engine_ports`.
+- Engine ports consolidation: removed the engine-app “ports shim” directory and converted remaining services to import port traits directly from `wrldbldr_engine_ports`.
 
 ---
 
 ## Decisions (Locked)
 
-### D8. Player UI composition
-- Approved: `wrldbldr-player-ui` owns the Dioxus launch/composition root.
-- This allows `wrldbldr-player-ui -> wrldbldr-player-adapters` as an explicit (documented) dependency.
+### D8. Player composition root
+- Approved: `wrldbldr-player-runner` owns the Dioxus launch/composition root (wiring + `LaunchBuilder.launch(...)`).
+- `wrldbldr-player-ui` stays presentation-only:
+  - It must not construct infrastructure adapters.
+  - It must not depend on `wrldbldr-player-adapters`.
+  - It may create runtime-local state/contexts (Dioxus signals) inside components.
 
 ### D1. Base layer ownership
 - **Domain is the base** (core meaning of the system).
@@ -118,13 +121,13 @@ Allowed exception (rare, requires explicit justification):
 ### Engine crates
 - `crates/engine-app` → `wrldbldr-engine-app` (use-cases / application services)
 - `crates/engine-adapters` → `wrldbldr-engine-adapters` (http/ws/db/clients/queues)
-- `crates/engine` → `wrldbldr-engine` (bin / composition root only)
+- `crates/engine-runner` → `wrldbldr-engine-runner` (bin / composition root only)
 
 ### Player crates
 - `crates/player-app` → `wrldbldr-player-app` (application services)
 - `crates/player-adapters` → `wrldbldr-player-adapters` (http/ws/platform)
 - `crates/player-ui` → `wrldbldr-player-ui` (Dioxus presentation + routes + state)
-- `crates/player` → `wrldbldr-player` (bin / composition root only)
+- `crates/player-runner` → `wrldbldr-player-runner` (composition root; produces `wrldbldr-player` binary)
 
 ---
 
@@ -143,13 +146,13 @@ Ports:
 Engine:
 - `engine-app` → `domain`, `protocol`, `engine-ports`
 - `engine-adapters` → `engine-app`, `engine-ports`, `protocol`
-- `engine` (bin) → `engine-adapters`
+- `engine-runner` (bin) → `engine-adapters`
 
 Player:
 - `player-app` → `domain`, `protocol`, `player-ports`
 - `player-adapters` → `player-app`, `player-ports`, `protocol`
-- `player-ui` → `player-app`, `player-ports`, `protocol`, `player-adapters` *(approved: UI owns Dioxus launch/composition)*
-- `player` (bin) → `player-ui`
+- `player-ui` → `player-app`, `player-ports`, `protocol`
+- `player-runner` (composition root; produces `wrldbldr-player` bin) → `player-ui`, `player-adapters`
 
 ### Forbidden dependencies (examples)
 - `domain` must not depend on `protocol`, `axum`, `sqlx`, `dioxus`, etc.
@@ -220,7 +223,7 @@ This refactor is executed as a single coordinated change-set on the refactor bra
 ### Phase D — Engine split
 - [x] D1. Move application services → `wrldbldr-engine-app`
 - [x] D2. Move infrastructure/adapters → `wrldbldr-engine-adapters`
-- [x] D3. Reduce `wrldbldr-engine` to composition root
+- [x] D3. Reduce `wrldbldr-engine-runner` to composition root
 
 ### Phase E — Player split
 - [ ] E1. Move application services → `wrldbldr-player-app`
@@ -231,14 +234,14 @@ This refactor is executed as a single coordinated change-set on the refactor bra
 ### Phase F — Enforcement + build validation
 - [x] F1. Add `xtask arch-check` validating the crate dependency DAG
 - [x] F2. Run `cargo check --workspace` (via `nix-shell`)
-- [x] F3. Run `cargo check -p wrldbldr-engine` / `wrldbldr-player` / `wrldbldr-protocol`
+- [x] F3. Run `cargo check -p wrldbldr-engine-runner` / `wrldbldr-player` / `wrldbldr-protocol`
 - [x] F4. Add a CI/local check to detect cross-crate shims in non-owner crates (`pub* use ::?wrldbldr_*`, `use wrldbldr_* as ...`, `extern crate wrldbldr_* as ...`), reporting file:line
 
 Recent progress notes:
 - B6 done: canonical `wrldbldr_domain::GameTime` + `TimeOfDay` (serde-free) is the engine source of truth.
 - B7 done: engine HTTP (`/api/sessions/{id}/game-time`, `/api/sessions/{id}/game-time/advance`) and derived scene now return structured `wrldbldr_protocol::GameTime`; WS `GameTimeUpdated` and `StagingApprovalRequired` also use structured `GameTime`.
 - Engine follow-up: `StagingContext` now stores `time_of_day` as `String` to keep domain `TimeOfDay` serde-free.
-- Phase E (in progress): Bold copy of legacy `crates/player` code into `wrldbldr-player-ui` / `wrldbldr-player-app` / `wrldbldr-player-adapters` / `wrldbldr-player-ports`; now rewiring imports and composition root so the new split crates compile.
+- Phase E (in progress): Bold copy of legacy player code into `wrldbldr-player-ui` / `wrldbldr-player-app` / `wrldbldr-player-adapters` / `wrldbldr-player-ports`; now rewiring imports so the new split crates compile, with composition rooted in `wrldbldr-player-runner`.
 
 ---
 
@@ -248,7 +251,7 @@ From `Game/`:
 
 ```bash
 nix-shell --run "cargo check --workspace"
-nix-shell --run "cargo check -p wrldbldr-engine"
-nix-shell --run "cargo check -p wrldbldr-player"
+nix-shell --run "cargo check -p wrldbldr-engine-runner"
+nix-shell --run "cargo check -p wrldbldr-player-runner --bin wrldbldr-player"
 nix-shell --run "cargo check -p wrldbldr-protocol"
 ```

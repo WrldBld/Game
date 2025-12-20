@@ -10,7 +10,7 @@ use wrldbldr_protocol::{NpcPresenceData, ProposedToolInfo, ServerMessage};
 use dioxus::prelude::{ReadableExt, WritableExt};
 use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
-    session_state::{ChallengePromptData, ChallengeResultData},
+    challenge_state::{ChallengePromptData, ChallengeResultData},
     approval_state::PendingChallengeOutcome,
 };
 

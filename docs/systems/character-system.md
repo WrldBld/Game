@@ -25,35 +25,35 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-001**: As a DM, I can create NPCs with Campbell archetypes
   - *Implementation*: Character entity with `base_archetype` and `current_archetype` fields
-  - *Files*: `Engine/src/domain/entities/character.rs`
+  - *Files*: `crates/domain/src/entities/character.rs`
 
 - [x] **US-CHAR-002**: As a DM, I can define what a character wants (their desire/goal)
   - *Implementation*: Want entity with `HAS_WANT` edge, intensity 0.0-1.0
-  - *Files*: `Engine/src/domain/entities/want.rs`, `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/domain/src/entities/want.rs`, `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-CHAR-003**: As a DM, I can set who a character views as helper/opponent/sender/receiver
   - *Implementation*: `VIEWS_AS_*` edges with want_id and reason
-  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-CHAR-004**: As a DM, I can define relationships between characters with sentiment
   - *Implementation*: `RELATES_TO` edge with sentiment (-1.0 to 1.0) and relationship_type
-  - *Files*: `Engine/src/domain/value_objects/relationship.rs`
+  - *Files*: `crates/domain/src/value_objects/relationship.rs`
 
 - [x] **US-CHAR-005**: As a DM, I can change a character's archetype and track the history
   - *Implementation*: `ARCHETYPE_CHANGED` self-referential edge with timestamp
-  - *Files*: `Engine/src/application/services/character_service.rs`
+  - *Files*: `crates/engine-app/src/application/services/character_service.rs`
 
 - [x] **US-CHAR-006**: As a player, I can create a PC and bind it to a session
   - *Implementation*: PlayerCharacter entity with session binding, character sheet data
-  - *Files*: `Engine/src/domain/entities/player_character.rs`
+  - *Files*: `crates/domain/src/entities/player_character.rs`
 
 - [x] **US-CHAR-007**: As a player, I can give/receive items from NPCs
   - *Implementation*: `POSSESSES` edge with quantity, equipped, acquisition_method
-  - *Files*: `Engine/src/domain/entities/item.rs`, `Engine/src/application/services/tool_execution_service.rs`
+  - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine-app/src/application/services/tool_execution_service.rs`
 
 - [x] **US-CHAR-008**: As a DM, I can view and edit character sheets based on rule system
   - *Implementation*: CharacterSheetTemplate with dynamic field types
-  - *Files*: `Engine/src/domain/entities/sheet_template.rs`, `Player/src/presentation/components/shared/character_sheet_viewer.rs`
+  - *Files*: `crates/domain/src/entities/sheet_template.rs`, `crates/player-ui/src/presentation/components/character_sheet_viewer.rs`
 
 ### Pending
 

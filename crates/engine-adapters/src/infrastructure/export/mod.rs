@@ -9,8 +9,6 @@
 //!   (now defined in application/ports/outbound/world_exporter_port.rs)
 
 mod json_exporter;
-mod world_snapshot;
+pub(crate) mod world_snapshot;
 
 pub use world_snapshot::Neo4jWorldExporter;
-
-pub(crate) use world_snapshot::protocol_rule_system_config;

@@ -10,14 +10,25 @@ description = "WrldBldr Player Runner - Dioxus launch + wiring"
 wrldbldr-player-ui = { workspace = true }
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
+wrldbldr-player-adapters = { workspace = true }
 
-dioxus = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true
 
+[[bin]]
+name = "wrldbldr-player"
+path = "src/main.rs"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dioxus = { version = "0.7.2", features = ["desktop", "router"] }
+dioxus-desktop = { version = "0.7.2" }
+tracing-subscriber = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 dioxus = { version = "0.7.2", features = ["web", "router"] }
+console_error_panic_hook = { workspace = true }
+tracing-wasm = { workspace = true }
+web-sys = { workspace = true }
+getrandom = { workspace = true }

@@ -11,7 +11,7 @@ use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_domain::{ActId, WorldId};
 use wrldbldr_protocol::RuleSystemConfig as ProtocolRuleSystemConfig;
 
-use crate::infrastructure::export::protocol_rule_system_config;
+use crate::infrastructure::export::world_snapshot::protocol_rule_system_config;
 
 /// Repository for World aggregate operations
 pub struct Neo4jWorldRepository {

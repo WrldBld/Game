@@ -11,10 +11,14 @@ use wrldbldr_protocol::types::{ApprovalDecision, ParticipantRole};
 use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 use crate::presentation::components::tactical::PlayerSkillData;
 
-// Re-export substates and their types
-pub use crate::presentation::state::connection_state::{ConnectionState, ConnectionStatus};
-pub use crate::presentation::state::approval_state::{ApprovalState, PendingApproval, ApprovalHistoryEntry, ConversationLogEntry};
-pub use crate::presentation::state::challenge_state::{ChallengeState, ChallengePromptData, ChallengeResultData};
+// Substate types (avoid `pub use crate::...` shims)
+use crate::presentation::state::approval_state::{
+    ApprovalHistoryEntry, ApprovalState, ConversationLogEntry, PendingApproval,
+};
+use crate::presentation::state::challenge_state::{
+    ChallengePromptData, ChallengeResultData, ChallengeState,
+};
+use crate::presentation::state::connection_state::{ConnectionState, ConnectionStatus};
 
 /// Session state for connection and user information
 ///

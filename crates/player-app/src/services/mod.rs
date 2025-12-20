@@ -1,1 +1,1 @@
-// Services migrated from `crates/player/src/application/services`.
+// Services migrated from legacy player code (now in split crates).

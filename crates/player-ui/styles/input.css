@@ -1,0 +1,380 @@
+/* Local fonts (offline-friendly; no network fetch at runtime) */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/assets/fonts/Inter/Inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/assets/fonts/Inter/Inter-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/assets/fonts/Cinzel/Cinzel-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/assets/fonts/Cinzel/Cinzel-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Lora";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/assets/fonts/Lora/Lora-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Lora";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/assets/fonts/Lora/Lora-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-ink-900 text-parchment-100 font-body;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-ink-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-500;
+  }
+}
+
+/* Component styles */
+@layer components {
+  /* Visual Novel Components */
+  .vn-backdrop {
+    @apply w-full h-full bg-cover bg-center bg-no-repeat;
+  }
+
+  .vn-dialogue-box {
+    @apply absolute bottom-0 left-0 right-0
+           bg-ink-900/90 backdrop-blur-sm
+           border-t-2 border-gold-500
+           p-6 min-h-[200px];
+  }
+
+  .vn-character-name {
+    @apply font-fantasy text-gold-400 text-xl mb-2;
+  }
+
+  .vn-dialogue-text {
+    @apply font-body text-parchment-100 text-lg leading-relaxed;
+  }
+
+  .vn-choice {
+    @apply block w-full text-left p-3 my-2
+           bg-ink-800/80 hover:bg-ink-700
+           border border-gold-600/30 hover:border-gold-500
+           rounded transition-all duration-200
+           font-body text-parchment-200 hover:text-parchment-50;
+  }
+
+  .vn-choice:hover {
+    @apply shadow-glow;
+  }
+
+  /* Character sprite positioning */
+  .sprite-left {
+    @apply absolute bottom-[200px] left-[10%];
+  }
+
+  .sprite-center {
+    @apply absolute bottom-[200px] left-1/2 -translate-x-1/2;
+  }
+
+  .sprite-right {
+    @apply absolute bottom-[200px] right-[10%];
+  }
+
+  /* DM Panel Components */
+  .dm-panel {
+    @apply bg-ink-800 border-l border-ink-600 p-4 h-full overflow-y-auto;
+  }
+
+  .dm-section {
+    @apply mb-6;
+  }
+
+  .dm-section-title {
+    @apply font-fantasy text-gold-400 text-sm uppercase tracking-wider mb-3;
+  }
+
+  .dm-note-input {
+    @apply w-full bg-ink-900 border border-ink-600
+           rounded p-3 text-parchment-100
+           focus:border-gold-500 focus:outline-none
+           resize-y min-h-[100px];
+  }
+
+  /* Approval Popup */
+  .approval-popup {
+    @apply bg-ink-800 border-2 border-gold-500
+           rounded-lg shadow-2xl p-6 max-w-lg;
+  }
+
+  .approval-action {
+    @apply flex items-center gap-2 p-2 rounded
+           bg-ink-700 hover:bg-ink-600
+           cursor-pointer transition-colors;
+  }
+
+  /* Tactical Grid Components */
+  .grid-container {
+    @apply relative bg-ink-900 rounded-lg overflow-hidden;
+  }
+
+  .grid-tile {
+    @apply border border-ink-700/50 transition-colors duration-150;
+  }
+
+  .grid-tile-passable {
+    @apply hover:bg-gold-500/20 cursor-pointer;
+  }
+
+  .grid-tile-impassable {
+    @apply bg-ink-800 cursor-not-allowed;
+  }
+
+  .grid-tile-selected {
+    @apply bg-gold-500/40 border-gold-500;
+  }
+
+  .grid-tile-highlight-move {
+    @apply bg-blue-500/30;
+  }
+
+  .grid-tile-highlight-attack {
+    @apply bg-blood-500/30;
+  }
+
+  /* Unit tokens */
+  .unit-token {
+    @apply absolute w-[90%] h-[90%]
+           rounded-full border-2
+           flex items-center justify-center
+           text-xs font-bold;
+  }
+
+  .unit-token-ally {
+    @apply bg-blue-600 border-blue-400;
+  }
+
+  .unit-token-enemy {
+    @apply bg-blood-600 border-blood-400;
+  }
+
+  .unit-token-neutral {
+    @apply bg-ink-600 border-ink-400;
+  }
+
+  /* Turn order panel */
+  .turn-order-item {
+    @apply flex items-center gap-2 p-2 rounded
+           bg-ink-700 mb-1;
+  }
+
+  .turn-order-item-active {
+    @apply bg-gold-600/30 border border-gold-500;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply px-4 py-2 rounded font-ui font-medium
+           transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-gold-600 text-ink-900
+           hover:bg-gold-500
+           active:bg-gold-700;
+  }
+
+  .btn-secondary {
+    @apply bg-ink-700 text-parchment-200
+           border border-ink-500
+           hover:bg-ink-600 hover:border-ink-400;
+  }
+
+  .btn-danger {
+    @apply bg-blood-700 text-parchment-100
+           hover:bg-blood-600;
+  }
+
+  .btn-success {
+    @apply bg-green-700 text-parchment-100
+           hover:bg-green-600;
+  }
+
+  /* Input fields */
+  .input {
+    @apply w-full bg-ink-900 border border-ink-600
+           rounded px-3 py-2 text-parchment-100
+           focus:border-gold-500 focus:outline-none
+           placeholder-ink-400;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-ink-800 border border-ink-600 rounded-lg p-4;
+  }
+
+  .card-header {
+    @apply font-fantasy text-gold-400 text-lg mb-3 pb-2 border-b border-ink-600;
+  }
+
+  /* Inventory items */
+  .inventory-slot {
+    @apply w-16 h-16 bg-ink-700 border border-ink-500
+           rounded flex items-center justify-center
+           hover:border-gold-500 cursor-pointer
+           transition-colors;
+  }
+
+  .inventory-slot-empty {
+    @apply border-dashed;
+  }
+
+  /* Character sheet */
+  .stat-block {
+    @apply grid grid-cols-3 gap-2;
+  }
+
+  .stat-item {
+    @apply bg-ink-700 rounded p-2 text-center;
+  }
+
+  .stat-label {
+    @apply text-xs text-ink-300 uppercase;
+  }
+
+  .stat-value {
+    @apply text-xl font-bold text-gold-400;
+  }
+
+  /* Navigation */
+  .nav-bar {
+    @apply flex gap-2 p-2 bg-ink-800 border-b border-ink-600;
+  }
+
+  .nav-item {
+    @apply px-4 py-2 rounded font-ui text-sm
+           text-parchment-300 hover:text-parchment-100
+           hover:bg-ink-700 transition-colors;
+  }
+
+  .nav-item-active {
+    @apply bg-ink-700 text-gold-400;
+  }
+}
+
+/* Utility classes */
+@layer utilities {
+  .text-shadow {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+  }
+
+  /* Animation utilities */
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Mobile-specific utilities */
+  @screen sm {
+    .mobile-fullscreen {
+      @apply fixed inset-0 z-50;
+    }
+  }
+}
+
+/* Platform-specific styles */
+/* Desktop view adjustments */
+@media (min-width: 1024px) {
+  .vn-dialogue-box {
+    @apply mx-auto max-w-4xl rounded-t-lg;
+  }
+}
+
+/* Mobile/Android view adjustments */
+@media (max-width: 768px) {
+  .vn-dialogue-box {
+    @apply p-4 min-h-[180px];
+  }
+
+  .vn-dialogue-text {
+    @apply text-base;
+  }
+
+  .dm-panel {
+    @apply fixed inset-0 z-50;
+  }
+
+  .grid-tile {
+    @apply min-w-[32px] min-h-[32px];
+  }
+
+  .inventory-slot {
+    @apply w-12 h-12;
+  }
+}
+
+/* Touch-friendly adjustments for Android/Mobile Web */
+@media (pointer: coarse) {
+  .btn {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  .vn-choice {
+    @apply py-4;
+  }
+
+  .nav-item {
+    @apply py-3;
+  }
+}

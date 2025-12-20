@@ -24,15 +24,14 @@ Run all commands inside the repo Nix shell:
   - `crates/engine-ports` (`wrldbldr-engine-ports`): **all engine ports** (inbound + outbound).
   - `crates/engine-app` (`wrldbldr-engine-app`): application services + DTOs.
   - `crates/engine-adapters` (`wrldbldr-engine-adapters`): Axum routes, websocket server, Neo4j repos, LLM clients, etc.
-  - `crates/engine` (`wrldbldr-engine`): binary crate / composition root.
+  - `crates/engine-runner` (`wrldbldr-engine-runner`): binary crate / composition root.
 
 - Player (client)
   - `crates/player-ports` (`wrldbldr-player-ports`): **all player ports** (inbound + outbound) and shared cross-layer types.
   - `crates/player-app` (`wrldbldr-player-app`): application services + DTOs.
   - `crates/player-adapters` (`wrldbldr-player-adapters`): HTTP/WebSocket clients, platform adapters, storage, URL handling.
   - `crates/player-ui` (`wrldbldr-player-ui`): Dioxus UI; calls app services; no adapter construction.
-  - `crates/player-runner` (`wrldbldr-player-runner`): Dioxus launch + context wiring.
-  - `crates/player` (`wrldbldr-player`): binary crate / composition root.
+  - `crates/player-runner` (`wrldbldr-player-runner`): composition-root crate (Dioxus launch + wiring). Produces the `wrldbldr-player` binary.
 
 ## Architecture constraints (strict)
 

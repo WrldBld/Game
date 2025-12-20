@@ -125,9 +125,9 @@ to match Player's `SceneCharacterState`. Engine currently sends `None`.
 | Check | Command |
 |-------|---------|
 | Protocol compiles | `cargo check -p wrldbldr-protocol` |
-| Engine compiles | `cargo check -p wrldbldr-engine` |
-| Player compiles (native) | `cargo check -p wrldbldr-player` |
-| Player compiles (WASM) | `cargo check -p wrldbldr-player --target wasm32-unknown-unknown` |
+| Engine compiles | `cargo check -p wrldbldr-engine-runner` |
+| Player compiles (native) | `cargo check -p wrldbldr-player-runner --bin wrldbldr-player` |
+| Player compiles (WASM) | `cargo check -p wrldbldr-player-runner --target wasm32-unknown-unknown --bin wrldbldr-player` |
 | Full workspace | `cargo check --workspace` |
 
 ---

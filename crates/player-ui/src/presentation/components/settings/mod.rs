@@ -15,6 +15,7 @@ pub use game_settings::GameSettingsPanel;
 
 use dioxus::prelude::*;
 use crate::routes::Route;
+use wrldbldr_player_app::application::dto::SkillData;
 
 /// Props for SettingsView
 #[derive(Props, Clone, PartialEq)]
@@ -202,13 +203,13 @@ struct SkillsManagementTabProps {
 
 #[component]
 fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
-    use wrldbldr_player_app::application::services::SkillCategory;
     use crate::presentation::services::use_skill_service;
     use std::collections::HashMap;
+    use wrldbldr_player_app::application::dto::SkillCategory;
 
     let skill_service = use_skill_service();
 
-    let mut skills: Signal<Vec<wrldbldr_player_app::application::services::SkillData>> = use_signal(Vec::new);
+    let mut skills: Signal<Vec<SkillData>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut show_hidden = use_signal(|| false);
@@ -238,10 +239,10 @@ fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
     });
 
     // Group skills by category
-    let skills_by_category: HashMap<SkillCategory, Vec<wrldbldr_player_app::application::services::SkillData>> = {
+    let skills_by_category: HashMap<SkillCategory, Vec<SkillData>> = {
         let skills_read = skills.read();
         let show_hidden_val = *show_hidden.read();
-        let mut grouped: HashMap<SkillCategory, Vec<wrldbldr_player_app::application::services::SkillData>> = HashMap::new();
+        let mut grouped: HashMap<SkillCategory, Vec<SkillData>> = HashMap::new();
         for skill in skills_read.iter() {
             if !skill.is_hidden || show_hidden_val {
                 grouped.entry(skill.category).or_default().push(skill.clone());
@@ -382,7 +383,7 @@ fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
 /// Inline skill row for Skills Management tab
 #[derive(Props, Clone, PartialEq)]
 struct SkillRowInlineProps {
-    skill: wrldbldr_player_app::application::services::SkillData,
+    skill: SkillData,
 }
 
 #[component]

@@ -7190,15 +7190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wrldbldr-engine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "wrldbldr-engine-adapters",
-]
-
-[[package]]
 name = "wrldbldr-engine-adapters"
 version = "0.1.0"
 dependencies = [
@@ -7267,19 +7258,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "wrldbldr-player"
+name = "wrldbldr-engine-runner"
 version = "0.1.0"
 dependencies = [
- "console_error_panic_hook",
- "getrandom 0.2.16",
- "tracing",
- "tracing-subscriber",
- "tracing-wasm",
- "web-sys",
- "wrldbldr-player-adapters",
- "wrldbldr-player-app",
- "wrldbldr-player-ports",
- "wrldbldr-player-runner",
+ "anyhow",
+ "tokio",
+ "wrldbldr-engine-adapters",
 ]
 
 [[package]]
@@ -7355,7 +7339,15 @@ dependencies = [
 name = "wrldbldr-player-runner"
 version = "0.1.0"
 dependencies = [
+ "console_error_panic_hook",
  "dioxus",
+ "dioxus-desktop",
+ "getrandom 0.2.16",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-wasm",
+ "web-sys",
+ "wrldbldr-player-adapters",
  "wrldbldr-player-app",
  "wrldbldr-player-ports",
  "wrldbldr-player-ui",

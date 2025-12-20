@@ -50,8 +50,6 @@ pub use location_service::{LocationFormData, LocationService, LocationSummary, M
 
 // Re-export skill service types
 pub use skill_service::{CreateSkillRequest, SkillService, UpdateSkillRequest};
-// Re-export SkillData and SkillCategory from dto (not skill_service)
-pub use crate::application::dto::{SkillCategory, SkillData};
 
 // Re-export challenge service types
 pub use challenge_service::ChallengeService;

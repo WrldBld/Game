@@ -24,15 +24,15 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-001**: As a player, my observations are recorded when NPCs appear in scenes
   - *Implementation*: `record_observation()` called when scene displays NPCs
-  - *Files*: `Engine/src/domain/entities/observation.rs`, `Engine/src/infrastructure/persistence/observation_repository.rs`
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
 
 - [x] **US-OBS-002**: As a DM, I can share NPC location information with a player
   - *Implementation*: `ShareNpcLocation` WebSocket message creates `HeardAbout` observation
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
 
 - [x] **US-OBS-003**: As a player, challenge successes can reveal NPC information
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
-  - *Files*: `Engine/src/application/services/event_effect_executor.rs`
+  - *Files*: `crates/engine-app/src/application/services/event_effect_executor.rs`
 
 ### Pending
 

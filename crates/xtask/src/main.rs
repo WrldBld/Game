@@ -129,11 +129,10 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
     // Enforce across the whole workspace *except* the owning crates.
     // (Owning crates may legitimately `pub use` their own internals.)
     let enforced_dirs = [
-        workspace_root.join("crates/engine/src"),
+        workspace_root.join("crates/engine-runner/src"),
         workspace_root.join("crates/engine-app/src"),
         workspace_root.join("crates/engine-adapters/src"),
         workspace_root.join("crates/engine-ports/src"),
-        workspace_root.join("crates/player/src"),
         workspace_root.join("crates/player-app/src"),
         workspace_root.join("crates/player-adapters/src"),
         workspace_root.join("crates/player-ports/src"),
@@ -158,6 +157,16 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
         r"(?m)^\s*extern\s+crate\s+::?wrldbldr_[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_]+\s*;",
     )
     .context("compiling extern-crate-alias shim regex")?;
+
+    // Ban internal re-export shims like: `pub use crate::...`
+    let pub_use_crate_re =
+        regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+crate::")
+            .context("compiling pub-use-crate shim regex")?;
+
+    // Ban internal visibility re-export shims like: `pub(crate) use ...`
+    let pub_crate_use_re =
+        regex_lite::Regex::new(r"(?m)^\s*pub\s*\(crate\)\s+use\s+")
+            .context("compiling pub(crate)-use shim regex")?;
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -196,12 +205,30 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
                     line.trim_end()
                 ));
             }
+
+            if let Some((line_no, line)) = first_match_line(&pub_use_crate_re, &contents) {
+                violations.push(format!(
+                    "{}:{} (pub use crate shim): {}",
+                    entry.display(),
+                    line_no,
+                    line.trim_end()
+                ));
+            }
+
+            if let Some((line_no, line)) = first_match_line(&pub_crate_use_re, &contents) {
+                violations.push(format!(
+                    "{}:{} (pub(crate) use shim): {}",
+                    entry.display(),
+                    line_no,
+                    line.trim_end()
+                ));
+            }
         }
     }
 
     if !violations.is_empty() {
         eprintln!(
-            "Forbidden cross-crate shims (re-exports and crate aliases of `wrldbldr_*`):"
+            "Forbidden shims (cross-crate and internal re-export/alias shims):"
         );
         for v in violations {
             eprintln!("  - {v}");
@@ -320,21 +347,14 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-ui",
                 "wrldbldr-player-app",
                 "wrldbldr-player-ports",
-            ]),
-        ),
-        (
-            "wrldbldr-engine",
-            HashSet::from(["wrldbldr-engine-adapters"]),
-        ),
-        (
-            "wrldbldr-player",
-            HashSet::from([
-                "wrldbldr-player-runner",
                 "wrldbldr-player-adapters",
-                "wrldbldr-player-app",
-                "wrldbldr-player-ports",
             ]),
         ),
+         (
+             "wrldbldr-engine-runner",
+             HashSet::from(["wrldbldr-engine-adapters"]),
+         ),
+
         ("xtask", HashSet::from([])),
     ])
 }

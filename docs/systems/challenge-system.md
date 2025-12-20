@@ -24,39 +24,39 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-001**: As a DM, I can create challenges with skills and difficulty
   - *Implementation*: Challenge entity with ChallengeType, Difficulty, required skill
-  - *Files*: `Engine/src/domain/entities/challenge.rs`
+  - *Files*: `crates/domain/src/entities/challenge.rs`
 
 - [x] **US-CHAL-002**: As a DM, I can define outcomes for success/failure/partial/critical
   - *Implementation*: ChallengeOutcomes with multiple Outcome variants and triggers
-  - *Files*: `Engine/src/domain/entities/challenge.rs`
+  - *Files*: `crates/domain/src/entities/challenge.rs`
 
 - [x] **US-CHAL-003**: As a player, the LLM suggests challenges during dialogue
   - *Implementation*: LLM outputs `<challenge_suggestion>` XML tags, parsed by LlmService
-  - *Files*: `Engine/src/application/services/llm_service.rs`
+  - *Files*: `crates/engine-app/src/application/services/llm_queue_service.rs`
 
 - [x] **US-CHAL-004**: As a DM, I can approve or reject challenge suggestions
   - *Implementation*: ChallengeSuggestionDecision WebSocket message, DM approval popup
-  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Player/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-CHAL-005**: As a player, I can roll dice for challenges
   - *Implementation*: ChallengeRollModal with d20 rolls, platform-specific randomness
-  - *Files*: `Player/src/presentation/components/tactical/challenge_roll.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`
 
 - [x] **US-CHAL-006**: As a DM, I can manually trigger challenges
   - *Implementation*: TriggerChallengeModal, TriggerChallenge WebSocket message
-  - *Files*: `Player/src/presentation/components/dm_panel/trigger_challenge_modal.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/trigger_challenge_modal.rs`
 
 - [x] **US-CHAL-007**: As a DM, I can approve/edit challenge outcomes before they execute
   - *Implementation*: ChallengeOutcomeApproval component, DM can edit narrative text
-  - *Files*: `Engine/src/application/services/challenge_outcome_approval_service.rs`
+  - *Files*: `crates/engine-app/src/application/services/challenge_resolution_service.rs`
 
 - [x] **US-CHAL-008**: As a DM, I can browse and manage a challenge library
   - *Implementation*: ChallengeLibrary with search, filtering, favorites
-  - *Files*: `Player/src/presentation/components/dm_panel/challenge_library/`
+  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/challenge_library/`
 
 - [x] **US-CHAL-009**: As a player, I can see my character's skill modifiers during rolls
   - *Implementation*: SkillsDisplay component shows all skills with modifiers; ChallengeRollModal displays modifier in header and result breakdown (dice + modifier + skill = total)
-  - *Files*: `Player/src/presentation/components/tactical/challenge_roll.rs`, `Player/src/presentation/components/tactical/skills_display.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`, `crates/player-ui/src/presentation/components/tactical/skills_display.rs`
 
 ### Future Improvements
 
