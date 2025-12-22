@@ -1,46 +1,50 @@
 { pkgs ? import <nixpkgs> {} }:
 
-pkgs.mkShell {
-  name = "wrldbldr-dev";
-
-  buildInputs = with pkgs; [
+let
+  # Detect if we're on Linux
+  isLinux = pkgs.stdenv.isLinux;
+  isDarwin = pkgs.stdenv.isDarwin;
+  
+  # Base packages needed on all platforms
+  basePackages = with pkgs; [
     # Rust toolchain
     rustc
     cargo
     rustfmt
     clippy
     rust-analyzer
-
+    
     # Build essentials
     gcc
     binutils  # Provides ld
     pkg-config
-    llvmPackages.lld  # Fast linker
     
     # OpenSSL (for reqwest, neo4rs, etc.)
     openssl
     openssl.dev
-
+    
     # SQLite (for sqlx)
     sqlite
-
+    
     # Task runner
     go-task
-
+    
     # Process manager for running multiple services
     overmind
     tmux  # Required by overmind
-
+    
     # Frontend tooling (for Player web builds)
     dioxus-cli
     wasm-bindgen-cli
-    binaryen       # wasm-opt
-
+    binaryen  # wasm-opt
+    
     # Node.js (for Tailwind CSS)
     nodejs_20
     nodePackages.npm
-
-    # GTK and related libs (for Dioxus desktop)
+  ];
+  
+  # Linux-specific packages (GTK for Dioxus desktop)
+  linuxPackages = with pkgs; lib.optionals isLinux [
     gtk3
     glib
     cairo
@@ -49,22 +53,32 @@ pkgs.mkShell {
     atk
     webkitgtk_4_1
     libsoup_3
-
-    # Wayland support (for Linux desktop)
     wayland
     wayland-protocols
     libxkbcommon
-
-    # X11 support (fallback)
     xorg.libX11
     xorg.libXcursor
     xorg.libXrandr
     xorg.libXi
-
-    # Additional libs that may be needed
     dbus
     at-spi2-atk
   ];
+  
+  # macOS-specific packages
+  darwinPackages = with pkgs; lib.optionals isDarwin [
+    # macOS frameworks are typically available via system
+    libiconv
+    darwin.apple_sdk.frameworks.Security
+    darwin.apple_sdk.frameworks.CoreFoundation
+  ];
+  
+  allPackages = basePackages ++ linuxPackages ++ darwinPackages;
+in
+
+pkgs.mkShell {
+  name = "wrldbldr-dev";
+
+  buildInputs = allPackages;
 
   # Environment variables
   shellHook = ''
@@ -73,24 +87,24 @@ pkgs.mkShell {
     export OPENSSL_LIB_DIR="${pkgs.openssl.out}/lib"
     export OPENSSL_INCLUDE_DIR="${pkgs.openssl.dev}/include"
     export PKG_CONFIG_PATH="${pkgs.openssl.dev}/lib/pkgconfig:$PKG_CONFIG_PATH"
-
+    
     # SQLite
     export SQLITE3_LIB_DIR="${pkgs.sqlite.out}/lib"
-
-    # GTK/GLib for Dioxus desktop
+  '' + pkgs.lib.optionalString isLinux ''
+    # GTK/GLib for Dioxus desktop (Linux only)
     export GIO_MODULE_DIR="${pkgs.glib-networking}/lib/gio/modules"
     export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules"
-    
-    # WebKit
     export WEBKIT_DISABLE_COMPOSITING_MODE=1
-
-    # Wayland/X11
     export LD_LIBRARY_PATH="${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib:$LD_LIBRARY_PATH"
-    
+  '' + pkgs.lib.optionalString isDarwin ''
+    # macOS-specific environment variables
+    export DYLD_FRAMEWORK_PATH="${pkgs.darwin.apple_sdk.frameworks.Security}/Library/Frameworks:${pkgs.darwin.apple_sdk.frameworks.CoreFoundation}/Library/Frameworks"
+  '' + ''
     # Ensure cargo binaries are in PATH
     export PATH="$HOME/.cargo/bin:$PATH"
-
+    
     echo "WrldBldr development environment loaded!"
+    echo "Platform: ${if isDarwin then "macOS (Darwin)" else if isLinux then "Linux" else "Unknown"}"
     echo ""
     echo "Available tasks:"
     echo "  task backend     - Run the Engine backend"
@@ -99,8 +113,7 @@ pkgs.mkShell {
     echo "  task check       - Check all crates"
     echo "  task build       - Build all crates"
     echo ""
+    echo "Note: For better reproducibility, consider using: nix develop (flake)"
+    echo ""
   '';
-
-  # Use lld for faster linking (optional, remove if causing issues)
-  # CARGO_BUILD_RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
 }
