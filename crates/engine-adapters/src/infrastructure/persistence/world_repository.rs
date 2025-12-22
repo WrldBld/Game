@@ -207,7 +207,14 @@ fn row_to_world(row: Row) -> Result<World> {
             RuleSystemConfig::from_variant(RuleSystemVariant::PoweredByApocalypse)
         }
         wrldbldr_protocol::RuleSystemVariant::Custom(name) => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::Custom(name))
+            // Preserve well-known generic/named variants that are serialized via `Custom`
+            let variant = match name.as_str() {
+                "generic_d20" => RuleSystemVariant::GenericD20,
+                "generic_d100" => RuleSystemVariant::GenericD100,
+                "kids_on_bikes" => RuleSystemVariant::KidsOnBikes,
+                _ => RuleSystemVariant::Custom(name),
+            };
+            RuleSystemConfig::from_variant(variant)
         }
     };
     let created_at =

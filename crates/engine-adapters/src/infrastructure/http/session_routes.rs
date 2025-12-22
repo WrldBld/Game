@@ -201,25 +201,44 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
         description: player_snapshot.world.description.clone(),
         rule_system: match &player_snapshot.world.rule_system.variant {
             wrldbldr_protocol::RuleSystemVariant::DnD5e => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::Dnd5e)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::Dnd5e,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::Pathfinder2e => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::Pathfinder2e)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::Pathfinder2e,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::CallOfCthulhu => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::CallOfCthulhu7e)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::CallOfCthulhu7e,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::RuneQuest => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::RuneQuest)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::RuneQuest,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::FateCore => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::FateCore)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::FateCore,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::PbtA => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::PoweredByApocalypse)
+                wrldbldr_domain::RuleSystemConfig::from_variant(
+                    wrldbldr_domain::RuleSystemVariant::PoweredByApocalypse,
+                )
             }
             wrldbldr_protocol::RuleSystemVariant::Custom(name) => {
-                wrldbldr_domain::RuleSystemConfig::from_variant(wrldbldr_domain::RuleSystemVariant::Custom(name.clone()))
+                // Preserve well-known generic/named variants that are serialized via `Custom`
+                let variant = match name.as_str() {
+                    "generic_d20" => wrldbldr_domain::RuleSystemVariant::GenericD20,
+                    "generic_d100" => wrldbldr_domain::RuleSystemVariant::GenericD100,
+                    "kids_on_bikes" => wrldbldr_domain::RuleSystemVariant::KidsOnBikes,
+                    _ => wrldbldr_domain::RuleSystemVariant::Custom(name.clone()),
+                };
+                wrldbldr_domain::RuleSystemConfig::from_variant(variant)
             }
         },
 
