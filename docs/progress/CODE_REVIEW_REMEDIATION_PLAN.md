@@ -26,12 +26,12 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 **Estimated:** 30 minutes
 
 ### 1.1 Delete `websocket_handlers/` module
-- **Location:** `crates/engine/src/infrastructure/websocket_handlers/`
+- **Location:** `crates/engine-adapters/src/infrastructure/websocket_handlers/` *(historical path; crate now removed)*
 - **Issue:** Declares 6 non-existent submodules (compilation would fail)
-- **Action:** Delete entire directory and remove from `infrastructure/mod.rs`
+- **Action:** Delete entire directory and remove from `crates/engine-adapters/src/infrastructure/mod.rs`
 
 ### 1.2 Remove empty `shared/` module
-- **Location:** `crates/player/src/presentation/components/shared/`
+- **Location:** legacy `crates/player/src/presentation/components/shared/` (now lives under `crates/player-ui/src/presentation/...`)
 - **Action:** Delete module and remove from `components/mod.rs`
 
 ### 1.3 Remove unused Player components
@@ -39,7 +39,7 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 - `CompactActionPanel` (`action_panel.rs:237`) - mobile view deferred
 
 ### 1.4 Fix architecture violation
-- **Location:** `crates/player/src/presentation/services.rs:74-88`
+- **Location:** legacy `crates/player/src/presentation/services.rs:74-88` (now lives under `crates/player-ui/src/presentation/...`)
 - **Issue:** 15 type aliases directly import `infrastructure::http_client::ApiAdapter`
 - **Action:** Documented as approved violation with justification in services.rs header
 
@@ -59,9 +59,9 @@ This plan addresses findings from a comprehensive code review of the Engine and 
 - Exported SkillsDisplay from tactical module
 
 ### Files Modified
-- `crates/player/src/presentation/components/action_panel.rs`
-- `crates/player/src/presentation/components/tactical/mod.rs`
-- `crates/player/src/presentation/views/pc_view.rs`
+- `crates/player-ui/src/presentation/components/action_panel.rs`
+- `crates/player-ui/src/presentation/components/tactical/mod.rs`
+- `crates/player-ui/src/presentation/views/pc_view.rs`
 
 ---
 

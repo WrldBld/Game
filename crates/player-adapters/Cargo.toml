@@ -1,0 +1,49 @@
+[package]
+name = "wrldbldr-player-adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Player Adapters - Infrastructure (http/ws/platform)"
+
+[dependencies]
+wrldbldr-player-app = { workspace = true }
+wrldbldr-player-ports = { workspace = true }
+wrldbldr-protocol = { workspace = true }
+wrldbldr-domain = { workspace = true }
+
+# Shared
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+futures-util = { workspace = true }
+futures-channel = { workspace = true }
+
+# Desktop
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tracing-subscriber = { workspace = true }
+reqwest = { version = "0.12", features = ["json"] }
+rand = { workspace = true }
+
+# WASM
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
+js-sys = { workspace = true }
+console_error_panic_hook = { workspace = true }
+tracing-wasm = { workspace = true }
+gloo-timers = { workspace = true }
+gloo-net = { workspace = true }
+
+[lints]
+workspace = true

@@ -155,12 +155,14 @@ impl Default for MonomythStage {
 /// Game time representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameTime {
-    /// Day number (1-based)
+    /// Day number (currently ordinal-style, 1-based; calendar is planned)
     pub day: u32,
     /// Hour (0-23)
     pub hour: u8,
     /// Minute (0-59)
     pub minute: u8,
+    /// Whether time is paused
+    pub is_paused: bool,
 }
 
 impl Default for GameTime {
@@ -169,33 +171,19 @@ impl Default for GameTime {
             day: 1,
             hour: 8,
             minute: 0,
+            is_paused: true,
         }
     }
 }
 
 impl GameTime {
     /// Create a new game time
-    pub fn new(day: u32, hour: u8, minute: u8) -> Self {
-        Self { day, hour, minute }
-    }
-
-    /// Get time of day category
-    pub fn time_of_day(&self) -> TimeOfDay {
-        match self.hour {
-            5..=11 => TimeOfDay::Morning,
-            12..=17 => TimeOfDay::Afternoon,
-            18..=21 => TimeOfDay::Evening,
-            _ => TimeOfDay::Night,
+    pub fn new(day: u32, hour: u8, minute: u8, is_paused: bool) -> Self {
+        Self {
+            day,
+            hour,
+            minute,
+            is_paused,
         }
     }
-}
-
-/// Time of day category
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TimeOfDay {
-    Morning,
-    Afternoon,
-    Evening,
-    Night,
 }

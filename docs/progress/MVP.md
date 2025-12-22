@@ -102,10 +102,7 @@ Presentation Layer (Player)  → UI Components, Views, State
 
 ### Currently Accepted Violations
 
-| Location | Description | Justification |
-|----------|-------------|---------------|
-| `Player/src/presentation/services.rs` | Type aliases expose `ApiAdapter` | Composition layer pattern |
-| `Engine/src/domain/entities/*.rs` | Serde derives on some domain types | Required for JSON serialization |
+None tracked in this file. If a violation becomes necessary, track it in `docs/progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` and keep the crate dependency DAG intact.
 
 See [hexagonal-architecture.md](../architecture/hexagonal-architecture.md) for full architecture documentation.
 

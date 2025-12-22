@@ -7177,7 +7177,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
-name = "wrldbldr-engine"
+name = "wrldbldr-domain"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "uuid",
+]
+
+[[package]]
+name = "wrldbldr-engine-adapters"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -7186,6 +7199,7 @@ dependencies = [
  "chrono",
  "config",
  "dotenvy",
+ "futures-channel",
  "futures-util",
  "neo4rs",
  "rand 0.8.5",
@@ -7201,26 +7215,71 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "validator",
+ "wrldbldr-domain",
+ "wrldbldr-engine-app",
+ "wrldbldr-engine-ports",
  "wrldbldr-protocol",
 ]
 
 [[package]]
-name = "wrldbldr-player"
+name = "wrldbldr-engine-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "uuid",
+ "validator",
+ "wrldbldr-domain",
+ "wrldbldr-engine-ports",
+ "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-engine-ports"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "wrldbldr-domain",
+ "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-engine-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "wrldbldr-engine-adapters",
+]
+
+[[package]]
+name = "wrldbldr-player-adapters"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "console_error_panic_hook",
- "dioxus",
- "dotenvy",
  "futures-channel",
  "futures-util",
  "gloo-net 0.5.0",
  "gloo-timers",
  "js-sys",
  "rand 0.8.5",
- "regex-lite",
  "reqwest",
  "serde",
  "serde-wasm-bindgen",
@@ -7236,6 +7295,88 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "wrldbldr-domain",
+ "wrldbldr-player-app",
+ "wrldbldr-player-ports",
+ "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-player-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "futures-channel",
+ "regex-lite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+ "wrldbldr-domain",
+ "wrldbldr-player-ports",
+ "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-player-ports"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "url",
+ "uuid",
+ "wrldbldr-domain",
+ "wrldbldr-protocol",
+]
+
+[[package]]
+name = "wrldbldr-player-runner"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "dioxus",
+ "dioxus-desktop",
+ "getrandom 0.2.16",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-wasm",
+ "web-sys",
+ "wrldbldr-player-adapters",
+ "wrldbldr-player-app",
+ "wrldbldr-player-ports",
+ "wrldbldr-player-ui",
+]
+
+[[package]]
+name = "wrldbldr-player-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dioxus",
+ "futures-util",
+ "gloo-net 0.5.0",
+ "gloo-timers",
+ "js-sys",
+ "regex-lite",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tracing",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wrldbldr-domain",
+ "wrldbldr-player-app",
+ "wrldbldr-player-ports",
  "wrldbldr-protocol",
 ]
 
@@ -7335,6 +7476,16 @@ name = "xkeysym"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "regex-lite",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "xxhash-rust"

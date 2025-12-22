@@ -5,6 +5,8 @@ b = "build --workspace"
 c = "check --workspace"
 # Test all crates
 t = "test --workspace"
+# Architecture checks
+xtask = "run -p xtask --"
 # Run engine
 engine = "run -p wrldbldr-engine"
 # Run player (desktop)

@@ -2,12 +2,14 @@
 version: '3'
 
 vars:
-  ENGINE_DIR: ./crates/engine
-  PLAYER_DIR: ./crates/player
+  ENGINE_DIR: ./crates/engine-runner
+  PLAYER_RUNNER_DIR: ./crates/player-runner
+  PLAYER_UI_DIR: ./crates/player-ui
   PROTOCOL_DIR: ./crates/protocol
 
 env:
   RUST_LOG: info,wrldbldr_engine=debug,wrldbldr_player=debug
+  NEO4J_PASSWORD: wrldbldr123
 
 tasks:
   # ===========================================================================
@@ -27,20 +29,34 @@ tasks:
       - cargo run --bin wrldbldr-engine
     env:
       RUST_LOG: info,wrldbldr_engine=debug
+      NEO4J_PASSWORD: wrldbldr123
 
   web:dev:
     desc: Run the Player frontend in web/WASM mode with hot reload
-    dir: "{{.PLAYER_DIR}}"
     cmds:
-      - trunk serve --open
+      - task: css:build
+      - dx serve --web --open
+    dir: "{{.PLAYER_RUNNER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
+      NEO4J_PASSWORD: wrldbldr123
+
+  web:dev:headless:
+    desc: Run the Player frontend web dev (no auto-open)
+    cmds:
+      - task: css:build
+      - dx serve --web --open=false
+    dir: "{{.PLAYER_RUNNER_DIR}}"
+    env:
+      RUST_LOG: info,wrldbldr_player=debug
+      NEO4J_PASSWORD: wrldbldr123
 
   desktop:dev:
     desc: Run the Player frontend in desktop mode
-    dir: "{{.PLAYER_DIR}}"
     cmds:
-      - cargo run --bin wrldbldr-player
+      - task: css:build
+      - cargo run -p wrldbldr-player-runner --bin wrldbldr-player
+    dir: "{{.PLAYER_RUNNER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
 
@@ -61,18 +77,20 @@ tasks:
   build:engine:
     desc: Build the Engine backend
     cmds:
-      - cargo build -p wrldbldr-engine
+      - cargo build -p wrldbldr-engine-runner
 
   build:player:
     desc: Build the Player frontend (native)
     cmds:
-      - cargo build -p wrldbldr-player
+      - task: css:build
+      - cargo build -p wrldbldr-player-runner --bin wrldbldr-player
 
   build:web:
     desc: Build the Player frontend for web/WASM
-    dir: "{{.PLAYER_DIR}}"
+    dir: "{{.PLAYER_RUNNER_DIR}}"
     cmds:
-      - trunk build --release
+      - task: css:build
+      - dx build --web --release
 
   # ===========================================================================
   # Check & Test Tasks
@@ -86,12 +104,12 @@ tasks:
   check:engine:
     desc: Check Engine crate
     cmds:
-      - cargo check -p wrldbldr-engine
+      - cargo check -p wrldbldr-engine-runner
 
   check:player:
-    desc: Check Player crate
+    desc: Check Player runner crate
     cmds:
-      - cargo check -p wrldbldr-player
+      - cargo check -p wrldbldr-player-runner
 
   check:protocol:
     desc: Check Protocol crate
@@ -106,12 +124,12 @@ tasks:
   test:engine:
     desc: Run Engine tests
     cmds:
-      - cargo test -p wrldbldr-engine
+      - cargo test -p wrldbldr-engine-runner
 
   test:player:
-    desc: Run Player tests
+    desc: Run Player runner tests
     cmds:
-      - cargo test -p wrldbldr-player
+      - cargo test -p wrldbldr-player-runner
 
   test:protocol:
     desc: Run Protocol tests
@@ -149,19 +167,19 @@ tasks:
 
   css:build:
     desc: Build Tailwind CSS
-    dir: "{{.PLAYER_DIR}}"
+    dir: "{{.PLAYER_UI_DIR}}"
     cmds:
-      - npx tailwindcss -i styles/input.css -o styles/output.css
+      - npm run build:css
 
   css:watch:
     desc: Watch and rebuild Tailwind CSS
-    dir: "{{.PLAYER_DIR}}"
+    dir: "{{.PLAYER_UI_DIR}}"
     cmds:
-      - npx tailwindcss -i styles/input.css -o styles/output.css --watch
+      - npm run watch:css
 
   npm:install:
-    desc: Install npm dependencies for Player
-    dir: "{{.PLAYER_DIR}}"
+    desc: Install npm dependencies for Player UI
+    dir: "{{.PLAYER_UI_DIR}}"
     cmds:
       - npm install
 
@@ -197,8 +215,8 @@ tasks:
       - cargo clean
 
   clean:player:
-    desc: Clean Player build artifacts (including trunk dist)
-    dir: "{{.PLAYER_DIR}}"
+    desc: Clean Player build artifacts (including dx dist)
+    dir: "{{.PLAYER_RUNNER_DIR}}"
     cmds:
       - cargo clean
       - rm -rf dist/

@@ -24,6 +24,16 @@ Thumbs.db
 # Node (for Player's tailwind)
 node_modules/
 crates/player/node_modules/
+crates/player-ui/node_modules/
+crates/player-runner/node_modules/
+
+# Dioxus/Trunk build outputs
+crates/player-runner/dist/
+crates/player-runner/pkg/
+crates/player-runner/.dioxus/
+crates/player-ui/dist/
+crates/player-ui/pkg/
+crates/player-ui/.dioxus/
 
 # WASM build artifacts
 crates/player/dist/
@@ -46,6 +56,17 @@ result-*
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Local runtime data
+crates/engine-runner/data/*.db
+crates/engine-runner/data/*.db-*
+
+# Generated CSS (Tailwind output)
+crates/player-ui/assets/css/output.css
+crates/player-ui/assets/css/output.css.map
+
+# Node lockfiles are generated
+crates/player-ui/package-lock.json
 
 # Log files
 *.log

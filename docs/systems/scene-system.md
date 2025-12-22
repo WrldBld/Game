@@ -23,35 +23,35 @@ The visual novel format provides:
 
 - [x] **US-SCN-001**: As a player, I see scenes with backdrop images
   - *Implementation*: Backdrop component renders scene backdrop_asset
-  - *Files*: `Player/src/presentation/components/visual_novel/backdrop.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/backdrop.rs`
 
 - [x] **US-SCN-002**: As a player, I see character sprites positioned in the scene
   - *Implementation*: CharacterLayer renders sprites at positions from CharacterLayerData
-  - *Files*: `Player/src/presentation/components/visual_novel/character_sprite.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/character_sprite.rs`
 
 - [x] **US-SCN-003**: As a player, I see dialogue with typewriter animation
   - *Implementation*: DialogueBox with char-by-char reveal, configurable speed
-  - *Files*: `Player/src/presentation/components/visual_novel/dialogue_box.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/dialogue_box.rs`
 
 - [x] **US-SCN-004**: As a player, I can select dialogue choices
   - *Implementation*: ChoiceMenu renders choices, sends PlayerAction on selection
-  - *Files*: `Player/src/presentation/components/visual_novel/choice_menu.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/choice_menu.rs`
 
 - [x] **US-SCN-005**: As a player, I can interact with scene elements (talk, examine, travel)
   - *Implementation*: ActionPanel with interaction buttons based on scene data
-  - *Files*: `Player/src/presentation/components/action_panel.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/action_panel.rs`
 
 - [x] **US-SCN-006**: As a DM, I can create scenes tied to locations
   - *Implementation*: Scene entity with AT_LOCATION edge
-  - *Files*: `Engine/src/domain/entities/scene.rs`
+  - *Files*: `crates/domain/src/entities/scene.rs`
 
 - [x] **US-SCN-007**: As a DM, I can feature characters in scenes with roles
   - *Implementation*: FEATURES_CHARACTER edge with role and entrance_cue
-  - *Files*: `Engine/src/infrastructure/persistence/scene_repository.rs`
+  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/scene_repository.rs`
 
 - [x] **US-SCN-008**: As a DM, scenes resolve based on PC location
   - *Implementation*: SceneResolutionService finds applicable scene
-  - *Files*: `Engine/src/application/services/scene_resolution_service.rs`
+  - *Files*: `crates/engine-app/src/application/services/scene_resolution_service.rs`
 
 ### Pending
 

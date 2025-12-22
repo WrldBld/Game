@@ -17,6 +17,8 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 
 ## Node Types
 
+Node labels and properties in this document are intended to reflect the live persistence layer in `crates/engine-adapters/src/infrastructure/persistence/*` and the startup schema bootstrap in `crates/engine-adapters/src/infrastructure/persistence/connection.rs`.
+
 ### World Structure
 
 ```cypher
@@ -30,17 +32,21 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 
 (:Act {
     id: "uuid",
+    world_id: "uuid",
     name: "The Call",
     stage: "CallToAdventure",  // MonomythStage
     description: "The heroes receive their summons...",
-    order: 1
+    order_num: 1
 })
 
 (:Goal {
     id: "uuid",
+    world_id: "uuid",
     name: "Family Honor Restored",
     description: "The stain cleansed"
 })
+
+> Note: `Goal` is referenced by some edges (e.g. want targets), but there is currently no Neo4j repository that creates/updates `Goal` nodes in the persistence layer. Treat it as "optional/legacy" until the missing repository is implemented.
 ```
 
 ### Locations & Regions
@@ -48,23 +54,27 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:Location {
     id: "uuid",
+    world_id: "uuid",
     name: "The Rusty Anchor Tavern",
     description: "A dimly lit tavern...",
     location_type: "Interior",
     backdrop_asset: "/assets/backdrops/tavern.png",
-    atmosphere: "Smoky, raucous"
+    map_asset: "/assets/maps/tavern.png",
+    parent_map_bounds: "{...}",  // JSON map bounds in parent map space
+    default_region_id: "uuid",
+    atmosphere: "Smoky, raucous",
+    presence_cache_ttl_hours: 3,
+    use_llm_presence: true
 })
 
 (:Region {
     id: "uuid",
+    location_id: "uuid",
     name: "The Bar Counter",
     description: "A worn wooden counter...",
     backdrop_asset: "/assets/backdrops/bar.png",
     atmosphere: "Smoky",
-    map_bounds_x: 100,
-    map_bounds_y: 200,
-    map_bounds_width: 300,
-    map_bounds_height: 150,
+    map_bounds: "{...}",  // JSON map bounds in location map space
     is_spawn_point: false,
     order: 1
 })
@@ -75,34 +85,47 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:Character {
     id: "uuid",
+    world_id: "uuid",
     name: "Marcus the Redeemed",
     description: "A former mercenary...",
     sprite_asset: "/assets/sprites/marcus.png",
     portrait_asset: "/assets/portraits/marcus.png",
     base_archetype: "Ally",
     current_archetype: "Mentor",
+    archetype_history: "[...]",  // JSON
+    stats: "{...}",               // JSON
     is_alive: true,
     is_active: true
 })
 
 (:PlayerCharacter {
     id: "uuid",
+    session_id: "uuid" | "",  // string; empty when standalone
     user_id: "user-123",
+    world_id: "uuid",
     name: "Kira Shadowblade",
     description: "A vengeful warrior...",
     sheet_data: "{...}",  // JSON CharacterSheetData
-    created_at: datetime()
+    current_location_id: "uuid",
+    current_region_id: "uuid" | "",
+    starting_location_id: "uuid",
+    sprite_asset: "/assets/sprites/kira.png",
+    portrait_asset: "/assets/portraits/kira.png",
+    created_at: datetime(),
+    last_active_at: datetime()
 })
 
 (:Want {
     id: "uuid",
     description: "Avenge my family's murder",
     intensity: 0.9,
-    known_to_player: false
+    known_to_player: false,
+    created_at: datetime()
 })
 
 (:Item {
     id: "uuid",
+    world_id: "uuid",
     name: "Sword of the Fallen",
     description: "A blade that once belonged...",
     item_type: "Weapon",
@@ -110,13 +133,18 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
     properties: "{...}"
 })
 
+> Note: `Item` is used heavily via relationships (`POSSESSES`, `TARGETS_ITEM`, etc.), but there is currently no Neo4j repository that creates/updates `Item` nodes in the persistence layer.
+
 (:Skill {
     id: "uuid",
+    world_id: "uuid",
     name: "Persuasion",
     description: "Influence others...",
     category: "Social",
     base_attribute: "Charisma",
-    is_custom: false
+    is_custom: false,
+    is_hidden: false,
+    skill_order: 1
 })
 ```
 
@@ -125,18 +153,26 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:Scene {
     id: "uuid",
+    act_id: "uuid",
     name: "Meeting the Informant",
-    time_context: "Evening",
-    backdrop_override: null,
+    location_id: "uuid",
+    time_context: "{...}",          // JSON
+    backdrop_override: "" | "...",
+    entry_conditions: "[...]",      // JSON
+    featured_characters: "[...]",   // JSON array of character ids (legacy, edges are source of truth)
     directorial_notes: "{...}",
-    order: 1
+    order_num: 1
 })
 
-(:InteractionTemplate {
+(:Interaction {
     id: "uuid",
+    scene_id: "uuid",
     name: "Ask about the Baron",
-    interaction_type: "Dialogue",
+    interaction_type: "{...}",  // JSON
+    target: "{...}",           // JSON (legacy; edges are source of truth)
     prompt_hints: "The informant knows secrets...",
+    allowed_tools: "[...]",    // JSON
+    conditions: "[...]",       // JSON
     is_available: true,
     order: 1
 })
@@ -147,13 +183,17 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:Challenge {
     id: "uuid",
+    world_id: "uuid",
     name: "Convince the Guard",
     description: "Persuade the guard...",
     challenge_type: "SkillCheck",
-    difficulty: "Medium",
-    difficulty_class: 15,
+    difficulty_json: "{...}",            // JSON
+    outcomes_json: "{...}",              // JSON
+    triggers_json: "[...]",              // JSON
     active: true,
-    is_favorite: false
+    challenge_order: 1,
+    is_favorite: false,
+    tags_json: "[...]"                   // JSON
 })
 ```
 
@@ -162,34 +202,56 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:NarrativeEvent {
     id: "uuid",
+    world_id: "uuid",
     name: "The Baron's Arrival",
     description: "The Baron arrives...",
+    tags_json: "[...]",          // JSON
+    triggers_json: "[...]",      // JSON
+    trigger_logic: "All" | "Any" | "AtLeast(2)",
     scene_direction: "The door swings open...",
-    suggested_opening: "Well, well...",
+    suggested_opening: "" | "Well, well...",
+    outcomes_json: "[...]",      // JSON
+    default_outcome: "" | "...",
     is_active: true,
     is_triggered: false,
+    triggered_at: "" | datetime(),
+    selected_outcome: "" | "...",
     is_repeatable: false,
     trigger_count: 0,
-    priority: 10
+    delay_turns: 0,
+    expires_after_turns: -1,
+    priority: 10,
+    is_favorite: false,
+    created_at: datetime(),
+    updated_at: datetime()
 })
 
 (:EventChain {
     id: "uuid",
+    world_id: "uuid",
     name: "The Baron's Downfall",
     description: "Events leading to...",
+    events: ["uuid", "uuid"],
     is_active: true,
     current_position: 0,
-    color: "#FF5733"
+    completed_events: ["uuid"],
+    act_id: "" | "uuid",
+    tags_json: "[...]",       // JSON
+    color: "#FF5733",
+    is_favorite: false,
+    created_at: datetime(),
+    updated_at: datetime()
 })
 
 (:StoryEvent {
     id: "uuid",
-    event_type: "DialogueExchange",
+    world_id: "uuid",
+    event_type_json: "{...}",  // JSON
     timestamp: datetime(),
-    game_time: "Day 3, Evening",
+    game_time: "" | "Day 3, Evening",
     summary: "Kira spoke with Marcus...",
     is_hidden: false,
-    tags: ["plot", "marcus"]
+    tags_json: "[...]"         // JSON
 })
 ```
 
@@ -198,33 +260,43 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ```cypher
 (:GalleryAsset {
     id: "uuid",
+    entity_type: "Character" | "Location" | "Item",
+    entity_id: "uuid",
+    asset_type: "Portrait" | "Sprite" | "Backdrop" | "Map",
     file_path: "/assets/generated/abc.png",
-    thumbnail_path: "/assets/generated/abc_thumb.png",
-    asset_type: "Portrait",
-    entity_type: "Character",
-    entity_id: "character-uuid",
-    prompt: "A grizzled bartender...",
-    workflow_slot: "portrait",
-    is_active: true
+    is_active: true,
+    label: "" | "...",
+    generation_metadata: "{...}",  // JSON
+    created_at: datetime()
 })
 
 (:GenerationBatch {
     id: "uuid",
-    entity_type: "Character",
-    entity_id: "character-uuid",
-    asset_type: "Portrait",
+    world_id: "uuid",
+    entity_type: "Character" | "Location" | "Item",
+    entity_id: "uuid",
+    asset_type: "Portrait" | "Sprite" | "Backdrop" | "Map",
+    workflow: "...",
     prompt: "...",
+    negative_prompt: "" | "...",
     count: 4,
-    status: "processing",
-    completed_count: 2
+    status: "{...}",            // JSON
+    assets: "[...]",            // JSON array of asset ids
+    style_reference_id: "" | "uuid",
+    requested_at: datetime(),
+    completed_at: "" | datetime()
 })
 
 (:WorkflowConfiguration {
     id: "uuid",
-    slot: "portrait",
-    workflow_json: "{...}",
-    prompt_mappings: "[...]",
-    style_reference_mapping: "AutoDetect"
+    slot: "portrait",            // unique key (composition root)
+    name: "Portrait v1",
+    workflow_json: "{...}",      // JSON
+    prompt_mappings: "[...]",    // JSON
+    input_defaults: "[...]",     // JSON
+    locked_inputs: "[...]",      // JSON
+    created_at: datetime(),
+    updated_at: datetime()
 })
 ```
 
@@ -252,28 +324,35 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
     connection_type: "Door",
     description: "A heavy oak door",
     bidirectional: true,
-    is_locked: false
+    is_locked: false,
+    lock_description: ""
 }]->(to)
 (location)-[:HAS_REGION]->(region)
 (region)-[:CONNECTED_TO_REGION {
     description: "Door to back room",
     bidirectional: true,
-    is_locked: false
+    is_locked: false,
+    lock_description: ""
 }]->(other)
 (region)-[:EXITS_TO_LOCATION {
     description: "Exit to market",
-    arrival_region_id: "uuid"
+    arrival_region_id: "uuid",
+    is_locked: false,
+    lock_description: ""
 }]->(location)
 ```
 
 ### Character Position
 
 ```cypher
-(pc)-[:CURRENTLY_AT]->(location)
-(pc)-[:CURRENTLY_IN_REGION]->(region)
+(pc)-[:AT_LOCATION]->(location)
 (pc)-[:STARTED_AT]->(location)
-(pc)-[:STARTED_IN_REGION]->(region)
+
+(pc)-[:IN_WORLD]->(world)
+(session)-[:HAS_PC]->(pc)
 ```
+
+> Note: the current persistence layer tracks location via `AT_LOCATION`/`STARTED_AT` edges and also stores `current_location_id`/`current_region_id` as properties on `PlayerCharacter` for convenience. There are no `CURRENTLY_AT` / `CURRENTLY_IN_REGION` / `STARTED_IN_REGION` edges today.
 
 ### NPC-Location Relationships
 
@@ -336,67 +415,68 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 ### Scene Relationships
 
 ```cypher
+(act)-[:CONTAINS_SCENE]->(scene)
 (scene)-[:AT_LOCATION]->(location)
-(scene)-[:BELONGS_TO_ACT]->(act)
 (scene)-[:FEATURES_CHARACTER {role: "Primary", entrance_cue: "..."}]->(character)
-(interaction)-[:BELONGS_TO_SCENE]->(scene)
+
+(scene)-[:HAS_INTERACTION]->(interaction)
 (interaction)-[:TARGETS_CHARACTER]->(character)
-(interaction)-[:REQUIRES_ITEM]->(item)
+(interaction)-[:TARGETS_ITEM]->(item)
+(interaction)-[:TARGETS_REGION]->(region)
+(interaction)-[:REQUIRES_ITEM {consumed: false}]->(item)
 (interaction)-[:REQUIRES_CHARACTER_PRESENT]->(character)
 ```
 
 ### Challenge Relationships
 
 ```cypher
+(world)-[:CONTAINS_CHALLENGE]->(challenge)
 (challenge)-[:REQUIRES_SKILL]->(skill)
-(challenge)-[:AVAILABLE_AT_LOCATION {always_available: false, time_restriction: "Evening"}]->(location)
-(challenge)-[:AVAILABLE_AT_REGION]->(region)
-(challenge)-[:REQUIRES_COMPLETION_OF]->(prerequisite)
+
+(challenge)-[:AVAILABLE_AT {always_available: false, time_restriction: "Evening"}]->(location)
+(challenge)-[:TIED_TO_SCENE]->(scene)
+
+(challenge)-[:REQUIRES_COMPLETION_OF {success_required: true}]->(prerequisite)
 (challenge)-[:ON_SUCCESS_UNLOCKS]->(location)
 ```
+
+> Note: there are no `AVAILABLE_AT_LOCATION` / `AVAILABLE_AT_REGION` edges in the current persistence layer—availability is modeled with a single `AVAILABLE_AT` edge to `Location`.
 
 ### Event Relationships
 
 ```cypher
+(world)-[:HAS_NARRATIVE_EVENT]->(event)
+(world)-[:HAS_EVENT_CHAIN]->(chain)
+
 (event)-[:TIED_TO_LOCATION]->(location)
-(event)-[:TIED_TO_REGION]->(region)
 (event)-[:TIED_TO_SCENE]->(scene)
 (event)-[:BELONGS_TO_ACT]->(act)
-(event)-[:FEATURES_NPC {role: "Primary"}]->(character)
+(event)-[:FEATURES_NPC]->(character)
+
 (chain)-[:CONTAINS_EVENT {position: 1, is_completed: false}]->(event)
-(event)-[:CHAINS_TO {delay_turns: 2, chain_reason: "..."}]->(next)
-(event)-[:TRIGGERED_BY_ENTERING_LOCATION]->(location)
-(event)-[:TRIGGERED_BY_ENTERING_REGION]->(region)
-(event)-[:TRIGGERED_BY_TALKING_TO]->(character)
-(event)-[:TRIGGERED_BY_CHALLENGE_COMPLETE {success_required: true}]->(challenge)
-(event)-[:EFFECT_GIVES_ITEM {outcome: "success", quantity: 1}]->(item)
-(event)-[:EFFECT_MODIFIES_RELATIONSHIP {sentiment_change: 0.3}]->(character)
-(event)-[:ENABLES_CHALLENGE]->(challenge)
-(event)-[:DISABLES_CHALLENGE]->(challenge)
 ```
+
+> Note: narrative triggers/outcomes/effects are currently stored as JSON on the `NarrativeEvent` node (`triggers_json`, `outcomes_json`). Edges like `TRIGGERED_BY_*`, `EFFECT_*`, `ENABLES_CHALLENGE`, etc. are not created by the current persistence layer.
 
 ### Story Event Relationships
 
 ```cypher
+(world)-[:HAS_STORY_EVENT]->(story_event)
+
 (story_event)-[:OCCURRED_AT]->(location)
 (story_event)-[:OCCURRED_IN_SCENE]->(scene)
 (story_event)-[:OCCURRED_IN_SESSION]->(session)
 (story_event)-[:INVOLVES {role: "Speaker"}]->(character)
+
 (story_event)-[:TRIGGERED_BY_NARRATIVE]->(narrative_event)
 (story_event)-[:RECORDS_CHALLENGE]->(challenge)
 ```
 
+> Note: `Session` nodes are referenced by queries/edges (e.g. `OCCURRED_IN_SESSION`, `HAS_PC`), but this repository does not currently create them (`CREATE (s:Session ...)` is absent).
+
 ### Observation
 
-```cypher
-(pc)-[:OBSERVED_NPC {
-    location_id: "uuid",
-    region_id: "uuid",
-    game_time: datetime(),
-    observation_type: "direct",
-    notes: "..."
-}]->(npc)
-```
+Observation is currently persisted as properties on `Character` (see `wrldbldr_domain::entities::NpcObservation`) rather than via an `OBSERVED_NPC` edge.
 
 ---
 
@@ -433,6 +513,56 @@ OPTIONAL MATCH (npc3:Character)-[f:FREQUENTS_REGION]->(region)
 WHERE npc3.is_active AND (f.time_of_day = "Any" OR f.time_of_day = $time_of_day)
 RETURN collect(DISTINCT npc) + collect(DISTINCT npc2) + collect(DISTINCT npc3)
 ```
+
+---
+
+## Schema Bootstrap (Startup)
+
+Engine startup calls `Neo4jConnection::initialize_schema()` which runs a set of idempotent `CREATE CONSTRAINT ... IF NOT EXISTS` and `CREATE INDEX ... IF NOT EXISTS` statements.
+
+### Constraints
+
+- `World(id)` unique
+- `Location(id)` unique
+- `Region(id)` unique
+- `Character(id)` unique
+- `Want(id)` unique
+- `PlayerCharacter(id)` unique
+- `Scene(id)` unique
+- `Act(id)` unique
+- `Interaction(id)` unique
+- `Skill(id)` unique
+- `Challenge(id)` unique
+- `StoryEvent(id)` unique
+- `NarrativeEvent(id)` unique
+- `EventChain(id)` unique
+- `SheetTemplate(id)` unique
+- `Item(id)` unique
+- `GridMap(id)` unique
+- `Staging(id)` unique
+- `GalleryAsset(id)` unique
+- `GenerationBatch(id)` unique
+- `WorkflowConfiguration(slot)` unique
+
+### Indexes
+
+- `World(name)`
+- `Character(name)`
+- `Location(name)`
+- `Character(world_id)`
+- `Location(world_id)`
+- `Region(location_id)`
+- `Skill(world_id)`
+- `Challenge(world_id)`
+- `StoryEvent(world_id)`
+- `NarrativeEvent(world_id)`
+- `EventChain(world_id)`
+- `Scene(act_id)`
+- `SheetTemplate(world_id)`
+- `PlayerCharacter(world_id)`
+- `PlayerCharacter(session_id)`
+- `Staging(world_id)`
+- `GenerationBatch(world_id)`
 
 ---
 
