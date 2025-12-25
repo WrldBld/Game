@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use super::asset_gallery::AssetGallery;
+use super::motivations_tab::MotivationsTab;
 use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use wrldbldr_player_app::application::services::SuggestionContext;
@@ -353,6 +354,21 @@ pub fn CharacterForm(
                                         sheet_values.write().insert(field_id, value);
                                     },
                                 }
+                            }
+                        }
+                    }
+
+                    // Motivations section (only for existing NPCs)
+                    if !is_new {
+                        div {
+                            class: "motivations-section mt-6 border-t border-gray-700 pt-4",
+
+                            h3 { class: "text-gray-400 text-sm uppercase mb-3", "Motivations (Actantial Model)" }
+
+                            MotivationsTab {
+                                character_id: character_id.clone(),
+                                world_id: world_id.clone(),
+                                character_name: name.read().clone(),
                             }
                         }
                     }

@@ -201,14 +201,4 @@ impl GenerationRequest {
     }
 }
 
-/// Selection made from a completed batch
-#[derive(Debug, Clone)]
-pub struct BatchSelection {
-    pub batch_id: BatchId,
-    /// Assets to add to gallery
-    pub selected_assets: Vec<AssetId>,
-    /// Whether to discard unselected assets
-    pub discard_others: bool,
-    /// Labels to apply to selected assets
-    pub labels: Vec<Option<String>>,
-}
+

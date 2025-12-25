@@ -49,16 +49,17 @@ Navigation creates the physical framework for storytelling. Players explore the 
   - *Implementation*: `EXITS_TO_LOCATION` edge with arrival_region_id
   - *Files*: `crates/engine-adapters/src/infrastructure/persistence/region_repository.rs`
 
-### Pending
+- [x] **US-NAV-008**: As a player, I can see navigation options in the scene UI
+  - *Implementation*: `NavigationPanel` modal and `NavigationButtons` inline variant with region/exit buttons
+  - *Files*: `crates/player-ui/src/presentation/components/navigation_panel.rs`, `crates/player-ports/src/outbound/game_connection_port.rs`
 
-- [ ] **US-NAV-008**: As a player, I can see navigation options in the scene UI
-  - *Notes*: Engine sends `NavigationOptions` in `SceneChanged`, Player UI needs to render buttons
+- [x] **US-NAV-009**: As a player, I can see the current game time displayed
+  - *Implementation*: `GameTimeDisplay` component with time-of-day icons and pause indicator
+  - *Files*: `crates/player-ui/src/presentation/components/navigation_panel.rs`, `crates/player-ui/src/presentation/state/game_state.rs`
 
-- [ ] **US-NAV-009**: As a player, I can see the current game time displayed
-  - *Notes*: Engine sends `GameTimeUpdated`, Player UI needs time display component
-
-- [ ] **US-NAV-010**: As a player, I can see a mini-map of the current location with clickable regions
-  - *Notes*: Region `map_bounds` fields exist for clickable areas, UI not implemented
+- [x] **US-NAV-010**: As a player, I can see a mini-map of the current location with clickable regions
+  - *Implementation*: `MiniMap` component with map image overlay, grid fallback, and region legend
+  - *Files*: `crates/player-ui/src/presentation/components/mini_map.rs`, `crates/player-app/src/application/services/location_service.rs`
 
 ### Future Improvements
 
@@ -103,7 +104,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (Engine provides data, Player UI not implemented)
+**Status**: ✅ Implemented (US-NAV-008)
 
 ### Game Time Display
 
@@ -114,7 +115,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └──────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-009)
+**Status**: ✅ Implemented (US-NAV-009)
 
 ### Navigation Panel (Player View)
 
@@ -140,7 +141,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-008 - Engine complete, Player UI not implemented)
+**Status**: ✅ Implemented (US-NAV-008)
 
 ### Mini-map with Clickable Regions
 
@@ -175,7 +176,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-010 - Region bounds data exists, UI not implemented)
+**Status**: ✅ Implemented (US-NAV-010)
 
 ---
 
@@ -321,10 +322,10 @@ pub enum TimeOfDay {
 | Region Repository | ✅ | - | Neo4j with connections |
 | Location Service | ✅ | ✅ | Business logic |
 | HTTP Routes | ✅ | - | REST API |
-| WebSocket Navigation | ✅ | ⏳ | Engine sends, Player pending |
-| Navigation UI | - | ⏳ | Buttons for region/exit |
-| Time Display UI | - | ⏳ | Show current game time |
-| Mini-map UI | - | ⏳ | Clickable regions |
+| WebSocket Navigation | ✅ | ✅ | Full integration |
+| Navigation UI | - | ✅ | Modal + inline buttons |
+| Time Display UI | - | ✅ | Time-of-day icons |
+| Mini-map UI | - | ✅ | Clickable regions with legend |
 
 ---
 
@@ -367,4 +368,5 @@ pub enum TimeOfDay {
 
 | Date | Change |
 |------|--------|
+| 2025-12-24 | Marked US-NAV-008/009/010 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

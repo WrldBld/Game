@@ -52,13 +52,13 @@ This system creates a living world without the complexity of AI pathfinding or s
   - *Implementation*: `TriggerLocationEvent` WebSocket message, all PCs in region see it
   - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
 
-### Pending
+- [x] **US-NPC-008**: As a player, I see an NPC approach me with a description
+  - *Implementation*: `ApproachEventOverlay` modal with NPC sprite and "Continue" button
+  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/state/game_state.rs`
 
-- [ ] **US-NPC-008**: As a player, I see an NPC approach me with a description
-  - *Notes*: Engine sends `ApproachEvent`, Player UI needs approach animation/modal
-
-- [ ] **US-NPC-009**: As a player, I see location events as narrative text
-  - *Notes*: Engine sends `LocationEvent`, Player UI needs event display
+- [x] **US-NPC-009**: As a player, I see location events as narrative text
+  - *Implementation*: `LocationEventBanner` component at top of screen, click to dismiss
+  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 
 ### Future Improvements
 
@@ -96,7 +96,7 @@ This system creates a living world without the complexity of AI pathfinding or s
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-NPC-008)
 
 ### Location Event Display
 
@@ -113,7 +113,7 @@ This system creates a living world without the complexity of AI pathfinding or s
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-NPC-009)
 
 ---
 
@@ -208,9 +208,9 @@ Result: List of NPCs with presence suggestions and reasoning
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
 | NPC-Region Edges | ✅ | - | All 4 relationship types |
-| Staging System | ⏳ | ⏳ | Replaces PresenceService - see [Staging System](./staging-system.md) |
-| Approach Events | ✅ | ⏳ | Engine sends, Player pending |
-| Location Events | ✅ | ⏳ | Engine sends, Player pending |
+| Staging System | ✅ | ⏳ | Partial - see [Staging System](./staging-system.md) |
+| Approach Events | ✅ | ✅ | Full modal overlay |
+| Location Events | ✅ | ✅ | Banner with dismiss |
 | Share NPC Location | ✅ | ⏳ | Engine sends, Player pending |
 
 ---
@@ -252,5 +252,6 @@ Result: List of NPCs with presence suggestions and reasoning
 
 | Date | Change |
 |------|--------|
-| 2025-12-18 | Initial version extracted from MVP.md |
+| 2025-12-24 | Marked US-NPC-008/009 complete; updated staging status |
 | 2025-12-19 | Updated to reference Staging System for presence determination |
+| 2025-12-18 | Initial version extracted from MVP.md |

@@ -624,7 +624,7 @@ pub fn handle_server_message(
         }
 
         ServerMessage::NpcLocationShared {
-            npc_id,
+            npc_id: _npc_id,
             npc_name,
             region_name,
             notes,
@@ -636,7 +636,9 @@ pub fn handle_server_message(
                 format!("You heard that {} is at {}.", npc_name, region_name)
             };
             session_state.add_log_entry("System".to_string(), msg, true, platform);
-            // TODO (Phase 23 Player UI): Update observation/map state
+            
+            // Trigger observations refresh so UI can reload the updated observation list
+            game_state.trigger_observations_refresh();
         }
 
         // =========================================================================
@@ -656,13 +658,16 @@ pub fn handle_server_message(
                 location_id,
                 region_id
             );
+            
+            // Update selected PC in game state
+            game_state.selected_pc_id.set(Some(pc_id.clone()));
+            
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Now playing as {}", pc_name),
                 true,
                 platform,
             );
-            // TODO (Phase 23 Player UI): Update selected PC state
         }
 
         ServerMessage::SceneChanged {
@@ -670,23 +675,26 @@ pub fn handle_server_message(
             region,
             npcs_present,
             navigation,
+            region_items,
         } => {
             tracing::info!(
-                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits)",
+                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits, {} items)",
                 pc_id,
                 region.name,
                 region.location_name,
                 npcs_present.len(),
                 navigation.connected_regions.len(),
-                navigation.exits.len()
+                navigation.exits.len(),
+                region_items.len()
             );
             
-            // Update game state with navigation data
+            // Update game state with navigation data and region items
             game_state.apply_scene_changed(
                 pc_id.clone(),
                 region.clone(),
                 npcs_present,
                 navigation,
+                region_items,
             );
             
             session_state.add_log_entry(
@@ -923,6 +931,228 @@ pub fn handle_server_message(
             }).collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
+        }
+
+        // =========================================================================
+        // Inventory Updates
+        // =========================================================================
+
+        ServerMessage::ItemEquipped { pc_id, item_id: _, item_name } => {
+            tracing::info!("Item equipped for PC {}: {}", pc_id, item_name);
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Equipped {}", item_name),
+                true,
+                platform,
+            );
+            // Trigger inventory refresh - the UI will re-fetch on next render
+            game_state.trigger_inventory_refresh();
+        }
+
+        ServerMessage::ItemUnequipped { pc_id, item_id: _, item_name } => {
+            tracing::info!("Item unequipped for PC {}: {}", pc_id, item_name);
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Unequipped {}", item_name),
+                true,
+                platform,
+            );
+            game_state.trigger_inventory_refresh();
+        }
+
+        ServerMessage::ItemDropped { pc_id, item_id: _, item_name, quantity } => {
+            tracing::info!("Item dropped for PC {}: {} x{}", pc_id, item_name, quantity);
+            let msg = if quantity > 1 {
+                format!("Dropped {} x{}", item_name, quantity)
+            } else {
+                format!("Dropped {}", item_name)
+            };
+            session_state.add_log_entry("System".to_string(), msg, true, platform);
+            game_state.trigger_inventory_refresh();
+        }
+
+        ServerMessage::ItemPickedUp { pc_id, item_id, item_name } => {
+            tracing::info!("Item picked up for PC {}: {}", pc_id, item_name);
+            let msg = format!("Picked up {}", item_name);
+            session_state.add_log_entry("System".to_string(), msg, true, platform);
+            game_state.trigger_inventory_refresh();
+            // Remove the item from visible region items
+            game_state.remove_region_item(&item_id);
+        }
+
+        ServerMessage::InventoryUpdated { pc_id } => {
+            tracing::info!("Inventory updated for PC {}", pc_id);
+            game_state.trigger_inventory_refresh();
+        }
+
+        // NPC Mood messages (P1.4) - currently handled silently
+        // Future: Update DM panel with mood changes
+        ServerMessage::NpcMoodChanged { npc_id, npc_name, pc_id, mood, relationship, reason } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                npc_name = %npc_name,
+                pc_id = %pc_id,
+                mood = %mood,
+                relationship = %relationship,
+                reason = ?reason,
+                "NPC mood changed"
+            );
+            // TODO: Update DM panel state with mood change
+        }
+
+        ServerMessage::NpcMoodsResponse { pc_id, moods } => {
+            tracing::info!(
+                pc_id = %pc_id,
+                mood_count = moods.len(),
+                "Received NPC moods for PC"
+            );
+            // TODO: Update DM panel state with mood list
+        }
+
+        // =========================================================================
+        // Actantial Model / Motivations (P1.5)
+        // TODO: Implement in Step 8 of Phase 4
+        // =========================================================================
+
+        ServerMessage::NpcWantCreated { npc_id, want } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want.id,
+                "NPC want created"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::NpcWantUpdated { npc_id, want } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want.id,
+                "NPC want updated"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::NpcWantDeleted { npc_id, want_id } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want_id,
+                "NPC want deleted"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::WantTargetSet { want_id, target } => {
+            tracing::info!(
+                want_id = %want_id,
+                target_id = %target.id,
+                "Want target set"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::WantTargetRemoved { want_id } => {
+            tracing::info!(want_id = %want_id, "Want target removed");
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::ActantialViewAdded { npc_id, view } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %view.want_id,
+                target_id = %view.target_id,
+                role = ?view.role,
+                "Actantial view added"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::ActantialViewRemoved { npc_id, want_id, target_id, role } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want_id,
+                target_id = %target_id,
+                role = ?role,
+                "Actantial view removed"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::NpcActantialContextResponse { npc_id, context } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_count = context.wants.len(),
+                "Received NPC actantial context"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::WorldGoalsResponse { world_id, goals } => {
+            tracing::info!(
+                world_id = %world_id,
+                goal_count = goals.len(),
+                "Received world goals"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::GoalCreated { world_id, goal } => {
+            tracing::info!(
+                world_id = %world_id,
+                goal_id = %goal.id,
+                "Goal created"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::GoalUpdated { goal } => {
+            tracing::info!(goal_id = %goal.id, "Goal updated");
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::GoalDeleted { goal_id } => {
+            tracing::info!(goal_id = %goal_id, "Goal deleted");
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::DeflectionSuggestions { npc_id, want_id, suggestions } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want_id,
+                suggestion_count = suggestions.len(),
+                "Received deflection suggestions"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::TellsSuggestions { npc_id, want_id, suggestions } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want_id,
+                suggestion_count = suggestions.len(),
+                "Received tells suggestions"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::WantDescriptionSuggestions { npc_id, suggestions } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                suggestion_count = suggestions.len(),
+                "Received want description suggestions"
+            );
+            // TODO: Update motivations tab state
+        }
+
+        ServerMessage::ActantialReasonSuggestions { npc_id, want_id, target_id, role, suggestions } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                want_id = %want_id,
+                target_id = %target_id,
+                role = ?role,
+                suggestion_count = suggestions.len(),
+                "Received actantial reason suggestions"
+            );
+            // TODO: Update motivations tab state
         }
     }
 }

@@ -50,6 +50,8 @@ pub struct ObservationResponse {
 
 impl From<NpcObservation> for ObservationResponse {
     fn from(obs: NpcObservation) -> Self {
+        // Note: This response only has npc_id, not name/portrait.
+        // Unrevealed NPCs are handled at the summary level where names are shown.
         Self {
             npc_id: obs.npc_id.to_string(),
             location_id: obs.location_id.to_string(),

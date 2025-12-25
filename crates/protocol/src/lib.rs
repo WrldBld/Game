@@ -37,6 +37,7 @@ pub use messages::{
     NavigationTarget,
     NpcPresenceData,
     RegionData,
+    RegionItemData,
     // Scene types
     CharacterData,
     CharacterPosition,
@@ -54,6 +55,25 @@ pub use messages::{
     PreviousStagingInfo,
     StagedNpcInfo,
     WaitingPcInfo,
+    // NPC Mood types (P1.4)
+    NpcMoodData,
+    // Actantial Model types (P1.5)
+    WantData,
+    WantTargetData,
+    CreateWantData,
+    UpdateWantData,
+    ActantialActorData,
+    ActantialViewData,
+    NpcActantialContextData,
+    SocialViewsData,
+    SocialRelationData,
+    GoalData,
+    CreateGoalData,
+    UpdateGoalData,
+    WantVisibilityData,
+    ActorTypeData,
+    ActantialRoleData,
+    WantTargetTypeData,
 };
 
 // =============================================================================

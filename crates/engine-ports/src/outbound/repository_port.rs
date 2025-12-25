@@ -9,15 +9,17 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::entities::{
     Act, ActantialRole, ActantialView, AcquisitionMethod, ChainStatus, Challenge,
-    ChallengeLocationAvailability, ChallengePrerequisite, Character, CharacterSheetTemplate,
-    CharacterWant, EventChain, EventChainMembership, FeaturedNpc, FrequencyLevel, GalleryAsset,
-    GenerationBatch, Goal, GridMap, InteractionRequirement, InteractionTargetType,
-    InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location, LocationConnection,
-    NarrativeEvent, PlayerCharacter, Region, Scene, SceneCharacter, SceneCharacterRole, SheetTemplateId,
-    Skill, StoryEvent, Want, World, WorkflowConfiguration,
+    ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability, Character,
+    CharacterSheetTemplate, CharacterWant, EventChain, EventChainMembership, FeaturedNpc,
+    FrequencyLevel, GalleryAsset, GenerationBatch, Goal, GridMap, InteractionRequirement,
+    InteractionTargetType, InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location,
+    LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, Scene, SceneCharacter,
+    SceneCharacterRole, SheetTemplateId, Skill, StoryEvent, Want, World, WorkflowConfiguration,
 };
 use wrldbldr_domain::entities::WorkflowSlot;
-use wrldbldr_domain::value_objects::{RegionRelationshipType, Relationship};
+use wrldbldr_domain::value_objects::{
+    ActantialTarget, MoodLevel, NpcMoodState, RegionRelationshipType, Relationship, WantTarget,
+};
 use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
     InteractionId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
@@ -143,7 +145,7 @@ pub trait CharacterRepositoryPort: Send + Sync {
     // Actantial Views (VIEWS_AS_* edges)
     // -------------------------------------------------------------------------
 
-    /// Add an actantial view (Helper, Opponent, Sender, Receiver)
+    /// Add an actantial view toward an NPC (Helper, Opponent, Sender, Receiver)
     async fn add_actantial_view(
         &self,
         subject_id: CharacterId,
@@ -152,13 +154,26 @@ pub trait CharacterRepositoryPort: Send + Sync {
         view: &ActantialView,
     ) -> Result<()>;
 
+    /// Add an actantial view toward a PC (Helper, Opponent, Sender, Receiver)
+    ///
+    /// This allows NPCs to view player characters in actantial roles.
+    async fn add_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        view: &ActantialView,
+    ) -> Result<()>;
+
     /// Get all actantial views for a character (as subject)
+    ///
+    /// Returns views toward both NPCs and PCs using ActantialTarget.
     async fn get_actantial_views(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<(ActantialRole, CharacterId, ActantialView)>>;
+    ) -> Result<Vec<(ActantialRole, ActantialTarget, ActantialView)>>;
 
-    /// Remove an actantial view
+    /// Remove an actantial view toward an NPC
     async fn remove_actantial_view(
         &self,
         subject_id: CharacterId,
@@ -166,6 +181,24 @@ pub trait CharacterRepositoryPort: Send + Sync {
         target_id: CharacterId,
         want_id: WantId,
     ) -> Result<()>;
+
+    /// Remove an actantial view toward a PC
+    async fn remove_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        want_id: WantId,
+    ) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Want Target Resolution (TARGETS edge from Want)
+    // -------------------------------------------------------------------------
+
+    /// Get the resolved target of a want
+    ///
+    /// Returns the target with its name resolved (Character, Item, or Goal).
+    async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>>;
 
     // -------------------------------------------------------------------------
     // Inventory (POSSESSES edges to Item nodes)
@@ -183,6 +216,13 @@ pub trait CharacterRepositoryPort: Send + Sync {
 
     /// Get character's inventory
     async fn get_inventory(&self, character_id: CharacterId) -> Result<Vec<InventoryItem>>;
+
+    /// Get a single inventory item by ID
+    async fn get_inventory_item(
+        &self,
+        character_id: CharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>>;
 
     /// Update inventory item (quantity, equipped status)
     async fn update_inventory_item(
@@ -266,6 +306,42 @@ pub trait CharacterRepositoryPort: Send + Sync {
         location_id: LocationId,
         time_of_day: Option<&str>,
     ) -> Result<Vec<Character>>;
+
+    // -------------------------------------------------------------------------
+    // NPC Mood & Relationship (DISPOSITION_TOWARD edges to PlayerCharacter)
+    // -------------------------------------------------------------------------
+
+    /// Get an NPC's mood state toward a specific PC
+    async fn get_mood_toward_pc(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Option<NpcMoodState>>;
+
+    /// Set/update an NPC's mood state toward a specific PC
+    async fn set_mood_toward_pc(
+        &self,
+        mood_state: &NpcMoodState,
+    ) -> Result<()>;
+
+    /// Get mood states for multiple NPCs toward a PC (for scene context)
+    async fn get_scene_moods(
+        &self,
+        npc_ids: &[CharacterId],
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcMoodState>>;
+
+    /// Get all NPCs who have a relationship with a PC (for DM panel)
+    async fn get_all_npc_moods_for_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcMoodState>>;
+
+    /// Get the NPC's default/global mood (from Character node)
+    async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel>;
+
+    /// Set the NPC's default/global mood (on Character node)
+    async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()>;
 }
 
 // =============================================================================
@@ -341,6 +417,46 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
 
     /// Delete a player character
     async fn delete(&self, id: PlayerCharacterId) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Inventory (POSSESSES edges to Items)
+    // -------------------------------------------------------------------------
+
+    /// Add an item to PC's inventory (creates POSSESSES edge)
+    async fn add_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+        acquisition_method: Option<AcquisitionMethod>,
+    ) -> Result<()>;
+
+    /// Get all items in PC's inventory
+    async fn get_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>>;
+
+    /// Get a specific item from PC's inventory
+    async fn get_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>>;
+
+    /// Update quantity/equipped status of item in PC's inventory
+    async fn update_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+    ) -> Result<()>;
+
+    /// Remove an item from PC's inventory (deletes POSSESSES edge)
+    async fn remove_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<()>;
 }
 
 // =============================================================================
@@ -505,6 +621,64 @@ pub trait SceneRepositoryPort: Send + Sync {
 
     /// Get scenes featuring a specific character
     async fn get_scenes_for_character(&self, character_id: CharacterId) -> Result<Vec<Scene>>;
+
+    // -------------------------------------------------------------------------
+    // Scene Completion Tracking (COMPLETED_SCENE edge)
+    // -------------------------------------------------------------------------
+
+    /// Mark a scene as completed by a player character
+    async fn mark_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<()>;
+
+    /// Check if a player character has completed a scene
+    async fn is_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<bool>;
+
+    /// Get all scenes completed by a player character
+    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>>;
+}
+
+// =============================================================================
+// Game Flag Repository Port
+// =============================================================================
+
+/// Repository port for Game Flag operations
+///
+/// Flags are persistent boolean values that track game state.
+/// They can be world-scoped (shared) or PC-scoped (per-character).
+#[async_trait]
+pub trait FlagRepositoryPort: Send + Sync {
+    // -------------------------------------------------------------------------
+    // World-scoped Flags
+    // -------------------------------------------------------------------------
+
+    /// Set a world-scoped flag
+    async fn set_world_flag(&self, world_id: WorldId, flag_name: &str, value: bool) -> Result<()>;
+
+    /// Get a world-scoped flag value (returns false if not set)
+    async fn get_world_flag(&self, world_id: WorldId, flag_name: &str) -> Result<bool>;
+
+    /// Get all flags for a world
+    async fn get_world_flags(&self, world_id: WorldId) -> Result<Vec<(String, bool)>>;
+
+    // -------------------------------------------------------------------------
+    // PC-scoped Flags
+    // -------------------------------------------------------------------------
+
+    /// Set a PC-scoped flag
+    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str, value: bool) -> Result<()>;
+
+    /// Get a PC-scoped flag value (returns false if not set)
+    async fn get_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<bool>;
+
+    /// Get all flags for a player character
+    async fn get_pc_flags(&self, pc_id: PlayerCharacterId) -> Result<Vec<(String, bool)>>;
 }
 
 // =============================================================================
@@ -627,22 +801,7 @@ pub trait RelationshipRepositoryPort: Send + Sync {
     async fn get_social_network(&self, world_id: WorldId) -> Result<SocialNetwork>;
 }
 
-// =============================================================================
-// Grid Map Repository Port
-// =============================================================================
 
-/// Repository port for GridMap operations
-#[async_trait]
-pub trait GridMapRepositoryPort: Send + Sync {
-    /// Save a grid map
-    async fn save(&self, grid_map: &GridMap) -> Result<()>;
-
-    /// Get a grid map by ID
-    async fn get(&self, id: GridMapId) -> Result<Option<GridMap>>;
-
-    /// Delete a grid map
-    async fn delete(&self, id: GridMapId) -> Result<()>;
-}
 
 // =============================================================================
 // Skill Repository Port
@@ -674,6 +833,10 @@ pub trait SkillRepositoryPort: Send + Sync {
 /// Repository port for Item operations
 #[async_trait]
 pub trait ItemRepositoryPort: Send + Sync {
+    // -------------------------------------------------------------------------
+    // Core CRUD
+    // -------------------------------------------------------------------------
+
     /// Create a new item
     async fn create(&self, item: &Item) -> Result<()>;
 
@@ -691,6 +854,36 @@ pub trait ItemRepositoryPort: Send + Sync {
 
     /// Get items by type
     async fn get_by_type(&self, world_id: WorldId, item_type: &str) -> Result<Vec<Item>>;
+
+    // -------------------------------------------------------------------------
+    // Container Operations (CONTAINS edge between Items)
+    // -------------------------------------------------------------------------
+
+    /// Add an item to a container
+    ///
+    /// Returns error if container is full or cannot hold items.
+    async fn add_item_to_container(
+        &self,
+        container_id: ItemId,
+        item_id: ItemId,
+        quantity: u32,
+    ) -> Result<()>;
+
+    /// Get all items contained in a container
+    async fn get_container_contents(&self, container_id: ItemId) -> Result<Vec<(Item, u32)>>;
+
+    /// Remove an item (or quantity) from a container
+    async fn remove_item_from_container(
+        &self,
+        container_id: ItemId,
+        item_id: ItemId,
+        quantity: u32,
+    ) -> Result<()>;
+
+    /// Get container capacity (current count, max limit)
+    ///
+    /// Returns (current_count, Some(max)) if limited, (current_count, None) if unlimited.
+    async fn get_container_capacity(&self, container_id: ItemId) -> Result<(u32, Option<u32>)>;
 }
 
 // =============================================================================
@@ -907,6 +1100,33 @@ pub trait ChallengeRepositoryPort: Send + Sync {
         &self,
         challenge_id: ChallengeId,
         location_id: LocationId,
+    ) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Region Availability Edges (AVAILABLE_AT_REGION)
+    // -------------------------------------------------------------------------
+
+    /// List challenges available at a specific region (via AVAILABLE_AT_REGION edge)
+    async fn list_by_region(&self, region_id: RegionId) -> Result<Vec<Challenge>>;
+
+    /// Add a region where this challenge is available (creates AVAILABLE_AT_REGION edge)
+    async fn add_region_availability(
+        &self,
+        challenge_id: ChallengeId,
+        availability: ChallengeRegionAvailability,
+    ) -> Result<()>;
+
+    /// Get all regions where a challenge is available
+    async fn get_region_availabilities(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengeRegionAvailability>>;
+
+    /// Remove a region availability from a challenge
+    async fn remove_region_availability(
+        &self,
+        challenge_id: ChallengeId,
+        region_id: RegionId,
     ) -> Result<()>;
 
     // -------------------------------------------------------------------------
@@ -1403,32 +1623,69 @@ pub trait RegionRepositoryPort: Send + Sync {
         &self,
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>>;
+
+    // -------------------------------------------------------------------------
+    // Region Item Placement (Future - US-REGION-ITEMS)
+    // -------------------------------------------------------------------------
+
+    /// Add an item to a region (stub - not yet implemented)
+    ///
+    /// This will create a `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
+    /// Future implementation should enforce region.max_items capacity.
+    async fn add_item_to_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
+        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+    }
+
+    /// Get all items in a region (stub - not yet implemented)
+    ///
+    /// Returns items linked via `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
+    async fn get_region_items(&self, _region_id: RegionId) -> Result<Vec<Item>> {
+        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+    }
+
+    /// Remove an item from a region (stub - not yet implemented)
+    ///
+    /// Deletes the `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
+    async fn remove_item_from_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
+        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+    }
+}
+
+// =============================================================================
+// Observation Repository Port
+// =============================================================================
+
+/// Repository port for NPC Observation operations
+///
+/// Observations track when a PC has seen/met/heard about an NPC.
+/// Used for scene conditions (`KnowsCharacter`) and the Known NPCs panel.
+#[async_trait]
+pub trait ObservationRepositoryPort: Send + Sync {
+    /// Create or update an observation (upsert)
+    ///
+    /// If the PC already has an observation for this NPC, it will be updated.
+    async fn upsert(&self, observation: &NpcObservation) -> Result<()>;
+
+    /// Get all observations for a PC
+    async fn get_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>>;
+
+    /// Get the latest observation of a specific NPC by a PC
+    async fn get_latest(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<NpcObservation>>;
+
+    /// Check if a PC has observed a specific NPC
+    ///
+    /// Returns true if any observation exists (regardless of reveal status).
+    async fn has_observed(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<bool> {
+        Ok(self.get_latest(pc_id, npc_id).await?.is_some())
+    }
 }
 
 // =============================================================================
 // Repository Provider Port (Facade)
 // =============================================================================
 
-/// Facade trait providing access to all repository ports
-///
-/// This allows application services to receive a single dependency
-/// that provides access to all needed repositories.
-pub trait RepositoryProvider: Send + Sync {
-    type WorldRepo: WorldRepositoryPort;
-    type CharacterRepo: CharacterRepositoryPort;
-    type LocationRepo: LocationRepositoryPort;
-    type SceneRepo: SceneRepositoryPort;
-    type InteractionRepo: InteractionRepositoryPort;
-    type RelationshipRepo: RelationshipRepositoryPort;
-    type SkillRepo: SkillRepositoryPort;
-    type AssetRepo: AssetRepositoryPort;
 
-    fn worlds(&self) -> Self::WorldRepo;
-    fn characters(&self) -> Self::CharacterRepo;
-    fn locations(&self) -> Self::LocationRepo;
-    fn scenes(&self) -> Self::SceneRepo;
-    fn interactions(&self) -> Self::InteractionRepo;
-    fn relationships(&self) -> Self::RelationshipRepo;
-    fn skills(&self) -> Self::SkillRepo;
-    fn assets(&self) -> Self::AssetRepo;
-}

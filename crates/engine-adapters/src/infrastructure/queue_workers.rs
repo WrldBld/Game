@@ -12,7 +12,7 @@ use wrldbldr_engine_app::application::dto::{DMAction, DMActionItem};
 use wrldbldr_engine_ports::outbound::{AsyncSessionPort, QueueNotificationPort};
 use wrldbldr_engine_app::application::services::{
     DMActionQueueService, DMApprovalQueueService, InteractionService, InteractionServiceImpl,
-    NarrativeEventService, NarrativeEventServiceImpl, SceneService, SceneServiceImpl,
+    ItemServiceImpl, NarrativeEventService, NarrativeEventServiceImpl, SceneService, SceneServiceImpl,
 };
 use crate::infrastructure::session::SessionManager;
 use wrldbldr_domain::{NarrativeEventId, SceneId, SessionId};
@@ -23,7 +23,7 @@ use wrldbldr_protocol::{
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
 pub async fn approval_notification_worker(
-    approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>>>,
+    approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
     async_session_port: Arc<dyn AsyncSessionPort>,
     recovery_interval: Duration,
 ) {
@@ -103,7 +103,7 @@ pub async fn approval_notification_worker(
 /// Worker that processes DM action queue items
 pub async fn dm_action_worker(
     dm_action_queue_service: Arc<DMActionQueueService<crate::infrastructure::queues::QueueBackendEnum<DMActionItem>>>,
-    approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>>>,
+    approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
     narrative_event_service: Arc<NarrativeEventServiceImpl>,
     scene_service: Arc<SceneServiceImpl>,
     interaction_service: Arc<InteractionServiceImpl>,
@@ -161,7 +161,7 @@ pub async fn dm_action_worker(
 async fn process_dm_action(
     async_session_port: &Arc<dyn AsyncSessionPort>,
     sessions: &Arc<RwLock<SessionManager>>, // Still needed for process_decision deep dependency
-    approval_queue_service: &Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>>>,
+    approval_queue_service: &Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
     narrative_event_service: &NarrativeEventServiceImpl,
     scene_service: &SceneServiceImpl,
     interaction_service: &InteractionServiceImpl,

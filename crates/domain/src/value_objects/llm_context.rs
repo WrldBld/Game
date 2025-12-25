@@ -10,9 +10,14 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::actantial_context::ActorType;
+
 /// Request for generating an NPC response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePromptRequest {
+    /// World ID for per-world prompt template resolution (UUID string)
+    #[serde(default)]
+    pub world_id: Option<String>,
     /// The player's action that triggered this response
     pub player_action: PlayerActionContext,
     /// Current scene information
@@ -51,6 +56,20 @@ pub struct SceneContext {
     pub time_context: String,
     /// Names of characters present in the scene
     pub present_characters: Vec<String>,
+    /// Items visible in the current region (for NPC awareness)
+    #[serde(default)]
+    pub region_items: Vec<RegionItemContext>,
+}
+
+/// Context about an item visible in the current region
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionItemContext {
+    /// Item's display name
+    pub name: String,
+    /// Brief description of the item
+    pub description: Option<String>,
+    /// Type of item (e.g., "Weapon", "Key", "Quest")
+    pub item_type: Option<String>,
 }
 
 /// Context about the responding character
@@ -65,10 +84,112 @@ pub struct CharacterContext {
     pub archetype: String,
     /// Current emotional state
     pub current_mood: Option<String>,
-    /// Character's motivations and desires
-    pub wants: Vec<String>,
+    /// Character's motivations (rich actantial model context)
+    #[serde(default)]
+    pub motivations: Option<MotivationsContext>,
+    /// Character's social stance (aggregated allies/enemies)
+    #[serde(default)]
+    pub social_stance: Option<SocialStanceContext>,
     /// How this character relates to the player
     pub relationship_to_player: Option<String>,
+}
+
+// =============================================================================
+// Motivation Context (Actantial Model for LLM)
+// =============================================================================
+
+/// Complete motivations context for LLM prompt
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MotivationsContext {
+    /// Known motivations (player knows about these)
+    #[serde(default)]
+    pub known: Vec<MotivationEntry>,
+    /// Suspected motivations (player senses something)
+    #[serde(default)]
+    pub suspected: Vec<MotivationEntry>,
+    /// Secret motivations (player has no idea)
+    #[serde(default)]
+    pub secret: Vec<SecretMotivationEntry>,
+}
+
+/// A known or suspected motivation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MotivationEntry {
+    /// Description of the motivation
+    pub description: String,
+    /// Priority level (1 = primary)
+    pub priority: u32,
+    /// Intensity description (e.g., "Strong", "Moderate")
+    pub intensity: String,
+    /// What the character is targeting (if any)
+    pub target: Option<String>,
+    /// Characters who help achieve this
+    #[serde(default)]
+    pub helpers: Vec<ActantialActorEntry>,
+    /// Characters who oppose this
+    #[serde(default)]
+    pub opponents: Vec<ActantialActorEntry>,
+}
+
+/// A secret motivation with behavioral guidance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretMotivationEntry {
+    /// Description of the secret motivation
+    pub description: String,
+    /// Priority level (1 = primary)
+    pub priority: u32,
+    /// Intensity description
+    pub intensity: String,
+    /// What the character is targeting (if any)
+    pub target: Option<String>,
+    /// Characters who help achieve this
+    #[serde(default)]
+    pub helpers: Vec<ActantialActorEntry>,
+    /// Characters who oppose this
+    #[serde(default)]
+    pub opponents: Vec<ActantialActorEntry>,
+    /// Who/what initiated this motivation
+    pub sender: Option<ActantialActorEntry>,
+    /// Who benefits from this being fulfilled
+    pub receiver: Option<ActantialActorEntry>,
+    /// How to behave when probed about this secret
+    pub deflection_behavior: String,
+    /// Subtle behavioral tells that hint at this motivation
+    #[serde(default)]
+    pub tells: Vec<String>,
+}
+
+/// An actor in the actantial model (helper, opponent, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActantialActorEntry {
+    /// Name of the actor
+    pub name: String,
+    /// Whether this is an NPC or PC
+    pub actor_type: ActorType,
+    /// Reason for this role assignment
+    pub reason: String,
+}
+
+/// Social stance summary for LLM
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SocialStanceContext {
+    /// Characters the NPC considers allies
+    #[serde(default)]
+    pub allies: Vec<SocialRelationEntry>,
+    /// Characters the NPC considers enemies
+    #[serde(default)]
+    pub enemies: Vec<SocialRelationEntry>,
+}
+
+/// A social relation entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SocialRelationEntry {
+    /// Name of the character
+    pub name: String,
+    /// Whether this is an NPC or PC
+    pub character_type: ActorType,
+    /// Reasons for this relationship (aggregated from wants)
+    pub reasons: Vec<String>,
 }
 
 /// A single turn in a conversation

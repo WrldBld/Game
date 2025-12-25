@@ -13,34 +13,40 @@ use wrldbldr_engine_ports::outbound::{
     SessionManagementPort,
 };
 use crate::application::services::tool_execution_service::ToolExecutionService;
+use crate::application::services::item_service::ItemService;
 use crate::application::services::StoryEventService;
 use crate::application::dto::ApprovalItem;
 use wrldbldr_domain::value_objects::GameTool;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, SessionId};
+use wrldbldr_domain::entities::AcquisitionMethod;
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, SessionId, WorldId};
 use wrldbldr_protocol::ApprovalDecision;
+use std::collections::HashMap;
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
 const MAX_RETRY_COUNT: u32 = 3;
 
 /// Service for managing the DM approval queue
-pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>> {
+pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> {
     pub(crate) queue: Arc<Q>,
     tool_execution_service: ToolExecutionService,
     /// Story event service for recording dialogue exchanges
     story_event_service: StoryEventService,
+    /// Item service for creating items and managing inventory
+    item_service: Arc<I>,
 }
 
-impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
+impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<Q, I> {
     pub fn queue(&self) -> &Arc<Q> {
         &self.queue
     }
 
     /// Create a new DM approval queue service
-    pub fn new(queue: Arc<Q>, story_event_service: StoryEventService) -> Self {
+    pub fn new(queue: Arc<Q>, story_event_service: StoryEventService, item_service: Arc<I>) -> Self {
         Self {
             queue,
             tool_execution_service: ToolExecutionService::new(),
             story_event_service,
+            item_service,
         }
     }
 
@@ -83,14 +89,18 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
 
         let outcome = match decision {
             ApprovalDecision::Accept => {
-                self.handle_accept(session, session_id, &item.payload).await?
+                self.handle_accept(session, session_id, &item.payload, HashMap::new()).await?
+            }
+            ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+                self.handle_accept(session, session_id, &item.payload, item_recipients).await?
             }
             ApprovalDecision::AcceptWithModification {
                 modified_dialogue,
                 approved_tools,
                 rejected_tools,
+                item_recipients,
             } => {
-                self.handle_accept_modified(session, session_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools).await?
+                self.handle_accept_modified(session, session_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools, item_recipients).await?
             }
             ApprovalDecision::Reject { feedback } => {
                 self.handle_reject(&item.payload, &feedback).await?
@@ -132,6 +142,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         session: &mut S,
         session_id: SessionId,
         approval: &ApprovalItem,
+        item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
         // Broadcast the dialogue to players using ServerMessage format
         let message = serde_json::json!({
@@ -160,18 +171,34 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         self.record_dialogue_event(session, session_id, approval, &approval.proposed_dialogue)
             .await;
 
+        // Get world_id for item creation
+        let world_id = session.get_session_world_id(session_id);
+
         // Execute approved tool calls
         for tool_info in &approval.proposed_tools {
-            // Convert ProposedToolInfo to GameTool
-            // Parse the tool arguments JSON to determine tool type
-            if let Ok(tool) = self.parse_tool_from_info(tool_info) {
-                if let Err(e) = self
-                    .tool_execution_service
-                    .execute_tool(&tool, session, session_id)
-                    .await
-                {
-                    tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
-                    // Continue with other tools even if one fails
+            // Check if this is a give_item with DM-specified recipients
+            if tool_info.name == "give_item" {
+                if let Some(world_id) = world_id {
+                    self.execute_give_item_with_recipients(
+                        session,
+                        session_id,
+                        world_id,
+                        tool_info,
+                        item_recipients.get(&tool_info.id),
+                    ).await;
+                }
+            } else {
+                // Convert ProposedToolInfo to GameTool
+                // Parse the tool arguments JSON to determine tool type
+                if let Ok(tool) = self.parse_tool_from_info(tool_info) {
+                    if let Err(e) = self
+                        .tool_execution_service
+                        .execute_tool(&tool, session, session_id)
+                        .await
+                    {
+                        tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                        // Continue with other tools even if one fails
+                    }
                 }
             }
         }
@@ -190,6 +217,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         modified_dialogue: &str,
         approved_tools: &[String],
         _rejected_tools: &[String],
+        item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
         // Broadcast the modified dialogue using ServerMessage format
         let message = serde_json::json!({
@@ -218,18 +246,34 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
         self.record_dialogue_event(session, session_id, approval, modified_dialogue)
             .await;
 
+        // Get world_id for item creation
+        let world_id = session.get_session_world_id(session_id);
+
         // Execute approved tool calls (filter based on approved_tools list)
         // approved_tools contains tool IDs that should be executed
         for tool_info in &approval.proposed_tools {
             // Check if this tool is in the approved list
             if approved_tools.contains(&tool_info.id) {
-                if let Ok(tool) = self.parse_tool_from_info(tool_info) {
-                    if let Err(e) = self
-                        .tool_execution_service
-                        .execute_tool(&tool, session, session_id)
-                        .await
-                    {
-                        tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                // Check if this is a give_item with DM-specified recipients
+                if tool_info.name == "give_item" {
+                    if let Some(world_id) = world_id {
+                        self.execute_give_item_with_recipients(
+                            session,
+                            session_id,
+                            world_id,
+                            tool_info,
+                            item_recipients.get(&tool_info.id),
+                        ).await;
+                    }
+                } else {
+                    if let Ok(tool) = self.parse_tool_from_info(tool_info) {
+                        if let Err(e) = self
+                            .tool_execution_service
+                            .execute_tool(&tool, session, session_id)
+                            .await
+                        {
+                            tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                        }
                     }
                 }
             }
@@ -561,6 +605,110 @@ impl<Q: ApprovalQueuePort<ApprovalItem>> DMApprovalQueueService<Q> {
                 })
             }
             _ => Err(QueueError::Backend(format!("Unknown tool: {}", tool_info.name))),
+        }
+    }
+
+    /// Execute a give_item tool with DM-specified recipients
+    ///
+    /// If recipients is None or empty, the item is not given (DM chose not to give it).
+    /// If recipients has PC IDs, creates the item and gives it to each recipient.
+    async fn execute_give_item_with_recipients<S: SessionManagementPort>(
+        &self,
+        session: &mut S,
+        session_id: SessionId,
+        world_id: WorldId,
+        tool_info: &wrldbldr_protocol::ProposedToolInfo,
+        recipients: Option<&Vec<String>>,
+    ) {
+        let args = &tool_info.arguments;
+
+        // Parse item details from tool arguments
+        let item_name = match args.get("item_name").and_then(|v| v.as_str()) {
+            Some(name) => name.to_string(),
+            None => {
+                tracing::warn!("give_item tool missing item_name");
+                return;
+            }
+        };
+
+        let item_description = args
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        // Check if DM specified recipients
+        let recipient_ids: Vec<PlayerCharacterId> = match recipients {
+            Some(ids) if !ids.is_empty() => {
+                ids.iter()
+                    .filter_map(|id| {
+                        uuid::Uuid::parse_str(id)
+                            .ok()
+                            .map(PlayerCharacterId::from_uuid)
+                    })
+                    .collect()
+            }
+            _ => {
+                // No recipients means DM chose not to give this item
+                tracing::info!(
+                    item_name = %item_name,
+                    "DM chose not to give item (no recipients specified)"
+                );
+                return;
+            }
+        };
+
+        // Create and give items to recipients
+        match self
+            .item_service
+            .give_item_to_multiple_pcs(
+                world_id,
+                item_name.clone(),
+                item_description.clone(),
+                recipient_ids.clone(),
+                AcquisitionMethod::Gifted,
+            )
+            .await
+        {
+            Ok(results) => {
+                for result in &results {
+                    tracing::info!(
+                        item_id = %result.item.id,
+                        item_name = %result.item.name,
+                        pc_id = %result.recipient_pc_id,
+                        "Gave item to PC"
+                    );
+                }
+
+                // Log to conversation history
+                let recipient_count = results.len();
+                let desc = item_description
+                    .as_ref()
+                    .map(|d| format!(" - {}", d))
+                    .unwrap_or_default();
+                let history_msg = if recipient_count == 1 {
+                    format!("[ITEM RECEIVED] {}{}", item_name, desc)
+                } else {
+                    format!(
+                        "[ITEM RECEIVED] {} x{} (given to {} characters){}",
+                        item_name, recipient_count, recipient_count, desc
+                    )
+                };
+
+                if let Err(e) = session.add_to_conversation_history(
+                    session_id,
+                    "System",
+                    &history_msg,
+                ) {
+                    tracing::warn!("Failed to add item to conversation history: {}", e);
+                }
+            }
+            Err(e) => {
+                tracing::error!(
+                    item_name = %item_name,
+                    error = %e,
+                    "Failed to give item to PCs"
+                );
+            }
         }
     }
 }

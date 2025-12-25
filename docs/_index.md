@@ -22,6 +22,7 @@ Core gameplay mechanics, each with user stories, UI mockups, and implementation 
 | [Dialogue](systems/dialogue-system.md) | LLM integration, DM approval, tool calls | Engine ✅ Player ✅ |
 | [Scene](systems/scene-system.md) | Visual novel, backdrops, sprites, interactions | Engine ✅ Player ✅ |
 | [Asset](systems/asset-system.md) | ComfyUI, image generation, gallery | Engine ✅ Player ✅ |
+| [Prompt Template](systems/prompt-template-system.md) | Configurable LLM prompts, per-world customization | Engine ✅ Player ⏳ |
 
 ---
 

@@ -16,6 +16,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_one() -> u32 {
+    1
+}
+
 // =============================================================================
 // Client Messages (Player → Engine)
 // =============================================================================
@@ -79,6 +83,9 @@ pub enum ClientMessage {
     },
     /// Heartbeat ping
     Heartbeat,
+
+    /// Request manual ComfyUI health check
+    CheckComfyUIHealth,
 
     /// DM requests regeneration of challenge outcome(s)
     RegenerateOutcome {
@@ -200,6 +207,171 @@ pub enum ClientMessage {
         /// NPCs to pre-stage
         npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
+    },
+
+    // =========================================================================
+    // Inventory Actions
+    // =========================================================================
+
+    /// Player equips an item
+    EquipItem {
+        pc_id: String,
+        item_id: String,
+    },
+
+    /// Player unequips an item
+    UnequipItem {
+        pc_id: String,
+        item_id: String,
+    },
+
+    /// Player drops an item (destroys it for now; future: place in region)
+    DropItem {
+        pc_id: String,
+        item_id: String,
+        /// Number of items to drop (default 1)
+        #[serde(default = "default_one")]
+        quantity: u32,
+    },
+
+    /// Player picks up an item from their current region
+    PickupItem {
+        pc_id: String,
+        item_id: String,
+    },
+
+    // =========================================================================
+    // NPC Mood Control (P1.4)
+    // =========================================================================
+
+    /// DM sets an NPC's mood toward a specific PC
+    SetNpcMood {
+        npc_id: String,
+        pc_id: String,
+        mood: String,
+        #[serde(default)]
+        reason: Option<String>,
+    },
+
+    /// DM sets an NPC's relationship level toward a specific PC
+    SetNpcRelationship {
+        npc_id: String,
+        pc_id: String,
+        relationship: String,
+    },
+
+    /// DM requests all NPCs' moods toward a specific PC
+    GetNpcMoods {
+        pc_id: String,
+    },
+
+    // =========================================================================
+    // Actantial Model / Motivations (P1.5)
+    // =========================================================================
+
+    /// DM creates a new want for an NPC
+    CreateNpcWant {
+        npc_id: String,
+        want: CreateWantData,
+    },
+
+    /// DM updates an existing want
+    UpdateNpcWant {
+        npc_id: String,
+        want_id: String,
+        updates: UpdateWantData,
+    },
+
+    /// DM deletes a want
+    DeleteNpcWant {
+        npc_id: String,
+        want_id: String,
+    },
+
+    /// DM sets the target for a want
+    SetWantTarget {
+        want_id: String,
+        target_id: String,
+        target_type: WantTargetTypeData,
+    },
+
+    /// DM removes the target from a want
+    RemoveWantTarget {
+        want_id: String,
+    },
+
+    /// DM adds an actantial view (helper, opponent, sender, receiver)
+    AddActantialView {
+        npc_id: String,
+        want_id: String,
+        target_id: String,
+        target_type: ActorTypeData,
+        role: ActantialRoleData,
+        reason: String,
+    },
+
+    /// DM removes an actantial view
+    RemoveActantialView {
+        npc_id: String,
+        want_id: String,
+        target_id: String,
+        role: ActantialRoleData,
+    },
+
+    /// DM requests full actantial context for an NPC
+    GetNpcActantialContext {
+        npc_id: String,
+    },
+
+    /// DM requests all goals for a world
+    GetWorldGoals {
+        world_id: String,
+    },
+
+    /// DM creates a new goal
+    CreateGoal {
+        world_id: String,
+        goal: CreateGoalData,
+    },
+
+    /// DM updates a goal
+    UpdateGoal {
+        goal_id: String,
+        updates: UpdateGoalData,
+    },
+
+    /// DM deletes a goal
+    DeleteGoal {
+        goal_id: String,
+    },
+
+    /// DM requests LLM suggestions for deflection behavior
+    SuggestDeflectionBehavior {
+        npc_id: String,
+        want_id: String,
+        want_description: String,
+    },
+
+    /// DM requests LLM suggestions for behavioral tells
+    SuggestBehavioralTells {
+        npc_id: String,
+        want_id: String,
+        want_description: String,
+    },
+
+    /// DM requests LLM suggestions for want description
+    SuggestWantDescription {
+        npc_id: String,
+        #[serde(default)]
+        context: Option<String>,
+    },
+
+    /// DM requests LLM suggestions for actantial view reason
+    SuggestActantialReason {
+        npc_id: String,
+        want_id: String,
+        target_id: String,
+        role: ActantialRoleData,
     },
 }
 
@@ -464,6 +636,9 @@ pub enum ServerMessage {
         region: RegionData,
         npcs_present: Vec<NpcPresenceData>,
         navigation: NavigationData,
+        /// Items visible in this region (can be picked up)
+        #[serde(default)]
+        region_items: Vec<RegionItemData>,
     },
 
     /// Movement was blocked (locked door, etc.)
@@ -518,6 +693,167 @@ pub enum ServerMessage {
         request_id: String,
         /// Updated LLM-based NPC suggestions
         llm_based_npcs: Vec<StagedNpcInfo>,
+    },
+
+    // =========================================================================
+    // Inventory Updates
+    // =========================================================================
+
+    /// Item was equipped (sent to player)
+    ItemEquipped {
+        pc_id: String,
+        item_id: String,
+        item_name: String,
+    },
+
+    /// Item was unequipped (sent to player)
+    ItemUnequipped {
+        pc_id: String,
+        item_id: String,
+        item_name: String,
+    },
+
+    /// Item was dropped/destroyed (sent to player)
+    ItemDropped {
+        pc_id: String,
+        item_id: String,
+        item_name: String,
+        quantity: u32,
+    },
+
+    /// Item was picked up from region (sent to player)
+    ItemPickedUp {
+        pc_id: String,
+        item_id: String,
+        item_name: String,
+    },
+
+    /// Inventory was updated (signals client to refresh)
+    InventoryUpdated { pc_id: String },
+
+    // =========================================================================
+    // NPC Mood Updates (P1.4)
+    // =========================================================================
+
+    /// NPC mood/relationship changed (sent to DM and optionally PC)
+    NpcMoodChanged {
+        npc_id: String,
+        npc_name: String,
+        pc_id: String,
+        mood: String,
+        relationship: String,
+        #[serde(default)]
+        reason: Option<String>,
+    },
+
+    /// All NPC moods for a PC (response to GetNpcMoods)
+    NpcMoodsResponse {
+        pc_id: String,
+        moods: Vec<NpcMoodData>,
+    },
+
+    // =========================================================================
+    // Actantial Model / Motivations (P1.5)
+    // =========================================================================
+
+    /// NPC want was created (broadcast to session DMs)
+    NpcWantCreated {
+        npc_id: String,
+        want: WantData,
+    },
+
+    /// NPC want was updated (broadcast to session DMs)
+    NpcWantUpdated {
+        npc_id: String,
+        want: WantData,
+    },
+
+    /// NPC want was deleted (broadcast to session DMs)
+    NpcWantDeleted {
+        npc_id: String,
+        want_id: String,
+    },
+
+    /// Want target was set
+    WantTargetSet {
+        want_id: String,
+        target: WantTargetData,
+    },
+
+    /// Want target was removed
+    WantTargetRemoved {
+        want_id: String,
+    },
+
+    /// Actantial view was added
+    ActantialViewAdded {
+        npc_id: String,
+        view: ActantialViewData,
+    },
+
+    /// Actantial view was removed
+    ActantialViewRemoved {
+        npc_id: String,
+        want_id: String,
+        target_id: String,
+        role: ActantialRoleData,
+    },
+
+    /// Full actantial context for an NPC (response to GetNpcActantialContext)
+    NpcActantialContextResponse {
+        npc_id: String,
+        context: NpcActantialContextData,
+    },
+
+    /// All goals for a world (response to GetWorldGoals)
+    WorldGoalsResponse {
+        world_id: String,
+        goals: Vec<GoalData>,
+    },
+
+    /// Goal was created (broadcast to session)
+    GoalCreated {
+        world_id: String,
+        goal: GoalData,
+    },
+
+    /// Goal was updated (broadcast to session)
+    GoalUpdated {
+        goal: GoalData,
+    },
+
+    /// Goal was deleted (broadcast to session)
+    GoalDeleted {
+        goal_id: String,
+    },
+
+    /// LLM suggestions for deflection behavior
+    DeflectionSuggestions {
+        npc_id: String,
+        want_id: String,
+        suggestions: Vec<String>,
+    },
+
+    /// LLM suggestions for behavioral tells
+    TellsSuggestions {
+        npc_id: String,
+        want_id: String,
+        suggestions: Vec<String>,
+    },
+
+    /// LLM suggestions for want description
+    WantDescriptionSuggestions {
+        npc_id: String,
+        suggestions: Vec<String>,
+    },
+
+    /// LLM suggestions for actantial view reason
+    ActantialReasonSuggestions {
+        npc_id: String,
+        want_id: String,
+        target_id: String,
+        role: ActantialRoleData,
+        suggestions: Vec<String>,
     },
 }
 
@@ -643,6 +979,9 @@ pub struct RegionData {
     pub location_name: String,
     pub backdrop_asset: Option<String>,
     pub atmosphere: Option<String>,
+    /// Location's top-down map image for mini-map display
+    #[serde(default)]
+    pub map_asset: Option<String>,
 }
 
 /// NPC presence data for scene display
@@ -677,6 +1016,17 @@ pub struct NavigationExit {
     pub location_name: String,
     pub arrival_region_id: String,
     pub description: Option<String>,
+}
+
+/// Item data for region display (items visible in the current region)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionItemData {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub item_type: Option<String>,
 }
 
 // =============================================================================
@@ -799,4 +1149,222 @@ pub struct ApprovedNpcInfo {
     /// When true, NPC is present but hidden from players
     #[serde(default)]
     pub is_hidden_from_players: bool,
+}
+
+// =============================================================================
+// NPC Mood Types (P1.4)
+// =============================================================================
+
+/// NPC mood/relationship data for a specific PC
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NpcMoodData {
+    pub npc_id: String,
+    pub npc_name: String,
+    pub mood: String,
+    pub relationship: String,
+    /// Sentiment value (-1.0 to 1.0)
+    #[serde(default)]
+    pub sentiment: f32,
+    /// Last reason for mood change
+    #[serde(default)]
+    pub last_reason: Option<String>,
+}
+
+// =============================================================================
+// Actantial Model Types (P1.5)
+// =============================================================================
+
+/// Want visibility level - how much the player knows
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WantVisibilityData {
+    /// Player knows this motivation openly
+    Known,
+    /// Player suspects something but doesn't know details
+    Suspected,
+    /// Player has no idea (default)
+    #[default]
+    Hidden,
+}
+
+/// Type discriminator for actors (NPC vs PC)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActorTypeData {
+    Npc,
+    Pc,
+}
+
+/// Actantial role type for character views
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActantialRoleData {
+    Helper,
+    Opponent,
+    Sender,
+    Receiver,
+}
+
+/// Target type for wants
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WantTargetTypeData {
+    Character,
+    Item,
+    Goal,
+}
+
+/// Want data for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WantData {
+    pub id: String,
+    pub description: String,
+    pub intensity: f32,
+    pub priority: u32,
+    pub visibility: WantVisibilityData,
+    #[serde(default)]
+    pub target: Option<WantTargetData>,
+    #[serde(default)]
+    pub deflection_behavior: Option<String>,
+    #[serde(default)]
+    pub tells: Vec<String>,
+    /// Actantial actors for this want
+    #[serde(default)]
+    pub helpers: Vec<ActantialActorData>,
+    #[serde(default)]
+    pub opponents: Vec<ActantialActorData>,
+    #[serde(default)]
+    pub sender: Option<ActantialActorData>,
+    #[serde(default)]
+    pub receiver: Option<ActantialActorData>,
+}
+
+/// Want target data (resolved target info)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WantTargetData {
+    pub id: String,
+    pub name: String,
+    pub target_type: WantTargetTypeData,
+    /// Description for Goal targets
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Data for creating a new want
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreateWantData {
+    pub description: String,
+    #[serde(default = "default_intensity")]
+    pub intensity: f32,
+    #[serde(default = "default_priority")]
+    pub priority: u32,
+    #[serde(default)]
+    pub visibility: WantVisibilityData,
+    #[serde(default)]
+    pub target_id: Option<String>,
+    #[serde(default)]
+    pub target_type: Option<WantTargetTypeData>,
+    #[serde(default)]
+    pub deflection_behavior: Option<String>,
+    #[serde(default)]
+    pub tells: Vec<String>,
+}
+
+fn default_intensity() -> f32 {
+    0.5
+}
+
+fn default_priority() -> u32 {
+    1
+}
+
+/// Data for updating an existing want
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateWantData {
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub intensity: Option<f32>,
+    #[serde(default)]
+    pub priority: Option<u32>,
+    #[serde(default)]
+    pub visibility: Option<WantVisibilityData>,
+    #[serde(default)]
+    pub deflection_behavior: Option<String>,
+    #[serde(default)]
+    pub tells: Option<Vec<String>>,
+}
+
+/// Actantial actor data (helper, opponent, sender, receiver)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActantialActorData {
+    pub id: String,
+    pub name: String,
+    pub actor_type: ActorTypeData,
+    pub reason: String,
+}
+
+/// Actantial view data (for adding/removing views)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActantialViewData {
+    pub want_id: String,
+    pub target_id: String,
+    pub target_name: String,
+    pub target_type: ActorTypeData,
+    pub role: ActantialRoleData,
+    pub reason: String,
+}
+
+/// Goal data for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GoalData {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Number of wants targeting this goal (for UI display)
+    #[serde(default)]
+    pub usage_count: u32,
+}
+
+/// Data for creating a new goal
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreateGoalData {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Data for updating an existing goal
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateGoalData {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Full NPC actantial context data (response to GetNpcActantialContext)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NpcActantialContextData {
+    pub npc_id: String,
+    pub npc_name: String,
+    pub wants: Vec<WantData>,
+    pub social_views: SocialViewsData,
+}
+
+/// Social views summary data
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SocialViewsData {
+    pub allies: Vec<SocialRelationData>,
+    pub enemies: Vec<SocialRelationData>,
+}
+
+/// Social relation data (ally or enemy)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SocialRelationData {
+    pub id: String,
+    pub name: String,
+    pub actor_type: ActorTypeData,
+    pub reasons: Vec<String>,
 }

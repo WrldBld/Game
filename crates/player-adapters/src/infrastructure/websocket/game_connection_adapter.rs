@@ -11,7 +11,7 @@ use std::sync::{
 
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 use wrldbldr_protocol::{
-    ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ClientMessage, DiceInputType, DirectorialContext, ParticipantRole,
+    AdHocOutcomes, ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ClientMessage, DiceInputType, DirectorialContext, ParticipantRole,
 };
 use super::{ConnectionState as InfraConnectionState, EngineClient};
 
@@ -435,6 +435,140 @@ impl GameConnectionPort for EngineGameConnection {
             tokio::spawn(async move {
                 if let Err(e) = client.send(msg).await {
                     tracing::error!("Failed to send pre-stage region: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn create_adhoc_challenge(
+        &self,
+        challenge_name: &str,
+        skill_name: &str,
+        difficulty: &str,
+        target_pc_id: &str,
+        outcomes: AdHocOutcomes,
+    ) -> Result<()> {
+        let msg = ClientMessage::CreateAdHocChallenge {
+            challenge_name: challenge_name.to_string(),
+            skill_name: skill_name.to_string(),
+            difficulty: difficulty.to_string(),
+            target_pc_id: target_pc_id.to_string(),
+            outcomes,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to create ad-hoc challenge: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn equip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
+        let msg = ClientMessage::EquipItem {
+            pc_id: pc_id.to_string(),
+            item_id: item_id.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to equip item: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn unequip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
+        let msg = ClientMessage::UnequipItem {
+            pc_id: pc_id.to_string(),
+            item_id: item_id.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to unequip item: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> Result<()> {
+        let msg = ClientMessage::DropItem {
+            pc_id: pc_id.to_string(),
+            item_id: item_id.to_string(),
+            quantity,
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to drop item: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn pickup_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
+        let msg = ClientMessage::PickupItem {
+            pc_id: pc_id.to_string(),
+            item_id: item_id.to_string(),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to pick up item: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn check_comfyui_health(&self) -> Result<()> {
+        let msg = ClientMessage::CheckComfyUIHealth;
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to check ComfyUI health: {}", e);
                 }
             });
             Ok(())

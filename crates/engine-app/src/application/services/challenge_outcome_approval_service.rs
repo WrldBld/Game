@@ -16,8 +16,9 @@ use crate::application::dto::{
     OutcomeBranchesReadyNotification, OutcomeSuggestionReadyNotification, OutcomeSuggestionRequest,
     PendingChallengeResolutionDto,
 };
-use wrldbldr_engine_ports::outbound::{AsyncSessionPort, LlmPort};
-use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, SettingsService};
+use wrldbldr_engine_ports::outbound::{AsyncSessionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort};
+use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService};
+use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::SessionId;
 
 /// Error type for challenge outcome approval operations
@@ -44,10 +45,16 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     sessions: Arc<dyn AsyncSessionPort>,
     /// Outcome trigger service for executing triggers
     outcome_trigger_service: Arc<OutcomeTriggerService>,
+    /// Player Character repository for inventory management
+    pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+    /// Item repository for creating items
+    item_repository: Arc<dyn ItemRepositoryPort>,
     /// LLM port for generating outcome suggestions
     llm_port: Option<Arc<L>>,
     /// Settings service for configurable values
     settings_service: Option<Arc<SettingsService>>,
+    /// Prompt template service for resolving prompt templates
+    prompt_template_service: Arc<PromptTemplateService>,
 }
 
 impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
@@ -55,13 +62,19 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     pub fn new(
         sessions: Arc<dyn AsyncSessionPort>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
+        pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+        item_repository: Arc<dyn ItemRepositoryPort>,
+        prompt_template_service: Arc<PromptTemplateService>,
     ) -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             sessions,
             outcome_trigger_service,
+            pc_repository,
+            item_repository,
             llm_port: None,
             settings_service: None,
+            prompt_template_service,
         }
     }
 
@@ -104,7 +117,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             outcome_description: resolution.outcome_description.clone(),
             outcome_triggers: resolution
                 .outcome_triggers
-                .into_iter()
+                .iter()
                 .map(|t| wrldbldr_protocol::ProposedToolInfo {
                     id: uuid::Uuid::new_v4().to_string(),
                     name: format!("{:?}", t),
@@ -112,6 +125,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     arguments: serde_json::json!({}),
                 })
                 .collect(),
+            original_triggers: resolution.outcome_triggers,
             roll_breakdown: resolution.roll_breakdown,
             timestamp: Utc::now(),
             suggestions: None,
@@ -190,6 +204,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         guidance
                     );
 
+                    // Get world_id for template resolution
+                    let world_id = self.sessions.get_session_world_id(session_id).await;
+
                     // Build suggestion request
                     let request = OutcomeSuggestionRequest {
                         challenge_id: item.challenge_id.clone(),
@@ -203,6 +220,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         ),
                         guidance,
                         narrative_context: None,
+                        world_id: world_id.map(|w| w.to_string()),
                     };
 
                     // Spawn async task to generate suggestions
@@ -210,9 +228,10 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     let pending = self.pending.clone();
                     let sessions = self.sessions.clone();
                     let resolution_id_owned = resolution_id.to_string();
+                    let prompt_template_service = self.prompt_template_service.clone();
 
                     tokio::spawn(async move {
-                        let suggestion_service = OutcomeSuggestionService::new(llm);
+                        let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
                         match suggestion_service.generate_suggestions(&request).await {
                             Ok(suggestions) => {
                                 // Update suggestions in pending map
@@ -345,14 +364,49 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             .await
             .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
-        // Execute outcome triggers
-        // TODO: Parse outcome_triggers from ProposedToolInfo back to OutcomeTrigger
-        // For now, log that we would execute triggers
-        tracing::info!(
-            "Challenge {} resolved with outcome: {}",
-            item.challenge_id,
-            item.outcome_type
-        );
+        // Execute outcome triggers if any
+        if !item.original_triggers.is_empty() {
+            use wrldbldr_domain::entities::OutcomeTrigger;
+            
+            // Convert DTOs to domain triggers
+            let domain_triggers: Vec<OutcomeTrigger> = item
+                .original_triggers
+                .iter()
+                .cloned()
+                .map(OutcomeTrigger::from)
+                .collect();
+            
+            let result = self
+                .outcome_trigger_service
+                .execute_triggers(&domain_triggers, self.sessions.as_ref(), session_id)
+                .await;
+            
+            // Process state changes from trigger execution
+            if !result.state_changes.is_empty() {
+                if let Err(e) = self.process_state_changes(&result.state_changes, &item, session_id).await {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to process some state changes for challenge {}",
+                        item.challenge_id
+                    );
+                }
+            }
+            
+            tracing::info!(
+                trigger_count = result.trigger_count,
+                state_changes = result.state_changes.len(),
+                warnings = ?result.warnings,
+                "Executed {} outcome triggers for challenge {}",
+                result.trigger_count,
+                item.challenge_id
+            );
+        } else {
+            tracing::info!(
+                "Challenge {} resolved with outcome: {} (no triggers)",
+                item.challenge_id,
+                item.outcome_type
+            );
+        }
 
         Ok(())
     }
@@ -467,6 +521,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 guidance
             );
 
+            // Get world_id for template resolution and settings
+            let world_id = self.sessions.get_session_world_id(session_id).await;
+
             // Build suggestion request (same format)
             let request = OutcomeSuggestionRequest {
                 challenge_id: item.challenge_id.clone(),
@@ -480,6 +537,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 ),
                 guidance,
                 narrative_context: None,
+                world_id: world_id.map(|w| w.to_string()),
             };
 
             // Get settings for branch count and tokens per branch
@@ -503,9 +561,10 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             let sessions = self.sessions.clone();
             let resolution_id_owned = resolution_id.to_string();
             let outcome_type = item.outcome_type.clone();
+            let prompt_template_service = self.prompt_template_service.clone();
 
             tokio::spawn(async move {
-                let suggestion_service = OutcomeSuggestionService::new(llm);
+                let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
                 match suggestion_service.generate_branches(&request, branch_count, tokens_per_branch).await {
                     Ok(branches) => {
                         // Update pending item
@@ -600,6 +659,107 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
 
         // Remove from pending
         self.remove_pending(resolution_id).await;
+
+        Ok(())
+    }
+
+    /// Process state changes from trigger execution
+    ///
+    /// This method handles the actual application of state changes to the game world.
+    /// For example, ItemAdded changes will create the item and add it to the PC's inventory.
+    async fn process_state_changes(
+        &self,
+        state_changes: &[StateChange],
+        item: &ChallengeOutcomeApprovalItem,
+        session_id: SessionId,
+    ) -> anyhow::Result<()> {
+        use wrldbldr_domain::entities::Item;
+        use anyhow::Context;
+
+        for change in state_changes {
+            match change {
+                StateChange::ItemAdded { character, item: item_name } => {
+                    // Only handle "active_pc" for now - this refers to the character who rolled
+                    if character == "active_pc" {
+                        tracing::info!(
+                            character_id = %item.character_id,
+                            item_name = %item_name,
+                            "Processing ItemAdded state change"
+                        );
+
+                        // Get world_id from session
+                        let world_id = match self.sessions.get_session_world_id(session_id).await {
+                            Some(world_id) => world_id,
+                            None => {
+                                tracing::warn!("No world_id found for session, skipping item creation");
+                                continue;
+                            }
+                        };
+
+                        // Create a new item
+                        let new_item = Item::new(world_id, item_name.clone())
+                            .with_description("Generated from challenge outcome trigger")
+                            .with_type("Quest Item");
+
+                        // Save the item to the repository
+                        self.item_repository
+                            .create(&new_item)
+                            .await
+                            .with_context(|| format!("Failed to create item '{}'", item_name))?;
+
+                        // Add to the PC's inventory
+                        let character_id = uuid::Uuid::parse_str(&item.character_id)
+                            .with_context(|| format!("Invalid character ID: {}", item.character_id))?
+                            .into();
+                        
+                        self.pc_repository
+                            .add_inventory_item(
+                                character_id,
+                                new_item.id,
+                                1, // Default quantity
+                                false, // Not equipped by default
+                                Some(wrldbldr_domain::entities::AcquisitionMethod::Gifted), // Challenge reward
+                            )
+                            .await
+                            .with_context(|| {
+                                format!("Failed to add item '{}' to character inventory", item_name)
+                            })?;
+
+                        tracing::info!(
+                            character_id = %item.character_id,
+                            item_id = %new_item.id,
+                            item_name = %item_name,
+                            "Successfully added item to PC inventory"
+                        );
+                    } else {
+                        tracing::warn!(
+                            character = %character,
+                            item_name = %item_name,
+                            "Unhandled character reference for ItemAdded - only 'active_pc' is supported"
+                        );
+                    }
+                }
+                StateChange::InfoRevealed { .. } => {
+                    // Information revealing is already handled by adding to conversation history
+                    // No additional processing needed
+                    tracing::debug!("InfoRevealed state change - already handled in conversation history");
+                }
+                StateChange::CharacterStatUpdated { .. } => {
+                    // TODO: Implement character stat updates
+                    tracing::warn!("CharacterStatUpdated state change not yet implemented");
+                }
+                StateChange::EventTriggered { .. } => {
+                    // Event triggering is informational - no state change needed
+                    tracing::debug!("EventTriggered state change - informational only");
+                }
+                _ => {
+                    tracing::warn!(
+                        state_change = ?change,
+                        "Unhandled state change type"
+                    );
+                }
+            }
+        }
 
         Ok(())
     }

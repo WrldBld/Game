@@ -16,6 +16,7 @@ mod queue_notification_port;
 mod queue_port;
 mod repository_port;
 mod session_management_port;
+mod prompt_template_port;
 mod settings_port;
 mod staging_repository_port;
 mod world_exporter_port;
@@ -45,11 +46,15 @@ pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 
 pub use repository_port::{
     AssetRepositoryPort, ChallengeRepositoryPort, CharacterNode, CharacterRepositoryPort,
-    EventChainRepositoryPort, InteractionRepositoryPort, LocationRepositoryPort,
-    NarrativeEventRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
-    RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
-    SkillRepositoryPort, SocialNetwork, StoryEventRepositoryPort, WantRepositoryPort,
-    WorkflowRepositoryPort, WorldRepositoryPort,
+    EventChainRepositoryPort, FlagRepositoryPort, GoalRepositoryPort, InteractionRepositoryPort,
+    ItemRepositoryPort, LocationRepositoryPort, NarrativeEventRepositoryPort, ObservationRepositoryPort,
+    PlayerCharacterRepositoryPort, RegionRepositoryPort, RelationshipEdge, RelationshipRepositoryPort,
+    SceneRepositoryPort, SheetTemplateRepositoryPort, SkillRepositoryPort, SocialNetwork,
+    StoryEventRepositoryPort, WantRepositoryPort, WorkflowRepositoryPort, WorldRepositoryPort,
+};
+
+pub use prompt_template_port::{
+    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
 };
 
 pub use settings_port::{SettingsError, SettingsRepositoryPort};

@@ -622,4 +622,12 @@ impl ComfyUIPort for ComfyUIClient {
         let image_data = ComfyUIClient::get_image(self, filename, subfolder, folder_type).await?;
         Ok(image_data)
     }
+
+    async fn health_check(&self) -> Result<bool> {
+        // Use the internal health check, bypassing the cache for manual checks
+        match self.health_check_internal().await {
+            Ok(healthy) => Ok(healthy),
+            Err(_) => Ok(false),
+        }
+    }
 }

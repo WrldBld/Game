@@ -5,20 +5,43 @@
 //! - Location names, descriptions, atmosphere, features
 //! - Plot hooks and story connections
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::application::services::PromptTemplateService;
+use wrldbldr_domain::value_objects::prompt_keys;
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole};
 
 /// Service for generating content suggestions
 pub struct SuggestionService<L: LlmPort> {
     llm: L,
+    prompt_template_service: Arc<PromptTemplateService>,
 }
 
 impl<L: LlmPort> SuggestionService<L> {
     /// Create a new suggestion service
-    pub fn new(llm: L) -> Self {
-        Self { llm }
+    pub fn new(llm: L, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+        Self { llm, prompt_template_service }
+    }
+    
+    /// Parse world_id from optional string
+    fn parse_world_id(world_id: Option<&String>) -> Option<WorldId> {
+        world_id.and_then(|id| {
+            uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid)
+        })
+    }
+    
+    /// Apply placeholder substitutions to a template
+    fn apply_placeholders(template: &str, context: &SuggestionContext) -> String {
+        template
+            .replace("{entity_type}", context.entity_type.as_deref().unwrap_or("fantasy"))
+            .replace("{entity_name}", context.entity_name.as_deref().unwrap_or("this entity"))
+            .replace("{world_setting}", context.world_setting.as_deref().unwrap_or("fantasy"))
+            .replace("{hints}", context.hints.as_deref().unwrap_or(""))
+            .replace("{additional_context}", context.additional_context.as_deref().unwrap_or(""))
     }
 
     /// Generate character name suggestions
@@ -26,15 +49,11 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let prompt = format!(
-            "Generate 5 unique character names for a {} character in a {} setting. \
-            The character archetype is: {}. \
-            Return only the names, one per line, no numbering or explanations.",
-            context.entity_type.as_deref().unwrap_or("fantasy"),
-            context.world_setting.as_deref().unwrap_or("fantasy"),
-            context.hints.as_deref().unwrap_or("heroic adventurer")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_NAME)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
     }
 
@@ -43,49 +62,31 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this character");
-        let prompt = format!(
-            "Generate 3 different physical descriptions for {}. \
-            Setting: {}. Archetype: {}. \
-            Each description should be 2-3 sentences covering appearance, mannerisms, and voice. \
-            Return each description on its own line, separated by blank lines.",
-            name,
-            context.world_setting.as_deref().unwrap_or("fantasy"),
-            context.hints.as_deref().unwrap_or("mysterious stranger")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
     }
 
     /// Generate character wants/desires suggestions
     pub async fn suggest_character_wants(&self, context: &SuggestionContext) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this character");
-        let prompt = format!(
-            "Generate 4 different character motivations/wants for {}. \
-            Archetype: {}. Description: {}. \
-            Each want should be a single sentence describing what the character desires. \
-            Return each want on its own line.",
-            name,
-            context.hints.as_deref().unwrap_or("adventurer"),
-            context.additional_context.as_deref().unwrap_or("a mysterious character")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_WANTS)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
     }
 
     /// Generate character fears suggestions
     pub async fn suggest_character_fears(&self, context: &SuggestionContext) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this character");
-        let prompt = format!(
-            "Generate 4 different fears for {}. \
-            Archetype: {}. Wants: {}. \
-            Each fear should be a single sentence. Consider fears that create interesting dramatic tension. \
-            Return each fear on its own line.",
-            name,
-            context.hints.as_deref().unwrap_or("adventurer"),
-            context.additional_context.as_deref().unwrap_or("power and glory")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_FEARS)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
     }
 
@@ -94,32 +95,21 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this character");
-        let prompt = format!(
-            "Generate 2 different backstory options for {}. \
-            Archetype: {}. Wants: {}. Fears: {}. \
-            Each backstory should be 3-4 sentences covering origin, key events, and how they became who they are. \
-            Return each backstory separated by a blank line.",
-            name,
-            context.hints.as_deref().unwrap_or("adventurer"),
-            context.additional_context.as_deref().unwrap_or("success"),
-            context.world_setting.as_deref().unwrap_or("failure")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_BACKSTORY)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 2).await
     }
 
     /// Generate location name suggestions
     pub async fn suggest_location_names(&self, context: &SuggestionContext) -> Result<Vec<String>> {
-        let loc_type = context.entity_type.as_deref().unwrap_or("tavern");
-        let prompt = format!(
-            "Generate 5 unique names for a {} in a {} setting. \
-            Names should be evocative and memorable. \
-            Return only the names, one per line.",
-            loc_type,
-            context.world_setting.as_deref().unwrap_or("fantasy")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_NAME)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
     }
 
@@ -128,18 +118,11 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this location");
-        let loc_type = context.entity_type.as_deref().unwrap_or("location");
-        let prompt = format!(
-            "Generate 3 different descriptions for {} (a {}). \
-            Setting: {}. \
-            Each description should be 2-3 sentences covering what stands out visually, sounds, and smells. \
-            Return each description separated by a blank line.",
-            name,
-            loc_type,
-            context.world_setting.as_deref().unwrap_or("fantasy")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_DESCRIPTION)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
     }
 
@@ -148,18 +131,11 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this location");
-        let prompt = format!(
-            "Generate 4 different atmosphere/mood options for {}. \
-            Location type: {}. Description: {}. \
-            Each should be a short phrase (2-5 words) capturing the feel. \
-            Examples: 'Tense and watchful', 'Cozy but cluttered', 'Eerily silent'. \
-            Return each atmosphere on its own line.",
-            name,
-            context.entity_type.as_deref().unwrap_or("location"),
-            context.additional_context.as_deref().unwrap_or("a mysterious place")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
     }
 
@@ -168,17 +144,11 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this location");
-        let prompt = format!(
-            "Generate 5 notable features or points of interest for {}. \
-            Location type: {}. Atmosphere: {}. \
-            Each should be a single sentence describing something players might interact with or notice. \
-            Return each feature on its own line.",
-            name,
-            context.entity_type.as_deref().unwrap_or("location"),
-            context.hints.as_deref().unwrap_or("mysterious")
-        );
-
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_FEATURES)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
     }
 
@@ -187,17 +157,89 @@ impl<L: LlmPort> SuggestionService<L> {
         &self,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
-        let name = context.entity_name.as_deref().unwrap_or("this location");
-        let prompt = format!(
-            "Generate 3 hidden secrets that could be discovered in {}. \
-            Location type: {}. Features: {}. \
-            Each secret should be something players might find with investigation, 1-2 sentences. \
-            Return each secret separated by a blank line.",
-            name,
-            context.entity_type.as_deref().unwrap_or("location"),
-            context.additional_context.as_deref().unwrap_or("various objects")
-        );
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_SECRETS)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
+        self.generate_list(&prompt, 3).await
+    }
 
+    // === Actantial Model Suggestion Methods ===
+
+    /// Generate deflection behavior suggestions for an NPC hiding their wants
+    /// 
+    /// Context expectations:
+    /// - entity_name: NPC name
+    /// - hints: The want being hidden
+    /// - world_setting: Campaign setting
+    /// - additional_context: Character description/archetype
+    pub async fn suggest_deflection_behavior(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
+        self.generate_list(&prompt, 3).await
+    }
+
+    /// Generate behavioral tells that reveal a hidden want
+    /// 
+    /// Context expectations:
+    /// - entity_name: NPC name
+    /// - hints: The want being hidden
+    /// - world_setting: Campaign setting
+    /// - additional_context: Character description/archetype
+    pub async fn suggest_behavioral_tells(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_BEHAVIORAL_TELLS)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
+        self.generate_list(&prompt, 3).await
+    }
+
+    /// Generate want description suggestions (actantial-aware)
+    /// 
+    /// Context expectations:
+    /// - entity_name: NPC name
+    /// - hints: Character archetype
+    /// - world_setting: Campaign setting
+    /// - additional_context: Other relevant character info
+    pub async fn suggest_want_description(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_WANT_DESCRIPTION)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
+        self.generate_list(&prompt, 3).await
+    }
+
+    /// Generate reasons for actantial relationships
+    /// 
+    /// Context expectations:
+    /// - entity_name: NPC who holds this view
+    /// - hints: Target of the actantial relationship (the actor)
+    /// - additional_context: The actantial role (e.g., "a helper", "an opponent")
+    /// - world_setting: Campaign setting
+    pub async fn suggest_actantial_reason(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template = self.prompt_template_service
+            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_ACTANTIAL_REASON)
+            .await;
+        let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
     }
 
@@ -249,6 +291,9 @@ pub struct SuggestionContext {
     pub hints: Option<String>,
     /// Additional context from other fields
     pub additional_context: Option<String>,
+    /// World ID for per-world template resolution
+    #[serde(default)]
+    pub world_id: Option<String>,
 }
 
 impl Default for SuggestionContext {
@@ -259,6 +304,7 @@ impl Default for SuggestionContext {
             world_setting: Some("fantasy".to_string()),
             hints: None,
             additional_context: None,
+            world_id: None,
         }
     }
 }
@@ -286,6 +332,11 @@ pub enum SuggestionType {
     LocationAtmosphere,
     LocationFeatures,
     LocationSecrets,
+    // Actantial Model suggestions
+    DeflectionBehavior,
+    BehavioralTells,
+    WantDescription,
+    ActantialReason,
 }
 
 impl SuggestionType {
@@ -302,6 +353,11 @@ impl SuggestionType {
             SuggestionType::LocationAtmosphere => "location_atmosphere",
             SuggestionType::LocationFeatures => "location_features",
             SuggestionType::LocationSecrets => "location_secrets",
+            // Actantial Model suggestions
+            SuggestionType::DeflectionBehavior => "deflection_behavior",
+            SuggestionType::BehavioralTells => "behavioral_tells",
+            SuggestionType::WantDescription => "want_description",
+            SuggestionType::ActantialReason => "actantial_reason",
         }
     }
 }

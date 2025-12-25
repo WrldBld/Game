@@ -32,6 +32,12 @@ pub struct ActionPanelProps {
     /// Handler for skills button
     #[props(default)]
     pub on_skills: Option<EventHandler<()>>,
+    /// Handler for region items (loot) button
+    #[props(default)]
+    pub on_region_items: Option<EventHandler<()>>,
+    /// Number of items in the region (for badge display)
+    #[props(default = 0)]
+    pub region_items_count: usize,
     /// Whether all action buttons should be disabled (e.g., while waiting for response)
     #[props(default = false)]
     pub disabled: bool,
@@ -102,6 +108,17 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                     icon: "skills",
                     on_click: handler.clone(),
                     disabled: props.disabled,
+                }
+            }
+
+            // Region items (Loot) button - only shown when items exist
+            if let Some(ref handler) = props.on_region_items {
+                if props.region_items_count > 0 {
+                    LootButton {
+                        count: props.region_items_count,
+                        on_click: handler.clone(),
+                        disabled: props.disabled,
+                    }
                 }
             }
 
@@ -236,6 +253,46 @@ fn get_interaction_icon(interaction_type: &str) -> &'static str {
         "close" => "📪",
         "lock" | "unlock" => "🔐",
         _ => "✨",
+    }
+}
+
+/// Props for LootButton
+#[derive(Props, Clone, PartialEq)]
+pub struct LootButtonProps {
+    /// Number of items available
+    pub count: usize,
+    /// Click handler
+    pub on_click: EventHandler<()>,
+    /// Whether button is disabled
+    #[props(default = false)]
+    pub disabled: bool,
+}
+
+/// Loot button with item count badge
+#[component]
+pub fn LootButton(props: LootButtonProps) -> Element {
+    let opacity_class = if props.disabled { "opacity-50" } else { "opacity-100" };
+    let cursor_class = if props.disabled { "cursor-not-allowed" } else { "cursor-pointer" };
+
+    rsx! {
+        button {
+            class: "btn btn-secondary flex items-center gap-2 px-3 py-2 relative {opacity_class} {cursor_class} bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50",
+            disabled: props.disabled,
+            onclick: move |_| {
+                if !props.disabled {
+                    props.on_click.call(())
+                }
+            },
+
+            span { "📦" }
+            span { "Loot" }
+
+            // Item count badge
+            span {
+                class: "absolute -top-1 -right-1 bg-amber-500 text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center",
+                "{props.count}"
+            }
+        }
     }
 }
 

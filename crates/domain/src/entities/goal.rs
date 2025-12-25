@@ -38,3 +38,70 @@ impl Goal {
         self
     }
 }
+
+/// Common goals that can be used as templates when initializing a world.
+/// These represent universal motivations across most narrative contexts.
+pub mod common_goals {
+    /// Common goal definition with name and description
+    pub struct CommonGoalDef {
+        pub name: &'static str,
+        pub description: &'static str,
+    }
+
+    /// Default set of common goals for narrative-driven worlds
+    pub const COMMON_GOALS: &[CommonGoalDef] = &[
+        CommonGoalDef {
+            name: "Power",
+            description: "The desire to control, influence, or dominate others",
+        },
+        CommonGoalDef {
+            name: "Wealth",
+            description: "The pursuit of material riches and financial security",
+        },
+        CommonGoalDef {
+            name: "Knowledge",
+            description: "The quest for understanding, secrets, and hidden truths",
+        },
+        CommonGoalDef {
+            name: "Revenge",
+            description: "The need to settle old scores and right past wrongs",
+        },
+        CommonGoalDef {
+            name: "Justice",
+            description: "The pursuit of fairness, law, and moral order",
+        },
+        CommonGoalDef {
+            name: "Love",
+            description: "The desire for connection, romance, or familial bonds",
+        },
+        CommonGoalDef {
+            name: "Freedom",
+            description: "The yearning to escape constraints and live unbound",
+        },
+        CommonGoalDef {
+            name: "Honor",
+            description: "The pursuit of reputation, glory, and respect",
+        },
+        CommonGoalDef {
+            name: "Survival",
+            description: "The basic drive to stay alive and protect oneself",
+        },
+        CommonGoalDef {
+            name: "Peace",
+            description: "The desire for harmony, stability, and an end to conflict",
+        },
+        CommonGoalDef {
+            name: "Recognition",
+            description: "The need to be seen, acknowledged, and valued by others",
+        },
+        CommonGoalDef {
+            name: "Redemption",
+            description: "The hope to atone for past sins and find forgiveness",
+        },
+    ];
+
+    /// Get common goal names as a list of strings
+    pub fn common_goal_names() -> Vec<&'static str> {
+        COMMON_GOALS.iter().map(|g| g.name).collect()
+    }
+}

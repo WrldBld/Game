@@ -15,9 +15,9 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
-use wrldbldr_domain::entities::{Character, MapBounds, Region, RegionConnection, RegionExit, StatBlock};
-use wrldbldr_domain::value_objects::{RegionFrequency, RegionRelationshipType, RegionShift};
-use wrldbldr_domain::{CharacterId, LocationId, RegionId, WorldId};
+use wrldbldr_domain::entities::{Character, Item, MapBounds, Region, RegionConnection, RegionExit, StatBlock};
+use wrldbldr_domain::value_objects::{MoodLevel, RegionFrequency, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
 
 /// Repository for Region operations
 pub struct Neo4jRegionRepository {
@@ -471,6 +471,62 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
         Neo4jRegionRepository::list_spawn_points(self, world_id).await
     }
 
+    async fn add_item_to_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id}), (i:Item {id: $item_id})
+             CREATE (r)-[:CONTAINS_ITEM {
+                 placed_at: datetime(),
+                 visibility: 'visible'
+             }]->(i)
+             RETURN r.id as region_id",
+        )
+        .param("region_id", region_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(
+            region_id = %region_id,
+            item_id = %item_id,
+            "Added item to region"
+        );
+        Ok(())
+    }
+
+    async fn get_region_items(&self, region_id: RegionId) -> Result<Vec<Item>> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[:CONTAINS_ITEM]->(i:Item)
+             RETURN i",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut items = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            items.push(row_to_item(row)?);
+        }
+
+        Ok(items)
+    }
+
+    async fn remove_item_from_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[rel:CONTAINS_ITEM]->(i:Item {id: $item_id})
+             DELETE rel
+             RETURN r.id as region_id",
+        )
+        .param("region_id", region_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(
+            region_id = %region_id,
+            item_id = %item_id,
+            "Removed item from region"
+        );
+        Ok(())
+    }
+
     async fn get_npcs_related_to_region(
         &self,
         region_id: RegionId,
@@ -528,6 +584,7 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     let current_archetype_str: String = node.get("current_archetype").unwrap_or_default();
     let is_alive: bool = node.get("is_alive").unwrap_or(true);
     let is_active: bool = node.get("is_active").unwrap_or(true);
+    let default_mood_str: String = node.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -538,6 +595,7 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     } else {
         parse_archetype(&current_archetype_str)
     };
+    let default_mood = default_mood_str.parse().unwrap_or(MoodLevel::Neutral);
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -560,5 +618,36 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
         stats: StatBlock::default(),
         is_alive,
         is_active,
+        default_mood,
+    })
+}
+
+/// Convert a Neo4j row to an Item
+fn row_to_item(row: Row) -> Result<Item> {
+    let node: neo4rs::Node = row.get("i")?;
+
+    let id_str: String = node.get("id")?;
+    let world_id_str: String = node.get("world_id")?;
+    let name: String = node.get("name")?;
+    let description: String = node.get("description").unwrap_or_default();
+    let item_type: String = node.get("item_type").unwrap_or_default();
+    let is_unique: bool = node.get("is_unique").unwrap_or(false);
+    let properties: String = node.get("properties").unwrap_or_default();
+    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
+    let container_limit: Option<i64> = node.get("container_limit").ok();
+
+    let id = uuid::Uuid::parse_str(&id_str)?;
+    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
+
+    Ok(Item {
+        id: ItemId::from_uuid(id),
+        world_id: WorldId::from_uuid(world_id),
+        name,
+        description: if description.is_empty() { None } else { Some(description) },
+        item_type: if item_type.is_empty() { None } else { Some(item_type) },
+        is_unique,
+        properties: if properties.is_empty() { None } else { Some(properties) },
+        can_contain_items,
+        container_limit: container_limit.map(|v| v as u32),
     })
 }

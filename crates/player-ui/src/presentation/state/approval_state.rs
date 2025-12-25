@@ -164,6 +164,7 @@ impl ApprovalState {
         // Normalize outcome label
         let outcome_label = match decision {
             ApprovalDecision::Accept => "accepted",
+            ApprovalDecision::AcceptWithRecipients { .. } => "accepted",
             ApprovalDecision::AcceptWithModification { .. } => "modified",
             ApprovalDecision::Reject { .. } => "rejected",
             ApprovalDecision::TakeOver { .. } => "takeover",

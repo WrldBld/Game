@@ -27,11 +27,5 @@ impl StoryArcSubTab {
         }
     }
 
-    pub(crate) fn to_route_str(&self) -> &'static str {
-        match self {
-            Self::Timeline => "timeline",
-            Self::NarrativeEvents => "events",
-            Self::EventChains => "chains",
-        }
-    }
+
 }

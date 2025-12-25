@@ -10,7 +10,7 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use wrldbldr_engine_app::application::services::GenerationEventPublisher;
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort, QueueNotificationPort, QueuePort};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueNotificationPort, QueuePort, RegionRepositoryPort};
 
 use crate::infrastructure;
 use crate::infrastructure::config::AppConfig;
@@ -79,7 +79,13 @@ pub async fn run() -> Result<()> {
         let narrative_event_service = Arc::new(state.game.narrative_event_service.clone());
         let character_repo: Arc<dyn CharacterRepositoryPort> =
             Arc::new(state.repository.characters());
+        let pc_repo: Arc<dyn PlayerCharacterRepositoryPort> =
+            Arc::new(state.repository.player_characters());
+        let region_repo: Arc<dyn RegionRepositoryPort> =
+            Arc::new(state.repository.regions());
         let settings_service = state.settings_service.clone();
+        let mood_service = state.game.mood_service.clone();
+        let actantial_service = state.game.actantial_context_service.clone();
         let notifier = service.queue().notifier();
         let recovery_interval_clone = recovery_interval;
         tokio::spawn(async move {
@@ -90,7 +96,11 @@ pub async fn run() -> Result<()> {
                 let skill_service_clone = skill_service.clone();
                 let narrative_event_service_clone = narrative_event_service.clone();
                 let character_repo_clone = character_repo.clone();
+                let pc_repo_clone = pc_repo.clone();
+                let region_repo_clone = region_repo.clone();
                 let settings_service_clone = settings_service.clone();
+                let mood_service_clone = mood_service.clone();
+                let actantial_service_clone = actantial_service.clone();
                 match service
                     .process_next(|action| {
                         let sessions = sessions_clone.clone();
@@ -98,7 +108,11 @@ pub async fn run() -> Result<()> {
                         let skill_service = skill_service_clone.clone();
                         let narrative_event_service = narrative_event_service_clone.clone();
                         let character_repo = character_repo_clone.clone();
+                        let pc_repo = pc_repo_clone.clone();
+                        let region_repo = region_repo_clone.clone();
                         let settings_service = settings_service_clone.clone();
+                        let mood_service = mood_service_clone.clone();
+                        let actantial_service = actantial_service_clone.clone();
                         async move {
                             build_prompt_from_action(
                                 &sessions,
@@ -106,7 +120,11 @@ pub async fn run() -> Result<()> {
                                 &skill_service,
                                 &narrative_event_service,
                                 &character_repo,
+                                &pc_repo,
+                                &region_repo,
                                 &settings_service,
+                                &mood_service,
+                                &actantial_service,
                                 &action,
                             )
                             .await

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_engine_app::application::dto::{ApprovalItem, AssetGenerationItem, DMActionItem, LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::{
-    AssetGenerationQueueService, DMActionQueueService, DMApprovalQueueService, LLMQueueService,
+    AssetGenerationQueueService, DMActionQueueService, DMApprovalQueueService, ItemServiceImpl, LLMQueueService,
     PlayerActionQueueService,
 };
 use crate::infrastructure::comfyui::ComfyUIClient;
@@ -37,7 +37,7 @@ pub struct QueueServices {
             crate::infrastructure::queues::InProcessNotifier,
         >,
     >,
-    pub dm_approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>>>,
+    pub dm_approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>, ItemServiceImpl>>,
 }
 
 impl QueueServices {
@@ -64,7 +64,7 @@ impl QueueServices {
                 crate::infrastructure::queues::InProcessNotifier,
             >,
         >,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>>>,
+        dm_approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>, ItemServiceImpl>>,
     ) -> Self {
         Self {
             player_action_queue_service,

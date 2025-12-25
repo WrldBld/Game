@@ -4,6 +4,7 @@ mod challenge;
 mod character;
 mod event_chain;
 mod gallery_asset;
+mod game_flag;
 mod generation_batch;
 mod goal;
 mod grid_map;
@@ -25,12 +26,13 @@ mod world;
 
 pub use challenge::{
     Challenge, ChallengeLocationAvailability, ChallengeOutcomes, ChallengePrerequisite,
-    ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor, Outcome, OutcomeType,
-    OutcomeTrigger, TriggerCondition, TriggerType,
+    ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor,
+    Outcome, OutcomeType, OutcomeTrigger, TriggerCondition, TriggerType,
 };
 pub use character::{Character, StatBlock};
 pub use event_chain::{ChainStatus, EventChain};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
+pub use game_flag::{FlagScope, GameFlag};
 pub use generation_batch::{BatchStatus, GenerationBatch, GenerationRequest};
 pub use goal::Goal;
 pub use grid_map::GridMap;
@@ -60,7 +62,7 @@ pub use story_event::{
     ItemSource, MarkerImportance, StoryEvent, StoryEventType,
 };
 pub use story_event::InfoImportance as StoryEventInfoImportance;
-pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType};
+pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType, WantVisibility};
 pub use workflow_config::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
     WorkflowConfiguration, WorkflowInput, WorkflowSlot,

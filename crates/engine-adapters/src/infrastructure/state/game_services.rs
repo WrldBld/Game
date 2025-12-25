@@ -5,10 +5,10 @@ use std::sync::Arc;
 use wrldbldr_engine_app::application::dto::ApprovalItem;
 use wrldbldr_engine_ports::outbound::LlmPort;
 use wrldbldr_engine_app::application::services::{
-    challenge_resolution_service::ChallengeResolutionService, ChallengeOutcomeApprovalService,
-    ChallengeServiceImpl, EventChainServiceImpl, EventEffectExecutor, NarrativeEventApprovalService,
-    NarrativeEventServiceImpl, PlayerCharacterServiceImpl, SkillServiceImpl, StoryEventService,
-    TriggerEvaluationService,
+    ActantialContextServiceImpl, challenge_resolution_service::ChallengeResolutionService,
+    ChallengeOutcomeApprovalService, ChallengeServiceImpl, EventChainServiceImpl, EventEffectExecutor,
+    ItemServiceImpl, MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
+    PlayerCharacterServiceImpl, SkillServiceImpl, StoryEventService, TriggerEvaluationService,
 };
 
 /// Services for game mechanics, challenges, and narrative events
@@ -27,6 +27,7 @@ pub struct GameServices<L: LlmPort> {
             crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>,
             PlayerCharacterServiceImpl,
             L,
+            ItemServiceImpl,
         >,
     >,
     pub challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
@@ -37,6 +38,10 @@ pub struct GameServices<L: LlmPort> {
     pub trigger_evaluation_service: Arc<TriggerEvaluationService>,
     /// Service for executing narrative event outcome effects (Phase 2)
     pub event_effect_executor: Arc<EventEffectExecutor>,
+    /// Service for NPC mood and relationship tracking (P1.4)
+    pub mood_service: Arc<MoodServiceImpl>,
+    /// Service for actantial model context (P1.5)
+    pub actantial_context_service: Arc<ActantialContextServiceImpl>,
 }
 
 impl<L: LlmPort + 'static> GameServices<L> {
@@ -52,6 +57,7 @@ impl<L: LlmPort + 'static> GameServices<L> {
                 crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>,
                 PlayerCharacterServiceImpl,
                 L,
+                ItemServiceImpl,
             >,
         >,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
@@ -60,6 +66,8 @@ impl<L: LlmPort + 'static> GameServices<L> {
         event_chain_service: EventChainServiceImpl,
         trigger_evaluation_service: Arc<TriggerEvaluationService>,
         event_effect_executor: Arc<EventEffectExecutor>,
+        mood_service: Arc<MoodServiceImpl>,
+        actantial_context_service: Arc<ActantialContextServiceImpl>,
     ) -> Self {
         Self {
             story_event_service,
@@ -71,6 +79,8 @@ impl<L: LlmPort + 'static> GameServices<L> {
             event_chain_service,
             trigger_evaluation_service,
             event_effect_executor,
+            mood_service,
+            actantial_context_service,
         }
     }
 }

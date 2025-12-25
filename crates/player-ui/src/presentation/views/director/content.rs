@@ -766,6 +766,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                                     modified_dialogue: dialogue.clone(),
                                                     approved_tools: approved_list,
                                                     rejected_tools: rejected_list,
+                                                    item_recipients: std::collections::HashMap::new(),
                                                 },
                                                 &platform,
                                             );

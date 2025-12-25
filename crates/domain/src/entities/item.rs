@@ -7,6 +7,13 @@
 //! ```cypher
 //! (world:World)-[:CONTAINS_ITEM]->(item:Item)
 //! (character:Character)-[:POSSESSES {quantity: 1, equipped: true}]->(item:Item)
+//! (playerCharacter:PlayerCharacter)-[:POSSESSES {quantity: 1, equipped: true}]->(item:Item)
+//! ```
+//!
+//! Container items can hold other items:
+//!
+//! ```cypher
+//! (container:Item {can_contain_items: true})-[:CONTAINS {quantity: 1, added_at: datetime()}]->(item:Item)
 //! ```
 
 use chrono::{DateTime, Utc};
@@ -26,6 +33,10 @@ pub struct Item {
     pub is_unique: bool,
     /// Item-specific properties (JSON - acceptable per ADR)
     pub properties: Option<String>,
+    /// Whether this item can contain other items (bag, chest, etc.)
+    pub can_contain_items: bool,
+    /// Maximum number of items this container can hold (None = unlimited)
+    pub container_limit: Option<u32>,
 }
 
 impl Item {
@@ -38,6 +49,8 @@ impl Item {
             item_type: None,
             is_unique: false,
             properties: None,
+            can_contain_items: false,
+            container_limit: None,
         }
     }
 
@@ -58,6 +71,19 @@ impl Item {
 
     pub fn with_properties(mut self, properties: impl Into<String>) -> Self {
         self.properties = Some(properties.into());
+        self
+    }
+
+    /// Make this item a container that can hold other items
+    pub fn as_container(mut self) -> Self {
+        self.can_contain_items = true;
+        self
+    }
+
+    /// Set the maximum number of items this container can hold
+    pub fn with_container_limit(mut self, limit: u32) -> Self {
+        self.can_contain_items = true;
+        self.container_limit = Some(limit);
         self
     }
 }

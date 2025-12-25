@@ -2,17 +2,27 @@
 //!
 //! This service determines which scene to show based on where player characters
 //! are located in the world. It handles single-location and split-party scenarios.
+//!
+//! ## Scene Entry Conditions
+//!
+//! Scenes can have entry conditions that must be met before they are shown:
+//! - `CompletedScene(SceneId)` - PC must have completed another scene
+//! - `HasItem(ItemId)` - PC must possess a specific item
+//! - `KnowsCharacter(CharacterId)` - PC must have observed/met an NPC
+//! - `FlagSet(String)` - A game flag must be set (world or PC scope)
+//! - `Custom(String)` - Custom condition (evaluated by LLM)
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use wrldbldr_engine_ports::outbound::{
+    CharacterRepositoryPort, FlagRepositoryPort, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
 };
-use wrldbldr_domain::entities::Scene;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, SessionId};
+use wrldbldr_domain::entities::{Scene, SceneCondition};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SessionId, WorldId};
 
 /// Result of scene resolution
 #[derive(Debug, Clone)]
@@ -46,6 +56,9 @@ pub trait SceneResolutionService: Send + Sync {
 pub struct SceneResolutionServiceImpl {
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
     scene_repository: Arc<dyn SceneRepositoryPort>,
+    character_repository: Arc<dyn CharacterRepositoryPort>,
+    flag_repository: Arc<dyn FlagRepositoryPort>,
+    observation_repository: Arc<dyn ObservationRepositoryPort>,
 }
 
 impl SceneResolutionServiceImpl {
@@ -53,11 +66,96 @@ impl SceneResolutionServiceImpl {
     pub fn new(
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         scene_repository: Arc<dyn SceneRepositoryPort>,
+        character_repository: Arc<dyn CharacterRepositoryPort>,
+        flag_repository: Arc<dyn FlagRepositoryPort>,
+        observation_repository: Arc<dyn ObservationRepositoryPort>,
     ) -> Self {
         Self {
             pc_repository,
             scene_repository,
+            character_repository,
+            flag_repository,
+            observation_repository,
         }
+    }
+
+    /// Evaluate whether a PC meets all entry conditions for a scene
+    async fn evaluate_conditions(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        conditions: &[SceneCondition],
+    ) -> Result<bool> {
+        for condition in conditions {
+            let met = match condition {
+                SceneCondition::CompletedScene(scene_id) => {
+                    self.scene_repository
+                        .is_scene_completed(pc_id, *scene_id)
+                        .await?
+                }
+                SceneCondition::HasItem(item_id) => {
+                    // Check if PC has this item in their inventory
+                    self.pc_repository
+                        .get_inventory_item(pc_id, *item_id)
+                        .await?
+                        .is_some()
+                }
+                SceneCondition::KnowsCharacter(character_id) => {
+                    // Check if PC has observed this NPC via ObservationRepositoryPort
+                    match self.observation_repository.has_observed(pc_id, *character_id).await {
+                        Ok(has_observed) => {
+                            if !has_observed {
+                                debug!(
+                                    pc_id = %pc_id,
+                                    character_id = %character_id,
+                                    "KnowsCharacter condition: PC has not observed this NPC"
+                                );
+                            }
+                            has_observed
+                        }
+                        Err(e) => {
+                            warn!(
+                                pc_id = %pc_id,
+                                character_id = %character_id,
+                                error = %e,
+                                "Failed to check observation, treating as not met"
+                            );
+                            false
+                        }
+                    }
+                }
+                SceneCondition::FlagSet(flag_name) => {
+                    // Check PC-scoped flag first, then world-scoped
+                    let pc_flag = self.flag_repository.get_pc_flag(pc_id, flag_name).await?;
+                    if pc_flag {
+                        true
+                    } else {
+                        self.flag_repository.get_world_flag(world_id, flag_name).await?
+                    }
+                }
+                SceneCondition::Custom(description) => {
+                    // Custom conditions would need LLM evaluation
+                    // For now, log and skip (treat as met)
+                    warn!(
+                        pc_id = %pc_id,
+                        condition = %description,
+                        "Custom scene condition not yet evaluated, treating as met"
+                    );
+                    true
+                }
+            };
+
+            if !met {
+                debug!(
+                    pc_id = %pc_id,
+                    condition = ?condition,
+                    "Scene entry condition not met"
+                );
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
     }
 }
 
@@ -160,15 +258,53 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", pc_id))?;
 
-        // Find active scene at PC's location
+        // Find scenes at PC's location
         let scenes = self
             .scene_repository
             .list_by_location(pc.current_location_id)
             .await
             .context("Failed to list scenes by location")?;
 
-        // Pick the first scene (could be enhanced to check entry conditions, order, etc.)
-        Ok(scenes.into_iter().next())
+        // Find the first scene where PC meets all entry conditions
+        for scene in scenes {
+            // Skip scenes with no entry conditions (always accessible)
+            if scene.entry_conditions.is_empty() {
+                debug!(
+                    pc_id = %pc_id,
+                    scene_id = %scene.id,
+                    "Scene has no entry conditions, selecting"
+                );
+                return Ok(Some(scene));
+            }
+
+            // Evaluate entry conditions
+            let conditions_met = self
+                .evaluate_conditions(pc_id, pc.world_id, &scene.entry_conditions)
+                .await?;
+
+            if conditions_met {
+                debug!(
+                    pc_id = %pc_id,
+                    scene_id = %scene.id,
+                    "All entry conditions met, selecting scene"
+                );
+                return Ok(Some(scene));
+            } else {
+                debug!(
+                    pc_id = %pc_id,
+                    scene_id = %scene.id,
+                    "Entry conditions not met, skipping scene"
+                );
+            }
+        }
+
+        // No scene with met conditions found
+        debug!(
+            pc_id = %pc_id,
+            location_id = %pc.current_location_id,
+            "No scene with met conditions at location"
+        );
+        Ok(None)
     }
 }
 

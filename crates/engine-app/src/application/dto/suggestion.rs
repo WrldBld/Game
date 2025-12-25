@@ -20,6 +20,9 @@ pub struct SuggestionRequestDto {
     /// Additional context from other fields
     #[serde(default)]
     pub additional_context: Option<String>,
+    /// World ID for per-world template resolution
+    #[serde(default)]
+    pub world_id: Option<String>,
 }
 
 impl From<SuggestionRequestDto> for SuggestionContext {
@@ -30,6 +33,7 @@ impl From<SuggestionRequestDto> for SuggestionContext {
             world_setting: req.world_setting,
             hints: req.hints,
             additional_context: req.additional_context,
+            world_id: req.world_id,
         }
     }
 }

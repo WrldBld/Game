@@ -199,10 +199,19 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
 ///
 /// This function formats the staging context into a prompt suitable for
 /// sending to the LLM for NPC presence reasoning.
+///
+/// # Arguments
+/// * `context` - The staging context with location/time info
+/// * `rule_suggestions` - Rule-based NPC presence suggestions
+/// * `dm_guidance` - Optional DM guidance text
+/// * `role_instructions` - Configurable role instructions from prompt template
+/// * `response_format` - Configurable response format from prompt template
 pub fn build_staging_prompt(
     context: &StagingContext,
     rule_suggestions: &[RuleBasedSuggestion],
     dm_guidance: Option<&str>,
+    role_instructions: &str,
+    response_format: &str,
 ) -> String {
     let mut prompt = format!(
         r#"You are helping determine which NPCs are present in a location for a TTRPG game.
@@ -234,11 +243,9 @@ Time: {} ({})
         prompt.push('\n');
     }
 
-    prompt.push_str(r#"## Your Role
-You may AGREE with or OVERRIDE the rules based on narrative considerations.
-Consider: story reasons, interesting opportunities, conflicts, current context.
-
-"#);
+    // Add role instructions (configurable)
+    prompt.push_str(role_instructions);
+    prompt.push('\n');
 
     // Add active events
     if !context.active_events.is_empty() {
@@ -271,13 +278,8 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
         prompt.push_str(&format!("## DM Guidance\n{}\n\n", guidance));
     }
 
-    // Add response format
-    prompt.push_str(r#"## Response Format
- Respond in JSON format with an array of objects:
- [{"name": "NPC Name", "is_present": true/false, "is_hidden_from_players": true/false, "reasoning": "Brief explanation"}]
- 
- Use is_hidden_from_players=true for NPCs that should not be visible to players yet (e.g. watching from shadows, disguised, behind a curtain).
- Be realistic and consistent. Don't have everyone present at once unless it makes sense."#);
+    // Add response format (configurable)
+    prompt.push_str(response_format);
 
     prompt
 }
@@ -285,6 +287,7 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain::value_objects::prompt_defaults;
 
     #[test]
     fn test_build_staging_prompt_basic() {
@@ -304,7 +307,13 @@ mod tests {
             ),
         ];
 
-        let prompt = build_staging_prompt(&context, &suggestions, None);
+        let prompt = build_staging_prompt(
+            &context, 
+            &suggestions, 
+            None,
+            prompt_defaults::STAGING_ROLE_INSTRUCTIONS,
+            prompt_defaults::STAGING_RESPONSE_FORMAT,
+        );
 
         assert!(prompt.contains("Town Square"));
         assert!(prompt.contains("Riverside Village"));
@@ -326,6 +335,8 @@ mod tests {
             &context,
             &[],
             Some("The thief guild is having a secret meeting tonight"),
+            prompt_defaults::STAGING_ROLE_INSTRUCTIONS,
+            prompt_defaults::STAGING_RESPONSE_FORMAT,
         );
 
         assert!(prompt.contains("DM Guidance"));

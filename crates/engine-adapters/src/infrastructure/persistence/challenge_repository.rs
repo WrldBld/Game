@@ -17,9 +17,10 @@ use super::connection::Neo4jConnection;
 use wrldbldr_engine_app::application::dto::{DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto};
 use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 use wrldbldr_domain::entities::{
-    Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeType,
+    Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,
+    ChallengeType,
 };
-use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
 
 /// Repository for Challenge operations
 pub struct Neo4jChallengeRepository {
@@ -589,6 +590,110 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
         tracing::debug!(
             "Removed location availability {} from challenge {}",
             location_id,
+            challenge_id
+        );
+        Ok(())
+    }
+
+    // -------------------------------------------------------------------------
+    // Region Availability Edges (AVAILABLE_AT_REGION)
+    // -------------------------------------------------------------------------
+
+    async fn list_by_region(&self, region_id: RegionId) -> Result<Vec<Challenge>> {
+        let q = query(
+            "MATCH (c:Challenge)-[:AVAILABLE_AT_REGION]->(r:Region {id: $region_id})
+            WHERE c.active = true
+            RETURN c
+            ORDER BY c.is_favorite DESC, c.challenge_order",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut challenges = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            challenges.push(row_to_challenge(row)?);
+        }
+
+        Ok(challenges)
+    }
+
+    async fn add_region_availability(
+        &self,
+        challenge_id: ChallengeId,
+        availability: ChallengeRegionAvailability,
+    ) -> Result<()> {
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id}), (r:Region {id: $region_id})
+            MERGE (c)-[rel:AVAILABLE_AT_REGION]->(r)
+            SET rel.always_available = $always_available,
+                rel.time_restriction = $time_restriction",
+        )
+        .param("challenge_id", challenge_id.to_string())
+        .param("region_id", availability.region_id.to_string())
+        .param("always_available", availability.always_available)
+        .param(
+            "time_restriction",
+            availability.time_restriction.unwrap_or_default(),
+        );
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(
+            "Added region availability {} for challenge {}",
+            availability.region_id,
+            challenge_id
+        );
+        Ok(())
+    }
+
+    async fn get_region_availabilities(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengeRegionAvailability>> {
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[rel:AVAILABLE_AT_REGION]->(r:Region)
+            RETURN r.id as region_id, rel.always_available as always_available, rel.time_restriction as time_restriction",
+        )
+        .param("challenge_id", challenge_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut availabilities = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            let region_id_str: String = row.get("region_id")?;
+            let always_available: bool = row.get("always_available").unwrap_or(true);
+            let time_restriction: String = row.get("time_restriction").unwrap_or_default();
+
+            availabilities.push(ChallengeRegionAvailability {
+                region_id: RegionId::from_uuid(uuid::Uuid::parse_str(&region_id_str)?),
+                always_available,
+                time_restriction: if time_restriction.is_empty() {
+                    None
+                } else {
+                    Some(time_restriction)
+                },
+            });
+        }
+
+        Ok(availabilities)
+    }
+
+    async fn remove_region_availability(
+        &self,
+        challenge_id: ChallengeId,
+        region_id: RegionId,
+    ) -> Result<()> {
+        let q = query(
+            "MATCH (c:Challenge {id: $challenge_id})-[rel:AVAILABLE_AT_REGION]->(r:Region {id: $region_id})
+            DELETE rel",
+        )
+        .param("challenge_id", challenge_id.to_string())
+        .param("region_id", region_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(
+            "Removed region availability {} from challenge {}",
+            region_id,
             challenge_id
         );
         Ok(())

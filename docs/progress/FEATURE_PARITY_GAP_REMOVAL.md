@@ -37,35 +37,31 @@ If a system doc checkbox conflicts with `ACTIVE_DEVELOPMENT.md` “Completed” 
 
 ## Highest Priority Gaps (blocking core loop / major regressions)
 
-### GAP-UI-INV-001: Inventory equip/unequip toggle not wired
+### GAP-UI-INV-001: Inventory equip/unequip toggle not wired - RESOLVED
 
 - **Doc basis:** `docs/progress/ACTIVE_DEVELOPMENT.md` claims US-CHAR-009 is completed; inventory actions are part of the story.
-- **Current state:** `InventoryPanel` renders but callbacks are not provided.
-- **Evidence:** `crates/player-ui/src/presentation/views/pc_view.rs:627` uses `on_toggle_equip: None`.
-- **Likely fix location:**
-  - UI: `crates/player-ui/src/presentation/views/pc_view.rs`
-  - Ports: extend `wrldbldr-player-ports` `GameConnectionPort` or reuse existing `PlayerAction` message if supported.
-  - Engine: ensure there is a websocket message / command to equip/unequip.
+- **Resolution (2025-12-24):**
+  - Added `EquipItem`, `UnequipItem`, `DropItem` client messages to protocol
+  - Added `ItemEquipped`, `ItemUnequipped`, `ItemDropped`, `InventoryUpdated` server messages
+  - Added `get_inventory_item()` to `CharacterRepositoryPort` and implemented in Neo4j adapter
+  - Added `equip_item()`, `unequip_item()`, `drop_item()` to `GameConnectionPort` trait
+  - Implemented handlers in engine websocket
+  - Wired UI callbacks in `pc_view.rs` with inventory state lookup
 - **Acceptance test:** toggling equip updates inventory display (equipped tab/filter, item state) after server confirms.
 
-### GAP-UI-INV-002: Inventory “drop item” not wired
+### GAP-UI-INV-002: Inventory "drop item" not wired - RESOLVED
 
 - **Doc basis:** same as GAP-UI-INV-001.
-- **Current state:** callback not provided.
-- **Evidence:** `crates/player-ui/src/presentation/views/pc_view.rs:628` uses `on_drop_item: None`.
-- **Approach:**
-  - Prefer a single “player action” command path if the protocol already has “drop”.
-  - Otherwise add a port method on `GameConnectionPort` and implement in adapters.
+- **Resolution (2025-12-24):** See GAP-UI-INV-001 - both resolved together.
 - **Acceptance test:** dropped item disappears from inventory and optionally appears as a scene/world event.
 
-### GAP-UI-NAV-001: Mini-map background image not wired
+### GAP-UI-NAV-001: Mini-map background image not wired - RESOLVED
 
 - **Doc basis:** navigation system mini-map should show location map (docs mention map image overlay).
-- **Current state:** the mini-map supports `map_image`, but nothing supplies it.
-- **Evidence:** `crates/player-ui/src/presentation/views/pc_view.rs:659` sets `map_image: None`.
-- **Likely fix location:**
-  - Add map image URL/path to the location/region DTO the UI already consumes.
-  - Ensure the engine provides it in `SceneChanged` / relevant snapshot.
+- **Resolution (2025-12-24):**
+  - Added `map_asset: Option<String>` field to `RegionData` in protocol (`crates/protocol/src/messages.rs`)
+  - Updated all 5 `RegionData` constructions in `crates/engine-adapters/src/infrastructure/websocket.rs` to include `map_asset` from location data
+  - Wired `map_image` prop in `crates/player-ui/src/presentation/views/pc_view.rs` to use `current_region.map_asset`
 - **Acceptance test:** mini-map shows provided image on supporting locations.
 
 ### GAP-DM-CHAL-001: Ad-hoc challenge creation modal not wired
@@ -132,12 +128,12 @@ If a system doc checkbox conflicts with `ACTIVE_DEVELOPMENT.md` “Completed” 
 
 ---
 
-## Doc Drift / Inconsistencies (fix docs or align checklists)
+## Doc Drift / Inconsistencies - RESOLVED
 
-These are not necessarily code gaps, but they will cause confusion when tracking parity.
+~~These are not necessarily code gaps, but they will cause confusion when tracking parity.~~
 
-- `docs/progress/ACTIVE_DEVELOPMENT.md` marks US-NAV-008/009/010 and US-CHAR-009 as completed in its “Completed” section, but `docs/systems/navigation-system.md` and `docs/systems/character-system.md` still list them as Pending.
-  - Likely action: update system docs to reflect completion *or* mark completion section as outdated.
+- ~~`docs/progress/ACTIVE_DEVELOPMENT.md` marks US-NAV-008/009/010 and US-CHAR-009 as completed in its "Completed" section, but `docs/systems/navigation-system.md` and `docs/systems/character-system.md` still list them as Pending.~~
+  - **RESOLVED 2025-12-24**: System docs updated to reflect completion status.
 
 ---
 

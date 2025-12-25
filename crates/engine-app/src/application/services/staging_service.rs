@@ -17,10 +17,10 @@ use wrldbldr_engine_ports::outbound::{
     RegionRepositoryPort, StagingRepositoryPort,
 };
 use crate::application::services::{
-    StoryEventService, StagingContextProvider, build_staging_prompt,
+    StoryEventService, StagingContextProvider, build_staging_prompt, PromptTemplateService,
 };
 use wrldbldr_domain::entities::{Staging, StagedNpc, StagingSource};
-use wrldbldr_domain::value_objects::{RuleBasedSuggestion, StagingContext};
+use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId};
 
 /// Configuration for the staging service
@@ -103,6 +103,7 @@ where
     staging_repository: Arc<S>,
     context_provider: StagingContextProvider<R, N>,
     llm_port: Arc<L>,
+    prompt_template_service: Arc<PromptTemplateService>,
     config: StagingServiceConfig,
 }
 
@@ -119,6 +120,7 @@ where
         narrative_event_repository: Arc<N>,
         story_event_service: StoryEventService,
         llm_port: Arc<L>,
+        prompt_template_service: Arc<PromptTemplateService>,
     ) -> Self {
         let context_provider = StagingContextProvider::new(
             region_repository,
@@ -130,6 +132,7 @@ where
             staging_repository,
             context_provider,
             llm_port,
+            prompt_template_service,
             config: StagingServiceConfig::default(),
         }
     }
@@ -211,6 +214,7 @@ where
         // Generate LLM suggestions if enabled
         let llm_based_npcs = if self.config.use_llm && !rule_suggestions.is_empty() {
             match self.generate_llm_suggestions(
+                world_id,
                 &context,
                 &rule_suggestions,
                 &npcs_with_relationships,
@@ -369,6 +373,7 @@ where
 
         // Regenerate with guidance
         self.generate_llm_suggestions(
+            world_id,
             &context,
             &rule_suggestions,
             &npcs_with_relationships,
@@ -391,16 +396,34 @@ where
     /// Generate LLM-based staging suggestions
     async fn generate_llm_suggestions(
         &self,
+        world_id: WorldId,
         context: &StagingContext,
         rule_suggestions: &[RuleBasedSuggestion],
         npcs_with_relationships: &[(wrldbldr_domain::entities::Character, wrldbldr_domain::value_objects::RegionRelationshipType)],
         dm_guidance: Option<&str>,
     ) -> Result<Vec<StagedNpcProposal>> {
-        // Build the prompt
-        let prompt = build_staging_prompt(context, rule_suggestions, dm_guidance);
+        // Resolve prompt templates
+        let system_prompt = self.prompt_template_service
+            .resolve_for_world(world_id, prompt_keys::STAGING_SYSTEM_PROMPT)
+            .await;
+        let role_instructions = self.prompt_template_service
+            .resolve_for_world(world_id, prompt_keys::STAGING_ROLE_INSTRUCTIONS)
+            .await;
+        let response_format = self.prompt_template_service
+            .resolve_for_world(world_id, prompt_keys::STAGING_RESPONSE_FORMAT)
+            .await;
+
+        // Build the prompt with configurable templates
+        let prompt = build_staging_prompt(
+            context, 
+            rule_suggestions, 
+            dm_guidance,
+            &role_instructions,
+            &response_format,
+        );
 
         let request = LlmRequest::new(vec![ChatMessage::user(prompt)])
-            .with_system_prompt("You are a game master assistant helping determine NPC presence.")
+            .with_system_prompt(system_prompt)
             .with_temperature(self.config.llm_temperature);
 
         // Query the LLM

@@ -590,6 +590,9 @@ pub struct ChallengeOutcomeApprovalRequest {
 /// Request for LLM outcome suggestions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutcomeSuggestionRequest {
+    /// World ID for per-world prompt template resolution
+    #[serde(default)]
+    pub world_id: Option<String>,
     /// Challenge ID (for context lookup)
     pub challenge_id: String,
     /// Name of the challenge

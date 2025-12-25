@@ -26,7 +26,6 @@ pub struct WorkflowConfigEditorProps {
 
 // Type aliases for service types to minimize changes
 type WorkflowConfigFull = WorkflowConfig;
-type WorkflowAnalysisData = WorkflowAnalysis;
 type WorkflowInputData = WorkflowInput;
 type PromptMappingData = PromptMapping;
 type InputDefaultData = InputDefault;

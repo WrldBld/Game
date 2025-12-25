@@ -467,7 +467,8 @@ impl LLMContextService {
             name: character.name,
             archetype: character.current_archetype.description().to_string(),
             current_mood: None, // Character entity doesn't have mood - would need session state
-            wants: want_descriptions,
+            motivations: None, // TODO: Integrate ActantialContextService for rich motivations
+            social_stance: None, // TODO: Integrate ActantialContextService for social views
             relationship_to_player: None, // Would need player context to determine
         })
     }
@@ -517,6 +518,7 @@ impl LLMContextService {
             location_name,
             time_context: format!("{:?}", scene.time_context),
             present_characters,
+            region_items: vec![], // Region items are populated separately via websocket_helpers
         })
     }
 

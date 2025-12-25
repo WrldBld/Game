@@ -33,11 +33,23 @@ pub struct ProposedToolInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "decision")]
 pub enum ApprovalDecision {
+    /// Accept all proposed tools with default recipients
     Accept,
+    /// Accept with item recipient selection
+    AcceptWithRecipients {
+        /// For give_item tools: maps tool_id -> recipient PC IDs
+        /// Empty list means "don't give this item"
+        item_recipients: std::collections::HashMap<String, Vec<String>>,
+    },
+    /// Accept with modifications to dialogue and/or tool selection
     AcceptWithModification {
         modified_dialogue: String,
         approved_tools: Vec<String>,
         rejected_tools: Vec<String>,
+        /// For give_item tools: maps tool_id -> recipient PC IDs
+        /// Empty list means "don't give this item"
+        #[serde(default)]
+        item_recipients: std::collections::HashMap<String, Vec<String>>,
     },
     Reject {
         feedback: String,

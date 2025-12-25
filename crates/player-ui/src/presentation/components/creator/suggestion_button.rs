@@ -23,11 +23,16 @@ pub enum SuggestionType {
     LocationAtmosphere,
     LocationFeatures,
     LocationSecrets,
+    // Actantial Model suggestions
+    DeflectionBehavior,
+    BehavioralTells,
+    WantDescription,
+    ActantialReason,
 }
 
 impl SuggestionType {
     /// Convert to field type string for API
-    fn to_field_type(&self) -> &'static str {
+    pub fn to_field_type(&self) -> &'static str {
         match self {
             SuggestionType::CharacterName => "character_name",
             SuggestionType::CharacterDescription => "character_description",
@@ -39,6 +44,11 @@ impl SuggestionType {
             SuggestionType::LocationAtmosphere => "location_atmosphere",
             SuggestionType::LocationFeatures => "location_features",
             SuggestionType::LocationSecrets => "location_secrets",
+            // Actantial Model suggestions
+            SuggestionType::DeflectionBehavior => "deflection_behavior",
+            SuggestionType::BehavioralTells => "behavioral_tells",
+            SuggestionType::WantDescription => "want_description",
+            SuggestionType::ActantialReason => "actantial_reason",
         }
     }
 }

@@ -15,7 +15,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::services::{
-    AssetService, CharacterService, ChallengeService, EventChainService, GenerationService, LocationService, NarrativeEventService,
+    ActantialService, AssetService, CharacterService, ChallengeService, EventChainService, GenerationService, LocationService, NarrativeEventService,
     ObservationService, PlayerCharacterService, SettingsService, SkillService, StoryEventService, SuggestionService, WorkflowService, WorldService,
 };
 use wrldbldr_player_ports::outbound::ApiPort;
@@ -45,6 +45,7 @@ pub struct Services<A: ApiPort> {
     pub generation: Arc<GenerationService<A>>,
     pub settings: Arc<SettingsService<A>>,
     pub observation: Arc<ObservationService<A>>,
+    pub actantial: Arc<ActantialService<A>>,
 }
 
 impl<A: ApiPort + Clone> Services<A> {
@@ -65,7 +66,8 @@ impl<A: ApiPort + Clone> Services<A> {
             event_chain: Arc::new(EventChainService::new(api.clone())),
             generation: Arc::new(GenerationService::new(api.clone())),
             settings: Arc::new(SettingsService::new(api.clone())),
-            observation: Arc::new(ObservationService::new(api)),
+            observation: Arc::new(ObservationService::new(api.clone())),
+            actantial: Arc::new(ActantialService::new(api)),
         }
     }
 }
@@ -158,6 +160,12 @@ pub fn use_settings_service() -> Arc<SettingsService<Api>> {
 pub fn use_observation_service() -> Arc<ObservationService<Api>> {
     let services = use_context::<UiServices>();
     services.observation.clone()
+}
+
+/// Hook to access the ActantialService from context
+pub fn use_actantial_service() -> Arc<ActantialService<Api>> {
+    let services = use_context::<UiServices>();
+    services.actantial.clone()
 }
 
 use crate::presentation::state::{BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask};

@@ -4,6 +4,18 @@
 
 use dioxus::prelude::*;
 
+/// Format observation time from RFC3339 to a readable format
+fn format_observation_time(game_time: &str) -> String {
+    // Try to parse the RFC3339 timestamp and format nicely
+    // Format: "2025-12-25T14:30:00Z" -> "Dec 25, 2:30 PM"
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(game_time) {
+        dt.format("%b %d, %l:%M %p").to_string().trim().to_string()
+    } else {
+        // Fallback: just show a shortened version
+        game_time.chars().take(16).collect()
+    }
+}
+
 /// Observation data for a known NPC
 #[derive(Clone, Debug, PartialEq)]
 pub struct NpcObservationData {
@@ -311,11 +323,11 @@ fn NpcObservationCard(props: NpcObservationCardProps) -> Element {
                     }
                 }
 
-                // Time indicator
+                // Time indicator - show formatted game time
                 div {
                     class: "text-xs text-gray-500 shrink-0",
-                    // TODO: Calculate relative time from game_time
-                    "..."
+                    title: "{props.observation.game_time}",
+                    {format_observation_time(&props.observation.game_time)}
                 }
             }
         }

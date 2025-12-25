@@ -8,9 +8,8 @@ use serde_json;
 use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
-use wrldbldr_domain::entities::PlayerCharacter;
-use wrldbldr_domain::entities::CharacterSheetData;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item, PlayerCharacter, CharacterSheetData};
+use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
@@ -402,6 +401,199 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         tracing::debug!("Deleted player character: {}", id);
         Ok(())
     }
+
+    // =========================================================================
+    // Inventory Operations
+    // =========================================================================
+
+    async fn add_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+        acquisition_method: Option<AcquisitionMethod>,
+    ) -> Result<()> {
+        let method_str = acquisition_method
+            .map(|m| m.to_string())
+            .unwrap_or_default();
+
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id}), (i:Item {id: $item_id})
+            CREATE (pc)-[:POSSESSES {
+                quantity: $quantity,
+                equipped: $equipped,
+                acquired_at: $acquired_at,
+                acquisition_method: $acquisition_method
+            }]->(i)
+            RETURN i.id as id",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string())
+        .param("quantity", quantity as i64)
+        .param("equipped", is_equipped)
+        .param("acquired_at", chrono::Utc::now().to_rfc3339())
+        .param("acquisition_method", method_str);
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Added item {} to PC {} inventory", item_id, pc_id);
+        Ok(())
+    }
+
+    async fn get_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item)
+            RETURN i, r.quantity as quantity, r.equipped as equipped, 
+                   r.acquired_at as acquired_at, r.acquisition_method as acquisition_method
+            ORDER BY r.acquired_at DESC",
+        )
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut inventory = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            inventory.push(row_to_inventory_item(&row)?);
+        }
+
+        Ok(inventory)
+    }
+
+    async fn get_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item {id: $item_id})
+            RETURN i, r.quantity as quantity, r.equipped as equipped, 
+                   r.acquired_at as acquired_at, r.acquisition_method as acquisition_method",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+
+        if let Some(row) = result.next().await? {
+            Ok(Some(row_to_inventory_item(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn update_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+    ) -> Result<()> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item {id: $item_id})
+            SET r.quantity = $quantity, r.equipped = $equipped
+            RETURN i.id as id",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string())
+        .param("quantity", quantity as i64)
+        .param("equipped", is_equipped);
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Updated item {} in PC {} inventory", item_id, pc_id);
+        Ok(())
+    }
+
+    async fn remove_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<()> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item {id: $item_id})
+            DELETE r",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Removed item {} from PC {} inventory", item_id, pc_id);
+        Ok(())
+    }
+}
+
+/// Parse an InventoryItem from a Neo4j row
+fn row_to_inventory_item(row: &Row) -> Result<InventoryItem> {
+    use chrono::{DateTime, Utc};
+
+    let item = row_to_item(row)?;
+    let quantity: i64 = row.get("quantity")?;
+    let equipped: bool = row.get("equipped")?;
+    let acquired_at_str: String = row.get("acquired_at")?;
+    let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
+
+    let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now());
+
+    let acquisition_method = if acquisition_method_str.is_empty() {
+        None
+    } else {
+        acquisition_method_str.parse().ok()
+    };
+
+    Ok(InventoryItem {
+        item,
+        quantity: quantity as u32,
+        equipped,
+        acquired_at,
+        acquisition_method,
+    })
+}
+
+/// Parse an Item from a Neo4j row
+fn row_to_item(row: &Row) -> Result<Item> {
+    let node: Node = row.get("i")?;
+
+    let id_str: String = node.get("id")?;
+    let world_id_str: String = node.get("world_id")?;
+    let name: String = node.get("name")?;
+    let description: String = node.get("description").unwrap_or_default();
+    let item_type: String = node.get("item_type").unwrap_or_default();
+    let is_unique: bool = node.get("is_unique").unwrap_or(false);
+    let properties: String = node.get("properties").unwrap_or_default();
+    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
+    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
+
+    let id = uuid::Uuid::parse_str(&id_str)?;
+    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
+
+    Ok(Item {
+        id: ItemId::from_uuid(id),
+        world_id: WorldId::from_uuid(world_id),
+        name,
+        description: if description.is_empty() {
+            None
+        } else {
+            Some(description)
+        },
+        item_type: if item_type.is_empty() {
+            None
+        } else {
+            Some(item_type)
+        },
+        is_unique,
+        properties: if properties.is_empty() {
+            None
+        } else {
+            Some(properties)
+        },
+        can_contain_items,
+        container_limit: if container_limit < 0 {
+            None
+        } else {
+            Some(container_limit as u32)
+        },
+    })
 }
 
 /// Parse a PlayerCharacter from a Neo4j row

@@ -18,8 +18,42 @@
 //! ```
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::WantId;
+
+/// Visibility level for a Want - how much the player knows
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum WantVisibility {
+    /// Player knows this motivation openly
+    Known,
+    /// Player suspects something but doesn't know details
+    Suspected,
+    /// Player has no idea (default)
+    #[default]
+    Hidden,
+}
+
+impl WantVisibility {
+    /// Convert from legacy known_to_player bool
+    pub fn from_known_to_player(known: bool) -> Self {
+        if known {
+            WantVisibility::Known
+        } else {
+            WantVisibility::Hidden
+        }
+    }
+
+    /// Check if this is visible to player at all
+    pub fn is_known(&self) -> bool {
+        matches!(self, WantVisibility::Known)
+    }
+
+    /// Check if player has some awareness
+    pub fn is_at_least_suspected(&self) -> bool {
+        matches!(self, WantVisibility::Known | WantVisibility::Suspected)
+    }
+}
 
 /// A character's desire or goal (Actantial model)
 ///
@@ -34,10 +68,20 @@ pub struct Want {
     pub description: String,
     /// Intensity of the want (0.0 = mild interest, 1.0 = obsession)
     pub intensity: f32,
-    /// Whether players know about this want
-    pub known_to_player: bool,
+    /// How much the player knows about this want
+    pub visibility: WantVisibility,
     /// When this want was created
     pub created_at: DateTime<Utc>,
+    
+    // === Behavioral Guidance for Secret Wants ===
+    
+    /// How the NPC should behave when probed about this want (for Hidden/Suspected)
+    /// Example: "Deflect with a sad smile; change subject to present dangers"
+    pub deflection_behavior: Option<String>,
+    
+    /// Subtle behavioral tells that hint at this want
+    /// Example: ["Avoids eye contact when past is mentioned", "Tenses at the word 'village'"]
+    pub tells: Vec<String>,
 }
 
 impl Want {
@@ -46,8 +90,10 @@ impl Want {
             id: WantId::new(),
             description: description.into(),
             intensity: 0.5,
-            known_to_player: false,
+            visibility: WantVisibility::Hidden,
             created_at: Utc::now(),
+            deflection_behavior: None,
+            tells: Vec::new(),
         }
     }
 
@@ -56,9 +102,47 @@ impl Want {
         self
     }
 
-    pub fn known(mut self) -> Self {
-        self.known_to_player = true;
+    pub fn with_visibility(mut self, visibility: WantVisibility) -> Self {
+        self.visibility = visibility;
         self
+    }
+
+    pub fn known(mut self) -> Self {
+        self.visibility = WantVisibility::Known;
+        self
+    }
+
+    pub fn with_deflection(mut self, behavior: impl Into<String>) -> Self {
+        self.deflection_behavior = Some(behavior.into());
+        self
+    }
+
+    pub fn with_tells(mut self, tells: Vec<String>) -> Self {
+        self.tells = tells;
+        self
+    }
+
+    pub fn add_tell(mut self, tell: impl Into<String>) -> Self {
+        self.tells.push(tell.into());
+        self
+    }
+
+    /// Generate default deflection behavior based on intensity
+    pub fn default_deflection(&self) -> String {
+        if self.intensity > 0.8 {
+            "Become visibly uncomfortable; firmly redirect conversation".to_string()
+        } else if self.intensity > 0.5 {
+            "Give a vague, non-committal response".to_string()
+        } else {
+            "Smoothly change the subject".to_string()
+        }
+    }
+
+    /// Get deflection behavior, falling back to default
+    pub fn effective_deflection(&self) -> String {
+        self.deflection_behavior
+            .clone()
+            .unwrap_or_else(|| self.default_deflection())
     }
 }
 
@@ -80,6 +164,16 @@ impl CharacterWant {
             priority,
             acquired_at: Utc::now(),
         }
+    }
+
+    /// Check if this want is visible to player
+    pub fn is_known(&self) -> bool {
+        self.want.visibility.is_known()
+    }
+
+    /// Check if player has some awareness
+    pub fn is_at_least_suspected(&self) -> bool {
+        self.want.visibility.is_at_least_suspected()
     }
 }
 

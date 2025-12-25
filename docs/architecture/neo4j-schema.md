@@ -130,10 +130,10 @@ Node labels and properties in this document are intended to reflect the live per
     description: "A blade that once belonged...",
     item_type: "Weapon",
     is_unique: true,
-    properties: "{...}"
+    properties: "{...}",
+    can_contain_items: false,     // Is this item a container?
+    container_limit: null         // Max items if container (null = unlimited)
 })
-
-> Note: `Item` is used heavily via relationships (`POSSESSES`, `TARGETS_ITEM`, etc.), but there is currently no Neo4j repository that creates/updates `Item` nodes in the persistence layer.
 
 (:Skill {
     id: "uuid",
@@ -392,13 +392,30 @@ Node labels and properties in this document are intended to reflect the live per
 ### Inventory
 
 ```cypher
+// NPC inventory (legacy - may not be fully implemented)
 (character)-[:POSSESSES {
     quantity: 1,
     equipped: true,
     acquired_at: datetime(),
     acquisition_method: "Inherited"
 }]->(item)
+
+// PC inventory (US-INV-001)
+(playerCharacter)-[:POSSESSES {
+    quantity: 1,
+    equipped: false,
+    acquired_at: datetime(),
+    acquisition_method: "Gifted" | "Purchased" | "Found" | "Crafted" | "Inherited" | "Stolen" | "Rewarded"
+}]->(item)
+
+// Container system - items can contain other items (US-INV-001)
+(containerItem)-[:CONTAINS {
+    quantity: 1,
+    added_at: datetime()
+}]->(item)
 ```
+
+> Note: Region item placement uses `(Region)-[:CONTAINS_ITEM]->(Item)` - see US-REGION-ITEMS (not yet implemented).
 
 ### Archetype History
 
@@ -434,13 +451,14 @@ Node labels and properties in this document are intended to reflect the live per
 (challenge)-[:REQUIRES_SKILL]->(skill)
 
 (challenge)-[:AVAILABLE_AT {always_available: false, time_restriction: "Evening"}]->(location)
+(challenge)-[:AVAILABLE_AT_REGION {always_available: true, time_restriction: null}]->(region)
 (challenge)-[:TIED_TO_SCENE]->(scene)
 
 (challenge)-[:REQUIRES_COMPLETION_OF {success_required: true}]->(prerequisite)
 (challenge)-[:ON_SUCCESS_UNLOCKS]->(location)
 ```
 
-> Note: there are no `AVAILABLE_AT_LOCATION` / `AVAILABLE_AT_REGION` edges in the current persistence layer—availability is modeled with a single `AVAILABLE_AT` edge to `Location`.
+> Note: Challenges can be bound to both Locations (coarse) and Regions (fine-grained) via `AVAILABLE_AT` and `AVAILABLE_AT_REGION` edges respectively.
 
 ### Event Relationships
 

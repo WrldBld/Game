@@ -220,6 +220,57 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
+    fn move_to_region(&self, _pc_id: &str, _region_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn exit_to_location(&self, _pc_id: &str, _location_id: &str, _arrival_region_id: Option<&str>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn send_staging_approval(&self, _request_id: &str, _approved_npcs: Vec<wrldbldr_player_ports::outbound::ApprovedNpcInfo>, _ttl_hours: i32, _source: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn request_staging_regenerate(&self, _request_id: &str, _guidance: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn pre_stage_region(&self, _region_id: &str, _npcs: Vec<wrldbldr_player_ports::outbound::ApprovedNpcInfo>, _ttl_hours: i32) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn create_adhoc_challenge(
+        &self,
+        _challenge_name: &str,
+        _skill_name: &str,
+        _difficulty: &str,
+        _target_pc_id: &str,
+        _outcomes: wrldbldr_player_ports::outbound::AdHocOutcomes,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn equip_item(&self, _pc_id: &str, _item_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn unequip_item(&self, _pc_id: &str, _item_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn drop_item(&self, _pc_id: &str, _item_id: &str, _quantity: u32) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn pickup_item(&self, _pc_id: &str, _item_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn check_comfyui_health(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>) {
         let mut s = self.state.lock().unwrap();
         s.on_state_change = Some(callback);

@@ -4,15 +4,18 @@
 //! in the WebSocket handler and background workers.
 
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
-use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, QueueError};
+use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError, RegionRepositoryPort};
 use wrldbldr_engine_app::application::services::{
-    ChallengeService, ChallengeServiceImpl, NarrativeEventService, NarrativeEventServiceImpl,
+    ActantialContextService, ActantialContextServiceImpl,
+    ChallengeService, ChallengeServiceImpl, MoodService, MoodServiceImpl,
+    NarrativeEventService, NarrativeEventServiceImpl,
     SettingsService, SkillService, SkillServiceImpl,
 };
 use wrldbldr_domain::value_objects::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
-    GamePromptRequest, PlayerActionContext, SceneContext,
+    GamePromptRequest, PlayerActionContext, RegionItemContext, SceneContext,
 };
+use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use crate::infrastructure::session::SessionManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -24,7 +27,11 @@ pub async fn build_prompt_from_action(
     skill_service: &Arc<SkillServiceImpl>,
     narrative_event_service: &Arc<NarrativeEventServiceImpl>,
     character_repo: &Arc<dyn CharacterRepositoryPort>,
+    pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
+    region_repo: &Arc<dyn RegionRepositoryPort>,
     settings_service: &Arc<SettingsService>,
+    mood_service: &Arc<MoodServiceImpl>,
+    actantial_service: &Arc<ActantialContextServiceImpl>,
     action: &PlayerActionItem,
 ) -> Result<GamePromptRequest, QueueError> {
     // Get session context
@@ -78,6 +85,47 @@ pub async fn build_prompt_from_action(
         QueueError::Backend("No responding character found".to_string())
     })?;
 
+    // Fetch region items if PC has a current region
+    let region_items = if let Some(pc_uuid) = action.pc_id {
+        let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
+        match pc_repo.get(pc_id).await {
+            Ok(Some(pc)) => {
+                if let Some(region_id) = pc.current_region_id {
+                    match region_repo.get_region_items(region_id).await {
+                        Ok(items) => items
+                            .into_iter()
+                            .map(|item| RegionItemContext {
+                                name: item.name,
+                                description: item.description,
+                                item_type: item.item_type,
+                            })
+                            .collect(),
+                        Err(e) => {
+                            tracing::warn!(
+                                region_id = %region_id,
+                                error = %e,
+                                "Failed to fetch region items for LLM context"
+                            );
+                            vec![]
+                        }
+                    }
+                } else {
+                    vec![]
+                }
+            }
+            Ok(None) => {
+                tracing::warn!(pc_id = %pc_uuid, "PC not found for region items");
+                vec![]
+            }
+            Err(e) => {
+                tracing::warn!(pc_id = %pc_uuid, error = %e, "Failed to fetch PC for region items");
+                vec![]
+            }
+        }
+    } else {
+        vec![]
+    };
+
     // Build scene context
     let scene_context = SceneContext {
         scene_name: current_scene.name.clone(),
@@ -101,6 +149,7 @@ pub async fn build_prompt_from_action(
                     .map(|c| c.name.clone())
             })
             .collect(),
+        region_items,
     };
 
     // Build character context with wants fetched from graph
@@ -128,13 +177,57 @@ pub async fn build_prompt_from_action(
         }
     };
 
+    // Fetch NPC mood toward PC for LLM context (P1.4)
+    let (current_mood, relationship_to_player) = if let Some(pc_uuid) = action.pc_id {
+        let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
+        let npc_id = CharacterId::from_uuid(responding_character.id.into());
+        match mood_service.get_mood(npc_id, pc_id).await {
+            Ok(mood_state) => (
+                Some(format!("{:?}", mood_state.mood)),
+                Some(format!("{:?}", mood_state.relationship)),
+            ),
+            Err(e) => {
+                tracing::warn!(
+                    npc_id = %responding_character.id,
+                    pc_id = %pc_uuid,
+                    error = %e,
+                    "Failed to fetch NPC mood for LLM context"
+                );
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Fetch actantial context (motivations and social views)
+    let _ = character_wants; // No longer needed - using actantial service instead
+    let (motivations, social_stance) = match actantial_service
+        .get_context(responding_character.id)
+        .await
+    {
+        Ok(ctx) => (
+            Some(ctx.to_motivations_context()),
+            Some(ctx.to_social_stance_context()),
+        ),
+        Err(e) => {
+            tracing::warn!(
+                "Failed to get actantial context for {}: {}",
+                responding_character.id,
+                e
+            );
+            (None, None)
+        }
+    };
+    
     let character_context = CharacterContext {
         character_id: Some(responding_character.id.to_string()),
         name: responding_character.name.clone(),
         archetype: format!("{:?}", responding_character.current_archetype),
-        current_mood: None, // Character mood tracking not yet implemented
-        wants: character_wants,
-        relationship_to_player: None, // Relationship tracking not yet implemented
+        current_mood,
+        motivations,
+        social_stance,
+        relationship_to_player,
     };
 
     // Get directorial notes
@@ -247,6 +340,7 @@ pub async fn build_prompt_from_action(
 
     // Build the prompt request
     Ok(GamePromptRequest {
+        world_id: Some(world_id.to_string()),
         player_action: PlayerActionContext {
             action_type: action.action_type.clone(),
             target: action.target.clone(),

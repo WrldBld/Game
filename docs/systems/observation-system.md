@@ -35,13 +35,15 @@ This supports mystery scenarios where players must investigate to find people.
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
   - *Files*: `crates/engine-app/src/application/services/event_effect_executor.rs`
 
+- [x] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
+  - *Implementation*: `KnownNpcsPanel` component with observation cards and type icons
+  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`
+
+- [x] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
+  - *Implementation*: Observation cards display last seen location and game time
+  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`, `crates/player-app/src/application/services/observation_service.rs`
+
 ### Pending
-
-- [ ] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
-  - *Notes*: Engine has data, Player UI needs Known NPCs panel
-
-- [ ] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
-  - *Notes*: Observation records game time and location
 
 - [ ] **US-OBS-006**: As a DM, I can record an interaction without revealing the NPC
   - *Design*: Unrevealed observations render as `npc_name = "Unknown Figure"` and have no portrait/sprite
@@ -84,7 +86,7 @@ This supports mystery scenarios where players must investigate to find people.
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-OBS-004/005)
 
 ---
 
@@ -178,7 +180,7 @@ pub struct ObservationSummary {
 | Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge |
 | Auto-record on Scene | ✅ | - | Direct observations |
 | DM Share Location | ✅ | ⏳ | WebSocket handler done |
-| Known NPCs Panel | - | ⏳ | UI not implemented |
+| Known NPCs Panel | - | ✅ | Full UI with observation types |
 
 ---
 
@@ -213,4 +215,5 @@ pub struct ObservationSummary {
 
 | Date | Change |
 |------|--------|
+| 2025-12-24 | Marked US-OBS-004/005 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

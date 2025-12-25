@@ -11,7 +11,7 @@
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
 
 use wrldbldr_domain::{CharacterId, WorldId};
-use crate::value_objects::{ArchetypeChange, CampbellArchetype};
+use crate::value_objects::{ArchetypeChange, CampbellArchetype, MoodLevel};
 
 /// A character (NPC) in the world
 #[derive(Debug, Clone)]
@@ -39,6 +39,9 @@ pub struct Character {
     // Character state
     pub is_alive: bool,
     pub is_active: bool,
+
+    /// Default mood for this NPC (used when no PC-specific mood is set)
+    pub default_mood: MoodLevel,
 }
 
 impl Character {
@@ -56,7 +59,13 @@ impl Character {
             stats: StatBlock::default(),
             is_alive: true,
             is_active: true,
+            default_mood: MoodLevel::Neutral,
         }
+    }
+
+    pub fn with_default_mood(mut self, mood: MoodLevel) -> Self {
+        self.default_mood = mood;
+        self
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {

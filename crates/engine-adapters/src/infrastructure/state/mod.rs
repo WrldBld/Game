@@ -24,13 +24,13 @@ use tokio::sync::RwLock;
 
 use wrldbldr_engine_ports::outbound::AsyncSessionPort;
 use wrldbldr_engine_app::application::services::{
-    AssetGenerationQueueService, AssetServiceImpl,
+    ActantialContextServiceImpl, AssetGenerationQueueService, AssetServiceImpl,
     challenge_resolution_service::ChallengeResolutionService, ChallengeOutcomeApprovalService,
     ChallengeServiceImpl, CharacterServiceImpl, DMActionQueueService, DMApprovalQueueService,
-    EventChainServiceImpl, InteractionServiceImpl, LLMQueueService, LocationServiceImpl,
-    NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
-    PlayerCharacterServiceImpl, SceneResolutionServiceImpl, SceneServiceImpl, SettingsService,
-    SheetTemplateService, SkillServiceImpl, StoryEventService, RelationshipServiceImpl,
+    EventChainServiceImpl, InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
+    MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
+    PlayerCharacterServiceImpl, PromptTemplateService, SceneResolutionServiceImpl, SceneServiceImpl,
+    SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventService, RelationshipServiceImpl,
     WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService, SessionJoinService,
     OutcomeTriggerService, TriggerEvaluationService, EventEffectExecutor,
     staging_service::StagingService,
@@ -47,7 +47,7 @@ use crate::infrastructure::export::Neo4jWorldExporter;
 use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::persistence::{
     Neo4jNarrativeEventRepository, Neo4jRegionRepository, Neo4jRepository, 
-    Neo4jStagingRepository, SqliteSettingsRepository,
+    Neo4jStagingRepository, SqlitePromptTemplateRepository, SqliteSettingsRepository,
 };
 use crate::infrastructure::queues::QueueFactory;
 use crate::infrastructure::repositories::{
@@ -82,6 +82,8 @@ pub struct AppState {
     pub player: PlayerServices,
     pub events: EventInfrastructure,
     pub settings_service: Arc<SettingsService>,
+    /// Prompt template service for configurable LLM prompts
+    pub prompt_template_service: Arc<PromptTemplateService>,
     /// Staging service for NPC presence management
     pub staging_service: Arc<StagingService<
         OllamaClient,
@@ -119,12 +121,21 @@ impl AppState {
             .map_err(|e| anyhow::anyhow!("Failed to connect to settings database: {}", e))?;
         tracing::info!("Connected to settings database: {}", settings_db_path);
 
-        let settings_repository = SqliteSettingsRepository::new(settings_pool)
+        let settings_repository = SqliteSettingsRepository::new(settings_pool.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize settings repository: {}", e))?;
         let settings_repository: Arc<dyn wrldbldr_engine_ports::outbound::SettingsRepositoryPort> =
             Arc::new(settings_repository);
         let settings_service = Arc::new(SettingsService::new(settings_repository));
+
+        // Initialize prompt template service (uses same pool as settings - they share the DB file)
+        let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize prompt template repository: {}", e))?;
+        let prompt_template_repository: Arc<dyn wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort> =
+            Arc::new(prompt_template_repository);
+        let prompt_template_service = Arc::new(PromptTemplateService::new(prompt_template_repository));
+        tracing::info!("Initialized prompt template service");
 
         // Create individual repository ports as Arc'd trait objects
         let world_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorldRepositoryPort> =
@@ -157,6 +168,10 @@ impl AppState {
             Arc::new(repository.event_chains());
         let player_character_repo: Arc<dyn wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort> =
             Arc::new(repository.player_characters());
+        let item_repo: Arc<dyn wrldbldr_engine_ports::outbound::ItemRepositoryPort> =
+            Arc::new(repository.items());
+        let goal_repo: Arc<dyn wrldbldr_engine_ports::outbound::GoalRepositoryPort> =
+            Arc::new(repository.goals());
 
         // Create world exporter
         let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
@@ -175,7 +190,7 @@ impl AppState {
         let relationship_service = RelationshipServiceImpl::new(relationship_repo);
         let scene_repo_for_resolution = scene_repo.clone();
         let character_repo_for_triggers = character_repo.clone();
-        let scene_service = SceneServiceImpl::new(scene_repo.clone(), location_repo.clone(), character_repo);
+        let scene_service = SceneServiceImpl::new(scene_repo.clone(), location_repo.clone(), character_repo.clone());
         let skill_service = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
         let interaction_service = InteractionServiceImpl::new(interaction_repo);
         // Temporarily create a simple story event service without event_bus, will update after event_bus is created
@@ -195,15 +210,26 @@ impl AppState {
         let asset_service = AssetServiceImpl::new(asset_repo_for_service);
         let workflow_config_service = WorkflowConfigService::new(workflow_repo);
         let sheet_template_service = SheetTemplateService::new(sheet_template_repo);
+        let item_service = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone());
         let player_character_repo_for_triggers = player_character_repo.clone();
+        let player_character_repo_for_actantial = player_character_repo.clone();
         let player_character_service = PlayerCharacterServiceImpl::new(
             player_character_repo.clone(),
             location_repo.clone(),
             world_repo.clone(),
         );
+        // Create flag repository for scene condition evaluation
+        let flag_repo: Arc<dyn wrldbldr_engine_ports::outbound::FlagRepositoryPort> =
+            Arc::new(repository.flags());
+        // Create observation repository for KnowsCharacter scene condition
+        let observation_repo: Arc<dyn wrldbldr_engine_ports::outbound::ObservationRepositoryPort> =
+            Arc::new(repository.observations());
         let scene_resolution_service = SceneResolutionServiceImpl::new(
             player_character_repo,
             scene_repo_for_resolution,
+            character_repo.clone(),
+            flag_repo,
+            observation_repo,
         );
 
         // Create outcome trigger service for challenge resolution (Phase 22D)
@@ -292,6 +318,7 @@ impl AppState {
             queue_factory.config().llm_batch_size,
             queue_factory.llm_notifier(),
             generation_event_tx_for_llm,
+            prompt_template_service.clone(),
         ));
 
         let asset_repo_for_queue = asset_repo.clone();
@@ -306,6 +333,7 @@ impl AppState {
         let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(
             approval_queue.clone(),
             story_event_service.clone(),
+            Arc::new(item_service.clone()),
         ));
 
         // Create generation service (generation_event_tx already created above)
@@ -324,6 +352,9 @@ impl AppState {
             ChallengeOutcomeApprovalService::new(
                 async_session_port.clone(),
                 outcome_trigger_service.clone(),
+                player_character_repo_for_triggers.clone(),
+                item_repo.clone(),
+                prompt_template_service.clone(),
             )
             .with_llm_port(llm_for_suggestions)
             .with_settings_service(settings_service.clone()),
@@ -378,6 +409,7 @@ impl AppState {
             narrative_event_repo_for_staging,
             story_event_service.clone(),
             llm_for_staging,
+            prompt_template_service.clone(),
         ));
 
         // Create session join service
@@ -393,6 +425,17 @@ impl AppState {
             generation_read_state_repository.clone(),
         ));
 
+        // Create mood service (P1.4)
+        let mood_service = Arc::new(MoodServiceImpl::new(character_repo.clone()));
+
+        // Create actantial context service (P1.5)
+        let actantial_context_service = Arc::new(ActantialContextServiceImpl::new(
+            character_repo.clone(),
+            player_character_repo_for_actantial,
+            goal_repo,
+            item_repo.clone(),
+        ));
+
         // Build grouped services
         let core = CoreServices::new(
             world_service,
@@ -402,6 +445,7 @@ impl AppState {
             skill_service,
             interaction_service,
             relationship_service,
+            item_service,
         );
 
         let game = GameServices::new(
@@ -414,6 +458,8 @@ impl AppState {
             event_chain_service,
             trigger_evaluation_service,
             event_effect_executor,
+            mood_service,
+            actantial_context_service,
         );
 
         let queues = QueueServices::new(
@@ -459,6 +505,7 @@ impl AppState {
             player,
             events,
             settings_service,
+            prompt_template_service,
             staging_service,
         }, generation_event_rx))
     }

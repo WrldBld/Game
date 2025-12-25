@@ -1,7 +1,7 @@
 //! Core domain services for world building
 
 use wrldbldr_engine_app::application::services::{
-    CharacterServiceImpl, InteractionServiceImpl, LocationServiceImpl,
+    CharacterServiceImpl, InteractionServiceImpl, ItemServiceImpl, LocationServiceImpl,
     RelationshipServiceImpl, SceneServiceImpl, SkillServiceImpl, WorldServiceImpl,
 };
 
@@ -9,7 +9,7 @@ use wrldbldr_engine_app::application::services::{
 ///
 /// This struct groups the primary domain services that handle the core
 /// entities of the world-building system: worlds, characters, locations,
-/// scenes, skills, interactions, and relationships.
+/// scenes, skills, interactions, relationships, and items.
 pub struct CoreServices {
     pub world_service: WorldServiceImpl,
     pub character_service: CharacterServiceImpl,
@@ -18,6 +18,7 @@ pub struct CoreServices {
     pub skill_service: SkillServiceImpl,
     pub interaction_service: InteractionServiceImpl,
     pub relationship_service: RelationshipServiceImpl,
+    pub item_service: ItemServiceImpl,
 }
 
 impl CoreServices {
@@ -30,6 +31,7 @@ impl CoreServices {
         skill_service: SkillServiceImpl,
         interaction_service: InteractionServiceImpl,
         relationship_service: RelationshipServiceImpl,
+        item_service: ItemServiceImpl,
     ) -> Self {
         Self {
             world_service,
@@ -39,6 +41,7 @@ impl CoreServices {
             skill_service,
             interaction_service,
             relationship_service,
+            item_service,
         }
     }
 }

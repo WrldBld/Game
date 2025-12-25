@@ -4,6 +4,7 @@
 //! for the WrldBldr Engine. Each service follows hexagonal architecture principles,
 //! accepting repository dependencies and returning domain entities or DTOs.
 
+pub mod actantial_context_service;
 pub mod asset_generation_queue_service;
 pub mod asset_service;
 pub mod challenge_outcome_approval_service;
@@ -18,10 +19,12 @@ pub mod generation_event_publisher;
 pub mod generation_service;
 pub mod generation_queue_projection_service;
 pub mod interaction_service;
+pub mod item_service;
 pub mod llm_queue_service;
 pub mod llm;
 pub mod llm_context_service;
 pub mod location_service;
+pub mod mood_service;
 
 // Re-export LLM service types for backward compatibility
 pub mod narrative_event_service;
@@ -30,6 +33,7 @@ pub mod outcome_suggestion_service;
 pub mod outcome_trigger_service;
 pub mod player_action_queue_service;
 pub mod player_character_service;
+pub mod prompt_template_service;
 pub mod relationship_service;
 pub mod scene_resolution_service;
 pub mod scene_service;
@@ -110,6 +114,11 @@ pub use skill_service::{
 // Re-export interaction service types (used in HTTP routes)
 pub use interaction_service::{InteractionService, InteractionServiceImpl};
 
+// Re-export item service types
+pub use item_service::{
+    CreateItemRequest, GiveItemRequest, GiveItemResult, ItemService, ItemServiceImpl,
+};
+
 // Re-export challenge service types (used in HTTP routes)
 pub use challenge_service::{ChallengeService, ChallengeServiceImpl};
 
@@ -126,6 +135,9 @@ pub use sheet_template_service::SheetTemplateService;
 
 // Re-export settings service types
 pub use settings_service::SettingsService;
+
+// Re-export prompt template service types
+pub use prompt_template_service::PromptTemplateService;
 
 // Re-export narrative event service types (used in HTTP routes)
 pub use narrative_event_service::{NarrativeEventService, NarrativeEventServiceImpl};
@@ -179,5 +191,14 @@ pub use event_effect_executor::{
 // Re-export staging services (Staging System - replaces legacy PresenceService)
 pub use staging_context_provider::{StagingContextProvider, build_staging_prompt};
 pub use staging_service::{StagingService, StagingProposal};
+
+// Re-export mood service (P1.4)
+pub use mood_service::{MoodService, MoodServiceImpl};
+
+// Re-export actantial context service (P1.5)
+pub use actantial_context_service::{
+    ActantialContextService, ActantialContextServiceImpl,
+    CreateWantRequest, UpdateWantRequest, ActorTargetType,
+};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

@@ -5,6 +5,7 @@
 //! infrastructure implementations.
 
 pub mod action_service;
+pub mod actantial_service;
 pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
@@ -89,3 +90,10 @@ pub use settings_service::SettingsService;
 
 // Re-export observation service types
 pub use observation_service::{ObservationService, ObservationSummary};
+
+// Re-export actantial service types
+pub use actantial_service::{
+    ActantialService, CreateWantRequest, UpdateWantRequest, SetWantTargetRequest,
+    AddActantialViewRequest, RemoveActantialViewRequest, CreateGoalRequest, UpdateGoalRequest,
+    WantResponse, GoalResponse,
+};

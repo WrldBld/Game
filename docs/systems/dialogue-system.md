@@ -58,6 +58,10 @@ This is the heart of the AI game master experience:
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
   - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine-adapters/src/infrastructure/http/settings_routes.rs`
 
+- [x] **US-DLG-010**: As a DM, I can customize the LLM response format through configurable templates
+  - *Implementation*: `PromptBuilder` resolves `dialogue.response_format`, `dialogue.challenge_suggestion_format`, and `dialogue.narrative_event_format` templates via `PromptTemplateService`
+  - *Files*: `crates/engine-app/src/application/services/llm/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
+
 ### Pending (Dialogue Tracking Enhancement)
 
 - [ ] **US-DLG-010**: As a system, I persist dialogue exchanges as StoryEvents for later querying
@@ -271,7 +275,7 @@ pub enum GameTool {
 
 ## Related Systems
 
-- **Depends on**: [Character System](./character-system.md) (NPC context), [Navigation System](./navigation-system.md) (location context), [Challenge System](./challenge-system.md) (challenge suggestions), [Narrative System](./narrative-system.md) (event suggestions)
+- **Depends on**: [Character System](./character-system.md) (NPC context), [Navigation System](./navigation-system.md) (location context), [Challenge System](./challenge-system.md) (challenge suggestions), [Narrative System](./narrative-system.md) (event suggestions), [Prompt Template System](./prompt-template-system.md) (configurable response format)
 - **Provides data to**: [Staging System](./staging-system.md) (dialogue history for LLM context in presence decisions)
 - **Used by**: [Scene System](./scene-system.md) (dialogue in scenes)
 

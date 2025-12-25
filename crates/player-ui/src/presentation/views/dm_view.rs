@@ -2,7 +2,6 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::services::SessionCommandService;
 use crate::presentation::components::creator::CreatorMode;
 use crate::presentation::components::dm_panel::adhoc_challenge_modal::{
     AdHocChallengeModal, AdHocChallengeData,
@@ -98,26 +97,29 @@ fn AdHocChallengeEntryPoint(on_close: EventHandler<()>) -> Element {
 
     let player_characters = game_state.scene_characters.read().clone();
 
-    // Build a command service if we have a live client
-    let client = session_state.engine_client().read().clone();
-    let command_svc = client.map(|c| SessionCommandService::new(c));
-
     rsx! {
         AdHocChallengeModal {
             player_characters: player_characters,
             on_create: move |data: AdHocChallengeData| {
-                if let Some(_svc) = command_svc.as_ref() {
-                    // TODO (Phase 14 Ad-hoc Challenges): Wire create_adhoc_challenge via GameConnectionPort
-                    // Backend handler is ready (P0.2), needs: 1) add method to GameConnectionPort trait
-                    // 2) implement in EngineClient 3) call from here with data fields
-                    tracing::warn!(
-                        "Ad-hoc challenge creation not yet implemented: {} for {}",
-                        data.challenge_name,
-                        data.target_pc_id
-                    );
-                    let _ = (data.skill_name, data.difficulty, data.outcomes); // suppress unused warnings
-                    if false {
-                        tracing::error!("Placeholder error");
+                // Get the engine client directly from session state
+                if let Some(client) = session_state.engine_client().read().as_ref() {
+                    match client.create_adhoc_challenge(
+                        &data.challenge_name,
+                        &data.skill_name,
+                        &data.difficulty,
+                        &data.target_pc_id,
+                        data.outcomes.clone(),
+                    ) {
+                        Ok(()) => {
+                            tracing::info!(
+                                "Ad-hoc challenge '{}' sent for PC {}",
+                                data.challenge_name,
+                                data.target_pc_id
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create ad-hoc challenge: {}", e);
+                        }
                     }
                 } else {
                     tracing::warn!("No Engine client available for ad-hoc challenge");

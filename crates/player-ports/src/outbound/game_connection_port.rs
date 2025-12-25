@@ -5,6 +5,7 @@
 //! depending on concrete WebSocket client implementations.
 
 use wrldbldr_protocol::{
+    AdHocOutcomes,
     ApprovalDecision,
     ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,
@@ -115,6 +116,31 @@ pub trait GameConnectionPort: Send + Sync {
     /// Pre-stage a region before player arrival (DM only)
     fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> anyhow::Result<()>;
 
+    /// Create an ad-hoc challenge (DM only)
+    fn create_adhoc_challenge(
+        &self,
+        challenge_name: &str,
+        skill_name: &str,
+        difficulty: &str,
+        target_pc_id: &str,
+        outcomes: AdHocOutcomes,
+    ) -> anyhow::Result<()>;
+
+    /// Equip an item (Player only)
+    fn equip_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Unequip an item (Player only)
+    fn unequip_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Drop an item (Player only) - currently destroys the item
+    fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> anyhow::Result<()>;
+
+    /// Pick up an item from current region (Player only)
+    fn pickup_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Request a manual ComfyUI health check
+    fn check_comfyui_health(&self) -> anyhow::Result<()>;
+
     /// Register a callback for state changes
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>);
 
@@ -204,6 +230,31 @@ pub trait GameConnectionPort {
     /// Pre-stage a region before player arrival (DM only)
     fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> anyhow::Result<()>;
 
+    /// Create an ad-hoc challenge (DM only)
+    fn create_adhoc_challenge(
+        &self,
+        challenge_name: &str,
+        skill_name: &str,
+        difficulty: &str,
+        target_pc_id: &str,
+        outcomes: AdHocOutcomes,
+    ) -> anyhow::Result<()>;
+
+    /// Equip an item (Player only)
+    fn equip_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Unequip an item (Player only)
+    fn unequip_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Drop an item (Player only) - currently destroys the item
+    fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> anyhow::Result<()>;
+
+    /// Pick up an item from current region (Player only)
+    fn pickup_item(&self, pc_id: &str, item_id: &str) -> anyhow::Result<()>;
+
+    /// Request a manual ComfyUI health check
+    fn check_comfyui_health(&self) -> anyhow::Result<()>;
+
     /// Register a callback for state changes
     ///
     /// The callback will be invoked whenever the connection state changes.
@@ -211,7 +262,6 @@ pub trait GameConnectionPort {
 
     /// Register a callback for server messages
     ///
-    /// The callback will be invoked for each message received from the server.
     /// The raw JSON value allows the presentation layer to handle specific
     /// message types as needed.
     fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + 'static>);

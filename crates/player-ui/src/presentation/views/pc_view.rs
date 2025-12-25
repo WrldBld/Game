@@ -15,6 +15,7 @@ use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
 use crate::presentation::components::mini_map::{MiniMap, MapRegionData, MapBounds};
 use crate::presentation::components::navigation_panel::NavigationPanel;
+use crate::presentation::components::region_items_panel::RegionItemsPanel;
 use crate::presentation::components::tactical::{ChallengeRollModal, PlayerSkillData, SkillsDisplay};
 use crate::presentation::components::visual_novel::{Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox};
 use wrldbldr_player_app::application::dto::InventoryItemData;
@@ -69,8 +70,56 @@ pub fn PCView() -> Element {
     let mut player_skills: Signal<Vec<PlayerSkillData>> = use_signal(Vec::new);
     let mut is_loading_skills = use_signal(|| false);
 
+    // Region items panel state (items visible in current region)
+    let mut show_region_items_panel = use_signal(|| false);
+
     // Run typewriter effect
     use_typewriter_effect(&mut dialogue_state);
+
+    // Auto-refresh observations when refresh counter changes (if panel is open)
+    // Track the refresh counter - this will trigger re-render when it changes
+    let observations_refresh = *game_state.observations_refresh_counter.read();
+    {
+        let is_panel_open = *show_known_npcs_panel.read();
+        let pc_id = game_state.selected_pc_id.read().clone();
+        let obs_svc = observation_service.clone();
+
+        use_effect(move || {
+            // Use the counter to establish reactive dependency (even if we just log it)
+            let _ = observations_refresh;
+
+            // Only refresh if panel is currently open and we have a PC
+            if is_panel_open {
+                if let Some(pid) = pc_id.clone() {
+                    let obs_svc = obs_svc.clone();
+                    spawn(async move {
+                        match obs_svc.list_observations(&pid).await {
+                            Ok(observations) => {
+                                let npc_data: Vec<NpcObservationData> = observations
+                                    .into_iter()
+                                    .map(|o| NpcObservationData {
+                                        npc_id: o.npc_id,
+                                        npc_name: o.npc_name,
+                                        npc_portrait: o.npc_portrait,
+                                        location_name: o.location_name,
+                                        region_name: o.region_name,
+                                        game_time: o.game_time,
+                                        observation_type: o.observation_type,
+                                        observation_type_icon: o.observation_type_icon,
+                                        notes: o.notes,
+                                    })
+                                    .collect();
+                                known_npcs.set(npc_data);
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to refresh observations: {}", e);
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
 
     // Read scene characters from game state (reactive)
     let scene_characters = game_state.scene_characters.read().clone();
@@ -452,6 +501,11 @@ pub fn PCView() -> Element {
                         }
                     }
                 })),
+                on_region_items: Some(EventHandler::new(move |_| {
+                    tracing::info!("Open region items panel");
+                    show_region_items_panel.set(true);
+                })),
+                region_items_count: game_state.region_items.read().len(),
             }
 
             // Character sheet viewer modal
@@ -624,8 +678,43 @@ pub fn PCView() -> Element {
                             );
                         }
                     })),
-                    on_toggle_equip: None, // TODO: Implement equip toggle
-                    on_drop_item: None, // TODO: Implement drop item
+                    on_toggle_equip: Some(EventHandler::new({
+                        let session_state = session_state.clone();
+                        let inventory_items = inventory_items.clone();
+                        let pc_id = selected_pc_id.clone();
+                        move |item_id: String| {
+                            let Some(ref pc_id) = pc_id else {
+                                tracing::warn!("Cannot toggle equip: no PC selected");
+                                return;
+                            };
+                            // Find the item to check its equipped state
+                            let items = inventory_items.read();
+                            let is_equipped = items.iter()
+                                .find(|i| i.item.id == item_id)
+                                .map(|i| i.equipped)
+                                .unwrap_or(false);
+                            
+                            if is_equipped {
+                                tracing::info!("Unequip item: {}", item_id);
+                                send_unequip_item(&session_state, pc_id, &item_id);
+                            } else {
+                                tracing::info!("Equip item: {}", item_id);
+                                send_equip_item(&session_state, pc_id, &item_id);
+                            }
+                        }
+                    })),
+                    on_drop_item: Some(EventHandler::new({
+                        let session_state = session_state.clone();
+                        let pc_id = selected_pc_id.clone();
+                        move |item_id: String| {
+                            let Some(ref pc_id) = pc_id else {
+                                tracing::warn!("Cannot drop item: no PC selected");
+                                return;
+                            };
+                            tracing::info!("Drop item: {}", item_id);
+                            send_drop_item(&session_state, pc_id, &item_id);
+                        }
+                    })),
                 }
             }
 
@@ -656,7 +745,7 @@ pub fn PCView() -> Element {
             if *show_mini_map.read() {
                 MiniMap {
                     location_name: current_region.as_ref().map(|r| r.location_name.clone()).unwrap_or_default(),
-                    map_image: None, // TODO: Get from location data when available
+                    map_image: current_region.as_ref().and_then(|r| r.map_asset.clone()),
                     regions: map_regions.read().clone(),
                     current_region_id: current_region.as_ref().map(|r| r.id.clone()),
                     navigable_region_ids: navigation.as_ref()
@@ -709,6 +798,27 @@ pub fn PCView() -> Element {
                         skills: player_skills.read().clone(),
                         on_close: move |_| show_skills_panel.set(false),
                     }
+                }
+            }
+
+            // Region items panel modal
+            if *show_region_items_panel.read() {
+                RegionItemsPanel {
+                    items: game_state.region_items.read().clone(),
+                    on_close: move |_| show_region_items_panel.set(false),
+                    on_pickup: {
+                        let session_state = session_state.clone();
+                        let selected_pc_id = selected_pc_id.clone();
+                        move |item_id: String| {
+                            if let Some(ref pc_id) = selected_pc_id {
+                                tracing::info!("Pick up item: {} for PC: {}", item_id, pc_id);
+                                send_pickup_item(&session_state, pc_id, &item_id);
+                                show_region_items_panel.set(false);
+                            } else {
+                                tracing::warn!("Cannot pickup item: no PC selected");
+                            }
+                        }
+                    },
                 }
             }
 
@@ -1032,5 +1142,73 @@ fn send_exit_to_location(
         }
     } else {
         tracing::warn!("Cannot exit: not connected to server");
+    }
+}
+
+/// Send an equip item command via WebSocket
+fn send_equip_item(
+    session_state: &crate::presentation::state::SessionState,
+    pc_id: &str,
+    item_id: &str,
+) {
+    let engine_client_signal = session_state.engine_client();
+    let client_binding = engine_client_signal.read();
+    if let Some(ref client) = *client_binding {
+        if let Err(e) = client.equip_item(pc_id, item_id) {
+            tracing::error!("Failed to send equip item: {}", e);
+        }
+    } else {
+        tracing::warn!("Cannot equip: not connected to server");
+    }
+}
+
+/// Send an unequip item command via WebSocket
+fn send_unequip_item(
+    session_state: &crate::presentation::state::SessionState,
+    pc_id: &str,
+    item_id: &str,
+) {
+    let engine_client_signal = session_state.engine_client();
+    let client_binding = engine_client_signal.read();
+    if let Some(ref client) = *client_binding {
+        if let Err(e) = client.unequip_item(pc_id, item_id) {
+            tracing::error!("Failed to send unequip item: {}", e);
+        }
+    } else {
+        tracing::warn!("Cannot unequip: not connected to server");
+    }
+}
+
+/// Send a drop item command via WebSocket
+fn send_drop_item(
+    session_state: &crate::presentation::state::SessionState,
+    pc_id: &str,
+    item_id: &str,
+) {
+    let engine_client_signal = session_state.engine_client();
+    let client_binding = engine_client_signal.read();
+    if let Some(ref client) = *client_binding {
+        if let Err(e) = client.drop_item(pc_id, item_id, 1) {
+            tracing::error!("Failed to send drop item: {}", e);
+        }
+    } else {
+        tracing::warn!("Cannot drop: not connected to server");
+    }
+}
+
+/// Send a pickup item command via WebSocket
+fn send_pickup_item(
+    session_state: &crate::presentation::state::SessionState,
+    pc_id: &str,
+    item_id: &str,
+) {
+    let engine_client_signal = session_state.engine_client();
+    let client_binding = engine_client_signal.read();
+    if let Some(ref client) = *client_binding {
+        if let Err(e) = client.pickup_item(pc_id, item_id) {
+            tracing::error!("Failed to send pickup item: {}", e);
+        }
+    } else {
+        tracing::warn!("Cannot pickup: not connected to server");
     }
 }

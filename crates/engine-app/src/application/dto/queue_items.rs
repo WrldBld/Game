@@ -11,6 +11,7 @@ use wrldbldr_domain::value_objects::GamePromptRequest;
 use wrldbldr_protocol::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo,
 };
+use super::OutcomeTriggerRequestDto;
 
 /// Player action waiting to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,7 +78,6 @@ pub struct LLMRequestItem {
 pub enum LLMRequestType {
     NPCResponse { action_item_id: Uuid },
     Suggestion { field_type: String, entity_id: Option<String> },
-    ChallengeReasoning { challenge_id: String },
 }
 
 /// Asset generation request
@@ -226,8 +226,11 @@ pub struct ChallengeOutcomeApprovalItem {
     pub outcome_type: String,
     /// The pre-defined outcome description
     pub outcome_description: String,
-    /// Triggers that will execute when approved
+    /// Triggers that will execute when approved (for display in DM UI)
     pub outcome_triggers: Vec<ProposedToolInfo>,
+    /// Original trigger DTOs (for execution - can convert to domain OutcomeTrigger)
+    #[serde(default)]
+    pub original_triggers: Vec<OutcomeTriggerRequestDto>,
     /// Roll breakdown string
     #[serde(default)]
     pub roll_breakdown: Option<String>,

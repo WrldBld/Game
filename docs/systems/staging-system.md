@@ -28,7 +28,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 ## User Stories
 
-### Implemented (Phase 3 - Code Complete, Testing Pending)
+### Implemented (Engine Complete, UI Partial)
 
 - [x] **US-STG-001**: As a player, I see NPCs appear after entering a region when the DM approves
   - *Implementation*: Background approval workflow with StagingPending → StagingReady messages
@@ -417,19 +417,22 @@ pub struct StagingContext {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Staging Entity | ⏳ | - | `entities/staging.rs` |
-| StagingContext VO | ⏳ | - | `value_objects/staging_context.rs` |
-| Location TTL fields | ⏳ | - | Add to Location entity |
-| StagingRepository | ⏳ | - | Neo4j persistence |
-| StagingService | ⏳ | - | Core logic + LLM |
-| Protocol Messages | ⏳ | ⏳ | New message types |
-| WebSocket Integration | ⏳ | - | Approval workflow |
+| Staging Entity | ✅ | - | `entities/staging.rs` with hidden NPC support |
+| StagingContext VO | ✅ | - | `value_objects/staging_context.rs` |
+| Location TTL fields | ✅ | - | Added to Location entity |
+| StagingRepository | ✅ | - | Neo4j persistence (CURRENT_STAGING, HAS_STAGING edges) |
+| StagingService | ✅ | - | Core logic + LLM with configurable prompts |
+| StagingContextProvider | ✅ | - | Builds context for LLM queries |
+| PromptBuilder | ✅ | - | Uses PromptTemplateService |
+| StagingRepositoryPort | ✅ | - | Port trait defined |
+| Protocol Messages | ⏳ | ⏳ | Partial - needs staging-specific messages |
+| WebSocket Integration | ⏳ | - | Approval workflow pending |
 | Staging State | - | ⏳ | `game_state.rs` |
 | Message Handlers | - | ⏳ | Handle staging messages |
-| StagingApproval Component | - | ⏳ | DM approval popup |
-| LocationStaging Component | - | ⏳ | Pre-staging UI |
-| StagingPending Overlay | - | ⏳ | Player loading state |
-| Location Settings UI | - | ⏳ | TTL configuration |
+| StagingApproval Component | - | ✅ | DM approval popup exists |
+| LocationStaging Component | - | ⏳ | Pre-staging UI pending |
+| StagingPending Overlay | - | ⏳ | Player loading state pending |
+| Location Settings UI | - | ⏳ | TTL configuration pending |
 
 ---
 
@@ -463,7 +466,7 @@ pub struct StagingContext {
 
 ## Related Systems
 
-- **Depends on**: [NPC System](./npc-system.md) (NPC-Region relationships), [Navigation System](./navigation-system.md) (region movement), [Dialogue System](./dialogue-system.md) (conversation history for LLM context), [Narrative System](./narrative-system.md) (active events for LLM context)
+- **Depends on**: [NPC System](./npc-system.md) (NPC-Region relationships), [Navigation System](./navigation-system.md) (region movement), [Dialogue System](./dialogue-system.md) (conversation history for LLM context), [Narrative System](./narrative-system.md) (active events for LLM context), [Prompt Template System](./prompt-template-system.md) (configurable staging prompts)
 - **Replaces**: PresenceService (simple rule-based presence calculation)
 - **Used by**: [Scene System](./scene-system.md) (NPCs in scene)
 
@@ -524,4 +527,5 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 | Date | Change |
 |------|--------|
+| 2025-12-24 | Updated status: Engine complete, UI partial |
 | 2025-12-19 | Initial version - Phase 3 planning |

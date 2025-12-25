@@ -17,6 +17,7 @@ pub mod director_queue_panel;
 pub mod location_navigator;
 pub mod location_staging;
 pub mod log_entry;
+pub mod npc_mood_panel;
 pub mod npc_motivation;
 pub mod pc_management;
 pub mod scene_preview;
@@ -28,4 +29,8 @@ pub mod trigger_challenge_modal;
 pub use challenge_outcome_approval::{ChallengeOutcomeApprovalCard, ChallengeOutcomesSection};
 pub use conversation_log::{ChallengeResultInfo, ConversationLog, ConversationTurn};
 pub use location_staging::{LocationStagingPanel, RegionStagingInfo, StagingStatus};
+pub use npc_mood_panel::{
+    MoodChangeEvent, NpcMoodListPanel, NpcMoodPanel, RelationshipChangeEvent, SceneNpcInfo,
+    MOOD_OPTIONS, RELATIONSHIP_OPTIONS,
+};
 pub use staging_approval::{StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest};

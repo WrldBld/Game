@@ -6,11 +6,13 @@ mod character_routes;
 mod config_routes;
 mod event_chain_routes;
 mod export_routes;
+mod goal_routes;
 mod interaction_routes;
 mod location_routes;
 mod narrative_event_routes;
 mod observation_routes;
 mod player_character_routes;
+mod prompt_template_routes;
 mod region_routes;
 mod session_routes;
 mod queue_routes;
@@ -21,6 +23,7 @@ mod sheet_template_routes;
 mod skill_routes;
 mod story_event_routes;
 mod suggestion_routes;
+mod want_routes;
 mod workflow_routes;
 mod world_routes;
 
@@ -44,6 +47,53 @@ pub fn create_routes() -> Router<Arc<AppState>> {
         .route("/api/worlds/{id}", delete(world_routes::delete_world))
         .route("/api/worlds/{id}/acts", get(world_routes::list_acts))
         .route("/api/worlds/{id}/acts", post(world_routes::create_act))
+        // Goal routes (P1.5 - Actantial Model)
+        .route(
+            "/api/worlds/{world_id}/goals",
+            get(goal_routes::list_goals),
+        )
+        .route(
+            "/api/worlds/{world_id}/goals",
+            post(goal_routes::create_goal),
+        )
+        .route("/api/goals/{id}", get(goal_routes::get_goal))
+        .route("/api/goals/{id}", put(goal_routes::update_goal))
+        .route("/api/goals/{id}", delete(goal_routes::delete_goal))
+        // Want routes (P1.5 - Actantial Model)
+        .route(
+            "/api/characters/{id}/wants",
+            get(want_routes::list_wants),
+        )
+        .route(
+            "/api/characters/{id}/wants",
+            post(want_routes::create_want),
+        )
+        .route("/api/wants/{want_id}", put(want_routes::update_want))
+        .route("/api/wants/{want_id}", delete(want_routes::delete_want))
+        .route(
+            "/api/wants/{want_id}/target",
+            put(want_routes::set_want_target),
+        )
+        .route(
+            "/api/wants/{want_id}/target",
+            delete(want_routes::remove_want_target),
+        )
+        .route(
+            "/api/characters/{id}/actantial-context",
+            get(want_routes::get_actantial_context),
+        )
+        .route(
+            "/api/characters/{id}/actantial-views",
+            post(want_routes::add_actantial_view),
+        )
+        .route(
+            "/api/characters/{id}/actantial-views",
+            delete(want_routes::remove_actantial_view),
+        )
+        .route(
+            "/api/characters/{id}/actantial-views/remove",
+            post(want_routes::remove_actantial_view_post),
+        )
         // Character routes
         .route(
             "/api/worlds/{world_id}/characters",
@@ -169,11 +219,7 @@ pub fn create_routes() -> Router<Arc<AppState>> {
             "/api/regions/{region_id}/npcs",
             get(region_routes::list_region_npcs),
         )
-        // Derived scene route (Phase 23C)
-        .route(
-            "/api/regions/{region_id}/scene",
-            post(region_routes::get_derived_scene),
-        )
+
         // Scene routes
         .route(
             "/api/acts/{act_id}/scenes",
@@ -684,4 +730,6 @@ pub fn create_routes() -> Router<Arc<AppState>> {
         .merge(queue_routes::create_queue_routes())
         // Settings routes
         .merge(settings_routes::settings_routes())
+        // Prompt template routes
+        .merge(prompt_template_routes::prompt_template_routes())
 }

@@ -13,6 +13,7 @@ use wrldbldr_protocol::{
     NavigationData,
     NpcPresenceData,
     RegionData as SceneRegionInfo,
+    RegionItemData,
     SceneData as SceneSnapshot,
 };
 
@@ -109,6 +110,8 @@ pub struct GameState {
     pub navigation: Signal<Option<NavigationData>>,
     /// NPCs present in the current region
     pub npcs_present: Signal<Vec<NpcPresenceData>>,
+    /// Items visible in the current region (can be picked up)
+    pub region_items: Signal<Vec<RegionItemData>>,
     /// Currently selected PC ID
     pub selected_pc_id: Signal<Option<String>>,
     /// Current game time
@@ -121,6 +124,10 @@ pub struct GameState {
     pub staging_pending: Signal<Option<StagingPendingData>>,
     /// Pending staging approval for DM
     pub pending_staging_approval: Signal<Option<StagingApprovalData>>,
+    /// Counter to trigger inventory refresh (incremented when inventory changes)
+    pub inventory_refresh_counter: Signal<u32>,
+    /// Counter to trigger observations refresh (incremented when NPC locations are shared)
+    pub observations_refresh_counter: Signal<u32>,
 }
 
 impl GameState {
@@ -134,12 +141,15 @@ impl GameState {
             current_region: Signal::new(None),
             navigation: Signal::new(None),
             npcs_present: Signal::new(Vec::new()),
+            region_items: Signal::new(Vec::new()),
             selected_pc_id: Signal::new(None),
             game_time: Signal::new(None),
             approach_event: Signal::new(None),
             location_event: Signal::new(None),
             staging_pending: Signal::new(None),
             pending_staging_approval: Signal::new(None),
+            inventory_refresh_counter: Signal::new(0),
+            observations_refresh_counter: Signal::new(0),
         }
     }
 
@@ -167,11 +177,25 @@ impl GameState {
         region: SceneRegionInfo,
         npcs_present: Vec<NpcPresenceData>,
         navigation: NavigationData,
+        region_items: Vec<RegionItemData>,
     ) {
         self.selected_pc_id.set(Some(pc_id));
         self.current_region.set(Some(region));
         self.npcs_present.set(npcs_present);
         self.navigation.set(Some(navigation));
+        self.region_items.set(region_items);
+    }
+
+    /// Remove an item from region_items (for optimistic pickup updates)
+    pub fn remove_region_item(&mut self, item_id: &str) {
+        let items = self.region_items.read();
+        let filtered: Vec<RegionItemData> = items
+            .iter()
+            .filter(|item| item.id != item_id)
+            .cloned()
+            .collect();
+        drop(items);
+        self.region_items.set(filtered);
     }
 
     /// Update from ServerMessage::GameTimeUpdated
@@ -242,6 +266,18 @@ impl GameState {
         if let Some(ref mut data) = *current {
             data.llm_based_npcs = llm_based_npcs;
         }
+    }
+
+    /// Trigger an inventory refresh (increments counter to signal UI components)
+    pub fn trigger_inventory_refresh(&mut self) {
+        let current = *self.inventory_refresh_counter.read();
+        self.inventory_refresh_counter.set(current.wrapping_add(1));
+    }
+
+    /// Trigger an observations refresh (increments counter to signal UI components)
+    pub fn trigger_observations_refresh(&mut self) {
+        let current = *self.observations_refresh_counter.read();
+        self.observations_refresh_counter.set(current.wrapping_add(1));
     }
 
     /// Get the backdrop URL for the current scene

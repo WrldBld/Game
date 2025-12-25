@@ -7,23 +7,32 @@
 //! - Generating NPC dialogue with personality
 //! - Parsing tool calls for game mechanics
 //! - Providing internal reasoning for the DM to review
+//!
+//! # Prompt Template Integration
+//!
+//! The service uses configurable prompt templates that can be overridden
+//! via DB (global or per-world), environment variables, or fall back to defaults.
 
 mod prompt_builder;
 mod tool_definitions;
 mod tool_parser;
 
 // Re-export public types and functions
+pub use prompt_builder::{
+    PromptBuilder, build_conversation_history, build_user_message, 
+    count_prompt_tokens, merge_conversation_history,
+};
 
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_engine_ports::outbound::{LlmPort, LlmRequest};
+use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
 use wrldbldr_domain::value_objects::{DirectorialNotes, GamePromptRequest};
 
-
-use prompt_builder::{build_conversation_history, build_system_prompt_with_notes, build_user_message};
 use tool_definitions::get_game_tool_definitions;
 use tool_parser::parse_tool_calls_from_response;
-use wrldbldr_engine_ports::outbound::{ChatMessage, FinishReason, LlmResponse, MessageRole, ToolCall, ToolDefinition};
+
+use crate::application::services::PromptTemplateService;
 
 /// Service for generating AI-powered game responses
 ///
@@ -34,7 +43,8 @@ use wrldbldr_engine_ports::outbound::{ChatMessage, FinishReason, LlmResponse, Me
 /// use wrldbldr_engine::infrastructure::ollama::OllamaClient;
 ///
 /// let client = OllamaClient::new("http://localhost:11434/v1", "llama3.2");
-/// let service = LLMService::new(client);
+/// let prompt_template_service = Arc::new(PromptTemplateService::new(repo));
+/// let service = LLMService::new(Arc::new(client), prompt_template_service);
 ///
 /// let request = GamePromptRequest {
 ///     player_action: PlayerActionContext {
@@ -47,6 +57,7 @@ use wrldbldr_engine_ports::outbound::{ChatMessage, FinishReason, LlmResponse, Me
 ///         location_name: "Port Valdris".to_string(),
 ///         time_context: "Late evening".to_string(),
 ///         present_characters: vec!["Bartender".to_string(), "Mysterious Stranger".to_string()],
+///         region_items: vec![],
 ///     },
 ///     directorial_notes: "Build tension about the rebellion".to_string(),
 ///     conversation_history: vec![],
@@ -62,13 +73,17 @@ use wrldbldr_engine_ports::outbound::{ChatMessage, FinishReason, LlmResponse, Me
 /// let response = service.generate_npc_response(request).await?;
 /// ```
 pub struct LLMService<L: LlmPort> {
-    ollama: L,
+    ollama: Arc<L>,
+    prompt_builder: PromptBuilder,
 }
 
 impl<L: LlmPort> LLMService<L> {
-    /// Create a new LLM service with the provided client
-    pub fn new(ollama: L) -> Self {
-        Self { ollama }
+    /// Create a new LLM service with the provided client and prompt template service
+    pub fn new(ollama: Arc<L>, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+        Self {
+            ollama,
+            prompt_builder: PromptBuilder::new(prompt_template_service),
+        }
     }
 
     /// Generate an NPC response to a player action
@@ -113,13 +128,21 @@ impl<L: LlmPort> LLMService<L> {
         request: GamePromptRequest,
         directorial_notes: Option<&DirectorialNotes>,
     ) -> Result<LLMGameResponse, LLMServiceError> {
-        let system_prompt = build_system_prompt_with_notes(
+        // Build prompt using configurable templates
+        // Convert world_id string to WorldId if present
+        let world_id = request.world_id.as_ref().and_then(|id| {
+            uuid::Uuid::parse_str(id).ok().map(wrldbldr_domain::WorldId::from_uuid)
+        });
+        
+        let system_prompt = self.prompt_builder.build_system_prompt_with_notes(
+            world_id,
             &request.scene_context,
             &request.responding_character,
             directorial_notes,
             &request.active_challenges,
             &request.active_narrative_events,
-        );
+        ).await;
+        
         let user_message = build_user_message(&request);
 
         let mut messages = build_conversation_history(&request.conversation_history);
@@ -293,8 +316,46 @@ pub enum LLMServiceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_ports::outbound::{LlmResponse, ToolDefinition};
+    use wrldbldr_engine_ports::outbound::{LlmResponse, ToolDefinition, PromptTemplateRepositoryPort, PromptTemplateError};
     use wrldbldr_domain::value_objects::{CharacterContext, SceneContext};
+    use wrldbldr_domain::WorldId;
+
+    /// Mock prompt template repository for tests
+    struct MockPromptTemplateRepository;
+
+    #[async_trait::async_trait]
+    impl PromptTemplateRepositoryPort for MockPromptTemplateRepository {
+        async fn get_global(&self, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+            Ok(None)
+        }
+        async fn get_all_global(&self) -> Result<Vec<(String, String)>, PromptTemplateError> {
+            Ok(vec![])
+        }
+        async fn set_global(&self, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_global(&self, _key: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_all_global(&self) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn get_for_world(&self, _world_id: WorldId, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+            Ok(None)
+        }
+        async fn get_all_for_world(&self, _world_id: WorldId) -> Result<Vec<(String, String)>, PromptTemplateError> {
+            Ok(vec![])
+        }
+        async fn set_for_world(&self, _world_id: WorldId, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_for_world(&self, _world_id: WorldId, _key: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_all_for_world(&self, _world_id: WorldId) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+    }
 
     /// Shared mock LLM for tests that don't need actual LLM calls
     struct MockLlm;
@@ -324,9 +385,15 @@ mod tests {
         }
     }
 
+    fn create_test_service() -> LLMService<MockLlm> {
+        let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
+        let prompt_service = Arc::new(PromptTemplateService::new(repo));
+        LLMService::new(Arc::new(MockLlm), prompt_service)
+    }
+
     #[test]
     fn test_extract_tag_content() {
-        let service = LLMService::new(MockLlm);
+        let service = create_test_service();
 
         let text = r#"
 <reasoning>

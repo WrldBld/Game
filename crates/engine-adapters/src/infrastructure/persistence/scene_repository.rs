@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::SceneRepositoryPort;
 use wrldbldr_domain::entities::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
-use wrldbldr_domain::{ActId, CharacterId, ItemId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, CharacterId, ItemId, LocationId, PlayerCharacterId, SceneId};
 
 /// Repository for Scene operations
 pub struct Neo4jSceneRepository {
@@ -424,6 +424,69 @@ impl Neo4jSceneRepository {
 
         Ok(scenes)
     }
+
+    // =========================================================================
+    // Scene Completion Tracking (COMPLETED_SCENE edge)
+    // =========================================================================
+
+    /// Mark a scene as completed by a player character
+    pub async fn mark_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<()> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id}), (s:Scene {id: $scene_id})
+            MERGE (pc)-[r:COMPLETED_SCENE]->(s)
+            SET r.completed_at = datetime()",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("scene_id", scene_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Marked scene {} as completed by PC {}", scene_id, pc_id);
+        Ok(())
+    }
+
+    /// Check if a player character has completed a scene
+    pub async fn is_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<bool> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:COMPLETED_SCENE]->(s:Scene {id: $scene_id})
+            RETURN count(*) > 0 as completed",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("scene_id", scene_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        if let Some(row) = result.next().await? {
+            let completed: bool = row.get("completed").unwrap_or(false);
+            return Ok(completed);
+        }
+        Ok(false)
+    }
+
+    /// Get all scenes completed by a player character
+    pub async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:COMPLETED_SCENE]->(s:Scene)
+            RETURN s.id as scene_id",
+        )
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut scenes = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            let scene_id_str: String = row.get("scene_id")?;
+            scenes.push(SceneId::from_uuid(uuid::Uuid::parse_str(&scene_id_str)?));
+        }
+
+        Ok(scenes)
+    }
 }
 
 // =============================================================================
@@ -671,5 +734,25 @@ impl SceneRepositoryPort for Neo4jSceneRepository {
 
     async fn get_scenes_for_character(&self, character_id: CharacterId) -> Result<Vec<Scene>> {
         Neo4jSceneRepository::get_scenes_for_character(self, character_id).await
+    }
+
+    async fn mark_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<()> {
+        Neo4jSceneRepository::mark_scene_completed(self, pc_id, scene_id).await
+    }
+
+    async fn is_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<bool> {
+        Neo4jSceneRepository::is_scene_completed(self, pc_id, scene_id).await
+    }
+
+    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>> {
+        Neo4jSceneRepository::get_completed_scenes(self, pc_id).await
     }
 }

@@ -8,10 +8,14 @@ mod challenge_repository;
 mod character_repository;
 mod connection;
 mod event_chain_repository;
+mod flag_repository;
+mod goal_repository;
 mod interaction_repository;
+mod item_repository;
 mod location_repository;
 mod narrative_event_repository;
 mod observation_repository;
+mod prompt_template_repository;
 mod region_repository;
 mod player_character_repository;
 mod relationship_repository;
@@ -29,10 +33,14 @@ pub use challenge_repository::Neo4jChallengeRepository;
 pub use character_repository::Neo4jCharacterRepository;
 pub use connection::Neo4jConnection;
 pub use event_chain_repository::Neo4jEventChainRepository;
+pub use flag_repository::Neo4jFlagRepository;
+pub use goal_repository::Neo4jGoalRepository;
 pub use interaction_repository::Neo4jInteractionRepository;
+pub use item_repository::Neo4jItemRepository;
 pub use location_repository::Neo4jLocationRepository;
 pub use narrative_event_repository::Neo4jNarrativeEventRepository;
 pub use observation_repository::Neo4jObservationRepository;
+pub use prompt_template_repository::SqlitePromptTemplateRepository;
 pub use region_repository::Neo4jRegionRepository;
 pub use player_character_repository::Neo4jPlayerCharacterRepository;
 pub use relationship_repository::Neo4jRelationshipRepository;
@@ -130,5 +138,17 @@ impl Neo4jRepository {
 
     pub fn stagings(&self) -> Neo4jStagingRepository {
         Neo4jStagingRepository::new(self.connection.clone())
+    }
+
+    pub fn flags(&self) -> Neo4jFlagRepository {
+        Neo4jFlagRepository::new(self.connection.clone())
+    }
+
+    pub fn items(&self) -> Neo4jItemRepository {
+        Neo4jItemRepository::new(self.connection.clone())
+    }
+
+    pub fn goals(&self) -> Neo4jGoalRepository {
+        Neo4jGoalRepository::new(self.connection.clone())
     }
 }

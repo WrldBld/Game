@@ -19,10 +19,14 @@ use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
     ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel,
-    InventoryItem, Item, StatBlock, Want,
+    Goal, InventoryItem, Item, StatBlock, Want, WantVisibility,
 };
-use wrldbldr_domain::value_objects::{ArchetypeChange, CampbellArchetype, RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
-use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
+use wrldbldr_domain::value_objects::{
+    ActantialTarget, ArchetypeChange, CampbellArchetype, MoodLevel, NpcMoodState, RegionFrequency,
+    RegionRelationship, RegionRelationshipType, RegionShift, RelationshipLevel, WantTarget,
+};
+use wrldbldr_domain::PlayerCharacterId;
+use wrldbldr_domain::{CharacterId, GoalId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {
@@ -64,7 +68,8 @@ impl Neo4jCharacterRepository {
                 archetype_history: $archetype_history,
                 stats: $stats,
                 is_alive: $is_alive,
-                is_active: $is_active
+                is_active: $is_active,
+                default_mood: $default_mood
             })
             CREATE (w)-[:CONTAINS_CHARACTER]->(c)
             RETURN c.id as id",
@@ -89,7 +94,8 @@ impl Neo4jCharacterRepository {
         .param("archetype_history", archetype_history_json)
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
-        .param("is_active", character.is_active);
+        .param("is_active", character.is_active)
+        .param("default_mood", character.default_mood.to_string());
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Created character: {}", character.name);
@@ -174,7 +180,8 @@ impl Neo4jCharacterRepository {
                 c.archetype_history = $archetype_history,
                 c.stats = $stats,
                 c.is_alive = $is_alive,
-                c.is_active = $is_active
+                c.is_active = $is_active,
+                c.default_mood = $default_mood
             RETURN c.id as id",
         )
         .param("id", character.id.to_string())
@@ -196,7 +203,8 @@ impl Neo4jCharacterRepository {
         .param("archetype_history", archetype_history_json)
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
-        .param("is_active", character.is_active);
+        .param("is_active", character.is_active)
+        .param("default_mood", character.default_mood.to_string());
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Updated character: {}", character.name);
@@ -250,14 +258,23 @@ impl Neo4jCharacterRepository {
         want: &Want,
         priority: u32,
     ) -> Result<()> {
+        let tells_json = serde_json::to_string(&want.tells)?;
+        let visibility_str = match want.visibility {
+            WantVisibility::Known => "Known",
+            WantVisibility::Suspected => "Suspected",
+            WantVisibility::Hidden => "Hidden",
+        };
+
         let q = query(
             "MATCH (c:Character {id: $character_id})
             CREATE (w:Want {
                 id: $id,
                 description: $description,
                 intensity: $intensity,
-                known_to_player: $known_to_player,
-                created_at: $created_at
+                visibility: $visibility,
+                created_at: $created_at,
+                deflection_behavior: $deflection_behavior,
+                tells: $tells
             })
             CREATE (c)-[:HAS_WANT {
                 priority: $priority,
@@ -269,8 +286,10 @@ impl Neo4jCharacterRepository {
         .param("id", want.id.to_string())
         .param("description", want.description.clone())
         .param("intensity", want.intensity as f64)
-        .param("known_to_player", want.known_to_player)
+        .param("visibility", visibility_str)
         .param("created_at", want.created_at.to_rfc3339())
+        .param("deflection_behavior", want.deflection_behavior.clone().unwrap_or_default())
+        .param("tells", tells_json)
         .param("priority", priority as i64)
         .param("acquired_at", Utc::now().to_rfc3339());
 
@@ -311,17 +330,28 @@ impl Neo4jCharacterRepository {
 
     /// Update a want
     pub async fn update_want(&self, want: &Want) -> Result<()> {
+        let tells_json = serde_json::to_string(&want.tells)?;
+        let visibility_str = match want.visibility {
+            WantVisibility::Known => "Known",
+            WantVisibility::Suspected => "Suspected",
+            WantVisibility::Hidden => "Hidden",
+        };
+
         let q = query(
             "MATCH (w:Want {id: $id})
             SET w.description = $description,
                 w.intensity = $intensity,
-                w.known_to_player = $known_to_player
+                w.visibility = $visibility,
+                w.deflection_behavior = $deflection_behavior,
+                w.tells = $tells
             RETURN w.id as id",
         )
         .param("id", want.id.to_string())
         .param("description", want.description.clone())
         .param("intensity", want.intensity as f64)
-        .param("known_to_player", want.known_to_player);
+        .param("visibility", visibility_str)
+        .param("deflection_behavior", want.deflection_behavior.clone().unwrap_or_default())
+        .param("tells", tells_json);
 
         self.connection.graph().run(q).await?;
         Ok(())
@@ -426,55 +456,91 @@ impl Neo4jCharacterRepository {
         Ok(())
     }
 
-    /// Get all actantial views for a character
+    /// Get all actantial views for a character (toward both NPCs and PCs)
     pub async fn get_actantial_views(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<(ActantialRole, CharacterId, ActantialView)>> {
-        let q = query(
+    ) -> Result<Vec<(ActantialRole, ActantialTarget, ActantialView)>> {
+        // Query views toward NPCs
+        let q_npc = query(
             "MATCH (s:Character {id: $id})-[r]->(t:Character)
             WHERE type(r) IN ['VIEWS_AS_HELPER', 'VIEWS_AS_OPPONENT', 'VIEWS_AS_SENDER', 'VIEWS_AS_RECEIVER']
-            RETURN type(r) as role_type, t.id as target_id, r.want_id as want_id, r.reason as reason, r.assigned_at as assigned_at",
+            RETURN type(r) as role_type, t.id as target_id, 'NPC' as target_type,
+                   r.want_id as want_id, r.reason as reason, r.assigned_at as assigned_at",
         )
         .param("id", character_id.to_string());
 
-        let mut result = self.connection.graph().execute(q).await?;
+        // Query views toward PCs
+        let q_pc = query(
+            "MATCH (s:Character {id: $id})-[r]->(t:PlayerCharacter)
+            WHERE type(r) IN ['VIEWS_AS_HELPER', 'VIEWS_AS_OPPONENT', 'VIEWS_AS_SENDER', 'VIEWS_AS_RECEIVER']
+            RETURN type(r) as role_type, t.id as target_id, 'PC' as target_type,
+                   r.want_id as want_id, r.reason as reason, r.assigned_at as assigned_at",
+        )
+        .param("id", character_id.to_string());
+
         let mut views = Vec::new();
 
+        // Process NPC views
+        let mut result = self.connection.graph().execute(q_npc).await?;
         while let Some(row) = result.next().await? {
-            let role_type: String = row.get("role_type")?;
-            let target_id_str: String = row.get("target_id")?;
-            let want_id_str: String = row.get("want_id")?;
-            let reason: String = row.get("reason")?;
-            let assigned_at_str: String = row.get("assigned_at")?;
+            if let Some(view) = self.parse_actantial_view_row(&row)? {
+                views.push(view);
+            }
+        }
 
-            let role = match role_type.as_str() {
-                "VIEWS_AS_HELPER" => ActantialRole::Helper,
-                "VIEWS_AS_OPPONENT" => ActantialRole::Opponent,
-                "VIEWS_AS_SENDER" => ActantialRole::Sender,
-                "VIEWS_AS_RECEIVER" => ActantialRole::Receiver,
-                _ => continue,
-            };
-
-            let target_id =
-                CharacterId::from_uuid(uuid::Uuid::parse_str(&target_id_str)?);
-            let want_id = WantId::from_uuid(uuid::Uuid::parse_str(&want_id_str)?);
-            let assigned_at = DateTime::parse_from_rfc3339(&assigned_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
-
-            views.push((
-                role,
-                target_id,
-                ActantialView {
-                    want_id,
-                    reason,
-                    assigned_at,
-                },
-            ));
+        // Process PC views
+        let mut result = self.connection.graph().execute(q_pc).await?;
+        while let Some(row) = result.next().await? {
+            if let Some(view) = self.parse_actantial_view_row(&row)? {
+                views.push(view);
+            }
         }
 
         Ok(views)
+    }
+
+    /// Helper to parse actantial view row
+    fn parse_actantial_view_row(
+        &self,
+        row: &Row,
+    ) -> Result<Option<(ActantialRole, ActantialTarget, ActantialView)>> {
+        let role_type: String = row.get("role_type")?;
+        let target_id_str: String = row.get("target_id")?;
+        let target_type: String = row.get("target_type")?;
+        let want_id_str: String = row.get("want_id")?;
+        let reason: String = row.get("reason")?;
+        let assigned_at_str: String = row.get("assigned_at")?;
+
+        let role = match role_type.as_str() {
+            "VIEWS_AS_HELPER" => ActantialRole::Helper,
+            "VIEWS_AS_OPPONENT" => ActantialRole::Opponent,
+            "VIEWS_AS_SENDER" => ActantialRole::Sender,
+            "VIEWS_AS_RECEIVER" => ActantialRole::Receiver,
+            _ => return Ok(None),
+        };
+
+        let target_uuid = uuid::Uuid::parse_str(&target_id_str)?;
+        let target = match target_type.as_str() {
+            "NPC" => ActantialTarget::Npc(target_uuid),
+            "PC" => ActantialTarget::Pc(target_uuid),
+            _ => return Ok(None),
+        };
+
+        let want_id = WantId::from_uuid(uuid::Uuid::parse_str(&want_id_str)?);
+        let assigned_at = DateTime::parse_from_rfc3339(&assigned_at_str)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+
+        Ok(Some((
+            role,
+            target,
+            ActantialView {
+                want_id,
+                reason,
+                assigned_at,
+            },
+        )))
     }
 
     /// Remove an actantial view
@@ -505,6 +571,108 @@ impl Neo4jCharacterRepository {
 
         self.connection.graph().run(q).await?;
         Ok(())
+    }
+
+    /// Add an actantial view toward a PC
+    pub async fn add_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        view: &ActantialView,
+    ) -> Result<()> {
+        let edge_type = match role {
+            ActantialRole::Helper => "VIEWS_AS_HELPER",
+            ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
+            ActantialRole::Sender => "VIEWS_AS_SENDER",
+            ActantialRole::Receiver => "VIEWS_AS_RECEIVER",
+        };
+
+        let cypher = format!(
+            "MATCH (s:Character {{id: $subject_id}}), (t:PlayerCharacter {{id: $target_id}})
+            CREATE (s)-[:{} {{
+                want_id: $want_id,
+                reason: $reason,
+                assigned_at: $assigned_at
+            }}]->(t)",
+            edge_type
+        );
+
+        let q = query(&cypher)
+            .param("subject_id", subject_id.to_string())
+            .param("target_id", target_id.to_string())
+            .param("want_id", view.want_id.to_string())
+            .param("reason", view.reason.clone())
+            .param("assigned_at", view.assigned_at.to_rfc3339());
+
+        self.connection.graph().run(q).await?;
+        Ok(())
+    }
+
+    /// Remove an actantial view toward a PC
+    pub async fn remove_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        want_id: WantId,
+    ) -> Result<()> {
+        let edge_type = match role {
+            ActantialRole::Helper => "VIEWS_AS_HELPER",
+            ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
+            ActantialRole::Sender => "VIEWS_AS_SENDER",
+            ActantialRole::Receiver => "VIEWS_AS_RECEIVER",
+        };
+
+        let cypher = format!(
+            "MATCH (s:Character {{id: $subject_id}})-[r:{} {{want_id: $want_id}}]->(t:PlayerCharacter {{id: $target_id}})
+            DELETE r",
+            edge_type
+        );
+
+        let q = query(&cypher)
+            .param("subject_id", subject_id.to_string())
+            .param("target_id", target_id.to_string())
+            .param("want_id", want_id.to_string());
+
+        self.connection.graph().run(q).await?;
+        Ok(())
+    }
+
+    /// Get the resolved target of a want
+    pub async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>> {
+        // Query for TARGETS edge to any of the possible target types
+        let q = query(
+            "MATCH (w:Want {id: $want_id})-[:TARGETS]->(target)
+            RETURN labels(target) as labels, target.id as id, target.name as name,
+                   target.description as description",
+        )
+        .param("want_id", want_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+
+        if let Some(row) = result.next().await? {
+            let labels: Vec<String> = row.get("labels")?;
+            let id_str: String = row.get("id")?;
+            let name: String = row.get("name")?;
+            let description: Option<String> = row.get("description").ok()
+                .filter(|s: &String| !s.is_empty());
+
+            let id = uuid::Uuid::parse_str(&id_str)?;
+
+            // Determine target type from labels
+            if labels.contains(&"Character".to_string()) {
+                Ok(Some(WantTarget::Character { id, name }))
+            } else if labels.contains(&"Item".to_string()) {
+                Ok(Some(WantTarget::Item { id, name }))
+            } else if labels.contains(&"Goal".to_string()) {
+                Ok(Some(WantTarget::Goal { id, name, description }))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     // =========================================================================
@@ -584,6 +752,51 @@ impl Neo4jCharacterRepository {
         }
 
         Ok(inventory)
+    }
+
+    /// Get a single inventory item by ID
+    pub async fn get_inventory_item(
+        &self,
+        character_id: CharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>> {
+        let q = query(
+            "MATCH (c:Character {id: $character_id})-[r:POSSESSES]->(i:Item {id: $item_id})
+            RETURN i, r.quantity as quantity, r.equipped as equipped, 
+                   r.acquired_at as acquired_at, r.acquisition_method as acquisition_method",
+        )
+        .param("character_id", character_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+
+        if let Some(row) = result.next().await? {
+            let item = row_to_item(&row)?;
+            let quantity: i64 = row.get("quantity")?;
+            let equipped: bool = row.get("equipped")?;
+            let acquired_at_str: String = row.get("acquired_at")?;
+            let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
+
+            let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            let acquisition_method = if acquisition_method_str.is_empty() {
+                None
+            } else {
+                acquisition_method_str.parse().ok()
+            };
+
+            Ok(Some(InventoryItem {
+                item,
+                quantity: quantity as u32,
+                equipped,
+                acquired_at,
+                acquisition_method,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Update inventory item
@@ -1079,6 +1292,218 @@ impl Neo4jCharacterRepository {
 
         Ok(npcs)
     }
+
+    // =========================================================================
+    // NPC Mood & Relationship Methods
+    // =========================================================================
+
+    /// Get an NPC's mood state toward a specific PC
+    pub async fn get_mood_toward_pc(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Option<NpcMoodState>> {
+        let q = query(
+            "MATCH (npc:Character {id: $npc_id})-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
+            RETURN r.mood as mood, r.relationship as relationship, r.sentiment as sentiment,
+                   r.updated_at as updated_at, r.mood_reason as mood_reason, r.relationship_points as relationship_points",
+        )
+        .param("npc_id", npc_id.to_string())
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+
+        if let Some(row) = result.next().await? {
+            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
+            let updated_at_str: String = row.get("updated_at").unwrap_or_default();
+            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
+
+            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            Ok(Some(NpcMoodState {
+                npc_id,
+                pc_id,
+                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                sentiment: sentiment as f32,
+                updated_at,
+                mood_reason,
+                relationship_points: relationship_points as i32,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Set/update an NPC's mood state toward a specific PC
+    pub async fn set_mood_toward_pc(&self, mood_state: &NpcMoodState) -> Result<()> {
+        let q = query(
+            "MATCH (npc:Character {id: $npc_id}), (pc:PlayerCharacter {id: $pc_id})
+            MERGE (npc)-[r:DISPOSITION_TOWARD]->(pc)
+            SET r.mood = $mood,
+                r.relationship = $relationship,
+                r.sentiment = $sentiment,
+                r.updated_at = $updated_at,
+                r.mood_reason = $mood_reason,
+                r.relationship_points = $relationship_points
+            RETURN npc.id as id",
+        )
+        .param("npc_id", mood_state.npc_id.to_string())
+        .param("pc_id", mood_state.pc_id.to_string())
+        .param("mood", mood_state.mood.to_string())
+        .param("relationship", mood_state.relationship.to_string())
+        .param("sentiment", mood_state.sentiment as f64)
+        .param("updated_at", mood_state.updated_at.to_rfc3339())
+        .param("mood_reason", mood_state.mood_reason.clone().unwrap_or_default())
+        .param("relationship_points", mood_state.relationship_points as i64);
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(
+            "Set mood for NPC {} toward PC {}: {:?}",
+            mood_state.npc_id,
+            mood_state.pc_id,
+            mood_state.mood
+        );
+        Ok(())
+    }
+
+    /// Get mood states for multiple NPCs toward a PC (for scene context)
+    pub async fn get_scene_moods(
+        &self,
+        npc_ids: &[CharacterId],
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcMoodState>> {
+        if npc_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let npc_id_strings: Vec<String> = npc_ids.iter().map(|id| id.to_string()).collect();
+
+        let q = query(
+            "MATCH (npc:Character)-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
+            WHERE npc.id IN $npc_ids
+            RETURN npc.id as npc_id, r.mood as mood, r.relationship as relationship,
+                   r.sentiment as sentiment, r.updated_at as updated_at,
+                   r.mood_reason as mood_reason, r.relationship_points as relationship_points",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_ids", npc_id_strings);
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut moods = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            let npc_id_str: String = row.get("npc_id")?;
+            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
+            let updated_at_str: String = row.get("updated_at").unwrap_or_default();
+            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
+
+            let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
+            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            moods.push(NpcMoodState {
+                npc_id: CharacterId::from_uuid(npc_uuid),
+                pc_id,
+                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                sentiment: sentiment as f32,
+                updated_at,
+                mood_reason,
+                relationship_points: relationship_points as i32,
+            });
+        }
+
+        Ok(moods)
+    }
+
+    /// Get all NPCs who have a relationship with a PC (for DM panel)
+    pub async fn get_all_npc_moods_for_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcMoodState>> {
+        let q = query(
+            "MATCH (npc:Character)-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
+            RETURN npc.id as npc_id, r.mood as mood, r.relationship as relationship,
+                   r.sentiment as sentiment, r.updated_at as updated_at,
+                   r.mood_reason as mood_reason, r.relationship_points as relationship_points
+            ORDER BY r.updated_at DESC",
+        )
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut moods = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            let npc_id_str: String = row.get("npc_id")?;
+            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
+            let updated_at_str: String = row.get("updated_at").unwrap_or_default();
+            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
+
+            let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
+            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            moods.push(NpcMoodState {
+                npc_id: CharacterId::from_uuid(npc_uuid),
+                pc_id,
+                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                sentiment: sentiment as f32,
+                updated_at,
+                mood_reason,
+                relationship_points: relationship_points as i32,
+            });
+        }
+
+        Ok(moods)
+    }
+
+    /// Get the NPC's default/global mood (from Character node)
+    pub async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel> {
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            RETURN c.default_mood as default_mood",
+        )
+        .param("id", npc_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+
+        if let Some(row) = result.next().await? {
+            let mood_str: String = row.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
+            Ok(mood_str.parse().unwrap_or(MoodLevel::Neutral))
+        } else {
+            Ok(MoodLevel::Neutral)
+        }
+    }
+
+    /// Set the NPC's default/global mood (on Character node)
+    pub async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()> {
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            SET c.default_mood = $mood
+            RETURN c.id as id",
+        )
+        .param("id", npc_id.to_string())
+        .param("mood", mood.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Set default mood for NPC {}: {:?}", npc_id, mood);
+        Ok(())
+    }
 }
 
 // =============================================================================
@@ -1100,6 +1525,8 @@ fn row_to_character(row: Row) -> Result<Character> {
     let stats_json: String = node.get("stats")?;
     let is_alive: bool = node.get("is_alive")?;
     let is_active: bool = node.get("is_active")?;
+    // default_mood is optional for backwards compatibility with existing data
+    let default_mood_str: String = node.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -1111,6 +1538,7 @@ fn row_to_character(row: Row) -> Result<Character> {
             .map(Into::into)
             .collect();
     let stats: StatBlock = serde_json::from_str::<StatBlockStored>(&stats_json)?.into();
+    let default_mood = default_mood_str.parse().unwrap_or(MoodLevel::Neutral);
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -1133,6 +1561,7 @@ fn row_to_character(row: Row) -> Result<Character> {
         stats,
         is_alive,
         is_active,
+        default_mood,
     })
 }
 
@@ -1142,8 +1571,26 @@ fn row_to_want(row: &Row) -> Result<Want> {
     let id_str: String = node.get("id")?;
     let description: String = node.get("description")?;
     let intensity: f64 = node.get("intensity")?;
-    let known_to_player: bool = node.get("known_to_player")?;
     let created_at_str: String = node.get("created_at")?;
+
+    // Handle visibility - try new field first, fall back to legacy known_to_player
+    let visibility = if let Ok(vis_str) = node.get::<String>("visibility") {
+        match vis_str.as_str() {
+            "Known" => WantVisibility::Known,
+            "Suspected" => WantVisibility::Suspected,
+            _ => WantVisibility::Hidden,
+        }
+    } else {
+        // Legacy: convert from known_to_player bool
+        let known_to_player: bool = node.get("known_to_player").unwrap_or(false);
+        WantVisibility::from_known_to_player(known_to_player)
+    };
+
+    // New behavioral guidance fields (optional)
+    let deflection_behavior: Option<String> = node.get("deflection_behavior").ok()
+        .filter(|s: &String| !s.is_empty());
+    let tells_json: String = node.get("tells").unwrap_or_else(|_| "[]".to_string());
+    let tells: Vec<String> = serde_json::from_str(&tells_json).unwrap_or_default();
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let created_at = DateTime::parse_from_rfc3339(&created_at_str)
@@ -1154,8 +1601,10 @@ fn row_to_want(row: &Row) -> Result<Want> {
         id: WantId::from_uuid(id),
         description,
         intensity: intensity as f32,
-        known_to_player,
+        visibility,
         created_at,
+        deflection_behavior,
+        tells,
     })
 }
 
@@ -1169,6 +1618,8 @@ fn row_to_item(row: &Row) -> Result<Item> {
     let item_type: String = node.get("item_type").unwrap_or_default();
     let is_unique: bool = node.get("is_unique").unwrap_or(false);
     let properties: String = node.get("properties").unwrap_or_default();
+    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
+    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -1192,6 +1643,12 @@ fn row_to_item(row: &Row) -> Result<Item> {
             None
         } else {
             Some(properties)
+        },
+        can_contain_items,
+        container_limit: if container_limit < 0 {
+            None
+        } else {
+            Some(container_limit as u32)
         },
     })
 }
@@ -1336,10 +1793,20 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::add_actantial_view(self, subject_id, role, target_id, view).await
     }
 
+    async fn add_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        view: &ActantialView,
+    ) -> Result<()> {
+        Neo4jCharacterRepository::add_actantial_view_to_pc(self, subject_id, role, target_id, view).await
+    }
+
     async fn get_actantial_views(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<(ActantialRole, CharacterId, ActantialView)>> {
+    ) -> Result<Vec<(ActantialRole, ActantialTarget, ActantialView)>> {
         Neo4jCharacterRepository::get_actantial_views(self, character_id).await
     }
 
@@ -1352,6 +1819,21 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     ) -> Result<()> {
         Neo4jCharacterRepository::remove_actantial_view(self, subject_id, role, target_id, want_id)
             .await
+    }
+
+    async fn remove_actantial_view_to_pc(
+        &self,
+        subject_id: CharacterId,
+        role: ActantialRole,
+        target_id: PlayerCharacterId,
+        want_id: WantId,
+    ) -> Result<()> {
+        Neo4jCharacterRepository::remove_actantial_view_to_pc(self, subject_id, role, target_id, want_id)
+            .await
+    }
+
+    async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>> {
+        Neo4jCharacterRepository::get_want_target(self, want_id).await
     }
 
     // Inventory
@@ -1376,6 +1858,14 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
 
     async fn get_inventory(&self, character_id: CharacterId) -> Result<Vec<InventoryItem>> {
         Neo4jCharacterRepository::get_inventory(self, character_id).await
+    }
+
+    async fn get_inventory_item(
+        &self,
+        character_id: CharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>> {
+        Neo4jCharacterRepository::get_inventory_item(self, character_id, item_id).await
     }
 
     async fn update_inventory_item(
@@ -1480,5 +1970,38 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         time_of_day: Option<&str>,
     ) -> Result<Vec<Character>> {
         Neo4jCharacterRepository::get_npcs_at_location(self, location_id, time_of_day).await
+    }
+
+    // Mood & Relationship
+    async fn get_mood_toward_pc(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Option<NpcMoodState>> {
+        Neo4jCharacterRepository::get_mood_toward_pc(self, npc_id, pc_id).await
+    }
+
+    async fn set_mood_toward_pc(&self, mood_state: &NpcMoodState) -> Result<()> {
+        Neo4jCharacterRepository::set_mood_toward_pc(self, mood_state).await
+    }
+
+    async fn get_scene_moods(
+        &self,
+        npc_ids: &[CharacterId],
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcMoodState>> {
+        Neo4jCharacterRepository::get_scene_moods(self, npc_ids, pc_id).await
+    }
+
+    async fn get_all_npc_moods_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcMoodState>> {
+        Neo4jCharacterRepository::get_all_npc_moods_for_pc(self, pc_id).await
+    }
+
+    async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel> {
+        Neo4jCharacterRepository::get_default_mood(self, npc_id).await
+    }
+
+    async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()> {
+        Neo4jCharacterRepository::set_default_mood(self, npc_id, mood).await
     }
 }

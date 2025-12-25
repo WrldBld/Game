@@ -15,7 +15,7 @@
 //! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
 //! DEPRECATED and kept only for backward compatibility during migration.
 
-use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
 
 /// A challenge that can be triggered during gameplay
 ///
@@ -498,18 +498,7 @@ impl TriggerType {
 }
 
 /// Result of a challenge resolution
-#[derive(Debug, Clone)]
-pub struct ChallengeResult {
-    pub challenge_id: ChallengeId,
-    pub roll: i32,
-    pub modifier: i32,
-    pub total: i32,
-    pub outcome_type: OutcomeType,
-    pub outcome: Outcome,
-    /// For complex challenges: progress toward required successes
-    pub accumulated_successes: Option<u32>,
-    pub accumulated_failures: Option<u32>,
-}
+
 
 /// Type of outcome achieved
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -605,6 +594,33 @@ impl ChallengeLocationAvailability {
     pub fn new(location_id: LocationId) -> Self {
         Self {
             location_id,
+            always_available: true,
+            time_restriction: None,
+        }
+    }
+
+    pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
+        self.time_restriction = Some(time.into());
+        self.always_available = false;
+        self
+    }
+}
+
+/// Data for AVAILABLE_AT_REGION edge between Challenge and Region
+#[derive(Debug, Clone)]
+pub struct ChallengeRegionAvailability {
+    /// The region where this challenge is available
+    pub region_id: RegionId,
+    /// Whether the challenge is always available at this region
+    pub always_available: bool,
+    /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
+    pub time_restriction: Option<String>,
+}
+
+impl ChallengeRegionAvailability {
+    pub fn new(region_id: RegionId) -> Self {
+        Self {
+            region_id,
             always_available: true,
             time_restriction: None,
         }

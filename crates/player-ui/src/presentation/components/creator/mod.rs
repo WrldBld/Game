@@ -8,6 +8,7 @@ pub mod character_form;
 pub mod location_form;
 pub mod asset_gallery;
 pub mod generation_queue;
+pub mod motivations_tab;
 pub mod suggestion_button;
 pub mod sheet_field_input;
 pub mod comfyui_banner;

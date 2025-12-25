@@ -53,4 +53,9 @@ pub trait ComfyUIPort: Send + Sync {
 
     /// Download a generated image
     async fn get_image(&self, filename: &str, subfolder: &str, folder_type: &str) -> Result<Vec<u8>>;
+
+    /// Check if ComfyUI is healthy/reachable
+    ///
+    /// Returns true if ComfyUI is responding, false otherwise.
+    async fn health_check(&self) -> Result<bool>;
 }

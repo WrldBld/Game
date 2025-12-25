@@ -4,12 +4,14 @@
 //! Observations are stored as edges: `(PlayerCharacter)-[:OBSERVED_NPC {...}]->(Character)`
 
 use anyhow::Result;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use neo4rs::query;
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{NpcObservation, ObservationSummary, ObservationType};
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_engine_ports::outbound::ObservationRepositoryPort;
 
 /// Repository for NPC observations
 pub struct Neo4jObservationRepository {
@@ -251,5 +253,25 @@ impl Neo4jObservationRepository {
             self.upsert(obs).await?;
         }
         Ok(())
+    }
+}
+
+// Implement the port trait for hexagonal architecture compliance
+#[async_trait]
+impl ObservationRepositoryPort for Neo4jObservationRepository {
+    async fn upsert(&self, observation: &NpcObservation) -> Result<()> {
+        Neo4jObservationRepository::upsert(self, observation).await
+    }
+
+    async fn get_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>> {
+        Neo4jObservationRepository::get_for_pc(self, pc_id).await
+    }
+
+    async fn get_latest(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<NpcObservation>> {
+        Neo4jObservationRepository::get_latest(self, pc_id, npc_id).await
     }
 }

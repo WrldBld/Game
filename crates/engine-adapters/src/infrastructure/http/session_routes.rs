@@ -184,8 +184,8 @@ pub async fn create_or_get_dm_session(
 fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldSnapshot {
     use chrono::Utc;
     use wrldbldr_domain::{
-        ActId, CampbellArchetype, Character, CharacterId, Location, LocationId, LocationType, Scene,
-        SceneId, StatBlock, TimeContext, World,
+        ActId, CampbellArchetype, Character, CharacterId, Location, LocationId, LocationType,
+        MoodLevel, Scene, SceneId, StatBlock, TimeContext, World,
     };
 
     // Convert world data
@@ -294,6 +294,7 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
                 stats: StatBlock::default(),
                 is_alive: c.is_alive,
                 is_active: c.is_active,
+                default_mood: MoodLevel::Neutral,
             }
         })
         .collect();

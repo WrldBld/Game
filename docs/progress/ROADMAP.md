@@ -2,8 +2,8 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2025-12-18  
-**Overall Progress**: Core gameplay complete; Queue System complete; Phase 18-21 complete
+**Last Updated**: 2025-12-24  
+**Overall Progress**: Core gameplay complete; Queue System complete; Prompt Template System complete
 
 ---
 
@@ -35,6 +35,7 @@ This document tracks implementation progress and remaining work. For detailed sy
 - Phase 19: Queue System Architecture
 - Phase 20: Unified Generation Queue UI
 - Phase 21: Player Character Creation
+- Prompt Template System (configurable LLM prompts)
 
 ### Tier 3: Architecture & Quality - IN PROGRESS
 
@@ -123,6 +124,8 @@ See individual system documents for detailed user stories.
 | 20 | Unified Generation Queue UI | 2025-12-15 |
 | 21 | Player Character Creation | 2025-12-15 |
 | 23 | PC Selection, Regions, Scenes | 2025-12-18 |
+| - | Prompt Template System | 2025-12-20 |
+| - | Phase B User Stories (Inventory, Known NPCs, Mini-map) | 2025-12-18 |
 
 For detailed specifications of each system, see:
 - [navigation-system.md](../systems/navigation-system.md) - Regions, movement, game time
@@ -134,32 +137,36 @@ For detailed specifications of each system, see:
 - [dialogue-system.md](../systems/dialogue-system.md) - LLM integration, DM approval
 - [scene-system.md](../systems/scene-system.md) - Visual novel, backdrops, sprites
 - [asset-system.md](../systems/asset-system.md) - ComfyUI, image generation
+- [staging-system.md](../systems/staging-system.md) - NPC presence staging, DM approval
+- [prompt-template-system.md](../systems/prompt-template-system.md) - Configurable LLM prompts
 
 ---
 
 ## Environment Setup
 
-### Engine Development
+### Development (Unified Game Directory)
 
 ```bash
-cd Engine
-nix-shell
+cd Game
+nix-shell shell.nix
 
 export NEO4J_PASSWORD="your_password"
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
 
-cargo run
+# Run both Engine and Player UI
+task dev
+
+# Or run individually:
+cargo run -p wrldbldr-engine-runner   # Engine only
+dx serve --hot-reload                  # Player UI (web)
 ```
 
-### Player Development
+### Verification Commands
 
 ```bash
-cd Player
-nix-shell
-
-npm install
-cargo run      # Desktop
-dx serve --web # Web
+# Must pass before committing
+cargo check --workspace
+cargo xtask arch-check
 ```
 
 ---
@@ -180,6 +187,9 @@ A task is complete when:
 
 | Date | Changes |
 |------|---------|
+| 2025-12-24 | Documentation alignment: system docs updated to match ACTIVE_DEVELOPMENT.md |
+| 2025-12-20 | Prompt Template System complete (configurable LLM prompts) |
+| 2025-12-18 | Phase B complete (Inventory, Known NPCs, Mini-map, Events) |
 | 2025-12-18 | Phase 23 (Regions, Navigation, Game Time, Observations) complete |
 | 2025-12-18 | Documentation reorganization: created systems/, architecture/, progress/ |
 | 2025-12-15 | Phases 16-21 complete (Queue System, ComfyUI, Character Creation) |

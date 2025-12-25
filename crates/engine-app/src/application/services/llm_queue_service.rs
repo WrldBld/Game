@@ -15,6 +15,7 @@ use wrldbldr_engine_ports::outbound::{
 };
 use crate::application::services::llm::LLMService;
 use crate::application::services::generation_service::GenerationEvent;
+use crate::application::services::PromptTemplateService;
 use crate::application::dto::{
     ApprovalItem, DecisionType, DecisionUrgency, LLMRequestItem, LLMRequestType,
 };
@@ -39,6 +40,7 @@ pub struct LLMQueueService<Q: ProcessingQueuePort<LLMRequestItem>, L: LlmPort + 
     semaphore: Arc<Semaphore>,
     notifier: N,
     generation_event_tx: tokio::sync::mpsc::UnboundedSender<GenerationEvent>,
+    prompt_template_service: Arc<PromptTemplateService>,
 }
 
 impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'static, N: QueueNotificationPort + 'static> LLMQueueService<Q, L, N> {
@@ -69,10 +71,11 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
         batch_size: usize,
         notifier: N,
         generation_event_tx: tokio::sync::mpsc::UnboundedSender<GenerationEvent>,
+        prompt_template_service: Arc<PromptTemplateService>,
     ) -> Self {
         Self {
             queue,
-            llm_service: Arc::new(LLMService::new((*llm_client).clone())),
+            llm_service: Arc::new(LLMService::new(Arc::clone(&llm_client), prompt_template_service.clone())),
             llm_client,
             approval_queue,
             challenge_repo,
@@ -81,6 +84,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
             semaphore: Arc::new(Semaphore::new(batch_size.max(1))),
             notifier,
             generation_event_tx,
+            prompt_template_service,
         }
     }
 
@@ -155,6 +159,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
             let skill_repo_clone = self.skill_repo.clone();
             let narrative_event_repo_clone = self.narrative_event_repo.clone();
             let generation_event_tx_clone = self.generation_event_tx.clone();
+            let prompt_template_service_clone = self.prompt_template_service.clone();
             let request = item.payload.clone();
             let item_id = item.id;
 
@@ -435,7 +440,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         
                         // Create suggestion service
                         use crate::application::services::SuggestionService;
-                        let suggestion_service = SuggestionService::new((*llm_client_clone).clone());
+                        let suggestion_service = SuggestionService::new((*llm_client_clone).clone(), prompt_template_service_clone.clone());
                         
                         // Process based on field type
                         let result = match field_type.as_str() {
@@ -449,6 +454,11 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             "location_atmosphere" => suggestion_service.suggest_location_atmosphere(context).await,
                             "location_features" => suggestion_service.suggest_location_features(context).await,
                             "location_secrets" => suggestion_service.suggest_location_secrets(context).await,
+                            // Actantial Model suggestions
+                            "deflection_behavior" => suggestion_service.suggest_deflection_behavior(context).await,
+                            "behavioral_tells" => suggestion_service.suggest_behavioral_tells(context).await,
+                            "want_description" => suggestion_service.suggest_want_description(context).await,
+                            "actantial_reason" => suggestion_service.suggest_actantial_reason(context).await,
                             _ => {
                                 let error = format!("Unknown suggestion field type: {}", field_type);
                                 tracing::error!("{}", error);
@@ -487,12 +497,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                         }
                     }
-                    LLMRequestType::ChallengeReasoning { .. } => {
-                        // Add to approval queue with challenge type
-                        // TODO: Implement challenge reasoning approval
-                        tracing::info!("Challenge reasoning request - approval not yet implemented");
-                        let _ = queue_clone.complete(item_id).await;
-                    }
+
                 }
             });
         }

@@ -56,11 +56,7 @@ pub enum AsyncSessionError {
     Internal(String),
 }
 
-/// Message sender type for sending messages to clients
-///
-/// The actual message type is opaque to the application layer - messages
-/// are serialized/deserialized at the infrastructure boundary.
-pub type MessageSender = mpsc::UnboundedSender<serde_json::Value>;
+
 
 /// Result of joining a session
 #[derive(Debug, Clone)]

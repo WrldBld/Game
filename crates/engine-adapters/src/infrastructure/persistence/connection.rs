@@ -58,6 +58,7 @@ impl Neo4jConnection {
             "CREATE CONSTRAINT gallery_asset_id IF NOT EXISTS FOR (a:GalleryAsset) REQUIRE a.id IS UNIQUE",
             "CREATE CONSTRAINT generation_batch_id IF NOT EXISTS FOR (b:GenerationBatch) REQUIRE b.id IS UNIQUE",
             "CREATE CONSTRAINT workflow_slot IF NOT EXISTS FOR (w:WorkflowConfiguration) REQUIRE w.slot IS UNIQUE",
+            "CREATE CONSTRAINT goal_id IF NOT EXISTS FOR (g:Goal) REQUIRE g.id IS UNIQUE",
         ];
 
         for constraint in constraints {
@@ -85,6 +86,7 @@ impl Neo4jConnection {
             "CREATE INDEX player_character_session IF NOT EXISTS FOR (pc:PlayerCharacter) ON (pc.session_id)",
             "CREATE INDEX staging_world IF NOT EXISTS FOR (s:Staging) ON (s.world_id)",
             "CREATE INDEX generation_batch_world IF NOT EXISTS FOR (b:GenerationBatch) ON (b.world_id)",
+            "CREATE INDEX goal_world IF NOT EXISTS FOR (g:Goal) ON (g.world_id)",
         ];
 
         for index in indexes {

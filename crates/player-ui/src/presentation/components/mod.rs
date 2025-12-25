@@ -11,6 +11,7 @@ pub mod known_npcs_panel;
 pub mod mini_map;
 pub mod navigation_panel;
 pub mod pc;
+pub mod region_items_panel;
 pub mod settings;
 pub mod story_arc;
 pub mod tactical;

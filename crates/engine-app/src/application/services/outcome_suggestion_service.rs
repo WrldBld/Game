@@ -7,7 +7,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::application::dto::{OutcomeBranchDto, OutcomeSuggestionRequest};
+use crate::application::services::PromptTemplateService;
 use wrldbldr_engine_ports::outbound::LlmPort;
+use wrldbldr_domain::value_objects::prompt_keys;
+use wrldbldr_domain::WorldId;
 
 /// Error type for outcome suggestion operations
 #[derive(Debug, thiserror::Error)]
@@ -21,12 +24,20 @@ pub enum SuggestionError {
 /// Service for generating LLM-powered outcome suggestions
 pub struct OutcomeSuggestionService<L: LlmPort> {
     llm: Arc<L>,
+    prompt_template_service: Arc<PromptTemplateService>,
 }
 
 impl<L: LlmPort> OutcomeSuggestionService<L> {
     /// Create a new outcome suggestion service
-    pub fn new(llm: Arc<L>) -> Self {
-        Self { llm }
+    pub fn new(llm: Arc<L>, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+        Self { llm, prompt_template_service }
+    }
+    
+    /// Parse world_id from optional string
+    fn parse_world_id(world_id: Option<&String>) -> Option<WorldId> {
+        world_id.and_then(|id| {
+            uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid)
+        })
     }
 
     /// Generate alternative outcome descriptions
@@ -36,7 +47,8 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         &self,
         request: &OutcomeSuggestionRequest,
     ) -> Result<Vec<String>, SuggestionError> {
-        let system_prompt = self.build_system_prompt();
+        let world_id = Self::parse_world_id(request.world_id.as_ref());
+        let system_prompt = self.build_system_prompt(world_id).await;
         let user_prompt = self.build_user_prompt(request);
 
         use wrldbldr_engine_ports::outbound::{ChatMessage, LlmRequest};
@@ -75,7 +87,8 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         branch_count: usize,
         tokens_per_branch: u32,
     ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
-        let system_prompt = self.build_branch_system_prompt(branch_count);
+        let world_id = Self::parse_world_id(request.world_id.as_ref());
+        let system_prompt = self.build_branch_system_prompt(world_id, branch_count).await;
         let user_prompt = self.build_branch_user_prompt(request, branch_count);
 
         use wrldbldr_engine_ports::outbound::{ChatMessage, LlmRequest};
@@ -102,40 +115,31 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         Ok(branches)
     }
 
-    /// Build the system prompt for outcome generation
-    fn build_system_prompt(&self) -> String {
-        r#"You are a creative TTRPG game master assistant specializing in vivid challenge outcomes.
-
-Your task is to generate engaging outcome descriptions for skill challenges. Each description should:
-- Be 2-3 sentences of evocative narrative
-- Match the outcome tier (critical success, success, failure, critical failure)
-- Describe what happens as a result of the roll
-- Be written in second person ("You...")
-- Add sensory details and dramatic tension
-
-Format: Return exactly 3 suggestions, each on its own line. Do not number them or add prefixes."#.to_string()
+    /// Build the system prompt for outcome generation (async for template resolution)
+    async fn build_system_prompt(&self, world_id: Option<WorldId>) -> String {
+        match world_id {
+            Some(wid) => self.prompt_template_service
+                .resolve_for_world(wid, prompt_keys::OUTCOME_SYSTEM_PROMPT)
+                .await,
+            None => self.prompt_template_service
+                .resolve(prompt_keys::OUTCOME_SYSTEM_PROMPT)
+                .await,
+        }
     }
 
-    /// Build the system prompt for branch generation
-    fn build_branch_system_prompt(&self, branch_count: usize) -> String {
-        format!(
-            r#"You are a creative TTRPG game master assistant specializing in vivid challenge outcomes.
-
-Your task is to generate {} distinct outcome branches for skill challenges. Each branch should offer a different narrative direction while staying consistent with the outcome tier.
-
-For each branch, provide:
-1. A SHORT TITLE (3-5 words) summarizing the outcome
-2. A DESCRIPTION (2-3 sentences) of evocative narrative in second person ("You...")
-
-The branches should offer meaningfully different narrative paths, not just rephrased versions of the same outcome.
-
-FORMAT: Use this exact format for each branch, separated by blank lines:
-TITLE: [short title]
-DESCRIPTION: [narrative description]
-
-Do not number the branches or add any other formatting."#,
-            branch_count
-        )
+    /// Build the system prompt for branch generation (async for template resolution)
+    async fn build_branch_system_prompt(&self, world_id: Option<WorldId>, branch_count: usize) -> String {
+        let template = match world_id {
+            Some(wid) => self.prompt_template_service
+                .resolve_for_world(wid, prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
+                .await,
+            None => self.prompt_template_service
+                .resolve(prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
+                .await,
+        };
+        
+        // Replace the {branch_count} placeholder
+        template.replace("{branch_count}", &branch_count.to_string())
     }
 
     /// Build the user prompt for a specific request
@@ -313,13 +317,20 @@ Do not number the branches or add any other formatting."#,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_ports::outbound::{FinishReason, ToolDefinition};
+    use wrldbldr_engine_ports::outbound::{FinishReason, ToolDefinition, PromptTemplateRepositoryPort, PromptTemplateError};
+
+    fn create_test_service() -> OutcomeSuggestionService<MockLlm> {
+        let mock_repo = Arc::new(MockPromptTemplateRepository);
+        let prompt_template_service = Arc::new(PromptTemplateService::new(mock_repo));
+        OutcomeSuggestionService {
+            llm: Arc::new(MockLlm),
+            prompt_template_service,
+        }
+    }
 
     #[test]
     fn test_parse_suggestions_simple() {
-        let service = OutcomeSuggestionService {
-            llm: Arc::new(MockLlm),
-        };
+        let service = create_test_service();
 
         let content = "You succeed with flying colors!\nThe guard barely notices you slip past.\nYour skills prove more than adequate.";
         let result = service.parse_suggestions(content).unwrap();
@@ -330,9 +341,7 @@ mod tests {
 
     #[test]
     fn test_parse_suggestions_numbered() {
-        let service = OutcomeSuggestionService {
-            llm: Arc::new(MockLlm),
-        };
+        let service = create_test_service();
 
         let content = "1. You succeed with flying colors!\n2. The guard barely notices you slip past.\n3. Your skills prove more than adequate.";
         let result = service.parse_suggestions(content).unwrap();
@@ -343,9 +352,7 @@ mod tests {
 
     #[test]
     fn test_parse_branches_structured() {
-        let service = OutcomeSuggestionService {
-            llm: Arc::new(MockLlm),
-        };
+        let service = create_test_service();
 
         let content = "TITLE: Swift Success\nDESCRIPTION: You move with precision and grace.\n\nTITLE: Lucky Break\nDESCRIPTION: Fortune favors you today.";
         let result = service.parse_branches(content, 2).unwrap();
@@ -358,9 +365,7 @@ mod tests {
 
     #[test]
     fn test_parse_branches_fallback() {
-        let service = OutcomeSuggestionService {
-            llm: Arc::new(MockLlm),
-        };
+        let service = create_test_service();
 
         // Unstructured input - should fall back to line-by-line
         let content = "You succeed brilliantly!\nThe task is completed with ease.";
@@ -369,6 +374,42 @@ mod tests {
         assert_eq!(result.len(), 2);
         // Should have generated titles from content
         assert!(result[0].title.starts_with("Option 1:"));
+    }
+
+    struct MockPromptTemplateRepository;
+
+    #[async_trait::async_trait]
+    impl PromptTemplateRepositoryPort for MockPromptTemplateRepository {
+        async fn get_global(&self, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+            Ok(None)
+        }
+        async fn get_all_global(&self) -> Result<Vec<(String, String)>, PromptTemplateError> {
+            Ok(vec![])
+        }
+        async fn set_global(&self, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_global(&self, _key: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_all_global(&self) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn get_for_world(&self, _world_id: WorldId, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+            Ok(None)
+        }
+        async fn get_all_for_world(&self, _world_id: WorldId) -> Result<Vec<(String, String)>, PromptTemplateError> {
+            Ok(vec![])
+        }
+        async fn set_for_world(&self, _world_id: WorldId, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_for_world(&self, _world_id: WorldId, _key: &str) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
+        async fn delete_all_for_world(&self, _world_id: WorldId) -> Result<(), PromptTemplateError> {
+            Ok(())
+        }
     }
 
     struct MockLlm;

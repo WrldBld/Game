@@ -15,9 +15,11 @@ use wrldbldr_engine_app::application::services::{
     SceneResolutionService,
     CreatePlayerCharacterRequest, UpdatePlayerCharacterRequest,
 };
+use wrldbldr_engine_app::application::services::scene_service::SceneService;
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::entities::{CharacterSheetData, FieldValue};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+use wrldbldr_protocol::{CharacterData, CharacterPosition, SceneData, ServerMessage};
 use crate::infrastructure::state::AppState;
 
 /// Extract user ID from X-User-Id header, falling back to a default if not provided
@@ -223,7 +225,7 @@ pub async fn create_player_character(
 
     let service_request = CreatePlayerCharacterRequest {
         session_id: Some(session_id),
-        user_id,
+        user_id: user_id.clone(),
         world_id,
         name: req.name,
         description: req.description,
@@ -255,7 +257,65 @@ pub async fn create_player_character(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // TODO: Broadcast SceneUpdate to player if scene found
+    // Broadcast SceneUpdate to player if scene found
+    if let Some(scene) = scene_result {
+        // Get scene with relations to build SceneUpdate
+        if let Ok(Some(scene_with_relations)) = state.core.scene_service
+            .get_scene_with_relations(scene.id)
+            .await
+        {
+            // Build character data from featured characters
+            let characters: Vec<CharacterData> = scene_with_relations
+                .featured_characters
+                .iter()
+                .map(|c| CharacterData {
+                    id: c.id.to_string(),
+                    name: c.name.clone(),
+                    sprite_asset: c.sprite_asset.clone(),
+                    portrait_asset: c.portrait_asset.clone(),
+                    position: CharacterPosition::Center,
+                    is_speaking: false,
+                    emotion: None,
+                })
+                .collect();
+
+            // Build SceneUpdate message
+            let scene_update = ServerMessage::SceneUpdate {
+                scene: SceneData {
+                    id: scene_with_relations.scene.id.to_string(),
+                    name: scene_with_relations.scene.name.clone(),
+                    location_id: scene_with_relations.scene.location_id.to_string(),
+                    location_name: scene_with_relations.location.name.clone(),
+                    backdrop_asset: scene_with_relations
+                        .scene
+                        .backdrop_override
+                        .clone()
+                        .or(scene_with_relations.location.backdrop_asset.clone()),
+                    time_context: match &scene_with_relations.scene.time_context {
+                        wrldbldr_domain::entities::TimeContext::Unspecified => "Unspecified".to_string(),
+                        wrldbldr_domain::entities::TimeContext::TimeOfDay(tod) => format!("{:?}", tod),
+                        wrldbldr_domain::entities::TimeContext::During(s) => s.clone(),
+                        wrldbldr_domain::entities::TimeContext::Custom(s) => s.clone(),
+                    },
+                    directorial_notes: scene_with_relations.scene.directorial_notes.clone(),
+                },
+                characters,
+                interactions: vec![], // Interactions can be loaded separately if needed
+            };
+
+            // Update session's current scene and send to player
+            let _ = state.async_session_port.update_session_scene(session_id, scene.id.to_string()).await;
+            if let Ok(scene_json) = serde_json::to_value(&scene_update) {
+                let _ = state.async_session_port.send_to_participant(session_id, &user_id, scene_json).await;
+            }
+
+            tracing::info!(
+                "Sent scene update to player {} after PC creation in session {}",
+                user_id,
+                session_id
+            );
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(PlayerCharacterResponseDto::from(pc))))
 }
@@ -363,6 +423,13 @@ pub async fn update_player_character_location(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid location ID".to_string()))?;
     let location_id = LocationId::from_uuid(location_uuid);
 
+    // Get PC to retrieve session_id and user_id for broadcasting
+    let pc = state.repository.player_characters()
+        .get(pc_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Player character not found".to_string()))?;
+
     state
                 .player.player_character_service
         .update_pc_location(pc_id, location_id)
@@ -376,11 +443,72 @@ pub async fn update_player_character_location(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // TODO: Broadcast SceneUpdate to player if scene found
+    // Broadcast SceneUpdate to player if scene found and PC is in a session
+    let scene_id_str = if let (Some(scene), Some(session_id)) = (&scene_result, pc.session_id) {
+        // Get scene with relations to build SceneUpdate
+        if let Ok(Some(scene_with_relations)) = state.core.scene_service
+            .get_scene_with_relations(scene.id)
+            .await
+        {
+            // Build character data from featured characters
+            let characters: Vec<CharacterData> = scene_with_relations
+                .featured_characters
+                .iter()
+                .map(|c| CharacterData {
+                    id: c.id.to_string(),
+                    name: c.name.clone(),
+                    sprite_asset: c.sprite_asset.clone(),
+                    portrait_asset: c.portrait_asset.clone(),
+                    position: CharacterPosition::Center,
+                    is_speaking: false,
+                    emotion: None,
+                })
+                .collect();
+
+            // Build SceneUpdate message
+            let scene_update = ServerMessage::SceneUpdate {
+                scene: SceneData {
+                    id: scene_with_relations.scene.id.to_string(),
+                    name: scene_with_relations.scene.name.clone(),
+                    location_id: scene_with_relations.scene.location_id.to_string(),
+                    location_name: scene_with_relations.location.name.clone(),
+                    backdrop_asset: scene_with_relations
+                        .scene
+                        .backdrop_override
+                        .clone()
+                        .or(scene_with_relations.location.backdrop_asset.clone()),
+                    time_context: match &scene_with_relations.scene.time_context {
+                        wrldbldr_domain::entities::TimeContext::Unspecified => "Unspecified".to_string(),
+                        wrldbldr_domain::entities::TimeContext::TimeOfDay(tod) => format!("{:?}", tod),
+                        wrldbldr_domain::entities::TimeContext::During(s) => s.clone(),
+                        wrldbldr_domain::entities::TimeContext::Custom(s) => s.clone(),
+                    },
+                    directorial_notes: scene_with_relations.scene.directorial_notes.clone(),
+                },
+                characters,
+                interactions: vec![], // Interactions can be loaded separately if needed
+            };
+
+            // Update session's current scene and send to player
+            let _ = state.async_session_port.update_session_scene(session_id, scene.id.to_string()).await;
+            if let Ok(scene_json) = serde_json::to_value(&scene_update) {
+                let _ = state.async_session_port.send_to_participant(session_id, &pc.user_id, scene_json).await;
+            }
+
+            tracing::info!(
+                "Sent scene update to player {} after location change to {}",
+                pc.user_id,
+                location_id
+            );
+        }
+        Some(scene.id.to_string())
+    } else {
+        scene_result.map(|s| s.id.to_string())
+    };
 
     Ok(Json(UpdateLocationResponseDto {
         success: true,
-        scene_id: scene_result.map(|s| s.id.to_string()),
+        scene_id: scene_id_str,
     }))
 }
 

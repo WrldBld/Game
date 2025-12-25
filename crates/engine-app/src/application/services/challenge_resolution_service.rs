@@ -15,7 +15,7 @@ use wrldbldr_engine_ports::outbound::EventBusPort;
 use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
 use crate::application::services::{
-    ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, OutcomeTriggerService,
+    ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService, OutcomeTriggerService,
     PlayerCharacterService, SkillService,
 };
 use wrldbldr_domain::entities::OutcomeType;
@@ -112,24 +112,26 @@ use wrldbldr_engine_ports::outbound::LlmPort;
 /// the port trait rather than concrete infrastructure types.
 ///
 /// Generic over `L: LlmPort` for LLM-powered suggestion generation via the approval service.
-pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>, P: PlayerCharacterService, L: LlmPort> {
+/// Generic over `I: ItemService` for item operations in the DM approval queue.
+pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>, P: PlayerCharacterService, L: LlmPort, I: ItemService> {
     sessions: Arc<dyn AsyncSessionPort>,
     challenge_service: Arc<S>,
     skill_service: Arc<K>,
     player_character_service: Arc<P>,
     event_bus: Arc<dyn EventBusPort<AppEvent>>,
-    dm_approval_queue_service: Arc<DMApprovalQueueService<Q>>,
+    dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
     outcome_trigger_service: Arc<OutcomeTriggerService>,
     challenge_outcome_approval_service: Option<Arc<ChallengeOutcomeApprovalService<L>>>,
 }
 
-impl<S, K, Q, P, L> ChallengeResolutionService<S, K, Q, P, L>
+impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
 where
     S: ChallengeService,
     K: SkillService,
     Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>,
     P: PlayerCharacterService,
     L: LlmPort + 'static,
+    I: ItemService,
 {
     pub fn new(
         sessions: Arc<dyn AsyncSessionPort>,
@@ -137,7 +139,7 @@ where
         skill_service: Arc<K>,
         player_character_service: Arc<P>,
         event_bus: Arc<dyn EventBusPort<AppEvent>>,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<Q>>,
+        dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
     ) -> Self {
         Self {
