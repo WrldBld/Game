@@ -15,7 +15,7 @@ pub use approval_state::{ConversationLogEntry, PendingApproval, PendingChallenge
 pub use challenge_state::RollSubmissionStatus;
 pub use connection_state::ConnectionStatus;
 pub use dialogue_state::{use_typewriter_effect, DialogueState};
-pub use game_state::{GameState, ApproachEventData, LocationEventData};
+pub use game_state::{GameState, ApproachEventData, LocationEventData, ViewMode};
 pub use generation_state::{BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask};
 
 // SessionState is the facade that composes the substates (backward-compatible)

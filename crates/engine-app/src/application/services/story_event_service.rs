@@ -19,7 +19,7 @@ use wrldbldr_domain::entities::{
     ChallengeEventOutcome, DmMarkerType, InfoType, InvolvedCharacter, ItemSource, MarkerImportance,
     StoryEvent, StoryEventInfoImportance, StoryEventType,
 };
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
 
 /// Service for recording gameplay events to the story timeline
 #[derive(Clone)]
@@ -50,7 +50,6 @@ impl StoryEventService {
     pub async fn record_dialogue_exchange(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         npc_id: CharacterId,
@@ -82,7 +81,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -103,7 +101,6 @@ impl StoryEventService {
     pub async fn record_challenge_attempted(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         challenge_id: Option<ChallengeId>,
@@ -146,7 +143,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -168,7 +164,6 @@ impl StoryEventService {
     pub async fn record_scene_transition(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         from_scene: Option<SceneId>,
         to_scene: SceneId,
         from_scene_name: Option<String>,
@@ -196,7 +191,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         self.repository.set_scene(event_id, to_scene).await?;
         if let Some(lid) = location_id {
             self.repository.set_location(event_id, lid).await?;
@@ -212,7 +206,6 @@ impl StoryEventService {
     pub async fn record_dm_marker(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         title: String,
@@ -247,7 +240,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -265,7 +257,6 @@ impl StoryEventService {
     pub async fn record_information_revealed(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         info_type: InfoType,
@@ -297,7 +288,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -318,7 +308,6 @@ impl StoryEventService {
     pub async fn record_relationship_changed(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         from_character: CharacterId,
         to_character: CharacterId,
@@ -349,7 +338,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -366,7 +354,6 @@ impl StoryEventService {
     pub async fn record_item_acquired(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         item_name: String,
@@ -395,7 +382,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -414,7 +400,6 @@ impl StoryEventService {
     pub async fn record_narrative_event_triggered(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         scene_id: Option<SceneId>,
         location_id: Option<LocationId>,
         narrative_event_id: NarrativeEventId,
@@ -442,7 +427,6 @@ impl StoryEventService {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_session(event_id, session_id).await?;
         self.repository.set_triggered_by(event_id, narrative_event_id).await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
@@ -464,7 +448,6 @@ impl StoryEventService {
     pub async fn record_session_started(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         session_number: u32,
         session_name: Option<String>,
         players_present: Vec<String>,
@@ -481,9 +464,6 @@ impl StoryEventService {
         let event_id = event.id;
         self.repository.create(&event).await?;
 
-        // Create edge for session relationship
-        self.repository.set_session(event_id, session_id).await?;
-
         self.publish_event_created(&event).await;
 
         tracing::debug!("Recorded session started event: {}", event_id);
@@ -494,7 +474,6 @@ impl StoryEventService {
     pub async fn record_session_ended(
         &self,
         world_id: WorldId,
-        session_id: SessionId,
         duration_minutes: u32,
         summary: String,
     ) -> Result<StoryEventId> {
@@ -507,9 +486,6 @@ impl StoryEventService {
 
         let event_id = event.id;
         self.repository.create(&event).await?;
-
-        // Create edge for session relationship
-        self.repository.set_session(event_id, session_id).await?;
 
         self.publish_event_created(&event).await;
 
@@ -524,11 +500,6 @@ impl StoryEventService {
     /// Get a single story event by ID
     pub async fn get_event(&self, event_id: StoryEventId) -> Result<Option<StoryEvent>> {
         self.repository.get(event_id).await
-    }
-
-    /// List story events for a session
-    pub async fn list_by_session(&self, session_id: SessionId) -> Result<Vec<StoryEvent>> {
-        self.repository.list_by_session(session_id).await
     }
 
     /// List story events for a world

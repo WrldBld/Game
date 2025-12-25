@@ -177,23 +177,10 @@ where
         }
 
         // 4. Record a StoryEvent for the timeline
-        let session_id_for_story = session_id.to_string();
-        let session_uuid = match uuid::Uuid::parse_str(&session_id_for_story) {
-            Ok(uuid) => SessionId::from_uuid(uuid),
-            Err(_) => {
-                tracing::warn!(
-                    "Invalid session_id for story event: {}",
-                    session_id_for_story
-                );
-                SessionId::from_uuid(uuid::Uuid::nil())
-            }
-        };
-
         if let Err(e) = self
             .story_event_service
             .record_narrative_event_triggered(
                 narrative_event.world_id,
-                session_uuid,
                 None, // scene_id
                 None, // location_id
                 event_uuid,
@@ -203,7 +190,7 @@ where
                     .effects
                     .iter()
                     .map(|e| format!("{:?}", e))
-                    .collect(),
+                    .collect::<Vec<String>>(),
                 vec![], // involved_characters
                 None,   // game_time
             )

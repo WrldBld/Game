@@ -380,14 +380,12 @@ pub fn handle_server_message(
                 "Party is split across {} locations",
                 location_count
             );
-            // TODO (Phase 23 UX Polish): Update UI to show split party warning with location information
-            // For now, this is logged to console for DM awareness
-            for loc in locations {
-                tracing::debug!(
-                    "Location: {} - {} PC(s)",
-                    loc.location_name,
-                    loc.pc_count
-                );
+            // Update UI to show split party warning banner
+            if location_count > 1 {
+                game_state.set_split_party_locations(locations);
+            } else {
+                // Party is together (or only one location)
+                game_state.clear_split_party();
             }
         }
 

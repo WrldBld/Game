@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
-use crate::presentation::services::use_asset_service;
+use crate::presentation::services::{use_asset_service, use_settings_service};
 
 /// Asset types that can be generated
 const ASSET_TYPES: &[(&str, &str)] = &[
@@ -17,23 +17,34 @@ const ASSET_TYPES: &[(&str, &str)] = &[
 #[component]
 pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) -> Element {
     let asset_service = use_asset_service();
+    let settings_service = use_settings_service();
     let mut selected_asset_type = use_signal(|| "portrait".to_string());
     let mut show_generate_modal = use_signal(|| false);
     let mut assets: Signal<Vec<Asset>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
+    let mut world_style_reference_id: Signal<Option<String>> = use_signal(|| None);
 
-    // Fetch assets on mount (only if entity_id is not empty)
+    // Fetch assets and world settings on mount
     {
         let entity_type_clone = entity_type.clone();
         let entity_id_clone = entity_id.clone();
+        let world_id_clone = world_id.clone();
         let asset_svc = asset_service.clone();
+        let settings_svc = settings_service.clone();
 
         use_effect(move || {
             let et = entity_type_clone.clone();
             let ei = entity_id_clone.clone();
-            let svc = asset_svc.clone();
+            let wid = world_id_clone.clone();
+            let asset_svc = asset_svc.clone();
+            let settings_svc = settings_svc.clone();
             spawn(async move {
+                // Fetch world settings to get current style reference
+                if let Ok(settings) = settings_svc.get_for_world(&wid).await {
+                    world_style_reference_id.set(settings.style_reference_asset_id);
+                }
+
                 // Skip API call if entity_id is empty (new entity being created)
                 if ei.is_empty() {
                     assets.set(Vec::new());
@@ -41,7 +52,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                     return;
                 }
 
-                match svc.get_assets(&et, &ei).await {
+                match asset_svc.get_assets(&et, &ei).await {
                     Ok(fetched_assets) => {
                         assets.set(fetched_assets);
                         is_loading.set(false);
@@ -128,13 +139,17 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                             let entity_id_activate = entity_id.clone();
                             let entity_type_delete = entity_type.clone();
                             let entity_id_delete = entity_id.clone();
+                            let world_id_for_style = world_id.clone();
                             let asset_svc_activate = asset_service.clone();
                             let asset_svc_delete = asset_service.clone();
+                            let settings_svc_style = settings_service.clone();
+                            let is_world_style_ref = world_style_reference_id.read().as_ref() == Some(&asset.id);
                             rsx! {
                                 AssetThumbnail {
                                     id: asset.id.clone(),
                                     label: asset.label.clone(),
                                     is_active: asset.is_active,
+                                    is_world_style_reference: is_world_style_ref,
                                     style_reference_id: asset.style_reference_id.clone(),
                                     on_activate: move |id: String| {
                                         let entity_type = entity_type_activate.clone();
@@ -156,7 +171,28 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                                             }
                                         });
                                     },
-                                    on_use_as_reference: None, // TODO (Phase 18C.3): Implement "Use as Reference" for style transfer
+                                    on_use_as_reference: move |id: String| {
+                                        let wid = world_id_for_style.clone();
+                                        let svc = settings_svc_style.clone();
+                                        spawn(async move {
+                                            // Fetch current settings, update style reference, save
+                                            match svc.get_for_world(&wid).await {
+                                                Ok(mut settings) => {
+                                                    settings.style_reference_asset_id = Some(id.clone());
+                                                    if let Err(e) = svc.update_for_world(&wid, &settings).await {
+                                                        tracing::error!("Failed to save style reference: {}", e);
+                                                    } else {
+                                                        // Update local state
+                                                        world_style_reference_id.set(Some(id));
+                                                        tracing::info!("Style reference updated");
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Failed to fetch settings: {}", e);
+                                                }
+                                            }
+                                        });
+                                    },
                                 }
                             }
                         }
@@ -181,6 +217,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                     entity_type: entity_type.clone(),
                     entity_id: entity_id.clone(),
                     asset_type: selected_asset_type.read().clone(),
+                    world_style_reference_id: world_style_reference_id.read().clone(),
                     on_close: move |_| show_generate_modal.set(false),
                     on_generate: {
                         let asset_svc_gen = asset_service.clone();
@@ -206,10 +243,12 @@ struct AssetThumbnailProps {
     id: String,
     label: Option<String>,
     is_active: bool,
+    /// Whether this asset is the world's default style reference
+    is_world_style_reference: bool,
     style_reference_id: Option<String>,
     on_activate: EventHandler<String>,
     on_delete: EventHandler<String>,
-    on_use_as_reference: Option<EventHandler<String>>,
+    on_use_as_reference: EventHandler<String>,
 }
 
 /// Individual asset thumbnail
@@ -219,12 +258,15 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
 
     let border_class = if props.is_active {
         "border-2 border-green-500"
+    } else if props.is_world_style_reference {
+        "border-2 border-purple-500"
     } else {
         "border-2 border-transparent"
     };
 
     let id_for_activate = props.id.clone();
     let id_for_menu_activate = props.id.clone();
+    let id_for_style_ref = props.id.clone();
     let id_for_delete = props.id.clone();
 
     rsx! {
@@ -247,10 +289,19 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
                 },
                 class: "w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800",
 
-                // Active indicator
+                // Active indicator (green dot)
                 if props.is_active {
                     div {
                         class: "absolute top-0.5 right-0.5 w-2 h-2 bg-green-500 rounded-full",
+                    }
+                }
+
+                // Style reference indicator (purple star)
+                if props.is_world_style_reference {
+                    div {
+                        class: "absolute top-0.5 left-0.5 text-purple-400 text-xs",
+                        title: "World default style reference",
+                        "*"
                     }
                 }
             }
@@ -283,17 +334,24 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
                         }
                     }
 
-                    if let Some(on_use_as_ref) = props.on_use_as_reference.as_ref() {
-                        button {
-                            onclick: {
-                                let id = props.id.clone();
-                                let handler = on_use_as_ref.clone();
-                                move |_| {
-                                    handler.call(id.clone());
-                                    show_menu.set(false);
-                                }
-                            },
-                            class: "block w-full p-2 text-left bg-transparent text-purple-500 border-0 cursor-pointer text-xs border-b border-gray-700",
+                    // Style reference button - show different text if already the reference
+                    button {
+                        onclick: {
+                            let id = id_for_style_ref.clone();
+                            let handler = props.on_use_as_reference.clone();
+                            move |_| {
+                                handler.call(id.clone());
+                                show_menu.set(false);
+                            }
+                        },
+                        class: if props.is_world_style_reference {
+                            "block w-full p-2 text-left bg-transparent text-purple-300 border-0 cursor-pointer text-xs border-b border-gray-700"
+                        } else {
+                            "block w-full p-2 text-left bg-transparent text-purple-500 border-0 cursor-pointer text-xs border-b border-gray-700"
+                        },
+                        if props.is_world_style_reference {
+                            "Current Style Reference"
+                        } else {
                             "Use as Style Reference"
                         }
                     }
@@ -323,6 +381,8 @@ fn GenerateAssetModal(
     entity_type: String,
     entity_id: String,
     asset_type: String,
+    /// World's default style reference asset ID (from settings)
+    world_style_reference_id: Option<String>,
     on_close: EventHandler<()>,
     on_generate: EventHandler<GenerateRequest>,
 ) -> Element {
@@ -332,20 +392,36 @@ fn GenerateAssetModal(
     let mut count = use_signal(|| 4u8);
     let mut workflow_slot = use_signal(|| String::new());
     let mut is_generating = use_signal(|| false);
+    // Pre-populate with world default style reference
     let mut style_reference_id: Signal<Option<String>> = use_signal(|| None);
     let mut style_reference_label: Signal<Option<String>> = use_signal(|| None);
+    let mut is_using_world_default = use_signal(|| false);
     let mut show_style_selector = use_signal(|| false);
     let mut available_assets: Signal<Vec<Asset>> = use_signal(Vec::new);
 
     // Load available assets for style reference selection
+    // and pre-populate with world default if available
     let entity_type_for_assets = entity_type.clone();
     let entity_id_for_assets = entity_id.clone();
+    let world_default_ref = world_style_reference_id.clone();
     use_effect(move || {
         let et = entity_type_for_assets.clone();
         let ei = entity_id_for_assets.clone();
         let svc = asset_service.clone();
+        let default_ref = world_default_ref.clone();
         spawn(async move {
             if let Ok(assets) = svc.get_assets(&et, &ei).await {
+                // If world has a default style reference, pre-populate it
+                if let Some(ref default_id) = default_ref {
+                    // Find the asset label for the default reference
+                    let label = assets.iter()
+                        .find(|a| &a.id == default_id)
+                        .and_then(|a| a.label.clone())
+                        .or_else(|| Some(default_id.clone()));
+                    style_reference_id.set(Some(default_id.clone()));
+                    style_reference_label.set(label);
+                    is_using_world_default.set(true);
+                }
                 available_assets.set(assets);
             }
         });
@@ -377,21 +453,35 @@ fn GenerateAssetModal(
                 // Style Reference field
                 div { class: "mb-4",
                     label { class: "block text-gray-400 text-sm mb-1", "Style Reference (optional)" }
-                    if let Some(ref_id) = style_reference_id.read().as_ref() {
+                    if let Some(_ref_id) = style_reference_id.read().as_ref() {
                         div {
-                            class: "flex items-center gap-2 p-2 bg-dark-bg border border-gray-700 rounded",
+                            class: if *is_using_world_default.read() {
+                                "flex items-center gap-2 p-2 bg-dark-bg border border-purple-500 rounded"
+                            } else {
+                                "flex items-center gap-2 p-2 bg-dark-bg border border-gray-700 rounded"
+                            },
                             span {
                                 class: "flex-1 text-white text-sm",
                                 if let Some(label) = style_reference_label.read().as_ref() {
-                                    "{label}"
+                                    if *is_using_world_default.read() {
+                                        "{label} (World Default)"
+                                    } else {
+                                        "{label}"
+                                    }
                                 } else {
                                     "Selected asset"
                                 }
                             }
                             button {
+                                onclick: move |_| show_style_selector.set(true),
+                                class: "py-1 px-2 bg-gray-600 text-white border-0 rounded cursor-pointer text-xs",
+                                "Change"
+                            }
+                            button {
                                 onclick: move |_| {
                                     style_reference_id.set(None);
                                     style_reference_label.set(None);
+                                    is_using_world_default.set(false);
                                 },
                                 class: "py-1 px-2 bg-red-500 text-white border-0 rounded cursor-pointer text-xs",
                                 "Clear"
@@ -428,6 +518,7 @@ fn GenerateAssetModal(
                                             move |_| {
                                                 style_reference_id.set(Some(asset_id.clone()));
                                                 style_reference_label.set(asset_label.clone());
+                                                is_using_world_default.set(false); // User manually selected
                                                 show_style_selector.set(false);
                                             }
                                         },

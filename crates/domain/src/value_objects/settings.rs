@@ -106,6 +106,15 @@ pub struct AppSettings {
     /// Token budget configuration for LLM context building
     #[serde(default)]
     pub context_budget: ContextBudgetConfig,
+
+    // ============================================================================
+    // Asset Generation
+    // ============================================================================
+
+    /// Default style reference asset ID for image generation
+    /// When set, new asset generations will use this asset's style by default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style_reference_asset_id: Option<String>,
 }
 
 fn default_outcome_branch_count() -> usize { 2 }
@@ -138,6 +147,7 @@ impl Default for AppSettings {
             outcome_branch_max: 4,
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
+            style_reference_asset_id: None,
         }
     }
 }
@@ -181,6 +191,8 @@ impl AppSettings {
                 enable_summarization: env_or("WRLDBLDR_LLM_ENABLE_SUMMARIZATION", context_budget_defaults.enable_summarization),
                 summarization_model: std::env::var("WRLDBLDR_LLM_SUMMARIZATION_MODEL").ok(),
             },
+            // Style reference is not loaded from env - only stored per-world
+            style_reference_asset_id: None,
         }
     }
 
@@ -518,6 +530,18 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             min_value: None,
             max_value: None,
             category: "Staging".into(),
+            requires_restart: false,
+        },
+        // Asset Generation
+        SettingsFieldMetadata {
+            key: "style_reference_asset_id".into(),
+            display_name: "Default Style Reference".into(),
+            description: "Asset ID to use as default style reference for image generation. Set via 'Use as Style Reference' in asset gallery.".into(),
+            field_type: "string".into(),
+            default_value: serde_json::json!(null),
+            min_value: None,
+            max_value: None,
+            category: "Assets".into(),
             requires_restart: false,
         },
     ]

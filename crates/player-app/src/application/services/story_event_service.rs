@@ -44,18 +44,12 @@ impl<A: ApiPort> StoryEventService<A> {
         Self { api }
     }
 
-    /// List all story events for a world, optionally filtered by session
+    /// List all story events for a world
     pub async fn list_story_events(
         &self,
         world_id: &str,
-        session_id: Option<&str>,
     ) -> Result<Vec<StoryEventData>, ApiError> {
-        let path = if let Some(sid) = session_id {
-            format!("/api/worlds/{}/story-events?session_id={}", world_id, sid)
-        } else {
-            format!("/api/worlds/{}/story-events", world_id)
-        };
-
+        let path = format!("/api/worlds/{}/story-events", world_id);
         let paginated: PaginatedStoryEventsResponse = self.api.get(&path).await?;
         Ok(paginated.events)
     }
@@ -70,15 +64,9 @@ impl<A: ApiPort> StoryEventService<A> {
     pub async fn create_dm_marker(
         &self,
         world_id: &str,
-        session_id: Option<&str>,
         request: &CreateDmMarkerRequest,
     ) -> Result<(), ApiError> {
-        let path = if let Some(sid) = session_id {
-            format!("/api/sessions/{}/story-events", sid)
-        } else {
-            format!("/api/worlds/{}/story-events", world_id)
-        };
-
+        let path = format!("/api/worlds/{}/story-events", world_id);
         self.api.post_no_response(&path, request).await
     }
 }

@@ -15,7 +15,7 @@ use wrldbldr_engine_app::application::dto::{
     CreateDmMarkerRequestDto, ListStoryEventsQueryDto, PaginatedStoryEventsResponseDto,
     StoryEventResponseDto, UpdateStoryEventRequestDto,
 };
-use wrldbldr_domain::{CharacterId, LocationId, SceneId, SessionId, StoryEventId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, SceneId, StoryEventId, WorldId};
 use crate::infrastructure::state::AppState;
 // NOTE: story event request/response DTOs live in `application/dto/story_event.rs`.
 
@@ -37,16 +37,7 @@ pub async fn list_story_events(
     let offset = query.offset.unwrap_or(0);
 
     // Handle different query types
-    let events = if let Some(session_id_str) = query.session_id {
-        let session_uuid = Uuid::parse_str(&session_id_str)
-            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid session ID".to_string()))?;
-        let session_id = SessionId::from_uuid(session_uuid);
-        state
-                .game.story_event_service
-            .list_by_session(session_id)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    } else if let Some(character_id_str) = query.character_id {
+    let events = if let Some(character_id_str) = query.character_id {
         let char_uuid = Uuid::parse_str(&character_id_str)
             .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid character ID".to_string()))?;
         let character_id = CharacterId::from_uuid(char_uuid);
@@ -143,11 +134,6 @@ pub async fn create_dm_marker(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "World not found".to_string()))?;
 
-    // Parse session ID
-    let session_uuid = Uuid::parse_str(&req.session_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid session ID".to_string()))?;
-    let session_id = SessionId::from_uuid(session_uuid);
-
     // Parse optional scene ID
     let scene_id = if let Some(ref sid) = req.scene_id {
         Some(
@@ -175,7 +161,6 @@ pub async fn create_dm_marker(
                 .game.story_event_service
         .record_dm_marker(
             world_id,
-            session_id,
             scene_id,
             location_id,
             req.title,

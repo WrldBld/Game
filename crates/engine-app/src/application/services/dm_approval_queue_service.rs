@@ -397,7 +397,6 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             .story_event_service
             .record_dialogue_exchange(
                 world_id,
-                session_id,
                 None, // scene_id - could be looked up from session if needed
                 None, // location_id - could be looked up from session if needed
                 npc_id,

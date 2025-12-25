@@ -2,8 +2,8 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2025-12-24  
-**Overall Progress**: Core gameplay complete; Queue System complete; Prompt Template System complete
+**Last Updated**: 2025-12-25  
+**Overall Progress**: Core gameplay complete; Queue System complete; Prompt Template System complete; Sprint 4 UX Polish complete
 
 ---
 
@@ -126,6 +126,7 @@ See individual system documents for detailed user stories.
 | 23 | PC Selection, Regions, Scenes | 2025-12-18 |
 | - | Prompt Template System | 2025-12-20 |
 | - | Phase B User Stories (Inventory, Known NPCs, Mini-map) | 2025-12-18 |
+| - | Sprint 4 UX Polish (Split Party, Location Preview, View-as-Character, Style Reference, Visual Timeline) | 2025-12-25 |
 
 For detailed specifications of each system, see:
 - [navigation-system.md](../systems/navigation-system.md) - Regions, movement, game time
@@ -187,6 +188,8 @@ A task is complete when:
 
 | Date | Changes |
 |------|---------|
+| 2025-12-25 | Sprint 4 UX Polish complete (Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline) |
+| 2025-12-25 | Session ID refactor: removed session_id from story events (world-scoped only) |
 | 2025-12-24 | Documentation alignment: system docs updated to match ACTIVE_DEVELOPMENT.md |
 | 2025-12-20 | Prompt Template System complete (configurable LLM prompts) |
 | 2025-12-18 | Phase B complete (Inventory, Known NPCs, Mini-map, Events) |

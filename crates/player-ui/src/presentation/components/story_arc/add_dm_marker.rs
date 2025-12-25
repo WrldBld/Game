@@ -8,8 +8,6 @@ use crate::presentation::services::use_story_event_service;
 #[derive(Props, Clone, PartialEq)]
 pub struct AddDmMarkerModalProps {
     pub world_id: String,
-    #[props(default)]
-    pub session_id: Option<String>,
     pub on_close: EventHandler<()>,
     pub on_created: EventHandler<()>,
 }
@@ -208,7 +206,6 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
                                 button {
                                     onclick: {
                                         let world_id = props.world_id.clone();
-                                        let session_id = props.session_id.clone();
                                         let service = story_event_service.clone();
                                         move |_| {
                                             if !can_save { return; }
@@ -224,7 +221,6 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
                                                 .collect();
 
                                             let world_id = world_id.clone();
-                                            let session_id = session_id.clone();
                                             let service = service.clone();
                                             spawn(async move {
                                                 is_saving.set(true);
@@ -238,7 +234,7 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
                                                     tags,
                                                 };
 
-                                                match service.create_dm_marker(&world_id, session_id.as_deref(), &request).await {
+                                                match service.create_dm_marker(&world_id, &request).await {
                                                     Ok(_) => {
                                                         props.on_created.call(());
                                                     }

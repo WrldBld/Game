@@ -13,6 +13,7 @@ pub use tab_link::StoryArcTabLink;
 pub enum StoryArcSubTab {
     #[default]
     Timeline,
+    Visual,
     NarrativeEvents,
     EventChains,
 }
@@ -21,11 +22,10 @@ impl StoryArcSubTab {
     pub(crate) fn from_str(s: &str) -> Self {
         match s {
             "timeline" => Self::Timeline,
+            "visual" => Self::Visual,
             "events" => Self::NarrativeEvents,
             "chains" => Self::EventChains,
             _ => Self::Timeline,
         }
     }
-
-
 }

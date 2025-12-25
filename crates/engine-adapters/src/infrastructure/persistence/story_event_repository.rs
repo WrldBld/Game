@@ -1007,25 +1007,6 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
         }
     }
 
-    /// List story events for a session (via OCCURRED_IN_SESSION edge)
-    async fn list_by_session(&self, session_id: SessionId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:OCCURRED_IN_SESSION]->(s:Session {id: $session_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("session_id", session_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
     /// List story events for a world
     async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>> {
         let q = query(
@@ -1260,41 +1241,6 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
             Ok(count as u64)
         } else {
             Ok(0)
-        }
-    }
-
-    // =========================================================================
-    // OCCURRED_IN_SESSION Edge Methods
-    // =========================================================================
-
-    /// Set the session for a story event (creates OCCURRED_IN_SESSION edge)
-    async fn set_session(&self, event_id: StoryEventId, session_id: SessionId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (s:Session {id: $session_id})
-            MERGE (e)-[:OCCURRED_IN_SESSION]->(s)
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("session_id", session_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get the session for a story event
-    async fn get_session(&self, event_id: StoryEventId) -> Result<Option<SessionId>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[:OCCURRED_IN_SESSION]->(s:Session)
-            RETURN s.id as session_id",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let session_id_str: String = row.get("session_id")?;
-            Ok(Some(SessionId::from(Uuid::parse_str(&session_id_str)?)))
-        } else {
-            Ok(None)
         }
     }
 

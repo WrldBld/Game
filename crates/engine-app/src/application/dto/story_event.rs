@@ -10,8 +10,6 @@ pub struct ListStoryEventsQueryDto {
     #[serde(default)]
     pub offset: Option<u32>,
     #[serde(default)]
-    pub session_id: Option<String>,
-    #[serde(default)]
     pub character_id: Option<String>,
     #[serde(default)]
     pub location_id: Option<String>,
@@ -26,7 +24,6 @@ pub struct ListStoryEventsQueryDto {
 /// Request to create a DM marker story event.
 #[derive(Debug, Deserialize)]
 pub struct CreateDmMarkerRequestDto {
-    pub session_id: String,
     pub title: String,
     pub note: String,
     #[serde(default)]
@@ -138,14 +135,12 @@ impl From<DmMarkerType> for DmMarkerTypeRequestDto {
 ///
 /// # Graph-First Architecture
 ///
-/// Session, scene, location, involved_characters, and triggered_by are now stored as
+/// Scene, location, involved_characters, and triggered_by are stored as
 /// graph edges and must be provided separately when constructing this DTO.
 #[derive(Debug, Serialize)]
 pub struct StoryEventResponseDto {
     pub id: String,
     pub world_id: String,
-    /// Session ID from OCCURRED_IN_SESSION edge (optional until we have edge data)
-    pub session_id: Option<String>,
     /// Scene ID from OCCURRED_IN_SCENE edge
     pub scene_id: Option<String>,
     /// Location ID from OCCURRED_AT edge
@@ -176,7 +171,6 @@ impl StoryEventResponseDto {
     /// Use this when you have fetched edge data separately from the repository.
     pub fn with_edges(
         event: StoryEvent,
-        session_id: Option<String>,
         scene_id: Option<String>,
         location_id: Option<String>,
         involved_characters: Vec<InvolvedCharacterResponseDto>,
@@ -186,7 +180,6 @@ impl StoryEventResponseDto {
         Self {
             id: event.id.to_string(),
             world_id: event.world_id.to_string(),
-            session_id,
             scene_id,
             location_id,
             event_type: StoryEventTypeResponseDto::from(event.event_type),
@@ -212,7 +205,6 @@ impl From<StoryEvent> for StoryEventResponseDto {
         Self {
             id: e.id.to_string(),
             world_id: e.world_id.to_string(),
-            session_id: None,
             scene_id: None,
             location_id: None,
             event_type: StoryEventTypeResponseDto::from(e.event_type),

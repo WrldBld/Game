@@ -15,12 +15,14 @@ pub mod directorial_notes;
 pub mod director_generate_modal;
 pub mod director_queue_panel;
 pub mod location_navigator;
+pub mod location_preview_modal;
 pub mod location_staging;
 pub mod log_entry;
 pub mod npc_mood_panel;
 pub mod npc_motivation;
 pub mod pc_management;
 pub mod scene_preview;
+pub mod split_party_banner;
 pub mod staging_approval;
 pub mod tone_selector;
 pub mod trigger_challenge_modal;
@@ -33,4 +35,6 @@ pub use npc_mood_panel::{
     MoodChangeEvent, NpcMoodListPanel, NpcMoodPanel, RelationshipChangeEvent, SceneNpcInfo,
     MOOD_OPTIONS, RELATIONSHIP_OPTIONS,
 };
+pub use location_preview_modal::LocationPreviewModal;
+pub use split_party_banner::SplitPartyBanner;
 pub use staging_approval::{StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest};

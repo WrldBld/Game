@@ -15,6 +15,7 @@ use wrldbldr_protocol::{
     RegionData as SceneRegionInfo,
     RegionItemData,
     SceneData as SceneSnapshot,
+    SplitPartyLocation,
 };
 
 
@@ -38,6 +39,21 @@ pub struct LocationEventData {
     pub region_id: String,
     /// Narrative description of the event
     pub description: String,
+}
+
+/// View mode for Director - normal or viewing as a specific character
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum ViewMode {
+    /// Normal Director view
+    #[default]
+    Director,
+    /// Viewing as a specific character (read-only PC perspective)
+    ViewingAsCharacter {
+        /// The character ID being viewed as
+        character_id: String,
+        /// The character's name for display
+        character_name: String,
+    },
 }
 
 /// Staging pending data (player waiting for DM to approve staging)
@@ -128,6 +144,10 @@ pub struct GameState {
     pub inventory_refresh_counter: Signal<u32>,
     /// Counter to trigger observations refresh (incremented when NPC locations are shared)
     pub observations_refresh_counter: Signal<u32>,
+    /// Split party warning - locations where PCs are distributed (empty = party together)
+    pub split_party_locations: Signal<Vec<SplitPartyLocation>>,
+    /// Current view mode (Director or ViewingAsCharacter)
+    pub view_mode: Signal<ViewMode>,
 }
 
 impl GameState {
@@ -150,6 +170,8 @@ impl GameState {
             pending_staging_approval: Signal::new(None),
             inventory_refresh_counter: Signal::new(0),
             observations_refresh_counter: Signal::new(0),
+            split_party_locations: Signal::new(Vec::new()),
+            view_mode: Signal::new(ViewMode::default()),
         }
     }
 
@@ -280,6 +302,47 @@ impl GameState {
         self.observations_refresh_counter.set(current.wrapping_add(1));
     }
 
+    /// Update split party locations (from SplitPartyNotification)
+    pub fn set_split_party_locations(&mut self, locations: Vec<SplitPartyLocation>) {
+        self.split_party_locations.set(locations);
+    }
+
+    /// Clear split party warning (party is together again)
+    pub fn clear_split_party(&mut self) {
+        self.split_party_locations.set(Vec::new());
+    }
+
+    /// Check if party is currently split
+    pub fn is_party_split(&self) -> bool {
+        self.split_party_locations.read().len() > 1
+    }
+
+    /// Start viewing as a specific character (read-only perspective mode)
+    pub fn start_viewing_as(&mut self, character_id: String, character_name: String) {
+        self.view_mode.set(ViewMode::ViewingAsCharacter {
+            character_id,
+            character_name,
+        });
+    }
+
+    /// Stop viewing as character and return to normal Director mode
+    pub fn stop_viewing_as(&mut self) {
+        self.view_mode.set(ViewMode::Director);
+    }
+
+    /// Check if currently viewing as a character
+    pub fn is_viewing_as_character(&self) -> bool {
+        matches!(*self.view_mode.read(), ViewMode::ViewingAsCharacter { .. })
+    }
+
+    /// Get the character ID being viewed as (if any)
+    pub fn viewing_as_character_id(&self) -> Option<String> {
+        match &*self.view_mode.read() {
+            ViewMode::ViewingAsCharacter { character_id, .. } => Some(character_id.clone()),
+            ViewMode::Director => None,
+        }
+    }
+
     /// Get the backdrop URL for the current scene
     pub fn backdrop_url(&self) -> Option<String> {
         // First check scene override, then location backdrop
@@ -314,6 +377,8 @@ impl GameState {
         self.location_event.set(None);
         self.staging_pending.set(None);
         self.pending_staging_approval.set(None);
+        self.split_party_locations.set(Vec::new());
+        self.view_mode.set(ViewMode::Director);
     }
 
     /// Clear all state

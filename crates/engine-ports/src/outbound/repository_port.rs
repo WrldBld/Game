@@ -1164,9 +1164,6 @@ pub trait StoryEventRepositoryPort: Send + Sync {
     /// Get a story event by ID
     async fn get(&self, id: StoryEventId) -> Result<Option<StoryEvent>>;
 
-    /// List story events for a session
-    async fn list_by_session(&self, session_id: SessionId) -> Result<Vec<StoryEvent>>;
-
     /// List story events for a world
     async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>>;
 
@@ -1207,16 +1204,6 @@ pub trait StoryEventRepositoryPort: Send + Sync {
 
     /// Count events for a world
     async fn count_by_world(&self, world_id: WorldId) -> Result<u64>;
-
-    // =========================================================================
-    // OCCURRED_IN_SESSION Edge Methods
-    // =========================================================================
-
-    /// Set the session for a story event (creates OCCURRED_IN_SESSION edge)
-    async fn set_session(&self, event_id: StoryEventId, session_id: SessionId) -> Result<bool>;
-
-    /// Get the session for a story event
-    async fn get_session(&self, event_id: StoryEventId) -> Result<Option<SessionId>>;
 
     // =========================================================================
     // OCCURRED_AT Edge Methods (Location)

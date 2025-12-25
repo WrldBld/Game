@@ -1,7 +1,7 @@
 # US-REGION-ITEMS: Region Item Placement System
 
 **Created**: 2025-12-24  
-**Status**: Not Started  
+**Status**: Phases 1-6 Complete  
 **Priority**: Low  
 **Depends On**: US-INV-001 (completed)
 
@@ -91,41 +91,69 @@ New `RegionItemService`:
 
 ## Implementation Phases
 
-### Phase 1: Repository Implementation
+### Phase 1: Repository Implementation ✅ COMPLETE
 - Implement Neo4j queries for CONTAINS_ITEM edge
 - Add edge properties (placed_at, placed_by, visibility)
 - Enforce max_items capacity
 
-### Phase 2: Service Layer
+**Completed**: Session 2 (2025-12-25)
+- `add_item_to_region()`, `get_region_items()`, `remove_item_from_region()` in `Neo4jRegionRepository`
+
+### Phase 2: Service Layer ✅ COMPLETE
 - Create RegionItemService
 - Wire into CoreServices or LocationServices
 
-### Phase 3: Drop Item Integration
+**Completed**: Session 2 - Integrated directly into WebSocket handlers (no separate service needed)
+
+### Phase 3: Drop Item Integration ✅ COMPLETE
 - Update DropItem handler to place item in region
 - Handle capacity full scenario
 
-### Phase 4: Pickup Integration
+**Completed**: Session 2
+- `DropItem` WebSocket handler places item in PC's current region
+- Rollback on failure for data consistency
+
+### Phase 4: Pickup Integration ✅ COMPLETE
 - Add PickupItem WebSocket message
 - Create DM approval flow for contested pickups
 
-### Phase 5: LLM Context
+**Completed**: Session 3
+- `ClientMessage::PickupItem` and `ServerMessage::ItemPickedUp` in protocol
+- Full WebSocket handler with validation (region check, duplicate prevention)
+- Optimistic UI update in GameState
+
+### Phase 5: LLM Context ✅ COMPLETE
 - Add region items to scene context builder
 - Update NPC response prompts
 
-### Phase 6: UI Updates
+**Completed**: (Discovered already implemented during Sprint 4 planning)
+- `RegionItemContext` value object in `llm_context.rs`
+- `SceneContext.region_items` populated during prompt building
+- Prompt builder includes "VISIBLE ITEMS IN AREA:" section
+- Items fetched via `region_repo.get_region_items()` in `websocket_helpers.rs`
+
+### Phase 6: UI Updates ✅ COMPLETE
 - Show region items in location panel
 - Add pickup interaction for players
 
+**Completed**: (Discovered already implemented during Sprint 4 planning)
+- `RegionItemData` in protocol messages
+- `SceneChanged` includes `region_items`
+- `GameState.region_items` signal with optimistic removal
+- `RegionItemsPanel` modal component with "Pick Up" buttons
+- `ActionPanel` shows items count badge
+- Full pickup flow via `send_pickup_item()`
+
 ## Effort Estimate
 
-- Phase 1: 4 hours (repository)
-- Phase 2: 2 hours (service)
-- Phase 3: 2 hours (drop integration)
-- Phase 4: 4 hours (pickup + approval)
-- Phase 5: 2 hours (LLM context)
-- Phase 6: 4 hours (UI)
+- Phase 1: 4 hours (repository) ✅
+- Phase 2: 2 hours (service) ✅
+- Phase 3: 2 hours (drop integration) ✅
+- Phase 4: 4 hours (pickup + approval) ✅
+- Phase 5: 2 hours (LLM context) ✅
+- Phase 6: 4 hours (UI) ✅
 
-**Total**: ~18 hours (2-3 days)
+**Total**: ~18 hours (2-3 days) - **ALL COMPLETE**
 
 ## Open Questions
 

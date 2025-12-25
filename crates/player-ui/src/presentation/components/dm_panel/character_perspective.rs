@@ -4,12 +4,19 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::{use_character_service, use_player_character_service};
 
+/// Data passed when viewing as a character
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViewAsData {
+    pub character_id: String,
+    pub character_name: String,
+}
+
 /// Props for CharacterPerspectiveViewer
 #[derive(Props, Clone, PartialEq)]
 pub struct CharacterPerspectiveViewerProps {
     pub session_id: String,
     pub world_id: String,
-    pub on_view_as: EventHandler<String>,
+    pub on_view_as: EventHandler<ViewAsData>,
 }
 
 /// Character Perspective Viewer component
@@ -92,12 +99,16 @@ pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Ele
                             class: "flex flex-col gap-2",
                             {pcs_list.iter().map(|pc| {
                                 let pc_id = pc.id.clone();
+                                let pc_name = pc.name.clone();
                                 rsx! {
                                     CharacterCard {
                                         name: pc.name.clone(),
                                         id: pc_id.clone(),
                                         location_id: pc.current_location_id.clone(),
-                                        on_view_as: move |_| props.on_view_as.call(pc_id.clone()),
+                                        on_view_as: move |_| props.on_view_as.call(ViewAsData {
+                                            character_id: pc_id.clone(),
+                                            character_name: pc_name.clone(),
+                                        }),
                                     }
                                 }
                             })}
@@ -116,12 +127,16 @@ pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Ele
                             class: "flex flex-col gap-2",
                             {npcs_list.iter().map(|npc| {
                                 let npc_id = npc.id.clone();
+                                let npc_name = npc.name.clone();
                                 rsx! {
                                     CharacterCard {
                                         name: npc.name.clone(),
                                         id: npc_id.clone(),
                                         location_id: "unknown".to_string(),
-                                        on_view_as: move |_| props.on_view_as.call(npc_id.clone()),
+                                        on_view_as: move |_| props.on_view_as.call(ViewAsData {
+                                            character_id: npc_id.clone(),
+                                            character_name: npc_name.clone(),
+                                        }),
                                     }
                                 }
                             })}

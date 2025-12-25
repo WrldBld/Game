@@ -2,7 +2,7 @@
 
 Active implementation tracking for WrldBldr user stories.
 
-**Current Phase**: Phase P - Feature Parity Gap Removal (COMPLETE)  
+**Current Phase**: Sprint 4 - UX Polish (COMPLETE)  
 **Last Updated**: 2025-12-25
 
 ---
@@ -618,3 +618,4 @@ Stories moved here when fully implemented.
 | 2025-12-24 | C | US-SCN-009 | Scene entry conditions with flag repository and completion tracking |
 | 2025-12-24 | C | US-INV-001 | **COMPLETE** - Full PC inventory system with ItemService, DM approval, containers |
 | 2025-12-25 | C | P1.5 | Actantial Model System - MotivationsTab with wants, goals, actantial views UI |
+| 2025-12-25 | - | Sprint 4 | **Sprint 4: UX Polish COMPLETE** - Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline |

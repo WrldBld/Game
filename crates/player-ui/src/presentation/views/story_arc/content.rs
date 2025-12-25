@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::components::story_arc::timeline_view::TimelineView;
+use crate::presentation::components::story_arc::visual_timeline::VisualTimeline;
 use crate::presentation::components::story_arc::narrative_event_library::NarrativeEventLibrary;
 use super::{StoryArcSubTab, StoryArcTabLink, EventChainsView};
 
@@ -38,6 +39,13 @@ pub fn StoryArcContent(props: StoryArcContentProps) -> Element {
                     is_active: active_tab == StoryArcSubTab::Timeline,
                 }
                 StoryArcTabLink {
+                    label: "Visual",
+                    icon: "📊",
+                    subtab: "visual",
+                    world_id: props.world_id.clone(),
+                    is_active: active_tab == StoryArcSubTab::Visual,
+                }
+                StoryArcTabLink {
                     label: "Narrative Events",
                     icon: "⭐",
                     subtab: "events",
@@ -60,6 +68,9 @@ pub fn StoryArcContent(props: StoryArcContentProps) -> Element {
                 match active_tab {
                     StoryArcSubTab::Timeline => rsx! {
                         TimelineView { world_id: props.world_id.clone() }
+                    },
+                    StoryArcSubTab::Visual => rsx! {
+                        VisualTimeline { world_id: props.world_id.clone() }
                     },
                     StoryArcSubTab::NarrativeEvents => rsx! {
                         NarrativeEventLibrary { world_id: props.world_id.clone() }

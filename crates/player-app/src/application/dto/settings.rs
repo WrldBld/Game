@@ -143,6 +143,15 @@ pub struct AppSettings {
     /// Token budget configuration for LLM context building
     #[serde(default)]
     pub context_budget: ContextBudgetConfig,
+
+    // ============================================================================
+    // Asset Generation
+    // ============================================================================
+
+    /// Default style reference asset ID for image generation
+    /// When set, new asset generations will use this asset's style by default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style_reference_asset_id: Option<String>,
 }
 
 fn default_outcome_branch_count() -> usize { 2 }
@@ -171,6 +180,7 @@ impl Default for AppSettings {
             outcome_branch_max: 4,
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
+            style_reference_asset_id: None,
         }
     }
 }

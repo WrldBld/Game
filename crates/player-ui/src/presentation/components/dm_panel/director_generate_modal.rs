@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
-use crate::presentation::services::use_asset_service;
+use crate::presentation::services::{use_asset_service, use_settings_service};
 
 /// Props for DirectorGenerateModal
 #[derive(Props, Clone, PartialEq)]
@@ -31,6 +31,7 @@ pub struct DirectorGenerateModalProps {
 #[component]
 pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
     let asset_service = use_asset_service();
+    let settings_service = use_settings_service();
     let mut prompt = use_signal(|| props.initial_prompt.clone());
     let mut negative_prompt = use_signal(|| String::new());
     let mut count = use_signal(|| 4u8);
@@ -38,19 +39,42 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
     let mut is_generating = use_signal(|| false);
     let mut style_reference_id: Signal<Option<String>> = use_signal(|| None);
     let mut style_reference_label: Signal<Option<String>> = use_signal(|| None);
+    let mut is_using_world_default = use_signal(|| false);
     let mut show_style_selector = use_signal(|| false);
     let mut available_assets: Signal<Vec<Asset>> = use_signal(Vec::new);
 
-    // Load available assets for style reference selection
+    // Load available assets and world settings for style reference
     let entity_type_for_assets = props.entity_type.clone();
     let entity_id_for_assets = props.entity_id.clone();
+    let world_id_for_settings = props.world_id.clone();
     let asset_service_for_effect = asset_service.clone();
+    let settings_service_for_effect = settings_service.clone();
     use_effect(move || {
         let et = entity_type_for_assets.clone();
         let ei = entity_id_for_assets.clone();
-        let svc = asset_service_for_effect.clone();
+        let wid = world_id_for_settings.clone();
+        let asset_svc = asset_service_for_effect.clone();
+        let settings_svc = settings_service_for_effect.clone();
         spawn(async move {
-            if let Ok(assets) = svc.get_assets(&et, &ei).await {
+            // First fetch world settings to get default style reference
+            let world_default_ref = if let Ok(settings) = settings_svc.get_for_world(&wid).await {
+                settings.style_reference_asset_id
+            } else {
+                None
+            };
+
+            // Then fetch available assets
+            if let Ok(assets) = asset_svc.get_assets(&et, &ei).await {
+                // Pre-populate with world default if available
+                if let Some(ref default_id) = world_default_ref {
+                    let label = assets.iter()
+                        .find(|a| &a.id == default_id)
+                        .and_then(|a| a.label.clone())
+                        .or_else(|| Some(default_id.clone()));
+                    style_reference_id.set(Some(default_id.clone()));
+                    style_reference_label.set(label);
+                    is_using_world_default.set(true);
+                }
                 available_assets.set(assets);
             }
         });
@@ -92,21 +116,35 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
                 // Style Reference field
                 div { class: "mb-4",
                     label { class: "block text-gray-400 text-sm mb-1", "Style Reference (optional)" }
-                    if let Some(ref_id) = style_reference_id.read().as_ref() {
+                    if let Some(_ref_id) = style_reference_id.read().as_ref() {
                         div {
-                            class: "flex items-center gap-2 p-2 bg-dark-bg border border-gray-700 rounded",
+                            class: if *is_using_world_default.read() {
+                                "flex items-center gap-2 p-2 bg-dark-bg border border-purple-500 rounded"
+                            } else {
+                                "flex items-center gap-2 p-2 bg-dark-bg border border-gray-700 rounded"
+                            },
                             span {
                                 class: "flex-1 text-white text-sm",
                                 if let Some(label) = style_reference_label.read().as_ref() {
-                                    "{label}"
+                                    if *is_using_world_default.read() {
+                                        "{label} (World Default)"
+                                    } else {
+                                        "{label}"
+                                    }
                                 } else {
                                     "Selected asset"
                                 }
                             }
                             button {
+                                onclick: move |_| show_style_selector.set(true),
+                                class: "px-2 py-1 bg-gray-600 text-white border-0 rounded cursor-pointer text-xs",
+                                "Change"
+                            }
+                            button {
                                 onclick: move |_| {
                                     style_reference_id.set(None);
                                     style_reference_label.set(None);
+                                    is_using_world_default.set(false);
                                 },
                                 class: "px-2 py-1 bg-red-500 text-white border-0 rounded cursor-pointer text-xs",
                                 "Clear"
@@ -143,6 +181,7 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
                                             move |_| {
                                                 style_reference_id.set(Some(asset_id.clone()));
                                                 style_reference_label.set(asset_label.clone());
+                                                is_using_world_default.set(false); // User manually selected
                                                 show_style_selector.set(false);
                                             }
                                         },

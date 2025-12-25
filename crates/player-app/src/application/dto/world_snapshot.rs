@@ -832,7 +832,6 @@ pub enum FieldValue {
 pub struct StoryEventData {
     pub id: String,
     pub world_id: String,
-    pub session_id: String,
     pub scene_id: Option<String>,
     pub location_id: Option<String>,
     pub event_type: StoryEventTypeData,

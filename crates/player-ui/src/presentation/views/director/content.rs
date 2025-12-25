@@ -9,13 +9,19 @@ use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::services::SessionCommandService;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
+use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
+use crate::presentation::components::dm_panel::location_preview_modal::LocationPreviewModal;
+use crate::presentation::components::dm_panel::split_party_banner::SplitPartyBanner;
 use crate::presentation::components::dm_panel::staging_approval::{
     StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest,
 };
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
 use crate::presentation::components::dm_panel::log_entry::DynamicLogEntry;
 use crate::presentation::services::{use_challenge_service, use_skill_service};
-use crate::presentation::state::{use_game_state, use_session_state, use_generation_state, PendingApproval};
+use crate::presentation::state::{
+    use_game_state, use_session_state, use_generation_state, 
+    GameState, SessionState, PendingApproval, ViewMode,
+};
 
 /// The original Director mode content (directing gameplay)
 #[component]
@@ -35,6 +41,7 @@ pub fn DirectorModeContent() -> Element {
     let mut show_pc_management = use_signal(|| false);
     let mut show_location_navigator = use_signal(|| false);
     let mut show_character_perspective = use_signal(|| false);
+    let mut preview_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut skills: Signal<Vec<SkillData>> = use_signal(Vec::new);
     let mut challenges: Signal<Vec<ChallengeData>> = use_signal(Vec::new);
 
@@ -79,6 +86,21 @@ pub fn DirectorModeContent() -> Element {
     // Get scene characters from game state
     let scene_characters = game_state.scene_characters.read().clone();
 
+    // Check if we're in view-as-character mode
+    let view_mode = game_state.view_mode.read().clone();
+
+    // If viewing as a character, show the read-only perspective view
+    if let ViewMode::ViewingAsCharacter { character_id, character_name } = view_mode {
+        return rsx! {
+            ViewAsCharacterMode {
+                character_id: character_id,
+                character_name: character_name,
+                game_state: game_state.clone(),
+                session_state: session_state.clone(),
+            }
+        };
+    }
+
     rsx! {
         div {
             class: "h-full grid grid-cols-[1fr_350px] gap-4 p-4",
@@ -86,6 +108,20 @@ pub fn DirectorModeContent() -> Element {
             // Left panel - Scene preview and conversation
             div {
                 class: "main-panel flex flex-col gap-4",
+
+                // Split party warning banner (shown when party is at multiple locations)
+                {
+                    let split_locations = game_state.split_party_locations.read().clone();
+                    if split_locations.len() > 1 {
+                        rsx! {
+                            SplitPartyBanner {
+                                locations: split_locations,
+                            }
+                        }
+                    } else {
+                        rsx! {}
+                    }
+                }
 
                 // Scene preview (smaller version of what players see)
                 div {
@@ -360,8 +396,9 @@ pub fn DirectorModeContent() -> Element {
                             }
                             crate::presentation::components::dm_panel::location_navigator::LocationNavigator {
                                 world_id: world_id.clone(),
-                                on_preview: move |location_id| {
-                                    // TODO (Phase 23 Location Preview): Open location details panel/modal
+                                on_preview: move |location_id: String| {
+                                    // Open location preview modal
+                                    preview_location_id.set(Some(location_id.clone()));
                                     tracing::info!("Preview location: {}", location_id);
                                     show_location_navigator.set(false);
                                 },
@@ -373,38 +410,46 @@ pub fn DirectorModeContent() -> Element {
 
             // Character Perspective Viewer Modal
             if *show_character_perspective.read() {
-                if let (Some(session_id), Some(world_id)) = (
-                    session_state.session_id().read().as_ref().map(|s| s.clone()),
-                    game_state.world.read().as_ref().map(|w| w.world.id.clone())
-                ) {
-                    div {
-                        class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
-                        onclick: move |_| show_character_perspective.set(false),
-                        div {
-                            class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
-                            onclick: move |e| e.stop_propagation(),
+                {
+                    let mut game_state_for_view = game_state.clone();
+                    let session_id = session_state.session_id().read().as_ref().map(|s| s.clone());
+                    let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
+                    
+                    if let (Some(session_id), Some(world_id)) = (session_id, world_id) {
+                        rsx! {
                             div {
-                                class: "flex justify-between items-center mb-4",
-                                h2 {
-                                    class: "m-0 text-white text-xl",
-                                    "Character Perspective Viewer"
+                                class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
+                                onclick: move |_| show_character_perspective.set(false),
+                                div {
+                                    class: "bg-dark-surface rounded-lg w-[90%] max-w-[800px] max-h-[90vh] overflow-y-auto p-6",
+                                    onclick: move |e| e.stop_propagation(),
+                                    div {
+                                        class: "flex justify-between items-center mb-4",
+                                        h2 {
+                                            class: "m-0 text-white text-xl",
+                                            "Character Perspective Viewer"
+                                        }
+                                        button {
+                                            onclick: move |_| show_character_perspective.set(false),
+                                            class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
+                                            "×"
+                                        }
+                                    }
+                                    crate::presentation::components::dm_panel::character_perspective::CharacterPerspectiveViewer {
+                                        session_id: session_id.clone(),
+                                        world_id: world_id.clone(),
+                                        on_view_as: move |data: ViewAsData| {
+                                            // Switch to view-as-character mode
+                                            tracing::info!("View as character: {} ({})", data.character_name, data.character_id);
+                                            game_state_for_view.start_viewing_as(data.character_id, data.character_name);
+                                            show_character_perspective.set(false);
+                                        },
+                                    }
                                 }
-                                button {
-                                    onclick: move |_| show_character_perspective.set(false),
-                                    class: "px-2 py-1 bg-transparent text-gray-400 border-none cursor-pointer text-xl",
-                                    "×"
-                                }
-                            }
-                            crate::presentation::components::dm_panel::character_perspective::CharacterPerspectiveViewer {
-                                session_id: session_id.clone(),
-                                world_id: world_id.clone(),
-                                on_view_as: move |character_id| {
-                                    // TODO (Phase 23 Player Perspective): Implement view-as-character mode
-                                    tracing::info!("View as character: {}", character_id);
-                                    show_character_perspective.set(false);
-                                },
                             }
                         }
+                    } else {
+                        rsx! {}
                     }
                 }
             }
@@ -465,6 +510,23 @@ pub fn DirectorModeContent() -> Element {
                             }
                         }
                     }
+                }
+            }
+
+            // Location Preview Modal
+            {
+                let loc_id = preview_location_id.read().clone();
+                let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
+                if let (Some(loc_id), Some(world_id)) = (loc_id, world_id) {
+                    rsx! {
+                        LocationPreviewModal {
+                            location_id: loc_id,
+                            world_id: world_id,
+                            on_close: move |_| preview_location_id.set(None),
+                        }
+                    }
+                } else {
+                    rsx! {}
                 }
             }
 
@@ -787,6 +849,205 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                 class: "flex-1 p-3 bg-red-500 text-white border-none rounded-lg cursor-pointer font-semibold",
                                 "Reject"
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// View-as-Character Mode Component
+// =============================================================================
+
+/// Props for ViewAsCharacterMode
+#[derive(Props, Clone)]
+struct ViewAsCharacterModeProps {
+    character_id: String,
+    character_name: String,
+    game_state: GameState,
+    session_state: SessionState,
+}
+
+impl PartialEq for ViewAsCharacterModeProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.character_id == other.character_id && self.character_name == other.character_name
+    }
+}
+
+/// Read-only view showing what a specific character sees
+#[component]
+fn ViewAsCharacterMode(props: ViewAsCharacterModeProps) -> Element {
+    let mut game_state = props.game_state.clone();
+    let session_state = props.session_state.clone();
+
+    // Get scene data for this character
+    let current_region = game_state.current_region.read().clone();
+    let npcs_present = game_state.npcs_present.read().clone();
+    let region_items = game_state.region_items.read().clone();
+    let conversation_log = session_state.conversation_log().read().clone();
+
+    rsx! {
+        div {
+            class: "h-full flex flex-col",
+
+            // View mode banner
+            div {
+                class: "bg-blue-600 text-white p-3 flex items-center justify-between",
+
+                div {
+                    class: "flex items-center gap-3",
+                    span { class: "text-xl", "" }
+                    span {
+                        class: "font-medium",
+                        "Viewing as: {props.character_name}"
+                    }
+                    span {
+                        class: "text-blue-200 text-sm",
+                        "(Read-only)"
+                    }
+                }
+
+                button {
+                    onclick: move |_| {
+                        game_state.stop_viewing_as();
+                    },
+                    class: "px-4 py-2 bg-blue-800 hover:bg-blue-700 text-white border-none rounded-lg cursor-pointer transition-colors",
+                    "Exit View"
+                }
+            }
+
+            // Main content area
+            div {
+                class: "flex-1 grid grid-cols-[1fr_350px] gap-4 p-4 overflow-hidden",
+
+                // Left panel - Scene preview and conversation
+                div {
+                    class: "flex flex-col gap-4 overflow-hidden",
+
+                    // Current location info
+                    if let Some(region) = current_region.as_ref() {
+                        div {
+                            class: "bg-dark-surface rounded-lg p-4",
+
+                            div {
+                                class: "flex items-center gap-2 mb-2",
+                                span { class: "text-purple-400", "" }
+                                h3 { class: "m-0 text-white text-lg", "{region.name}" }
+                            }
+
+                            span {
+                                class: "text-gray-400 text-sm",
+                                "at {region.location_name}"
+                            }
+
+                            if let Some(ref atmosphere) = region.atmosphere {
+                                p {
+                                    class: "m-0 mt-2 text-gray-500 text-sm italic",
+                                    "{atmosphere}"
+                                }
+                            }
+                        }
+                    }
+
+                    // Conversation log (read-only)
+                    div {
+                        class: "flex-1 bg-dark-surface rounded-lg p-4 overflow-y-auto",
+
+                        h3 { class: "text-gray-400 mb-4 text-sm uppercase", "Conversation Log" }
+
+                        div {
+                            class: "flex flex-col gap-3",
+
+                            if conversation_log.is_empty() {
+                                div { class: "text-gray-500 italic text-center p-8",
+                                    "No conversation yet..."
+                                }
+                            }
+
+                            for (idx, entry) in conversation_log.iter().enumerate() {
+                                div {
+                                    key: "{idx}",
+                                    class: if entry.is_system { "text-gray-500 italic text-sm" } else { "bg-dark-bg rounded-lg p-3" },
+
+                                    if !entry.is_system {
+                                        span {
+                                            class: "text-blue-400 font-medium mr-2",
+                                            "{entry.speaker}:"
+                                        }
+                                    }
+                                    span {
+                                        class: "text-white",
+                                        "{entry.text}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right panel - What the character sees
+                div {
+                    class: "flex flex-col gap-4 overflow-y-auto",
+
+                    // NPCs visible to this character
+                    div {
+                        class: "bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPCs Present" }
+
+                        if npcs_present.is_empty() {
+                            div { class: "text-gray-500 italic", "No NPCs visible" }
+                        } else {
+                            div {
+                                class: "flex flex-col gap-2",
+                                for npc in npcs_present.iter() {
+                                    div {
+                                        key: "{npc.character_id}",
+                                        class: "flex items-center gap-2 p-2 bg-dark-bg rounded",
+                                        span { class: "text-blue-400", "" }
+                                        span { class: "text-white", "{npc.name}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Items visible in the region
+                    div {
+                        class: "bg-dark-surface rounded-lg p-4",
+
+                        h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Items in Area" }
+
+                        if region_items.is_empty() {
+                            div { class: "text-gray-500 italic", "No items visible" }
+                        } else {
+                            div {
+                                class: "flex flex-col gap-2",
+                                for item in region_items.iter() {
+                                    div {
+                                        key: "{item.id}",
+                                        class: "flex items-center gap-2 p-2 bg-dark-bg rounded",
+                                        span { class: "text-amber-400", "" }
+                                        span { class: "text-white", "{item.name}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Note about read-only mode
+                    div {
+                        class: "bg-gray-800/50 border border-gray-600 rounded-lg p-4 text-center",
+
+                        p {
+                            class: "m-0 text-gray-400 text-sm",
+                            "This is a read-only preview of what this character sees."
+                        }
+                        p {
+                            class: "m-0 mt-2 text-gray-500 text-xs",
+                            "Actions are disabled in this mode."
                         }
                     }
                 }

@@ -89,8 +89,6 @@ impl<'a> TimelineViewModel<'a> {
 #[derive(Props, Clone, PartialEq)]
 pub struct TimelineViewProps {
     pub world_id: String,
-    #[props(default)]
-    pub session_id: Option<String>,
 }
 
 #[component]
@@ -117,7 +115,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
             is_loading.set(true);
             error.set(None);
 
-            match service.list_story_events(&world_id, None).await {
+            match service.list_story_events(&world_id).await {
                 Ok(loaded_events) => {
                     events.set(loaded_events);
                 }
@@ -249,7 +247,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
                                             tracing::error!("Failed to toggle visibility: {}", e);
                                         }
                                         // Reload events
-                                        if let Ok(reloaded) = service.list_story_events(&world_id, None).await {
+                                if let Ok(reloaded) = service.list_story_events(&world_id).await {
                                             events.set(reloaded);
                                         }
                                     });
@@ -264,7 +262,6 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
             if *show_add_marker.read() {
                 AddDmMarkerModal {
                     world_id: props.world_id.clone(),
-                    session_id: props.session_id.clone(),
                     on_close: move |_| show_add_marker.set(false),
                     on_created: {
                         let world_id = props.world_id.clone();
@@ -275,7 +272,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
                             let world_id = world_id.clone();
                             let service = service.clone();
                             spawn(async move {
-                                if let Ok(reloaded) = service.list_story_events(&world_id, None).await {
+                                if let Ok(reloaded) = service.list_story_events(&world_id).await {
                                     events.set(reloaded);
                                 }
                             });
