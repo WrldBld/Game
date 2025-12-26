@@ -1900,13 +1900,18 @@ impl RequestHandler for AppRequestHandler {
             // =================================================================
             // Player Character Operations
             // =================================================================
-            RequestPayload::ListPlayerCharacters { world_id: _ } => {
-                // Player character service uses session_id, not world_id
-                // This will need to be updated when sessions are removed
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "ListPlayerCharacters needs world-based query - pending session removal",
-                )
+            RequestPayload::ListPlayerCharacters { world_id } => {
+                let world_id = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.player_character_service.get_pcs_by_world(&world_id).await {
+                    Ok(pcs) => {
+                        let dtos: Vec<PlayerCharacterResponseDto> = pcs.into_iter().map(|pc| pc.into()).collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::GetPlayerCharacter { pc_id } => {

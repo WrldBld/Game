@@ -80,7 +80,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .await
     {
         for item in items {
-            let key = item.payload.session_id.to_string();
+            let key = item.payload.world_id.to_string();
             *player_actions_by_session.entry(key).or_insert(0) += 1;
         }
     }
@@ -93,12 +93,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .await
     {
         for item in items {
-            let key = item
-                .payload
-                .session_id
-                .as_ref()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "GLOBAL".to_string());
+            let key = item.payload.world_id.to_string();
             *llm_requests_by_session.entry(key).or_insert(0) += 1;
         }
     }
@@ -113,7 +108,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         for item in items {
             let key = item
                 .payload
-                .session_id
+                .world_id
                 .as_ref()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "GLOBAL".to_string());

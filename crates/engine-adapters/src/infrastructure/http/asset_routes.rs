@@ -372,7 +372,7 @@ pub async fn queue_generation(
     // Queue generation jobs for each image in the batch
     for i in 0..batch.count {
         let generation_item = wrldbldr_engine_app::application::dto::AssetGenerationItem {
-            session_id: None, // Generation requests don't require session context
+            world_id: None, // Generation requests don't require world context
             entity_type: format!("{:?}", batch.entity_type),
             entity_id: batch.entity_id.clone(),
             workflow_id: batch.workflow.clone(),

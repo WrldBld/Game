@@ -113,7 +113,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         _ => String::new(),
                     },
                     error: "Cancelled by user".to_string(),
-                    world_id: item.payload.world_id.clone().map(WorldId::from_uuid),
+                    world_id: Some(WorldId::from_uuid(item.payload.world_id)),
                 });
                 
                 return Ok(true);
@@ -185,11 +185,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         match llm_service_clone.generate_npc_response(prompt.clone()).await {
                             Ok(response) => {
                                 // Create approval item for DM
-                                let Some(session_id) = request.session_id else {
-                                    tracing::error!("Missing session_id in LLM request");
-                                    let _ = queue_clone.fail(item_id, "Missing session_id").await;
-                                    return;
-                                };
+                                let world_id = request.world_id;
 
                                 // Extract NPC name and ID from the prompt's responding character
                                 let npc_name = prompt.responding_character.name.clone();
@@ -358,11 +354,10 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                 };
 
                                 let approval = ApprovalItem {
-                                    session_id,
+                                    world_id,
                                     source_action_id: *action_item_id,
                                     decision_type: DecisionType::NPCResponse,
                                     urgency: DecisionUrgency::AwaitingPlayer,
-                                    world_id: request.world_id,
                                     pc_id: request.pc_id,
                                     npc_id,
                                     npc_name,
@@ -393,13 +388,13 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                         // The suggestions are stored in ApprovalItem and will be used by the worker
                                         // No need to create the message here
 
-                                        // Store pending approval in session and send to DM
-                                        // This requires access to session manager, which we'll handle in a worker
+                                        // Store pending approval and send to DM
+                                        // This requires access to world state manager, which we'll handle in a worker
                                         tracing::info!(
-                                            "Enqueued approval {} for NPC {} in session {}",
+                                            "Enqueued approval {} for NPC {} in world {}",
                                             approval_item_id,
                                             approval.npc_name,
-                                            approval.session_id
+                                            approval.world_id
                                         );
 
                                         let _ = queue_clone.complete(item_id).await;
@@ -435,7 +430,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             request_id: request_id.clone(),
                             field_type: field_type_clone.clone(),
                             entity_id: entity_id_clone.clone(),
-                            world_id: world_id_clone.clone().map(WorldId::from_uuid),
+                            world_id: Some(WorldId::from_uuid(world_id_clone)),
                         });
                         
                         // Create suggestion service
@@ -466,7 +461,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
-                                    world_id: world_id_clone.clone().map(WorldId::from_uuid),
+                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
                                 });
                                 let _ = queue_clone.fail(item_id, &error).await;
                                 return;
@@ -480,7 +475,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     suggestions,
-                                    world_id: world_id_clone.map(WorldId::from_uuid),
+                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
                                 });
                                 let _ = queue_clone.complete(item_id).await;
                             }
@@ -491,7 +486,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
-                                    world_id: world_id_clone.map(WorldId::from_uuid),
+                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
                                 });
                                 let _ = queue_clone.fail(item_id, &error).await;
                             }

@@ -72,11 +72,6 @@ pub async fn run() -> Result<()> {
     };
 
     // Player action queue worker (processes actions and routes to LLM queue)
-    //
-    // TODO: This worker needs refactoring for world-based architecture.
-    // The build_prompt_from_action function now takes a WorldId instead of SessionManager.
-    // PlayerActionItem.session_id needs to be replaced with world_id, or a lookup mechanism
-    // needs to be added to resolve world_id from the action context.
     let player_action_worker = {
         let service = state.queues.player_action_queue_service.clone();
         let challenge_service = state.game.challenge_service.clone();
@@ -117,9 +112,7 @@ pub async fn run() -> Result<()> {
                         let mood_service = mood_service_clone.clone();
                         let actantial_service = actantial_service_clone.clone();
                         async move {
-                            // TODO: PlayerActionItem needs world_id field or lookup mechanism
-                            // For now, using session_id as a placeholder (will fail at runtime)
-                            let world_id = WorldId::from_uuid(action.session_id);
+                            let world_id = WorldId::from_uuid(action.world_id);
                             build_prompt_from_action(
                                 world_id,
                                 &challenge_service,

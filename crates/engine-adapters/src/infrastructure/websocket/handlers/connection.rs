@@ -50,9 +50,9 @@ pub async fn handle_join_world(
     pc_id: Option<Uuid>,
     spectate_pc_id: Option<Uuid>,
 ) -> Option<ServerMessage> {
+    // client_id is already a valid Uuid, use it directly as connection_id
+    let connection_id = client_id;
     let client_id_str = client_id.to_string();
-    let connection_id =
-        uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
 
     tracing::info!(
         world_id = %world_id,
@@ -197,9 +197,8 @@ pub async fn handle_join_world(
 /// 2. Broadcasts UserLeft to remaining users in the world
 /// 3. Returns None (no response needed)
 pub async fn handle_leave_world(state: &AppState, client_id: Uuid) -> Option<ServerMessage> {
-    let client_id_str = client_id.to_string();
-    let connection_id =
-        uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+    // client_id is already a valid Uuid, use it directly as connection_id
+    let connection_id = client_id;
 
     tracing::info!(connection_id = %connection_id, "LeaveWorld request received");
 
@@ -240,9 +239,8 @@ pub async fn handle_set_spectate_target(
     client_id: Uuid,
     pc_id: Uuid,
 ) -> Option<ServerMessage> {
-    let client_id_str = client_id.to_string();
-    let connection_id =
-        uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+    // client_id is already a valid Uuid, use it directly as connection_id
+    let connection_id = client_id;
 
     tracing::info!(
         pc_id = %pc_id,

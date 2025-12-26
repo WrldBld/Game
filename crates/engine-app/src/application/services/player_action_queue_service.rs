@@ -40,7 +40,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
         dialogue: Option<String>,
     ) -> Result<QueueItemId, QueueError> {
         let item = PlayerActionItem {
-            session_id: (*world_id).into(), // Use world_id as session_id for now (they share UUID space)
+            world_id: (*world_id).into(),
             player_id,
             pc_id: pc_id.map(Into::into),
             action_type,
@@ -76,7 +76,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
 
         // Clone payload before passing to callback (item.payload is already Clone)
         let payload = item.payload.clone();
-        let session_id = payload.session_id;
+        let world_id = payload.world_id;
         let pc_id = payload.pc_id;
         let item_id = item.id;
 
@@ -88,8 +88,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
             request_type: LLMRequestType::NPCResponse {
                 action_item_id: item_id,
             },
-            session_id: Some(session_id),
-            world_id: None, // NPC responses use session_id for routing, not world_id
+            world_id,
             pc_id,
             prompt: Some(prompt),
             suggestion_context: None,

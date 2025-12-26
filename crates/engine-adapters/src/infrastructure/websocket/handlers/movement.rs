@@ -554,6 +554,18 @@ async fn handle_staging_for_region(
     location: &wrldbldr_domain::entities::Location,
     sender: mpsc::UnboundedSender<ServerMessage>,
 ) -> Option<ServerMessage> {
+    // Parse pc_id upfront - return error if invalid instead of silently generating random UUID
+    let pc_uuid = match Uuid::parse_str(pc_id) {
+        Ok(uuid) => uuid,
+        Err(e) => {
+            tracing::error!(pc_id = %pc_id, error = %e, "Invalid PC ID format in staging handler");
+            return Some(ServerMessage::Error {
+                code: "INVALID_PC_ID".to_string(),
+                message: "Invalid PC ID format".to_string(),
+            });
+        }
+    };
+
     // Get current game time
     let game_time = state.world_state.get_game_time(&world_id_domain).unwrap_or_default();
 
@@ -608,7 +620,7 @@ async fn handle_staging_for_region(
             &region_id,
             |approval| {
                 approval.add_waiting_pc(
-                    Uuid::parse_str(pc_id).unwrap_or_else(|_| Uuid::new_v4()),
+                    pc_uuid,
                     pc_name.to_string(),
                     user_id.clone(),
                     client_id_str.clone(),
@@ -684,7 +696,7 @@ async fn handle_staging_for_region(
     // Add waiting PC
     let mut pending_with_pc = pending_approval;
     pending_with_pc.add_waiting_pc(
-        Uuid::parse_str(pc_id).unwrap_or_else(|_| Uuid::new_v4()),
+        pc_uuid,
         pc_name.to_string(),
         user_id,
         client_id_str,

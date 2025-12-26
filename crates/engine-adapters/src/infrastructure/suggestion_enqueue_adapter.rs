@@ -63,14 +63,18 @@ where
             world_id: request.context.world_id,
         };
 
+        // Require world_id for suggestion requests
+        let world_id = request.world_id.ok_or_else(|| {
+            QueueError::Backend("world_id is required for suggestion requests".to_string())
+        })?;
+
         // Create LLM request item
         let llm_request = LLMRequestItem {
             request_type: LLMRequestType::Suggestion {
                 field_type: request.field_type,
                 entity_id: request.entity_id,
             },
-            session_id: None,
-            world_id: request.world_id,
+            world_id,
             pc_id: None,
             prompt: None,
             suggestion_context: Some(suggestion_context),

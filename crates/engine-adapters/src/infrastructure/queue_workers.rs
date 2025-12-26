@@ -164,7 +164,7 @@ async fn process_dm_action(
             // which matches what we have from the DMAction
 
             // Process the decision using the approval queue service
-            let world_id = WorldId::from(action.session_id);
+            let world_id = WorldId::from(action.world_id);
             match approval_queue_service
                 .process_decision(world_id, approval_item_id, decision.clone())
                 .await
@@ -187,7 +187,7 @@ async fn process_dm_action(
                 choices: vec![],
             };
             world_connection_manager
-                .broadcast_to_players(action.session_id, response)
+                .broadcast_to_players(action.world_id, response)
                 .await;
         }
         DMAction::TriggerEvent { event_id } => {
@@ -236,14 +236,14 @@ async fn process_dm_action(
                 message: format!("Narrative event '{}' has been triggered", narrative_event.name),
             };
             world_connection_manager
-                .broadcast_to_players(action.session_id, notification)
+                .broadcast_to_players(action.world_id, notification)
                 .await;
 
             tracing::info!(
                 "Triggered narrative event {} ({}) in world {}",
                 event_id,
                 narrative_event.name,
-                action.session_id
+                action.world_id
             );
         }
         DMAction::TransitionScene { scene_id } => {
@@ -343,13 +343,13 @@ async fn process_dm_action(
             // Broadcast scene update via world connection manager
             // Note: Scene state is tracked per-world in WorldStateManager now
             world_connection_manager
-                .broadcast_to_world(action.session_id, scene_update)
+                .broadcast_to_world(action.world_id, scene_update)
                 .await;
 
             tracing::info!(
                 "DM transitioned scene to {} in world {}",
                 scene_id,
-                action.session_id
+                action.world_id
             );
         }
     }

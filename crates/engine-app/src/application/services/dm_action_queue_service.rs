@@ -35,7 +35,7 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
         action: DMAction,
     ) -> Result<QueueItemId, QueueError> {
         let item = DMActionItem {
-            session_id: (*world_id).into(), // Use world_id as session_id for now (they share UUID space)
+            world_id: (*world_id).into(),
             dm_id,
             action,
             timestamp: chrono::Utc::now(),

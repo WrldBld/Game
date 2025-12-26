@@ -40,9 +40,9 @@ pub async fn handle_request(
     request_id: String,
     payload: RequestPayload,
 ) -> Option<ServerMessage> {
+    // client_id is already a valid Uuid, use it directly as connection_id
+    let connection_id = client_id;
     let client_id_str = client_id.to_string();
-    let connection_id =
-        Uuid::parse_str(&client_id_str).unwrap_or_else(|_| Uuid::new_v4());
 
     tracing::debug!(
         request_id = %request_id,
