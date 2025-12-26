@@ -11,7 +11,6 @@ use wrldbldr_protocol::{
     ChallengeOutcomeDecisionData,
     DiceInputType,
     DirectorialContext,
-    NpcMotivationData as NpcMotivation,
     ParticipantRole,
 };
 

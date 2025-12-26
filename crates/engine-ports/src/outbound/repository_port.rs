@@ -11,10 +11,10 @@ use wrldbldr_domain::entities::{
     Act, ActantialRole, ActantialView, AcquisitionMethod, ChainStatus, Challenge,
     ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability, Character,
     CharacterSheetTemplate, CharacterWant, EventChain, EventChainMembership, FeaturedNpc,
-    FrequencyLevel, GalleryAsset, GenerationBatch, Goal, GridMap, InteractionRequirement,
+    FrequencyLevel, GalleryAsset, GenerationBatch, Goal, InteractionRequirement,
     InteractionTargetType, InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location,
     LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, RegionConnection,
-    RegionExit, Scene, SceneCharacter, SceneCharacterRole, SheetTemplateId, Skill, StoryEvent,
+    RegionExit, Scene, SceneCharacter, SheetTemplateId, Skill, StoryEvent,
     Want, World, WorkflowConfiguration,
 };
 use wrldbldr_domain::entities::WorkflowSlot;
