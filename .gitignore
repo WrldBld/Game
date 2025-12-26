@@ -46,6 +46,8 @@ crates/player/pkg/
 # Nix
 result
 result-*
+.direnv/
+.envrc
 
 # Editor backups
 *.bak
