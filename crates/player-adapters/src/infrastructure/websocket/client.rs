@@ -139,7 +139,13 @@ mod desktop {
 
                     let write_handle = tokio::spawn(async move {
                         while let Some(msg) = rx.recv().await {
-                            let json = serde_json::to_string(&msg).unwrap();
+                            let json = match serde_json::to_string(&msg) {
+                                Ok(j) => j,
+                                Err(e) => {
+                                    tracing::error!("Failed to serialize WebSocket message: {}", e);
+                                    continue;
+                                }
+                            };
                             if let Err(e) = write.send(Message::Text(json)).await {
                                 tracing::error!("Failed to send message: {}", e);
                                 break;
