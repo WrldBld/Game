@@ -31,7 +31,7 @@ use crate::infrastructure::state::AppState;
 use wrldbldr_domain::ActionId;
 use wrldbldr_protocol::{
     CharacterData, CharacterPosition, ClientMessage, InteractionData, NpcMoodData, ParticipantInfo,
-    ParticipantRole, SceneData, ServerMessage,
+    ParticipantRole, SceneData, ServerMessage, WorldRole,
     ActantialRoleData, WantVisibilityData,
 };
 
@@ -3556,12 +3556,48 @@ async fn handle_message(
                         }
                     };
 
+                    // Fetch PC data if role is Player and pc_id is provided
+                    let pc_data = if role == WorldRole::Player {
+                        if let Some(pc_uuid) = pc_id {
+                            let pc_id_domain = wrldbldr_domain::PlayerCharacterId::from_uuid(pc_uuid);
+                            match state.player.player_character_service.get_pc(pc_id_domain).await {
+                                Ok(Some(pc)) => {
+                                    tracing::debug!(pc_id = %pc_uuid, "Fetched PC data for Player join");
+                                    Some(serde_json::json!({
+                                        "id": pc.id.to_string(),
+                                        "name": pc.name,
+                                        "user_id": pc.user_id,
+                                        "world_id": pc.world_id.to_string(),
+                                        "current_location_id": pc.current_location_id.to_string(),
+                                        "current_region_id": pc.current_region_id.map(|r| r.to_string()),
+                                        "description": pc.description,
+                                        "sprite_asset": pc.sprite_asset,
+                                        "portrait_asset": pc.portrait_asset,
+                                    }))
+                                }
+                                Ok(None) => {
+                                    tracing::warn!(pc_id = %pc_uuid, "PC not found for Player join");
+                                    None
+                                }
+                                Err(e) => {
+                                    tracing::error!(pc_id = %pc_uuid, error = %e, "Failed to fetch PC data");
+                                    None
+                                }
+                            }
+                        } else {
+                            tracing::debug!("Player joined without PC ID - will need to select PC");
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
                     // Broadcast UserJoined to other users in the world
                     let user_joined_msg = ServerMessage::UserJoined {
                         user_id: user_id.clone(),
                         username: None,
                         role,
-                        pc: None, // TODO: Include PC data if Player role
+                        pc: pc_data.clone(),
                     };
                     
                     // Get all connections except this one and broadcast
@@ -3580,7 +3616,7 @@ async fn handle_message(
                         snapshot,
                         connected_users,
                         your_role: role,
-                        your_pc: None, // TODO: Include PC data if Player role
+                        your_pc: pc_data,
                     })
                 }
                 Err(error) => {
@@ -3663,18 +3699,55 @@ async fn handle_message(
                 "SetSpectateTarget request received"
             );
             
-            // TODO: Implement spectate target change
-            // For now, return an appropriate message
             if let Some(conn_info) = state.world_connection_manager.get_connection(connection_id).await {
-                if conn_info.is_spectator() {
-                    // Would update the spectate target here
-                    tracing::info!("Spectate target change requested but not yet implemented");
-                } else {
+                if !conn_info.is_spectator() {
                     tracing::warn!("SetSpectateTarget called by non-spectator");
+                    return Some(ServerMessage::Error {
+                        code: "not_spectator".to_string(),
+                        message: "Only spectators can change spectate target".to_string(),
+                    });
                 }
+
+                // Update spectate target in connection manager
+                state.world_connection_manager.set_spectate_target(connection_id, Some(pc_id)).await;
+
+                // Fetch PC name for the response
+                let pc_id_domain = wrldbldr_domain::PlayerCharacterId::from_uuid(pc_id);
+                let pc_name = match state.player.player_character_service.get_pc(pc_id_domain).await {
+                    Ok(Some(pc)) => pc.name,
+                    Ok(None) => {
+                        tracing::warn!(pc_id = %pc_id, "Spectate target PC not found");
+                        return Some(ServerMessage::Error {
+                            code: "pc_not_found".to_string(),
+                            message: format!("Player character {} not found", pc_id),
+                        });
+                    }
+                    Err(e) => {
+                        tracing::error!(pc_id = %pc_id, error = %e, "Failed to fetch spectate target PC");
+                        return Some(ServerMessage::Error {
+                            code: "internal_error".to_string(),
+                            message: "Failed to fetch player character".to_string(),
+                        });
+                    }
+                };
+
+                tracing::info!(
+                    pc_id = %pc_id,
+                    pc_name = %pc_name,
+                    "Spectate target changed"
+                );
+
+                Some(ServerMessage::SpectateTargetChanged {
+                    pc_id,
+                    pc_name,
+                })
+            } else {
+                tracing::warn!("SetSpectateTarget from unknown connection");
+                Some(ServerMessage::Error {
+                    code: "not_connected".to_string(),
+                    message: "Not connected to a world".to_string(),
+                })
             }
-            
-            None // TODO: Return SpectateTargetChanged when implemented
         }
     }
 }

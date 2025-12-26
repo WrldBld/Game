@@ -792,6 +792,27 @@ impl WorldConnectionManager {
         pcs
     }
 
+    /// Update spectate target for a spectator connection
+    pub async fn set_spectate_target(&self, connection_id: Uuid, pc_id: Option<Uuid>) {
+        let mut connections = self.connections.write().await;
+        if let Some(conn) = connections.get_mut(&connection_id) {
+            if conn.role == Some(WorldRole::Spectator) {
+                conn.spectate_pc_id = pc_id;
+                tracing::debug!(
+                    connection_id = %connection_id,
+                    pc_id = ?pc_id,
+                    "Updated spectate target"
+                );
+            } else {
+                tracing::warn!(
+                    connection_id = %connection_id,
+                    role = ?conn.role,
+                    "Attempted to set spectate target on non-spectator connection"
+                );
+            }
+        }
+    }
+
     // =========================================================================
     // Client ID Lookup Methods
     // =========================================================================
