@@ -129,9 +129,10 @@ pub async fn build_prompt_from_action(
     )
     .await;
 
-    // 9. Get active narrative events
+    // 9. Get active narrative events with featured NPC names
     let active_narrative_events = get_active_narrative_events(
         narrative_event_service,
+        _character_repo,
         &world_id,
     )
     .await;
@@ -348,6 +349,7 @@ async fn get_active_challenges(
 
 async fn get_active_narrative_events(
     narrative_event_service: &Arc<dyn NarrativeEventService>,
+    character_repo: &Arc<dyn CharacterRepositoryPort>,
     world_id: &WorldId,
 ) -> Vec<ActiveNarrativeEventContext> {
     // Get pending (not yet triggered) narrative events
@@ -356,24 +358,77 @@ async fn get_active_narrative_events(
         Err(_) => return Vec::new(),
     };
 
-    events
-        .into_iter()
-        .map(|event| {
-            // Extract trigger hints from trigger conditions
-            let trigger_hints: Vec<String> = event.trigger_conditions
-                .iter()
-                .map(|t| t.description.clone())
-                .collect();
+    let mut result = Vec::with_capacity(events.len());
 
-            ActiveNarrativeEventContext {
-                id: event.id.to_string(),
-                name: event.name.clone(),
-                description: event.description.clone(),
-                scene_direction: event.scene_direction.clone(),
-                trigger_hints,
-                featured_npc_names: Vec::new(), // NPCs are stored as edges, not fetched here
-                priority: event.priority,
+    for event in events {
+        // Extract trigger hints from trigger conditions
+        let trigger_hints: Vec<String> = event.trigger_conditions
+            .iter()
+            .map(|t| t.description.clone())
+            .collect();
+
+        // Fetch featured NPC names
+        let featured_npc_names = get_featured_npc_names(
+            narrative_event_service,
+            character_repo,
+            event.id,
+        ).await;
+
+        result.push(ActiveNarrativeEventContext {
+            id: event.id.to_string(),
+            name: event.name.clone(),
+            description: event.description.clone(),
+            scene_direction: event.scene_direction.clone(),
+            trigger_hints,
+            featured_npc_names,
+            priority: event.priority,
+        });
+    }
+
+    result
+}
+
+/// Fetch featured NPC names for a narrative event
+async fn get_featured_npc_names(
+    narrative_event_service: &Arc<dyn NarrativeEventService>,
+    character_repo: &Arc<dyn CharacterRepositoryPort>,
+    event_id: wrldbldr_domain::NarrativeEventId,
+) -> Vec<String> {
+    // Get featured NPCs for this event
+    let featured_npcs = match narrative_event_service.get_featured_npcs(event_id).await {
+        Ok(npcs) => npcs,
+        Err(e) => {
+            tracing::debug!(
+                event_id = %event_id,
+                error = %e,
+                "Could not get featured NPCs for narrative event"
+            );
+            return Vec::new();
+        }
+    };
+
+    // Fetch character names for each featured NPC
+    let mut names = Vec::with_capacity(featured_npcs.len());
+    for featured_npc in featured_npcs {
+        match character_repo.get(featured_npc.character_id).await {
+            Ok(Some(character)) => {
+                names.push(character.name);
             }
-        })
-        .collect()
+            Ok(None) => {
+                tracing::debug!(
+                    character_id = %featured_npc.character_id,
+                    "Featured NPC character not found"
+                );
+            }
+            Err(e) => {
+                tracing::debug!(
+                    character_id = %featured_npc.character_id,
+                    error = %e,
+                    "Could not fetch featured NPC character"
+                );
+            }
+        }
+    }
+
+    names
 }
