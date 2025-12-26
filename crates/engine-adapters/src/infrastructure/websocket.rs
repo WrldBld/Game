@@ -755,7 +755,7 @@ async fn handle_message(
             None // SceneUpdate is broadcast, no direct response needed
         }
 
-        ClientMessage::DirectorialUpdate { context: _ } => {
+        ClientMessage::DirectorialUpdate { context } => {
             tracing::debug!("Received directorial update");
 
             // Only DMs should send directorial updates
@@ -787,10 +787,14 @@ async fn handle_message(
                 });
             }
             
-            // TODO: Update directorial context and store in world
+            // Store directorial context in WorldStateManager
+            let world_id_domain = wrldbldr_domain::WorldId::from_uuid(world_id);
+            state.world_state.set_directorial_context(&world_id_domain, context.clone());
+            
             tracing::info!(
-                "DM updated directorial context for world {}",
-                world_id
+                world_id = %world_id,
+                npc_count = context.npc_motivations.len(),
+                "DM updated directorial context"
             );
 
             None // No response needed

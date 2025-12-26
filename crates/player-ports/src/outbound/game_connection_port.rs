@@ -141,6 +141,15 @@ pub trait GameConnectionPort: Send + Sync {
     /// Request a manual ComfyUI health check
     fn check_comfyui_health(&self) -> anyhow::Result<()>;
 
+    /// Set NPC mood toward a PC (DM only)
+    fn set_npc_mood(&self, npc_id: &str, pc_id: &str, mood: &str, reason: Option<&str>) -> anyhow::Result<()>;
+
+    /// Set NPC relationship toward a PC (DM only)
+    fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> anyhow::Result<()>;
+
+    /// Request NPC moods for a PC (fetches current mood data)
+    fn get_npc_moods(&self, pc_id: &str) -> anyhow::Result<()>;
+
     /// Register a callback for state changes
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>);
 
@@ -254,6 +263,15 @@ pub trait GameConnectionPort {
 
     /// Request a manual ComfyUI health check
     fn check_comfyui_health(&self) -> anyhow::Result<()>;
+
+    /// Set NPC mood toward a PC (DM only)
+    fn set_npc_mood(&self, npc_id: &str, pc_id: &str, mood: &str, reason: Option<&str>) -> anyhow::Result<()>;
+
+    /// Set NPC relationship toward a PC (DM only)
+    fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> anyhow::Result<()>;
+
+    /// Request NPC moods for a PC (fetches current mood data)
+    fn get_npc_moods(&self, pc_id: &str) -> anyhow::Result<()>;
 
     /// Register a callback for state changes
     ///

@@ -2,6 +2,7 @@ use dashmap::DashMap;
 use uuid::Uuid;
 use wrldbldr_domain::{WorldId, GameTime, LocationId, RegionId};
 use wrldbldr_engine_app::application::services::staging_service::StagingProposal;
+use wrldbldr_protocol::DirectorialContext;
 use chrono::{DateTime, Utc};
 
 /// Manages per-world state (game time, conversation, approvals)
@@ -24,6 +25,9 @@ struct WorldState {
     
     /// Current scene ID (if any)
     current_scene_id: Option<String>,
+    
+    /// DM's directorial context (runtime guidance for NPCs)
+    directorial_context: Option<DirectorialContext>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -167,6 +171,7 @@ impl WorldStateManager {
             pending_approvals: Vec::new(),
             pending_staging_approvals: Vec::new(),
             current_scene_id: None,
+            directorial_context: None,
         };
         self.states.insert(world_id, state);
     }
@@ -191,6 +196,7 @@ impl WorldStateManager {
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
                 current_scene_id: None,
+                directorial_context: None,
             });
     }
     
@@ -226,6 +232,7 @@ impl WorldStateManager {
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
                 current_scene_id: None,
+                directorial_context: None,
             });
     }
     
@@ -255,6 +262,7 @@ impl WorldStateManager {
                 pending_approvals: vec![item],
                 pending_staging_approvals: Vec::new(),
                 current_scene_id: None,
+                directorial_context: None,
             });
     }
     
@@ -319,6 +327,7 @@ impl WorldStateManager {
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: vec![approval],
                 current_scene_id: None,
+                directorial_context: None,
             });
     }
     
@@ -430,7 +439,40 @@ impl WorldStateManager {
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
                 current_scene_id: scene_id,
+                directorial_context: None,
             });
+    }
+    
+    // === Directorial Context ===
+    
+    /// Get the current directorial context for a world
+    pub fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialContext> {
+        self.states
+            .get(world_id)
+            .and_then(|state| state.directorial_context.clone())
+    }
+    
+    /// Set the directorial context for a world
+    pub fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContext) {
+        self.states.entry(world_id.clone())
+            .and_modify(|state| {
+                state.directorial_context = Some(context.clone());
+            })
+            .or_insert_with(|| WorldState {
+                game_time: GameTime::default(),
+                conversation_history: Vec::new(),
+                pending_approvals: Vec::new(),
+                pending_staging_approvals: Vec::new(),
+                current_scene_id: None,
+                directorial_context: Some(context),
+            });
+    }
+    
+    /// Clear the directorial context for a world
+    pub fn clear_directorial_context(&self, world_id: &WorldId) {
+        if let Some(mut state) = self.states.get_mut(world_id) {
+            state.directorial_context = None;
+        }
     }
 }
 

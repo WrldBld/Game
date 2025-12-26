@@ -575,6 +575,86 @@ impl GameConnectionPort for EngineGameConnection {
         }
     }
 
+    fn set_npc_mood(&self, npc_id: &str, pc_id: &str, mood: &str, reason: Option<&str>) -> Result<()> {
+        use wrldbldr_protocol::RequestPayload;
+        
+        let msg = ClientMessage::Request {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            payload: RequestPayload::SetNpcMood {
+                npc_id: npc_id.to_string(),
+                pc_id: pc_id.to_string(),
+                mood: mood.to_string(),
+                reason: reason.map(|s| s.to_string()),
+            },
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to set NPC mood: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> Result<()> {
+        use wrldbldr_protocol::RequestPayload;
+        
+        let msg = ClientMessage::Request {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            payload: RequestPayload::SetNpcRelationship {
+                npc_id: npc_id.to_string(),
+                pc_id: pc_id.to_string(),
+                relationship: relationship.to_string(),
+            },
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to set NPC relationship: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
+    fn get_npc_moods(&self, pc_id: &str) -> Result<()> {
+        use wrldbldr_protocol::RequestPayload;
+        
+        let msg = ClientMessage::Request {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            payload: RequestPayload::GetNpcMoods {
+                pc_id: pc_id.to_string(),
+            },
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.client.send(msg)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(e) = client.send(msg).await {
+                    tracing::error!("Failed to get NPC moods: {}", e);
+                }
+            });
+            Ok(())
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn on_state_change(&self, callback: Box<dyn FnMut(PortConnectionState) + Send + 'static>) {
         let state_slot = Arc::clone(&self.state);

@@ -271,6 +271,18 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
+    fn set_npc_mood(&self, _npc_id: &str, _pc_id: &str, _mood: &str, _reason: Option<&str>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn set_npc_relationship(&self, _npc_id: &str, _pc_id: &str, _relationship: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn get_npc_moods(&self, _pc_id: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>) {
         let mut s = self.state.lock().unwrap();
         s.on_state_change = Some(callback);

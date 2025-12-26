@@ -984,19 +984,18 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
-        // NPC Mood messages (P1.4) - currently handled silently
-        // Future: Update DM panel with mood changes
-        ServerMessage::NpcMoodChanged { npc_id, npc_name, pc_id, mood, relationship, reason } => {
+        // NPC Mood messages (P1.4) - Update DM panel state
+        ServerMessage::NpcMoodChanged { npc_id, npc_name: _, pc_id, mood, relationship, reason } => {
             tracing::info!(
                 npc_id = %npc_id,
-                npc_name = %npc_name,
                 pc_id = %pc_id,
                 mood = %mood,
                 relationship = %relationship,
                 reason = ?reason,
                 "NPC mood changed"
             );
-            // TODO: Update DM panel state with mood change
+            // Update specific NPC mood in game state
+            game_state.update_npc_mood(&npc_id, mood, relationship, reason);
         }
 
         ServerMessage::NpcMoodsResponse { pc_id, moods } => {
@@ -1005,7 +1004,8 @@ pub fn handle_server_message(
                 mood_count = moods.len(),
                 "Received NPC moods for PC"
             );
-            // TODO: Update DM panel state with mood list
+            // Replace entire mood list for this PC
+            game_state.set_npc_moods(moods);
         }
 
         // =========================================================================
