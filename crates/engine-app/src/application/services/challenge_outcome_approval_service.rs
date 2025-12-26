@@ -788,6 +788,27 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         new_value = %new_value,
                         "Successfully updated character stat"
                     );
+
+                    // Broadcast stat update to all connected clients
+                    let stat_update_msg = wrldbldr_protocol::ServerMessage::CharacterStatUpdated {
+                        character_id: resolved_character_id.clone(),
+                        character_name: pc.name.clone(),
+                        stat_name: stat_name.clone(),
+                        old_value: current_value,
+                        new_value,
+                        delta: *delta,
+                        source: "challenge_outcome".to_string(),
+                    };
+
+                    let world_id = WorldId::from(item.world_id);
+                    if let Err(e) = self.world_connection.broadcast_to_world(&world_id, stat_update_msg).await {
+                        tracing::warn!(
+                            character_id = %resolved_character_id,
+                            stat_name = %stat_name,
+                            error = %e,
+                            "Failed to broadcast character stat update"
+                        );
+                    }
                 }
                 StateChange::EventTriggered { .. } => {
                     // Event triggering is informational - no state change needed

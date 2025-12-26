@@ -984,6 +984,51 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
+        // =========================================================================
+        // Character Stat Updates
+        // =========================================================================
+
+        ServerMessage::CharacterStatUpdated {
+            character_id,
+            character_name,
+            stat_name,
+            old_value,
+            new_value,
+            delta,
+            source,
+        } => {
+            let change_str = if delta >= 0 {
+                format!("+{}", delta)
+            } else {
+                format!("{}", delta)
+            };
+            
+            tracing::info!(
+                character_id = %character_id,
+                character_name = %character_name,
+                stat_name = %stat_name,
+                old_value = old_value,
+                new_value = new_value,
+                delta = delta,
+                source = %source,
+                "Character stat updated"
+            );
+
+            // Add log entry so both DM and player see the stat change
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!(
+                    "{}'s {} changed: {} -> {} ({})",
+                    character_name, stat_name, old_value, new_value, change_str
+                ),
+                true,
+                platform,
+            );
+
+            // Trigger inventory refresh which also covers character sheet stats
+            game_state.trigger_inventory_refresh();
+        }
+
         // NPC Mood messages (P1.4) - Update DM panel state
         ServerMessage::NpcMoodChanged { npc_id, npc_name: _, pc_id, mood, relationship, reason } => {
             tracing::info!(

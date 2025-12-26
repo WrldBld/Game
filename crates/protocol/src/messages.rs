@@ -632,6 +632,22 @@ pub enum ServerMessage {
     InventoryUpdated { pc_id: String },
 
     // =========================================================================
+    // Character Stat Updates
+    // =========================================================================
+
+    /// A character's stat was updated (broadcast to player and DM)
+    CharacterStatUpdated {
+        character_id: String,
+        character_name: String,
+        stat_name: String,
+        old_value: i32,
+        new_value: i32,
+        delta: i32,
+        /// Source of the change (e.g., "challenge_outcome", "tool_call", "dm_action")
+        source: String,
+    },
+
+    // =========================================================================
     // NPC Mood Updates (P1.4)
     // =========================================================================
 
