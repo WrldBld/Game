@@ -337,7 +337,7 @@ pub async fn create_want(
             npc_id: char_id.to_string(),
             want: want_data,
         };
-        broadcast_to_world_sessions(&state.async_session_port, character.world_id, message).await;
+        broadcast_to_world_sessions(&state.world_connection_manager, character.world_id, message).await;
     }
 
     Ok((

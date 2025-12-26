@@ -8,7 +8,17 @@ use wrldbldr_domain::{SessionId, WorldId};
 use wrldbldr_protocol::ProposedToolInfo;
 use std::collections::HashMap;
 
-use super::SessionParticipantRole;
+/// Role a participant can have in a session
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionParticipantRole {
+    /// The Dungeon Master running the session
+    DungeonMaster,
+    /// A player participating in the session
+    Player,
+    /// A spectator observing the session
+    Spectator,
+}
 
 /// Information about a pending approval request
 #[derive(Debug, Clone)]

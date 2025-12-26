@@ -121,18 +121,9 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         }
     }
 
-    // Approvals are already session-aware at the service layer; reuse
-    // that to build a per-session view.
-    let mut approvals_by_session: HashMap<String, usize> = HashMap::new();
-    let session_ids = state.async_session_port.list_session_ids().await;
-
-    for session_id in session_ids {
-        if let Ok(pending) = state.queues.dm_approval_queue_service.get_pending(session_id).await {
-            if !pending.is_empty() {
-                approvals_by_session.insert(session_id.to_string(), pending.len());
-            }
-        }
-    }
+    // TODO: Once DMApprovalQueueService supports world-based queries, add per-world breakdown
+    // For now, just report the total pending count
+    let approvals_by_world: HashMap<String, usize> = HashMap::new();
 
     Json(json!({
         "status": "healthy",
@@ -149,7 +140,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
             },
             "approvals": {
                 "pending": approvals_pending,
-                "by_session": approvals_by_session,
+                "by_world": approvals_by_world,
                 "processing": 0,
             },
             "asset_generation": {

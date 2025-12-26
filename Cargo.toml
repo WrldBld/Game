@@ -79,6 +79,9 @@ dotenvy = "0.15"
 # SQLite for queue persistence
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
 
+# Concurrent HashMap for world state management
+dashmap = "6.1"
+
 # --- Player-specific dependencies ---
 # Dioxus UI framework
 dioxus = { version = "0.7.2" }

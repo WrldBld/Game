@@ -9,7 +9,6 @@ pub mod asset_generation_queue_service;
 pub mod asset_service;
 pub mod challenge_outcome_approval_service;
 pub mod challenge_resolution_service;
-pub mod session_join_service;
 pub mod challenge_service;
 pub mod dm_approval_queue_service;
 pub mod character_service;
@@ -57,9 +56,6 @@ pub mod world_service;
 pub use world_service::{
     CreateActRequest, CreateWorldRequest, UpdateWorldRequest, WorldService, WorldServiceImpl,
 };
-
-// Re-export session join service types
-pub use session_join_service::SessionJoinService;
 
 // Re-export scene service types
 pub use scene_service::{

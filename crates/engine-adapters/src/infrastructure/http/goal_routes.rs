@@ -144,7 +144,7 @@ pub async fn create_goal(
         world_id: world_id.to_string(),
         goal: goal_data,
     };
-    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
+    broadcast_to_world_sessions(&state.world_connection_manager, world_id, message).await;
 
     Ok((StatusCode::CREATED, Json(GoalResponse::from(goal))))
 }
@@ -221,7 +221,7 @@ pub async fn update_goal(
         usage_count,
     };
     let message = ServerMessage::GoalUpdated { goal: goal_data };
-    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
+    broadcast_to_world_sessions(&state.world_connection_manager, world_id, message).await;
 
     Ok(Json(GoalResponse::from(goal)))
 }
@@ -274,7 +274,7 @@ pub async fn delete_goal(
     let message = ServerMessage::GoalDeleted {
         goal_id: goal_id.to_string(),
     };
-    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
+    broadcast_to_world_sessions(&state.world_connection_manager, world_id, message).await;
 
     Ok(StatusCode::NO_CONTENT)
 }

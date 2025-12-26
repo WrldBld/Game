@@ -16,10 +16,10 @@ use crate::application::dto::{
     OutcomeBranchesReadyNotification, OutcomeSuggestionReadyNotification, OutcomeSuggestionRequest,
     PendingChallengeResolutionDto,
 };
-use wrldbldr_engine_ports::outbound::{AsyncSessionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort};
+use wrldbldr_engine_ports::outbound::{WorldConnectionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort};
 use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService};
 use crate::application::services::tool_execution_service::StateChange;
-use wrldbldr_domain::SessionId;
+use wrldbldr_domain::WorldId;
 
 /// Error type for challenge outcome approval operations
 #[derive(Debug, thiserror::Error)]
@@ -41,8 +41,8 @@ pub enum ChallengeOutcomeError {
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Pending resolutions indexed by resolution_id
     pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
-    /// Session port for broadcasting messages
-    sessions: Arc<dyn AsyncSessionPort>,
+    /// World connection port for broadcasting messages
+    world_connection: Arc<dyn WorldConnectionPort>,
     /// Outcome trigger service for executing triggers
     outcome_trigger_service: Arc<OutcomeTriggerService>,
     /// Player Character repository for inventory management
@@ -60,7 +60,7 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
 impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Create a new challenge outcome approval service
     pub fn new(
-        sessions: Arc<dyn AsyncSessionPort>,
+        world_connection: Arc<dyn WorldConnectionPort>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
@@ -68,7 +68,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
-            sessions,
+            world_connection,
             outcome_trigger_service,
             pc_repository,
             item_repository,
@@ -95,7 +95,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Returns the resolution_id for tracking.
     pub async fn queue_for_approval(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         resolution: PendingChallengeResolutionDto,
     ) -> Result<String, ChallengeOutcomeError> {
         let resolution_id = resolution.resolution_id.clone();
@@ -103,7 +103,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         // Convert DTO to approval item
         let item = ChallengeOutcomeApprovalItem {
             resolution_id: resolution.resolution_id.clone(),
-            session_id: session_id.into(),
+            world_id: (*world_id).into(),
             challenge_id: resolution.challenge_id,
             challenge_name: resolution.challenge_name.clone(),
             challenge_description: resolution.challenge_description,
@@ -139,10 +139,10 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         }
 
         // Notify DM of pending outcome
-        self.notify_dm_pending_outcome(session_id, &item).await?;
+        self.notify_dm_pending_outcome(world_id, &item).await?;
 
         // Notify player that roll is awaiting approval
-        self.notify_player_awaiting_approval(session_id, &item).await?;
+        self.notify_player_awaiting_approval(world_id, &item).await?;
 
         tracing::info!(
             "Challenge resolution {} queued for DM approval",
@@ -155,7 +155,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Process DM's decision on a challenge outcome
     pub async fn process_decision(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         resolution_id: &str,
         decision: ChallengeOutcomeDecision,
     ) -> Result<(), ChallengeOutcomeError> {
@@ -168,18 +168,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 
-        // Verify session matches
-        let session_uuid: uuid::Uuid = session_id.into();
-        if item.session_id != session_uuid {
+        // Verify world matches
+        let world_uuid: uuid::Uuid = (*world_id).into();
+        if item.world_id != world_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
-                "Session mismatch".to_string(),
+                "World mismatch".to_string(),
             ));
         }
 
         match decision {
             ChallengeOutcomeDecision::Accept => {
                 // Broadcast resolution with original description
-                self.broadcast_resolution(session_id, &item, None).await?;
+                self.broadcast_resolution(world_id, &item, None).await?;
                 // Remove from pending
                 self.remove_pending(resolution_id).await;
             }
@@ -187,7 +187,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 modified_description,
             } => {
                 // Broadcast resolution with modified description
-                self.broadcast_resolution(session_id, &item, Some(modified_description))
+                self.broadcast_resolution(world_id, &item, Some(modified_description))
                     .await?;
                 // Remove from pending
                 self.remove_pending(resolution_id).await;
@@ -204,9 +204,6 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         guidance
                     );
 
-                    // Get world_id for template resolution
-                    let world_id = self.sessions.get_session_world_id(session_id).await;
-
                     // Build suggestion request
                     let request = OutcomeSuggestionRequest {
                         challenge_id: item.challenge_id.clone(),
@@ -220,15 +217,16 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         ),
                         guidance,
                         narrative_context: None,
-                        world_id: world_id.map(|w| w.to_string()),
+                        world_id: Some(world_id.to_string()),
                     };
 
                     // Spawn async task to generate suggestions
                     let llm = llm_port.clone();
                     let pending = self.pending.clone();
-                    let sessions = self.sessions.clone();
+                    let world_connection = self.world_connection.clone();
                     let resolution_id_owned = resolution_id.to_string();
                     let prompt_template_service = self.prompt_template_service.clone();
+                    let world_id_owned = world_id.clone();
 
                     tokio::spawn(async move {
                         let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
@@ -239,23 +237,15 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                 if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
                                     pending_item.suggestions = Some(suggestions.clone());
                                     pending_item.is_generating_suggestions = false;
-                                    let session_id = pending_item.session_id;
                                     drop(pending_guard);
 
                                     // Notify DM
-                                    let msg = OutcomeSuggestionReadyNotification::new(
-                                        resolution_id_owned.clone(),
+                                    let message = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                        resolution_id: resolution_id_owned.clone(),
                                         suggestions,
-                                    );
-                                    match serde_json::to_value(&msg) {
-                                        Ok(value) => {
-                                            if let Err(e) = sessions.send_to_dm(session_id.into(), value).await {
-                                                tracing::error!("Failed to send suggestions to DM: {}", e);
-                                            }
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("Failed to serialize suggestions message: {}", e);
-                                        }
+                                    };
+                                    if let Err(e) = world_connection.send_to_dm(&world_id_owned, message).await {
+                                        tracing::error!("Failed to send suggestions to DM: {}", e);
                                     }
                                 }
                             }
@@ -299,18 +289,15 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             item.is_generating_suggestions = false;
 
             // Notify DM that suggestions are ready
-            let session_id = item.session_id;
+            let world_id = WorldId::from_uuid(item.world_id);
             drop(pending);
 
-            let msg = OutcomeSuggestionReadyNotification::new(
-                resolution_id.to_string(),
+            let message = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                resolution_id: resolution_id.to_string(),
                 suggestions,
-            );
-
-            let value = serde_json::to_value(&msg)
-                .map_err(|e| ChallengeOutcomeError::SessionError(format!("Failed to serialize: {}", e)))?;
-            self.sessions
-                .send_to_dm(SessionId::from_uuid(session_id), value)
+            };
+            self.world_connection
+                .send_to_dm(&world_id, message)
                 .await
                 .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
@@ -320,15 +307,15 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         }
     }
 
-    /// Get all pending resolutions for a session
-    pub async fn get_pending_for_session(
+    /// Get all pending resolutions for a world
+    pub async fn get_pending_for_world(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> Vec<ChallengeOutcomeApprovalItem> {
         let pending = self.pending.read().await;
         pending
             .values()
-            .filter(|item| item.session_id == uuid::Uuid::from(session_id))
+            .filter(|item| item.world_id == uuid::Uuid::from(*world_id))
             .cloned()
             .collect()
     }
@@ -336,31 +323,29 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Broadcast the final resolution to all players
     async fn broadcast_resolution(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         item: &ChallengeOutcomeApprovalItem,
         modified_description: Option<String>,
     ) -> Result<(), ChallengeOutcomeError> {
         let description = modified_description.unwrap_or_else(|| item.outcome_description.clone());
 
-        // Build ChallengeResolved notification
-        let msg = ChallengeResolvedNotification::new(
-            item.challenge_id.clone(),
-            item.challenge_name.clone(),
-            item.character_name.clone(),
-            item.roll,
-            item.modifier,
-            item.total,
-            item.outcome_type.clone(),
-            description.clone(),
-            item.roll_breakdown.clone(),
-            None,
-        );
+        // Build ChallengeResolved message
+        let message = wrldbldr_protocol::ServerMessage::ChallengeResolved {
+            challenge_id: item.challenge_id.clone(),
+            challenge_name: item.challenge_name.clone(),
+            character_name: item.character_name.clone(),
+            roll: item.roll,
+            modifier: item.modifier,
+            total: item.total,
+            outcome: item.outcome_type.clone(),
+            outcome_description: description.clone(),
+            roll_breakdown: item.roll_breakdown.clone(),
+            individual_rolls: None,
+        };
 
-        // Broadcast to all session participants
-        let value = serde_json::to_value(&msg)
-            .map_err(|e| ChallengeOutcomeError::SessionError(format!("Failed to serialize: {}", e)))?;
-        self.sessions
-            .broadcast_to_session(session_id, value)
+        // Broadcast to all world participants
+        self.world_connection
+            .broadcast_to_world(world_id, message)
             .await
             .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
@@ -378,12 +363,12 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             
             let result = self
                 .outcome_trigger_service
-                .execute_triggers(&domain_triggers, self.sessions.as_ref(), session_id)
+                .execute_triggers(&domain_triggers, *world_id)
                 .await;
             
             // Process state changes from trigger execution
             if !result.state_changes.is_empty() {
-                if let Err(e) = self.process_state_changes(&result.state_changes, &item, session_id).await {
+                if let Err(e) = self.process_state_changes(&result.state_changes, &item, world_id).await {
                     tracing::warn!(
                         error = %e,
                         "Failed to process some state changes for challenge {}",
@@ -414,28 +399,26 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Notify DM of a pending outcome approval
     async fn notify_dm_pending_outcome(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         item: &ChallengeOutcomeApprovalItem,
     ) -> Result<(), ChallengeOutcomeError> {
-        let msg = ChallengeOutcomePendingNotification::new(
-            item.resolution_id.clone(),
-            item.challenge_id.clone(),
-            item.challenge_name.clone(),
-            item.character_id.clone(),
-            item.character_name.clone(),
-            item.roll,
-            item.modifier,
-            item.total,
-            item.outcome_type.clone(),
-            item.outcome_description.clone(),
-            item.outcome_triggers.clone(),
-            item.roll_breakdown.clone(),
-        );
+        let message = wrldbldr_protocol::ServerMessage::ChallengeOutcomePending {
+            resolution_id: item.resolution_id.clone(),
+            challenge_id: item.challenge_id.clone(),
+            challenge_name: item.challenge_name.clone(),
+            character_id: item.character_id.clone(),
+            character_name: item.character_name.clone(),
+            roll: item.roll,
+            modifier: item.modifier,
+            total: item.total,
+            outcome_type: item.outcome_type.clone(),
+            outcome_description: item.outcome_description.clone(),
+            outcome_triggers: item.outcome_triggers.clone(),
+            roll_breakdown: item.roll_breakdown.clone(),
+        };
 
-        let value = serde_json::to_value(&msg)
-            .map_err(|e| ChallengeOutcomeError::SessionError(format!("Failed to serialize: {}", e)))?;
-        self.sessions
-            .send_to_dm(session_id, value)
+        self.world_connection
+            .send_to_dm(world_id, message)
             .await
             .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
@@ -445,24 +428,22 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Notify player that their roll is awaiting DM approval
     async fn notify_player_awaiting_approval(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         item: &ChallengeOutcomeApprovalItem,
     ) -> Result<(), ChallengeOutcomeError> {
-        let msg = ChallengeRollSubmittedNotification::new(
-            item.challenge_id.clone(),
-            item.challenge_name.clone(),
-            item.roll,
-            item.modifier,
-            item.total,
-            item.outcome_type.clone(),
-        );
+        let message = wrldbldr_protocol::ServerMessage::ChallengeRollSubmitted {
+            challenge_id: item.challenge_id.clone(),
+            challenge_name: item.challenge_name.clone(),
+            roll: item.roll,
+            modifier: item.modifier,
+            total: item.total,
+            outcome_type: item.outcome_type.clone(),
+            status: "pending_approval".to_string(),
+        };
 
-        // Broadcast to all session participants (they'll see the roll is pending)
-        // In the future, we could add send_to_participant by looking up user_id from character_id
-        let value = serde_json::to_value(&msg)
-            .map_err(|e| ChallengeOutcomeError::SessionError(format!("Failed to serialize: {}", e)))?;
-        self.sessions
-            .broadcast_to_session(session_id, value)
+        // Broadcast to all world participants (they'll see the roll is pending)
+        self.world_connection
+            .broadcast_to_world(world_id, message)
             .await
             .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
 
@@ -489,7 +470,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// structured branches instead of simple text suggestions.
     pub async fn request_branches(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         resolution_id: &str,
         guidance: Option<String>,
     ) -> Result<(), ChallengeOutcomeError> {
@@ -502,11 +483,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 
-        // Verify session matches
-        let session_uuid: uuid::Uuid = session_id.into();
-        if item.session_id != session_uuid {
+        // Verify world matches
+        let world_uuid: uuid::Uuid = (*world_id).into();
+        if item.world_id != world_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
-                "Session mismatch".to_string(),
+                "World mismatch".to_string(),
             ));
         }
 
@@ -521,9 +502,6 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 guidance
             );
 
-            // Get world_id for template resolution and settings
-            let world_id = self.sessions.get_session_world_id(session_id).await;
-
             // Build suggestion request (same format)
             let request = OutcomeSuggestionRequest {
                 challenge_id: item.challenge_id.clone(),
@@ -537,20 +515,13 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 ),
                 guidance,
                 narrative_context: None,
-                world_id: world_id.map(|w| w.to_string()),
+                world_id: Some(world_id.to_string()),
             };
 
             // Get settings for branch count and tokens per branch
             let (branch_count, tokens_per_branch) = if let Some(ref settings_service) = self.settings_service {
-                // Try to get world-specific settings
-                if let Some(world_id) = self.sessions.get_session_world_id(session_id).await {
-                    let settings = settings_service.get_for_world(world_id).await;
-                    (settings.outcome_branch_count as usize, settings.suggestion_tokens_per_branch)
-                } else {
-                    // Fall back to global settings if no world_id available
-                    let settings = settings_service.get().await;
-                    (settings.outcome_branch_count as usize, settings.suggestion_tokens_per_branch)
-                }
+                let settings = settings_service.get_for_world(*world_id).await;
+                (settings.outcome_branch_count as usize, settings.suggestion_tokens_per_branch)
             } else {
                 (2, 200) // Defaults if no settings service configured
             };
@@ -558,10 +529,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             // Spawn async task to generate branches
             let llm = llm_port.clone();
             let pending = self.pending.clone();
-            let sessions = self.sessions.clone();
+            let world_connection = self.world_connection.clone();
             let resolution_id_owned = resolution_id.to_string();
             let outcome_type = item.outcome_type.clone();
             let prompt_template_service = self.prompt_template_service.clone();
+            let world_id_owned = world_id.clone();
 
             tokio::spawn(async move {
                 let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
@@ -575,24 +547,27 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                 branches.iter().map(|b| b.description.clone()).collect(),
                             );
                             pending_item.is_generating_suggestions = false;
-                            let session_id = pending_item.session_id;
                             drop(pending_guard);
 
                             // Notify DM with structured branches
-                            let msg = OutcomeBranchesReadyNotification::new(
-                                resolution_id_owned.clone(),
+                            // Convert OutcomeBranchDto to OutcomeBranchData
+                            let branches_data: Vec<wrldbldr_protocol::OutcomeBranchData> = branches
+                                .into_iter()
+                                .map(|b| wrldbldr_protocol::OutcomeBranchData {
+                                    id: b.id,
+                                    title: b.title,
+                                    description: b.description,
+                                    effects: b.effects,
+                                })
+                                .collect();
+                            
+                            let message = wrldbldr_protocol::ServerMessage::OutcomeBranchesReady {
+                                resolution_id: resolution_id_owned.clone(),
                                 outcome_type,
-                                branches,
-                            );
-                            match serde_json::to_value(&msg) {
-                                Ok(value) => {
-                                    if let Err(e) = sessions.send_to_dm(SessionId::from_uuid(session_id), value).await {
-                                        tracing::error!("Failed to send branches to DM: {}", e);
-                                    }
-                                }
-                                Err(e) => {
-                                    tracing::error!("Failed to serialize branches message: {}", e);
-                                }
+                                branches: branches_data,
+                            };
+                            if let Err(e) = world_connection.send_to_dm(&world_id_owned, message).await {
+                                tracing::error!("Failed to send branches to DM: {}", e);
                             }
                         }
                     }
@@ -626,7 +601,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// The DM picks a branch by ID, optionally modifying the description.
     pub async fn select_branch(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
         resolution_id: &str,
         _branch_id: &str,
         modified_description: Option<String>,
@@ -640,11 +615,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 
-        // Verify session matches
-        let session_uuid: uuid::Uuid = session_id.into();
-        if item.session_id != session_uuid {
+        // Verify world matches
+        let world_uuid: uuid::Uuid = (*world_id).into();
+        if item.world_id != world_uuid {
             return Err(ChallengeOutcomeError::InvalidState(
-                "Session mismatch".to_string(),
+                "World mismatch".to_string(),
             ));
         }
 
@@ -654,7 +629,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         let final_description = modified_description.unwrap_or_else(|| item.outcome_description.clone());
 
         // Broadcast the resolution with the selected branch description
-        self.broadcast_resolution(session_id, &item, Some(final_description))
+        self.broadcast_resolution(world_id, &item, Some(final_description))
             .await?;
 
         // Remove from pending
@@ -671,7 +646,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         &self,
         state_changes: &[StateChange],
         item: &ChallengeOutcomeApprovalItem,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> anyhow::Result<()> {
         use wrldbldr_domain::entities::Item;
         use anyhow::Context;
@@ -687,17 +662,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                             "Processing ItemAdded state change"
                         );
 
-                        // Get world_id from session
-                        let world_id = match self.sessions.get_session_world_id(session_id).await {
-                            Some(world_id) => world_id,
-                            None => {
-                                tracing::warn!("No world_id found for session, skipping item creation");
-                                continue;
-                            }
-                        };
-
                         // Create a new item
-                        let new_item = Item::new(world_id, item_name.clone())
+                        let new_item = Item::new(*world_id, item_name.clone())
                             .with_description("Generated from challenge outcome trigger")
                             .with_type("Quest Item");
 

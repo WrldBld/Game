@@ -23,7 +23,6 @@ use anyhow::Result;
 use tokio::sync::RwLock;
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
-use wrldbldr_engine_ports::outbound::AsyncSessionPort;
 use wrldbldr_engine_app::application::handlers::AppRequestHandler;
 use wrldbldr_engine_app::application::services::{
     ActantialContextServiceImpl, AssetGenerationQueueService, AssetServiceImpl,
@@ -33,7 +32,7 @@ use wrldbldr_engine_app::application::services::{
     MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
     PlayerCharacterServiceImpl, PromptTemplateService, RegionServiceImpl, SceneResolutionServiceImpl, SceneServiceImpl,
     SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, RelationshipServiceImpl,
-    WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService, SessionJoinService,
+    WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService,
     OutcomeTriggerService, TriggerEvaluationService, EventEffectExecutor,
     staging_service::StagingService,
 };
@@ -56,11 +55,12 @@ use crate::infrastructure::repositories::{
     SqliteAppEventRepository, SqliteGenerationReadStateRepository,
 };
 use crate::infrastructure::session::SessionManager;
-use crate::infrastructure::session_adapter::SessionManagerAdapter;
 use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use crate::infrastructure::world_connection_manager::{
     SharedWorldConnectionManager, new_shared_manager,
 };
+use crate::infrastructure::world_connection_port_adapter::WorldConnectionPortAdapter;
+use crate::infrastructure::WorldStateManager;
 
 /// Shared application state
 ///
@@ -75,10 +75,8 @@ pub struct AppState {
     pub repository: Neo4jRepository,
     pub llm_client: OllamaClient,
     pub comfyui_client: ComfyUIClient,
-    /// Active WebSocket sessions
+    /// Active WebSocket sessions (kept for legacy HTTP routes, being deprecated)
     pub sessions: Arc<RwLock<SessionManager>>,
-    /// Async session port used by application services (hexagonal boundary over SessionManager)
-    pub async_session_port: Arc<dyn AsyncSessionPort>,
 
     // Grouped services
     pub core: CoreServices,
@@ -103,6 +101,12 @@ pub struct AppState {
     /// Manages world-scoped connections, replacing session-based model.
     /// Handles JoinWorld/LeaveWorld, role enforcement, and connection tracking.
     pub world_connection_manager: SharedWorldConnectionManager,
+
+    /// World state manager for per-world state (game time, conversation, approvals)
+    ///
+    /// Provides world-scoped storage for game time, conversation history,
+    /// pending approvals, and current scene state.
+    pub world_state: Arc<WorldStateManager>,
 
     /// Request handler for WebSocket-first architecture
     ///
@@ -302,6 +306,19 @@ impl AppState {
             challenge_repo.clone(),
         ));
 
+        // Create world connection manager for WebSocket-first architecture
+        let world_connection_manager = new_shared_manager();
+        tracing::info!("Initialized world connection manager for WebSocket-first architecture");
+
+        // Create world state manager for per-world state (game time, conversation, approvals)
+        let world_state = Arc::new(WorldStateManager::new());
+        tracing::info!("Initialized world state manager for per-world state");
+
+        // Create WorldConnectionPort adapter for application services
+        let world_connection_port_adapter: Arc<dyn wrldbldr_engine_ports::outbound::WorldConnectionPort> = 
+            Arc::new(WorldConnectionPortAdapter::new(world_connection_manager.clone()));
+        tracing::info!("Initialized world connection port adapter");
+
         // Initialize queue infrastructure using factory
         let queue_factory = QueueFactory::new(config.queue.clone()).await?;
         tracing::info!("Queue backend: {}", queue_factory.config().backend);
@@ -356,13 +373,10 @@ impl AppState {
             Arc::new(NarrativeEventServiceImpl::new(narrative_event_repo_for_service, event_bus.clone()));
 
         // Initialize session manager (must be before async_session_port which uses it)
+        // Initialize session manager (kept for legacy HTTP routes, being deprecated)
         let sessions = Arc::new(RwLock::new(SessionManager::new(
             config.session.max_conversation_history,
         )));
-
-        // Create async session port adapter for application services
-        let async_session_port: Arc<dyn AsyncSessionPort> =
-            Arc::new(SessionManagerAdapter::new(sessions.clone()));
 
         // Initialize queue services
         // Services take Arc<Q>, so we pass Arc<QueueBackendEnum<T>> directly
@@ -420,7 +434,7 @@ impl AppState {
         let llm_for_suggestions = Arc::new(llm_client.clone());
         let challenge_outcome_approval_service = Arc::new(
             ChallengeOutcomeApprovalService::new(
-                async_session_port.clone(),
+                world_connection_port_adapter.clone(),
                 outcome_trigger_service.clone(),
                 player_character_repo_for_triggers.clone(),
                 item_repo.clone(),
@@ -434,7 +448,7 @@ impl AppState {
         // Uses concrete service impls for generics compatibility
         let challenge_resolution_service = Arc::new(
             ChallengeResolutionService::new(
-                async_session_port.clone(),
+                world_connection_port_adapter.clone(),
                 Arc::new(challenge_service_impl.clone()),
                 Arc::new(skill_service_impl.clone()),
                 Arc::new(player_character_service_impl.clone()),
@@ -448,7 +462,7 @@ impl AppState {
         // Create narrative event approval service
         // Uses concrete service impls for generics compatibility
         let narrative_event_approval_service = Arc::new(NarrativeEventApprovalService::new(
-            async_session_port.clone(),
+            world_connection_port_adapter.clone(),
             Arc::new(narrative_event_service_impl.clone()),
             story_event_service.clone(),
         ));
@@ -464,7 +478,6 @@ impl AppState {
 
         // Create event effect executor (Phase 2)
         let event_effect_executor = Arc::new(EventEffectExecutor::new(
-            async_session_port.clone(),
             challenge_repo_for_effects,
             narrative_event_repo_for_effects,
             relationship_repo_for_effects,
@@ -485,12 +498,6 @@ impl AppState {
             story_event_service.clone(),
             llm_for_staging,
             prompt_template_service.clone(),
-        ));
-
-        // Create session join service
-        let session_join_service = Arc::new(SessionJoinService::new(
-            async_session_port.clone(),
-            world_service.clone(),
         ));
 
         // Create generation queue projection service
@@ -565,7 +572,6 @@ impl AppState {
             sheet_template_service,
             player_character_service.clone(),
             scene_resolution_service.clone(),
-            session_join_service,
         );
 
         let events = EventInfrastructure::new(
@@ -574,10 +580,6 @@ impl AppState {
             app_event_repository,
             generation_read_state_repository,
         );
-
-        // Create world connection manager for WebSocket-first architecture
-        let world_connection_manager = new_shared_manager();
-        tracing::info!("Initialized world connection manager for WebSocket-first architecture");
 
         // Create suggestion enqueue adapter for AI suggestions
         let suggestion_enqueue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort> = 
@@ -618,7 +620,6 @@ impl AppState {
             llm_client,
             comfyui_client,
             sessions: Arc::clone(&sessions),
-            async_session_port,
             core,
             game,
             queues,
@@ -629,6 +630,7 @@ impl AppState {
             prompt_template_service,
             staging_service,
             world_connection_manager,
+            world_state,
             request_handler,
         }, generation_event_rx))
     }

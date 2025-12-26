@@ -25,7 +25,7 @@ impl std::fmt::Display for TimeOfDay {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GameTime {
     current: DateTime<Utc>,
     is_paused: bool,

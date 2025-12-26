@@ -30,12 +30,12 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
     /// before player actions.
     pub async fn enqueue_action(
         &self,
-        session_id: wrldbldr_domain::SessionId,
+        world_id: &wrldbldr_domain::WorldId,
         dm_id: String,
         action: DMAction,
     ) -> Result<QueueItemId, QueueError> {
         let item = DMActionItem {
-            session_id: session_id.into(),
+            session_id: (*world_id).into(), // Use world_id as session_id for now (they share UUID space)
             dm_id,
             action,
             timestamp: chrono::Utc::now(),

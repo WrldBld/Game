@@ -6,21 +6,19 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::{
-    PlayerCharacterService, SceneResolutionService,
-    SessionJoinService, SheetTemplateService,
+    PlayerCharacterService, SceneResolutionService, SheetTemplateService,
 };
 
 /// Services for player management and character operations
 ///
 /// This struct groups services related to players: character sheets,
-/// player characters, scene resolution, and session joining.
+/// player characters, and scene resolution.
 ///
 /// Services with traits use `Arc<dyn Trait>`:
 /// - `player_character_service`, `scene_resolution_service`
 ///
 /// Concrete services remain as-is:
 /// - `sheet_template_service` (no trait, simple CRUD wrapper)
-/// - `session_join_service` (complex session logic)
 pub struct PlayerServices {
     /// Character sheet template management
     pub sheet_template_service: SheetTemplateService,
@@ -30,9 +28,6 @@ pub struct PlayerServices {
     
     /// Scene resolution and availability checking
     pub scene_resolution_service: Arc<dyn SceneResolutionService>,
-    
-    /// Session creation and joining
-    pub session_join_service: Arc<SessionJoinService>,
 }
 
 impl PlayerServices {
@@ -41,13 +36,11 @@ impl PlayerServices {
         sheet_template_service: SheetTemplateService,
         player_character_service: Arc<dyn PlayerCharacterService>,
         scene_resolution_service: Arc<dyn SceneResolutionService>,
-        session_join_service: Arc<SessionJoinService>,
     ) -> Self {
         Self {
             sheet_template_service,
             player_character_service,
             scene_resolution_service,
-            session_join_service,
         }
     }
 }

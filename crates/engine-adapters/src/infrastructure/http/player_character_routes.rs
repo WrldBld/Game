@@ -303,16 +303,18 @@ pub async fn create_player_character(
                 interactions: vec![], // Interactions can be loaded separately if needed
             };
 
-            // Update session's current scene and send to player
-            let _ = state.async_session_port.update_session_scene(session_id, scene.id.to_string()).await;
-            if let Ok(scene_json) = serde_json::to_value(&scene_update) {
-                let _ = state.async_session_port.send_to_participant(session_id, &user_id, scene_json).await;
-            }
+            // Update world's current scene and send to player
+            state.world_state.set_current_scene(&world_id, Some(scene.id.to_string()));
+            let _ = state.world_connection_manager.send_to_user_in_world(
+                &world_id.into(),
+                &user_id,
+                scene_update,
+            ).await;
 
             tracing::info!(
-                "Sent scene update to player {} after PC creation in session {}",
+                "Sent scene update to player {} after PC creation in world {}",
                 user_id,
-                session_id
+                world_id
             );
         }
     }
@@ -320,18 +322,18 @@ pub async fn create_player_character(
     Ok((StatusCode::CREATED, Json(PlayerCharacterResponseDto::from(pc))))
 }
 
-/// Get all player characters in a session
+/// Get all player characters in a world
 pub async fn list_player_characters(
     State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
+    Path(world_id): Path<String>,
 ) -> Result<Json<Vec<PlayerCharacterResponseDto>>, (StatusCode, String)> {
-    let session_uuid = Uuid::parse_str(&session_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid session ID".to_string()))?;
-    let session_id = SessionId::from_uuid(session_uuid);
+    let world_uuid = Uuid::parse_str(&world_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
+    let world_id = WorldId::from_uuid(world_uuid);
 
     let pcs = state
                 .player.player_character_service
-        .get_pcs_by_session(session_id)
+        .get_pcs_by_world(&world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -341,19 +343,19 @@ pub async fn list_player_characters(
 /// Get current user's player character
 pub async fn get_my_player_character(
     State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
+    Path(world_id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Json<PlayerCharacterResponseDto>, (StatusCode, String)> {
     // Extract user_id from X-User-Id header (set by Player client)
     let user_id = extract_user_id(&headers);
 
-    let session_uuid = Uuid::parse_str(&session_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid session ID".to_string()))?;
-    let session_id = SessionId::from_uuid(session_uuid);
+    let world_uuid = Uuid::parse_str(&world_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
+    let world_id = WorldId::from_uuid(world_uuid);
 
     let pc = state
                 .player.player_character_service
-        .get_pc_by_user_and_session(&user_id, session_id)
+        .get_pc_by_user_and_world(&user_id, &world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Player character not found".to_string()))?;
@@ -443,8 +445,8 @@ pub async fn update_player_character_location(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Broadcast SceneUpdate to player if scene found and PC is in a session
-    let scene_id_str = if let (Some(scene), Some(session_id)) = (&scene_result, pc.session_id) {
+    // Broadcast SceneUpdate to player if scene found
+    let scene_id_str = if let Some(scene) = &scene_result {
         // Get scene with relations to build SceneUpdate
         if let Ok(Some(scene_with_relations)) = state.core.scene_service
             .get_scene_with_relations(scene.id)
@@ -489,11 +491,13 @@ pub async fn update_player_character_location(
                 interactions: vec![], // Interactions can be loaded separately if needed
             };
 
-            // Update session's current scene and send to player
-            let _ = state.async_session_port.update_session_scene(session_id, scene.id.to_string()).await;
-            if let Ok(scene_json) = serde_json::to_value(&scene_update) {
-                let _ = state.async_session_port.send_to_participant(session_id, &pc.user_id, scene_json).await;
-            }
+            // Update world's current scene and send to player
+            state.world_state.set_current_scene(&pc.world_id, Some(scene.id.to_string()));
+            let _ = state.world_connection_manager.send_to_user_in_world(
+                &pc.world_id.into(),
+                &pc.user_id,
+                scene_update,
+            ).await;
 
             tracing::info!(
                 "Sent scene update to player {} after location change to {}",

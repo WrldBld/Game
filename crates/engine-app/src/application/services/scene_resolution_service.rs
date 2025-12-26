@@ -22,7 +22,7 @@ use wrldbldr_engine_ports::outbound::{
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
 };
 use wrldbldr_domain::entities::{Scene, SceneCondition};
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SessionId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, WorldId};
 
 /// Result of scene resolution
 #[derive(Debug, Clone)]
@@ -38,10 +38,10 @@ pub struct SceneResolutionResult {
 /// Scene resolution service trait
 #[async_trait]
 pub trait SceneResolutionService: Send + Sync {
-    /// Resolve the scene for a session based on PC locations
-    async fn resolve_scene_for_session(
+    /// Resolve the scene for a world based on PC locations
+    async fn resolve_scene_for_world(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> Result<SceneResolutionResult>;
 
     /// Resolve the scene for a specific player character
@@ -161,20 +161,20 @@ impl SceneResolutionServiceImpl {
 
 #[async_trait]
 impl SceneResolutionService for SceneResolutionServiceImpl {
-    #[instrument(skip(self), fields(session_id = %session_id))]
-    async fn resolve_scene_for_session(
+    #[instrument(skip(self), fields(world_id = %world_id))]
+    async fn resolve_scene_for_world(
         &self,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> Result<SceneResolutionResult> {
-        // Get all PCs in the session
+        // Get all PCs in the world
         let pcs = self
             .pc_repository
-            .get_by_session(session_id)
+            .get_all_by_world(*world_id)
             .await
-            .context("Failed to get player characters for session")?;
+            .context("Failed to get player characters for world")?;
 
         if pcs.is_empty() {
-            debug!(session_id = %session_id, "No player characters in session, no scene to resolve");
+            debug!(world_id = %world_id, "No player characters in world, no scene to resolve");
             return Ok(SceneResolutionResult {
                 scene: None,
                 is_split_party: false,
@@ -197,7 +197,7 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
         if unique_locations.len() == 1 {
             let location_id = unique_locations[0];
             debug!(
-                session_id = %session_id,
+                world_id = %world_id,
                 location_id = %location_id,
                 "All PCs at same location, resolving scene"
             );
@@ -220,7 +220,7 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
         } else {
             // Party is split across multiple locations
             info!(
-                session_id = %session_id,
+                world_id = %world_id,
                 location_count = unique_locations.len(),
                 "Party is split across {} locations",
                 unique_locations.len()

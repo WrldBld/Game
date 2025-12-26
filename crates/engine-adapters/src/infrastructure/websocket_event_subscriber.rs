@@ -1,24 +1,22 @@
 //! WebSocket Event Subscriber - Maps AppEvents to ServerMessages
 //!
 //! This subscriber polls the event repository and broadcasts relevant events
-//! to WebSocket clients via the SessionManager.
+//! to WebSocket clients via the WorldConnectionManager.
 
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 use wrldbldr_protocol::AppEvent;
-use wrldbldr_engine_ports::outbound::{AppEventRepositoryPort, AsyncSessionPort};
+use wrldbldr_engine_ports::outbound::AppEventRepositoryPort;
 use crate::infrastructure::event_bus::InProcessEventNotifier;
-use crate::infrastructure::session::SessionManager;
+use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_protocol::ServerMessage;
 
 /// WebSocket event subscriber
 pub struct WebSocketEventSubscriber {
     repository: Arc<dyn AppEventRepositoryPort>,
     notifier: InProcessEventNotifier,
-    async_session_port: Arc<dyn AsyncSessionPort>,
-    sessions: Arc<RwLock<SessionManager>>,
+    world_connection_manager: SharedWorldConnectionManager,
     poll_interval: Duration,
 }
 
@@ -27,15 +25,13 @@ impl WebSocketEventSubscriber {
     pub fn new(
         repository: Arc<dyn AppEventRepositoryPort>,
         notifier: InProcessEventNotifier,
-        async_session_port: Arc<dyn AsyncSessionPort>,
-        sessions: Arc<RwLock<SessionManager>>,
+        world_connection_manager: SharedWorldConnectionManager,
         poll_interval_seconds: u64,
     ) -> Self {
         Self {
             repository,
             notifier,
-            async_session_port,
-            sessions,
+            world_connection_manager,
             poll_interval: Duration::from_secs(poll_interval_seconds),
         }
     }
@@ -81,41 +77,27 @@ impl WebSocketEventSubscriber {
         tracing::debug!("Processing {} new events", events.len());
 
         for (event_id, event, _timestamp) in events {
-            // Map AppEvent to ServerMessage and determine target session/world (if any)
+            // Map AppEvent to ServerMessage and determine target world
             if let Some(message) = self.map_to_server_message(&event) {
-                let target_session = event.session_id().map(|s| s.to_string());
                 let target_world = event.world_id().map(|s| s.to_string());
 
-                let sessions = self.sessions.read().await;
-
-                if let Some(ref session_id_str) = target_session {
-                    // Prefer session-scoped routing when session_id is present.
-                    if let Ok(session_uuid) = uuid::Uuid::parse_str(session_id_str) {
-                        let session_id = wrldbldr_domain::SessionId::from_uuid(session_uuid);
-                        sessions.broadcast_to_session(session_id, &message);
+                if let Some(ref world_id_str) = target_world {
+                    // Route to specific world
+                    if let Ok(world_uuid) = uuid::Uuid::parse_str(world_id_str) {
+                        self.world_connection_manager
+                            .broadcast_to_world(world_uuid, message)
+                            .await;
                     } else {
-                        tracing::warn!("Invalid session_id on AppEvent: {}", session_id_str);
+                        tracing::warn!("Invalid world_id on AppEvent: {}", world_id_str);
                     }
-                    drop(sessions);
                 } else {
-                    // Fall back to world-scoped (or global) routing.
-                    drop(sessions);
-                    let session_ids = self.async_session_port.list_session_ids().await;
-                    let sessions = self.sessions.read().await;
-                    for session_id in session_ids {
-                        if let Some(session) = sessions.get_session(session_id) {
-                            // If the event is associated with a specific world, only
-                            // deliver to sessions for that world. Otherwise, broadcast
-                            // to all sessions.
-                            if let Some(ref world_id_str) = target_world {
-                                if session.world_id.to_string() != *world_id_str {
-                                    continue;
-                                }
-                            }
-                            sessions.broadcast_to_session(session_id, &message);
-                        }
+                    // No world_id: broadcast to all connected worlds
+                    let world_ids = self.world_connection_manager.get_all_world_ids().await;
+                    for world_id in world_ids {
+                        self.world_connection_manager
+                            .broadcast_to_world(world_id, message.clone())
+                            .await;
                     }
-                    drop(sessions);
                 }
             }
 

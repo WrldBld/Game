@@ -7,7 +7,6 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod app_event_repository_port;
-mod async_session_port;
 mod comfyui_port;
 mod event_bus_port;
 mod generation_read_state_port;
@@ -20,14 +19,10 @@ mod prompt_template_port;
 mod settings_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
+mod world_connection_port;
 mod world_exporter_port;
 
 pub use app_event_repository_port::{AppEventRepositoryError, AppEventRepositoryPort};
-
-pub use async_session_port::{
-    AsyncSessionError, AsyncSessionPort, SessionJoinInfo, SessionParticipantInfo,
-    SessionParticipantRole, SessionWorldData,
-};
 
 pub use comfyui_port::{
     ComfyUIPort, GeneratedImage, HistoryResponse, NodeOutput, PromptHistory, PromptStatus,
@@ -75,8 +70,10 @@ pub use queue_port::{
 pub use session_management_port::{
     BroadcastMessage, CharacterContextInfo, ParticipantSummary, PendingApprovalInfo,
     SessionJoinResult, SessionLifecyclePort, SessionManagementError, SessionManagementPort,
-    SessionWorldContext,
+    SessionParticipantRole, SessionWorldContext,
 };
+
+pub use world_connection_port::{WorldConnectionPort, WorldConnectionError};
 
 pub use world_exporter_port::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,

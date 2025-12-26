@@ -32,7 +32,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     /// Enqueue a player action for processing
     pub async fn enqueue_action(
         &self,
-        session_id: wrldbldr_domain::SessionId,
+        world_id: &wrldbldr_domain::WorldId,
         player_id: String,
         pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
         action_type: String,
@@ -40,7 +40,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
         dialogue: Option<String>,
     ) -> Result<QueueItemId, QueueError> {
         let item = PlayerActionItem {
-            session_id: session_id.into(),
+            session_id: (*world_id).into(), // Use world_id as session_id for now (they share UUID space)
             player_id,
             pc_id: pc_id.map(Into::into),
             action_type,

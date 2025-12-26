@@ -414,6 +414,9 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
         world_id: WorldId,
     ) -> Result<Vec<PlayerCharacter>>;
 
+    /// Get all player characters in a world
+    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>>;
+
     /// Get all unbound player characters for a user (no session)
     async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>>;
 

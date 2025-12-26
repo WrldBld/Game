@@ -22,7 +22,6 @@ use wrldbldr_engine_app::application::services::scene_resolution_service::SceneR
 use wrldbldr_engine_app::application::services::player_character_service::PlayerCharacterService;
 use wrldbldr_engine_app::application::services::location_service::LocationService;
 use wrldbldr_engine_app::application::services::interaction_service::InteractionService;
-use wrldbldr_engine_app::application::services::session_join_service as sjs;
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
 use wrldbldr_engine_app::application::services::MoodService;
 use wrldbldr_engine_app::application::services::WorldService;
@@ -44,24 +43,6 @@ fn wire_to_canonical_role(role: ParticipantRole) -> SessionParticipantRole {
         ParticipantRole::DungeonMaster => SessionParticipantRole::DungeonMaster,
         ParticipantRole::Player => SessionParticipantRole::Player,
         ParticipantRole::Spectator => SessionParticipantRole::Spectator,
-    }
-}
-
-/// Convert canonical SessionParticipantRole to wire format ParticipantRole
-fn canonical_to_wire_role(role: SessionParticipantRole) -> ParticipantRole {
-    match role {
-        SessionParticipantRole::DungeonMaster => ParticipantRole::DungeonMaster,
-        SessionParticipantRole::Player => ParticipantRole::Player,
-        SessionParticipantRole::Spectator => ParticipantRole::Spectator,
-    }
-}
-
-/// Convert session_join_service::ParticipantInfo to wire format wrldbldr_protocol::ParticipantInfo
-fn from_service_participant(p: sjs::ParticipantInfo) -> ParticipantInfo {
-    ParticipantInfo {
-        user_id: p.user_id,
-        role: canonical_to_wire_role(p.role),
-        character_name: p.character_name,
     }
 }
 
@@ -230,14 +211,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     }
 
-    // Clean up: remove client from session via async port
-    if let Some((session_id, participant)) = state.async_session_port.client_leave_session(&client_id.to_string()).await {
-        tracing::info!(
-            "Client {} (user: {}) disconnected from session {}",
-            client_id,
-            participant.user_id,
-            session_id
-        );
+    // Clean up: remove client from world connection
+    let client_id_str = client_id.to_string();
+    if let Some(connection) = state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+        if let Some(world_id) = connection.world_id {
+            state.world_connection_manager.unregister_connection(connection.connection_id).await;
+            tracing::info!(
+                "Client {} (user: {:?}) disconnected from world {}",
+                client_id,
+                connection.user_id,
+                world_id
+            );
+        }
     }
 
     // Cancel the send task
@@ -261,7 +246,7 @@ async fn handle_message(
         ClientMessage::CheckComfyUIHealth => {
             // Trigger manual ComfyUI health check
             let comfyui_client = state.comfyui_client.clone();
-            let async_session_port = state.async_session_port.clone();
+            let world_connection_manager = state.world_connection_manager.clone();
             
             tokio::spawn(async move {
                 let (state_str, message) = match comfyui_client.health_check().await {
@@ -277,90 +262,28 @@ async fn handle_message(
                     retry_in_seconds: None,
                 };
                 
-                // Get all session IDs and broadcast
-                let session_ids = async_session_port.list_session_ids().await;
-                for session_id in session_ids {
-                    let _ = async_session_port.broadcast_to_session(
-                        session_id,
-                        serde_json::to_value(&msg).unwrap_or_default(),
-                    ).await;
+                // Broadcast to all worlds
+                let world_ids = world_connection_manager.get_all_world_ids().await;
+                for world_id in world_ids {
+                    world_connection_manager.broadcast_to_world(world_id, msg.clone()).await;
                 }
             });
             
             None // Response sent asynchronously
         }
 
+        // DEPRECATED: JoinSession is replaced by JoinWorld
+        // This handler is kept for backward compatibility but redirects to JoinWorld
         ClientMessage::JoinSession {
-            user_id,
-            role,
-            world_id,
+            user_id: _,
+            role: _,
+            world_id: _,
         } => {
-            tracing::info!(
-                "User {} joining as {:?}, world: {:?}",
-                user_id,
-                role,
-                world_id
-            );
-
-            // Create a JSON-value sender that forwards to the ServerMessage sender
-            let (json_tx, mut json_rx) = mpsc::unbounded_channel::<serde_json::Value>();
-            let server_tx = sender.clone();
-            tokio::spawn(async move {
-                while let Some(value) = json_rx.recv().await {
-                    if let Ok(msg) = serde_json::from_value::<ServerMessage>(value) {
-                        let _ = server_tx.send(msg);
-                    }
-                }
-            });
-
-            // Delegate to injected SessionJoinService to join or create a session
-            match state.player.session_join_service.join_or_create_session_for_world(
-                client_id.to_string(),
-                user_id.clone(),
-                wire_to_canonical_role(role),
-                world_id,
-                json_tx,
-            )
-            .await
-            {
-                Ok(session_joined_info) => {
-                    // Broadcast PlayerJoined to other participants via async port
-                    // Note: character_name is None at join time; it's set when player selects a character
-                    let player_joined_msg = ServerMessage::PlayerJoined {
-                        user_id: user_id.clone(),
-                        role,
-                        character_name: None,
-                    };
-                    if let Ok(msg_json) = serde_json::to_value(&player_joined_msg) {
-                        let _ = state.async_session_port.broadcast_except(
-                            session_joined_info.session_id,
-                            msg_json,
-                            &client_id.to_string(),
-                        ).await;
-                    }
-
-                    // Convert service's ParticipantInfo to wrldbldr_protocol::ParticipantInfo
-                    let participants: Vec<ParticipantInfo> = session_joined_info
-                        .participants
-                        .into_iter()
-                        .map(from_service_participant)
-                        .collect();
-
-                    Some(ServerMessage::SessionJoined {
-                        session_id: session_joined_info.session_id.to_string(),
-                        role,
-                        participants,
-                        world_snapshot: session_joined_info.world_snapshot,
-                    })
-                }
-                Err(e) => {
-                    tracing::error!("Failed to join session: {}", e);
-                    Some(ServerMessage::Error {
-                        code: "SESSION_ERROR".to_string(),
-                        message: format!("Failed to join session: {}", e),
-                    })
-                }
-            }
+            tracing::warn!("JoinSession is deprecated, use JoinWorld instead");
+            Some(ServerMessage::Error {
+                code: "DEPRECATED".to_string(),
+                message: "JoinSession is deprecated. Use JoinWorld instead.".to_string(),
+            })
         }
 
         ClientMessage::PlayerAction {
@@ -374,20 +297,34 @@ async fn handle_message(
             let action_id = ActionId::new();
             let action_id_str = action_id.to_string();
 
-            // Get the client's session and user info via async port
+            // Get the client's connection info via WorldConnectionManager
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
-                    tracing::warn!("Client {} sent action but is not in any session", client_id);
+                    tracing::warn!("Client {} sent action but is not connected", client_id);
                     return Some(ServerMessage::Error {
-                        code: "NOT_IN_SESSION".to_string(),
-                        message: "You must join a session before performing actions".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Connection not found".to_string(),
                     });
                 }
             };
-            let player_id = state.async_session_port.get_client_user_id(&client_id_str).await
-                .unwrap_or_else(|| "unknown".to_string());
+
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => {
+                    tracing::warn!("Client {} sent action but is not in a world", client_id);
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
+            };
+
+            let player_id = connection.user_id.clone();
+            
+            // Convert world_id to domain WorldId for service calls
+            let world_id_domain = wrldbldr_domain::WorldId::from_uuid(world_id);
 
             // Handle Travel actions immediately (update location and resolve scene)
             if action_type == "travel" {
@@ -406,7 +343,7 @@ async fn handle_message(
                     // Get PC for this user
                     match state
                 .player.player_character_service
-                        .get_pc_by_user_and_session(&player_id, session_id)
+                        .get_pc_by_user_and_world(&player_id, &world_id_domain)
                         .await
                     {
                         Ok(Some(pc)) => {
@@ -503,11 +440,10 @@ async fn handle_message(
                                                 interactions,
                                             };
 
-                                            // Update scene and send to player via async port
-                                            let _ = state.async_session_port.update_session_scene(session_id, scene.id.to_string()).await;
-                                            if let Ok(scene_msg) = serde_json::to_value(&scene_update) {
-                                                let _ = state.async_session_port.send_to_participant(session_id, &player_id, scene_msg).await;
-                                            }
+                                            // Send scene update to player via WorldConnectionManager
+                                            state.world_connection_manager
+                                                .send_to_user(&player_id, world_id, scene_update.clone())
+                                                .await;
                                             tracing::info!(
                                                 "Sent scene update to player {} after travel to location {}",
                                                 player_id,
@@ -517,7 +453,7 @@ async fn handle_message(
                                             // Check for split party and notify DM
                                             if let Ok(resolution_result) = state
                 .player.scene_resolution_service
-                                                .resolve_scene_for_session(session_id)
+                                                .resolve_scene_for_world(&world_id_domain)
                                                 .await
                                             {
                                                 if resolution_result.is_split_party {
@@ -525,7 +461,7 @@ async fn handle_message(
                                                     let mut split_locations = Vec::new();
                                                     let pcs = match state
                 .player.player_character_service
-                                                        .get_pcs_by_session(session_id)
+                                                        .get_pcs_by_world(&world_id_domain)
                                                         .await
                                                     {
                                                         Ok(pcs) => pcs,
@@ -561,16 +497,12 @@ async fn handle_message(
                                                         }
                                                     }
 
-                                                    // Send notification to DM via async port
-                                                    if state.async_session_port.session_has_dm(session_id).await {
-                                                        let dm_msg = ServerMessage::SplitPartyNotification {
-                                                            location_count: split_locations.len(),
-                                                            locations: split_locations,
-                                                        };
-                                                        if let Ok(dm_json) = serde_json::to_value(&dm_msg) {
-                                                            let _ = state.async_session_port.send_to_dm(session_id, dm_json).await;
-                                                        }
-                                                    }
+                                                    // Send notification to DM via WorldConnectionManager
+                                                    let dm_msg = ServerMessage::SplitPartyNotification {
+                                                        location_count: split_locations.len(),
+                                                        locations: split_locations,
+                                                    };
+                                                    let _ = state.world_connection_manager.send_to_dm(&world_id, dm_msg).await;
                                                 }
                                             }
 
@@ -626,12 +558,12 @@ async fn handle_message(
             // Look up the player's character ID for challenge targeting
             let pc_id = match state
                 .player.player_character_service
-                .get_pc_by_user_and_session(&player_id, session_id)
+                .get_pc_by_user_and_world(&player_id, &world_id_domain)
                 .await
             {
                 Ok(Some(pc)) => Some(pc.id),
                 Ok(None) => {
-                    tracing::debug!("Player {} has no character selected in session {}", player_id, session_id);
+                    tracing::debug!("Player {} has no character selected in world {}", player_id, world_id);
                     None
                 }
                 Err(e) => {
@@ -644,7 +576,7 @@ async fn handle_message(
             match state
                 .queues.player_action_queue_service
                 .enqueue_action(
-                        session_id,
+                        &world_id_domain,
                     player_id.clone(),
                     pc_id,
                         action_type.clone(),
@@ -661,24 +593,20 @@ async fn handle_message(
                         .await
                         .unwrap_or(0);
 
-                    // Send ActionQueued event to DM via async port
-                    if state.async_session_port.session_has_dm(session_id).await {
-                        let dm_msg = ServerMessage::ActionQueued {
-                            action_id: action_id_str.clone(),
-                            player_name: player_id.clone(),
-                            action_type: action_type.clone(),
-                            queue_depth: depth,
-                        };
-                        if let Ok(dm_json) = serde_json::to_value(&dm_msg) {
-                            let _ = state.async_session_port.send_to_dm(session_id, dm_json).await;
-                        }
-                    }
+                    // Send ActionQueued event to DM via WorldConnectionManager
+                    let dm_msg = ServerMessage::ActionQueued {
+                        action_id: action_id_str.clone(),
+                        player_name: player_id.clone(),
+                        action_type: action_type.clone(),
+                        queue_depth: depth,
+                    };
+                    let _ = state.world_connection_manager.send_to_dm(&world_id, dm_msg).await;
 
                 tracing::info!(
-                        "Enqueued action {} from player {} in session {}: {} -> {:?}",
+                        "Enqueued action {} from player {} in world {}: {} -> {:?}",
                     action_id_str,
                     player_id,
-                    session_id,
+                    world_id,
                     action_type,
                     target
                 );
@@ -716,13 +644,24 @@ async fn handle_message(
                 }
             };
 
-            // Get the client's session via async port
-            let session_id = match state.async_session_port.get_client_session(&client_id.to_string()).await {
-                Some(sid) => sid,
+            // Get the client's world connection
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NOT_IN_SESSION".to_string(),
-                        message: "You must join a session before requesting scene changes".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "You must join a world before requesting scene changes".to_string(),
+                    });
+                }
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
                     });
                 }
             };
@@ -815,13 +754,12 @@ async fn handle_message(
                 interactions,
             };
 
-            // Update session's current scene and broadcast via async port
-            let _ = state.async_session_port.update_session_scene(session_id, scene_id.clone()).await;
-            if let Ok(scene_json) = serde_json::to_value(&scene_update) {
-                let _ = state.async_session_port.broadcast_to_session(session_id, scene_json).await;
-            }
+            // Update world's current scene and broadcast via world connection manager
+            let world_id_typed = wrldbldr_domain::WorldId::from_uuid(world_id);
+            state.world_state.set_current_scene(&world_id_typed, Some(scene_id.clone()));
+            state.world_connection_manager.broadcast_message_to_world(world_id, scene_update).await;
 
-            tracing::info!("Scene change to {} broadcast to session {}", scene_id, session_id);
+            tracing::info!("Scene change to {} broadcast to world {}", scene_id, world_id);
 
             None // SceneUpdate is broadcast, no direct response needed
         }
@@ -829,17 +767,40 @@ async fn handle_message(
         ClientMessage::DirectorialUpdate { context: _ } => {
             tracing::debug!("Received directorial update");
 
-            // Only DMs should send directorial updates - check via async port
+            // Only DMs should send directorial updates
             let client_id_str = client_id.to_string();
-            if state.async_session_port.is_client_dm(&client_id_str).await {
-                if let Some(session_id) = state.async_session_port.get_client_session(&client_id_str).await {
-                    // TODO: Update directorial context and store in session
-                    tracing::info!(
-                        "DM updated directorial context for session {}",
-                        session_id
-                    );
-                }
+            
+            // Get connection
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            // Extract world_id
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
+                return Some(ServerMessage::Error {
+                    code: "NOT_AUTHORIZED".to_string(),
+                    message: "Only the DM can perform this action".to_string(),
+                });
             }
+            
+            // TODO: Update directorial context and store in world
+            tracing::info!(
+                "DM updated directorial context for world {}",
+                world_id
+            );
 
             None // No response needed
         }
@@ -854,47 +815,61 @@ async fn handle_message(
                 decision
             );
 
-            // Only DMs should approve - check via async port
+            // Only DMs should approve - check via world connection manager
             let client_id_str = client_id.to_string();
-            let session_id = state.async_session_port.get_client_session(&client_id_str).await;
-            let is_dm = state.async_session_port.is_client_dm(&client_id_str).await;
-            let dm_id = if is_dm {
-                state.async_session_port.get_client_user_id(&client_id_str).await
-            } else {
-                None
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Connection not found".to_string(),
+                    });
+                }
             };
 
-            if let (Some(session_id), Some(dm_id)) = (session_id, dm_id) {
-                // Enqueue to DMActionQueue - returns immediately
-                // The DM action queue worker will process this asynchronously
-                let dm_action = DMAction::ApprovalDecision {
-                    request_id: request_id.clone(),
-                    decision: decision.clone(),
-                };
-
-                match state
-                    .queues.dm_action_queue_service
-                    .enqueue_action(session_id, dm_id, dm_action)
-                    .await
-                {
-                    Ok(_) => {
-                        tracing::info!("Enqueued approval decision for request {}", request_id);
-                        // Return acknowledgment - processing happens in background worker
-                        return None;
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to enqueue approval decision: {}", e);
-                        return Some(ServerMessage::Error {
-                            code: "QUEUE_ERROR".to_string(),
-                            message: format!("Failed to queue approval: {}", e),
-                        });
-                    }
-                }
-            } else {
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can approve responses".to_string(),
                 });
+            }
+
+            let dm_id = connection.user_id.clone();
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
+            };
+
+            // Enqueue to DMActionQueue - returns immediately
+            // The DM action queue worker will process this asynchronously
+            let dm_action = DMAction::ApprovalDecision {
+                request_id: request_id.clone(),
+                decision: decision.clone(),
+            };
+
+            match state
+                .queues.dm_action_queue_service
+                .enqueue_action(&world_id, dm_id, dm_action)
+                .await
+            {
+                Ok(_) => {
+                    tracing::info!("Enqueued approval decision for request {}", request_id);
+                    // Return acknowledgment - processing happens in background worker
+                    None
+                }
+                Err(e) => {
+                    tracing::error!("Failed to enqueue approval decision: {}", e);
+                    Some(ServerMessage::Error {
+                        code: "QUEUE_ERROR".to_string(),
+                        message: format!("Failed to queue approval: {}", e),
+                    })
+                }
             }
         }
 
@@ -904,9 +879,36 @@ async fn handle_message(
                 roll,
                 challenge_id
             );
+            
+            // Get connection context for world_id and pc_id
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            let pc_id = match connection.pc_id {
+                Some(id) => wrldbldr_domain::PlayerCharacterId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_PC".to_string(),
+                    message: "No player character selected".to_string(),
+                }),
+            };
+            
             state
                 .game.challenge_resolution_service
-                .handle_roll(client_id.to_string(), challenge_id, roll)
+                .handle_roll(&world_id, &pc_id, challenge_id, roll)
                 .await
                 .and_then(value_to_server_message)
         }
@@ -920,9 +922,36 @@ async fn handle_message(
                 input_type,
                 challenge_id
             );
+            
+            // Get connection context for world_id and pc_id
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            let pc_id = match connection.pc_id {
+                Some(id) => wrldbldr_domain::PlayerCharacterId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_PC".to_string(),
+                    message: "No player character selected".to_string(),
+                }),
+            };
+            
             state
                 .game.challenge_resolution_service
-                .handle_roll_input(client_id.to_string(), challenge_id, to_service_dice_input(input_type))
+                .handle_roll_input(&world_id, &pc_id, challenge_id, to_service_dice_input(input_type))
                 .await
                 .and_then(value_to_server_message)
         }
@@ -931,9 +960,35 @@ async fn handle_message(
             challenge_id,
             target_character_id,
         } => {
+            // Get connection context for world_id (DM operation)
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
+                return Some(ServerMessage::Error {
+                    code: "NOT_AUTHORIZED".to_string(),
+                    message: "Only the DM can trigger challenges".to_string(),
+                });
+            }
+            
             state
                 .game.challenge_resolution_service
-                .handle_trigger(client_id.to_string(), challenge_id, target_character_id)
+                .handle_trigger(&world_id, challenge_id, target_character_id)
                 .await
                 .and_then(value_to_server_message)
         }
@@ -942,28 +997,84 @@ async fn handle_message(
             request_id,
             approved,
             modified_difficulty,
-        } => state
-            .game.challenge_resolution_service
-            .handle_suggestion_decision(client_id.to_string(), request_id, approved, modified_difficulty)
-            .await
-            .and_then(value_to_server_message),
+        } => {
+            // Get connection context for world_id (DM operation)
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
+                return Some(ServerMessage::Error {
+                    code: "NOT_AUTHORIZED".to_string(),
+                    message: "Only the DM can approve challenge suggestions".to_string(),
+                });
+            }
+            
+            state
+                .game.challenge_resolution_service
+                .handle_suggestion_decision(&world_id, request_id, approved, modified_difficulty)
+                .await
+                .and_then(value_to_server_message)
+        }
 
         ClientMessage::NarrativeEventSuggestionDecision {
             request_id,
             event_id,
             approved,
             selected_outcome,
-        } => state
-            .game.narrative_event_approval_service
-            .handle_decision(
-                client_id.to_string(),
-                request_id,
-                event_id,
-                approved,
-                selected_outcome,
-            )
-            .await
-            .and_then(value_to_server_message),
+        } => {
+            // Get connection context for world_id (DM operation)
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
+                return Some(ServerMessage::Error {
+                    code: "NOT_AUTHORIZED".to_string(),
+                    message: "Only the DM can approve narrative event suggestions".to_string(),
+                });
+            }
+            
+            state
+                .game.narrative_event_approval_service
+                .handle_decision(
+                    world_id,
+                    request_id,
+                    event_id,
+                    approved,
+                    selected_outcome,
+                )
+                .await
+                .and_then(value_to_server_message)
+        }
 
         ClientMessage::RegenerateOutcome {
             request_id,
@@ -1047,10 +1158,37 @@ async fn handle_message(
                 challenge_name,
                 target_pc_id
             );
+            
+            // Get connection context for world_id (DM operation)
+            let client_id_str = client_id.to_string();
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
+                return Some(ServerMessage::Error {
+                    code: "NOT_AUTHORIZED".to_string(),
+                    message: "Only the DM can create ad-hoc challenges".to_string(),
+                });
+            }
+            
             state
                 .game.challenge_resolution_service
                 .handle_adhoc_challenge(
-                    client_id.to_string(),
+                    &world_id,
                     challenge_name,
                     skill_name,
                     difficulty,
@@ -1074,31 +1212,38 @@ async fn handle_message(
                 decision
             );
 
-            // Only DMs should approve - check via async port
+            // Get connection context for world_id (DM operation)
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can approve challenge outcomes".to_string(),
                 });
             }
 
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
-
             // Convert wire decision to service decision
             let svc_decision = to_challenge_outcome_decision(decision);
 
             // Process the decision via the approval service
             match state.game.challenge_outcome_approval_service
-                .process_decision(session_id, &resolution_id, svc_decision)
+                .process_decision(&world_id, &resolution_id, svc_decision)
                 .await
             {
                 Ok(()) => {
@@ -1125,30 +1270,37 @@ async fn handle_message(
                 guidance
             );
 
-            // Only DMs should request suggestions
+            // Get connection context for world_id (DM operation)
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can request outcome suggestions".to_string(),
                 });
             }
 
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
-
             // Process as a Suggest decision - the service will handle LLM generation
             let svc_decision = ChallengeOutcomeDecision::Suggest { guidance };
 
             match state.game.challenge_outcome_approval_service
-                .process_decision(session_id, &resolution_id, svc_decision)
+                .process_decision(&world_id, &resolution_id, svc_decision)
                 .await
             {
                 Ok(()) => {
@@ -1175,28 +1327,35 @@ async fn handle_message(
                 guidance
             );
 
-            // Only DMs should request branches
+            // Get connection context for world_id (DM operation)
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can request outcome branches".to_string(),
                 });
             }
 
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
-
             // Request branches via the approval service
             match state.game.challenge_outcome_approval_service
-                .request_branches(session_id, &resolution_id, guidance)
+                .request_branches(&world_id, &resolution_id, guidance)
                 .await
             {
                 Ok(()) => {
@@ -1224,28 +1383,34 @@ async fn handle_message(
                 resolution_id
             );
 
-            // Only DMs should select branches
+            // Only DMs should select branches - check via world connection manager
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can select outcome branches".to_string(),
                 });
             }
-
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
+            
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
             };
 
             // Process branch selection via the approval service
             match state.game.challenge_outcome_approval_service
-                .select_branch(session_id, &resolution_id, &branch_id, modified_description)
+                .select_branch(&world_id, &resolution_id, &branch_id, modified_description)
                 .await
             {
                 Ok(()) => {
@@ -1281,22 +1446,32 @@ async fn handle_message(
 
             // Only DMs can share NPC locations
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            
+            // Get connection
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            // Extract world_id
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can share NPC locations".to_string(),
                 });
             }
-
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
@@ -1336,19 +1511,9 @@ async fn handle_message(
                 }
             };
 
-            // Get game time from session
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                match sessions.get_session(session_id) {
-                    Some(session) => session.game_time().current(),
-                    None => {
-                        return Some(ServerMessage::Error {
-                            code: "SESSION_NOT_FOUND".to_string(),
-                            message: "Session not found".to_string(),
-                        });
-                    }
-                }
-            };
+            // Get game time - for now use current time
+            // TODO: Once game_time is migrated to world-based, fetch from world
+            let game_time = chrono::Utc::now();
 
             // Create HeardAbout observation
             let observation = wrldbldr_domain::entities::NpcObservation::heard_about(
@@ -1400,22 +1565,32 @@ async fn handle_message(
 
             // Only DMs can trigger approach events
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            
+            // Get connection
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            // Extract world_id
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can trigger approach events".to_string(),
                 });
             }
-
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
 
             // Parse NPC ID and get NPC details
             let npc_uuid = match uuid::Uuid::parse_str(&npc_id) {
@@ -1474,12 +1649,9 @@ async fn handle_message(
 
             // Create Direct observation for the PC (they now see the NPC)
             if let Some(region_id) = pc.current_region_id {
-                let game_time = {
-                    let sessions = state.sessions.read().await;
-                    sessions.get_session(session_id)
-                        .map(|s| s.game_time().current())
-                        .unwrap_or_else(chrono::Utc::now)
-                };
+                // Get game time - for now use current time
+                // TODO: Once game_time is migrated to world-based, fetch from world
+                let game_time = chrono::Utc::now();
 
                 let observation = if reveal {
                     wrldbldr_domain::entities::NpcObservation::direct(
@@ -1520,9 +1692,7 @@ async fn handle_message(
             };
 
             // Send to the target PC's user only (not broadcast to all)
-            if let Ok(msg_json) = serde_json::to_value(&approach_event) {
-                let _ = state.async_session_port.send_to_participant(session_id, &pc.user_id, msg_json).await;
-            }
+            state.world_connection_manager.send_to_user(&pc.user_id, world_id, approach_event).await;
 
             tracing::info!(
                 "Approach event triggered: {} approached by {}",
@@ -1543,22 +1713,32 @@ async fn handle_message(
 
             // Only DMs can trigger location events
             let client_id_str = client_id.to_string();
-            if !state.async_session_port.is_client_dm(&client_id_str).await {
+            
+            // Get connection
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
+                None => return Some(ServerMessage::Error {
+                    code: "NOT_CONNECTED".to_string(),
+                    message: "Connection not found".to_string(),
+                }),
+            };
+            
+            // Extract world_id
+            let world_id = match connection.world_id {
+                Some(id) => id,
+                None => return Some(ServerMessage::Error {
+                    code: "NO_WORLD".to_string(),
+                    message: "Not connected to a world".to_string(),
+                }),
+            };
+            
+            // Check DM authorization
+            if !connection.is_dm() {
                 return Some(ServerMessage::Error {
                     code: "NOT_AUTHORIZED".to_string(),
                     message: "Only the DM can trigger location events".to_string(),
                 });
             }
-
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
-                None => {
-                    return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
-                    });
-                }
-            };
 
             // Build the LocationEvent message
             let location_event = ServerMessage::LocationEvent {
@@ -1566,11 +1746,8 @@ async fn handle_message(
                 description,
             };
 
-            // Broadcast to all in session - clients filter by their current region
-            if let Ok(msg_json) = serde_json::to_value(&location_event) {
-                // Use broadcast_except with empty string to broadcast to all
-                let _ = state.async_session_port.broadcast_except(session_id, msg_json, "").await;
-            }
+            // Broadcast to all in world - clients filter by their current region
+            state.world_connection_manager.broadcast_to_world(world_id, location_event).await;
 
             tracing::info!("Location event triggered in region {}", region_id);
             None
@@ -1583,13 +1760,14 @@ async fn handle_message(
         ClientMessage::SelectPlayerCharacter { pc_id } => {
             tracing::info!("Player selecting PC {}", pc_id);
 
+            // Get the client's world connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let _connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected to a world".to_string(),
                     });
                 }
             };
@@ -1634,16 +1812,29 @@ async fn handle_message(
         ClientMessage::MoveToRegion { pc_id, region_id } => {
             tracing::info!("PC {} moving to region {}", pc_id, region_id);
 
+            // Get the client's world connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected to a world".to_string(),
                     });
                 }
             };
+            
+            let world_id_uuid = match connection.world_id {
+                Some(id) => id,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
+            };
+            let world_id_typed = wrldbldr_domain::WorldId::from_uuid(world_id_uuid);
+            let user_id = connection.user_id.clone();
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
@@ -1740,21 +1931,13 @@ async fn handle_message(
             let backdrop = target_region.backdrop_asset.clone()
                 .or_else(|| location.as_ref().and_then(|l| l.backdrop_asset.clone()));
             let map_asset = location.as_ref().and_then(|l| l.map_asset.clone());
-            let world_id = location.as_ref().map(|l| l.world_id).unwrap_or_else(wrldbldr_domain::WorldId::new);
+            let world_id = location.as_ref().map(|l| l.world_id).unwrap_or(world_id_typed);
             let default_ttl = location.as_ref().map(|l| l.presence_cache_ttl_hours).unwrap_or(3);
             let use_llm = location.as_ref().map(|l| l.use_llm_presence).unwrap_or(true);
 
-            // Get game time
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                sessions.get_session(session_id)
-                    .map(|s| s.game_time().clone())
-                    .unwrap_or_default()
-            };
-
-            // Get user ID for this PC
-            let user_id = state.async_session_port.get_client_user_id(&client_id_str).await
-                .unwrap_or_else(|| client_id_str.clone());
+            // Get game time from WorldStateManager
+            let game_time = state.world_state.get_game_time(&world_id)
+                .unwrap_or_default();
 
             // =====================================================================
             // Staging System Integration
@@ -1778,23 +1961,18 @@ async fn handle_message(
                     .collect()
             } else {
                 // No valid staging - check if there's already a pending approval for this region
-                let has_pending = {
-                    let sessions = state.sessions.read().await;
-                    sessions.get_session(session_id)
-                        .and_then(|s| s.get_pending_staging_for_region(region_uuid))
-                        .is_some()
-                };
+                let has_pending = state.world_state.get_pending_staging_for_region(&world_id, &region_uuid).is_some();
 
                 if has_pending {
                     // Add this PC to the waiting list and send StagingPending
-                    {
-                        let mut sessions = state.sessions.write().await;
-                        if let Some(session) = sessions.get_session_mut(session_id) {
-                            if let Some(pending) = session.get_pending_staging_for_region_mut(region_uuid) {
-                                pending.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
-                            }
-                        }
-                    }
+                    state.world_state.add_waiting_pc_to_staging(
+                        &world_id,
+                        &region_uuid,
+                        pc_uuid.to_uuid(),
+                        pc.name.clone(),
+                        user_id.clone(),
+                        client_id_str.clone(),
+                    );
 
                     // Send StagingPending to this player
                     let _ = sender.send(ServerMessage::StagingPending {
@@ -1925,8 +2103,8 @@ async fn handle_message(
                     Vec::new() // Don't include LLM suggestions if disabled
                 };
 
-                // Store pending staging approval
-                let mut pending_approval = crate::infrastructure::session::PendingStagingApproval::new(
+                // Store pending staging approval in WorldStateManager
+                let mut pending_approval = crate::infrastructure::world_state_manager::WorldPendingStagingApproval::new(
                     request_id.clone(),
                     region_uuid,
                     target_region.location_id,
@@ -1935,14 +2113,8 @@ async fn handle_message(
                     location_name.clone(),
                     proposal,
                 );
-                pending_approval.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
-
-                {
-                    let mut sessions = state.sessions.write().await;
-                    if let Some(session) = sessions.get_session_mut(session_id) {
-                        session.add_pending_staging_approval(pending_approval);
-                    }
-                }
+                pending_approval.add_waiting_pc(pc_uuid.to_uuid(), pc.name.clone(), user_id.clone(), client_id_str.clone());
+                state.world_state.add_pending_staging(&world_id, pending_approval);
 
                 // Send StagingApprovalRequired to DM
                 let approval_msg = ServerMessage::StagingApprovalRequired {
@@ -1968,12 +2140,8 @@ async fn handle_message(
                     }],
                 };
 
-                {
-                    let sessions = state.sessions.read().await;
-                    if let Some(session) = sessions.get_session(session_id) {
-                        session.send_to_dm(&approval_msg);
-                    }
-                }
+                // Send to DM via world connection manager
+                let _ = state.world_connection_manager.send_to_dm(&world_id_uuid, approval_msg).await;
 
                 tracing::info!(
                     pc_id = %pc_id,
@@ -2036,16 +2204,28 @@ async fn handle_message(
         ClientMessage::ExitToLocation { pc_id, location_id, arrival_region_id } => {
             tracing::info!("PC {} exiting to location {}", pc_id, location_id);
 
+            // Get the client's world connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected to a world".to_string(),
                     });
                 }
             };
+            
+            let world_id_uuid = match connection.world_id {
+                Some(id) => id,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
+            };
+            let user_id = connection.user_id.clone();
 
             // Parse IDs
             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
@@ -2150,14 +2330,9 @@ async fn handle_message(
             let default_ttl = target_location.presence_cache_ttl_hours;
             let use_llm = target_location.use_llm_presence;
 
-            // Get game time
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                sessions
-                    .get_session(session_id)
-                    .map(|s| s.game_time().clone())
-                    .unwrap_or_default()
-            };
+            // Get game time from WorldStateManager
+            let game_time = state.world_state.get_game_time(&world_id)
+                .unwrap_or_default();
 
             // Get PC details (name used for waiting list)
             let pc = match state.repository.player_characters().get(pc_uuid).await {
@@ -2175,13 +2350,6 @@ async fn handle_message(
                     });
                 }
             };
-
-            // Get user ID for this PC
-            let user_id = state
-                .async_session_port
-                .get_client_user_id(&client_id_str)
-                .await
-                .unwrap_or_else(|| client_id_str.clone());
 
             // =====================================================================
             // Staging System Integration
@@ -2215,24 +2383,18 @@ async fn handle_message(
                     .collect()
             } else {
                 // No valid staging - check if there's already a pending approval for this region
-                let has_pending = {
-                    let sessions = state.sessions.read().await;
-                    sessions
-                        .get_session(session_id)
-                        .and_then(|s| s.get_pending_staging_for_region(arrival_region_uuid))
-                        .is_some()
-                };
+                let has_pending = state.world_state.get_pending_staging_for_region(&world_id, &arrival_region_uuid).is_some();
 
                 if has_pending {
                     // Add this PC to the waiting list and send StagingPending
-                    {
-                        let mut sessions = state.sessions.write().await;
-                        if let Some(session) = sessions.get_session_mut(session_id) {
-                            if let Some(pending) = session.get_pending_staging_for_region_mut(arrival_region_uuid) {
-                                pending.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
-                            }
-                        }
-                    }
+                    state.world_state.add_waiting_pc_to_staging(
+                        &world_id,
+                        &arrival_region_uuid,
+                        pc_uuid.to_uuid(),
+                        pc.name.clone(),
+                        user_id.clone(),
+                        client_id_str.clone(),
+                    );
 
                     // Send StagingPending to this player
                     let _ = sender.send(ServerMessage::StagingPending {
@@ -2383,8 +2545,8 @@ async fn handle_message(
                     Vec::new() // Don't include LLM suggestions if disabled
                 };
 
-                // Store pending staging approval
-                let mut pending_approval = crate::infrastructure::session::PendingStagingApproval::new(
+                // Store pending staging approval in WorldStateManager
+                let mut pending_approval = crate::infrastructure::world_state_manager::WorldPendingStagingApproval::new(
                     request_id.clone(),
                     arrival_region_uuid,
                     location_uuid,
@@ -2393,14 +2555,8 @@ async fn handle_message(
                     location_name.clone(),
                     proposal,
                 );
-                pending_approval.add_waiting_pc(pc_uuid, pc.name.clone(), client_id, user_id.clone());
-
-                {
-                    let mut sessions = state.sessions.write().await;
-                    if let Some(session) = sessions.get_session_mut(session_id) {
-                        session.add_pending_staging_approval(pending_approval);
-                    }
-                }
+                pending_approval.add_waiting_pc(pc_uuid.to_uuid(), pc.name.clone(), user_id.clone(), client_id_str.clone());
+                state.world_state.add_pending_staging(&world_id, pending_approval);
 
                 // Send StagingApprovalRequired to DM
                 let approval_msg = ServerMessage::StagingApprovalRequired {
@@ -2426,12 +2582,8 @@ async fn handle_message(
                     }],
                 };
 
-                {
-                    let sessions = state.sessions.read().await;
-                    if let Some(session) = sessions.get_session(session_id) {
-                        session.send_to_dm(&approval_msg);
-                    }
-                }
+                // Send to DM via world connection manager
+                let _ = state.world_connection_manager.send_to_dm(&world_id_uuid, approval_msg).await;
 
                 tracing::info!(
                     pc_id = %pc_id,
@@ -2509,33 +2661,32 @@ async fn handle_message(
                 "Staging approval response received"
             );
 
+            // Get client connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected".to_string(),
                     });
                 }
             };
 
-            // Get the pending staging approval
-            let pending = {
-                let sessions = state.sessions.read().await;
-                let session = match sessions.get_session(session_id) {
-                    Some(s) => s,
-                    None => {
-                        return Some(ServerMessage::Error {
-                            code: "SESSION_NOT_FOUND".to_string(),
-                            message: "Session not found".to_string(),
-                        });
-                    }
-                };
-                session.get_pending_staging_approval(&request_id).cloned()
+            let world_id_uuid = match connection.world_id {
+                Some(id) => id,
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
             };
+            let world_id = wrldbldr_domain::WorldId::from_uuid(world_id_uuid);
+            let dm_user_id = connection.user_id.clone();
 
-            let pending = match pending {
+            // Get the pending staging approval from WorldStateManager
+            let pending = match state.world_state.get_pending_staging_by_request_id(&world_id, &request_id) {
                 Some(p) => p,
                 None => {
                     return Some(ServerMessage::Error {
@@ -2580,17 +2731,9 @@ async fn handle_message(
                 });
             }
 
-            // Get game time
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                sessions.get_session(session_id)
-                    .map(|s| s.game_time().clone())
-                    .unwrap_or_default()
-            };
-
-            // Get DM user ID for approved_by
-            let dm_user_id = state.async_session_port.get_client_user_id(&client_id_str).await
-                .unwrap_or_else(|| client_id_str.clone());
+            // Get game time from WorldStateManager
+            let game_time = state.world_state.get_game_time(&pending.world_id)
+                .unwrap_or_default();
 
             // Approve the staging
             let staging = match state.staging_service.approve_staging(
@@ -2626,89 +2769,89 @@ async fn handle_message(
                 })
                 .collect();
 
-            // Send StagingReady to all waiting PCs
+            // Send StagingReady to all waiting PCs via world connection manager
             let staging_ready = ServerMessage::StagingReady {
                 region_id: pending.region_id.to_string(),
                 npcs_present: npcs_present.clone(),
             };
 
-            {
-                let sessions = state.sessions.read().await;
-                if let Some(session) = sessions.get_session(session_id) {
-                    for waiting_pc in &pending.waiting_pcs {
-                        session.send_to_client(waiting_pc.client_id, &staging_ready);
-                        
-                        // Also send SceneChanged with the NPCs
-                        // Get region and location data for the scene change
-                        let map_asset = state.repository.locations().get(pending.location_id).await
-                            .ok()
-                            .flatten()
-                            .and_then(|loc| loc.map_asset);
-                        if let Ok(Some(region)) = state.repository.regions().get(pending.region_id).await {
-                            let connections = state.repository.regions().get_connections(pending.region_id).await.unwrap_or_default();
-                            let exits = state.repository.regions().get_exits(pending.region_id).await.unwrap_or_default();
+            // Send to each waiting PC
+            for waiting_pc in &pending.waiting_pcs {
+                // Send StagingReady
+                let _ = state.world_connection_manager.send_to_user_in_world(
+                    &world_id_uuid,
+                    &waiting_pc.user_id,
+                    staging_ready.clone(),
+                ).await;
+                
+                // Also send SceneChanged with the NPCs
+                // Get region and location data for the scene change
+                let map_asset = state.repository.locations().get(pending.location_id).await
+                    .ok()
+                    .flatten()
+                    .and_then(|loc| loc.map_asset);
+                if let Ok(Some(region)) = state.repository.regions().get(pending.region_id).await {
+                    let connections = state.repository.regions().get_connections(pending.region_id).await.unwrap_or_default();
+                    let exits = state.repository.regions().get_exits(pending.region_id).await.unwrap_or_default();
 
-                            let mut connected_regions = Vec::new();
-                            for conn in connections {
-                                if let Ok(Some(target)) = state.repository.regions().get(conn.to_region).await {
-                                    connected_regions.push(wrldbldr_protocol::NavigationTarget {
-                                        region_id: conn.to_region.to_string(),
-                                        name: target.name,
-                                        is_locked: conn.is_locked,
-                                        lock_description: conn.lock_description,
-                                    });
-                                }
-                            }
-
-                            let mut exit_targets = Vec::new();
-                            for exit in exits {
-                                if let Ok(Some(target_loc)) = state.repository.locations().get(exit.to_location).await {
-                                    exit_targets.push(wrldbldr_protocol::NavigationExit {
-                                        location_id: exit.to_location.to_string(),
-                                        location_name: target_loc.name,
-                                        arrival_region_id: exit.arrival_region_id.to_string(),
-                                        description: exit.description,
-                                    });
-                                }
-                            }
-
-                            let region_items = fetch_region_items(&state, pending.region_id).await;
-                            let scene_changed = ServerMessage::SceneChanged {
-                                pc_id: waiting_pc.pc_id.to_string(),
-                                region: wrldbldr_protocol::RegionData {
-                                    id: pending.region_id.to_string(),
-                                    name: region.name.clone(),
-                                    location_id: pending.location_id.to_string(),
-                                    location_name: pending.location_name.clone(),
-                                    backdrop_asset: region.backdrop_asset.clone(),
-                                    atmosphere: region.atmosphere.clone(),
-                                    map_asset: map_asset.clone(),
-                                },
-                                npcs_present: npcs_present.iter().map(|npc| wrldbldr_protocol::NpcPresenceData {
-                                    character_id: npc.character_id.clone(),
-                                    name: npc.name.clone(),
-                                    sprite_asset: npc.sprite_asset.clone(),
-                                    portrait_asset: npc.portrait_asset.clone(),
-                                }).collect(),
-                                navigation: wrldbldr_protocol::NavigationData {
-                                    connected_regions,
-                                    exits: exit_targets,
-                                },
-                                region_items,
-                            };
-                            session.send_to_client(waiting_pc.client_id, &scene_changed);
+                    let mut connected_regions = Vec::new();
+                    for conn in connections {
+                        if let Ok(Some(target)) = state.repository.regions().get(conn.to_region).await {
+                            connected_regions.push(wrldbldr_protocol::NavigationTarget {
+                                region_id: conn.to_region.to_string(),
+                                name: target.name,
+                                is_locked: conn.is_locked,
+                                lock_description: conn.lock_description,
+                            });
                         }
                     }
+
+                    let mut exit_targets = Vec::new();
+                    for exit in exits {
+                        if let Ok(Some(target_loc)) = state.repository.locations().get(exit.to_location).await {
+                            exit_targets.push(wrldbldr_protocol::NavigationExit {
+                                location_id: exit.to_location.to_string(),
+                                location_name: target_loc.name,
+                                arrival_region_id: exit.arrival_region_id.to_string(),
+                                description: exit.description,
+                            });
+                        }
+                    }
+
+                    let region_items = fetch_region_items(&state, pending.region_id).await;
+                    let scene_changed = ServerMessage::SceneChanged {
+                        pc_id: waiting_pc.pc_id.to_string(),
+                        region: wrldbldr_protocol::RegionData {
+                            id: pending.region_id.to_string(),
+                            name: region.name.clone(),
+                            location_id: pending.location_id.to_string(),
+                            location_name: pending.location_name.clone(),
+                            backdrop_asset: region.backdrop_asset.clone(),
+                            atmosphere: region.atmosphere.clone(),
+                            map_asset: map_asset.clone(),
+                        },
+                        npcs_present: npcs_present.iter().map(|npc| wrldbldr_protocol::NpcPresenceData {
+                            character_id: npc.character_id.clone(),
+                            name: npc.name.clone(),
+                            sprite_asset: npc.sprite_asset.clone(),
+                            portrait_asset: npc.portrait_asset.clone(),
+                        }).collect(),
+                        navigation: wrldbldr_protocol::NavigationData {
+                            connected_regions,
+                            exits: exit_targets,
+                        },
+                        region_items,
+                    };
+                    let _ = state.world_connection_manager.send_to_user_in_world(
+                        &world_id_uuid,
+                        &waiting_pc.user_id,
+                        scene_changed,
+                    ).await;
                 }
             }
 
             // Remove the pending staging approval
-            {
-                let mut sessions = state.sessions.write().await;
-                if let Some(session) = sessions.get_session_mut(session_id) {
-                    session.remove_pending_staging_approval(&request_id);
-                }
-            }
+            state.world_state.remove_pending_staging(&world_id, &request_id);
 
             tracing::info!(
                 request_id = %request_id,
@@ -2730,33 +2873,30 @@ async fn handle_message(
                 "Staging regenerate request received"
             );
 
+            // Get client connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected".to_string(),
                     });
                 }
             };
 
-            // Get the pending staging approval
-            let pending = {
-                let sessions = state.sessions.read().await;
-                let session = match sessions.get_session(session_id) {
-                    Some(s) => s,
-                    None => {
-                        return Some(ServerMessage::Error {
-                            code: "SESSION_NOT_FOUND".to_string(),
-                            message: "Session not found".to_string(),
-                        });
-                    }
-                };
-                session.get_pending_staging_approval(&request_id).cloned()
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
             };
 
-            let pending = match pending {
+            // Get the pending staging approval from WorldStateManager
+            let pending = match state.world_state.get_pending_staging_by_request_id(&world_id, &request_id) {
                 Some(p) => p,
                 None => {
                     return Some(ServerMessage::Error {
@@ -2766,13 +2906,9 @@ async fn handle_message(
                 }
             };
 
-            // Get game time
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                sessions.get_session(session_id)
-                    .map(|s| s.game_time().clone())
-                    .unwrap_or_default()
-            };
+            // Get game time from WorldStateManager
+            let game_time = state.world_state.get_game_time(&pending.world_id)
+                .unwrap_or_default();
 
             // Regenerate LLM suggestions
             let new_suggestions = match state.staging_service.regenerate_suggestions(
@@ -2829,16 +2965,28 @@ async fn handle_message(
                 "Pre-stage region request received"
             );
 
+            // Get client connection
             let client_id_str = client_id.to_string();
-            let session_id = match state.async_session_port.get_client_session(&client_id_str).await {
-                Some(sid) => sid,
+            let connection = match state.world_connection_manager.get_connection_by_client_id(&client_id_str).await {
+                Some(conn) => conn,
                 None => {
                     return Some(ServerMessage::Error {
-                        code: "NO_SESSION".to_string(),
-                        message: "Client is not in a session".to_string(),
+                        code: "NOT_CONNECTED".to_string(),
+                        message: "Client is not connected".to_string(),
                     });
                 }
             };
+
+            let world_id = match connection.world_id {
+                Some(id) => wrldbldr_domain::WorldId::from_uuid(id),
+                None => {
+                    return Some(ServerMessage::Error {
+                        code: "NO_WORLD".to_string(),
+                        message: "Not connected to a world".to_string(),
+                    });
+                }
+            };
+            let dm_user_id = connection.user_id.clone();
 
             // Parse region ID
             let region_uuid = match uuid::Uuid::parse_str(&region_id) {
@@ -2884,17 +3032,9 @@ async fn handle_message(
                 }
             };
 
-            // Get game time
-            let game_time = {
-                let sessions = state.sessions.read().await;
-                sessions.get_session(session_id)
-                    .map(|s| s.game_time().clone())
-                    .unwrap_or_default()
-            };
-
-            // Get DM user ID
-            let dm_user_id = state.async_session_port.get_client_user_id(&client_id_str).await
-                .unwrap_or_else(|| client_id_str.clone());
+            // Get game time from WorldStateManager
+            let game_time = state.world_state.get_game_time(&world_id)
+                .unwrap_or_default();
 
             // Build approved NPC data
             let mut approved_npc_data = Vec::new();
@@ -3394,6 +3534,7 @@ async fn handle_message(
             let (broadcast_tx, _broadcast_rx) = tokio::sync::broadcast::channel(64);
             state.world_connection_manager.register_connection(
                 connection_id,
+                client_id_str.clone(),
                 user_id.clone(),
                 broadcast_tx,
             ).await;

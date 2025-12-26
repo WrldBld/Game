@@ -2,13 +2,13 @@
 //! event suggestions, marking events as triggered, recording story events, and
 //! constructing `ServerMessage::NarrativeEventTriggered`.
 //!
-//! Uses `AsyncSessionPort` for session operations, maintaining hexagonal architecture.
+//! Uses `WorldConnectionPort` for world-scoped messaging, maintaining hexagonal architecture.
 
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::AsyncSessionPort;
+use wrldbldr_engine_ports::outbound::WorldConnectionPort;
 use crate::application::services::{NarrativeEventService, StoryEventService};
-use wrldbldr_domain::{NarrativeEventId, SessionId};
+use wrldbldr_domain::{NarrativeEventId, WorldId};
 
 /// Narrative event triggered message DTO
 #[derive(Debug, Clone, serde::Serialize)]
@@ -30,13 +30,12 @@ struct ErrorMessage {
 
 /// Service responsible for narrative suggestion approval flows.
 ///
-/// # Architecture Note (Resolved)
+/// # Architecture Note
 ///
-/// This service previously depended on `SessionManager` (a concrete infrastructure type)
-/// rather than the async session port trait. It now uses `AsyncSessionPort`, restoring a
-/// proper hexagonal boundary between application and infrastructure.
+/// This service uses `WorldConnectionPort` for world-scoped messaging,
+/// maintaining hexagonal architecture boundaries.
 pub struct NarrativeEventApprovalService<N: NarrativeEventService> {
-    sessions: Arc<dyn AsyncSessionPort>,
+    world_connection: Arc<dyn WorldConnectionPort>,
     narrative_event_service: Arc<N>,
     story_event_service: Arc<dyn StoryEventService>,
 }
@@ -46,12 +45,12 @@ where
     N: NarrativeEventService,
 {
     pub fn new(
-        sessions: Arc<dyn AsyncSessionPort>,
+        world_connection: Arc<dyn WorldConnectionPort>,
         narrative_event_service: Arc<N>,
         story_event_service: Arc<dyn StoryEventService>,
     ) -> Self {
         Self {
-            sessions,
+            world_connection,
             narrative_event_service,
             story_event_service,
         }
@@ -60,7 +59,7 @@ where
     /// Handle `ClientMessage::NarrativeEventSuggestionDecision`.
     pub async fn handle_decision(
         &self,
-        client_id: String,
+        world_id: WorldId,
         request_id: String,
         event_id: String,
         approved: bool,
@@ -73,28 +72,22 @@ where
             approved,
             selected_outcome
         );
-        // Only the DM for the client's session may approve/reject narrative events
-        if !self.sessions.is_client_dm(&client_id).await {
-            return None;
-        }
 
-        if let Some(session_id) = self.sessions.get_client_session(&client_id).await {
-            if approved {
-                return self
-                    .approve_and_trigger(
-                        session_id,
-                        request_id,
-                        event_id,
-                        selected_outcome,
-                    )
-                    .await;
-            } else {
-                tracing::info!(
-                    "DM rejected narrative event {} trigger for request {}",
+        if approved {
+            return self
+                .approve_and_trigger(
+                    world_id,
+                    request_id,
                     event_id,
-                    request_id
-                );
-            }
+                    selected_outcome,
+                )
+                .await;
+        } else {
+            tracing::info!(
+                "DM rejected narrative event {} trigger for request {}",
+                event_id,
+                request_id
+            );
         }
 
         None
@@ -102,8 +95,8 @@ where
 
     async fn approve_and_trigger(
         &self,
-        session_id: SessionId,
-        request_id: String,
+        world_id: WorldId,
+        _request_id: String,
         event_id: String,
         selected_outcome: Option<String>,
     ) -> Option<serde_json::Value> {
@@ -199,27 +192,22 @@ where
             tracing::error!("Failed to record story event: {}", e);
         }
 
-        // 5. Broadcast scene direction to DM via the async session port
-        let scene_direction = NarrativeEventTriggeredMessage {
-            r#type: "NarrativeEventTriggered",
+        // 5. Broadcast scene direction to DM via the world connection port
+        use wrldbldr_protocol::ServerMessage;
+        let server_msg = ServerMessage::NarrativeEventTriggered {
             event_id: event_id.clone(),
             event_name: narrative_event.name.clone(),
             outcome_description: outcome.description.clone(),
-            scene_direction: Some(narrative_event.scene_direction.clone()),
+            scene_direction: narrative_event.scene_direction.clone(),
         };
-        if let Ok(msg_json) = serde_json::to_value(&scene_direction) {
-            if let Err(e) = self.sessions.send_to_dm(session_id, msg_json).await {
-                tracing::error!("Failed to send NarrativeEventTriggered to DM: {}", e);
-            }
-        } else {
-            tracing::error!("Failed to serialize NarrativeEventTriggered message for event {}", event_id);
+        if let Err(e) = self.world_connection.send_to_dm(&world_id, server_msg).await {
+            tracing::error!("Failed to send NarrativeEventTriggered to DM: {}", e);
         }
 
         tracing::info!(
-            "Triggered narrative event '{}' with outcome '{}' for request {}",
+            "Triggered narrative event '{}' with outcome '{}'",
             narrative_event.name,
-            outcome.description,
-            request_id
+            outcome.description
         );
 
         None

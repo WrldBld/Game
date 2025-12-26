@@ -27,6 +27,38 @@ use uuid::Uuid;
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 
 // =============================================================================
+// Error Types
+// =============================================================================
+
+/// Errors that can occur during broadcast operations
+#[derive(Debug, thiserror::Error)]
+pub enum BroadcastError {
+    #[error("World not found: {0}")]
+    WorldNotFound(Uuid),
+    
+    #[error("DM not connected to world: {0}")]
+    DmNotConnected(Uuid),
+    
+    #[error("Player not found for PC: {0}")]
+    PlayerNotFound(Uuid),
+    
+    #[error("User not found: {0}")]
+    UserNotFound(String),
+}
+
+// =============================================================================
+// DM Info
+// =============================================================================
+
+/// Information about the DM in a world
+#[derive(Debug, Clone)]
+pub struct DmInfo {
+    pub user_id: String,
+    pub username: Option<String>,
+    pub connection_count: usize,
+}
+
+// =============================================================================
 // Connection Info
 // =============================================================================
 
@@ -209,6 +241,10 @@ pub struct WorldConnectionManager {
 
     /// World connection states by world_id
     worlds: RwLock<HashMap<Uuid, WorldConnectionState>>,
+
+    /// Client ID -> Connection ID mapping
+    /// This allows looking up connections by the client_id string that handlers receive
+    client_id_to_connection: RwLock<HashMap<String, Uuid>>,
 }
 
 impl Default for WorldConnectionManager {
@@ -223,6 +259,7 @@ impl WorldConnectionManager {
         Self {
             connections: RwLock::new(HashMap::new()),
             worlds: RwLock::new(HashMap::new()),
+            client_id_to_connection: RwLock::new(HashMap::new()),
         }
     }
 
@@ -230,11 +267,16 @@ impl WorldConnectionManager {
     pub async fn register_connection(
         &self,
         connection_id: Uuid,
+        client_id: String,
         user_id: String,
         message_sender: broadcast::Sender<ServerMessage>,
     ) {
         let info = ConnectionInfo::new(connection_id, user_id, message_sender);
         self.connections.write().await.insert(connection_id, info);
+        
+        // Store client_id mapping
+        self.client_id_to_connection.write().await.insert(client_id, connection_id);
+        
         tracing::debug!(connection_id = %connection_id, "Registered new connection");
     }
 
@@ -252,6 +294,14 @@ impl WorldConnectionManager {
                     tracing::debug!(world_id = %world_id, "World has no more connections, removed");
                 }
             }
+        }
+
+        // Remove client_id mapping
+        // We need to find the client_id for this connection_id
+        // Since we don't store it in ConnectionInfo, we'll scan the mapping
+        {
+            let mut client_mapping = self.client_id_to_connection.write().await;
+            client_mapping.retain(|_, conn_id| *conn_id != connection_id);
         }
 
         tracing::debug!(connection_id = %connection_id, "Unregistered connection");
@@ -444,6 +494,11 @@ impl WorldConnectionManager {
             .unwrap_or_default()
     }
 
+    /// Get all world IDs that have active connections
+    pub async fn get_all_world_ids(&self) -> Vec<Uuid> {
+        self.worlds.read().await.keys().cloned().collect()
+    }
+
     /// Send a message to a specific connection
     pub async fn send_to_connection(&self, connection_id: Uuid, message: ServerMessage) {
         if let Some(conn) = self.connections.read().await.get(&connection_id) {
@@ -451,12 +506,27 @@ impl WorldConnectionManager {
         }
     }
 
-    /// Broadcast a message to all connections in a world
+    /// Broadcast a message to all connections in a world (from JSON value)
+    pub async fn broadcast_json_to_world(&self, world_id: &Uuid, message: serde_json::Value) {
+        if let Ok(msg) = serde_json::from_value::<ServerMessage>(message) {
+            let connections = self.get_world_connections(*world_id).await;
+            for conn_id in connections {
+                self.send_to_connection(conn_id, msg.clone()).await;
+            }
+        }
+    }
+
+    /// Broadcast a ServerMessage to all connections in a world
     pub async fn broadcast_to_world(&self, world_id: Uuid, message: ServerMessage) {
         let connections = self.get_world_connections(world_id).await;
         for conn_id in connections {
             self.send_to_connection(conn_id, message.clone()).await;
         }
+    }
+
+    /// Broadcast a ServerMessage directly to all connections in a world (alias)
+    pub async fn broadcast_message_to_world(&self, world_id: Uuid, message: ServerMessage) {
+        self.broadcast_to_world(world_id, message).await;
     }
 
     /// Broadcast a message to all DMs in a world
@@ -486,6 +556,299 @@ impl WorldConnectionManager {
                 }
             }
         }
+    }
+
+    // =========================================================================
+    // Enhanced Broadcast Methods
+    // =========================================================================
+
+    /// Broadcast to all except a specific user
+    pub async fn broadcast_to_world_except(
+        &self,
+        world_id: &Uuid,
+        exclude_user_id: &str,
+        message: ServerMessage,
+    ) -> Result<(), BroadcastError> {
+        // Get world state
+        let worlds = self.worlds.read().await;
+        let world_state = worlds
+            .get(world_id)
+            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+
+        // Get connections
+        let conns_guard = self.connections.read().await;
+
+        // Iterate through users, skip the excluded user
+        for conn_id in &world_state.connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.user_id != exclude_user_id {
+                    let _ = conn.message_sender.send(message.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send only to DM
+    pub async fn send_to_dm(
+        &self,
+        world_id: &Uuid,
+        message: ServerMessage,
+    ) -> Result<(), BroadcastError> {
+        // Get world state
+        let worlds = self.worlds.read().await;
+        let world_state = worlds
+            .get(world_id)
+            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+
+        // Check dm_user_id exists
+        let dm_user_id = world_state
+            .dm_user_id
+            .as_ref()
+            .ok_or_else(|| BroadcastError::DmNotConnected(*world_id))?;
+
+        // Get connections
+        let conns_guard = self.connections.read().await;
+
+        // Send to all DM connections
+        for conn_id in &world_state.dm_connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if &conn.user_id == dm_user_id {
+                    let _ = conn.message_sender.send(message.clone());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send to specific player by PC ID
+    pub async fn send_to_player(
+        &self,
+        world_id: &Uuid,
+        pc_id: &Uuid,
+        message: ServerMessage,
+    ) -> Result<(), BroadcastError> {
+        // Get world state
+        let worlds = self.worlds.read().await;
+        let world_state = worlds
+            .get(world_id)
+            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+
+        // Get connections
+        let conns_guard = self.connections.read().await;
+
+        // Find user with matching pc_id
+        let mut found = false;
+        for conn_id in &world_state.player_connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.pc_id == Some(*pc_id) {
+                    let _ = conn.message_sender.send(message.clone());
+                    found = true;
+                }
+            }
+        }
+
+        if !found {
+            return Err(BroadcastError::PlayerNotFound(*pc_id));
+        }
+
+        Ok(())
+    }
+
+    /// Send to specific user (new method signature compatible with world-first API)
+    pub async fn send_to_user_in_world(
+        &self,
+        world_id: &Uuid,
+        user_id: &str,
+        message: ServerMessage,
+    ) -> Result<(), BroadcastError> {
+        // Get world state
+        let worlds = self.worlds.read().await;
+        let world_state = worlds
+            .get(world_id)
+            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+
+        // Check if user exists in users
+        let conns_guard = self.connections.read().await;
+        let mut found = false;
+
+        for conn_id in &world_state.connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.user_id == user_id {
+                    let _ = conn.message_sender.send(message.clone());
+                    found = true;
+                }
+            }
+        }
+
+        if !found {
+            return Err(BroadcastError::UserNotFound(user_id.to_string()));
+        }
+
+        Ok(())
+    }
+
+    // =========================================================================
+    // Query Methods
+    // =========================================================================
+
+    /// Check if DM is connected to this world
+    pub fn has_dm(&self, world_id: &Uuid) -> bool {
+        if let Ok(worlds) = self.worlds.try_read() {
+            if let Some(world_state) = worlds.get(world_id) {
+                return world_state.dm_user_id.is_some();
+            }
+        }
+        false
+    }
+
+    /// Get DM user info
+    pub async fn get_dm_info(&self, world_id: &Uuid) -> Option<DmInfo> {
+        let worlds = self.worlds.read().await;
+        let world_state = worlds.get(world_id)?;
+        let dm_user_id = world_state.dm_user_id.as_ref()?.clone();
+
+        let conns_guard = self.connections.read().await;
+        
+        // Find a DM connection to get username
+        let mut username = None;
+        for conn_id in &world_state.dm_connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.user_id == dm_user_id {
+                    username = conn.username.clone();
+                    break;
+                }
+            }
+        }
+
+        Some(DmInfo {
+            user_id: dm_user_id,
+            username,
+            connection_count: world_state.dm_connections.len(),
+        })
+    }
+
+    /// Get user role in world
+    pub async fn get_user_role(&self, world_id: &Uuid, user_id: &str) -> Option<WorldRole> {
+        let worlds = self.worlds.read().await;
+        let world_state = worlds.get(world_id)?;
+        let conns_guard = self.connections.read().await;
+
+        // Look up user in world connections and return their role
+        for conn_id in &world_state.connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.user_id == user_id {
+                    return conn.role;
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Find which user is playing a PC
+    pub async fn find_player_for_pc(&self, world_id: &Uuid, pc_id: &Uuid) -> Option<String> {
+        let worlds = self.worlds.read().await;
+        let world_state = worlds.get(world_id)?;
+        let conns_guard = self.connections.read().await;
+
+        // Search through player connections to find matching pc_id
+        for conn_id in &world_state.player_connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if conn.pc_id == Some(*pc_id) {
+                    return Some(conn.user_id.clone());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Get all PCs in a world with their controlling users
+    pub async fn get_world_pcs(&self, world_id: &Uuid) -> Vec<(Uuid, String)> {
+        let worlds = self.worlds.read().await;
+        let world_state = match worlds.get(world_id) {
+            Some(state) => state,
+            None => return vec![],
+        };
+        
+        let conns_guard = self.connections.read().await;
+        let mut pcs = Vec::new();
+
+        // Collect unique (pc_id, user_id) pairs
+        let mut seen = std::collections::HashSet::new();
+        for conn_id in &world_state.player_connections {
+            if let Some(conn) = conns_guard.get(conn_id) {
+                if let Some(pc_id) = conn.pc_id {
+                    let key = (pc_id, conn.user_id.clone());
+                    if seen.insert(key.clone()) {
+                        pcs.push(key);
+                    }
+                }
+            }
+        }
+
+        pcs
+    }
+
+    // =========================================================================
+    // Client ID Lookup Methods
+    // =========================================================================
+
+    /// Get connection info by client ID
+    pub async fn get_connection_by_client_id(&self, client_id: &str) -> Option<ConnectionInfo> {
+        // Look up connection_id from client_id
+        let connection_id = {
+            let client_mapping = self.client_id_to_connection.read().await;
+            client_mapping.get(client_id).copied()?
+        };
+        
+        // Get connection info
+        self.get_connection(connection_id).await
+    }
+
+    /// Get user ID by client ID
+    pub async fn get_user_id_by_client_id(&self, client_id: &str) -> Option<String> {
+        let conn = self.get_connection_by_client_id(client_id).await?;
+        Some(conn.user_id)
+    }
+
+    /// Check if client is a DM
+    pub async fn is_dm_by_client_id(&self, client_id: &str) -> bool {
+        let conn = match self.get_connection_by_client_id(client_id).await {
+            Some(c) => c,
+            None => return false,
+        };
+        conn.is_dm()
+    }
+
+    /// Get world ID by client ID
+    pub async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
+        let conn = self.get_connection_by_client_id(client_id).await?;
+        conn.world_id
+    }
+
+    /// Broadcast to world except a specific client
+    pub async fn broadcast_except_client(
+        &self,
+        world_id: Uuid,
+        exclude_client_id: &str,
+        message: ServerMessage,
+    ) {
+        // Get the user_id for the excluded client
+        let exclude_user_id = match self.get_user_id_by_client_id(exclude_client_id).await {
+            Some(uid) => uid,
+            None => {
+                // If client not found, just broadcast to all
+                self.broadcast_to_world(world_id, message).await;
+                return;
+            }
+        };
+        
+        // Broadcast except this user
+        let _ = self.broadcast_to_world_except(&world_id, &exclude_user_id, message).await;
     }
 
     /// Get statistics about the connection manager
@@ -551,11 +914,12 @@ mod tests {
     async fn test_register_and_unregister_connection() {
         let manager = WorldConnectionManager::new();
         let conn_id = Uuid::new_v4();
+        let client_id = "client1".to_string();
         let user_id = "user1".to_string();
         let sender = create_test_sender();
 
         manager
-            .register_connection(conn_id, user_id.clone(), sender)
+            .register_connection(conn_id, client_id.clone(), user_id.clone(), sender)
             .await;
 
         let conn = manager.get_connection(conn_id).await.unwrap();
@@ -572,10 +936,11 @@ mod tests {
         let manager = WorldConnectionManager::new();
         let conn_id = Uuid::new_v4();
         let world_id = Uuid::new_v4();
+        let client_id = "client1".to_string();
         let user_id = "dm_user".to_string();
         let sender = create_test_sender();
 
-        manager.register_connection(conn_id, user_id, sender).await;
+        manager.register_connection(conn_id, client_id, user_id, sender).await;
 
         let result = manager
             .join_world(conn_id, world_id, WorldRole::Dm, None, None)
@@ -593,13 +958,15 @@ mod tests {
         let conn_id1 = Uuid::new_v4();
         let conn_id2 = Uuid::new_v4();
         let world_id = Uuid::new_v4();
+        let client_id1 = "client1".to_string();
+        let client_id2 = "client2".to_string();
         let user_id = "dm_user".to_string();
 
         manager
-            .register_connection(conn_id1, user_id.clone(), create_test_sender())
+            .register_connection(conn_id1, client_id1, user_id.clone(), create_test_sender())
             .await;
         manager
-            .register_connection(conn_id2, user_id, create_test_sender())
+            .register_connection(conn_id2, client_id2, user_id, create_test_sender())
             .await;
 
         // First join should succeed
@@ -627,10 +994,10 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id1, "dm_user1".to_string(), create_test_sender())
+            .register_connection(conn_id1, "client1".to_string(), "dm_user1".to_string(), create_test_sender())
             .await;
         manager
-            .register_connection(conn_id2, "dm_user2".to_string(), create_test_sender())
+            .register_connection(conn_id2, "client2".to_string(), "dm_user2".to_string(), create_test_sender())
             .await;
 
         // First join should succeed
@@ -653,7 +1020,7 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id, "player".to_string(), create_test_sender())
+            .register_connection(conn_id, "client1".to_string(), "player".to_string(), create_test_sender())
             .await;
 
         // Join as Player without PC should fail
@@ -677,7 +1044,7 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id, "user".to_string(), create_test_sender())
+            .register_connection(conn_id, "client1".to_string(), "user".to_string(), create_test_sender())
             .await;
         manager
             .join_world(conn_id, world_id, WorldRole::Dm, None, None)

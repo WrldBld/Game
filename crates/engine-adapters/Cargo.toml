@@ -47,6 +47,9 @@ validator = { workspace = true }
 futures-util = { workspace = true }
 futures-channel = { workspace = true }
 
+# Concurrent collections
+dashmap = { workspace = true }
+
 rand = { workspace = true }
 config = { workspace = true }
 dotenvy = { workspace = true }

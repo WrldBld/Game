@@ -49,15 +49,15 @@ pub trait PlayerCharacterService: Send + Sync {
     /// Get a player character by ID
     async fn get_pc(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>>;
 
-    /// Get a player character by user ID and session ID
-    async fn get_pc_by_user_and_session(
+    /// Get a player character by user ID and world ID
+    async fn get_pc_by_user_and_world(
         &self,
         user_id: &str,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> Result<Option<PlayerCharacter>>;
 
-    /// Get all player characters in a session
-    async fn get_pcs_by_session(&self, session_id: SessionId) -> Result<Vec<PlayerCharacter>>;
+    /// Get all player characters in a world
+    async fn get_pcs_by_world(&self, world_id: &WorldId) -> Result<Vec<PlayerCharacter>>;
 
     /// Update a player character
     async fn update_pc(
@@ -213,24 +213,26 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             .context("Failed to get player character from repository")
     }
 
-    #[instrument(skip(self), fields(user_id = %user_id, session_id = %session_id))]
-    async fn get_pc_by_user_and_session(
+    #[instrument(skip(self), fields(user_id = %user_id, world_id = %world_id))]
+    async fn get_pc_by_user_and_world(
         &self,
         user_id: &str,
-        session_id: SessionId,
+        world_id: &WorldId,
     ) -> Result<Option<PlayerCharacter>> {
-        debug!(user_id = %user_id, session_id = %session_id, "Fetching player character by user and session");
-        self.pc_repository
-            .get_by_user_and_session(user_id, session_id)
+        debug!(user_id = %user_id, world_id = %world_id, "Fetching player character by user and world");
+        // Get all PCs for user in this world and return the first one (active PC)
+        let pcs = self.pc_repository
+            .get_by_user_and_world(user_id, *world_id)
             .await
-            .context("Failed to get player character from repository")
+            .context("Failed to get player character from repository")?;
+        Ok(pcs.into_iter().next())
     }
 
-    #[instrument(skip(self), fields(session_id = %session_id))]
-    async fn get_pcs_by_session(&self, session_id: SessionId) -> Result<Vec<PlayerCharacter>> {
-        debug!(session_id = %session_id, "Fetching player characters for session");
+    #[instrument(skip(self), fields(world_id = %world_id))]
+    async fn get_pcs_by_world(&self, world_id: &WorldId) -> Result<Vec<PlayerCharacter>> {
+        debug!(world_id = %world_id, "Fetching player characters for world");
         self.pc_repository
-            .get_by_session(session_id)
+            .get_all_by_world(*world_id)
             .await
             .context("Failed to get player characters from repository")
     }

@@ -200,8 +200,8 @@ pub enum DecisionUrgency {
 pub struct ChallengeOutcomeApprovalItem {
     /// Unique ID for this resolution
     pub resolution_id: String,
-    /// Session where the challenge occurred
-    pub session_id: Uuid,
+    /// World where the challenge occurred
+    pub world_id: Uuid,
     /// ID of the challenge
     pub challenge_id: String,
     /// Name of the challenge

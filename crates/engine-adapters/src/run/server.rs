@@ -151,10 +151,10 @@ pub async fn run() -> Result<()> {
     // Approval notification worker (sends ApprovalRequired messages to DM)
     let approval_notification_worker_task = {
         let service = state.queues.dm_approval_queue_service.clone();
-        let async_session_port = state.async_session_port.clone();
+        let world_connection_manager = state.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         tokio::spawn(async move {
-            approval_notification_worker(service, async_session_port, recovery_interval_clone).await;
+            approval_notification_worker(service, world_connection_manager, recovery_interval_clone).await;
         })
     };
 
@@ -165,7 +165,7 @@ pub async fn run() -> Result<()> {
         let narrative_event_service = state.game.narrative_event_service.clone();
         let scene_service = state.core.scene_service.clone();
         let interaction_service = state.core.interaction_service.clone();
-        let async_session_port = state.async_session_port.clone();
+        let world_connection_manager = state.world_connection_manager.clone();
         let sessions = state.sessions.clone();
         let recovery_interval_clone = recovery_interval;
         tokio::spawn(async move {
@@ -175,7 +175,7 @@ pub async fn run() -> Result<()> {
                 narrative_event_service,
                 scene_service,
                 interaction_service,
-                async_session_port,
+                world_connection_manager,
                 sessions,
                 recovery_interval_clone,
             )

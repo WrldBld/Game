@@ -373,6 +373,22 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         Ok(pcs)
     }
 
+    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter)-[:IN_WORLD]->(w:World {id: $world_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut pcs = Vec::new();
+        while let Some(row) = result.next().await? {
+            pcs.push(parse_player_character_row(row)?);
+        }
+        Ok(pcs)
+    }
+
     async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
         let q = query(
             "MATCH (pc:PlayerCharacter {user_id: $user_id})
