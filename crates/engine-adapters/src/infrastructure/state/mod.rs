@@ -586,6 +586,9 @@ impl AppState {
 
         // Create request handler for WebSocket-first architecture
         // Services are already Arc<dyn Trait>, so just clone them
+        // Clone character_repo for the handler
+        let character_repo_for_handler = character_repo.clone();
+
         let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
             core.world_service.clone(),
             core.character_service.clone(),
@@ -603,6 +606,7 @@ impl AppState {
             game.story_event_service.clone(),
             core.item_service.clone(),
             region_service,
+            character_repo_for_handler,
             observation_repo_for_handler,
             region_repo_for_handler,
         ).with_suggestion_enqueue(suggestion_enqueue_adapter));

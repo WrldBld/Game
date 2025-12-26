@@ -155,6 +155,11 @@ pub enum RequestPayload {
     CreateRegionExit {
         region_id: String,
         location_id: String,
+        arrival_region_id: String,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        bidirectional: Option<bool>,
     },
 
     /// Delete an exit from a region

@@ -19,7 +19,8 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::value_objects::{
-    ActantialTarget, MoodLevel, NpcMoodState, RegionRelationshipType, Relationship, WantTarget,
+    ActantialTarget, MoodLevel, NpcMoodState, RegionRelationship, RegionRelationshipType,
+    RegionShift, Relationship, WantTarget,
 };
 use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
@@ -343,6 +344,41 @@ pub trait CharacterRepositoryPort: Send + Sync {
 
     /// Set the NPC's default/global mood (on Character node)
     async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Character-Region Relationships (HOME_REGION, WORKS_AT_REGION, etc.)
+    // -------------------------------------------------------------------------
+
+    /// Get all region relationships for a character
+    async fn get_region_relationships(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<RegionRelationship>>;
+
+    /// Set character's home region (creates/replaces HOME_REGION edge)
+    async fn set_home_region(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+    ) -> Result<()>;
+
+    /// Set character's work region with shift (creates/replaces WORKS_AT_REGION edge)
+    async fn set_work_region(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        shift: RegionShift,
+    ) -> Result<()>;
+
+    /// Remove a specific region relationship by type
+    ///
+    /// relationship_type should be one of: "home", "work", "frequents", "avoids"
+    async fn remove_region_relationship(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        relationship_type: &str,
+    ) -> Result<()>;
 }
 
 // =============================================================================

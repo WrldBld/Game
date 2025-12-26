@@ -17,13 +17,14 @@ use uuid::Uuid;
 
 use wrldbldr_engine_ports::inbound::{BroadcastSink, RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
-    ObservationRepositoryPort, RegionRepositoryPort, SuggestionEnqueueContext,
-    SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    CharacterRepositoryPort, ObservationRepositoryPort, RegionRepositoryPort,
+    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
     EntityChangedData, EntityType, ErrorCode, RequestPayload, ResponseResult,
 };
 use wrldbldr_domain::entities::{RegionConnection, RegionExit};
+use wrldbldr_domain::value_objects::RegionShift;
 
 use crate::application::dto::{
     ActResponseDto, ChallengeResponseDto, CharacterResponseDto, ChainStatusResponseDto,
@@ -67,6 +68,7 @@ pub struct AppRequestHandler {
     region_service: Arc<dyn RegionService>,
 
     // Repository ports (for simple CRUD that doesn't need a full service)
+    character_repo: Arc<dyn CharacterRepositoryPort>,
     observation_repo: Arc<dyn ObservationRepositoryPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
 
@@ -97,6 +99,7 @@ impl AppRequestHandler {
         story_event_service: Arc<dyn StoryEventService>,
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
+        character_repo: Arc<dyn CharacterRepositoryPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
     ) -> Self {
@@ -117,6 +120,7 @@ impl AppRequestHandler {
             story_event_service,
             item_service,
             region_service,
+            character_repo,
             observation_repo,
             region_repo,
             suggestion_enqueue: None,
@@ -995,23 +999,33 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::CreateRegionExit { region_id, location_id } => {
+            RequestPayload::CreateRegionExit { region_id, location_id, arrival_region_id, description, bidirectional } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                // CreateRegionExit needs arrival_region_id which isn't in the protocol.
-                // For now, we'll return an error explaining the missing field.
-                // This would need a protocol update to support properly.
-                let _from = match Self::parse_region_id(&region_id) {
+                let from_region = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _to = match Self::parse_location_id(&location_id) {
+                let to_location = match Self::parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::BadRequest,
-                    "CreateRegionExit requires arrival_region_id - protocol update needed",
-                )
+                let arrival = match Self::parse_region_id(&arrival_region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+
+                let mut exit = RegionExit::new(from_region, to_location, arrival);
+                if let Some(desc) = description {
+                    exit = exit.with_description(desc);
+                }
+                if let Some(false) = bidirectional {
+                    exit = exit.one_way();
+                }
+
+                match self.region_service.create_exit(exit).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::DeleteRegionExit { region_id, location_id } => {
@@ -2424,62 +2438,75 @@ impl RequestHandler for AppRequestHandler {
             // Note: These require RegionRepositoryPort or a dedicated service.
 
             RequestPayload::ListCharacterRegionRelationships { character_id } => {
-                let _id = match Self::parse_character_id(&character_id) {
+                let id = match Self::parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "ListCharacterRegionRelationships requires RegionService - pending implementation",
-                )
+                match self.character_repo.get_region_relationships(id).await {
+                    Ok(relationships) => {
+                        let dtos: Vec<serde_json::Value> = relationships
+                            .iter()
+                            .map(|rel| {
+                                serde_json::json!({
+                                    "region_id": rel.region_id.to_string(),
+                                    "region_name": rel.region_name,
+                                    "relationship_type": serde_json::to_value(&rel.relationship_type).unwrap_or(serde_json::Value::Null),
+                                })
+                            })
+                            .collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::SetCharacterHomeRegion { character_id, region_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _cid = match Self::parse_character_id(&character_id) {
+                let cid = match Self::parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _rid = match Self::parse_region_id(&region_id) {
+                let rid = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "SetCharacterHomeRegion requires RegionService - pending implementation",
-                )
+                match self.character_repo.set_home_region(cid, rid).await {
+                    Ok(_) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::SetCharacterWorkRegion { character_id, region_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _cid = match Self::parse_character_id(&character_id) {
+                let cid = match Self::parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _rid = match Self::parse_region_id(&region_id) {
+                let rid = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "SetCharacterWorkRegion requires RegionService - pending implementation",
-                )
+                // Default to "always" shift since the protocol doesn't include shift data
+                match self.character_repo.set_work_region(cid, rid, RegionShift::Always).await {
+                    Ok(_) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
-            RequestPayload::RemoveCharacterRegionRelationship { character_id, region_id, relationship_type: _ } => {
+            RequestPayload::RemoveCharacterRegionRelationship { character_id, region_id, relationship_type } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _cid = match Self::parse_character_id(&character_id) {
+                let cid = match Self::parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _rid = match Self::parse_region_id(&region_id) {
+                let rid = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "RemoveCharacterRegionRelationship requires RegionService - pending implementation",
-                )
+                match self.character_repo.remove_region_relationship(cid, rid, &relationship_type).await {
+                    Ok(_) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::ListRegionNpcs { region_id } => {

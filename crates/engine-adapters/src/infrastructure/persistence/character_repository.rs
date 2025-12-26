@@ -2004,4 +2004,52 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()> {
         Neo4jCharacterRepository::set_default_mood(self, npc_id, mood).await
     }
+
+    // Character-Region Relationships
+    async fn get_region_relationships(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<RegionRelationship>> {
+        Neo4jCharacterRepository::list_region_relationships(self, character_id).await
+    }
+
+    async fn set_home_region(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+    ) -> Result<()> {
+        Neo4jCharacterRepository::set_home_region(self, character_id, region_id).await
+    }
+
+    async fn set_work_region(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        shift: RegionShift,
+    ) -> Result<()> {
+        Neo4jCharacterRepository::set_work_region(self, character_id, region_id, shift).await
+    }
+
+    async fn remove_region_relationship(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        relationship_type: &str,
+    ) -> Result<()> {
+        match relationship_type.to_lowercase().as_str() {
+            "home" => Neo4jCharacterRepository::remove_home_region(self, character_id).await,
+            "work" => Neo4jCharacterRepository::remove_work_region(self, character_id).await,
+            "frequents" => {
+                Neo4jCharacterRepository::remove_frequented_region(self, character_id, region_id)
+                    .await
+            }
+            "avoids" => {
+                Neo4jCharacterRepository::remove_avoided_region(self, character_id, region_id).await
+            }
+            _ => Err(anyhow::anyhow!(
+                "Unknown relationship type: {}. Must be one of: home, work, frequents, avoids",
+                relationship_type
+            )),
+        }
+    }
 }

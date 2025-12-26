@@ -1559,10 +1559,70 @@ All stub handlers have been converted to real implementations. Here's the final 
    - Missing `arrival_region_id` in protocol
    - Blocked by: Protocol change required
 
-3. **Legacy ClientMessage Removal**:
-   - 16 variants can be removed (have RequestPayload equivalents)
-   - Deferred: Breaking change, needs player-ui migration first
+3. **Legacy ClientMessage Removal** - ✅ COMPLETED:
+   - 20 variants removed from messages.rs
+   - 1063 lines of handlers removed from websocket.rs
+   - Helper functions cleaned up
 
 ### Build Verification
 - `cargo check --workspace` - **PASSED**
 - `cargo xtask arch-check` - **PASSED** (12 crates)
+
+---
+
+## Phase 2 Completion Summary (2025-12-26)
+
+### Final Handler Count: 127/127 Fully Implemented
+
+All RequestPayload handlers are now functional:
+
+| Category | Count | Status |
+|----------|-------|--------|
+| World, Character, Location | 21 | ✅ |
+| Region (with connections/exits) | 13 | ✅ |
+| Scene, Act, Skill | 12 | ✅ |
+| Interaction, Challenge | 13 | ✅ |
+| NarrativeEvent, EventChain | 21 | ✅ |
+| StoryEvent, Observation | 8 | ✅ |
+| PlayerCharacter, Relationship | 9 | ✅ |
+| Goal, Want, ActantialView | 15 | ✅ |
+| GameTime, NPC Mood | 5 | ✅ |
+| Character-Region | 5 | ✅ |
+| AI Suggestions | 4 | ✅ |
+
+### Protocol Cleanup Completed
+
+**20 Legacy ClientMessage Variants Removed:**
+1. AdvanceGameTime
+2. SetNpcMood, SetNpcRelationship, GetNpcMoods
+3. CreateNpcWant, UpdateNpcWant, DeleteNpcWant
+4. SetWantTarget, RemoveWantTarget
+5. AddActantialView, RemoveActantialView
+6. GetNpcActantialContext, GetWorldGoals
+7. CreateGoal, UpdateGoal, DeleteGoal
+8. SuggestDeflectionBehavior, SuggestBehavioralTells
+9. SuggestWantDescription, SuggestActantialReason
+
+**Lines Removed:** ~1200 total (20 variants + 1063 handler lines + helpers)
+
+### Deferred Work
+
+**Session Removal (26-38 hours effort):**
+- 71 session_id usages in websocket.rs
+- 22 AsyncSessionPort methods to migrate
+- 6+ services depending on session concept
+- Requires WorldStateManager creation
+- Tracked as separate epic
+
+**REST Endpoint Removal (Blocked):**
+- Player-UI uses REST for all CRUD
+- Requires player-ui migration first
+- 15 route files to delete when ready
+
+### Architecture State
+
+The WebSocket-first architecture is now operational:
+- All 127 CRUD operations available via `Request { payload: RequestPayload::* }`
+- Legacy ClientMessage variants removed for operations with RequestPayload equivalents
+- Session-based operations still use legacy ClientMessage (JoinSession, etc.)
+- Real-time gameplay operations still use legacy ClientMessage (PlayerAction, etc.)
