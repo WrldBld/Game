@@ -9,7 +9,7 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::NarrativeEvent;
 use wrldbldr_domain::value_objects::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
-    GamePromptRequest, PlayerActionContext, SceneContext,
+    GamePromptRequest, MotivationsContext, PlayerActionContext, SceneContext, SocialStanceContext,
 };
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
@@ -111,11 +111,15 @@ pub async fn build_prompt_from_action(
         dialogue: action.dialogue.clone(),
     };
 
-    // 7. Find responding character (NPC being addressed)
+    // 7. Find responding character (NPC being addressed) with mood and actantial context
     let responding_character = find_responding_character(
         &action.target,
         &snapshot.characters,
-    );
+        action.pc_id,
+        _mood_service,
+        _actantial_service,
+    )
+    .await;
 
     // 8. Get active challenges for the current scene
     let active_challenges = get_active_challenges(
@@ -170,9 +174,12 @@ fn conversation_entry_to_turn(entry: ConversationEntry) -> ConversationTurn {
     }
 }
 
-fn find_responding_character(
+async fn find_responding_character(
     target: &Option<String>,
     characters: &[wrldbldr_engine_ports::outbound::CharacterData],
+    pc_id: Option<Uuid>,
+    mood_service: &Arc<dyn MoodService>,
+    actantial_service: &Arc<dyn ActantialContextService>,
 ) -> CharacterContext {
     // Try to find character by name in target
     let target_name = target.as_ref().map(|s| s.to_lowercase());
@@ -189,16 +196,26 @@ fn find_responding_character(
         .or_else(|| characters.first()); // Fallback to first character
 
     if let Some(char_data) = character_data {
-        // Return character context with data from snapshot
-        // Note: Mood and actantial context would require additional service calls
-        // which we skip for now to simplify the initial implementation
+        // Try to get mood if we have both NPC ID and PC ID
+        let current_mood = get_npc_mood_toward_pc(
+            &char_data.id,
+            pc_id,
+            mood_service,
+        ).await;
+
+        // Try to get actantial context (motivations and social stance)
+        let (motivations, social_stance) = get_actantial_context(
+            &char_data.id,
+            actantial_service,
+        ).await;
+
         CharacterContext {
             character_id: Some(char_data.id.clone()),
             name: char_data.name.clone(),
             archetype: char_data.archetype.clone(),
-            current_mood: None, // TODO: integrate mood service (requires PC context)
-            motivations: None,  // TODO: integrate actantial context
-            social_stance: None,
+            current_mood,
+            motivations,
+            social_stance,
             relationship_to_player: None,
         }
     } else {
@@ -211,6 +228,65 @@ fn find_responding_character(
             motivations: None,
             social_stance: None,
             relationship_to_player: None,
+        }
+    }
+}
+
+/// Get the NPC's mood toward a specific PC
+async fn get_npc_mood_toward_pc(
+    npc_id_str: &str,
+    pc_id: Option<Uuid>,
+    mood_service: &Arc<dyn MoodService>,
+) -> Option<String> {
+    // Need both NPC ID and PC ID to query mood
+    let pc_uuid = pc_id?;
+    
+    let npc_uuid = Uuid::parse_str(npc_id_str).ok()?;
+    let npc_id = wrldbldr_domain::CharacterId::from_uuid(npc_uuid);
+    let pc_id = wrldbldr_domain::PlayerCharacterId::from_uuid(pc_uuid);
+    
+    // Get the mood state
+    match mood_service.get_mood(npc_id, pc_id).await {
+        Ok(mood_state) => {
+            // Convert mood level to a descriptive string
+            Some(format!("{:?}", mood_state.mood))
+        }
+        Err(e) => {
+            tracing::debug!(
+                npc_id = %npc_id_str,
+                pc_id = %pc_uuid,
+                error = %e,
+                "Could not get NPC mood toward PC, using default"
+            );
+            None
+        }
+    }
+}
+
+/// Get actantial context (motivations and social stance) for a character
+async fn get_actantial_context(
+    character_id_str: &str,
+    actantial_service: &Arc<dyn ActantialContextService>,
+) -> (Option<MotivationsContext>, Option<SocialStanceContext>) {
+    let Ok(character_uuid) = Uuid::parse_str(character_id_str) else {
+        return (None, None);
+    };
+    
+    let character_id = wrldbldr_domain::CharacterId::from_uuid(character_uuid);
+    
+    match actantial_service.get_context(character_id).await {
+        Ok(context) => {
+            let motivations = Some(context.to_motivations_context());
+            let social_stance = Some(context.to_social_stance_context());
+            (motivations, social_stance)
+        }
+        Err(e) => {
+            tracing::debug!(
+                character_id = %character_id_str,
+                error = %e,
+                "Could not get actantial context for character"
+            );
+            (None, None)
         }
     }
 }
