@@ -2,8 +2,8 @@
 
 Active implementation tracking for WrldBldr user stories.
 
-**Current Phase**: Sprint 5 - Actantial Completion + Cleanup (COMPLETE)  
-**Last Updated**: 2025-12-25
+**Current Phase**: Sprint 6 - Code Quality Remediation  
+**Last Updated**: 2025-12-26
 
 ---
 
@@ -15,6 +15,54 @@ Active implementation tracking for WrldBldr user stories.
 | B | Player Knowledge & Agency | **COMPLETE** | 4-5 days |
 | P | Feature Parity Gap Removal | **COMPLETE** | 5 days |
 | C | DM Tools & Advanced Features | **IN PROGRESS** | 5-7 days |
+| Q | Code Quality Remediation | **NOT STARTED** | 8-10 days |
+
+---
+
+## Phase Q: Code Quality Remediation
+
+**Full Details:** [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md)
+
+A comprehensive code quality audit identified ~5,300 lines of technical debt across 6 categories. This phase addresses critical issues that affect runtime stability and architectural integrity.
+
+### Summary of Findings
+
+| Category | Issues | Est. Lines | Effort |
+|----------|--------|------------|--------|
+| Dead/Unused Code | 44 items | ~1,106 | 4-6h |
+| Unimplemented/Stubs | 19 TODOs | N/A | 8-12h |
+| Duplicate Code | ~3,875 lines | 80+ files | 16-24h |
+| Hexagonal Violations | 8 violations | N/A | 8-12h |
+| Stale References | 25+ files | ~290 lines | 16-24h |
+| Unused Dependencies | 12 deps | N/A | 1-2h |
+
+### Tier 1: Critical (Runtime Failures)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| T1.1 | Fix player-app REST service calls to deleted endpoints | Not Started |
+| T1.2 | Fix parse_archetype case sensitivity inconsistency | Not Started |
+| T1.3 | Fix parse_relationship_type missing variants | Not Started |
+| T1.4 | Fix hexagonal architecture test violation | Not Started |
+
+### Tier 2: High Priority (Technical Debt)
+
+| Task | Description | Status |
+|------|-------------|--------|
+| T2.1 | Delete dead code modules (~680 lines) | Not Started |
+| T2.2 | Create shared row converters module | Not Started |
+| T2.3 | Wire LLM context TODOs (mood, actantial, region_items) | Not Started |
+| T2.4 | Move DTOs from ports to app/domain layer | Not Started |
+
+### Tier 3-4: Medium/Low Priority
+
+See [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) for full details on:
+- T3.1: Remove unused Cargo dependencies
+- T3.2: Consolidate duplicate type definitions
+- T3.3: Remove legacy protocol messages
+- T3.4: Update stale documentation
+- T3.5: Remove unused struct fields
+- T4.1-T4.4: Polish items
 
 ---
 
@@ -621,3 +669,6 @@ Stories moved here when fully implemented.
 | 2025-12-25 | - | Sprint 4 | **Sprint 4: UX Polish COMPLETE** - Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline |
 | 2025-12-25 | - | Sprint 5 | Dead code removal (LLMContextService, ~850 lines), WebSocket state updates for actantial, CharacterPicker component |
 | 2025-12-25 | - | Sprint 5 | **Sprint 5: Actantial Completion COMPLETE** - Dead code cleanup, CharacterPicker, WebSocket architecture doc |
+| 2025-12-26 | Q | - | Comprehensive code quality audit completed |
+| 2025-12-26 | Q | - | Created CODE_QUALITY_REMEDIATION_PLAN.md with 6 categories, 53-80h estimated effort |
+| 2025-12-26 | Q | - | Identified: 44 dead code items, 8 hex violations, 3,875 lines duplicate code, 12 unused deps |

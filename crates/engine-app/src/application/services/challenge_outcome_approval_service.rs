@@ -709,20 +709,27 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     tracing::debug!("InfoRevealed state change - already handled in conversation history");
                 }
                 StateChange::CharacterStatUpdated { character_id, stat_name, delta } => {
+                    // Resolve "active_pc" to the actual character ID from the approval item
+                    let resolved_character_id = if character_id == "active_pc" {
+                        item.character_id.clone()
+                    } else {
+                        character_id.clone()
+                    };
+
                     // Handle stat updates for player characters
                     tracing::info!(
-                        character_id = %character_id,
+                        character_id = %resolved_character_id,
                         stat_name = %stat_name,
                         delta = %delta,
                         "Processing CharacterStatUpdated state change"
                     );
 
                     // Parse the character ID
-                    let pc_id: wrldbldr_domain::PlayerCharacterId = match uuid::Uuid::parse_str(character_id) {
+                    let pc_id: wrldbldr_domain::PlayerCharacterId = match uuid::Uuid::parse_str(&resolved_character_id) {
                         Ok(uuid) => uuid.into(),
                         Err(e) => {
                             tracing::error!(
-                                character_id = %character_id,
+                                character_id = %resolved_character_id,
                                 error = %e,
                                 "Invalid character ID for stat update"
                             );
@@ -735,14 +742,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         Ok(Some(pc)) => pc,
                         Ok(None) => {
                             tracing::warn!(
-                                character_id = %character_id,
+                                character_id = %resolved_character_id,
                                 "Player character not found for stat update"
                             );
                             continue;
                         }
                         Err(e) => {
                             tracing::error!(
-                                character_id = %character_id,
+                                character_id = %resolved_character_id,
                                 error = %e,
                                 "Failed to get player character for stat update"
                             );
@@ -765,7 +772,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     // Save the updated PC
                     if let Err(e) = self.pc_repository.update(&pc).await {
                         tracing::error!(
-                            character_id = %character_id,
+                            character_id = %resolved_character_id,
                             stat_name = %stat_name,
                             error = %e,
                             "Failed to save character stat update"
@@ -774,7 +781,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     }
 
                     tracing::info!(
-                        character_id = %character_id,
+                        character_id = %resolved_character_id,
                         stat_name = %stat_name,
                         old_value = %current_value,
                         delta = %delta,
