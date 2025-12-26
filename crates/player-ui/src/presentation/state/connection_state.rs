@@ -1,11 +1,13 @@
 //! Connection state management using Dioxus signals
 //!
-//! Tracks connection status, server URL, and user session information.
+//! Tracks connection status, server URL, and user/world information.
 
 use dioxus::prelude::*;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use wrldbldr_protocol::types::ParticipantRole;
+use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server
@@ -57,12 +59,18 @@ impl ConnectionStatus {
 pub struct ConnectionState {
     /// Current connection status
     pub connection_status: Signal<ConnectionStatus>,
-    /// Session ID after joining
+    /// Session ID after joining (legacy - kept for backward compatibility)
     pub session_id: Signal<Option<String>>,
+    /// World ID after joining (WebSocket-first protocol)
+    pub world_id: Signal<Option<Uuid>>,
     /// User ID (local identifier)
     pub user_id: Signal<Option<String>>,
-    /// User role (DungeonMaster, Player, Spectator)
+    /// User role (DungeonMaster, Player, Spectator) - legacy
     pub user_role: Signal<Option<ParticipantRole>>,
+    /// World role (DM, Player, Spectator) - WebSocket-first protocol
+    pub world_role: Signal<Option<WorldRole>>,
+    /// Connected users in the current world
+    pub connected_users: Signal<Vec<ConnectedUser>>,
     /// Server URL we're connected to
     pub server_url: Signal<Option<String>>,
     /// Game connection handle (if connected)
@@ -81,8 +89,11 @@ impl ConnectionState {
         Self {
             connection_status: Signal::new(ConnectionStatus::Disconnected),
             session_id: Signal::new(None),
+            world_id: Signal::new(None),
             user_id: Signal::new(None),
             user_role: Signal::new(None),
+            world_role: Signal::new(None),
+            connected_users: Signal::new(Vec::new()),
             server_url: Signal::new(None),
             engine_client: Signal::new(None),
             error_message: Signal::new(None),
@@ -114,12 +125,40 @@ impl ConnectionState {
         self.engine_client.set(Some(client));
     }
 
-    /// Set the session as joined
+    /// Set the session as joined (legacy)
     pub fn set_session_joined(&mut self, session_id: String) {
         self.session_id.set(Some(session_id));
     }
 
-    /// Set user information
+    /// Set the world as joined (WebSocket-first protocol)
+    pub fn set_world_joined(&mut self, world_id: Uuid, role: WorldRole, connected_users: Vec<ConnectedUser>) {
+        self.world_id.set(Some(world_id));
+        self.world_role.set(Some(role));
+        self.connected_users.set(connected_users);
+        self.connection_status.set(ConnectionStatus::Connected);
+    }
+
+    /// Add a user to the connected users list
+    pub fn add_connected_user(&mut self, user: ConnectedUser) {
+        let mut users = self.connected_users.read().clone();
+        // Don't add duplicates
+        if !users.iter().any(|u| u.user_id == user.user_id) {
+            users.push(user);
+            self.connected_users.set(users);
+        }
+    }
+
+    /// Remove a user from the connected users list
+    pub fn remove_connected_user(&mut self, user_id: &str) {
+        let users: Vec<_> = self.connected_users.read()
+            .iter()
+            .filter(|u| u.user_id != user_id)
+            .cloned()
+            .collect();
+        self.connected_users.set(users);
+    }
+
+    /// Set user information (legacy)
     pub fn set_user(&mut self, user_id: String, role: ParticipantRole) {
         self.user_id.set(Some(user_id));
         self.user_role.set(Some(role));
@@ -153,8 +192,11 @@ impl ConnectionState {
     pub fn clear(&mut self) {
         self.connection_status.set(ConnectionStatus::Disconnected);
         self.session_id.set(None);
+        self.world_id.set(None);
         self.user_id.set(None);
         self.user_role.set(None);
+        self.world_role.set(None);
+        self.connected_users.set(Vec::new());
         self.server_url.set(None);
         self.engine_client.set(None);
         self.error_message.set(None);

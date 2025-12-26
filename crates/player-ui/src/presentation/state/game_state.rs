@@ -17,6 +17,7 @@ use wrldbldr_protocol::{
     SceneData as SceneSnapshot,
     SplitPartyLocation,
 };
+use wrldbldr_protocol::responses::EntityChangedData;
 
 
 /// Approach event data (NPC approaching player)
@@ -309,6 +310,32 @@ impl GameState {
     pub fn trigger_actantial_refresh(&mut self) {
         let current = *self.actantial_refresh_counter.read();
         self.actantial_refresh_counter.set(current.wrapping_add(1));
+    }
+
+    /// Trigger appropriate refresh based on entity change notification
+    pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
+        use wrldbldr_protocol::responses::EntityType;
+        
+        match entity_changed.entity_type {
+            EntityType::Character | EntityType::PlayerCharacter => {
+                // Characters might affect scenes, observations, etc.
+                self.trigger_observations_refresh();
+            }
+            EntityType::Goal | EntityType::Want | EntityType::ActantialView => {
+                self.trigger_actantial_refresh();
+            }
+            EntityType::Observation => {
+                self.trigger_observations_refresh();
+            }
+            // For other entity types, we might need to trigger world reload
+            // but for now just log them
+            _ => {
+                tracing::debug!(
+                    "Entity change for {:?} - no specific refresh handler",
+                    entity_changed.entity_type
+                );
+            }
+        }
     }
 
     /// Update split party locations (from SplitPartyNotification)

@@ -7,6 +7,7 @@
 use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
 use wrldbldr_protocol::{NpcPresenceData, ProposedToolInfo, ServerMessage};
+use wrldbldr_protocol::responses::ConnectedUser;
 use dioxus::prelude::{ReadableExt, WritableExt};
 use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
@@ -1164,7 +1165,82 @@ pub fn handle_server_message(
                 role = ?your_role,
                 "Joined world via WebSocket-first protocol"
             );
-            // TODO: Implement world join handling when migrating to WebSocket-first
+
+            // Update connection state with world info
+            session_state.set_world_joined(world_id, your_role.clone(), connected_users);
+
+            // Parse and load the world snapshot
+            match serde_json::from_value::<SessionWorldSnapshot>(snapshot) {
+                Ok(world_snapshot) => {
+                    // Try to build an initial scene from the world snapshot
+                    if let Some(first_scene) = world_snapshot.scenes.first() {
+                        let location_name = world_snapshot.locations.iter()
+                            .find(|l| l.id == first_scene.location_id)
+                            .map(|l| l.name.clone())
+                            .unwrap_or_else(|| "Unknown".to_string());
+                        
+                        let backdrop_asset = first_scene.backdrop_override.clone()
+                            .or_else(|| world_snapshot.locations.iter()
+                                .find(|l| l.id == first_scene.location_id)
+                                .and_then(|l| l.backdrop_asset.clone()));
+
+                        let initial_scene = wrldbldr_protocol::SceneData {
+                            id: first_scene.id.clone(),
+                            name: first_scene.name.clone(),
+                            location_id: first_scene.location_id.clone(),
+                            location_name,
+                            backdrop_asset,
+                            time_context: first_scene.time_context.clone(),
+                            directorial_notes: first_scene.directorial_notes.clone(),
+                        };
+
+                        let scene_characters: Vec<wrldbldr_protocol::CharacterData> = first_scene
+                            .featured_characters
+                            .iter()
+                            .filter_map(|char_id| {
+                                world_snapshot.characters.iter().find(|c| &c.id == char_id).map(|c| {
+                                    wrldbldr_protocol::CharacterData {
+                                        id: c.id.clone(),
+                                        name: c.name.clone(),
+                                        sprite_asset: c.sprite_asset.clone(),
+                                        portrait_asset: c.portrait_asset.clone(),
+                                        position: wrldbldr_protocol::CharacterPosition::Center,
+                                        is_speaking: false,
+                                        emotion: None,
+                                    }
+                                })
+                            })
+                            .collect();
+
+                        game_state.apply_scene_update(initial_scene, scene_characters, Vec::new());
+                        tracing::info!("Applied initial scene from world snapshot: {}", first_scene.name);
+                    }
+
+                    game_state.load_world(world_snapshot);
+                    session_state.add_log_entry(
+                        "System".to_string(),
+                        format!("Joined world: {}", world_id),
+                        true,
+                        platform,
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Failed to parse world snapshot: {}", e);
+                    session_state.add_log_entry(
+                        "System".to_string(),
+                        format!("Warning: Could not load world data: {}", e),
+                        true,
+                        platform,
+                    );
+                }
+            }
+
+            // Handle PC data if present (for Player role)
+            if let Some(pc_data) = your_pc {
+                tracing::info!("Received PC data with WorldJoined");
+                // PC data handling can be expanded here
+                let _ = pc_data; // Acknowledge we received it
+            }
         }
 
         ServerMessage::WorldJoinFailed { world_id, error } => {
@@ -1173,7 +1249,14 @@ pub fn handle_server_message(
                 error = ?error,
                 "Failed to join world"
             );
-            // TODO: Implement error handling when migrating to WebSocket-first
+            let error_msg = format!("Failed to join world: {:?}", error);
+            session_state.set_failed(error_msg.clone());
+            session_state.add_log_entry(
+                "System".to_string(),
+                error_msg,
+                true,
+                platform,
+            );
         }
 
         ServerMessage::UserJoined { user_id, username, role, pc } => {
@@ -1183,12 +1266,40 @@ pub fn handle_server_message(
                 role = ?role,
                 "User joined world"
             );
-            // TODO: Update connected users list when migrating to WebSocket-first
+            
+            // Add to connected users list
+            let new_user = ConnectedUser {
+                user_id: user_id.clone(),
+                username: username.clone(),
+                role: role.clone(),
+                pc_id: pc.as_ref().and_then(|p| {
+                    p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())
+                }),
+                connection_count: 1,
+            };
+            session_state.add_connected_user(new_user);
+
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!(
+                    "{} joined as {:?}",
+                    username.unwrap_or_else(|| user_id.clone()),
+                    role
+                ),
+                true,
+                platform,
+            );
         }
 
         ServerMessage::UserLeft { user_id } => {
             tracing::info!(user_id = %user_id, "User left world");
-            // TODO: Update connected users list when migrating to WebSocket-first
+            session_state.remove_connected_user(&user_id);
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("User {} left", user_id),
+                true,
+                platform,
+            );
         }
 
         ServerMessage::Response { request_id, result } => {
@@ -1197,7 +1308,8 @@ pub fn handle_server_message(
                 success = result.is_success(),
                 "Received response to request"
             );
-            // TODO: Implement request/response correlation when migrating to WebSocket-first
+            // Request/response correlation is handled by the player-app RequestManager
+            // The response will be routed to the appropriate pending request handler
         }
 
         ServerMessage::EntityChanged(entity_changed) => {
@@ -1207,7 +1319,9 @@ pub fn handle_server_message(
                 change_type = ?entity_changed.change_type,
                 "Entity changed broadcast received"
             );
-            // TODO: Implement cache invalidation when migrating to WebSocket-first
+            // Trigger a refresh of relevant UI state based on entity type
+            // This enables cache invalidation and reactive updates
+            game_state.trigger_entity_refresh(&entity_changed);
         }
 
         ServerMessage::SpectateTargetChanged { pc_id, pc_name } => {
@@ -1216,7 +1330,13 @@ pub fn handle_server_message(
                 pc_name = %pc_name,
                 "Spectate target changed"
             );
-            // TODO: Implement spectator mode when migrating to WebSocket-first
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Now spectating: {}", pc_name),
+                true,
+                platform,
+            );
+            // The spectate target change should trigger scene updates via SceneChanged messages
         }
     }
 }

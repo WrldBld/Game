@@ -6,8 +6,10 @@
 
 use dioxus::prelude::*;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use wrldbldr_protocol::types::{ApprovalDecision, ParticipantRole};
+use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 use crate::presentation::components::tactical::PlayerSkillData;
 
@@ -54,9 +56,14 @@ impl SessionState {
         self.connection.connection_status.clone()
     }
 
-    /// Session ID after joining
+    /// Session ID after joining (legacy)
     pub fn session_id(&self) -> Signal<Option<String>> {
         self.connection.session_id.clone()
+    }
+
+    /// World ID after joining (WebSocket-first protocol)
+    pub fn world_id(&self) -> Signal<Option<Uuid>> {
+        self.connection.world_id.clone()
     }
 
     /// User ID (local identifier)
@@ -64,9 +71,19 @@ impl SessionState {
         self.connection.user_id.clone()
     }
 
-    /// User role (DungeonMaster, Player, Spectator)
+    /// User role (DungeonMaster, Player, Spectator) - legacy
     pub fn user_role(&self) -> Signal<Option<ParticipantRole>> {
         self.connection.user_role.clone()
+    }
+
+    /// World role (DM, Player, Spectator) - WebSocket-first protocol
+    pub fn world_role(&self) -> Signal<Option<WorldRole>> {
+        self.connection.world_role.clone()
+    }
+
+    /// Connected users in the current world
+    pub fn connected_users(&self) -> Signal<Vec<ConnectedUser>> {
+        self.connection.connected_users.clone()
     }
 
     /// Server URL we're connected to
@@ -146,12 +163,27 @@ impl SessionState {
         self.connection.set_connection_handle(client);
     }
 
-    /// Set the session as joined
+    /// Set the session as joined (legacy)
     pub fn set_session_joined(&mut self, session_id: String) {
         self.connection.set_session_joined(session_id);
     }
 
-    /// Set user information
+    /// Set the world as joined (WebSocket-first protocol)
+    pub fn set_world_joined(&mut self, world_id: Uuid, role: WorldRole, connected_users: Vec<ConnectedUser>) {
+        self.connection.set_world_joined(world_id, role, connected_users);
+    }
+
+    /// Add a user to the connected users list
+    pub fn add_connected_user(&mut self, user: ConnectedUser) {
+        self.connection.add_connected_user(user);
+    }
+
+    /// Remove a user from the connected users list
+    pub fn remove_connected_user(&mut self, user_id: &str) {
+        self.connection.remove_connected_user(user_id);
+    }
+
+    /// Set user information (legacy)
     pub fn set_user(&mut self, user_id: String, role: ParticipantRole) {
         self.connection.set_user(user_id, role);
     }
