@@ -74,9 +74,9 @@ pub async fn run() -> Result<()> {
     let player_action_worker = {
         let service = state.queues.player_action_queue_service.clone();
         let sessions = state.sessions.clone();
-        let challenge_service = Arc::new(state.game.challenge_service.clone());
-        let skill_service = Arc::new(state.core.skill_service.clone());
-        let narrative_event_service = Arc::new(state.game.narrative_event_service.clone());
+        let challenge_service = state.game.challenge_service.clone();
+        let skill_service = state.core.skill_service.clone();
+        let narrative_event_service = state.game.narrative_event_service.clone();
         let character_repo: Arc<dyn CharacterRepositoryPort> =
             Arc::new(state.repository.characters());
         let pc_repo: Arc<dyn PlayerCharacterRepositoryPort> =
@@ -162,9 +162,9 @@ pub async fn run() -> Result<()> {
     let dm_action_worker_task = {
         let service = state.queues.dm_action_queue_service.clone();
         let approval_service = state.queues.dm_approval_queue_service.clone();
-        let narrative_event_service = Arc::new(state.game.narrative_event_service.clone());
-        let scene_service = Arc::new(state.core.scene_service.clone());
-        let interaction_service = Arc::new(state.core.interaction_service.clone());
+        let narrative_event_service = state.game.narrative_event_service.clone();
+        let scene_service = state.core.scene_service.clone();
+        let interaction_service = state.core.interaction_service.clone();
         let async_session_port = state.async_session_port.clone();
         let sessions = state.sessions.clone();
         let recovery_interval_clone = recovery_interval;

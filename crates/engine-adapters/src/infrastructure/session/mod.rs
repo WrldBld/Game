@@ -565,6 +565,7 @@ mod tests {
             name: "Test World".to_string(),
             description: "A test world".to_string(),
             rule_system: RuleSystemConfig::default(),
+            game_time: wrldbldr_domain::GameTime::default(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

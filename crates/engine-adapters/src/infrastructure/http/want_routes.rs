@@ -2,6 +2,12 @@
 //!
 //! Endpoints for managing NPC wants (motivations) and actantial views.
 //! Part of P1.5: Actantial Model System.
+//!
+//! # WebSocket Broadcasts (P3.6)
+//!
+//! State-modifying endpoints broadcast changes to connected WebSocket clients
+//! for multiplayer consistency. Broadcasts are fire-and-forget to avoid
+//! slowing down REST responses.
 
 use axum::{
     extract::{Path, State},
@@ -15,10 +21,12 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::{ActantialRole, WantVisibility};
 use wrldbldr_domain::{CharacterId, WantId};
 use wrldbldr_engine_app::application::services::{
-    ActantialContextService, ActorTargetType, CreateWantRequest, UpdateWantRequest,
+    ActantialContextService, ActorTargetType, CharacterService, CreateWantRequest, UpdateWantRequest,
 };
+use wrldbldr_protocol::{ServerMessage, WantData, WantVisibilityData};
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::state_broadcast::broadcast_to_world_sessions;
 
 // =============================================================================
 // DTOs
@@ -282,6 +290,14 @@ pub async fn create_want(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid character ID".to_string()))?;
     let char_id = CharacterId::from_uuid(uuid);
 
+    // Clone description for broadcast before moving into create_req
+    let description_for_broadcast = req.description.clone();
+    let visibility_for_broadcast = match req.visibility {
+        WantVisibilityDto::Known => WantVisibilityData::Known,
+        WantVisibilityDto::Suspected => WantVisibilityData::Suspected,
+        WantVisibilityDto::Hidden => WantVisibilityData::Hidden,
+    };
+
     let create_req = CreateWantRequest {
         description: req.description,
         intensity: req.intensity,
@@ -289,8 +305,8 @@ pub async fn create_want(
         visibility: req.visibility.into(),
         target_id: req.target_id,
         target_type: req.target_type,
-        deflection_behavior: req.deflection_behavior,
-        tells: req.tells,
+        deflection_behavior: req.deflection_behavior.clone(),
+        tells: req.tells.clone(),
     };
 
     let want_id = state
@@ -299,6 +315,30 @@ pub async fn create_want(
         .create_want(char_id, create_req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Broadcast to connected clients (fire-and-forget)
+    // Get character's world_id to find the right session
+    if let Ok(Some(character)) = state.core.character_service.get_character(char_id).await {
+        let want_data = WantData {
+            id: want_id.to_string(),
+            description: description_for_broadcast,
+            intensity: req.intensity,
+            priority: req.priority,
+            visibility: visibility_for_broadcast,
+            target: None, // New wants start without target
+            deflection_behavior: req.deflection_behavior,
+            tells: req.tells,
+            helpers: vec![],
+            opponents: vec![],
+            sender: None,
+            receiver: None,
+        };
+        let message = ServerMessage::NpcWantCreated {
+            npc_id: char_id.to_string(),
+            want: want_data,
+        };
+        broadcast_to_world_sessions(&state.async_session_port, character.world_id, message).await;
+    }
 
     Ok((
         StatusCode::CREATED,

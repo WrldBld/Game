@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use wrldbldr_engine_ports::outbound::{AsyncSessionPort, AsyncSessionError, PlayerWorldSnapshot, SessionParticipantInfo, SessionParticipantRole, SessionWorldData};
-use crate::application::services::world_service::{WorldService, WorldServiceImpl};
+use crate::application::services::world_service::WorldService;
 use wrldbldr_domain::{SessionId, WorldId};
 
 /// Participant information DTO for session join responses
@@ -39,15 +39,15 @@ pub struct SessionJoinedInfo {
 /// Service responsible for handling session join/create flows.
 ///
 /// This is intentionally a small, stateful service that holds references to
-/// `AsyncSessionPort` and `WorldServiceImpl` so that the WebSocket handler and
+/// `AsyncSessionPort` and `WorldService` so that the WebSocket handler and
 /// HTTP layer can depend on a single injected instance from `AppState`.
 pub struct SessionJoinService {
     sessions: Arc<dyn AsyncSessionPort>,
-    world_service: WorldServiceImpl,
+    world_service: Arc<dyn WorldService>,
 }
 
 impl SessionJoinService {
-    pub fn new(sessions: Arc<dyn AsyncSessionPort>, world_service: WorldServiceImpl) -> Self {
+    pub fn new(sessions: Arc<dyn AsyncSessionPort>, world_service: Arc<dyn WorldService>) -> Self {
         Self { sessions, world_service }
     }
 
@@ -224,6 +224,7 @@ fn create_demo_world() -> crate::application::dto::WorldSnapshot {
 
     use wrldbldr_domain::entities::World;
     use wrldbldr_domain::value_objects::RuleSystemConfig;
+    use wrldbldr_domain::GameTime;
     use chrono::Utc;
 
     let world = World {
@@ -231,6 +232,7 @@ fn create_demo_world() -> crate::application::dto::WorldSnapshot {
         name: "Demo World".to_string(),
         description: "A demonstration world for testing".to_string(),
         rule_system: RuleSystemConfig::default(),
+        game_time: GameTime::default(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };

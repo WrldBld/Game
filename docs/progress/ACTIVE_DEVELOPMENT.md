@@ -2,7 +2,7 @@
 
 Active implementation tracking for WrldBldr user stories.
 
-**Current Phase**: Sprint 4 - UX Polish (COMPLETE)  
+**Current Phase**: Sprint 5 - Actantial Completion + Cleanup (COMPLETE)  
 **Last Updated**: 2025-12-25
 
 ---
@@ -619,3 +619,5 @@ Stories moved here when fully implemented.
 | 2025-12-24 | C | US-INV-001 | **COMPLETE** - Full PC inventory system with ItemService, DM approval, containers |
 | 2025-12-25 | C | P1.5 | Actantial Model System - MotivationsTab with wants, goals, actantial views UI |
 | 2025-12-25 | - | Sprint 4 | **Sprint 4: UX Polish COMPLETE** - Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline |
+| 2025-12-25 | - | Sprint 5 | Dead code removal (LLMContextService, ~850 lines), WebSocket state updates for actantial, CharacterPicker component |
+| 2025-12-25 | - | Sprint 5 | **Sprint 5: Actantial Completion COMPLETE** - Dead code cleanup, CharacterPicker, WebSocket architecture doc |

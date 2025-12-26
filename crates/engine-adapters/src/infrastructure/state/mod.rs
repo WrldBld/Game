@@ -22,7 +22,9 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::RwLock;
 
+use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::AsyncSessionPort;
+use wrldbldr_engine_app::application::handlers::AppRequestHandler;
 use wrldbldr_engine_app::application::services::{
     ActantialContextServiceImpl, AssetGenerationQueueService, AssetServiceImpl,
     challenge_resolution_service::ChallengeResolutionService, ChallengeOutcomeApprovalService,
@@ -30,7 +32,7 @@ use wrldbldr_engine_app::application::services::{
     EventChainServiceImpl, InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
     MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
     PlayerCharacterServiceImpl, PromptTemplateService, SceneResolutionServiceImpl, SceneServiceImpl,
-    SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventService, RelationshipServiceImpl,
+    SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, RelationshipServiceImpl,
     WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService, SessionJoinService,
     OutcomeTriggerService, TriggerEvaluationService, EventEffectExecutor,
     staging_service::StagingService,
@@ -55,6 +57,9 @@ use crate::infrastructure::repositories::{
 };
 use crate::infrastructure::session::SessionManager;
 use crate::infrastructure::session_adapter::SessionManagerAdapter;
+use crate::infrastructure::world_connection_manager::{
+    SharedWorldConnectionManager, new_shared_manager,
+};
 
 /// Shared application state
 ///
@@ -91,6 +96,17 @@ pub struct AppState {
         Neo4jNarrativeEventRepository,
         Neo4jStagingRepository,
     >>,
+
+    /// World connection manager for WebSocket-first architecture
+    ///
+    /// Manages world-scoped connections, replacing session-based model.
+    /// Handles JoinWorld/LeaveWorld, role enforcement, and connection tracking.
+    pub world_connection_manager: SharedWorldConnectionManager,
+
+    /// Request handler for WebSocket-first architecture
+    ///
+    /// Handles all Request payloads, routing them to appropriate services.
+    pub request_handler: Arc<dyn RequestHandler>,
 }
 
 impl AppState {
@@ -177,25 +193,47 @@ impl AppState {
         let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
             Arc::new(Neo4jWorldExporter::new(repository.clone()));
 
-        // Initialize application services
-        let world_service = WorldServiceImpl::new(world_repo.clone(), world_exporter, settings_service.clone());
-        let character_service = CharacterServiceImpl::new(
-            world_repo.clone(),
-            character_repo.clone(),
-            relationship_repo.clone(),
-            settings_service.clone(),
-        );
-        let location_service = LocationServiceImpl::new(world_repo.clone(), location_repo.clone());
+        // Initialize application services as Arc<dyn Trait> for shared ownership
+        // This allows services to be shared between grouped service structs and AppRequestHandler
+        
+        let world_service: Arc<dyn wrldbldr_engine_app::application::services::WorldService> = 
+            Arc::new(WorldServiceImpl::new(world_repo.clone(), world_exporter, settings_service.clone()));
+        
+        let character_service: Arc<dyn wrldbldr_engine_app::application::services::CharacterService> = 
+            Arc::new(CharacterServiceImpl::new(
+                world_repo.clone(),
+                character_repo.clone(),
+                relationship_repo.clone(),
+                settings_service.clone(),
+            ));
+        
+        let location_service: Arc<dyn wrldbldr_engine_app::application::services::LocationService> = 
+            Arc::new(LocationServiceImpl::new(world_repo.clone(), location_repo.clone()));
+        
         let relationship_repo_for_effects = relationship_repo.clone();
-        let relationship_service = RelationshipServiceImpl::new(relationship_repo);
+        let relationship_service: Arc<dyn wrldbldr_engine_app::application::services::RelationshipService> = 
+            Arc::new(RelationshipServiceImpl::new(relationship_repo));
+        
         let scene_repo_for_resolution = scene_repo.clone();
         let character_repo_for_triggers = character_repo.clone();
-        let scene_service = SceneServiceImpl::new(scene_repo.clone(), location_repo.clone(), character_repo.clone());
-        let skill_service = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
-        let interaction_service = InteractionServiceImpl::new(interaction_repo);
+        
+        let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> = 
+            Arc::new(SceneServiceImpl::new(scene_repo.clone(), location_repo.clone(), character_repo.clone()));
+        
+        let skill_service: Arc<dyn wrldbldr_engine_app::application::services::SkillService> = 
+            Arc::new(SkillServiceImpl::new(skill_repo.clone(), world_repo.clone()));
+        
+        let interaction_service: Arc<dyn wrldbldr_engine_app::application::services::InteractionService> = 
+            Arc::new(InteractionServiceImpl::new(interaction_repo));
+        
         // Temporarily create a simple story event service without event_bus, will update after event_bus is created
         let story_event_repo_for_service = story_event_repo.clone();
-        let challenge_service = ChallengeServiceImpl::new(challenge_repo.clone());
+        
+        let challenge_service: Arc<dyn wrldbldr_engine_app::application::services::ChallengeService> = 
+            Arc::new(ChallengeServiceImpl::new(challenge_repo.clone()));
+        // Keep concrete version for ChallengeResolutionService generics
+        let challenge_service_impl = ChallengeServiceImpl::new(challenge_repo.clone());
+        
         // Narrative event service will be created after event_bus
         let narrative_event_repo_for_service = narrative_event_repo.clone();
         // Repos needed for trigger evaluation service (Phase 2)
@@ -205,32 +243,56 @@ impl AppState {
         // Repos needed for event effect executor (Phase 2)
         let narrative_event_repo_for_effects = narrative_event_repo.clone();
         let challenge_repo_for_effects = challenge_repo.clone();
-        let event_chain_service = EventChainServiceImpl::new(event_chain_repo);
+        
+        let event_chain_service: Arc<dyn wrldbldr_engine_app::application::services::EventChainService> = 
+            Arc::new(EventChainServiceImpl::new(event_chain_repo));
+        
         let asset_repo_for_service = asset_repo.clone();
         let asset_service = AssetServiceImpl::new(asset_repo_for_service);
         let workflow_config_service = WorkflowConfigService::new(workflow_repo);
         let sheet_template_service = SheetTemplateService::new(sheet_template_repo);
-        let item_service = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone());
+        
+        let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = 
+            Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone()));
+        // Keep concrete version for DMApprovalQueueService
+        let item_service_impl = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone());
+        
         let player_character_repo_for_triggers = player_character_repo.clone();
         let player_character_repo_for_actantial = player_character_repo.clone();
-        let player_character_service = PlayerCharacterServiceImpl::new(
+        
+        let player_character_service: Arc<dyn wrldbldr_engine_app::application::services::PlayerCharacterService> = 
+            Arc::new(PlayerCharacterServiceImpl::new(
+                player_character_repo.clone(),
+                location_repo.clone(),
+                world_repo.clone(),
+            ));
+        // Keep concrete version for ChallengeResolutionService generics
+        let player_character_service_impl = PlayerCharacterServiceImpl::new(
             player_character_repo.clone(),
             location_repo.clone(),
             world_repo.clone(),
         );
+        
+        // Keep concrete skill service for ChallengeResolutionService generics
+        let skill_service_impl = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
+        
         // Create flag repository for scene condition evaluation
         let flag_repo: Arc<dyn wrldbldr_engine_ports::outbound::FlagRepositoryPort> =
             Arc::new(repository.flags());
         // Create observation repository for KnowsCharacter scene condition
         let observation_repo: Arc<dyn wrldbldr_engine_ports::outbound::ObservationRepositoryPort> =
             Arc::new(repository.observations());
-        let scene_resolution_service = SceneResolutionServiceImpl::new(
-            player_character_repo,
-            scene_repo_for_resolution,
-            character_repo.clone(),
-            flag_repo,
-            observation_repo,
-        );
+        // Clone for request handler (scene_resolution_service consumes the original)
+        let observation_repo_for_handler = observation_repo.clone();
+        
+        let scene_resolution_service: Arc<dyn wrldbldr_engine_app::application::services::SceneResolutionService> = 
+            Arc::new(SceneResolutionServiceImpl::new(
+                player_character_repo,
+                scene_repo_for_resolution,
+                character_repo.clone(),
+                flag_repo,
+                observation_repo,
+            ));
 
         // Create outcome trigger service for challenge resolution (Phase 22D)
         let outcome_trigger_service = Arc::new(OutcomeTriggerService::new(
@@ -281,9 +343,14 @@ impl AppState {
         ));
 
         // Create story event service with event bus
-        let story_event_service = StoryEventService::new(story_event_repo_for_service, event_bus.clone());
+        let story_event_service: Arc<dyn wrldbldr_engine_app::application::services::StoryEventService> = 
+            Arc::new(StoryEventServiceImpl::new(story_event_repo_for_service, event_bus.clone()));
+        
         // Create narrative event service with event bus
-        let narrative_event_service = NarrativeEventServiceImpl::new(narrative_event_repo_for_service, event_bus.clone());
+        // Create both trait object and concrete impl (impl needed for NarrativeEventApprovalService generics)
+        let narrative_event_service_impl = NarrativeEventServiceImpl::new(narrative_event_repo_for_service.clone(), event_bus.clone());
+        let narrative_event_service: Arc<dyn wrldbldr_engine_app::application::services::NarrativeEventService> = 
+            Arc::new(NarrativeEventServiceImpl::new(narrative_event_repo_for_service, event_bus.clone()));
 
         // Initialize session manager (must be before async_session_port which uses it)
         let sessions = Arc::new(RwLock::new(SessionManager::new(
@@ -333,7 +400,7 @@ impl AppState {
         let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(
             approval_queue.clone(),
             story_event_service.clone(),
-            Arc::new(item_service.clone()),
+            Arc::new(item_service_impl.clone()),
         ));
 
         // Create generation service (generation_event_tx already created above)
@@ -361,12 +428,13 @@ impl AppState {
         );
 
         // Create challenge resolution service with approval service wired in
+        // Uses concrete service impls for generics compatibility
         let challenge_resolution_service = Arc::new(
             ChallengeResolutionService::new(
                 async_session_port.clone(),
-                Arc::new(challenge_service.clone()),
-                Arc::new(skill_service.clone()),
-                Arc::new(player_character_service.clone()),
+                Arc::new(challenge_service_impl.clone()),
+                Arc::new(skill_service_impl.clone()),
+                Arc::new(player_character_service_impl.clone()),
                 event_bus.clone(),
                 dm_approval_queue_service.clone(),
                 outcome_trigger_service,
@@ -375,10 +443,11 @@ impl AppState {
         );
 
         // Create narrative event approval service
+        // Uses concrete service impls for generics compatibility
         let narrative_event_approval_service = Arc::new(NarrativeEventApprovalService::new(
             async_session_port.clone(),
-            Arc::new(narrative_event_service.clone()),
-            Arc::new(story_event_service.clone()),
+            Arc::new(narrative_event_service_impl.clone()),
+            story_event_service.clone(),
         ));
 
         // Create trigger evaluation service (Phase 2)
@@ -401,6 +470,9 @@ impl AppState {
         // Create staging service (Staging System)
         let staging_repo = Arc::new(repository.stagings());
         let region_repo_for_staging = Arc::new(repository.regions());
+        // Create region repo for request handler
+        let region_repo_for_handler: Arc<dyn wrldbldr_engine_ports::outbound::RegionRepositoryPort> = 
+            Arc::new(repository.regions());
         let narrative_event_repo_for_staging = Arc::new(repository.narrative_events());
         let llm_for_staging = Arc::new(llm_client.clone());
         let staging_service = Arc::new(StagingService::new(
@@ -437,29 +509,30 @@ impl AppState {
         ));
 
         // Build grouped services
+        // Services are already Arc<dyn Trait>, so we clone them for shared ownership
         let core = CoreServices::new(
-            world_service,
-            character_service,
-            location_service,
-            scene_service,
-            skill_service,
-            interaction_service,
-            relationship_service,
-            item_service,
+            world_service.clone(),
+            character_service.clone(),
+            location_service.clone(),
+            scene_service.clone(),
+            skill_service.clone(),
+            interaction_service.clone(),
+            relationship_service.clone(),
+            item_service.clone(),
         );
 
         let game = GameServices::new(
             story_event_service,
-            challenge_service,
+            challenge_service.clone(),
             challenge_resolution_service,
             challenge_outcome_approval_service,
-            narrative_event_service,
+            narrative_event_service.clone(),
             narrative_event_approval_service,
-            event_chain_service,
+            event_chain_service.clone(),
             trigger_evaluation_service,
             event_effect_executor,
-            mood_service,
-            actantial_context_service,
+            mood_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::MoodService>,
+            actantial_context_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
         );
 
         let queues = QueueServices::new(
@@ -479,8 +552,8 @@ impl AppState {
 
         let player = PlayerServices::new(
             sheet_template_service,
-            player_character_service,
-            scene_resolution_service,
+            player_character_service.clone(),
+            scene_resolution_service.clone(),
             session_join_service,
         );
 
@@ -490,6 +563,32 @@ impl AppState {
             app_event_repository,
             generation_read_state_repository,
         );
+
+        // Create world connection manager for WebSocket-first architecture
+        let world_connection_manager = new_shared_manager();
+        tracing::info!("Initialized world connection manager for WebSocket-first architecture");
+
+        // Create request handler for WebSocket-first architecture
+        // Services are already Arc<dyn Trait>, so just clone them
+        let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
+            core.world_service.clone(),
+            core.character_service.clone(),
+            core.location_service.clone(),
+            core.skill_service.clone(),
+            core.scene_service.clone(),
+            core.interaction_service.clone(),
+            game.challenge_service.clone(),
+            game.narrative_event_service.clone(),
+            game.event_chain_service.clone(),
+            player.player_character_service.clone(),
+            core.relationship_service.clone(),
+            game.actantial_context_service.clone(),
+            game.mood_service.clone(),
+            game.story_event_service.clone(),
+            observation_repo_for_handler,
+            region_repo_for_handler,
+        ));
+        tracing::info!("Initialized request handler for WebSocket-first architecture");
 
         Ok((Self {
             config: config.clone(),
@@ -507,6 +606,8 @@ impl AppState {
             settings_service,
             prompt_template_service,
             staging_service,
+            world_connection_manager,
+            request_handler,
         }, generation_event_rx))
     }
 }

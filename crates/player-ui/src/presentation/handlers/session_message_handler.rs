@@ -1018,7 +1018,7 @@ pub fn handle_server_message(
                 want_id = %want.id,
                 "NPC want created"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::NpcWantUpdated { npc_id, want } => {
@@ -1027,7 +1027,7 @@ pub fn handle_server_message(
                 want_id = %want.id,
                 "NPC want updated"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::NpcWantDeleted { npc_id, want_id } => {
@@ -1036,7 +1036,7 @@ pub fn handle_server_message(
                 want_id = %want_id,
                 "NPC want deleted"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::WantTargetSet { want_id, target } => {
@@ -1045,12 +1045,12 @@ pub fn handle_server_message(
                 target_id = %target.id,
                 "Want target set"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::WantTargetRemoved { want_id } => {
             tracing::info!(want_id = %want_id, "Want target removed");
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::ActantialViewAdded { npc_id, view } => {
@@ -1061,7 +1061,7 @@ pub fn handle_server_message(
                 role = ?view.role,
                 "Actantial view added"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::ActantialViewRemoved { npc_id, want_id, target_id, role } => {
@@ -1072,7 +1072,7 @@ pub fn handle_server_message(
                 role = ?role,
                 "Actantial view removed"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::NpcActantialContextResponse { npc_id, context } => {
@@ -1081,7 +1081,7 @@ pub fn handle_server_message(
                 want_count = context.wants.len(),
                 "Received NPC actantial context"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::WorldGoalsResponse { world_id, goals } => {
@@ -1090,7 +1090,7 @@ pub fn handle_server_message(
                 goal_count = goals.len(),
                 "Received world goals"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::GoalCreated { world_id, goal } => {
@@ -1099,17 +1099,17 @@ pub fn handle_server_message(
                 goal_id = %goal.id,
                 "Goal created"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::GoalUpdated { goal } => {
             tracing::info!(goal_id = %goal.id, "Goal updated");
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::GoalDeleted { goal_id } => {
             tracing::info!(goal_id = %goal_id, "Goal deleted");
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::DeflectionSuggestions { npc_id, want_id, suggestions } => {
@@ -1119,7 +1119,7 @@ pub fn handle_server_message(
                 suggestion_count = suggestions.len(),
                 "Received deflection suggestions"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::TellsSuggestions { npc_id, want_id, suggestions } => {
@@ -1129,7 +1129,7 @@ pub fn handle_server_message(
                 suggestion_count = suggestions.len(),
                 "Received tells suggestions"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::WantDescriptionSuggestions { npc_id, suggestions } => {
@@ -1138,7 +1138,7 @@ pub fn handle_server_message(
                 suggestion_count = suggestions.len(),
                 "Received want description suggestions"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
         }
 
         ServerMessage::ActantialReasonSuggestions { npc_id, want_id, target_id, role, suggestions } => {
@@ -1150,7 +1150,73 @@ pub fn handle_server_message(
                 suggestion_count = suggestions.len(),
                 "Received actantial reason suggestions"
             );
-            // TODO: Update motivations tab state
+            game_state.trigger_actantial_refresh();
+        }
+
+        // =========================================================================
+        // WebSocket-First Protocol Messages (World-scoped connections)
+        // =========================================================================
+
+        ServerMessage::WorldJoined { world_id, snapshot, connected_users, your_role, your_pc } => {
+            tracing::info!(
+                world_id = %world_id,
+                user_count = connected_users.len(),
+                role = ?your_role,
+                "Joined world via WebSocket-first protocol"
+            );
+            // TODO: Implement world join handling when migrating to WebSocket-first
+        }
+
+        ServerMessage::WorldJoinFailed { world_id, error } => {
+            tracing::error!(
+                world_id = %world_id,
+                error = ?error,
+                "Failed to join world"
+            );
+            // TODO: Implement error handling when migrating to WebSocket-first
+        }
+
+        ServerMessage::UserJoined { user_id, username, role, pc } => {
+            tracing::info!(
+                user_id = %user_id,
+                username = ?username,
+                role = ?role,
+                "User joined world"
+            );
+            // TODO: Update connected users list when migrating to WebSocket-first
+        }
+
+        ServerMessage::UserLeft { user_id } => {
+            tracing::info!(user_id = %user_id, "User left world");
+            // TODO: Update connected users list when migrating to WebSocket-first
+        }
+
+        ServerMessage::Response { request_id, result } => {
+            tracing::debug!(
+                request_id = %request_id,
+                success = result.is_success(),
+                "Received response to request"
+            );
+            // TODO: Implement request/response correlation when migrating to WebSocket-first
+        }
+
+        ServerMessage::EntityChanged(entity_changed) => {
+            tracing::debug!(
+                entity_type = ?entity_changed.entity_type,
+                entity_id = %entity_changed.entity_id,
+                change_type = ?entity_changed.change_type,
+                "Entity changed broadcast received"
+            );
+            // TODO: Implement cache invalidation when migrating to WebSocket-first
+        }
+
+        ServerMessage::SpectateTargetChanged { pc_id, pc_name } => {
+            tracing::info!(
+                pc_id = %pc_id,
+                pc_name = %pc_name,
+                "Spectate target changed"
+            );
+            // TODO: Implement spectator mode when migrating to WebSocket-first
         }
     }
 }

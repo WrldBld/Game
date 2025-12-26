@@ -27,6 +27,7 @@ use wrldbldr_engine_app::application::services::challenge_resolution_service as 
 use wrldbldr_engine_app::application::services::MoodService;
 use wrldbldr_engine_app::application::services::{
     ActantialContextService, CreateWantRequest, UpdateWantRequest, ActorTargetType,
+    WorldService,
 };
 use wrldbldr_engine_ports::outbound::{PlayerCharacterRepositoryPort, RegionRepositoryPort, SessionParticipantRole};
 use crate::infrastructure::session::ClientId;
@@ -4596,6 +4597,182 @@ async fn handle_message(
                 role,
                 suggestions,
             })
+        }
+
+        // =========================================================================
+        // WebSocket-First Protocol Messages (World-scoped connections)
+        // =========================================================================
+
+        ClientMessage::JoinWorld { world_id, role, pc_id, spectate_pc_id } => {
+            let client_id_str = client_id.to_string();
+            let connection_id = uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+            
+            tracing::info!(
+                world_id = %world_id,
+                role = ?role,
+                pc_id = ?pc_id,
+                spectate_pc_id = ?spectate_pc_id,
+                connection_id = %connection_id,
+                "JoinWorld request received"
+            );
+
+            // Register connection if not already registered
+            // For now, use client_id as user_id (will be properly authenticated later)
+            let user_id = client_id_str.clone();
+            
+            // Create a broadcast sender for this connection
+            let (broadcast_tx, _broadcast_rx) = tokio::sync::broadcast::channel(64);
+            state.world_connection_manager.register_connection(
+                connection_id,
+                user_id.clone(),
+                broadcast_tx,
+            ).await;
+
+            // Join the world
+            match state.world_connection_manager.join_world(
+                connection_id,
+                world_id,
+                role,
+                pc_id,
+                spectate_pc_id,
+            ).await {
+                Ok(connected_users) => {
+                    tracing::info!(
+                        world_id = %world_id,
+                        user_id = %user_id,
+                        connected_users = connected_users.len(),
+                        "User joined world successfully"
+                    );
+
+                    // Get world snapshot for the joiner
+                    let world_id_domain = wrldbldr_domain::WorldId::from_uuid(world_id);
+                    let snapshot = match state.core.world_service.export_world_snapshot(world_id_domain).await {
+                        Ok(s) => serde_json::to_value(s).unwrap_or_default(),
+                        Err(e) => {
+                            tracing::error!(error = %e, "Failed to get world snapshot");
+                            serde_json::json!({})
+                        }
+                    };
+
+                    // Broadcast UserJoined to other users in the world
+                    let user_joined_msg = ServerMessage::UserJoined {
+                        user_id: user_id.clone(),
+                        username: None,
+                        role,
+                        pc: None, // TODO: Include PC data if Player role
+                    };
+                    
+                    // Get all connections except this one and broadcast
+                    let world_connections = state.world_connection_manager.get_world_connections(world_id).await;
+                    for other_conn_id in world_connections {
+                        if other_conn_id != connection_id {
+                            state.world_connection_manager.send_to_connection(
+                                other_conn_id,
+                                user_joined_msg.clone(),
+                            ).await;
+                        }
+                    }
+
+                    Some(ServerMessage::WorldJoined {
+                        world_id,
+                        snapshot,
+                        connected_users,
+                        your_role: role,
+                        your_pc: None, // TODO: Include PC data if Player role
+                    })
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = ?error,
+                        "Failed to join world"
+                    );
+                    Some(ServerMessage::WorldJoinFailed { world_id, error })
+                }
+            }
+        }
+
+        ClientMessage::LeaveWorld => {
+            let client_id_str = client_id.to_string();
+            let connection_id = uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+            
+            tracing::info!(connection_id = %connection_id, "LeaveWorld request received");
+
+            if let Some((world_id, _role)) = state.world_connection_manager.leave_world(connection_id).await {
+                // Broadcast UserLeft to remaining users
+                if let Some(conn_info) = state.world_connection_manager.get_connection(connection_id).await {
+                    let user_left_msg = ServerMessage::UserLeft {
+                        user_id: conn_info.user_id.clone(),
+                    };
+                    state.world_connection_manager.broadcast_to_world(world_id, user_left_msg).await;
+                }
+                tracing::info!(world_id = %world_id, "User left world");
+            }
+
+            None // No response needed
+        }
+
+        ClientMessage::Request { request_id, payload } => {
+            let client_id_str = client_id.to_string();
+            let connection_id = uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+            
+            tracing::debug!(
+                request_id = %request_id,
+                connection_id = %connection_id,
+                payload_type = ?std::mem::discriminant(&payload),
+                "Request received"
+            );
+
+            // Get connection context
+            let conn_info = state.world_connection_manager.get_connection(connection_id).await;
+            
+            // Build request context
+            let ctx = if let Some(info) = &conn_info {
+                wrldbldr_engine_ports::inbound::RequestContext {
+                    connection_id,
+                    user_id: info.user_id.clone(),
+                    world_id: info.world_id,
+                    role: info.role,
+                    pc_id: info.pc_id,
+                    is_dm: info.is_dm(),
+                    is_spectating: info.is_spectator(),
+                }
+            } else {
+                // Anonymous context for users not in a world
+                wrldbldr_engine_ports::inbound::RequestContext::anonymous(
+                    connection_id,
+                    client_id_str,
+                )
+            };
+
+            // Delegate to the AppRequestHandler for all operations
+            let result = state.request_handler.handle(payload, ctx).await;
+
+            Some(ServerMessage::Response { request_id, result })
+        }
+
+        ClientMessage::SetSpectateTarget { pc_id } => {
+            let client_id_str = client_id.to_string();
+            let connection_id = uuid::Uuid::parse_str(&client_id_str).unwrap_or_else(|_| uuid::Uuid::new_v4());
+            
+            tracing::info!(
+                pc_id = %pc_id,
+                connection_id = %connection_id,
+                "SetSpectateTarget request received"
+            );
+            
+            // TODO: Implement spectate target change
+            // For now, return an appropriate message
+            if let Some(conn_info) = state.world_connection_manager.get_connection(connection_id).await {
+                if conn_info.is_spectator() {
+                    // Would update the spectate target here
+                    tracing::info!("Spectate target change requested but not yet implemented");
+                } else {
+                    tracing::warn!("SetSpectateTarget called by non-spectator");
+                }
+            }
+            
+            None // TODO: Return SpectateTargetChanged when implemented
         }
     }
 }

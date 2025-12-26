@@ -118,7 +118,7 @@ where
         staging_repository: Arc<S>,
         region_repository: Arc<R>,
         narrative_event_repository: Arc<N>,
-        story_event_service: StoryEventService,
+        story_event_service: Arc<dyn StoryEventService>,
         llm_port: Arc<L>,
         prompt_template_service: Arc<PromptTemplateService>,
     ) -> Self {

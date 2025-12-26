@@ -8,7 +8,7 @@ use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemVariant};
-use wrldbldr_domain::{ActId, WorldId};
+use wrldbldr_domain::{ActId, GameTime, WorldId};
 use wrldbldr_protocol::RuleSystemConfig as ProtocolRuleSystemConfig;
 
 use crate::infrastructure::export::world_snapshot::protocol_rule_system_config;
@@ -34,6 +34,8 @@ impl Neo4jWorldRepository {
                 name: $name,
                 description: $description,
                 rule_system: $rule_system,
+                game_time: $game_time,
+                game_time_paused: $game_time_paused,
                 created_at: $created_at,
                 updated_at: $updated_at
             })
@@ -43,6 +45,8 @@ impl Neo4jWorldRepository {
         .param("name", world.name.clone())
         .param("description", world.description.clone())
         .param("rule_system", rule_system_json)
+        .param("game_time", world.game_time.current().to_rfc3339())
+        .param("game_time_paused", world.game_time.is_paused())
         .param("created_at", world.created_at.to_rfc3339())
         .param("updated_at", world.updated_at.to_rfc3339());
 
@@ -56,7 +60,8 @@ impl Neo4jWorldRepository {
         let q = query(
             "MATCH (w:World {id: $id})
             RETURN w.id as id, w.name as name, w.description as description,
-                   w.rule_system as rule_system, w.created_at as created_at,
+                   w.rule_system as rule_system, w.game_time as game_time,
+                   w.game_time_paused as game_time_paused, w.created_at as created_at,
                    w.updated_at as updated_at",
         )
         .param("id", id.to_string());
@@ -75,7 +80,8 @@ impl Neo4jWorldRepository {
         let q = query(
             "MATCH (w:World)
             RETURN w.id as id, w.name as name, w.description as description,
-                   w.rule_system as rule_system, w.created_at as created_at,
+                   w.rule_system as rule_system, w.game_time as game_time,
+                   w.game_time_paused as game_time_paused, w.created_at as created_at,
                    w.updated_at as updated_at
             ORDER BY w.name",
         );
@@ -100,6 +106,8 @@ impl Neo4jWorldRepository {
             SET w.name = $name,
                 w.description = $description,
                 w.rule_system = $rule_system,
+                w.game_time = $game_time,
+                w.game_time_paused = $game_time_paused,
                 w.updated_at = $updated_at
             RETURN w.id as id",
         )
@@ -107,6 +115,8 @@ impl Neo4jWorldRepository {
         .param("name", world.name.clone())
         .param("description", world.description.clone())
         .param("rule_system", rule_system_json)
+        .param("game_time", world.game_time.current().to_rfc3339())
+        .param("game_time_paused", world.game_time.is_paused())
         .param("updated_at", world.updated_at.to_rfc3339());
 
         self.connection.graph().run(q).await?;
@@ -184,6 +194,10 @@ fn row_to_world(row: Row) -> Result<World> {
     let rule_system_json: String = row.get("rule_system")?;
     let created_at_str: String = row.get("created_at")?;
     let updated_at_str: String = row.get("updated_at")?;
+    
+    // GameTime fields - use defaults for backwards compatibility with existing DBs
+    let game_time_str: Option<String> = row.get("game_time").ok();
+    let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let protocol_rule_system = serde_json::from_str::<ProtocolRuleSystemConfig>(&rule_system_json)?;
@@ -221,12 +235,25 @@ fn row_to_world(row: Row) -> Result<World> {
         chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
     let updated_at =
         chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
+    
+    // Parse game time or use default
+    let mut game_time = if let Some(ref gt_str) = game_time_str {
+        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(gt_str) {
+            GameTime::starting_at(dt.with_timezone(&chrono::Utc))
+        } else {
+            GameTime::default()
+        }
+    } else {
+        GameTime::default()
+    };
+    game_time.set_paused(game_time_paused);
 
     Ok(World {
         id: WorldId::from_uuid(id),
         name,
         description,
         rule_system,
+        game_time,
         created_at,
         updated_at,
     })

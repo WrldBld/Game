@@ -186,7 +186,7 @@ pub async fn get_challenge(
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Challenge not found".to_string()))?;
 
     let response =
-        build_challenge_response(&state.game.challenge_service, challenge).await?;
+        build_challenge_response(&*state.game.challenge_service, challenge).await?;
     Ok(Json(response))
 }
 
@@ -287,7 +287,7 @@ pub async fn create_challenge(
 
     // Build the response with edge data
     let response =
-        build_challenge_response(&state.game.challenge_service, challenge).await?;
+        build_challenge_response(&*state.game.challenge_service, challenge).await?;
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -424,7 +424,7 @@ pub async fn update_challenge(
 
     // Build response with edge data
     let response =
-        build_challenge_response(&state.game.challenge_service, challenge).await?;
+        build_challenge_response(&*state.game.challenge_service, challenge).await?;
     Ok(Json(response))
 }
 

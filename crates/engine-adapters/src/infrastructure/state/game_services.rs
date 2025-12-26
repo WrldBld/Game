@@ -1,13 +1,18 @@
 //! Game mechanics and narrative services
+//!
+//! This module provides a grouped structure for game mechanics services,
+//! using trait objects where possible for flexibility and testability.
 
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::dto::ApprovalItem;
 use wrldbldr_engine_ports::outbound::LlmPort;
 use wrldbldr_engine_app::application::services::{
-    ActantialContextServiceImpl, challenge_resolution_service::ChallengeResolutionService,
-    ChallengeOutcomeApprovalService, ChallengeServiceImpl, EventChainServiceImpl, EventEffectExecutor,
-    ItemServiceImpl, MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
+    ActantialContextService, ChallengeService, EventChainService,
+    MoodService, NarrativeEventService,
+    challenge_resolution_service::ChallengeResolutionService,
+    ChallengeOutcomeApprovalService, ChallengeServiceImpl, EventEffectExecutor,
+    ItemServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
     PlayerCharacterServiceImpl, SkillServiceImpl, StoryEventService, TriggerEvaluationService,
 };
 
@@ -16,10 +21,24 @@ use wrldbldr_engine_app::application::services::{
 /// This struct groups services related to the gameplay and storytelling
 /// aspects: story events, challenges, narrative events, and their approval workflows.
 ///
+/// Services with simple traits use `Arc<dyn Trait>` for flexibility:
+/// - `challenge_service`, `narrative_event_service`, `event_chain_service`
+/// - `mood_service`, `actantial_context_service`
+///
+/// Complex generic services remain concrete for type safety:
+/// - `challenge_resolution_service`, `challenge_outcome_approval_service`
+/// - `narrative_event_approval_service`
+/// - `trigger_evaluation_service`, `event_effect_executor`
+///
 /// Generic over `L: LlmPort` for LLM-powered suggestion generation.
 pub struct GameServices<L: LlmPort> {
-    pub story_event_service: StoryEventService,
-    pub challenge_service: ChallengeServiceImpl,
+    /// Story event service for recording gameplay events
+    pub story_event_service: Arc<dyn StoryEventService>,
+    
+    /// Challenge CRUD service
+    pub challenge_service: Arc<dyn ChallengeService>,
+    
+    /// Challenge resolution and dice rolling
     pub challenge_resolution_service: Arc<
         ChallengeResolutionService<
             ChallengeServiceImpl,
@@ -30,26 +49,38 @@ pub struct GameServices<L: LlmPort> {
             ItemServiceImpl,
         >,
     >,
+    
+    /// Challenge outcome approval workflow
     pub challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
-    pub narrative_event_service: NarrativeEventServiceImpl,
+    
+    /// Narrative event CRUD service  
+    pub narrative_event_service: Arc<dyn NarrativeEventService>,
+    
+    /// Narrative event approval workflow
     pub narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
-    pub event_chain_service: EventChainServiceImpl,
+    
+    /// Event chain (story arc) management
+    pub event_chain_service: Arc<dyn EventChainService>,
+    
     /// Service for evaluating narrative event triggers (Phase 2)
     pub trigger_evaluation_service: Arc<TriggerEvaluationService>,
+    
     /// Service for executing narrative event outcome effects (Phase 2)
     pub event_effect_executor: Arc<EventEffectExecutor>,
+    
     /// Service for NPC mood and relationship tracking (P1.4)
-    pub mood_service: Arc<MoodServiceImpl>,
+    pub mood_service: Arc<dyn MoodService>,
+    
     /// Service for actantial model context (P1.5)
-    pub actantial_context_service: Arc<ActantialContextServiceImpl>,
+    pub actantial_context_service: Arc<dyn ActantialContextService>,
 }
 
 impl<L: LlmPort + 'static> GameServices<L> {
     /// Creates a new GameServices instance with all game mechanic services
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        story_event_service: StoryEventService,
-        challenge_service: ChallengeServiceImpl,
+        story_event_service: Arc<dyn StoryEventService>,
+        challenge_service: Arc<dyn ChallengeService>,
         challenge_resolution_service: Arc<
             ChallengeResolutionService<
                 ChallengeServiceImpl,
@@ -61,13 +92,13 @@ impl<L: LlmPort + 'static> GameServices<L> {
             >,
         >,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
-        narrative_event_service: NarrativeEventServiceImpl,
+        narrative_event_service: Arc<dyn NarrativeEventService>,
         narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
-        event_chain_service: EventChainServiceImpl,
+        event_chain_service: Arc<dyn EventChainService>,
         trigger_evaluation_service: Arc<TriggerEvaluationService>,
         event_effect_executor: Arc<EventEffectExecutor>,
-        mood_service: Arc<MoodServiceImpl>,
-        actantial_context_service: Arc<ActantialContextServiceImpl>,
+        mood_service: Arc<dyn MoodService>,
+        actantial_context_service: Arc<dyn ActantialContextService>,
     ) -> Self {
         Self {
             story_event_service,

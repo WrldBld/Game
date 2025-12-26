@@ -1,10 +1,14 @@
 # Actantial Model System - Implementation Plan
 
 **Created**: 2025-12-25  
-**Status**: ✅ Complete (All Phases Implemented)
+**Status**: ✅ Complete (All Phases + Refinements)
 **Total Estimated Effort**: 15-17 hours across 3 sessions
 
-> **Implementation Complete**: All 5 phases have been implemented. See individual phase progress documents for details. Refinement work (wiring HTTP fetches, LLM suggestions, state updates) is pending.
+> **Implementation Complete**: All 5 phases have been implemented plus Sprint 5 refinements:
+> - ✅ HTTP fetches wired in MotivationsTab
+> - ✅ WebSocket state updates via `actantial_refresh_counter`
+> - ✅ CharacterPicker component for actantial view targets
+> - ✅ Dead code cleanup (LLMContextService removed)
 
 ---
 

@@ -1,13 +1,31 @@
 //! Context budget configuration for LLM prompts
 //!
-//! # Architectural Note (Phase 1: LLM Context Enhancement)
+//! # Overview
 //!
 //! Token budgets allow fine-grained control over how much context
 //! is provided to the LLM in each category. When a category exceeds
-//! its budget, it will be summarized to fit within the allocation.
+//! its budget, it can be summarized to fit within the allocation.
 //!
 //! Default values are tuned for ~8K context models (Ollama defaults).
 //! Larger models can increase these values accordingly.
+//!
+//! # Implementation Status
+//!
+//! - `ContextBudgetConfig`: ✅ Stored in world settings, exposed via Settings API
+//! - `ContextCategory`: ✅ Defined, used for budget configuration
+//! - `TokenCounter`: ✅ Defined, ready for use in prompt building
+//! - **Budget enforcement**: ⏳ NOT YET IMPLEMENTED
+//!
+//! The settings can be configured per-world, but actual token counting and
+//! budget enforcement is not yet wired into `websocket_helpers::build_prompt_from_action()`.
+//!
+//! # Future Work
+//!
+//! See `docs/progress/IMPLEMENTATION_BACKLOG.md` item P3.5 for the plan to:
+//! 1. Add `TokenCounter` to prompt building
+//! 2. Count tokens for each context category  
+//! 3. Truncate/summarize over-budget categories
+//! 4. Respect `enable_summarization` setting
 
 use serde::{Deserialize, Serialize};
 
@@ -217,79 +235,6 @@ impl ContextBudgetConfig {
         }
 
         Ok(())
-    }
-}
-
-/// Result of building context for a category
-#[derive(Debug, Clone)]
-pub struct CategoryContext {
-    /// The category this context is for
-    pub category: ContextCategory,
-    /// The built context text
-    pub content: String,
-    /// Estimated token count
-    pub token_count: usize,
-    /// Whether the content was summarized to fit budget
-    pub was_summarized: bool,
-    /// Original token count before summarization (if applicable)
-    pub original_token_count: Option<usize>,
-}
-
-impl CategoryContext {
-    /// Create a new category context
-    pub fn new(category: ContextCategory, content: String, token_count: usize) -> Self {
-        Self {
-            category,
-            content,
-            token_count,
-            was_summarized: false,
-            original_token_count: None,
-        }
-    }
-
-    /// Create a summarized category context
-    pub fn summarized(
-        category: ContextCategory,
-        content: String,
-        token_count: usize,
-        original_token_count: usize,
-    ) -> Self {
-        Self {
-            category,
-            content,
-            token_count,
-            was_summarized: true,
-            original_token_count: Some(original_token_count),
-        }
-    }
-}
-
-/// Assembled context ready for prompt building
-#[derive(Debug, Clone, Default)]
-pub struct AssembledContext {
-    /// All category contexts, keyed by category
-    pub categories: Vec<CategoryContext>,
-    /// Total token count across all categories
-    pub total_tokens: usize,
-    /// Categories that were summarized
-    pub summarized_categories: Vec<ContextCategory>,
-    /// Categories that were omitted entirely due to budget
-    pub omitted_categories: Vec<ContextCategory>,
-}
-
-impl AssembledContext {
-    /// Get context for a specific category
-    pub fn get(&self, category: ContextCategory) -> Option<&CategoryContext> {
-        self.categories.iter().find(|c| c.category == category)
-    }
-
-    /// Build the final combined context string
-    pub fn build_combined(&self) -> String {
-        self.categories
-            .iter()
-            .map(|c| c.content.as_str())
-            .collect::<Vec<_>>()
-            .join("\n\n")
     }
 }
 
@@ -507,26 +452,6 @@ mod tests {
         let priorities = ContextCategory::all_by_priority();
         assert_eq!(priorities[0], ContextCategory::Character);
         assert_eq!(priorities[1], ContextCategory::Scene);
-    }
-
-    #[test]
-    fn test_category_context_creation() {
-        let ctx = CategoryContext::new(
-            ContextCategory::Scene,
-            "A dark tavern".to_string(),
-            10,
-        );
-        assert!(!ctx.was_summarized);
-        assert!(ctx.original_token_count.is_none());
-
-        let summarized = CategoryContext::summarized(
-            ContextCategory::Scene,
-            "Dark tavern".to_string(),
-            5,
-            10,
-        );
-        assert!(summarized.was_summarized);
-        assert_eq!(summarized.original_token_count, Some(10));
     }
 
     // Token counter tests

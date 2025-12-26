@@ -1611,6 +1611,12 @@ pub trait RegionRepositoryPort: Send + Sync {
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>>;
 
+    /// Update a region
+    async fn update(&self, region: &Region) -> Result<()>;
+
+    /// Delete a region
+    async fn delete(&self, id: RegionId) -> Result<()>;
+
     // -------------------------------------------------------------------------
     // Region Item Placement (Future - US-REGION-ITEMS)
     // -------------------------------------------------------------------------

@@ -23,6 +23,8 @@ use wrldbldr_player_app::application::services::{
 };
 use wrldbldr_protocol::ActorTypeData;
 use crate::presentation::services::{use_actantial_service, use_character_service};
+use crate::presentation::state::use_game_state;
+use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::components::creator::suggestion_button::{SuggestionButton, SuggestionType};
 
 /// Props for the motivations tab
@@ -41,6 +43,9 @@ pub struct MotivationsTabProps {
 pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
     // Get the actantial service
     let actantial_service = use_actantial_service();
+    
+    // Get game state for WebSocket-triggered refreshes
+    let game_state = use_game_state();
     
     // State for actantial context
     let mut context: Signal<Option<NpcActantialContextData>> = use_signal(|| None);
@@ -66,7 +71,8 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
             let char_id = char_id.clone();
             let world_id = world_id.clone();
             let service = service.clone();
-            let _refresh = *refresh_counter.read(); // Subscribe to refresh counter
+            let _refresh = *refresh_counter.read(); // Subscribe to local refresh counter
+            let _global_refresh = *game_state.actantial_refresh_counter.read(); // Subscribe to WebSocket refresh
             
             spawn(async move {
                 is_loading.set(true);
@@ -153,6 +159,7 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
                 WantsSection {
                     wants: context.read().as_ref().map(|c| c.wants.clone()).unwrap_or_default(),
                     character_id: props.character_id.clone(),
+                    world_id: props.world_id.clone(),
                     available_goals: goals.read().clone(),
                     on_add_want: move |_| {
                         editing_want_id.set(None);
@@ -248,6 +255,7 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
 struct WantsSectionProps {
     wants: Vec<WantData>,
     character_id: String,
+    world_id: String,
     available_goals: Vec<GoalData>,
     on_add_want: EventHandler<()>,
     on_edit_want: EventHandler<String>,
@@ -286,6 +294,7 @@ fn WantsSection(props: WantsSectionProps) -> Element {
                             key: "{want.id}",
                             want: want.clone(),
                             character_id: props.character_id.clone(),
+                            world_id: props.world_id.clone(),
                             available_goals: props.available_goals.clone(),
                             on_edit: move |id| props.on_edit_want.call(id),
                             on_delete: move |id| props.on_delete_want.call(id),
@@ -304,6 +313,7 @@ fn WantsSection(props: WantsSectionProps) -> Element {
 struct WantCardProps {
     want: WantData,
     character_id: String,
+    world_id: String,
     available_goals: Vec<GoalData>,
     on_edit: EventHandler<String>,
     on_delete: EventHandler<String>,
@@ -406,6 +416,7 @@ fn WantCard(props: WantCardProps) -> Element {
                     ActantialViewsEditor {
                         want: want.clone(),
                         character_id: props.character_id.clone(),
+                        world_id: props.world_id.clone(),
                         available_goals: props.available_goals.clone(),
                         on_refresh: move |_| props.on_refresh.call(()),
                     }
@@ -442,6 +453,7 @@ fn WantCard(props: WantCardProps) -> Element {
 struct ActantialViewsEditorProps {
     want: WantData,
     character_id: String,
+    world_id: String,
     available_goals: Vec<GoalData>,
     on_refresh: EventHandler<()>,
 }
@@ -561,9 +573,8 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
         }
     };
     
-    // Compute values for RSX (can't use complex expressions in format strings)
-    let target_id_display = selected_target.read().split(':').last().unwrap_or("").to_string();
-    let is_target_empty = target_id_display.is_empty();
+    // Check if target is empty (for button disabled state)
+    let is_target_empty = selected_target.read().is_empty();
 
     rsx! {
         div {
@@ -588,62 +599,45 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                 div {
                     class: "mb-3 p-3 bg-gray-800 rounded border border-gray-600",
                     
+                    // Role selector
                     div {
-                        class: "grid grid-cols-2 gap-2 mb-2",
-                        
-                        // Role selector
+                        class: "mb-2",
+                        label { class: "text-gray-400 text-xs block mb-1", "Role" }
                         select {
                             value: "{selected_role}",
                             onchange: move |e| selected_role.set(e.value()),
-                            class: "p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
+                            class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
                             option { value: "helper", "Helper - Aids the subject" }
                             option { value: "opponent", "Opponent - Blocks the subject" }
                             option { value: "sender", "Sender - Gave this desire" }
                             option { value: "receiver", "Receiver - Benefits from success" }
                         }
-                        
-                        // Actor type selector
-                        select {
-                            value: if selected_target.read().starts_with("pc:") { "pc" } else { "npc" },
-                            onchange: {
-                                move |e| {
-                                    let current = selected_target.read().clone();
-                                    let id_part = current.split(':').last().unwrap_or("").to_string();
-                                    if e.value() == "pc" {
-                                        selected_target.set(format!("pc:{}", id_part));
-                                    } else {
-                                        selected_target.set(format!("npc:{}", id_part));
-                                    }
-                                }
-                            },
-                            class: "p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
-                            option { value: "npc", "NPC" }
-                            option { value: "pc", "Player Character" }
+                    }
+                    
+                    // Character picker
+                    div {
+                        class: "mb-2",
+                        label { class: "text-gray-400 text-xs block mb-1", "Character" }
+                        CharacterPicker {
+                            world_id: props.world_id.clone(),
+                            value: selected_target.read().clone(),
+                            on_change: move |val| selected_target.set(val),
+                            placeholder: "Select a character...",
+                            exclude_id: Some(props.character_id.clone()),
                         }
                     }
                     
-                    // Character ID input (in future, this could be a searchable dropdown)
-                    input {
-                        r#type: "text",
-                        value: "{target_id_display}",
-                        oninput: {
-                            move |e| {
-                                let current = selected_target.read().clone();
-                                let prefix = if current.starts_with("pc:") { "pc:" } else { "npc:" };
-                                selected_target.set(format!("{}{}", prefix, e.value()));
-                            }
-                        },
-                        placeholder: "Enter character ID (paste from character list)",
-                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm mb-2",
-                    }
-                    
                     // Reason (optional)
-                    input {
-                        r#type: "text",
-                        value: "{reason}",
-                        oninput: move |e| reason.set(e.value()),
-                        placeholder: "Reason for this relationship (optional)",
-                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm mb-2",
+                    div {
+                        class: "mb-2",
+                        label { class: "text-gray-400 text-xs block mb-1", "Reason (optional)" }
+                        input {
+                            r#type: "text",
+                            value: "{reason}",
+                            oninput: move |e| reason.set(e.value()),
+                            placeholder: "Why does this character have this role?",
+                            class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
+                        }
                     }
                     
                     div {
@@ -653,10 +647,6 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             disabled: *is_saving.read() || is_target_empty,
                             class: "px-3 py-1 bg-accent-blue text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50",
                             if *is_saving.read() { "Adding..." } else { "Add" }
-                        }
-                        p {
-                            class: "text-gray-500 text-xs",
-                            "Note: Future update will add character search/dropdown"
                         }
                     }
                 }

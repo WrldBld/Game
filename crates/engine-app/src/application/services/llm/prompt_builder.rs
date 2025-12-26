@@ -1,24 +1,27 @@
 //! Prompt building functions for LLM requests
 //!
-//! # Phase 1: LLM Context Enhancement
-//!
-//! This module provides functions for building LLM prompts. It now includes
-//! enhanced functions that can integrate with the `LLMContextService` for
-//! graph-based context building with token budget management.
-//!
 //! # Prompt Template Integration
 //!
 //! The `PromptBuilder` struct provides async methods that resolve configurable
 //! prompt templates from DB/env/defaults before building prompts.
+//!
+//! # Token Budget Enforcement
+//!
+//! The builder supports optional token budget enforcement via `ContextBudgetConfig`.
+//! When a budget config is provided, the prompt is checked against the total budget
+//! and truncated if necessary, with logging of truncation events.
+//!
+//! Budget enforcement can be applied via `enforce_budget()` after building a prompt.
 
 use std::sync::Arc;
 
+use tracing::{debug, warn};
 use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 use wrldbldr_domain::value_objects::{
-    ActiveChallengeContext, ActiveNarrativeEventContext, AssembledContext, CategoryContext,
-    CharacterContext, ContextCategory, ConversationTurn, DirectorialNotes, GamePromptRequest,
-    MotivationEntry, MotivationsContext, SceneContext, SecretMotivationEntry,
-    SocialStanceContext, TokenCounter, prompt_keys,
+    ActiveChallengeContext, ActiveNarrativeEventContext,
+    CharacterContext, ContextBudgetConfig, ConversationTurn, DirectorialNotes, 
+    GamePromptRequest, MotivationEntry, MotivationsContext, SceneContext, 
+    SecretMotivationEntry, SocialStanceContext, TokenCounter, prompt_keys,
 };
 use wrldbldr_domain::WorldId;
 
@@ -44,6 +47,46 @@ impl PromptBuilder {
             Some(wid) => self.prompt_template_service.resolve_for_world(wid, key).await,
             None => self.prompt_template_service.resolve(key).await,
         }
+    }
+
+    /// Enforce token budget on a prompt, truncating if necessary
+    ///
+    /// This method checks the prompt against the total budget from `ContextBudgetConfig`
+    /// and truncates the prompt if it exceeds the budget. Truncation events are logged.
+    ///
+    /// # Arguments
+    /// * `prompt` - The prompt text to enforce budget on
+    /// * `budget_config` - The budget configuration containing total_budget_tokens
+    ///
+    /// # Returns
+    /// The (possibly truncated) prompt string
+    pub fn enforce_budget(&self, prompt: String, budget_config: &ContextBudgetConfig) -> String {
+        let counter = TokenCounter::default();
+        let token_count = counter.count(&prompt);
+        let budget = budget_config.total_budget_tokens;
+
+        if token_count <= budget {
+            debug!(
+                tokens = token_count,
+                budget = budget,
+                "Prompt within token budget"
+            );
+            return prompt;
+        }
+
+        // Prompt exceeds budget - truncate
+        let (truncated, _) = counter.truncate_to_budget(&prompt, budget);
+        let truncated_tokens = counter.count(&truncated);
+
+        warn!(
+            original_tokens = token_count,
+            truncated_tokens = truncated_tokens,
+            budget = budget,
+            chars_removed = prompt.len() - truncated.len(),
+            "Prompt exceeded token budget and was truncated"
+        );
+
+        truncated
     }
 
     /// Build the system prompt that establishes the NPC's personality and context
@@ -218,105 +261,6 @@ impl PromptBuilder {
             // Use configurable narrative event suggestion format
             prompt.push_str(&narrative_event_format);
             prompt.push_str("\n\n");
-        }
-
-        // Response format instructions (configurable)
-        prompt.push_str(&response_format);
-
-        prompt
-    }
-
-    /// Build a system prompt from assembled graph-based context
-    ///
-    /// This function takes pre-assembled context from `LLMContextService` and
-    /// builds a comprehensive system prompt. It handles cases where some
-    /// categories may have been summarized or omitted due to token budgets.
-    pub async fn build_system_prompt_from_assembled(
-        &self,
-        world_id: Option<WorldId>,
-        assembled: &AssembledContext,
-        character: &CharacterContext,
-        directorial_notes: Option<&DirectorialNotes>,
-    ) -> String {
-        // Resolve templates
-        let response_format = self.resolve(world_id, prompt_keys::DIALOGUE_RESPONSE_FORMAT).await;
-        let challenge_format = self.resolve(world_id, prompt_keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT).await;
-        let narrative_event_format = self.resolve(world_id, prompt_keys::DIALOGUE_NARRATIVE_EVENT_FORMAT).await;
-
-        let mut prompt = String::new();
-
-        // Role establishment (always included, not budget-constrained)
-        prompt.push_str(&format!(
-            "You are roleplaying as {}, a {}.\n\n",
-            character.name, character.archetype
-        ));
-
-        // Include assembled context categories in order
-        for ctx in &assembled.categories {
-            if !ctx.content.is_empty() {
-                prompt.push_str(&ctx.content);
-                prompt.push_str("\n\n");
-            }
-        }
-
-        // Directorial notes - tone and pacing guidance (from DirectorialNotes struct)
-        if let Some(notes) = directorial_notes {
-            prompt.push_str("=== DIRECTOR'S SCENE GUIDANCE ===\n");
-            prompt.push_str(&format!("Tone: {}\n", notes.tone.description()));
-            prompt.push_str(&format!("Pacing: {}\n", notes.pacing.description()));
-
-            if !notes.general_notes.is_empty() {
-                prompt.push_str(&format!("General Notes: {}\n", notes.general_notes));
-            }
-
-            if !notes.forbidden_topics.is_empty() {
-                prompt.push_str(&format!(
-                    "Avoid discussing: {}\n",
-                    notes.forbidden_topics.join(", ")
-                ));
-            }
-
-            if !notes.suggested_beats.is_empty() {
-                prompt.push_str("Suggested narrative beats to work toward:\n");
-                for beat in &notes.suggested_beats {
-                    prompt.push_str(&format!("  - {}\n", beat));
-                }
-            }
-            prompt.push_str("\n");
-        }
-
-        // Character details from CharacterContext (which may include graph-fetched wants)
-        if let Some(mood) = &character.current_mood {
-            prompt.push_str(&format!("YOUR CURRENT MOOD: {}\n", mood));
-        }
-
-        // Motivations from actantial model
-        if let Some(motivations) = &character.motivations {
-            Self::format_motivations(&mut prompt, motivations);
-        }
-
-        // Social stance (allies/enemies)
-        if let Some(social) = &character.social_stance {
-            Self::format_social_stance(&mut prompt, social);
-        }
-
-        if let Some(relationship) = &character.relationship_to_player {
-            prompt.push_str(&format!(
-                "\nYOUR RELATIONSHIP TO THE PLAYER: {}\n",
-                relationship
-            ));
-        }
-
-        // If challenges context was included, add suggestion format
-        if assembled.get(ContextCategory::Challenges).is_some() {
-            prompt.push_str("\n");
-            prompt.push_str(&challenge_format);
-        }
-
-        // If narrative events context was included, add suggestion format
-        if assembled.get(ContextCategory::NarrativeEvents).is_some() {
-            prompt.push_str("\n");
-            prompt.push_str(&narrative_event_format);
         }
 
         // Response format instructions (configurable)
@@ -525,62 +469,6 @@ pub fn build_conversation_history(history: &[ConversationTurn]) -> Vec<ChatMessa
         .collect()
 }
 
-/// Merge additional context into an assembled context
-///
-/// This is useful when you have graph-based assembled context but need to
-/// add additional context that wasn't fetched from the graph (e.g., conversation
-/// history from the session).
-pub fn merge_conversation_history(
-    assembled: &mut AssembledContext,
-    history: &[ConversationTurn],
-    budget: usize,
-) {
-    if history.is_empty() {
-        return;
-    }
-
-    let token_counter = TokenCounter::default();
-    
-    let mut content = String::new();
-    content.push_str("RECENT CONVERSATION:\n");
-    
-    for turn in history {
-        content.push_str(&format!("{}: {}\n", turn.speaker, turn.text));
-    }
-
-    let token_count = token_counter.count(&content);
-    
-    let (final_content, was_truncated) = if token_count > budget {
-        token_counter.truncate_to_budget(&content, budget)
-    } else {
-        (content, false)
-    };
-
-    let final_token_count = token_counter.count(&final_content);
-
-    let ctx = if was_truncated {
-        CategoryContext::summarized(
-            ContextCategory::ConversationHistory,
-            final_content,
-            final_token_count,
-            token_count,
-        )
-    } else {
-        CategoryContext::new(ContextCategory::ConversationHistory, final_content, final_token_count)
-    };
-
-    assembled.total_tokens += ctx.token_count;
-    if ctx.was_summarized {
-        assembled.summarized_categories.push(ContextCategory::ConversationHistory);
-    }
-    assembled.categories.push(ctx);
-}
-
-/// Calculate the token count for a prompt
-pub fn count_prompt_tokens(prompt: &str) -> usize {
-    TokenCounter::default().count(prompt)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -647,7 +535,8 @@ mod tests {
             name: "Gorm".to_string(),
             archetype: "Gruff tavern keeper".to_string(),
             current_mood: Some("Suspicious".to_string()),
-            wants: vec!["Protect his tavern".to_string()],
+            motivations: None,
+            social_stance: None,
             relationship_to_player: Some("Acquaintance".to_string()),
         };
 
@@ -657,8 +546,43 @@ mod tests {
         assert!(prompt.contains("Gruff tavern keeper"));
         assert!(prompt.contains("The Rusty Anchor"));
         assert!(prompt.contains("Suspicious"));
-        assert!(prompt.contains("Protect his tavern"));
         assert!(prompt.contains("<reasoning>"));
         assert!(prompt.contains("<dialogue>"));
+    }
+
+    #[test]
+    fn test_enforce_budget_within_limit() {
+        let builder = create_test_prompt_builder();
+        let prompt = "This is a short prompt.".to_string();
+        let budget = ContextBudgetConfig::default(); // 4000 tokens
+
+        let result = builder.enforce_budget(prompt.clone(), &budget);
+        assert_eq!(result, prompt);
+    }
+
+    #[test]
+    fn test_enforce_budget_truncates_when_over() {
+        let builder = create_test_prompt_builder();
+        // Create a very long prompt that exceeds the minimal budget
+        let long_prompt = "word ".repeat(500); // ~500 words = ~665 tokens
+        let mut budget = ContextBudgetConfig::minimal();
+        budget.total_budget_tokens = 50; // Force truncation
+
+        let result = builder.enforce_budget(long_prompt.clone(), &budget);
+        assert!(result.len() < long_prompt.len());
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_enforce_budget_logs_truncation() {
+        // This test just verifies that the truncation path works
+        // Actual log verification would require a more complex test setup
+        let builder = create_test_prompt_builder();
+        let long_prompt = "word ".repeat(200);
+        let mut budget = ContextBudgetConfig::default();
+        budget.total_budget_tokens = 10;
+
+        let result = builder.enforce_budget(long_prompt, &budget);
+        assert!(result.ends_with("..."));
     }
 }

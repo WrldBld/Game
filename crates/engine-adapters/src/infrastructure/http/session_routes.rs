@@ -241,7 +241,7 @@ fn convert_to_internal_snapshot(player_snapshot: &PlayerWorldSnapshot) -> WorldS
                 wrldbldr_domain::RuleSystemConfig::from_variant(variant)
             }
         },
-
+        game_time: wrldbldr_domain::GameTime::default(),
         created_at: now,
         updated_at: now,
     };

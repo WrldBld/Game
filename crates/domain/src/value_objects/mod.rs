@@ -29,7 +29,7 @@ pub use archetype::{ArchetypeChange, CampbellArchetype};
 
 pub use comfyui_config::ComfyUIConfig;
 pub use context_budget::{
-    AssembledContext, CategoryContext, ContextBudgetConfig, ContextCategory,
+    ContextBudgetConfig, ContextCategory,
     TokenCountMethod, TokenCounter, count_tokens, exceeds_token_budget,
 };
 pub use dice::DiceRollInput;

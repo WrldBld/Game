@@ -148,6 +148,8 @@ pub struct GameState {
     pub split_party_locations: Signal<Vec<SplitPartyLocation>>,
     /// Current view mode (Director or ViewingAsCharacter)
     pub view_mode: Signal<ViewMode>,
+    /// Counter to trigger actantial/motivations refresh (incremented on wants/goals changes)
+    pub actantial_refresh_counter: Signal<u32>,
 }
 
 impl GameState {
@@ -172,6 +174,7 @@ impl GameState {
             observations_refresh_counter: Signal::new(0),
             split_party_locations: Signal::new(Vec::new()),
             view_mode: Signal::new(ViewMode::default()),
+            actantial_refresh_counter: Signal::new(0),
         }
     }
 
@@ -300,6 +303,12 @@ impl GameState {
     pub fn trigger_observations_refresh(&mut self) {
         let current = *self.observations_refresh_counter.read();
         self.observations_refresh_counter.set(current.wrapping_add(1));
+    }
+
+    /// Trigger an actantial/motivations refresh (increments counter to signal UI components)
+    pub fn trigger_actantial_refresh(&mut self) {
+        let current = *self.actantial_refresh_counter.read();
+        self.actantial_refresh_counter.set(current.wrapping_add(1));
     }
 
     /// Update split party locations (from SplitPartyNotification)

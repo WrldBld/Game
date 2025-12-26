@@ -11,8 +11,8 @@ use tokio::sync::RwLock;
 use wrldbldr_engine_app::application::dto::{DMAction, DMActionItem};
 use wrldbldr_engine_ports::outbound::{AsyncSessionPort, QueueNotificationPort};
 use wrldbldr_engine_app::application::services::{
-    DMActionQueueService, DMApprovalQueueService, InteractionService, InteractionServiceImpl,
-    ItemServiceImpl, NarrativeEventService, NarrativeEventServiceImpl, SceneService, SceneServiceImpl,
+    DMActionQueueService, DMApprovalQueueService, InteractionService,
+    ItemServiceImpl, NarrativeEventService, SceneService,
 };
 use crate::infrastructure::session::SessionManager;
 use wrldbldr_domain::{NarrativeEventId, SceneId, SessionId};
@@ -104,9 +104,9 @@ pub async fn approval_notification_worker(
 pub async fn dm_action_worker(
     dm_action_queue_service: Arc<DMActionQueueService<crate::infrastructure::queues::QueueBackendEnum<DMActionItem>>>,
     approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
-    narrative_event_service: Arc<NarrativeEventServiceImpl>,
-    scene_service: Arc<SceneServiceImpl>,
-    interaction_service: Arc<InteractionServiceImpl>,
+    narrative_event_service: Arc<dyn NarrativeEventService>,
+    scene_service: Arc<dyn SceneService>,
+    interaction_service: Arc<dyn InteractionService>,
     async_session_port: Arc<dyn AsyncSessionPort>,
     sessions: Arc<RwLock<SessionManager>>, // Still needed for process_decision deep dependency
     recovery_interval: Duration,
@@ -133,9 +133,9 @@ pub async fn dm_action_worker(
                     &async_session_port,
                     &sessions,
                     &approval_queue_service,
-                        &narrative_event_service,
-                        &scene_service,
-                        &interaction_service,
+                        &*narrative_event_service,
+                        &*scene_service,
+                        &*interaction_service,
                         &action,
                 )
                 .await
@@ -162,9 +162,9 @@ async fn process_dm_action(
     async_session_port: &Arc<dyn AsyncSessionPort>,
     sessions: &Arc<RwLock<SessionManager>>, // Still needed for process_decision deep dependency
     approval_queue_service: &Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
-    narrative_event_service: &NarrativeEventServiceImpl,
-    scene_service: &SceneServiceImpl,
-    interaction_service: &InteractionServiceImpl,
+    narrative_event_service: &dyn NarrativeEventService,
+    scene_service: &dyn SceneService,
+    interaction_service: &dyn InteractionService,
     action: &DMActionItem,
 ) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
     match &action.action {

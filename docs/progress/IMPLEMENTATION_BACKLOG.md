@@ -1,7 +1,7 @@
 # WrldBldr Implementation Backlog
 
 **Created**: 2025-12-25  
-**Last Updated**: 2025-12-25
+**Last Updated**: 2025-12-25 (Sprint 5 Complete)
 
 This document tracks all unimplemented features in priority order with implementation details.
 
@@ -367,94 +367,74 @@ region_items: Vec<ItemSummary> // name, description, type
 ### P2.1: View-as-Character Mode
 | Field | Value |
 |-------|-------|
-| **Status** | TODO in code |
+| **Status** | ✅ COMPLETED (Sprint 4) |
 | **Effort** | 4 hours |
-| **Location** | `crates/player-ui/src/presentation/views/director/content.rs:323, 402` |
+| **Completed** | 2025-12-25 |
 
-**Problem**: DM cannot preview scene from player perspective.
-
-**Implementation**:
-1. Add "View as [PC Name]" button to Director view
-2. Temporarily switch to PC view with read-only state
-3. Show what that PC would see (filtered NPCs, items, etc.)
-4. "Exit View" button to return to Director
-
-**Files**:
-- `crates/player-ui/src/presentation/views/director/content.rs`
-- `crates/player-ui/src/presentation/state/session_state.rs` (add view mode)
+**Implementation** (Complete):
+- Added `ViewMode` enum (Director | ViewingAsCharacter) to GameState
+- Added helper methods: `start_viewing_as()`, `stop_viewing_as()`, `is_viewing_as_character()`
+- Created `ViewAsCharacterMode` component with read-only perspective
+- Blue banner with "Exit View" button, shows NPCs/items visible to character
 
 ---
 
 ### P2.2: Location Preview Modal
 | Field | Value |
 |-------|-------|
-| **Status** | TODO in code |
+| **Status** | ✅ COMPLETED (Sprint 4) |
 | **Effort** | 2 hours |
-| **Location** | `crates/player-ui/src/presentation/views/director/content.rs:364` |
+| **Completed** | 2025-12-25 |
 
-**Implementation**:
-1. Create `LocationPreviewModal` component
-2. Show location details, regions, connections, NPCs
-3. Open on location click in Director view
-
-**Files**:
-- NEW: `crates/player-ui/src/presentation/components/dm_panel/location_preview_modal.rs`
-- MOD: `crates/player-ui/src/presentation/views/director/content.rs`
+**Implementation** (Complete):
+- Created `LocationPreviewModal` component
+- Shows location details, regions, connections, hidden secrets
+- Wired `on_preview` callback in LocationNavigator
 
 ---
 
-### P2.3: Story Arc Timeline UI
+### P2.3: Story Arc Visual Timeline
 | Field | Value |
 |-------|-------|
-| **Status** | TODO in code |
+| **Status** | ✅ COMPLETED (Sprint 4) |
 | **Effort** | 6 hours |
-| **Location** | `crates/player-ui/src/presentation/handlers/session_message_handler.rs:371` |
+| **Completed** | 2025-12-25 |
 
-**Implementation**:
-1. Create story arc timeline component
-2. Show acts, scenes, events on timeline
-3. Highlight current position
-4. Allow jumping to events
-
-**Files**:
-- `crates/player-ui/src/presentation/views/story_arc/` (existing stubs)
-- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
+**Implementation** (Complete):
+- Created horizontal zoomable/pannable timeline as new "Visual" sub-tab
+- Clustering: events within 30px grouped, stacking up to 3 before "+N more"
+- Zoom controls (0.25x to 4.0x) with pan buttons
+- Date markers, hover tooltips, click to open detail modal
+- Filtered-out events shown greyed
 
 ---
 
 ### P2.4: Split Party Warning UX
 | Field | Value |
 |-------|-------|
-| **Status** | TODO in code |
+| **Status** | ✅ COMPLETED (Sprint 4) |
 | **Effort** | 1 hour |
-| **Location** | `crates/player-ui/src/presentation/handlers/session_message_handler.rs:383` |
+| **Completed** | 2025-12-25 |
 
-**Implementation**:
-1. Show banner when party is split across locations
-2. Display location of each party member
-3. Allow DM to pause/sync party
-
-**Files**:
-- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
-- `crates/player-ui/src/presentation/components/` (new warning component)
+**Implementation** (Complete):
+- Added `split_party_locations` signal to GameState
+- Created `SplitPartyBanner` component with collapsible location list
+- Wired to Director view (top of left panel)
 
 ---
 
 ### P2.5: Style Reference for Asset Generation
 | Field | Value |
 |-------|-------|
-| **Status** | TODO in code |
+| **Status** | ✅ COMPLETED (Sprint 4) |
 | **Effort** | 3 hours |
-| **Location** | `crates/player-ui/src/presentation/components/creator/asset_gallery.rs:159` |
+| **Completed** | 2025-12-25 |
 
-**Implementation**:
-1. Add "Use as Reference" button to asset gallery items
-2. Store selected reference ID in generation state
-3. Pass reference to ComfyUI workflow
-
-**Files**:
-- `crates/player-ui/src/presentation/components/creator/asset_gallery.rs`
-- `crates/player-ui/src/presentation/state/generation_state.rs`
+**Implementation** (Complete):
+- Added `style_reference_asset_id` to world settings (backend + frontend)
+- "Use as Reference" button saves to world settings
+- Purple border + star indicator for current reference
+- Pre-populates generation modals with world default
 
 ---
 
@@ -567,6 +547,60 @@ region_items: Vec<ItemSummary> // name, description, type
 
 ---
 
+### P3.5: Token Budget Enforcement
+| Field | Value |
+|-------|-------|
+| **Status** | Not Started |
+| **Effort** | 4-6 hours |
+| **Priority** | Medium |
+
+**Problem**: `ContextBudgetConfig` settings exist and are exposed via the Settings API, but the actual token counting and budget enforcement is not implemented. Users can configure budgets but they have no effect.
+
+**Related Types** (already exist in `domain/value_objects/context_budget.rs`):
+- `ContextBudgetConfig` - Per-category token limits, stored in world settings
+- `ContextCategory` - Enum for budget categories (Scene, Character, Challenges, etc.)
+- `TokenCounter` - Token estimation with hybrid char/word counting
+
+**Implementation**:
+1. Inject `TokenCounter` into `websocket_helpers::build_prompt_from_action()`
+2. After building each context section, count tokens
+3. If over budget, truncate using `TokenCounter::truncate_to_budget()`
+4. Optionally use LLM to summarize (if `enable_summarization` is true)
+5. Log when truncation/summarization occurs for debugging
+
+**Files to Modify**:
+- `crates/engine-adapters/src/infrastructure/websocket_helpers.rs`
+- `crates/engine-app/src/application/services/llm/prompt_builder.rs` (optional)
+
+---
+
+### P3.6: WebSocket-First Architecture
+| Field | Value |
+|-------|-------|
+| **Status** | Planning |
+| **Effort** | 2-3 days |
+| **Priority** | High |
+
+**Problem**: Game logic is split between REST and WebSocket, causing:
+- Duplicate code paths (actantial CRUD exists in both REST and WebSocket)
+- Missing broadcasts (REST game actions don't always notify clients)
+- Inconsistent multiplayer behavior
+
+**Proposed Architecture**:
+- **REST API**: CRUD operations, queries, initial state fetch (Creator Mode)
+- **WebSocket**: All game actions, DM controls, real-time broadcasts (Play Mode)
+
+**Implementation**:
+1. Audit all REST endpoints for game-state-modifying operations
+2. Add broadcasts to REST endpoints that modify game state, OR
+3. Deprecate REST game actions in favor of WebSocket
+4. Remove duplicate WebSocket CRUD (keep REST for data, WS for suggestions)
+5. Document the pattern for future development
+
+**See**: `docs/plans/WEBSOCKET_ARCHITECTURE.md` for detailed analysis
+
+---
+
 ## Implementation Order Recommendation
 
 ### Sprint 1 (3-4 days): Critical Gaps + Quick Wins
@@ -588,18 +622,27 @@ region_items: Vec<ItemSummary> // name, description, type
    - Session C: DM Panel Integration (4h)
 3. P1.1: US-REGION-ITEMS Phases 5-6 (6h) - Deferred to Sprint 4
 
-### Sprint 4 (3-4 days): UX Polish
-1. P2.1: View-as-Character Mode (4h)
-2. P2.2: Location Preview Modal (2h)
-3. P2.3: Story Arc Timeline UI (6h)
-4. P2.4: Split Party Warning UX (1h)
-5. P2.5: Style Reference for Asset Generation (3h)
+### Sprint 4 (3-4 days): UX Polish - ✅ COMPLETE
+1. P2.1: View-as-Character Mode (4h) ✅
+2. P2.2: Location Preview Modal (2h) ✅
+3. P2.3: Story Arc Visual Timeline (6h) ✅
+4. P2.4: Split Party Warning UX (1h) ✅
+5. P2.5: Style Reference for Asset Generation (3h) ✅
+6. Session ID Refactor: Remove session_id from story events ✅
 
-### Sprint 5+ (Future): Major Features
+### Sprint 5 (Dec 25, 2025): Actantial Completion + Cleanup - ✅ COMPLETE
+1. Dead code removal: LLMContextService, AssembledContext, etc. ✅
+2. WebSocket state updates for actantial messages ✅
+3. Character search dropdown (CharacterPicker component) ✅
+4. WebSocket architecture documentation ✅
+
+### Sprint 6+ (Future): Major Features
 - P3.1: Visual Trigger Condition Builder
 - P3.2: Advanced Workflow Parameter Editor
 - P3.3: Typed Error Handling
 - P3.4: Testing Infrastructure
+- P3.5: Token Budget Enforcement (wire ContextBudgetConfig into prompt building)
+- P3.6: WebSocket-First Architecture (consolidate game logic to WebSocket)
 
 ---
 
@@ -658,6 +701,54 @@ region_items: Vec<ItemSummary> // name, description, type
 **Validation**: ✅ `cargo check --workspace && cargo xtask arch-check` both pass
 
 **Session Status**: Sprint 3 - P1.4 complete, P1.5 planning complete. Ready to begin Actantial Model implementation in Session A.
+
+---
+
+### Session 5 (Dec 25, 2025)
+**Target**: Sprint 5 - Actantial Completion + Dead Code Cleanup
+
+**Work Completed**:
+
+- ✅ **Dead Code Removal** (~850 lines removed)
+  - Deleted `LLMContextService` (~770 lines) - never instantiated
+  - Deleted `AssembledContext`, `CategoryContext` - unused context assembly
+  - Removed empty `want.rs` module and `services/` directory
+  - Cleaned imports in `prompt_builder.rs` and `context_budget.rs`
+  - Documented remaining types (`ContextBudgetConfig`, `TokenCounter`) as pending P3.5
+
+- ✅ **WebSocket State Updates for Actantial Messages**
+  - Added `actantial_refresh_counter` signal to `GameState`
+  - Added `trigger_actantial_refresh()` helper method
+  - Updated 16 message handlers to trigger refresh on actantial changes
+  - Connected `motivations_tab.rs` to global refresh signal
+
+- ✅ **Character Search Dropdown** (`CharacterPicker` component)
+  - Created `crates/player-ui/src/presentation/components/common/character_picker.rs` (~290 lines)
+  - Searchable dropdown for NPCs and PCs
+  - Visual distinction: NPC = blue, PC = green badges
+  - Returns selection as `{type}:{id}` format
+  - Integrated into `ActantialViewsEditor` (replaces manual UUID entry)
+  - Added `world_id` prop threading through WantsSection → WantCard → ActantialViewsEditor
+
+- ✅ **WebSocket Architecture Documentation**
+  - Created `docs/plans/WEBSOCKET_ARCHITECTURE.md`
+  - Analyzes REST vs WebSocket split
+  - Proposes WebSocket-first architecture with request-response pattern
+  - Migration plan: 5 phases over 2-3 days
+
+**Files Created**:
+- `docs/plans/WEBSOCKET_ARCHITECTURE.md`
+- `crates/player-ui/src/presentation/components/common/character_picker.rs`
+
+**Files Modified**:
+- `crates/player-ui/src/presentation/state/game_state.rs`
+- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
+- `crates/player-ui/src/presentation/components/creator/motivations_tab.rs`
+- `crates/player-ui/src/presentation/components/common/mod.rs`
+
+**Validation**: ✅ `cargo check --workspace && cargo xtask arch-check` both pass
+
+**Session Status**: Sprint 5 COMPLETE - All P1.5 refinements done, dead code cleaned, architecture documented.
 
 ---
 

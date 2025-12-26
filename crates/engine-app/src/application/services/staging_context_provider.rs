@@ -25,14 +25,14 @@ use wrldbldr_domain::{CharacterId, GameTime, RegionId, TimeOfDay, WorldId};
 pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> {
     region_repository: Arc<R>,
     narrative_event_repository: Arc<N>,
-    story_event_service: StoryEventService,
+    story_event_service: Arc<dyn StoryEventService>,
 }
 
 impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextProvider<R, N> {
     pub fn new(
         region_repository: Arc<R>,
         narrative_event_repository: Arc<N>,
-        story_event_service: StoryEventService,
+        story_event_service: Arc<dyn StoryEventService>,
     ) -> Self {
         Self {
             region_repository,

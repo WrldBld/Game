@@ -11,9 +11,12 @@
 //! - Session: Game session management
 //! - Event Bus: Event publishing and subscription infrastructure
 //! - Repositories: Additional persistence implementations
+//! - Context Budget: Token budget enforcement for LLM prompts
+//! - State Broadcast: Utilities for broadcasting state changes to WebSocket clients
 
 pub mod comfyui;
 pub mod config;
+pub mod context_budget;
 pub mod event_bus;
 pub mod export;
 pub mod http;
@@ -25,6 +28,8 @@ pub mod repositories;
 pub mod session;
 pub mod session_adapter;
 pub mod state;
+pub mod state_broadcast;
 pub mod websocket;
 pub mod websocket_event_subscriber;
 pub mod websocket_helpers;
+pub mod world_connection_manager;

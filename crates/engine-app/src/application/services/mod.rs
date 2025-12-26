@@ -22,9 +22,9 @@ pub mod interaction_service;
 pub mod item_service;
 pub mod llm_queue_service;
 pub mod llm;
-pub mod llm_context_service;
 pub mod location_service;
 pub mod mood_service;
+pub mod region_service;
 
 // Re-export LLM service types for backward compatibility
 pub mod narrative_event_service;
@@ -100,8 +100,8 @@ pub use workflow_service::WorkflowService;
 
 // ToolExecutionService is only used internally within services module, not re-exported
 
-// Re-export story event service
-pub use story_event_service::StoryEventService;
+// Re-export story event service types
+pub use story_event_service::{StoryEventService, StoryEventServiceImpl};
 
 // Re-export narrative event approval service
 pub use narrative_event_approval_service::NarrativeEventApprovalService;
@@ -170,12 +170,6 @@ pub use challenge_outcome_approval_service::{
 // Re-export outcome suggestion service (P3.3)
 pub use outcome_suggestion_service::{OutcomeSuggestionService, SuggestionError};
 
-// Re-export LLM context service (Phase 1)
-pub use llm_context_service::{
-    LLMContextService, LLMContextError,
-    SummarizationPlanner, SummarizationRequest, SummarizationResult, SummarizationPrompts,
-};
-
 // Re-export trigger evaluation service (Phase 2)
 pub use trigger_evaluation_service::{
     TriggerEvaluationService, TriggerEvaluationError, TriggerEvaluationResult,
@@ -200,5 +194,8 @@ pub use actantial_context_service::{
     ActantialContextService, ActantialContextServiceImpl,
     CreateWantRequest, UpdateWantRequest, ActorTargetType,
 };
+
+// Re-export region service
+pub use region_service::{RegionService, RegionServiceImpl};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

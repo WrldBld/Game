@@ -38,7 +38,7 @@ struct ErrorMessage {
 pub struct NarrativeEventApprovalService<N: NarrativeEventService> {
     sessions: Arc<dyn AsyncSessionPort>,
     narrative_event_service: Arc<N>,
-    story_event_service: Arc<StoryEventService>,
+    story_event_service: Arc<dyn StoryEventService>,
 }
 
 impl<N> NarrativeEventApprovalService<N>
@@ -48,7 +48,7 @@ where
     pub fn new(
         sessions: Arc<dyn AsyncSessionPort>,
         narrative_event_service: Arc<N>,
-        story_event_service: Arc<StoryEventService>,
+        story_event_service: Arc<dyn StoryEventService>,
     ) -> Self {
         Self {
             sessions,

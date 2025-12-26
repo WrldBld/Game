@@ -13,7 +13,7 @@ use wrldbldr_engine_ports::outbound::{
 };
 use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
-use wrldbldr_domain::{WorldId};
+use wrldbldr_domain::{GameTime, WorldId};
 use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 
 /// Request to create a new world
@@ -84,6 +84,13 @@ pub trait WorldService: Send + Sync {
         world_id: WorldId,
         include_inactive_characters: bool,
     ) -> Result<PlayerWorldSnapshot>;
+
+    /// Get the current game time for a world
+    async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime>;
+
+    /// Advance the game time by the specified number of hours
+    /// Returns the new game time after advancing
+    async fn advance_game_time(&self, world_id: WorldId, hours: u32) -> Result<GameTime>;
 }
 
 /// Default implementation of WorldService using port abstractions
@@ -315,6 +322,41 @@ impl WorldService for WorldServiceImpl {
             .export_snapshot_with_options(world_id, options)
             .await
             .context("Failed to export world snapshot")
+    }
+
+    #[instrument(skip(self))]
+    async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime> {
+        debug!(world_id = %world_id, "Getting game time for world");
+        
+        let world = self
+            .repository
+            .get(world_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("World not found: {}", world_id))?;
+        
+        Ok(world.game_time)
+    }
+
+    #[instrument(skip(self))]
+    async fn advance_game_time(&self, world_id: WorldId, hours: u32) -> Result<GameTime> {
+        debug!(world_id = %world_id, hours = hours, "Advancing game time");
+        
+        let mut world = self
+            .repository
+            .get(world_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("World not found: {}", world_id))?;
+        
+        world.game_time.advance_hours(hours);
+        world.updated_at = chrono::Utc::now();
+        
+        self.repository
+            .update(&world)
+            .await
+            .context("Failed to update world game time")?;
+        
+        info!(world_id = %world_id, hours = hours, "Advanced game time");
+        Ok(world.game_time)
     }
 }
 

@@ -30,7 +30,7 @@ pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>, I: ItemSer
     pub(crate) queue: Arc<Q>,
     tool_execution_service: ToolExecutionService,
     /// Story event service for recording dialogue exchanges
-    story_event_service: StoryEventService,
+    story_event_service: Arc<dyn StoryEventService>,
     /// Item service for creating items and managing inventory
     item_service: Arc<I>,
 }
@@ -41,7 +41,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     }
 
     /// Create a new DM approval queue service
-    pub fn new(queue: Arc<Q>, story_event_service: StoryEventService, item_service: Arc<I>) -> Self {
+    pub fn new(queue: Arc<Q>, story_event_service: Arc<dyn StoryEventService>, item_service: Arc<I>) -> Self {
         Self {
             queue,
             tool_execution_service: ToolExecutionService::new(),

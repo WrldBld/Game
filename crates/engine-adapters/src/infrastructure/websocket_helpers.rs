@@ -6,10 +6,8 @@
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
 use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError, RegionRepositoryPort};
 use wrldbldr_engine_app::application::services::{
-    ActantialContextService, ActantialContextServiceImpl,
-    ChallengeService, ChallengeServiceImpl, MoodService, MoodServiceImpl,
-    NarrativeEventService, NarrativeEventServiceImpl,
-    SettingsService, SkillService, SkillServiceImpl,
+    ActantialContextService, ChallengeService, MoodService,
+    NarrativeEventService, SettingsService, SkillService,
 };
 use wrldbldr_domain::value_objects::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
@@ -23,15 +21,15 @@ use tokio::sync::RwLock;
 /// Build a GamePromptRequest from a PlayerActionItem using session context
 pub async fn build_prompt_from_action(
     sessions: &Arc<RwLock<SessionManager>>,
-    challenge_service: &Arc<ChallengeServiceImpl>,
-    skill_service: &Arc<SkillServiceImpl>,
-    narrative_event_service: &Arc<NarrativeEventServiceImpl>,
+    challenge_service: &Arc<dyn ChallengeService>,
+    skill_service: &Arc<dyn SkillService>,
+    narrative_event_service: &Arc<dyn NarrativeEventService>,
     character_repo: &Arc<dyn CharacterRepositoryPort>,
     pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
     region_repo: &Arc<dyn RegionRepositoryPort>,
     settings_service: &Arc<SettingsService>,
-    mood_service: &Arc<MoodServiceImpl>,
-    actantial_service: &Arc<ActantialContextServiceImpl>,
+    mood_service: &Arc<dyn MoodService>,
+    actantial_service: &Arc<dyn ActantialContextService>,
     action: &PlayerActionItem,
 ) -> Result<GamePromptRequest, QueueError> {
     // Get session context
@@ -338,7 +336,7 @@ pub async fn build_prompt_from_action(
         }
     };
 
-    // Build the prompt request
+    // Build the prompt request with context budget from world settings
     Ok(GamePromptRequest {
         world_id: Some(world_id.to_string()),
         player_action: PlayerActionContext {
@@ -352,5 +350,6 @@ pub async fn build_prompt_from_action(
         responding_character: character_context,
         active_challenges,
         active_narrative_events,
+        context_budget: Some(settings.context_budget.clone()),
     })
 }

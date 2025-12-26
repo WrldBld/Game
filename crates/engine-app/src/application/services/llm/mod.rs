@@ -19,8 +19,7 @@ mod tool_parser;
 
 // Re-export public types and functions
 pub use prompt_builder::{
-    PromptBuilder, build_conversation_history, build_user_message, 
-    count_prompt_tokens, merge_conversation_history,
+    PromptBuilder, build_conversation_history, build_user_message,
 };
 
 use std::sync::Arc;
@@ -142,6 +141,12 @@ impl<L: LlmPort> LLMService<L> {
             &request.active_challenges,
             &request.active_narrative_events,
         ).await;
+        
+        // Apply token budget enforcement if configured
+        let system_prompt = match &request.context_budget {
+            Some(budget_config) => self.prompt_builder.enforce_budget(system_prompt, budget_config),
+            None => system_prompt,
+        };
         
         let user_message = build_user_message(&request);
 

@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 
 use crate::value_objects::RuleSystemConfig;
-use crate::WorldId;
+use crate::{GameTime, WorldId};
 
 /// A complete campaign world
 #[derive(Debug, Clone)]
@@ -12,6 +12,8 @@ pub struct World {
     pub name: String,
     pub description: String,
     pub rule_system: RuleSystemConfig,
+    /// In-game time for the world (persisted, not session-scoped)
+    pub game_time: GameTime,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -24,6 +26,7 @@ impl World {
             name: name.into(),
             description: description.into(),
             rule_system: RuleSystemConfig::default(),
+            game_time: GameTime::default(),
             created_at: now,
             updated_at: now,
         }

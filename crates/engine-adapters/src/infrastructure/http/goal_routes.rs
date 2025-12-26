@@ -2,6 +2,11 @@
 //!
 //! Endpoints for managing abstract goals within a world.
 //! Goals are desire targets for NPC Wants (e.g., "Power", "Revenge", "Peace").
+//!
+//! # WebSocket Broadcasts (P3.6)
+//!
+//! State-modifying endpoints broadcast changes to connected WebSocket clients
+//! for multiplayer consistency.
 
 use axum::{
     extract::{Path, State},
@@ -15,8 +20,10 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::Goal;
 use wrldbldr_domain::{GoalId, WorldId};
 use wrldbldr_engine_ports::outbound::GoalRepositoryPort;
+use wrldbldr_protocol::{GoalData, ServerMessage};
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::state_broadcast::broadcast_to_world_sessions;
 
 // =============================================================================
 // DTOs
@@ -126,6 +133,19 @@ pub async fn create_goal(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Broadcast to connected clients
+    let goal_data = GoalData {
+        id: goal.id.to_string(),
+        name: goal.name.clone(),
+        description: goal.description.clone(),
+        usage_count: 0, // New goal has no usage
+    };
+    let message = ServerMessage::GoalCreated {
+        world_id: world_id.to_string(),
+        goal: goal_data,
+    };
+    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
+
     Ok((StatusCode::CREATED, Json(GoalResponse::from(goal))))
 }
 
@@ -176,6 +196,8 @@ pub async fn update_goal(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Goal not found".to_string()))?;
 
+    let world_id = goal.world_id;
+
     // Apply updates
     if let Some(name) = req.name {
         goal.name = name;
@@ -189,6 +211,17 @@ pub async fn update_goal(
         .update(&goal)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Broadcast to connected clients
+    let usage_count = goal_repo.get_targeting_want_count(goal_id).await.unwrap_or(0);
+    let goal_data = GoalData {
+        id: goal.id.to_string(),
+        name: goal.name.clone(),
+        description: goal.description.clone(),
+        usage_count,
+    };
+    let message = ServerMessage::GoalUpdated { goal: goal_data };
+    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
 
     Ok(Json(GoalResponse::from(goal)))
 }
@@ -213,6 +246,8 @@ pub async fn delete_goal(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Goal not found".to_string()))?;
 
+    let world_id = goal.world_id;
+
     // Check if any wants target this goal
     let usage_count = goal_repo
         .get_targeting_want_count(goal_id)
@@ -234,6 +269,12 @@ pub async fn delete_goal(
         .delete(goal_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Broadcast to connected clients
+    let message = ServerMessage::GoalDeleted {
+        goal_id: goal_id.to_string(),
+    };
+    broadcast_to_world_sessions(&state.async_session_port, world_id, message).await;
 
     Ok(StatusCode::NO_CONTENT)
 }

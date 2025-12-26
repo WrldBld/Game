@@ -11,6 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::actantial_context::ActorType;
+use super::context_budget::ContextBudgetConfig;
 
 /// Request for generating an NPC response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +33,10 @@ pub struct GamePromptRequest {
     pub active_challenges: Vec<ActiveChallengeContext>,
     /// Active narrative events that could be triggered
     pub active_narrative_events: Vec<ActiveNarrativeEventContext>,
+    /// Optional token budget configuration for prompt size limits
+    /// When present, the system prompt will be truncated to fit within the budget
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_budget: Option<ContextBudgetConfig>,
 }
 
 /// Context about the player's action

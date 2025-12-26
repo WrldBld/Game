@@ -15,6 +15,8 @@
 
 pub mod app_events;
 pub mod messages;
+pub mod requests;
+pub mod responses;
 pub mod rule_system;
 pub mod types;
 
@@ -104,4 +106,61 @@ pub use types::{
     MonomythStage,
     // Participant roles
     ParticipantRole,
+};
+
+// =============================================================================
+// Request Types (WebSocket Request/Response Pattern)
+// =============================================================================
+pub use requests::{
+    // Main payload enum
+    RequestPayload,
+    // Create data types
+    ChangeArchetypeData,
+    CreateActData,
+    CreateChallengeData,
+    CreateCharacterData,
+    CreateDmMarkerData,
+    CreateEventChainData,
+    CreateInteractionData,
+    CreateLocationConnectionData,
+    CreateLocationData,
+    CreateNarrativeEventData,
+    CreateObservationData,
+    CreatePlayerCharacterData,
+    CreateRegionConnectionData,
+    CreateRegionData,
+    CreateRelationshipData,
+    CreateSceneData,
+    CreateSkillData,
+    CreateWorldData,
+    // Update data types
+    UpdateChallengeData,
+    UpdateCharacterData,
+    UpdateEventChainData,
+    UpdateInteractionData,
+    UpdateLocationData,
+    UpdateNarrativeEventData,
+    UpdatePlayerCharacterData,
+    UpdateRegionData,
+    UpdateSceneData,
+    UpdateSkillData,
+    UpdateStoryEventData,
+    UpdateWorldData,
+};
+
+// =============================================================================
+// Response Types (WebSocket Request/Response Pattern)
+// =============================================================================
+pub use responses::{
+    // Response result
+    ResponseResult,
+    ErrorCode,
+    // Entity change broadcasts
+    EntityChangedData,
+    EntityType,
+    ChangeType,
+    // World connection types
+    WorldRole,
+    ConnectedUser,
+    JoinError,
 };

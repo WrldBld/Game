@@ -568,6 +568,44 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
 
         Ok(npcs)
     }
+
+    async fn update(&self, region: &Region) -> Result<()> {
+        let q = query(
+            "MATCH (r:Region {id: $id})
+             SET r.name = $name,
+                 r.description = $description,
+                 r.backdrop_asset = $backdrop_asset,
+                 r.atmosphere = $atmosphere,
+                 r.is_spawn_point = $is_spawn_point,
+                 r.`order` = $order
+             RETURN r.id as id",
+        )
+        .param("id", region.id.to_string())
+        .param("name", region.name.clone())
+        .param("description", region.description.clone())
+        .param("backdrop_asset", region.backdrop_asset.clone().unwrap_or_default())
+        .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
+        .param("is_spawn_point", region.is_spawn_point)
+        .param("order", region.order as i64);
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(region_id = %region.id, "Updated region");
+        Ok(())
+    }
+
+    async fn delete(&self, id: RegionId) -> Result<()> {
+        // Delete the region and all its relationships
+        let q = query(
+            "MATCH (r:Region {id: $id})
+             DETACH DELETE r
+             RETURN count(r) as deleted",
+        )
+        .param("id", id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(region_id = %id, "Deleted region");
+        Ok(())
+    }
 }
 
 /// Convert a Neo4j row to a Character (simplified for presence queries)

@@ -11,6 +11,7 @@
 //! handles creating the event node and all related edges in a single operation.
 
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_protocol::AppEvent;
@@ -21,14 +22,272 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
 
-/// Service for recording gameplay events to the story timeline
+/// Service trait for recording gameplay events to the story timeline
+#[async_trait]
+pub trait StoryEventService: Send + Sync {
+    /// Record a dialogue exchange between player and NPC
+    async fn record_dialogue_exchange(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        npc_id: CharacterId,
+        npc_name: String,
+        player_dialogue: String,
+        npc_response: String,
+        topics: Vec<String>,
+        tone: Option<String>,
+        involved_characters: Vec<CharacterId>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record a challenge attempt and its result
+    async fn record_challenge_attempted(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        challenge_id: Option<ChallengeId>,
+        challenge_name: String,
+        character_id: CharacterId,
+        skill_used: Option<String>,
+        difficulty: Option<String>,
+        roll_result: Option<i32>,
+        modifier: Option<i32>,
+        outcome: ChallengeEventOutcome,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record a scene transition
+    async fn record_scene_transition(
+        &self,
+        world_id: WorldId,
+        from_scene: Option<SceneId>,
+        to_scene: SceneId,
+        from_scene_name: Option<String>,
+        to_scene_name: String,
+        trigger_reason: String,
+        location_id: Option<LocationId>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record a DM marker (note, plot point, etc.)
+    async fn record_dm_marker(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        title: String,
+        note: String,
+        importance: MarkerImportance,
+        marker_type: DmMarkerType,
+        is_hidden: bool,
+        tags: Vec<String>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record information revealed to players
+    async fn record_information_revealed(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        info_type: InfoType,
+        title: String,
+        content: String,
+        source: Option<CharacterId>,
+        importance: StoryEventInfoImportance,
+        persist_to_journal: bool,
+        involved_characters: Vec<CharacterId>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record a relationship change
+    async fn record_relationship_changed(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        from_character: CharacterId,
+        to_character: CharacterId,
+        previous_sentiment: Option<f32>,
+        new_sentiment: f32,
+        reason: String,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record an item being acquired
+    async fn record_item_acquired(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        item_name: String,
+        item_description: Option<String>,
+        character_id: CharacterId,
+        source: ItemSource,
+        quantity: u32,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record when a narrative event is triggered
+    async fn record_narrative_event_triggered(
+        &self,
+        world_id: WorldId,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        narrative_event_id: NarrativeEventId,
+        narrative_event_name: String,
+        outcome_branch: Option<String>,
+        effects_applied: Vec<String>,
+        involved_characters: Vec<CharacterId>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record session start
+    async fn record_session_started(
+        &self,
+        world_id: WorldId,
+        session_number: u32,
+        session_name: Option<String>,
+        players_present: Vec<String>,
+    ) -> Result<StoryEventId>;
+
+    /// Record session end
+    async fn record_session_ended(
+        &self,
+        world_id: WorldId,
+        duration_minutes: u32,
+        summary: String,
+    ) -> Result<StoryEventId>;
+
+    // =========================================================================
+    // Query Methods (used by HTTP routes)
+    // =========================================================================
+
+    /// Get a single story event by ID
+    async fn get_event(&self, event_id: StoryEventId) -> Result<Option<StoryEvent>>;
+
+    /// List story events for a world
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>>;
+
+    /// List story events for a world with pagination
+    async fn list_by_world_paginated(
+        &self,
+        world_id: WorldId,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<StoryEvent>>;
+
+    /// List visible (non-hidden) story events for a world
+    async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>>;
+
+    /// Search story events by tags
+    async fn search_by_tags(
+        &self,
+        world_id: WorldId,
+        tags: Vec<String>,
+    ) -> Result<Vec<StoryEvent>>;
+
+    /// Search story events by text in summary
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>>;
+
+    /// List events involving a specific character
+    async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>>;
+
+    /// List events at a specific location
+    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<StoryEvent>>;
+
+    /// Update story event summary
+    async fn update_summary(&self, event_id: StoryEventId, summary: &str) -> Result<bool>;
+
+    /// Update event visibility
+    async fn set_hidden(&self, event_id: StoryEventId, is_hidden: bool) -> Result<bool>;
+
+    /// Update event tags
+    async fn update_tags(&self, event_id: StoryEventId, tags: Vec<String>) -> Result<bool>;
+
+    /// Delete a story event
+    async fn delete(&self, event_id: StoryEventId) -> Result<bool>;
+
+    /// Count events for a world
+    async fn count_by_world(&self, world_id: WorldId) -> Result<u64>;
+
+    // =========================================================================
+    // Dialogue Summary Methods (for Staging System LLM Context)
+    // =========================================================================
+
+    /// Get recent dialogue exchanges with a specific NPC
+    ///
+    /// Returns the raw DialogueExchange events for further processing.
+    async fn get_dialogues_with_npc(
+        &self,
+        world_id: WorldId,
+        npc_id: CharacterId,
+        limit: u32,
+    ) -> Result<Vec<StoryEvent>>;
+
+    /// Get a summarized view of recent dialogues with an NPC for LLM context
+    ///
+    /// Returns a string summary suitable for including in LLM prompts.
+    /// The summary includes the last `limit` conversations with topics discussed.
+    async fn get_dialogue_summary_for_npc(
+        &self,
+        world_id: WorldId,
+        npc_id: CharacterId,
+        limit: u32,
+    ) -> Result<Option<String>>;
+
+    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
+    ///
+    /// This should be called after a dialogue exchange is recorded to maintain
+    /// the relationship metadata used by the Staging System.
+    async fn update_spoke_to_edge(
+        &self,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
+        npc_id: CharacterId,
+        topic: Option<String>,
+    ) -> Result<()>;
+
+    // =========================================================================
+    // Handler Methods (used by AppRequestHandler)
+    // =========================================================================
+
+    /// List story events with optional pagination (page/page_size style)
+    async fn list_events(
+        &self,
+        world_id: WorldId,
+        page: Option<u32>,
+        page_size: Option<u32>,
+    ) -> Result<Vec<StoryEvent>>;
+
+    /// Update a story event with optional summary and visibility
+    async fn update_event(
+        &self,
+        id: StoryEventId,
+        summary: Option<String>,
+        player_visible: Option<bool>,
+    ) -> Result<()>;
+
+    /// Set visibility of a story event
+    async fn set_visibility(&self, id: StoryEventId, visible: bool) -> Result<()>;
+
+    /// Create a DM marker (simplified version for handlers)
+    async fn create_dm_marker(
+        &self,
+        world_id: WorldId,
+        title: String,
+        content: Option<String>,
+    ) -> Result<StoryEventId>;
+}
+
+/// Implementation of StoryEventService for recording gameplay events to the story timeline
 #[derive(Clone)]
-pub struct StoryEventService {
+pub struct StoryEventServiceImpl {
     repository: Arc<dyn StoryEventRepositoryPort>,
     event_bus: Arc<dyn EventBusPort<AppEvent>>,
 }
 
-impl StoryEventService {
+impl StoryEventServiceImpl {
     pub fn new(repository: Arc<dyn StoryEventRepositoryPort>, event_bus: Arc<dyn EventBusPort<AppEvent>>) -> Self {
         Self { repository, event_bus }
     }
@@ -45,9 +304,11 @@ impl StoryEventService {
             tracing::error!("Failed to publish StoryEventCreated for {}: {}", event.id, e);
         }
     }
+}
 
-    /// Record a dialogue exchange between player and NPC
-    pub async fn record_dialogue_exchange(
+#[async_trait]
+impl StoryEventService for StoryEventServiceImpl {
+    async fn record_dialogue_exchange(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -97,8 +358,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record a challenge attempt and its result
-    pub async fn record_challenge_attempted(
+    async fn record_challenge_attempted(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -160,8 +420,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record a scene transition
-    pub async fn record_scene_transition(
+    async fn record_scene_transition(
         &self,
         world_id: WorldId,
         from_scene: Option<SceneId>,
@@ -202,8 +461,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record a DM marker (note, plot point, etc.)
-    pub async fn record_dm_marker(
+    async fn record_dm_marker(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -253,8 +511,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record information revealed to players
-    pub async fn record_information_revealed(
+    async fn record_information_revealed(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -304,8 +561,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record a relationship change
-    pub async fn record_relationship_changed(
+    async fn record_relationship_changed(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -350,8 +606,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record an item being acquired
-    pub async fn record_item_acquired(
+    async fn record_item_acquired(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -396,8 +651,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record when a narrative event is triggered
-    pub async fn record_narrative_event_triggered(
+    async fn record_narrative_event_triggered(
         &self,
         world_id: WorldId,
         scene_id: Option<SceneId>,
@@ -444,8 +698,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record session start
-    pub async fn record_session_started(
+    async fn record_session_started(
         &self,
         world_id: WorldId,
         session_number: u32,
@@ -470,8 +723,7 @@ impl StoryEventService {
         Ok(event_id)
     }
 
-    /// Record session end
-    pub async fn record_session_ended(
+    async fn record_session_ended(
         &self,
         world_id: WorldId,
         duration_minutes: u32,
@@ -497,18 +749,15 @@ impl StoryEventService {
     // Query Methods (used by HTTP routes)
     // =========================================================================
 
-    /// Get a single story event by ID
-    pub async fn get_event(&self, event_id: StoryEventId) -> Result<Option<StoryEvent>> {
+    async fn get_event(&self, event_id: StoryEventId) -> Result<Option<StoryEvent>> {
         self.repository.get(event_id).await
     }
 
-    /// List story events for a world
-    pub async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>> {
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>> {
         self.repository.list_by_world(world_id).await
     }
 
-    /// List story events for a world with pagination
-    pub async fn list_by_world_paginated(
+    async fn list_by_world_paginated(
         &self,
         world_id: WorldId,
         limit: u32,
@@ -519,13 +768,11 @@ impl StoryEventService {
             .await
     }
 
-    /// List visible (non-hidden) story events for a world
-    pub async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>> {
+    async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>> {
         self.repository.list_visible(world_id, limit).await
     }
 
-    /// Search story events by tags
-    pub async fn search_by_tags(
+    async fn search_by_tags(
         &self,
         world_id: WorldId,
         tags: Vec<String>,
@@ -533,43 +780,35 @@ impl StoryEventService {
         self.repository.search_by_tags(world_id, tags).await
     }
 
-    /// Search story events by text in summary
-    pub async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>> {
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>> {
         self.repository.search_by_text(world_id, search_text).await
     }
 
-    /// List events involving a specific character
-    pub async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>> {
+    async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>> {
         self.repository.list_by_character(character_id).await
     }
 
-    /// List events at a specific location
-    pub async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<StoryEvent>> {
+    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<StoryEvent>> {
         self.repository.list_by_location(location_id).await
     }
 
-    /// Update story event summary
-    pub async fn update_summary(&self, event_id: StoryEventId, summary: &str) -> Result<bool> {
+    async fn update_summary(&self, event_id: StoryEventId, summary: &str) -> Result<bool> {
         self.repository.update_summary(event_id, summary).await
     }
 
-    /// Update event visibility
-    pub async fn set_hidden(&self, event_id: StoryEventId, is_hidden: bool) -> Result<bool> {
+    async fn set_hidden(&self, event_id: StoryEventId, is_hidden: bool) -> Result<bool> {
         self.repository.set_hidden(event_id, is_hidden).await
     }
 
-    /// Update event tags
-    pub async fn update_tags(&self, event_id: StoryEventId, tags: Vec<String>) -> Result<bool> {
+    async fn update_tags(&self, event_id: StoryEventId, tags: Vec<String>) -> Result<bool> {
         self.repository.update_tags(event_id, tags).await
     }
 
-    /// Delete a story event
-    pub async fn delete(&self, event_id: StoryEventId) -> Result<bool> {
+    async fn delete(&self, event_id: StoryEventId) -> Result<bool> {
         self.repository.delete(event_id).await
     }
 
-    /// Count events for a world
-    pub async fn count_by_world(&self, world_id: WorldId) -> Result<u64> {
+    async fn count_by_world(&self, world_id: WorldId) -> Result<u64> {
         self.repository.count_by_world(world_id).await
     }
 
@@ -577,10 +816,7 @@ impl StoryEventService {
     // Dialogue Summary Methods (for Staging System LLM Context)
     // =========================================================================
 
-    /// Get recent dialogue exchanges with a specific NPC
-    ///
-    /// Returns the raw DialogueExchange events for further processing.
-    pub async fn get_dialogues_with_npc(
+    async fn get_dialogues_with_npc(
         &self,
         world_id: WorldId,
         npc_id: CharacterId,
@@ -589,11 +825,7 @@ impl StoryEventService {
         self.repository.get_dialogues_with_npc(world_id, npc_id, limit).await
     }
 
-    /// Get a summarized view of recent dialogues with an NPC for LLM context
-    ///
-    /// Returns a string summary suitable for including in LLM prompts.
-    /// The summary includes the last `limit` conversations with topics discussed.
-    pub async fn get_dialogue_summary_for_npc(
+    async fn get_dialogue_summary_for_npc(
         &self,
         world_id: WorldId,
         npc_id: CharacterId,
@@ -642,16 +874,70 @@ impl StoryEventService {
         }
     }
 
-    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
-    ///
-    /// This should be called after a dialogue exchange is recorded to maintain
-    /// the relationship metadata used by the Staging System.
-    pub async fn update_spoke_to_edge(
+    async fn update_spoke_to_edge(
         &self,
         pc_id: wrldbldr_domain::PlayerCharacterId,
         npc_id: CharacterId,
         topic: Option<String>,
     ) -> Result<()> {
         self.repository.update_spoke_to_edge(pc_id, npc_id, topic).await
+    }
+
+    // =========================================================================
+    // Handler Methods (used by AppRequestHandler)
+    // =========================================================================
+
+    async fn list_events(
+        &self,
+        world_id: WorldId,
+        page: Option<u32>,
+        page_size: Option<u32>,
+    ) -> Result<Vec<StoryEvent>> {
+        let page = page.unwrap_or(1);
+        let page_size = page_size.unwrap_or(50);
+        let offset = (page.saturating_sub(1)) * page_size;
+        self.repository.list_by_world_paginated(world_id, page_size, offset).await
+    }
+
+    async fn update_event(
+        &self,
+        id: StoryEventId,
+        summary: Option<String>,
+        player_visible: Option<bool>,
+    ) -> Result<()> {
+        if let Some(summary) = summary {
+            self.repository.update_summary(id, &summary).await?;
+        }
+        if let Some(visible) = player_visible {
+            // player_visible=true means is_hidden=false
+            self.repository.set_hidden(id, !visible).await?;
+        }
+        Ok(())
+    }
+
+    async fn set_visibility(&self, id: StoryEventId, visible: bool) -> Result<()> {
+        // visible=true means is_hidden=false
+        self.repository.set_hidden(id, !visible).await?;
+        Ok(())
+    }
+
+    async fn create_dm_marker(
+        &self,
+        world_id: WorldId,
+        title: String,
+        content: Option<String>,
+    ) -> Result<StoryEventId> {
+        self.record_dm_marker(
+            world_id,
+            None,                           // scene_id
+            None,                           // location_id
+            title,
+            content.unwrap_or_default(),    // note
+            MarkerImportance::Minor,        // importance
+            DmMarkerType::Note,             // marker_type
+            false,                          // is_hidden
+            Vec::new(),                     // tags
+            None,                           // game_time
+        ).await
     }
 }

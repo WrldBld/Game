@@ -7,6 +7,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::requests::RequestPayload;
+use crate::responses::{ConnectedUser, EntityChangedData, JoinError, ResponseResult, WorldRole};
 use crate::types::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ParticipantRole,
     ProposedToolInfo,
@@ -372,6 +374,41 @@ pub enum ClientMessage {
         want_id: String,
         target_id: String,
         role: ActantialRoleData,
+    },
+
+    // =========================================================================
+    // WebSocket-First Protocol (World-scoped connections)
+    // =========================================================================
+
+    /// Join a world (replaces JoinSession)
+    JoinWorld {
+        /// World to join
+        world_id: Uuid,
+        /// Role to join as
+        role: WorldRole,
+        /// Player character ID (required for Player role)
+        #[serde(default)]
+        pc_id: Option<Uuid>,
+        /// Target PC to spectate (required for Spectator role)
+        #[serde(default)]
+        spectate_pc_id: Option<Uuid>,
+    },
+
+    /// Leave the current world
+    LeaveWorld,
+
+    /// Send a request (CRUD operations, actions)
+    Request {
+        /// Unique request ID for correlation
+        request_id: String,
+        /// Request payload
+        payload: RequestPayload,
+    },
+
+    /// Set spectate target (for Spectator role)
+    SetSpectateTarget {
+        /// PC to spectate
+        pc_id: Uuid,
     },
 }
 
@@ -854,6 +891,72 @@ pub enum ServerMessage {
         target_id: String,
         role: ActantialRoleData,
         suggestions: Vec<String>,
+    },
+
+    // =========================================================================
+    // WebSocket-First Protocol (World-scoped connections)
+    // =========================================================================
+
+    /// Successfully joined a world
+    WorldJoined {
+        /// World that was joined
+        world_id: Uuid,
+        /// Full world snapshot (for initial load)
+        snapshot: serde_json::Value,
+        /// Users currently connected to this world
+        connected_users: Vec<ConnectedUser>,
+        /// Your role in this world
+        your_role: WorldRole,
+        /// Your player character (if Player role)
+        #[serde(default)]
+        your_pc: Option<serde_json::Value>,
+    },
+
+    /// Failed to join a world
+    WorldJoinFailed {
+        /// World that was attempted
+        world_id: Uuid,
+        /// Reason for failure
+        error: JoinError,
+    },
+
+    /// Another user joined the world
+    UserJoined {
+        /// User who joined
+        user_id: String,
+        /// User's display name
+        #[serde(default)]
+        username: Option<String>,
+        /// User's role
+        role: WorldRole,
+        /// User's PC (if Player role)
+        #[serde(default)]
+        pc: Option<serde_json::Value>,
+    },
+
+    /// A user left the world
+    UserLeft {
+        /// User who left
+        user_id: String,
+    },
+
+    /// Response to a Request message
+    Response {
+        /// Correlated request ID
+        request_id: String,
+        /// Result of the operation
+        result: ResponseResult,
+    },
+
+    /// Entity changed broadcast (for cache invalidation)
+    EntityChanged(EntityChangedData),
+
+    /// Spectate target changed (for Spectator role)
+    SpectateTargetChanged {
+        /// New PC being spectated
+        pc_id: Uuid,
+        /// PC's name
+        pc_name: String,
     },
 }
 

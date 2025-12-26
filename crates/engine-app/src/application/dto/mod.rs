@@ -19,6 +19,7 @@ mod rule_system;
 mod scene;
 mod sheet_template;
 mod session_info;
+mod player_character;
 mod skill;
 mod story_event;
 mod suggestion;
@@ -140,6 +141,11 @@ pub use sheet_template::{
 
 // Session DTOs
 pub use session_info::SessionInfo;
+
+// Player Character DTOs
+pub use player_character::{
+    CreatePlayerCharacterRequestDto, PlayerCharacterResponseDto, UpdatePlayerCharacterRequestDto,
+};
 
 // Export DTOs
 pub use export::ExportQueryDto;
