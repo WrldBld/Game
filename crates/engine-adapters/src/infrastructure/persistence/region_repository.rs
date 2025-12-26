@@ -606,6 +606,42 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
         tracing::debug!(region_id = %id, "Deleted region");
         Ok(())
     }
+
+    // -------------------------------------------------------------------------
+    // Region Connections
+    // -------------------------------------------------------------------------
+
+    async fn create_connection(&self, connection: &RegionConnection) -> Result<()> {
+        Neo4jRegionRepository::create_connection(self, connection).await
+    }
+
+    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>> {
+        Neo4jRegionRepository::get_connections(self, region_id).await
+    }
+
+    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        Neo4jRegionRepository::delete_connection(self, from, to).await
+    }
+
+    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        Neo4jRegionRepository::unlock_connection(self, from, to).await
+    }
+
+    // -------------------------------------------------------------------------
+    // Region Exits
+    // -------------------------------------------------------------------------
+
+    async fn create_exit(&self, exit: &RegionExit) -> Result<()> {
+        Neo4jRegionRepository::create_exit(self, exit).await
+    }
+
+    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>> {
+        Neo4jRegionRepository::get_exits(self, region_id).await
+    }
+
+    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()> {
+        Neo4jRegionRepository::delete_exit(self, from_region, to_location).await
+    }
 }
 
 /// Convert a Neo4j row to a Character (simplified for presence queries)

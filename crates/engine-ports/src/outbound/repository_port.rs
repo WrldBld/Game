@@ -13,8 +13,9 @@ use wrldbldr_domain::entities::{
     CharacterSheetTemplate, CharacterWant, EventChain, EventChainMembership, FeaturedNpc,
     FrequencyLevel, GalleryAsset, GenerationBatch, Goal, GridMap, InteractionRequirement,
     InteractionTargetType, InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location,
-    LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, Scene, SceneCharacter,
-    SceneCharacterRole, SheetTemplateId, Skill, StoryEvent, Want, World, WorkflowConfiguration,
+    LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, RegionConnection,
+    RegionExit, Scene, SceneCharacter, SceneCharacterRole, SheetTemplateId, Skill, StoryEvent,
+    Want, World, WorkflowConfiguration,
 };
 use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::value_objects::{
@@ -1618,6 +1619,35 @@ pub trait RegionRepositoryPort: Send + Sync {
     async fn delete(&self, id: RegionId) -> Result<()>;
 
     // -------------------------------------------------------------------------
+    // Region Connections (CONNECTED_TO_REGION edges)
+    // -------------------------------------------------------------------------
+
+    /// Create a connection between two regions
+    async fn create_connection(&self, connection: &RegionConnection) -> Result<()>;
+
+    /// Get all connections from a region
+    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>>;
+
+    /// Delete a connection between two regions
+    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
+
+    /// Unlock a locked connection between two regions
+    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Region Exits (EXITS_TO_LOCATION edges)
+    // -------------------------------------------------------------------------
+
+    /// Create an exit from a region to another location
+    async fn create_exit(&self, exit: &RegionExit) -> Result<()>;
+
+    /// Get all exits from a region
+    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>>;
+
+    /// Delete an exit from a region to a location
+    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()>;
+
+    // -------------------------------------------------------------------------
     // Region Item Placement (Future - US-REGION-ITEMS)
     // -------------------------------------------------------------------------
 
@@ -1675,6 +1705,9 @@ pub trait ObservationRepositoryPort: Send + Sync {
     async fn has_observed(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<bool> {
         Ok(self.get_latest(pc_id, npc_id).await?.is_some())
     }
+
+    /// Delete an observation (removes the OBSERVED edge between PC and NPC)
+    async fn delete(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<()>;
 }
 
 // =============================================================================

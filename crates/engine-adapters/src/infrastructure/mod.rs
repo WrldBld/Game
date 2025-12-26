@@ -28,6 +28,7 @@ pub mod repositories;
 pub mod session;
 pub mod session_adapter;
 pub mod state;
+pub mod suggestion_enqueue_adapter;
 pub mod state_broadcast;
 pub mod websocket;
 pub mod websocket_event_subscriber;

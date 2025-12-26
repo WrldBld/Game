@@ -19,6 +19,7 @@ mod session_management_port;
 mod prompt_template_port;
 mod settings_port;
 mod staging_repository_port;
+mod suggestion_enqueue_port;
 mod world_exporter_port;
 
 pub use app_event_repository_port::{AppEventRepositoryError, AppEventRepositoryPort};
@@ -60,6 +61,11 @@ pub use prompt_template_port::{
 pub use settings_port::{SettingsError, SettingsRepositoryPort};
 
 pub use staging_repository_port::{StagedNpcRow, StagingRepositoryPort};
+
+pub use suggestion_enqueue_port::{
+    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    SuggestionEnqueueResponse,
+};
 
 pub use queue_port::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,

@@ -25,6 +25,7 @@ mod sheet_template_repository;
 mod skill_repository;
 mod staging_repository;
 mod story_event_repository;
+mod want_repository;
 mod workflow_repository;
 mod world_repository;
 
@@ -50,6 +51,7 @@ pub use sheet_template_repository::Neo4jSheetTemplateRepository;
 pub use skill_repository::Neo4jSkillRepository;
 pub use staging_repository::Neo4jStagingRepository;
 pub use story_event_repository::Neo4jStoryEventRepository;
+pub use want_repository::Neo4jWantRepository;
 pub use workflow_repository::Neo4jWorkflowRepository;
 pub use world_repository::Neo4jWorldRepository;
 
@@ -150,5 +152,9 @@ impl Neo4jRepository {
 
     pub fn goals(&self) -> Neo4jGoalRepository {
         Neo4jGoalRepository::new(self.connection.clone())
+    }
+
+    pub fn wants(&self) -> Neo4jWantRepository {
+        Neo4jWantRepository::new(self.connection.clone())
     }
 }

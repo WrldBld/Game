@@ -31,7 +31,7 @@ use wrldbldr_engine_app::application::services::{
     ChallengeServiceImpl, CharacterServiceImpl, DMActionQueueService, DMApprovalQueueService,
     EventChainServiceImpl, InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
     MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
-    PlayerCharacterServiceImpl, PromptTemplateService, SceneResolutionServiceImpl, SceneServiceImpl,
+    PlayerCharacterServiceImpl, PromptTemplateService, RegionServiceImpl, SceneResolutionServiceImpl, SceneServiceImpl,
     SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, RelationshipServiceImpl,
     WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService, SessionJoinService,
     OutcomeTriggerService, TriggerEvaluationService, EventEffectExecutor,
@@ -57,6 +57,7 @@ use crate::infrastructure::repositories::{
 };
 use crate::infrastructure::session::SessionManager;
 use crate::infrastructure::session_adapter::SessionManagerAdapter;
+use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use crate::infrastructure::world_connection_manager::{
     SharedWorldConnectionManager, new_shared_manager,
 };
@@ -188,6 +189,8 @@ impl AppState {
             Arc::new(repository.items());
         let goal_repo: Arc<dyn wrldbldr_engine_ports::outbound::GoalRepositoryPort> =
             Arc::new(repository.goals());
+        let want_repo: Arc<dyn wrldbldr_engine_ports::outbound::WantRepositoryPort> =
+            Arc::new(repository.wants());
 
         // Create world exporter
         let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
@@ -500,12 +503,20 @@ impl AppState {
         // Create mood service (P1.4)
         let mood_service = Arc::new(MoodServiceImpl::new(character_repo.clone()));
 
+        // Create region service
+        let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> = 
+            Arc::new(RegionServiceImpl::new(
+                region_repo_for_handler.clone(),
+                location_repo.clone(),
+            ));
+
         // Create actantial context service (P1.5)
         let actantial_context_service = Arc::new(ActantialContextServiceImpl::new(
             character_repo.clone(),
             player_character_repo_for_actantial,
             goal_repo,
             item_repo.clone(),
+            want_repo,
         ));
 
         // Build grouped services
@@ -568,6 +579,11 @@ impl AppState {
         let world_connection_manager = new_shared_manager();
         tracing::info!("Initialized world connection manager for WebSocket-first architecture");
 
+        // Create suggestion enqueue adapter for AI suggestions
+        let suggestion_enqueue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort> = 
+            Arc::new(SuggestionEnqueueAdapter::new(queues.llm_queue_service.clone()));
+        tracing::info!("Initialized suggestion enqueue adapter");
+
         // Create request handler for WebSocket-first architecture
         // Services are already Arc<dyn Trait>, so just clone them
         let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
@@ -585,9 +601,11 @@ impl AppState {
             game.actantial_context_service.clone(),
             game.mood_service.clone(),
             game.story_event_service.clone(),
+            core.item_service.clone(),
+            region_service,
             observation_repo_for_handler,
             region_repo_for_handler,
-        ));
+        ).with_suggestion_enqueue(suggestion_enqueue_adapter));
         tracing::info!("Initialized request handler for WebSocket-first architecture");
 
         Ok((Self {

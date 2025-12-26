@@ -16,10 +16,14 @@ use chrono::Timelike;
 use uuid::Uuid;
 
 use wrldbldr_engine_ports::inbound::{BroadcastSink, RequestContext, RequestHandler};
-use wrldbldr_engine_ports::outbound::{ObservationRepositoryPort, RegionRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    ObservationRepositoryPort, RegionRepositoryPort, SuggestionEnqueueContext,
+    SuggestionEnqueuePort, SuggestionEnqueueRequest,
+};
 use wrldbldr_protocol::{
     EntityChangedData, EntityType, ErrorCode, RequestPayload, ResponseResult,
 };
+use wrldbldr_domain::entities::{RegionConnection, RegionExit};
 
 use crate::application::dto::{
     ActResponseDto, ChallengeResponseDto, CharacterResponseDto, ChainStatusResponseDto,
@@ -31,7 +35,8 @@ use crate::application::services::{
     WorldService, CharacterService, LocationService, SkillService,
     SceneService, InteractionService, ChallengeService, NarrativeEventService,
     EventChainService, PlayerCharacterService, RelationshipService,
-    ActantialContextService, MoodService, StoryEventService,
+    ActantialContextService, MoodService, StoryEventService, ItemService,
+    RegionService,
 };
 
 // =============================================================================
@@ -58,10 +63,15 @@ pub struct AppRequestHandler {
     actantial_service: Arc<dyn ActantialContextService>,
     mood_service: Arc<dyn MoodService>,
     story_event_service: Arc<dyn StoryEventService>,
+    item_service: Arc<dyn ItemService>,
+    region_service: Arc<dyn RegionService>,
 
     // Repository ports (for simple CRUD that doesn't need a full service)
     observation_repo: Arc<dyn ObservationRepositoryPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
+
+    // AI suggestion enqueue port (for async LLM suggestions)
+    suggestion_enqueue: Option<Arc<dyn SuggestionEnqueuePort>>,
 
     // Broadcast sink for entity change notifications
     broadcast_sink: Option<Arc<dyn BroadcastSink>>,
@@ -85,6 +95,8 @@ impl AppRequestHandler {
         actantial_service: Arc<dyn ActantialContextService>,
         mood_service: Arc<dyn MoodService>,
         story_event_service: Arc<dyn StoryEventService>,
+        item_service: Arc<dyn ItemService>,
+        region_service: Arc<dyn RegionService>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
     ) -> Self {
@@ -103,10 +115,19 @@ impl AppRequestHandler {
             actantial_service,
             mood_service,
             story_event_service,
+            item_service,
+            region_service,
             observation_repo,
             region_repo,
+            suggestion_enqueue: None,
             broadcast_sink: None,
         }
+    }
+
+    /// Set the suggestion enqueue port for AI suggestions
+    pub fn with_suggestion_enqueue(mut self, port: Arc<dyn SuggestionEnqueuePort>) -> Self {
+        self.suggestion_enqueue = Some(port);
+        self
     }
 
     /// Set the broadcast sink for entity change notifications
@@ -203,7 +224,6 @@ impl AppRequestHandler {
         Ok(wrldbldr_domain::WantId::from_uuid(uuid))
     }
 
-    #[allow(dead_code)]
     fn parse_region_id(id: &str) -> Result<wrldbldr_domain::RegionId, ResponseResult> {
         let uuid = Self::parse_uuid(id, "region")?;
         Ok(wrldbldr_domain::RegionId::from_uuid(uuid))
@@ -582,12 +602,28 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::GetCharacterInventory { character_id: _ } => {
-                // TODO: Need ItemService to be added to handler
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "GetCharacterInventory pending ItemService integration",
-                )
+            RequestPayload::GetCharacterInventory { character_id } => {
+                let pc_id = match Self::parse_player_character_id(&character_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.item_service.get_pc_inventory(pc_id).await {
+                    Ok(items) => {
+                        let dtos: Vec<serde_json::Value> = items.iter().map(|inv_item| {
+                            serde_json::json!({
+                                "item_id": inv_item.item.id.to_string(),
+                                "item_name": inv_item.item.name,
+                                "item_description": inv_item.item.description,
+                                "quantity": inv_item.quantity,
+                                "is_equipped": inv_item.equipped,
+                                "acquired_at": inv_item.acquired_at.to_rfc3339(),
+                                "acquisition_method": inv_item.acquisition_method.as_ref().map(|m| format!("{:?}", m)),
+                            })
+                        }).collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             // =================================================================
@@ -819,90 +855,179 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::UpdateRegion { region_id, data: _ } => {
+            RequestPayload::UpdateRegion { region_id, data } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _id = match Self::parse_region_id(&region_id) {
+                let id = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "UpdateRegion requires RegionService - pending implementation",
-                )
+                match self.region_service.update_region(
+                    id,
+                    data.name,
+                    data.description,
+                    data.is_spawn_point,
+                ).await {
+                    Ok(region) => ResponseResult::success(serde_json::json!({
+                        "id": region.id.to_string(),
+                        "name": region.name,
+                        "description": region.description,
+                        "is_spawn_point": region.is_spawn_point,
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::DeleteRegion { region_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _id = match Self::parse_region_id(&region_id) {
+                let id = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "DeleteRegion requires RegionService - pending implementation",
-                )
+                match self.region_service.delete_region(id).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::GetRegionConnections { region_id } => {
-                let _id = match Self::parse_region_id(&region_id) {
+                let id = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "GetRegionConnections requires RegionService - pending implementation",
-                )
+                match self.region_service.get_connections(id).await {
+                    Ok(connections) => {
+                        let dtos: Vec<serde_json::Value> = connections.iter().map(|c| {
+                            serde_json::json!({
+                                "from_region": c.from_region.to_string(),
+                                "to_region": c.to_region.to_string(),
+                                "description": c.description,
+                                "bidirectional": c.bidirectional,
+                                "is_locked": c.is_locked,
+                                "lock_description": c.lock_description,
+                            })
+                        }).collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
-            RequestPayload::CreateRegionConnection { from_id: _, to_id: _, data: _ } => {
+            RequestPayload::CreateRegionConnection { from_id, to_id, data } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "CreateRegionConnection requires RegionService - pending implementation",
-                )
+                let from = match Self::parse_region_id(&from_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let to = match Self::parse_region_id(&to_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let mut connection = RegionConnection::new(from, to);
+                if let Some(desc) = data.description {
+                    connection = connection.with_description(desc);
+                }
+                if let Some(false) = data.bidirectional {
+                    connection = connection.one_way();
+                }
+                if let Some(true) = data.locked {
+                    connection.is_locked = true;
+                }
+                match self.region_service.create_connection(connection).await {
+                    Ok(()) => ResponseResult::success(serde_json::json!({
+                        "from_id": from_id,
+                        "to_id": to_id,
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
-            RequestPayload::DeleteRegionConnection { from_id: _, to_id: _ } => {
+            RequestPayload::DeleteRegionConnection { from_id, to_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "DeleteRegionConnection requires RegionService - pending implementation",
-                )
+                let from = match Self::parse_region_id(&from_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let to = match Self::parse_region_id(&to_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.region_service.delete_connection(from, to).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
-            RequestPayload::UnlockRegionConnection { from_id: _, to_id: _ } => {
+            RequestPayload::UnlockRegionConnection { from_id, to_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "UnlockRegionConnection requires RegionService - pending implementation",
-                )
+                let from = match Self::parse_region_id(&from_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let to = match Self::parse_region_id(&to_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.region_service.unlock_connection(from, to).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::GetRegionExits { region_id } => {
-                let _id = match Self::parse_region_id(&region_id) {
+                let id = match Self::parse_region_id(&region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.region_service.get_exits(id).await {
+                    Ok(exits) => {
+                        let dtos: Vec<serde_json::Value> = exits.iter().map(|exit| {
+                            serde_json::json!({
+                                "from_region": exit.from_region.to_string(),
+                                "to_location": exit.to_location.to_string(),
+                                "arrival_region_id": exit.arrival_region_id.to_string(),
+                                "description": exit.description,
+                                "bidirectional": exit.bidirectional,
+                            })
+                        }).collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::CreateRegionExit { region_id, location_id } => {
+                if let Err(e) = ctx.require_dm() { return e; }
+                // CreateRegionExit needs arrival_region_id which isn't in the protocol.
+                // For now, we'll return an error explaining the missing field.
+                // This would need a protocol update to support properly.
+                let _from = match Self::parse_region_id(&region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let _to = match Self::parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "GetRegionExits requires RegionService - pending implementation",
+                    ErrorCode::BadRequest,
+                    "CreateRegionExit requires arrival_region_id - protocol update needed",
                 )
             }
 
-            RequestPayload::CreateRegionExit { region_id: _, location_id: _ } => {
+            RequestPayload::DeleteRegionExit { region_id, location_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "CreateRegionExit requires RegionService - pending implementation",
-                )
-            }
-
-            RequestPayload::DeleteRegionExit { region_id: _, location_id: _ } => {
-                if let Err(e) = ctx.require_dm() { return e; }
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "DeleteRegionExit requires RegionService - pending implementation",
-                )
+                let from = match Self::parse_region_id(&region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let to = match Self::parse_location_id(&location_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.region_service.delete_exit(from, to).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::ListSpawnPoints { world_id } => {
@@ -1802,12 +1927,79 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                // For now, we need a starting location - this is a limitation
-                // In a real implementation, we'd need to pick a spawn point or default location
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "CreatePlayerCharacter requires starting_location_id - use session join flow instead",
-                )
+
+                // If starting_region_id is provided, use it to get the location
+                // Otherwise, we need to find a spawn point or return an error
+                let (starting_location_id, starting_region_id) = if let Some(ref region_id_str) = data.starting_region_id {
+                    let region_id = match Self::parse_region_id(region_id_str) {
+                        Ok(id) => id,
+                        Err(e) => return e,
+                    };
+                    // Fetch the region to get its location_id
+                    match self.region_repo.get(region_id).await {
+                        Ok(Some(region)) => (region.location_id, Some(region_id)),
+                        Ok(None) => return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            format!("Starting region not found: {}", region_id_str),
+                        ),
+                        Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    }
+                } else {
+                    // No starting region provided - try to find a spawn point in the world
+                    match self.region_repo.list_spawn_points(wid).await {
+                        Ok(spawn_points) if !spawn_points.is_empty() => {
+                            let spawn = &spawn_points[0];
+                            (spawn.location_id, Some(spawn.id))
+                        }
+                        Ok(_) => {
+                            return ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                "No starting_region_id provided and no spawn points found in world",
+                            );
+                        }
+                        Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    }
+                };
+
+                // Get user_id from context or data
+                let user_id = data.user_id.clone().unwrap_or_else(|| ctx.user_id.clone());
+
+                // Parse sheet_data if provided
+                let sheet_data = data.sheet_data.as_ref().and_then(|v| {
+                    serde_json::from_value::<wrldbldr_domain::entities::CharacterSheetData>(v.clone()).ok()
+                });
+
+                let request = crate::application::services::CreatePlayerCharacterRequest {
+                    session_id: None, // Not bound to a session
+                    user_id,
+                    world_id: wid,
+                    name: data.name.clone(),
+                    description: None,
+                    starting_location_id,
+                    sheet_data,
+                    sprite_asset: None,
+                    portrait_asset: None,
+                };
+
+                match self.player_character_service.create_pc(request).await {
+                    Ok(mut pc) => {
+                        // Set the starting region if provided
+                        if let Some(region_id) = starting_region_id {
+                            if let Err(e) = self.player_character_service
+                                .update_pc_location(pc.id, starting_location_id)
+                                .await
+                            {
+                                tracing::warn!(pc_id = %pc.id, region_id = %region_id, error = %e, 
+                                    "Failed to set starting region for PC");
+                            }
+                            // Also update the region_id on the PC for the response
+                            pc.current_region_id = Some(region_id);
+                        }
+                        let dto: PlayerCharacterResponseDto = pc.into();
+                        ResponseResult::success(dto)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::UpdatePlayerCharacter { pc_id, data } => {
@@ -2212,20 +2404,18 @@ impl RequestHandler for AppRequestHandler {
 
             RequestPayload::DeleteObservation { pc_id, npc_id } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _pid = match Self::parse_player_character_id(&pc_id) {
+                let pid = match Self::parse_player_character_id(&pc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _nid = match Self::parse_character_id(&npc_id) {
+                let nid = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                // Note: ObservationRepositoryPort doesn't have a delete method
-                // This would require adding one to the port or keeping as stub
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "DeleteObservation not yet implemented - ObservationRepositoryPort lacks delete method",
-                )
+                match self.observation_repo.delete(pid, nid).await {
+                    Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             // =================================================================
@@ -2293,14 +2483,23 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::ListRegionNpcs { region_id } => {
-                let _id = match Self::parse_region_id(&region_id) {
+                let id = match Self::parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "ListRegionNpcs requires RegionService - pending implementation",
-                )
+                match self.region_service.get_region_npcs(id).await {
+                    Ok(npcs) => {
+                        let dtos: Vec<serde_json::Value> = npcs.iter().map(|(npc, rel_type)| {
+                            serde_json::json!({
+                                "id": npc.id.to_string(),
+                                "name": npc.name,
+                                "relationship_type": serde_json::to_value(rel_type).unwrap_or(serde_json::Value::Null),
+                            })
+                        }).collect();
+                        ResponseResult::success(dtos)
+                    }
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             // =================================================================
@@ -2327,17 +2526,22 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::GetGoal { goal_id } => {
-                // Goal get is not directly supported by ActantialContextService
-                // We'll need to list and filter, or add a direct method
                 let id = match Self::parse_goal_id(&goal_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                // For now, return not implemented until we add a get method
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "GetGoal requires direct repository access - pending service method",
-                )
+                match self.actantial_service.get_goal(id).await {
+                    Ok(Some(goal)) => {
+                        let dto = serde_json::json!({
+                            "id": goal.id.to_string(),
+                            "name": goal.name,
+                            "description": goal.description,
+                        });
+                        ResponseResult::success(dto)
+                    }
+                    Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Goal not found"),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::CreateGoal { world_id, data } => {
@@ -2397,15 +2601,25 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::GetWant { want_id } => {
-                // Want get is not directly supported by ActantialContextService
-                let _id = match Self::parse_want_id(&want_id) {
+                let id = match Self::parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    "GetWant requires direct repository access - pending service method",
-                )
+                match self.actantial_service.get_want(id).await {
+                    Ok(Some(want)) => {
+                        let dto = serde_json::json!({
+                            "id": want.id.to_string(),
+                            "description": want.description,
+                            "intensity": want.intensity,
+                            "visibility": format!("{:?}", want.visibility),
+                            "deflection_behavior": want.deflection_behavior,
+                            "tells": want.tells,
+                        });
+                        ResponseResult::success(dto)
+                    }
+                    Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Want not found"),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::CreateWant { character_id, data } => {
@@ -2541,62 +2755,224 @@ impl RequestHandler for AppRequestHandler {
 
             RequestPayload::SuggestDeflectionBehavior { npc_id, want_id, want_description } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _nid = match Self::parse_character_id(&npc_id) {
+                let char_id = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _wid = match Self::parse_want_id(&want_id) {
+                let wid = match Self::parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    format!("SuggestDeflectionBehavior for '{}' requires LLM service - pending implementation", want_description),
-                )
+
+                // Get character for context
+                let character = match self.character_service.get_character(char_id).await {
+                    Ok(Some(c)) => c,
+                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
+                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                };
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                // Build suggestion context
+                let context = SuggestionEnqueueContext {
+                    entity_type: Some("npc".to_string()),
+                    entity_name: Some(character.name.clone()),
+                    world_setting: None, // Could fetch from world settings
+                    hints: Some(want_description),
+                    additional_context: Some(character.description.clone()),
+                    world_id: Some(character.world_id.to_uuid().to_string()),
+                };
+
+                let request = SuggestionEnqueueRequest {
+                    field_type: "deflection_behavior".to_string(),
+                    entity_id: Some(wid.to_uuid().to_string()),
+                    world_id: Some(character.world_id.to_uuid()),
+                    context,
+                };
+
+                match suggestion_port.enqueue_suggestion(request).await {
+                    Ok(response) => ResponseResult::success(serde_json::json!({
+                        "request_id": response.request_id,
+                        "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::SuggestBehavioralTells { npc_id, want_id, want_description } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _nid = match Self::parse_character_id(&npc_id) {
+                let char_id = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _wid = match Self::parse_want_id(&want_id) {
+                let wid = match Self::parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    format!("SuggestBehavioralTells for '{}' requires LLM service - pending implementation", want_description),
-                )
+
+                // Get character for context
+                let character = match self.character_service.get_character(char_id).await {
+                    Ok(Some(c)) => c,
+                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
+                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                };
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                // Build suggestion context
+                let context = SuggestionEnqueueContext {
+                    entity_type: Some("npc".to_string()),
+                    entity_name: Some(character.name.clone()),
+                    world_setting: None,
+                    hints: Some(want_description),
+                    additional_context: Some(character.description.clone()),
+                    world_id: Some(character.world_id.to_uuid().to_string()),
+                };
+
+                let request = SuggestionEnqueueRequest {
+                    field_type: "behavioral_tells".to_string(),
+                    entity_id: Some(wid.to_uuid().to_string()),
+                    world_id: Some(character.world_id.to_uuid()),
+                    context,
+                };
+
+                match suggestion_port.enqueue_suggestion(request).await {
+                    Ok(response) => ResponseResult::success(serde_json::json!({
+                        "request_id": response.request_id,
+                        "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::SuggestWantDescription { npc_id, context } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _nid = match Self::parse_character_id(&npc_id) {
+                let char_id = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    format!("SuggestWantDescription requires LLM service - pending implementation (context: {:?})", context),
-                )
+
+                // Get character for context
+                let character = match self.character_service.get_character(char_id).await {
+                    Ok(Some(c)) => c,
+                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
+                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                };
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                // Build suggestion context
+                let suggestion_context = SuggestionEnqueueContext {
+                    entity_type: Some("npc".to_string()),
+                    entity_name: Some(character.name.clone()),
+                    world_setting: None,
+                    hints: context, // Use provided context as hints
+                    additional_context: Some(character.description.clone()),
+                    world_id: Some(character.world_id.to_uuid().to_string()),
+                };
+
+                let request = SuggestionEnqueueRequest {
+                    field_type: "want_description".to_string(),
+                    entity_id: Some(char_id.to_uuid().to_string()),
+                    world_id: Some(character.world_id.to_uuid()),
+                    context: suggestion_context,
+                };
+
+                match suggestion_port.enqueue_suggestion(request).await {
+                    Ok(response) => ResponseResult::success(serde_json::json!({
+                        "request_id": response.request_id,
+                        "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             RequestPayload::SuggestActantialReason { npc_id, want_id, target_id, role } => {
                 if let Err(e) = ctx.require_dm() { return e; }
-                let _nid = match Self::parse_character_id(&npc_id) {
+                let char_id = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let _wid = match Self::parse_want_id(&want_id) {
+                let wid = match Self::parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                ResponseResult::error(
-                    ErrorCode::ServiceUnavailable,
-                    format!("SuggestActantialReason for target {} ({:?}) requires LLM service - pending implementation", target_id, role),
-                )
+
+                // Get character for context
+                let character = match self.character_service.get_character(char_id).await {
+                    Ok(Some(c)) => c,
+                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
+                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                };
+
+                // Try to get target character name
+                let target_name = if let Ok(target_char_id) = Self::parse_character_id(&target_id) {
+                    match self.character_service.get_character(target_char_id).await {
+                        Ok(Some(c)) => c.name,
+                        _ => target_id.clone(),
+                    }
+                } else {
+                    target_id.clone()
+                };
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                // Build suggestion context
+                // hints: Target of the actantial relationship
+                // additional_context: The actantial role (e.g., "a helper", "an opponent")
+                let role_str = match role {
+                    wrldbldr_protocol::ActantialRoleData::Helper => "a helper",
+                    wrldbldr_protocol::ActantialRoleData::Opponent => "an opponent",
+                    wrldbldr_protocol::ActantialRoleData::Sender => "a sender",
+                    wrldbldr_protocol::ActantialRoleData::Receiver => "a receiver",
+                };
+                let context = SuggestionEnqueueContext {
+                    entity_type: Some("npc".to_string()),
+                    entity_name: Some(character.name.clone()),
+                    world_setting: None,
+                    hints: Some(target_name),
+                    additional_context: Some(role_str.to_string()),
+                    world_id: Some(character.world_id.to_uuid().to_string()),
+                };
+
+                let request = SuggestionEnqueueRequest {
+                    field_type: "actantial_reason".to_string(),
+                    entity_id: Some(wid.to_uuid().to_string()),
+                    world_id: Some(character.world_id.to_uuid()),
+                    context,
+                };
+
+                match suggestion_port.enqueue_suggestion(request).await {
+                    Ok(response) => ResponseResult::success(serde_json::json!({
+                        "request_id": response.request_id,
+                        "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
             }
 
             // =================================================================

@@ -932,6 +932,9 @@ pub struct CreatePlayerCharacterData {
     pub name: String,
     #[serde(default)]
     pub user_id: Option<String>,
+    /// Starting region ID - if provided, PC will spawn at this region
+    #[serde(default)]
+    pub starting_region_id: Option<String>,
     #[serde(default)]
     pub sheet_data: Option<serde_json::Value>,
 }

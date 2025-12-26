@@ -17,6 +17,7 @@ use tracing::{debug, instrument, warn};
 
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, GoalRepositoryPort, ItemRepositoryPort, PlayerCharacterRepositoryPort,
+    WantRepositoryPort,
 };
 use wrldbldr_domain::entities::{ActantialRole, ActantialView, Character, Goal, PlayerCharacter, Want, WantVisibility};
 use wrldbldr_domain::value_objects::{
@@ -180,6 +181,12 @@ pub trait ActantialContextService: Send + Sync {
 
     /// Delete a goal
     async fn delete_goal(&self, goal_id: GoalId) -> Result<()>;
+
+    /// Get a specific goal by ID
+    async fn get_goal(&self, goal_id: GoalId) -> Result<Option<Goal>>;
+
+    /// Get a specific want by ID
+    async fn get_want(&self, want_id: WantId) -> Result<Option<Want>>;
 }
 
 /// Default implementation of ActantialContextService
@@ -189,6 +196,7 @@ pub struct ActantialContextServiceImpl {
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     goal_repo: Arc<dyn GoalRepositoryPort>,
     item_repo: Arc<dyn ItemRepositoryPort>,
+    want_repo: Arc<dyn WantRepositoryPort>,
 }
 
 impl ActantialContextServiceImpl {
@@ -198,12 +206,14 @@ impl ActantialContextServiceImpl {
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         goal_repo: Arc<dyn GoalRepositoryPort>,
         item_repo: Arc<dyn ItemRepositoryPort>,
+        want_repo: Arc<dyn WantRepositoryPort>,
     ) -> Self {
         Self {
             character_repo,
             pc_repo,
             goal_repo,
             item_repo,
+            want_repo,
         }
     }
 
@@ -613,6 +623,22 @@ impl ActantialContextService for ActantialContextServiceImpl {
         self.goal_repo.delete(goal_id).await?;
         debug!(goal_id = %goal_id, "Goal deleted");
         Ok(())
+    }
+
+    #[instrument(skip(self))]
+    async fn get_goal(&self, goal_id: GoalId) -> Result<Option<Goal>> {
+        debug!(goal_id = %goal_id, "Getting goal");
+        let goal = self.goal_repo.get(goal_id).await?;
+        debug!(goal_id = %goal_id, found = goal.is_some(), "Got goal");
+        Ok(goal)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_want(&self, want_id: WantId) -> Result<Option<Want>> {
+        debug!(want_id = %want_id, "Getting want");
+        let want = self.want_repo.get(want_id).await?;
+        debug!(want_id = %want_id, found = want.is_some(), "Got want");
+        Ok(want)
     }
 }
 

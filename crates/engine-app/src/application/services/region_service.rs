@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_domain::entities::{Character, Region};
+use wrldbldr_domain::entities::{Character, Region, RegionConnection, RegionExit};
 use wrldbldr_domain::value_objects::RegionRelationshipType;
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, RegionRepositoryPort};
@@ -55,6 +55,35 @@ pub trait RegionService: Send + Sync {
         &self,
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>>;
+
+    // -------------------------------------------------------------------------
+    // Region Connections
+    // -------------------------------------------------------------------------
+
+    /// Create a connection between two regions
+    async fn create_connection(&self, connection: RegionConnection) -> Result<()>;
+
+    /// Get all connections from a region
+    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>>;
+
+    /// Delete a connection between two regions
+    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
+
+    /// Unlock a locked connection between two regions
+    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
+
+    // -------------------------------------------------------------------------
+    // Region Exits
+    // -------------------------------------------------------------------------
+
+    /// Create an exit from a region to another location
+    async fn create_exit(&self, exit: RegionExit) -> Result<()>;
+
+    /// Get all exits from a region
+    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>>;
+
+    /// Delete an exit from a region to a location
+    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()>;
 }
 
 /// Default implementation of RegionService using port abstractions
@@ -261,6 +290,109 @@ impl RegionService for RegionServiceImpl {
             .get_npcs_related_to_region(region_id)
             .await
             .context("Failed to get NPCs for region from repository")
+    }
+
+    // -------------------------------------------------------------------------
+    // Region Connections
+    // -------------------------------------------------------------------------
+
+    #[instrument(skip(self))]
+    async fn create_connection(&self, connection: RegionConnection) -> Result<()> {
+        debug!(
+            from = %connection.from_region,
+            to = %connection.to_region,
+            "Creating region connection"
+        );
+
+        // Verify both regions exist
+        self.region_repository
+            .get(connection.from_region)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Source region not found: {}", connection.from_region))?;
+        self.region_repository
+            .get(connection.to_region)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Target region not found: {}", connection.to_region))?;
+
+        self.region_repository
+            .create_connection(&connection)
+            .await
+            .context("Failed to create region connection")
+    }
+
+    #[instrument(skip(self))]
+    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>> {
+        debug!(region_id = %region_id, "Getting region connections");
+        self.region_repository
+            .get_connections(region_id)
+            .await
+            .context("Failed to get region connections")
+    }
+
+    #[instrument(skip(self))]
+    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        debug!(from = %from, to = %to, "Deleting region connection");
+        self.region_repository
+            .delete_connection(from, to)
+            .await
+            .context("Failed to delete region connection")
+    }
+
+    #[instrument(skip(self))]
+    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        debug!(from = %from, to = %to, "Unlocking region connection");
+        self.region_repository
+            .unlock_connection(from, to)
+            .await
+            .context("Failed to unlock region connection")
+    }
+
+    // -------------------------------------------------------------------------
+    // Region Exits
+    // -------------------------------------------------------------------------
+
+    #[instrument(skip(self))]
+    async fn create_exit(&self, exit: RegionExit) -> Result<()> {
+        debug!(
+            from = %exit.from_region,
+            to = %exit.to_location,
+            "Creating region exit"
+        );
+
+        // Verify region exists
+        self.region_repository
+            .get(exit.from_region)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Source region not found: {}", exit.from_region))?;
+
+        // Verify target location exists
+        self.location_repository
+            .get(exit.to_location)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Target location not found: {}", exit.to_location))?;
+
+        self.region_repository
+            .create_exit(&exit)
+            .await
+            .context("Failed to create region exit")
+    }
+
+    #[instrument(skip(self))]
+    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>> {
+        debug!(region_id = %region_id, "Getting region exits");
+        self.region_repository
+            .get_exits(region_id)
+            .await
+            .context("Failed to get region exits")
+    }
+
+    #[instrument(skip(self))]
+    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()> {
+        debug!(from = %from_region, to = %to_location, "Deleting region exit");
+        self.region_repository
+            .delete_exit(from_region, to_location)
+            .await
+            .context("Failed to delete region exit")
     }
 }
 
