@@ -74,6 +74,8 @@ pub async fn run() -> Result<()> {
     // Player action queue worker (processes actions and routes to LLM queue)
     let player_action_worker = {
         let service = state.queues.player_action_queue_service.clone();
+        let world_service = state.core.world_service.clone();
+        let world_state = state.world_state.clone();
         let challenge_service = state.game.challenge_service.clone();
         let skill_service = state.core.skill_service.clone();
         let narrative_event_service = state.game.narrative_event_service.clone();
@@ -91,6 +93,8 @@ pub async fn run() -> Result<()> {
         tokio::spawn(async move {
             tracing::info!("Starting player action queue worker");
             loop {
+                let world_service_clone = world_service.clone();
+                let world_state_clone = world_state.clone();
                 let challenge_service_clone = challenge_service.clone();
                 let skill_service_clone = skill_service.clone();
                 let narrative_event_service_clone = narrative_event_service.clone();
@@ -102,6 +106,8 @@ pub async fn run() -> Result<()> {
                 let actantial_service_clone = actantial_service.clone();
                 match service
                     .process_next(|action| {
+                        let world_service = world_service_clone.clone();
+                        let world_state = world_state_clone.clone();
                         let challenge_service = challenge_service_clone.clone();
                         let skill_service = skill_service_clone.clone();
                         let narrative_event_service = narrative_event_service_clone.clone();
@@ -115,6 +121,8 @@ pub async fn run() -> Result<()> {
                             let world_id = WorldId::from_uuid(action.world_id);
                             build_prompt_from_action(
                                 world_id,
+                                &world_service,
+                                &world_state,
                                 &challenge_service,
                                 &skill_service,
                                 &narrative_event_service,

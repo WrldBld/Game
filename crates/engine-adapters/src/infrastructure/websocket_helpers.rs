@@ -2,68 +2,302 @@
 //!
 //! These functions assist with building prompts and processing queue items
 //! in the WebSocket handler and background workers.
-//!
-//! NOTE: This module is currently non-functional. The session-based architecture
-//! has been removed in favor of world-based state management via WorldStateManager.
-//! The `build_prompt_from_action` function needs to be refactored to:
-//! 1. Accept a WorldId instead of SessionManager
-//! 2. Fetch world snapshot via WorldService
-//! 3. Get conversation history from WorldStateManager
-//! 
-//! See WEBSOCKET_MIGRATION_COMPLETION.md for migration plan.
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::GamePromptRequest;
+use uuid::Uuid;
+use wrldbldr_domain::entities::NarrativeEvent;
+use wrldbldr_domain::value_objects::{
+    ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
+    GamePromptRequest, PlayerActionContext, SceneContext,
+};
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
 use wrldbldr_engine_app::application::services::{
     ActantialContextService, ChallengeService, MoodService,
-    NarrativeEventService, SettingsService, SkillService,
+    NarrativeEventService, SettingsService, SkillService, WorldService,
 };
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError, RegionRepositoryPort,
 };
 
+use crate::infrastructure::world_state_manager::{ConversationEntry, Speaker, WorldStateManager};
+
 /// Build a GamePromptRequest from a PlayerActionItem
 ///
-/// # TODO: Refactor for world-based architecture
-/// 
-/// This function previously used SessionManager to access world snapshot and
-/// conversation history. It needs to be refactored to:
-/// - Accept WorldId and WorldStateManager instead of SessionManager
-/// - Fetch world data via WorldService.export_world_snapshot()
-/// - Get conversation history via WorldStateManager.get_conversation_history()
-///
-/// For now, returns an error indicating the function needs refactoring.
-#[allow(unused_variables)]
+/// This function gathers all necessary context from the world snapshot,
+/// conversation history, and domain services to create a complete prompt
+/// for the LLM to generate an NPC response.
+#[allow(clippy::too_many_arguments)]
 pub async fn build_prompt_from_action(
     world_id: WorldId,
+    world_service: &Arc<dyn WorldService>,
+    world_state: &Arc<WorldStateManager>,
     challenge_service: &Arc<dyn ChallengeService>,
     skill_service: &Arc<dyn SkillService>,
     narrative_event_service: &Arc<dyn NarrativeEventService>,
-    character_repo: &Arc<dyn CharacterRepositoryPort>,
-    pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repo: &Arc<dyn RegionRepositoryPort>,
-    settings_service: &Arc<SettingsService>,
-    mood_service: &Arc<dyn MoodService>,
-    actantial_service: &Arc<dyn ActantialContextService>,
+    _character_repo: &Arc<dyn CharacterRepositoryPort>,
+    _pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
+    _region_repo: &Arc<dyn RegionRepositoryPort>,
+    _settings_service: &Arc<SettingsService>,
+    _mood_service: &Arc<dyn MoodService>,
+    _actantial_service: &Arc<dyn ActantialContextService>,
     action: &PlayerActionItem,
 ) -> Result<GamePromptRequest, QueueError> {
-    // TODO: Refactor to use world-based architecture
-    // 
-    // Previous implementation used session.world_snapshot for:
-    // - current_scene_id
-    // - scenes, locations, characters
-    // - conversation history
-    //
-    // New implementation should:
-    // 1. Get world snapshot via WorldService.export_world_snapshot(world_id)
-    // 2. Get conversation history via WorldStateManager.get_conversation_history(world_id)
-    // 3. Get current scene from WorldStateManager.get_current_scene(world_id)
+    // 1. Get world snapshot for scene and character data
+    let snapshot = world_service
+        .export_world_snapshot(world_id.clone())
+        .await
+        .map_err(|e| QueueError::Backend(format!("Failed to export world snapshot: {}", e)))?;
+
+    // 2. Get current scene from world state or snapshot
+    let current_scene_id = world_state
+        .get_current_scene(&world_id)
+        .or_else(|| snapshot.current_scene.as_ref().map(|s| s.id.clone()));
+
+    // 3. Build scene context from current scene
+    let scene_context = if let Some(scene_id) = &current_scene_id {
+        // Find scene in snapshot
+        let scene = snapshot
+            .scenes
+            .iter()
+            .find(|s| &s.id == scene_id)
+            .or(snapshot.current_scene.as_ref());
+
+        if let Some(scene) = scene {
+            SceneContext {
+                scene_name: scene.name.clone(),
+                location_name: scene.location_id.clone(), // SceneData has location_id, not location_name
+                time_context: scene.time_context.clone(),
+                present_characters: scene.featured_characters.clone(), // featured_characters, not characters
+                region_items: Vec::new(), // TODO: populate from region items
+            }
+        } else {
+            default_scene_context()
+        }
+    } else {
+        default_scene_context()
+    };
+
+    // 4. Get directorial context
+    let directorial_notes = world_state
+        .get_directorial_context(&world_id)
+        .map(|dc| {
+            let mut notes = Vec::new();
+            if !dc.scene_notes.is_empty() {
+                notes.push(format!("Scene Notes: {}", dc.scene_notes));
+            }
+            if !dc.tone.is_empty() {
+                notes.push(format!("Tone: {}", dc.tone));
+            }
+            if !dc.forbidden_topics.is_empty() {
+                notes.push(format!("Forbidden Topics: {}", dc.forbidden_topics.join(", ")));
+            }
+            notes.join("\n")
+        })
+        .unwrap_or_default();
+
+    // 5. Convert conversation history
+    let conversation_history: Vec<ConversationTurn> = world_state
+        .get_conversation_history(&world_id)
+        .into_iter()
+        .map(conversation_entry_to_turn)
+        .collect();
+
+    // 6. Build player action context
+    let player_action = PlayerActionContext {
+        action_type: action.action_type.clone(),
+        target: action.target.clone(),
+        dialogue: action.dialogue.clone(),
+    };
+
+    // 7. Find responding character (NPC being addressed)
+    let responding_character = find_responding_character(
+        &action.target,
+        &snapshot.characters,
+    );
+
+    // 8. Get active challenges for the current scene
+    let active_challenges = get_active_challenges(
+        challenge_service,
+        skill_service,
+        &current_scene_id,
+    )
+    .await;
+
+    // 9. Get active narrative events
+    let active_narrative_events = get_active_narrative_events(
+        narrative_event_service,
+        &world_id,
+    )
+    .await;
+
+    // 10. Build the complete prompt request
+    Ok(GamePromptRequest {
+        world_id: Some(world_id.to_string()),
+        player_action,
+        scene_context,
+        directorial_notes,
+        conversation_history,
+        responding_character,
+        active_challenges,
+        active_narrative_events,
+        context_budget: None, // Use default budget
+    })
+}
+
+fn default_scene_context() -> SceneContext {
+    SceneContext {
+        scene_name: "Unknown Scene".to_string(),
+        location_name: "Unknown Location".to_string(),
+        time_context: "Unspecified".to_string(),
+        present_characters: Vec::new(),
+        region_items: Vec::new(),
+    }
+}
+
+fn conversation_entry_to_turn(entry: ConversationEntry) -> ConversationTurn {
+    let speaker = match entry.speaker {
+        Speaker::Player { pc_name, .. } => pc_name,
+        Speaker::Npc { npc_name, .. } => npc_name,
+        Speaker::System => "System".to_string(),
+        Speaker::Dm => "DM".to_string(),
+    };
+
+    ConversationTurn {
+        speaker,
+        text: entry.message,
+    }
+}
+
+fn find_responding_character(
+    target: &Option<String>,
+    characters: &[wrldbldr_engine_ports::outbound::CharacterData],
+) -> CharacterContext {
+    // Try to find character by name in target
+    let target_name = target.as_ref().map(|s| s.to_lowercase());
+
+    // Search in snapshot characters first
+    let character_data = characters
+        .iter()
+        .find(|c| {
+            target_name
+                .as_ref()
+                .map(|t| c.name.to_lowercase().contains(t))
+                .unwrap_or(false)
+        })
+        .or_else(|| characters.first()); // Fallback to first character
+
+    if let Some(char_data) = character_data {
+        // Return character context with data from snapshot
+        // Note: Mood and actantial context would require additional service calls
+        // which we skip for now to simplify the initial implementation
+        CharacterContext {
+            character_id: Some(char_data.id.clone()),
+            name: char_data.name.clone(),
+            archetype: char_data.archetype.clone(),
+            current_mood: None, // TODO: integrate mood service (requires PC context)
+            motivations: None,  // TODO: integrate actantial context
+            social_stance: None,
+            relationship_to_player: None,
+        }
+    } else {
+        // No character found - return a minimal context
+        CharacterContext {
+            character_id: None,
+            name: target.clone().unwrap_or_else(|| "Unknown".to_string()),
+            archetype: String::new(),
+            current_mood: None,
+            motivations: None,
+            social_stance: None,
+            relationship_to_player: None,
+        }
+    }
+}
+
+async fn get_active_challenges(
+    challenge_service: &Arc<dyn ChallengeService>,
+    skill_service: &Arc<dyn SkillService>,
+    current_scene_id: &Option<String>,
+) -> Vec<ActiveChallengeContext> {
+    let Some(scene_id_str) = current_scene_id else {
+        return Vec::new();
+    };
+
+    let Ok(scene_id) = Uuid::parse_str(scene_id_str) else {
+        return Vec::new();
+    };
+
+    let scene_id = wrldbldr_domain::SceneId::from_uuid(scene_id);
     
-    Err(QueueError::Backend(
-        "build_prompt_from_action needs refactoring for world-based architecture. \
-         See websocket_helpers.rs module docs for migration plan.".to_string()
-    ))
+    let challenges = match challenge_service.list_by_scene(scene_id).await {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut result = Vec::new();
+    for challenge in challenges {
+        // Get required skill name
+        let skill_name = if let Ok(Some(skill_id)) = challenge_service
+            .get_required_skill(challenge.id)
+            .await
+        {
+            if let Ok(Some(skill)) = skill_service.get_skill(skill_id).await {
+                skill.name
+            } else {
+                "Unknown Skill".to_string()
+            }
+        } else {
+            "Unknown Skill".to_string()
+        };
+
+        // Build trigger hints from trigger condition descriptions
+        let trigger_hints: Vec<String> = challenge.trigger_conditions
+            .iter()
+            .map(|tc| tc.description.clone())
+            .collect();
+
+        result.push(ActiveChallengeContext {
+            id: challenge.id.to_string(),
+            name: challenge.name.clone(),
+            description: challenge.description.clone(),
+            skill_name,
+            difficulty_display: format!("{:?}", challenge.difficulty),
+            trigger_hints,
+        });
+    }
+
+    result
+}
+
+async fn get_active_narrative_events(
+    narrative_event_service: &Arc<dyn NarrativeEventService>,
+    world_id: &WorldId,
+) -> Vec<ActiveNarrativeEventContext> {
+    // Get pending (not yet triggered) narrative events
+    let events: Vec<NarrativeEvent> = match narrative_event_service.list_pending(*world_id).await {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+
+    events
+        .into_iter()
+        .map(|event| {
+            // Extract trigger hints from trigger conditions
+            let trigger_hints: Vec<String> = event.trigger_conditions
+                .iter()
+                .map(|t| t.description.clone())
+                .collect();
+
+            ActiveNarrativeEventContext {
+                id: event.id.to_string(),
+                name: event.name.clone(),
+                description: event.description.clone(),
+                scene_direction: event.scene_direction.clone(),
+                trigger_hints,
+                featured_npc_names: Vec::new(), // NPCs are stored as edges, not fetched here
+                priority: event.priority,
+            }
+        })
+        .collect()
 }
