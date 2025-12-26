@@ -708,9 +708,79 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     // No additional processing needed
                     tracing::debug!("InfoRevealed state change - already handled in conversation history");
                 }
-                StateChange::CharacterStatUpdated { .. } => {
-                    // TODO: Implement character stat updates
-                    tracing::warn!("CharacterStatUpdated state change not yet implemented");
+                StateChange::CharacterStatUpdated { character_id, stat_name, delta } => {
+                    // Handle stat updates for player characters
+                    tracing::info!(
+                        character_id = %character_id,
+                        stat_name = %stat_name,
+                        delta = %delta,
+                        "Processing CharacterStatUpdated state change"
+                    );
+
+                    // Parse the character ID
+                    let pc_id: wrldbldr_domain::PlayerCharacterId = match uuid::Uuid::parse_str(character_id) {
+                        Ok(uuid) => uuid.into(),
+                        Err(e) => {
+                            tracing::error!(
+                                character_id = %character_id,
+                                error = %e,
+                                "Invalid character ID for stat update"
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Get the player character
+                    let mut pc = match self.pc_repository.get(pc_id).await {
+                        Ok(Some(pc)) => pc,
+                        Ok(None) => {
+                            tracing::warn!(
+                                character_id = %character_id,
+                                "Player character not found for stat update"
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                character_id = %character_id,
+                                error = %e,
+                                "Failed to get player character for stat update"
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Get or create sheet data
+                    let sheet_data = pc.sheet_data.get_or_insert_with(|| {
+                        wrldbldr_domain::entities::CharacterSheetData::new()
+                    });
+
+                    // Get current value (default to 0 if not set)
+                    let current_value = sheet_data.get_number(stat_name).unwrap_or(0);
+                    let new_value = current_value + delta;
+
+                    // Update the stat
+                    sheet_data.set(stat_name.clone(), wrldbldr_domain::entities::FieldValue::Number(new_value));
+
+                    // Save the updated PC
+                    if let Err(e) = self.pc_repository.update(&pc).await {
+                        tracing::error!(
+                            character_id = %character_id,
+                            stat_name = %stat_name,
+                            error = %e,
+                            "Failed to save character stat update"
+                        );
+                        continue;
+                    }
+
+                    tracing::info!(
+                        character_id = %character_id,
+                        stat_name = %stat_name,
+                        old_value = %current_value,
+                        delta = %delta,
+                        new_value = %new_value,
+                        "Successfully updated character stat"
+                    );
                 }
                 StateChange::EventTriggered { .. } => {
                     // Event triggering is informational - no state change needed
