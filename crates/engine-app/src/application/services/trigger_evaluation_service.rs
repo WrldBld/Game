@@ -29,7 +29,7 @@ use wrldbldr_engine_ports::outbound::{
     PlayerCharacterRepositoryPort, StoryEventRepositoryPort,
 };
 use wrldbldr_domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SessionId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, WorldId};
 
 // =============================================================================
 // Error Types
@@ -372,7 +372,6 @@ impl TriggerEvaluationService {
     pub async fn build_game_state_snapshot(
         &self,
         world_id: WorldId,
-        _session_id: SessionId,
         player_character_id: Option<wrldbldr_domain::PlayerCharacterId>,
         immediate_context: Option<ImmediateContext>,
     ) -> Result<GameStateSnapshot, TriggerEvaluationError> {

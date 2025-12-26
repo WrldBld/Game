@@ -8,12 +8,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::connection::Neo4jConnection;
+use super::parse_uuid_or_nil;
 use wrldbldr_engine_ports::outbound::StoryEventRepositoryPort;
 use wrldbldr_domain::entities::{
     ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType, InvolvedCharacter,
     ItemSource, MarkerImportance, StoryEvent, StoryEventInfoImportance, StoryEventType,
 };
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
 
 // ============================================================================
 // Storage DTOs for StoryEventType
@@ -590,8 +591,8 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::LocationChange {
                 from_location: from_location
                     .and_then(|id| Uuid::parse_str(&id).ok().map(LocationId::from)),
-                to_location: LocationId::from(Uuid::parse_str(&to_location).unwrap_or_default()),
-                character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                to_location: LocationId::from(parse_uuid_or_nil(&to_location, "StoryEventType::LocationChange.to_location")),
+                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::LocationChange.character_id")),
                 travel_method,
             },
             StoredStoryEventType::DialogueExchange {
@@ -602,7 +603,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 topics_discussed,
                 tone,
             } => StoryEventType::DialogueExchange {
-                npc_id: CharacterId::from(Uuid::parse_str(&npc_id).unwrap_or_default()),
+                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "StoryEventType::DialogueExchange.npc_id")),
                 npc_name,
                 player_dialogue,
                 npc_response,
@@ -624,7 +625,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                     .collect(),
                 enemies,
                 outcome: outcome.map(|o| o.into()),
-                location_id: LocationId::from(Uuid::parse_str(&location_id).unwrap_or_default()),
+                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "StoryEventType::CombatEvent.location_id")),
                 rounds,
             },
             StoredStoryEventType::ChallengeAttempted {
@@ -640,7 +641,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 challenge_id: challenge_id
                     .and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
                 challenge_name,
-                character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ChallengeAttempted.character_id")),
                 skill_used,
                 difficulty,
                 roll_result,
@@ -656,7 +657,7 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::ItemAcquired {
                 item_name,
                 item_description,
-                character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ItemAcquired.character_id")),
                 source: source.into(),
                 quantity,
             },
@@ -670,7 +671,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 item_name,
                 from_character: from_character
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                to_character: CharacterId::from(Uuid::parse_str(&to_character).unwrap_or_default()),
+                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "StoryEventType::ItemTransferred.to_character")),
                 quantity,
                 reason,
             },
@@ -682,7 +683,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 consumed,
             } => StoryEventType::ItemUsed {
                 item_name,
-                character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ItemUsed.character_id")),
                 target,
                 effect,
                 consumed,
@@ -696,10 +697,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 reason,
             } => StoryEventType::RelationshipChanged {
                 from_character: CharacterId::from(
-                    Uuid::parse_str(&from_character).unwrap_or_default(),
+                    parse_uuid_or_nil(&from_character, "StoryEventType::RelationshipChanged.from_character"),
                 ),
                 to_character: CharacterId::from(
-                    Uuid::parse_str(&to_character).unwrap_or_default(),
+                    parse_uuid_or_nil(&to_character, "StoryEventType::RelationshipChanged.to_character"),
                 ),
                 previous_sentiment,
                 new_sentiment,
@@ -714,7 +715,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 trigger_reason,
             } => StoryEventType::SceneTransition {
                 from_scene: from_scene.and_then(|id| Uuid::parse_str(&id).ok().map(SceneId::from)),
-                to_scene: SceneId::from(Uuid::parse_str(&to_scene).unwrap_or_default()),
+                to_scene: SceneId::from(parse_uuid_or_nil(&to_scene, "StoryEventType::SceneTransition.to_scene")),
                 from_scene_name,
                 to_scene_name,
                 trigger_reason,
@@ -742,7 +743,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 dm_approved,
                 dm_modified,
             } => StoryEventType::NpcAction {
-                npc_id: CharacterId::from(Uuid::parse_str(&npc_id).unwrap_or_default()),
+                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "StoryEventType::NpcAction.npc_id")),
                 npc_name,
                 action_type,
                 description,
@@ -767,7 +768,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 effects_applied,
             } => StoryEventType::NarrativeEventTriggered {
                 narrative_event_id: NarrativeEventId::from(
-                    Uuid::parse_str(&narrative_event_id).unwrap_or_default(),
+                    parse_uuid_or_nil(&narrative_event_id, "StoryEventType::NarrativeEventTriggered.narrative_event_id"),
                 ),
                 narrative_event_name,
                 outcome_branch,
@@ -780,7 +781,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 new_value,
                 reason,
             } => StoryEventType::StatModified {
-                character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::StatModified.character_id")),
                 stat_name,
                 previous_value,
                 new_value,
@@ -869,7 +870,7 @@ impl From<StoredItemSource> for ItemSource {
             StoredItemSource::Found { location } => ItemSource::Found { location },
             StoredItemSource::Purchased { from, cost } => ItemSource::Purchased { from, cost },
             StoredItemSource::Gifted { from } => ItemSource::Gifted {
-                from: CharacterId::from(Uuid::parse_str(&from).unwrap_or_default()),
+                from: CharacterId::from(parse_uuid_or_nil(&from, "StoredItemSource::Gifted.from")),
             },
             StoredItemSource::Looted { from } => ItemSource::Looted { from },
             StoredItemSource::Crafted => ItemSource::Crafted,

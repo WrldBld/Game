@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::connection::Neo4jConnection;
+use super::parse_uuid_or_nil;
 use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
 use wrldbldr_domain::entities::{
     ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
@@ -521,7 +522,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
         match s {
             StoredNarrativeTriggerType::NpcAction { npc_id, npc_name, action_keywords, action_description } => {
                 NarrativeTriggerType::NpcAction {
-                    npc_id: CharacterId::from(Uuid::parse_str(&npc_id).unwrap_or_default()),
+                    npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "NarrativeTriggerType::NpcAction.npc_id")),
                     npc_name,
                     action_keywords,
                     action_description,
@@ -529,13 +530,13 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             }
             StoredNarrativeTriggerType::PlayerEntersLocation { location_id, location_name } => {
                 NarrativeTriggerType::PlayerEntersLocation {
-                    location_id: LocationId::from(Uuid::parse_str(&location_id).unwrap_or_default()),
+                    location_id: LocationId::from(parse_uuid_or_nil(&location_id, "NarrativeTriggerType::PlayerEntersLocation.location_id")),
                     location_name,
                 }
             }
             StoredNarrativeTriggerType::TimeAtLocation { location_id, location_name, time_context } => {
                 NarrativeTriggerType::TimeAtLocation {
-                    location_id: LocationId::from(Uuid::parse_str(&location_id).unwrap_or_default()),
+                    location_id: LocationId::from(parse_uuid_or_nil(&location_id, "NarrativeTriggerType::TimeAtLocation.location_id")),
                     location_name,
                     time_context,
                 }
@@ -549,16 +550,16 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             }
             StoredNarrativeTriggerType::ChallengeCompleted { challenge_id, challenge_name, requires_success } => {
                 NarrativeTriggerType::ChallengeCompleted {
-                    challenge_id: ChallengeId::from(Uuid::parse_str(&challenge_id).unwrap_or_default()),
+                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "NarrativeTriggerType::ChallengeCompleted.challenge_id")),
                     challenge_name,
                     requires_success,
                 }
             }
             StoredNarrativeTriggerType::RelationshipThreshold { character_id, character_name, with_character, with_character_name, min_sentiment, max_sentiment } => {
                 NarrativeTriggerType::RelationshipThreshold {
-                    character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "NarrativeTriggerType::RelationshipThreshold.character_id")),
                     character_name,
-                    with_character: CharacterId::from(Uuid::parse_str(&with_character).unwrap_or_default()),
+                    with_character: CharacterId::from(parse_uuid_or_nil(&with_character, "NarrativeTriggerType::RelationshipThreshold.with_character")),
                     with_character_name,
                     min_sentiment,
                     max_sentiment,
@@ -572,7 +573,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             }
             StoredNarrativeTriggerType::EventCompleted { event_id, event_name, outcome_name } => {
                 NarrativeTriggerType::EventCompleted {
-                    event_id: NarrativeEventId::from(Uuid::parse_str(&event_id).unwrap_or_default()),
+                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "NarrativeTriggerType::EventCompleted.event_id")),
                     event_name,
                     outcome_name,
                 }
@@ -591,7 +592,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             }
             StoredNarrativeTriggerType::StatThreshold { character_id, stat_name, min_value, max_value } => {
                 NarrativeTriggerType::StatThreshold {
-                    character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "NarrativeTriggerType::StatThreshold.character_id")),
                     stat_name,
                     min_value,
                     max_value,
@@ -658,9 +659,9 @@ impl From<StoredEventEffect> for EventEffect {
         match s {
             StoredEventEffect::ModifyRelationship { from_character, from_name, to_character, to_name, sentiment_change, reason } => {
                 EventEffect::ModifyRelationship {
-                    from_character: CharacterId::from(Uuid::parse_str(&from_character).unwrap_or_default()),
+                    from_character: CharacterId::from(parse_uuid_or_nil(&from_character, "EventEffect::ModifyRelationship.from_character")),
                     from_name,
-                    to_character: CharacterId::from(Uuid::parse_str(&to_character).unwrap_or_default()),
+                    to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "EventEffect::ModifyRelationship.to_character")),
                     to_name,
                     sentiment_change,
                     reason,
@@ -680,31 +681,31 @@ impl From<StoredEventEffect> for EventEffect {
             }
             StoredEventEffect::EnableChallenge { challenge_id, challenge_name } => {
                 EventEffect::EnableChallenge {
-                    challenge_id: ChallengeId::from(Uuid::parse_str(&challenge_id).unwrap_or_default()),
+                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "EventEffect::EnableChallenge.challenge_id")),
                     challenge_name,
                 }
             }
             StoredEventEffect::DisableChallenge { challenge_id, challenge_name } => {
                 EventEffect::DisableChallenge {
-                    challenge_id: ChallengeId::from(Uuid::parse_str(&challenge_id).unwrap_or_default()),
+                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "EventEffect::DisableChallenge.challenge_id")),
                     challenge_name,
                 }
             }
             StoredEventEffect::EnableEvent { event_id, event_name } => {
                 EventEffect::EnableEvent {
-                    event_id: NarrativeEventId::from(Uuid::parse_str(&event_id).unwrap_or_default()),
+                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "EventEffect::EnableEvent.event_id")),
                     event_name,
                 }
             }
             StoredEventEffect::DisableEvent { event_id, event_name } => {
                 EventEffect::DisableEvent {
-                    event_id: NarrativeEventId::from(Uuid::parse_str(&event_id).unwrap_or_default()),
+                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "EventEffect::DisableEvent.event_id")),
                     event_name,
                 }
             }
             StoredEventEffect::TriggerScene { scene_id, scene_name } => {
                 EventEffect::TriggerScene {
-                    scene_id: SceneId::from(Uuid::parse_str(&scene_id).unwrap_or_default()),
+                    scene_id: SceneId::from(parse_uuid_or_nil(&scene_id, "EventEffect::TriggerScene.scene_id")),
                     scene_name,
                 }
             }
@@ -717,7 +718,7 @@ impl From<StoredEventEffect> for EventEffect {
             }
             StoredEventEffect::ModifyStat { character_id, character_name, stat_name, modifier } => {
                 EventEffect::ModifyStat {
-                    character_id: CharacterId::from(Uuid::parse_str(&character_id).unwrap_or_default()),
+                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "EventEffect::ModifyStat.character_id")),
                     character_name,
                     stat_name,
                     modifier,
@@ -736,7 +737,7 @@ impl From<StoredEventEffect> for EventEffect {
 impl From<StoredChainedEvent> for ChainedEvent {
     fn from(s: StoredChainedEvent) -> Self {
         Self {
-            event_id: NarrativeEventId::from(Uuid::parse_str(&s.event_id).unwrap_or_default()),
+            event_id: NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "ChainedEvent.event_id")),
             event_name: s.event_name,
             delay_turns: s.delay_turns,
             additional_trigger: s.additional_trigger.map(|t| NarrativeTriggerType::from(*t)),

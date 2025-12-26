@@ -13,13 +13,11 @@ use wrldbldr_engine_ports::outbound::{
 };
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::entities::CharacterSheetData;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, SessionId, SkillId, WorldId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 
 /// Request to create a new player character
 #[derive(Debug, Clone)]
 pub struct CreatePlayerCharacterRequest {
-    /// Session to bind the PC to (None = standalone/selectable PC)
-    pub session_id: Option<SessionId>,
     pub user_id: String,
     pub world_id: WorldId,
     pub name: String,
@@ -132,37 +130,12 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", request.starting_location_id))?;
 
-        // Check if user already has a PC in this session (only if session is specified)
-        if let Some(session_id) = request.session_id {
-            if let Some(existing) = self
-                .pc_repository
-                .get_by_user_and_session(&request.user_id, session_id)
-                .await?
-            {
-                return Err(anyhow::anyhow!(
-                    "User {} already has a player character in session {}",
-                    request.user_id,
-                    session_id
-                ));
-            }
-        }
-
-        let mut pc = if let Some(session_id) = request.session_id {
-            PlayerCharacter::new_in_session(
-                session_id,
-                request.user_id.clone(),
-                request.world_id,
-                request.name.clone(),
-                request.starting_location_id,
-            )
-        } else {
-            PlayerCharacter::new(
-                request.user_id.clone(),
-                request.world_id,
-                request.name.clone(),
-                request.starting_location_id,
-            )
-        };
+        let mut pc = PlayerCharacter::new(
+            request.user_id.clone(),
+            request.world_id,
+            request.name.clone(),
+            request.starting_location_id,
+        );
 
         if let Some(description) = request.description {
             pc = pc.with_description(description);
@@ -185,22 +158,13 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             .await
             .context("Failed to create player character in repository")?;
 
-        if let Some(session_id) = request.session_id {
-            info!(
-                pc_id = %pc.id,
-                user_id = %pc.user_id,
-                "Created player character: {} in session {}",
-                pc.name,
-                session_id
-            );
-        } else {
-            info!(
-                pc_id = %pc.id,
-                user_id = %pc.user_id,
-                "Created standalone player character: {}",
-                pc.name
-            );
-        }
+        info!(
+            pc_id = %pc.id,
+            user_id = %pc.user_id,
+            world_id = %pc.world_id,
+            "Created player character: {}",
+            pc.name
+        );
         Ok(pc)
     }
 

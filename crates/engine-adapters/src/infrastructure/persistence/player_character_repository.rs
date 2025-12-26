@@ -9,7 +9,7 @@ use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item, PlayerCharacter, CharacterSheetData};
-use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
@@ -31,95 +31,47 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
             "{}".to_string()
         };
 
-        let session_id_str = pc.session_id.map(|s| s.to_string()).unwrap_or_default();
         let current_region_id_str = pc.current_region_id.map(|r| r.to_string()).unwrap_or_default();
 
-        // Different query depending on whether we have a session
-        if let Some(session_id) = pc.session_id {
-            let q = query(
-                "MATCH (s:Session {id: $session_id})
-                MATCH (w:World {id: $world_id})
-                MATCH (l:Location {id: $location_id})
-                CREATE (pc:PlayerCharacter {
-                    id: $id,
-                    session_id: $session_id,
-                    user_id: $user_id,
-                    world_id: $world_id,
-                    name: $name,
-                    description: $description,
-                    sheet_data: $sheet_data,
-                    current_location_id: $current_location_id,
-                    current_region_id: $current_region_id,
-                    starting_location_id: $starting_location_id,
-                    sprite_asset: $sprite_asset,
-                    portrait_asset: $portrait_asset,
-                    created_at: $created_at,
-                    last_active_at: $last_active_at
-                })
-                CREATE (s)-[:HAS_PC]->(pc)
-                CREATE (pc)-[:IN_WORLD]->(w)
-                CREATE (pc)-[:AT_LOCATION]->(l)
-                CREATE (pc)-[:STARTED_AT]->(l)
-                RETURN pc.id as id",
-            )
-            .param("id", pc.id.to_string())
-            .param("session_id", session_id.to_string())
-            .param("user_id", pc.user_id.clone())
-            .param("world_id", pc.world_id.to_string())
-            .param("name", pc.name.clone())
-            .param("description", pc.description.clone().unwrap_or_default())
-            .param("sheet_data", sheet_data_json)
-            .param("current_location_id", pc.current_location_id.to_string())
-            .param("current_region_id", current_region_id_str)
-            .param("starting_location_id", pc.starting_location_id.to_string())
-            .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
-            .param("portrait_asset", pc.portrait_asset.clone().unwrap_or_default())
-            .param("created_at", pc.created_at.to_rfc3339())
-            .param("last_active_at", pc.last_active_at.to_rfc3339());
+        let q = query(
+            "MATCH (w:World {id: $world_id})
+            MATCH (l:Location {id: $location_id})
+            CREATE (pc:PlayerCharacter {
+                id: $id,
+                user_id: $user_id,
+                world_id: $world_id,
+                name: $name,
+                description: $description,
+                sheet_data: $sheet_data,
+                current_location_id: $current_location_id,
+                current_region_id: $current_region_id,
+                starting_location_id: $starting_location_id,
+                sprite_asset: $sprite_asset,
+                portrait_asset: $portrait_asset,
+                created_at: $created_at,
+                last_active_at: $last_active_at
+            })
+            CREATE (pc)-[:IN_WORLD]->(w)
+            CREATE (pc)-[:AT_LOCATION]->(l)
+            CREATE (pc)-[:STARTED_AT]->(l)
+            RETURN pc.id as id",
+        )
+        .param("id", pc.id.to_string())
+        .param("user_id", pc.user_id.clone())
+        .param("world_id", pc.world_id.to_string())
+        .param("location_id", pc.current_location_id.to_string())
+        .param("name", pc.name.clone())
+        .param("description", pc.description.clone().unwrap_or_default())
+        .param("sheet_data", sheet_data_json)
+        .param("current_location_id", pc.current_location_id.to_string())
+        .param("current_region_id", current_region_id_str)
+        .param("starting_location_id", pc.starting_location_id.to_string())
+        .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
+        .param("portrait_asset", pc.portrait_asset.clone().unwrap_or_default())
+        .param("created_at", pc.created_at.to_rfc3339())
+        .param("last_active_at", pc.last_active_at.to_rfc3339());
 
-            self.connection.graph().run(q).await?;
-        } else {
-            // Standalone PC (no session)
-            let q = query(
-                "MATCH (w:World {id: $world_id})
-                MATCH (l:Location {id: $location_id})
-                CREATE (pc:PlayerCharacter {
-                    id: $id,
-                    session_id: '',
-                    user_id: $user_id,
-                    world_id: $world_id,
-                    name: $name,
-                    description: $description,
-                    sheet_data: $sheet_data,
-                    current_location_id: $current_location_id,
-                    current_region_id: $current_region_id,
-                    starting_location_id: $starting_location_id,
-                    sprite_asset: $sprite_asset,
-                    portrait_asset: $portrait_asset,
-                    created_at: $created_at,
-                    last_active_at: $last_active_at
-                })
-                CREATE (pc)-[:IN_WORLD]->(w)
-                CREATE (pc)-[:AT_LOCATION]->(l)
-                CREATE (pc)-[:STARTED_AT]->(l)
-                RETURN pc.id as id",
-            )
-            .param("id", pc.id.to_string())
-            .param("user_id", pc.user_id.clone())
-            .param("world_id", pc.world_id.to_string())
-            .param("name", pc.name.clone())
-            .param("description", pc.description.clone().unwrap_or_default())
-            .param("sheet_data", sheet_data_json)
-            .param("current_location_id", pc.current_location_id.to_string())
-            .param("current_region_id", current_region_id_str)
-            .param("starting_location_id", pc.starting_location_id.to_string())
-            .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
-            .param("portrait_asset", pc.portrait_asset.clone().unwrap_or_default())
-            .param("created_at", pc.created_at.to_rfc3339())
-            .param("last_active_at", pc.last_active_at.to_rfc3339());
-
-            self.connection.graph().run(q).await?;
-        }
+        self.connection.graph().run(q).await?;
 
         tracing::debug!("Created player character: {}", pc.name);
         Ok(())
@@ -131,42 +83,6 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
             RETURN pc",
         )
         .param("id", id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            Ok(Some(parse_player_character_row(row)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn get_by_session(&self, session_id: SessionId) -> Result<Vec<PlayerCharacter>> {
-        let q = query(
-            "MATCH (s:Session {id: $session_id})-[:HAS_PC]->(pc:PlayerCharacter)
-            RETURN pc
-            ORDER BY pc.created_at",
-        )
-        .param("session_id", session_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut pcs = Vec::new();
-        while let Some(row) = result.next().await? {
-            pcs.push(parse_player_character_row(row)?);
-        }
-        Ok(pcs)
-    }
-
-    async fn get_by_user_and_session(
-        &self,
-        user_id: &str,
-        session_id: SessionId,
-    ) -> Result<Option<PlayerCharacter>> {
-        let q = query(
-            "MATCH (s:Session {id: $session_id})-[:HAS_PC]->(pc:PlayerCharacter {user_id: $user_id})
-            RETURN pc",
-        )
-        .param("session_id", session_id.to_string())
-        .param("user_id", user_id);
 
         let mut result = self.connection.graph().execute(q).await?;
         if let Some(row) = result.next().await? {
@@ -308,42 +224,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         Ok(())
     }
 
-    async fn bind_to_session(
-        &self,
-        id: PlayerCharacterId,
-        session_id: SessionId,
-    ) -> Result<()> {
-        // First check if already bound to a session
-        let delete_q = query(
-            "MATCH (pc:PlayerCharacter {id: $id})<-[r:HAS_PC]-(s:Session)
-            DELETE r",
-        )
-        .param("id", id.to_string());
-
-        self.connection.graph().run(delete_q).await?;
-
-        // Create new session binding
-        let create_q = query(
-            "MATCH (pc:PlayerCharacter {id: $id})
-            MATCH (s:Session {id: $session_id})
-            CREATE (s)-[:HAS_PC]->(pc)
-            SET pc.session_id = $session_id,
-                pc.last_active_at = $last_active_at",
-        )
-        .param("id", id.to_string())
-        .param("session_id", session_id.to_string())
-        .param("last_active_at", chrono::Utc::now().to_rfc3339());
-
-        self.connection.graph().run(create_q).await?;
-        tracing::debug!("Bound player character {} to session {}", id, session_id);
-        Ok(())
-    }
-
     async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $id})<-[r:HAS_PC]-(s:Session)
-            DELETE r
-            SET pc.session_id = ''",
+            DELETE r",
         )
         .param("id", id.to_string());
 
@@ -392,7 +276,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
     async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
         let q = query(
             "MATCH (pc:PlayerCharacter {user_id: $user_id})
-            WHERE pc.session_id = '' OR pc.session_id IS NULL
+            WHERE NOT EXISTS { (s:Session)-[:HAS_PC]->(pc) }
             RETURN pc
             ORDER BY pc.last_active_at DESC",
         )
@@ -614,7 +498,7 @@ fn row_to_item(row: &Row) -> Result<Item> {
 
 /// Parse a PlayerCharacter from a Neo4j row
 fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
-    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
     use chrono::DateTime;
     
 
@@ -626,17 +510,6 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
         uuid::Uuid::parse_str(&id_str)
             .context("Invalid UUID for player character id")?,
     );
-
-    // session_id is optional - empty string means not bound
-    let session_id_str: String = node.get("session_id").unwrap_or_default();
-    let session_id = if session_id_str.is_empty() {
-        None
-    } else {
-        Some(SessionId::from_uuid(
-            uuid::Uuid::parse_str(&session_id_str)
-                .context("Invalid UUID for session_id")?,
-        ))
-    };
 
     let user_id: String = node.get("user_id").context("Missing user_id")?;
 
@@ -713,7 +586,6 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
 
     Ok(PlayerCharacter {
         id,
-        session_id,
         user_id,
         world_id,
         name,

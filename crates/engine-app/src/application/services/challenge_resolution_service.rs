@@ -295,7 +295,7 @@ where
         individual_rolls: Option<Vec<i32>>,
     ) {
         // P3.3: If world has DM and approval service is configured, queue for approval
-        if self.world_connection.has_dm(&world_id) {
+        if self.world_connection.has_dm(&world_id).await {
             if let Some(ref approval_service) = self.challenge_outcome_approval_service {
                     // Look up skill name if we have a skill_id
                     let skill_name = if let Some(ref sid) = skill_id {

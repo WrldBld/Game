@@ -6,17 +6,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::RwLock;
-
 use wrldbldr_engine_app::application::dto::{DMAction, DMActionItem};
 use wrldbldr_engine_ports::outbound::QueueNotificationPort;
 use wrldbldr_engine_app::application::services::{
     DMActionQueueService, DMApprovalQueueService, InteractionService,
     ItemServiceImpl, NarrativeEventService, SceneService,
 };
-use crate::infrastructure::session::SessionManager;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
-use wrldbldr_domain::{NarrativeEventId, SceneId, SessionId};
+use wrldbldr_domain::{NarrativeEventId, SceneId, WorldId};
 use wrldbldr_protocol::{
     ChallengeSuggestionInfo, CharacterData, CharacterPosition, InteractionData,
     NarrativeEventSuggestionInfo, ProposedToolInfo, SceneData, ServerMessage,
@@ -37,11 +34,7 @@ pub async fn approval_notification_worker(
 
         let mut has_work = false;
         for world_id in world_ids {
-            // Convert WorldId (Uuid) to SessionId for the approval queue service
-            // The approval queue service still uses SessionId internally
-            let session_id = SessionId::from_uuid(world_id);
-            
-            let pending = match approval_queue_service.get_pending(session_id).await {
+            let pending = match approval_queue_service.get_pending(WorldId::from(world_id)).await {
                 Ok(items) => items,
                 Err(e) => {
                     tracing::error!("Failed to get pending approvals for world {}: {}", world_id, e);
@@ -99,14 +92,12 @@ pub async fn dm_action_worker(
     scene_service: Arc<dyn SceneService>,
     interaction_service: Arc<dyn InteractionService>,
     world_connection_manager: SharedWorldConnectionManager,
-    sessions: Arc<RwLock<SessionManager>>, // Still needed for process_decision deep dependency
     recovery_interval: Duration,
 ) {
     tracing::info!("Starting DM action queue worker");
     let notifier = dm_action_queue_service.queue().notifier();
     loop {
         let world_connection_manager_clone = world_connection_manager.clone();
-        let sessions_clone = sessions.clone();
         let approval_queue_service_clone = approval_queue_service.clone();
         let narrative_event_service_clone = narrative_event_service.clone();
         let scene_service_clone = scene_service.clone();
@@ -114,7 +105,6 @@ pub async fn dm_action_worker(
         match dm_action_queue_service
             .process_next(|action| {
                 let world_connection_manager = world_connection_manager_clone.clone();
-                let sessions = sessions_clone.clone();
                 let approval_queue_service = approval_queue_service_clone.clone();
                 let narrative_event_service = narrative_event_service_clone.clone();
                 let scene_service = scene_service_clone.clone();
@@ -122,7 +112,6 @@ pub async fn dm_action_worker(
                 async move {
                 process_dm_action(
                     &world_connection_manager,
-                    &sessions,
                     &approval_queue_service,
                         &*narrative_event_service,
                         &*scene_service,
@@ -151,7 +140,6 @@ pub async fn dm_action_worker(
 
 async fn process_dm_action(
     world_connection_manager: &SharedWorldConnectionManager,
-    sessions: &Arc<RwLock<SessionManager>>, // Still needed for process_decision deep dependency
     approval_queue_service: &Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
     narrative_event_service: &dyn NarrativeEventService,
     scene_service: &dyn SceneService,
@@ -176,34 +164,19 @@ async fn process_dm_action(
             // which matches what we have from the DMAction
 
             // Process the decision using the approval queue service
-            // The service now only needs SessionManagementPort (session manager) and session_id
-            let mut sessions_write = sessions.write().await;
-            // Verify session exists
-            let session_id = SessionId::from_uuid(action.session_id);
-            if sessions_write.get_session_mut(session_id).is_some() {
-                // Use the approval service's process_decision method
-                // The service expects domain ApprovalDecision which matches what we have
-                match approval_queue_service
-                    .process_decision(&mut *sessions_write, session_id, approval_item_id, decision.clone())
-                    .await
-                {
-                    Ok(outcome) => {
-                        tracing::info!("Processed approval decision: {:?}", outcome);
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to process approval decision: {}", e);
-                        drop(sessions_write);
-                        return Err(e);
-                    }
+            let world_id = WorldId::from(action.session_id);
+            match approval_queue_service
+                .process_decision(world_id, approval_item_id, decision.clone())
+                .await
+            {
+                Ok(outcome) => {
+                    tracing::info!("Processed approval decision: {:?}", outcome);
                 }
-            } else {
-                tracing::warn!("Session {} not found for approval processing", action.session_id);
-                drop(sessions_write);
-                return Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
-                    format!("Session {} not found", action.session_id)
-                ));
+                Err(e) => {
+                    tracing::error!("Failed to process approval decision: {}", e);
+                    return Err(e);
+                }
             }
-            drop(sessions_write);
         }
         DMAction::DirectNPCControl { npc_id: _, dialogue } => {
             // Broadcast direct NPC control via world connection manager

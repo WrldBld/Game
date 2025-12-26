@@ -2,26 +2,17 @@
 
 use chrono::{DateTime, Utc};
 use crate::entities::sheet_template::CharacterSheetData;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, SessionId, WorldId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 /// A player character (PC) - distinct from NPCs
 ///
-/// PCs are created by players when joining a session, have character sheets,
+/// PCs are created by players when joining a world, have character sheets,
 /// and track their current location/region for scene resolution.
 ///
-/// # Session Binding
-///
-/// A PC can exist without a session (`session_id = None`), allowing:
-/// - Creating a PC before joining a session
-/// - Selecting an existing PC when joining a new session
-/// - Importing a PC from another world
-///
-/// When `session_id` is `Some`, the PC is actively bound to that session.
+/// Connection to the world is managed by WorldConnectionManager, not stored here.
 #[derive(Debug, Clone)]
 pub struct PlayerCharacter {
     pub id: PlayerCharacterId,
-    /// The session this PC is bound to (None = standalone/selectable)
-    pub session_id: Option<SessionId>,
     pub user_id: String,  // Anonymous user ID from Player
     pub world_id: WorldId,
     
@@ -48,7 +39,7 @@ pub struct PlayerCharacter {
 }
 
 impl PlayerCharacter {
-    /// Create a new player character (standalone, not bound to a session)
+    /// Create a new player character
     pub fn new(
         user_id: impl Into<String>,
         world_id: WorldId,
@@ -58,7 +49,6 @@ impl PlayerCharacter {
         let now = Utc::now();
         Self {
             id: PlayerCharacterId::new(),
-            session_id: None,
             user_id: user_id.into(),
             world_id,
             name: name.into(),
@@ -72,35 +62,6 @@ impl PlayerCharacter {
             created_at: now,
             last_active_at: now,
         }
-    }
-
-    /// Create a new player character bound to a session
-    pub fn new_in_session(
-        session_id: SessionId,
-        user_id: impl Into<String>,
-        world_id: WorldId,
-        name: impl Into<String>,
-        starting_location_id: LocationId,
-    ) -> Self {
-        let mut pc = Self::new(user_id, world_id, name, starting_location_id);
-        pc.session_id = Some(session_id);
-        pc
-    }
-
-    /// Bind this character to a session
-    pub fn bind_to_session(&mut self, session_id: SessionId) {
-        self.session_id = Some(session_id);
-        self.last_active_at = Utc::now();
-    }
-
-    /// Unbind this character from its session (make it standalone)
-    pub fn unbind_from_session(&mut self) {
-        self.session_id = None;
-    }
-
-    /// Check if this character is bound to a session
-    pub fn is_bound_to_session(&self) -> bool {
-        self.session_id.is_some()
     }
 
     /// Set the starting region (spawn point)

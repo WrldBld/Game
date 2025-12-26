@@ -1,0 +1,97 @@
+--- a/crates/engine-adapters/src/infrastructure/websocket.rs
++++ b/crates/engine-adapters/src/infrastructure/websocket.rs
+@@ -2996,8 +2996,18 @@
+ 
+         ClientMessage::EquipItem { pc_id, item_id } => {
+             tracing::info!(pc_id = %pc_id, item_id = %item_id, "Equip item request");
++
++            let client_id_str = client_id.to_string();
++
++            // Get world_id from connection
++            let world_id = match state.world_connection_manager.get_world_id_by_client_id(&client_id_str).await {
++                Some(wid) => wid,
++                None => return Some(ServerMessage::Error {
++                    code: "NO_WORLD".to_string(),
++                    message: "Not connected to a world".to_string(),
++                }),
++            };
+ 
+             let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
+                 Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
+                 Err(_) => {
+@@ -3042,16 +3052,32 @@
+                 item.quantity, // keep quantity unchanged
+                 true, // is_equipped = true
+             ).await {
+                 return Some(ServerMessage::Error {
+-                    code: "UPDATE_ERROR".to_string(),
++                    code: "EQUIP_FAILED".to_string(),
+                     message: format!("Failed to equip item: {}", e),
+                 });
+             }
+ 
+-            Some(ServerMessage::ItemEquipped {
+-                pc_id,
+-                item_id,
+-                item_name: item.item.name,
+-            })
++            // Broadcast inventory update to world
++            state.world_connection_manager.broadcast_to_world(
++                world_id,
++                ServerMessage::ItemEquipped {
++                    pc_id: pc_id.clone(),
++                    item_id: item_id.clone(),
++                    item_name: item.item.name.clone(),
++                }
++            ).await;
++
++            tracing::info!(
++                pc_id = %pc_id,
++                item_id = %item_id,
++                item_name = %item.item.name,
++                world_id = %world_id,
++                "Item equipped and broadcast to world"
++            );
++
++            None
+         }
+ 
+         ClientMessage::UnequipItem { pc_id, item_id } => {
+@@ -3103,16 +3129,32 @@
+                 item.quantity, // keep quantity unchanged
+                 false, // is_equipped = false
+             ).await {
+                 return Some(ServerMessage::Error {
+-                    code: "UPDATE_ERROR".to_string(),
++                    code: "UNEQUIP_FAILED".to_string(),
+                     message: format!("Failed to unequip item: {}", e),
+                 });
+             }
+ 
+-            Some(ServerMessage::ItemUnequipped {
+-                pc_id,
+-                item_id,
+-                item_name: item.item.name,
+-            })
++            // Broadcast inventory update to world
++            state.world_connection_manager.broadcast_to_world(
++                world_id,
++                ServerMessage::ItemUnequipped {
++                    pc_id: pc_id.clone(),
++                    item_id: item_id.clone(),
++                    item_name: item.item.name.clone(),
++                }
++            ).await;
++
++            tracing::info!(
++                pc_id = %pc_id,
++                item_id = %item_id,
++                item_name = %item.item.name,
++                world_id = %world_id,
++                "Item unequipped and broadcast to world"
++            );
++
++            None
+         }
+ 
+         ClientMessage::DropItem { pc_id, item_id, quantity } => {

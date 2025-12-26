@@ -167,8 +167,12 @@ mod desktop {
         }
 
         pub async fn send(&self, message: ClientMessage) -> Result<()> {
-            let tx_lock = self.tx.lock().await;
-            if let Some(ref tx) = *tx_lock {
+            // Clone the sender to avoid holding the lock across await
+            let tx = {
+                let tx_lock = self.tx.lock().await;
+                tx_lock.clone()
+            };
+            if let Some(tx) = tx {
                 tx.send(message).await?;
                 Ok(())
             } else {

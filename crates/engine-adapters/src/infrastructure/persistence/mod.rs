@@ -3,6 +3,29 @@
 //! This module implements the repository pattern for Neo4j,
 //! providing CRUD operations for all domain entities.
 
+use uuid::Uuid;
+
+/// Parse a UUID string with logging on failure.
+/// 
+/// This is used in `From` trait implementations where we can't return `Result`.
+/// On parse failure, logs a warning and returns a nil UUID (all zeros).
+/// 
+/// # Warning
+/// This should only be used in deserialization contexts where data corruption
+/// is possible. New code should use proper `Result` handling where possible.
+pub(crate) fn parse_uuid_or_nil(s: &str, context: &str) -> Uuid {
+    match Uuid::parse_str(s) {
+        Ok(uuid) => uuid,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to parse UUID '{}' in {}: {}. Using nil UUID - this may indicate data corruption.",
+                s, context, e
+            );
+            Uuid::nil()
+        }
+    }
+}
+
 mod asset_repository;
 mod challenge_repository;
 mod character_repository;

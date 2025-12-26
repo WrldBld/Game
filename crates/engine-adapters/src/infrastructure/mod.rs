@@ -8,7 +8,7 @@
 //! - ComfyUI: Asset generation integration
 //! - Config: Application configuration
 //! - State: Shared application state
-//! - Session: Game session management
+//! - State: Shared application state (world connection manager replaces sessions)
 //! - Event Bus: Event publishing and subscription infrastructure
 //! - Repositories: Additional persistence implementations
 //! - Context Budget: Token budget enforcement for LLM prompts
@@ -25,7 +25,6 @@ pub mod persistence;
 pub mod queue_workers;
 pub mod queues;
 pub mod repositories;
-pub mod session;
 pub mod state;
 pub mod suggestion_enqueue_adapter;
 pub mod state_broadcast;

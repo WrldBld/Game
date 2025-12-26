@@ -17,7 +17,7 @@
 
 use chrono::{DateTime, Utc};
 
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, SessionId, StoryEventId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
 
 /// A story event - an immutable record of something that happened
 ///

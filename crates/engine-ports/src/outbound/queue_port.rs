@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::SessionId;
+use wrldbldr_domain::WorldId;
 
 pub type QueueItemId = Uuid;
 
@@ -144,11 +144,11 @@ pub trait ApprovalQueuePort<T>: QueuePort<T>
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    /// Get items by session
-    async fn list_by_session(&self, session_id: SessionId) -> Result<Vec<QueueItem<T>>, QueueError>;
+    /// Get items by world
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError>;
 
     /// Get history (completed/failed/expired items)
-    async fn get_history(&self, session_id: SessionId, limit: usize) -> Result<Vec<QueueItem<T>>, QueueError>;
+    async fn get_history_by_world(&self, world_id: WorldId, limit: usize) -> Result<Vec<QueueItem<T>>, QueueError>;
 
     /// Expire items older than duration
     async fn expire_old(&self, older_than: Duration) -> Result<usize, QueueError>;

@@ -14,7 +14,7 @@ use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueueNotificationPort, QueuePort,
 };
-use wrldbldr_domain::SessionId;
+use wrldbldr_domain::WorldId;
 
 /// In-memory queue implementation
 pub struct InMemoryQueue<T, N: QueueNotificationPort> {
@@ -221,11 +221,11 @@ impl<T, N: QueueNotificationPort + 'static> ApprovalQueuePort<T> for InMemoryQue
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    async fn list_by_session(&self, _session_id: SessionId) -> Result<Vec<QueueItem<T>>, QueueError> {
-        // For ApprovalQueuePort, we need to extract session_id from the payload
+    async fn list_by_world(&self, _world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
+        // For ApprovalQueuePort, we need to extract world_id from the payload
         // Since T is generic, we can't directly access it. This is a limitation
         // of the in-memory implementation. In practice, ApprovalQueuePort should
-        // only be used with ApprovalItem which has session_id.
+        // only be used with ApprovalItem which has world_id.
         //
         // For now, we'll return all pending/processing items. The actual filtering
         // should be done at the service layer with proper type information.
@@ -242,9 +242,9 @@ where
             .collect())
     }
 
-    async fn get_history(
+    async fn get_history_by_world(
         &self,
-        _session_id: SessionId,
+        _world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<QueueItem<T>>, QueueError> {
         let items = self.items.read().await;

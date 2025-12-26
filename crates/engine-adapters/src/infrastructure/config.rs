@@ -27,6 +27,9 @@ pub struct AppConfig {
     /// WebSocket server port
     pub server_port: u16,
 
+    /// CORS allowed origins (comma-separated, or "*" for any)
+    pub cors_allowed_origins: Vec<String>,
+
     /// Queue configuration
     pub queue: QueueConfig,
 
@@ -84,6 +87,13 @@ impl AppConfig {
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()
                 .context("SERVER_PORT must be a valid port number")?,
+
+            cors_allowed_origins: env::var("CORS_ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "*".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
 
             queue: QueueConfig {
                 backend: env::var("QUEUE_BACKEND")

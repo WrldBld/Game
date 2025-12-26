@@ -1,15 +1,16 @@
 //! Tool Execution Service - Executes approved tool calls to modify game state
 //!
 //! This service handles the execution of game tools that have been approved by the DM.
-//! It modifies in-memory session state without persisting to the database, allowing
-//! for future expansion with more complex effects.
+//! It modifies game state and logs actions.
+//!
+//! TODO: This service was refactored to remove SessionManagementPort dependency.
+//! Tool execution now returns results that callers can use to update state and
+//! broadcast messages via WorldConnectionPort.
 
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::SessionManagementPort;
 use wrldbldr_domain::value_objects::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
-use wrldbldr_domain::{SessionId};
 
 /// Result of executing a tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,16 +117,16 @@ impl ToolExecutionService {
         Self
     }
 
-    /// Execute an approved tool call and modify session state
+    /// Execute an approved tool call
     ///
     /// # Arguments
     ///
     /// * `tool` - The game tool to execute
-    /// * `session` - The game session (will be modified in-place)
     ///
     /// # Returns
     ///
-    /// A `ToolExecutionResult` describing what happened, or a `ToolExecutionError` if execution failed
+    /// A `ToolExecutionResult` describing what happened, or a `ToolExecutionError` if execution failed.
+    /// The caller is responsible for logging to conversation history and broadcasting state changes.
     ///
     /// # Examples
     ///
@@ -139,38 +140,34 @@ impl ToolExecutionService {
     ///     description: "An ornate bronze key".to_string(),
     /// };
     ///
-    /// let result = service.execute_tool(&tool, &mut session).await?;
+    /// let result = service.execute_tool(&tool).await?;
     /// assert!(result.success);
+    /// // Caller should log result.description to conversation history
     /// ```
-    #[instrument(skip(self, session))]
-    pub async fn execute_tool<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    pub async fn execute_tool(
         &self,
         tool: &GameTool,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         match tool {
             GameTool::GiveItem { item_name, description } => {
-                self.execute_give_item(item_name, description, session, session_id).await
+                self.execute_give_item(item_name, description).await
             }
             GameTool::RevealInfo {
                 info_type,
                 content,
                 importance,
             } => {
-                self.execute_reveal_info(info_type, content, importance, session, session_id)
-                    .await
+                self.execute_reveal_info(info_type, content, importance).await
             }
             GameTool::ChangeRelationship { change, amount, reason } => {
-                self.execute_change_relationship(change, amount, reason, session, session_id)
-                    .await
+                self.execute_change_relationship(change, amount, reason).await
             }
             GameTool::TriggerEvent {
                 event_type,
                 description,
             } => {
-                self.execute_trigger_event(event_type, description, session, session_id)
-                    .await
+                self.execute_trigger_event(event_type, description).await
             }
             GameTool::ModifyNpcMotivation {
                 npc_id,
@@ -178,16 +175,14 @@ impl ToolExecutionService {
                 new_value,
                 reason,
             } => {
-                self.execute_modify_npc_motivation(npc_id, motivation_type, new_value, reason, session, session_id)
-                    .await
+                self.execute_modify_npc_motivation(npc_id, motivation_type, new_value, reason).await
             }
             GameTool::ModifyCharacterDescription {
                 character_id,
                 change_type,
                 description,
             } => {
-                self.execute_modify_character_description(character_id, change_type, description, session, session_id)
-                    .await
+                self.execute_modify_character_description(character_id, change_type, description).await
             }
             GameTool::ModifyNpcOpinion {
                 npc_id,
@@ -195,16 +190,14 @@ impl ToolExecutionService {
                 opinion_change,
                 reason,
             } => {
-                self.execute_modify_npc_opinion(npc_id, target_pc_id, opinion_change, reason, session, session_id)
-                    .await
+                self.execute_modify_npc_opinion(npc_id, target_pc_id, opinion_change, reason).await
             }
             GameTool::TransferItem {
                 from_id,
                 to_id,
                 item_name,
             } => {
-                self.execute_transfer_item(from_id, to_id, item_name, session, session_id)
-                    .await
+                self.execute_transfer_item(from_id, to_id, item_name).await
             }
             GameTool::AddCondition {
                 character_id,
@@ -212,55 +205,37 @@ impl ToolExecutionService {
                 description,
                 duration,
             } => {
-                self.execute_add_condition(character_id, condition_name, description, duration.as_deref(), session, session_id)
-                    .await
+                self.execute_add_condition(character_id, condition_name, description, duration.as_deref()).await
             }
             GameTool::RemoveCondition {
                 character_id,
                 condition_name,
             } => {
-                self.execute_remove_condition(character_id, condition_name, session, session_id)
-                    .await
+                self.execute_remove_condition(character_id, condition_name).await
             }
             GameTool::UpdateCharacterStat {
                 character_id,
                 stat_name,
                 delta,
             } => {
-                self.execute_update_character_stat(character_id, stat_name, *delta, session, session_id)
-                    .await
+                self.execute_update_character_stat(character_id, stat_name, *delta).await
             }
         }
     }
 
     /// Execute GiveItem tool - adds item to character inventory
-    #[instrument(skip(self, session))]
-    async fn execute_give_item<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_give_item(
         &self,
         item_name: &str,
         description: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        // Get the player character from the session
-        // For now, we log the item transfer without modifying inventory
-        // (the session doesn't have item IDs yet - would be added in a full implementation)
-
         let description_msg = format!(
             "Gave '{}' to player: {}",
             item_name, description
         );
 
         debug!("Item transfer: {}", description_msg);
-
-        // Log the action in conversation history
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("Item received: {} - {}", item_name, description),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::ItemAdded {
             character: "Player".to_string(),
@@ -275,14 +250,12 @@ impl ToolExecutionService {
     }
 
     /// Execute RevealInfo tool - marks information as known to player
-    #[instrument(skip(self, session))]
-    async fn execute_reveal_info<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_reveal_info(
         &self,
         info_type: &str,
         content: &str,
         importance: &InfoImportance,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "Revealed {} {} information",
@@ -291,15 +264,6 @@ impl ToolExecutionService {
         );
 
         debug!("Info revealed: {} - {}", info_type, content);
-
-        // Log the revelation in conversation history
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[{}] {} - {}", info_type, importance.as_str(), content),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::InfoRevealed {
             info: format!("[{}] {}", info_type, content),
@@ -313,14 +277,12 @@ impl ToolExecutionService {
     }
 
     /// Execute ChangeRelationship tool - updates relationship sentiment
-    #[instrument(skip(self, session))]
-    async fn execute_change_relationship<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_change_relationship(
         &self,
         change: &RelationshipChange,
         amount: &ChangeAmount,
         reason: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         // Calculate sentiment delta based on amount
         let delta = match amount {
@@ -352,20 +314,6 @@ impl ToolExecutionService {
             description_msg, signed_delta
         );
 
-        // Log the relationship change in conversation history
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!(
-                    "Relationship {}: {} ({})",
-                    change.as_str(),
-                    amount.as_str(),
-                    reason
-                ),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
-
         let state_change = StateChange::RelationshipChanged {
             from: "NPC".to_string(),
             to: "Player".to_string(),
@@ -380,26 +328,15 @@ impl ToolExecutionService {
     }
 
     /// Execute TriggerEvent tool - logs and triggers an event
-    #[instrument(skip(self, session))]
-    async fn execute_trigger_event<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_trigger_event(
         &self,
         event_type: &str,
         description: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!("Triggered {} event: {}", event_type, description);
 
         info!("Event triggered: {}", description_msg);
-
-        // Log the event in conversation history
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[EVENT: {}] {}", event_type, description),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::EventTriggered {
             name: format!("{}: {}", event_type, description),
@@ -413,15 +350,13 @@ impl ToolExecutionService {
     }
 
     /// Execute ModifyNpcMotivation tool - updates an NPC's motivation
-    #[instrument(skip(self, session))]
-    async fn execute_modify_npc_motivation<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_modify_npc_motivation(
         &self,
         npc_id: &str,
         motivation_type: &str,
         new_value: &str,
         reason: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "NPC {} motivation '{}' changed to '{}' ({})",
@@ -429,14 +364,6 @@ impl ToolExecutionService {
         );
 
         info!("NPC motivation changed: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[NPC MOTIVATION] {}: {} -> {} ({})", npc_id, motivation_type, new_value, reason),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::NpcMotivationChanged {
             npc_id: npc_id.to_string(),
@@ -453,14 +380,12 @@ impl ToolExecutionService {
     }
 
     /// Execute ModifyCharacterDescription tool - updates a character's description
-    #[instrument(skip(self, session))]
-    async fn execute_modify_character_description<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_modify_character_description(
         &self,
         character_id: &str,
         change_type: &str,
         description: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "Character {} {} updated: {}",
@@ -468,14 +393,6 @@ impl ToolExecutionService {
         );
 
         info!("Character description updated: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[CHARACTER UPDATE] {}: {} - {}", character_id, change_type, description),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::CharacterDescriptionUpdated {
             character_id: character_id.to_string(),
@@ -491,15 +408,13 @@ impl ToolExecutionService {
     }
 
     /// Execute ModifyNpcOpinion tool - changes an NPC's opinion of a PC
-    #[instrument(skip(self, session))]
-    async fn execute_modify_npc_opinion<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_modify_npc_opinion(
         &self,
         npc_id: &str,
         target_pc_id: &str,
         opinion_change: &str,
         reason: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "NPC {} now {} toward PC {} ({})",
@@ -507,14 +422,6 @@ impl ToolExecutionService {
         );
 
         info!("NPC opinion changed: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[NPC OPINION] {} -> {}: {} ({})", npc_id, target_pc_id, opinion_change, reason),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::NpcOpinionChanged {
             npc_id: npc_id.to_string(),
@@ -531,14 +438,12 @@ impl ToolExecutionService {
     }
 
     /// Execute TransferItem tool - transfers an item between characters
-    #[instrument(skip(self, session))]
-    async fn execute_transfer_item<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_transfer_item(
         &self,
         from_id: &str,
         to_id: &str,
         item_name: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "'{}' transferred from {} to {}",
@@ -546,14 +451,6 @@ impl ToolExecutionService {
         );
 
         info!("Item transferred: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[ITEM TRANSFER] '{}': {} -> {}", item_name, from_id, to_id),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::ItemTransferred {
             from_id: from_id.to_string(),
@@ -569,15 +466,13 @@ impl ToolExecutionService {
     }
 
     /// Execute AddCondition tool - adds a condition to a character
-    #[instrument(skip(self, session))]
-    async fn execute_add_condition<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_add_condition(
         &self,
         character_id: &str,
         condition_name: &str,
         description: &str,
         duration: Option<&str>,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let dur_str = duration.unwrap_or("permanent");
         let description_msg = format!(
@@ -586,14 +481,6 @@ impl ToolExecutionService {
         );
 
         info!("Condition added: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[CONDITION +] {} gained '{}' ({}) - {}", character_id, condition_name, dur_str, description),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::ConditionAdded {
             character_id: character_id.to_string(),
@@ -610,13 +497,11 @@ impl ToolExecutionService {
     }
 
     /// Execute RemoveCondition tool - removes a condition from a character
-    #[instrument(skip(self, session))]
-    async fn execute_remove_condition<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_remove_condition(
         &self,
         character_id: &str,
         condition_name: &str,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let description_msg = format!(
             "Condition '{}' removed from {}",
@@ -624,14 +509,6 @@ impl ToolExecutionService {
         );
 
         info!("Condition removed: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[CONDITION -] {} lost '{}'", character_id, condition_name),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::ConditionRemoved {
             character_id: character_id.to_string(),
@@ -646,14 +523,12 @@ impl ToolExecutionService {
     }
 
     /// Execute UpdateCharacterStat tool - updates a character's stat
-    #[instrument(skip(self, session))]
-    async fn execute_update_character_stat<S: SessionManagementPort>(
+    #[instrument(skip(self))]
+    async fn execute_update_character_stat(
         &self,
         character_id: &str,
         stat_name: &str,
         delta: i32,
-        session: &mut S,
-        session_id: SessionId,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         let change_str = if delta >= 0 {
             format!("+{}", delta)
@@ -667,14 +542,6 @@ impl ToolExecutionService {
         );
 
         info!("Character stat updated: {}", description_msg);
-
-        session
-            .add_to_conversation_history(
-                session_id,
-                "System",
-                &format!("[STAT] {} {} {}", character_id, stat_name, change_str),
-            )
-            .map_err(|e| ToolExecutionError::ExecutionError(e.to_string()))?;
 
         let state_change = StateChange::CharacterStatUpdated {
             character_id: character_id.to_string(),
@@ -700,130 +567,6 @@ impl Default for ToolExecutionService {
 mod tests {
     use super::*;
 
-    /// Fake implementation of SessionManagementPort for testing
-    /// This avoids depending on infrastructure types in application layer tests
-    struct FakeSessionManager {
-        conversation_history: Vec<(String, String)>,
-        session_id: SessionId,
-    }
-
-    impl FakeSessionManager {
-        fn new() -> Self {
-            Self {
-                conversation_history: Vec::new(),
-                session_id: SessionId::new(),
-            }
-        }
-    }
-
-    impl SessionManagementPort for FakeSessionManager {
-        fn get_client_session(&self, _client_id: &str) -> Option<SessionId> {
-            Some(self.session_id)
-        }
-
-        fn is_client_dm(&self, _client_id: &str) -> bool {
-            false
-        }
-
-        fn get_client_user_id(&self, _client_id: &str) -> Option<String> {
-            None
-        }
-
-        fn get_pending_approval(
-            &self,
-            _session_id: SessionId,
-            _request_id: &str,
-        ) -> Option<wrldbldr_engine_ports::outbound::PendingApprovalInfo> {
-            None
-        }
-
-        fn add_pending_approval(
-            &mut self,
-            _session_id: SessionId,
-            _approval: wrldbldr_engine_ports::outbound::PendingApprovalInfo,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn remove_pending_approval(
-            &mut self,
-            _session_id: SessionId,
-            _request_id: &str,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn increment_retry_count(
-            &mut self,
-            _session_id: SessionId,
-            _request_id: &str,
-        ) -> Result<u32, wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(0)
-        }
-
-        fn broadcast_to_players(
-            &self,
-            _session_id: SessionId,
-            _message: &wrldbldr_engine_ports::outbound::BroadcastMessage,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn send_to_dm(
-            &self,
-            _session_id: SessionId,
-            _message: &wrldbldr_engine_ports::outbound::BroadcastMessage,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn broadcast_except(
-            &self,
-            _session_id: SessionId,
-            _message: &wrldbldr_engine_ports::outbound::BroadcastMessage,
-            _exclude_client: &str,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn broadcast_to_session(
-            &self,
-            _session_id: SessionId,
-            _message: &wrldbldr_engine_ports::outbound::BroadcastMessage,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            Ok(())
-        }
-
-        fn add_to_conversation_history(
-            &mut self,
-            _session_id: SessionId,
-            speaker: &str,
-            text: &str,
-        ) -> Result<(), wrldbldr_engine_ports::outbound::SessionManagementError> {
-            self.conversation_history.push((speaker.to_string(), text.to_string()));
-            Ok(())
-        }
-
-        fn session_has_dm(&self, _session_id: SessionId) -> bool {
-            false
-        }
-
-        fn get_session_world_context(
-            &self,
-            _session_id: SessionId,
-        ) -> Option<wrldbldr_engine_ports::outbound::SessionWorldContext> {
-            None
-        }
-
-        fn get_session_world_id(&self, _session_id: SessionId) -> Option<wrldbldr_domain::WorldId> {
-            None
-        }
-    }
-
-    fn create_test_session() -> FakeSessionManager {
-        FakeSessionManager::new()
-    }
-
     #[tokio::test]
     async fn test_execute_give_item() {
         let service = ToolExecutionService::new();
@@ -832,9 +575,7 @@ mod tests {
             description: "An ornate bronze key".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("Mysterious Key"));
@@ -854,9 +595,7 @@ mod tests {
             importance: InfoImportance::Minor,
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("minor"));
@@ -872,9 +611,7 @@ mod tests {
             importance: InfoImportance::Critical,
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("critical"));
@@ -893,9 +630,7 @@ mod tests {
             reason: "Good conversation".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("Improve"));
@@ -918,9 +653,7 @@ mod tests {
             reason: "Great help".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
 
@@ -940,9 +673,7 @@ mod tests {
             reason: "Saved their life".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
 
@@ -962,9 +693,7 @@ mod tests {
             reason: "Betrayal".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("Worsen"));
@@ -984,9 +713,7 @@ mod tests {
             description: "A group of bandits appears!".to_string(),
         };
 
-        let mut session = create_test_session();
-        let session_id = session.session_id;
-        let result = service.execute_tool(&tool, &mut session, session_id).await.unwrap();
+        let result = service.execute_tool(&tool).await.unwrap();
 
         assert!(result.success);
         assert!(result.description.contains("combat"));
@@ -1001,15 +728,13 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_tools_sequence() {
         let service = ToolExecutionService::new();
-        let mut session = create_test_session();
-        let session_id = session.session_id;
 
         // Execute multiple tools in sequence
         let tool1 = GameTool::GiveItem {
             item_name: "Sword".to_string(),
             description: "A sharp blade".to_string(),
         };
-        let result1 = service.execute_tool(&tool1, &mut session, session_id).await.unwrap();
+        let result1 = service.execute_tool(&tool1).await.unwrap();
         assert!(result1.success);
 
         let tool2 = GameTool::RevealInfo {
@@ -1017,7 +742,7 @@ mod tests {
             content: "Find the dragon".to_string(),
             importance: InfoImportance::Major,
         };
-        let result2 = service.execute_tool(&tool2, &mut session, session_id).await.unwrap();
+        let result2 = service.execute_tool(&tool2).await.unwrap();
         assert!(result2.success);
 
         let tool3 = GameTool::ChangeRelationship {
@@ -1025,10 +750,7 @@ mod tests {
             amount: ChangeAmount::Moderate,
             reason: "Helping out".to_string(),
         };
-        let result3 = service.execute_tool(&tool3, &mut session, session_id).await.unwrap();
+        let result3 = service.execute_tool(&tool3).await.unwrap();
         assert!(result3.success);
-
-        // Check that session history was updated
-        assert!(session.conversation_history.len() >= 3);
     }
 }

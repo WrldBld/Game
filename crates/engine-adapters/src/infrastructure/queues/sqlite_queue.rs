@@ -14,7 +14,7 @@ use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueueNotificationPort, QueuePort,
 };
-use wrldbldr_domain::SessionId;
+use wrldbldr_domain::WorldId;
 
 /// SQLite queue implementation
 pub struct SqliteQueue<T, N: QueueNotificationPort> {
@@ -459,18 +459,18 @@ impl<T, N: QueueNotificationPort + 'static> ApprovalQueuePort<T> for SqliteQueue
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned + 'static,
 {
-    async fn list_by_session(&self, _session_id: SessionId) -> Result<Vec<QueueItem<T>>, QueueError> {
-        // Extract session_id from payload JSON
+    async fn list_by_world(&self, _world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
+        // Extract world_id from payload JSON
         // This is a limitation - we need to know the structure of T
         // In practice, ApprovalQueuePort should only be used with ApprovalItem
-        // which has session_id. For now, we'll return all pending/processing items.
-        // The service layer should filter by session_id after deserialization.
+        // which has world_id. For now, we'll return all pending/processing items.
+        // The service layer should filter by world_id after deserialization.
         self.list_by_status(QueueItemStatus::Pending).await
     }
 
-    async fn get_history(
+    async fn get_history_by_world(
         &self,
-        _session_id: SessionId,
+        _world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<QueueItem<T>>, QueueError> {
         let rows = sqlx::query(

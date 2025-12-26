@@ -11,10 +11,8 @@ mod interaction_routes;
 mod location_routes;
 mod narrative_event_routes;
 mod observation_routes;
-mod player_character_routes;
 mod prompt_template_routes;
 mod region_routes;
-mod session_routes;
 mod queue_routes;
 mod rule_system_routes;
 mod scene_routes;
@@ -255,71 +253,7 @@ pub fn create_routes() -> Router<Arc<AppState>> {
             "/api/worlds/{id}/export/raw",
             get(export_routes::export_world_raw),
         )
-        // Session routes
-        .route("/api/sessions", get(session_routes::list_sessions))
-        .route(
-            "/api/worlds/{world_id}/sessions",
-            get(session_routes::list_world_sessions),
-        )
-        .route(
-            "/api/worlds/{world_id}/sessions",
-            post(session_routes::create_or_get_dm_session),
-        )
-        // Game Time routes (Phase 23F)
-        .route(
-            "/api/sessions/{session_id}/game-time",
-            get(session_routes::get_game_time),
-        )
-        .route(
-            "/api/sessions/{session_id}/game-time/advance",
-            post(session_routes::advance_game_time),
-        )
-        // Player Character routes
-        .route(
-            "/api/sessions/{session_id}/player-characters",
-            post(player_character_routes::create_player_character),
-        )
-        .route(
-            "/api/sessions/{session_id}/player-characters",
-            get(player_character_routes::list_player_characters),
-        )
-        .route(
-            "/api/sessions/{session_id}/player-characters/me",
-            get(player_character_routes::get_my_player_character),
-        )
-        // PC Selection routes (Phase 23B.6)
-        .route(
-            "/api/sessions/{session_id}/available-pcs",
-            get(player_character_routes::list_available_pcs),
-        )
-        .route(
-            "/api/sessions/{session_id}/select-pc",
-            post(player_character_routes::select_pc),
-        )
-        .route(
-            "/api/users/{user_id}/pcs",
-            get(player_character_routes::list_user_pcs),
-        )
-        .route(
-            "/api/worlds/{world_id}/import-pc",
-            post(player_character_routes::import_pc),
-        )
-        .route(
-            "/api/player-characters/{pc_id}",
-            get(player_character_routes::get_player_character),
-        )
-        .route(
-            "/api/player-characters/{pc_id}",
-            put(player_character_routes::update_player_character),
-        )
-        .route(
-            "/api/player-characters/{pc_id}",
-            delete(player_character_routes::delete_player_character),
-        )
-        .route(
-            "/api/player-characters/{pc_id}/location",
-            put(player_character_routes::update_player_character_location),
-        )
+        // Note: Session and PlayerCharacter routes removed - use WebSocket Request pattern
         // Observation routes (Phase 23D)
         .route(
             "/api/player-characters/{pc_id}/observations",

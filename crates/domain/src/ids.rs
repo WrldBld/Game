@@ -78,8 +78,7 @@ define_id!(StoryEventId);
 define_id!(NarrativeEventId);
 define_id!(EventChainId);
 
-// Session and participant IDs
-define_id!(SessionId);
+// Participant IDs (SessionId removed - using WorldId for connection scoping)
 define_id!(ParticipantId);
 define_id!(UserId);
 define_id!(ActionId);

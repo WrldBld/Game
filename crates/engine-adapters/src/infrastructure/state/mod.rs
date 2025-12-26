@@ -54,7 +54,7 @@ use crate::infrastructure::queues::QueueFactory;
 use crate::infrastructure::repositories::{
     SqliteAppEventRepository, SqliteGenerationReadStateRepository,
 };
-use crate::infrastructure::session::SessionManager;
+
 use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use crate::infrastructure::world_connection_manager::{
     SharedWorldConnectionManager, new_shared_manager,
@@ -75,8 +75,7 @@ pub struct AppState {
     pub repository: Neo4jRepository,
     pub llm_client: OllamaClient,
     pub comfyui_client: ComfyUIClient,
-    /// Active WebSocket sessions (kept for legacy HTTP routes, being deprecated)
-    pub sessions: Arc<RwLock<SessionManager>>,
+
 
     // Grouped services
     pub core: CoreServices,
@@ -372,11 +371,7 @@ impl AppState {
         let narrative_event_service: Arc<dyn wrldbldr_engine_app::application::services::NarrativeEventService> = 
             Arc::new(NarrativeEventServiceImpl::new(narrative_event_repo_for_service, event_bus.clone()));
 
-        // Initialize session manager (must be before async_session_port which uses it)
-        // Initialize session manager (kept for legacy HTTP routes, being deprecated)
-        let sessions = Arc::new(RwLock::new(SessionManager::new(
-            config.session.max_conversation_history,
-        )));
+
 
         // Initialize queue services
         // Services take Arc<Q>, so we pass Arc<QueueBackendEnum<T>> directly
@@ -619,7 +614,7 @@ impl AppState {
             repository,
             llm_client,
             comfyui_client,
-            sessions: Arc::clone(&sessions),
+
             core,
             game,
             queues,

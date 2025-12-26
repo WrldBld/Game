@@ -695,11 +695,10 @@ impl WorldConnectionManager {
     // =========================================================================
 
     /// Check if DM is connected to this world
-    pub fn has_dm(&self, world_id: &Uuid) -> bool {
-        if let Ok(worlds) = self.worlds.try_read() {
-            if let Some(world_state) = worlds.get(world_id) {
-                return world_state.dm_user_id.is_some();
-            }
+    pub async fn has_dm(&self, world_id: &Uuid) -> bool {
+        let worlds = self.worlds.read().await;
+        if let Some(world_state) = worlds.get(world_id) {
+            return world_state.dm_user_id.is_some();
         }
         false
     }

@@ -144,17 +144,17 @@ impl<T> wrldbldr_engine_ports::outbound::ApprovalQueuePort<T> for QueueBackendEn
 where
     T: Send + Sync + Clone + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
-    async fn list_by_session(&self, session_id: wrldbldr_domain::SessionId) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn list_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
         match self {
-            QueueBackendEnum::Memory(q) => q.list_by_session(session_id).await,
-            QueueBackendEnum::Sqlite(q) => q.list_by_session(session_id).await,
+            QueueBackendEnum::Memory(q) => q.list_by_world(world_id).await,
+            QueueBackendEnum::Sqlite(q) => q.list_by_world(world_id).await,
         }
     }
 
-    async fn get_history(&self, session_id: wrldbldr_domain::SessionId, limit: usize) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn get_history_by_world(&self, world_id: wrldbldr_domain::WorldId, limit: usize) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
         match self {
-            QueueBackendEnum::Memory(q) => q.get_history(session_id, limit).await,
-            QueueBackendEnum::Sqlite(q) => q.get_history(session_id, limit).await,
+            QueueBackendEnum::Memory(q) => q.get_history_by_world(world_id, limit).await,
+            QueueBackendEnum::Sqlite(q) => q.get_history_by_world(world_id, limit).await,
         }
     }
 

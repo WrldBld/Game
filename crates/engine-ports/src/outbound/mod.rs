@@ -14,7 +14,6 @@ mod llm_port;
 mod queue_notification_port;
 mod queue_port;
 mod repository_port;
-mod session_management_port;
 mod prompt_template_port;
 mod settings_port;
 mod staging_repository_port;
@@ -65,12 +64,6 @@ pub use suggestion_enqueue_port::{
 pub use queue_port::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueuePort,
-};
-
-pub use session_management_port::{
-    BroadcastMessage, CharacterContextInfo, ParticipantSummary, PendingApprovalInfo,
-    SessionJoinResult, SessionLifecyclePort, SessionManagementError, SessionManagementPort,
-    SessionParticipantRole, SessionWorldContext,
 };
 
 pub use world_connection_port::{WorldConnectionPort, WorldConnectionError};

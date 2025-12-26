@@ -55,13 +55,13 @@ pub trait WorldConnectionPort: Send + Sync {
     // === Query Methods ===
     
     /// Check if DM is connected
-    fn has_dm(&self, world_id: &WorldId) -> bool;
+    async fn has_dm(&self, world_id: &WorldId) -> bool;
     
     /// Get DM user ID
-    fn get_dm_user_id(&self, world_id: &WorldId) -> Option<String>;
+    async fn get_dm_user_id(&self, world_id: &WorldId) -> Option<String>;
     
     /// Find user playing a PC
-    fn find_player_for_pc(
+    async fn find_player_for_pc(
         &self,
         world_id: &WorldId,
         pc_id: &CharacterId,

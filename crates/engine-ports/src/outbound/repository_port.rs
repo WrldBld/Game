@@ -25,7 +25,7 @@ use wrldbldr_domain::value_objects::{
 use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
     InteractionId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
-    RelationshipId, SceneId, SessionId, SkillId, StoryEventId, WantId, WorldId,
+    RelationshipId, SceneId, SkillId, StoryEventId, WantId, WorldId,
 };
 
 // =============================================================================
@@ -394,16 +394,6 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
     /// Get a player character by ID
     async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>>;
 
-    /// Get all player characters in a session
-    async fn get_by_session(&self, session_id: SessionId) -> Result<Vec<PlayerCharacter>>;
-
-    /// Get a player character by user ID and session ID
-    async fn get_by_user_and_session(
-        &self,
-        user_id: &str,
-        session_id: SessionId,
-    ) -> Result<Option<PlayerCharacter>>;
-
     /// Get all player characters at a specific location
     async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>>;
 
@@ -443,13 +433,6 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
         id: PlayerCharacterId,
         location_id: LocationId,
         region_id: Option<RegionId>,
-    ) -> Result<()>;
-
-    /// Bind a player character to a session
-    async fn bind_to_session(
-        &self,
-        id: PlayerCharacterId,
-        session_id: SessionId,
     ) -> Result<()>;
 
     /// Unbind a player character from its session

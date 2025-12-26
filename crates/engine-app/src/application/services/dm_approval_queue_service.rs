@@ -2,6 +2,10 @@
 //!
 //! This service manages the DMApprovalQueue, which holds decisions awaiting
 //! DM approval. It provides history, delay, and expiration features.
+//!
+//! NOTE: This service has been refactored to remove SessionManagementPort dependency.
+//! Broadcasting and conversation history management should be handled by the caller
+//! using WorldConnectionPort after receiving approval outcomes.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,8 +13,7 @@ use std::time::Duration;
 use chrono::Utc;
 
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, BroadcastMessage, QueueError, QueueItem, QueueItemId,
-    SessionManagementPort,
+    ApprovalQueuePort, QueueError, QueueItem, QueueItemId,
 };
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use crate::application::services::item_service::ItemService;
@@ -18,7 +21,7 @@ use crate::application::services::StoryEventService;
 use crate::application::dto::ApprovalItem;
 use wrldbldr_domain::value_objects::GameTool;
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, SessionId, WorldId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_protocol::ApprovalDecision;
 use std::collections::HashMap;
 
@@ -50,17 +53,9 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         }
     }
 
-    /// Get all pending approvals for a session (for DM UI)
-    pub async fn get_pending(&self, session_id: SessionId) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
-        // The underlying ApprovalQueuePort implementation may not filter by
-        // session_id (see SQLite/InMemory comments), so we defensively filter
-        // here using the payload's session_id field.
-        let items = self.queue.list_by_session(session_id).await?;
-        let session_uuid: uuid::Uuid = session_id.into();
-        Ok(items
-            .into_iter()
-            .filter(|item| item.payload.session_id == session_uuid)
-            .collect())
+    /// Get all pending approvals for a world (for DM UI)
+    pub async fn get_pending(&self, world_id: WorldId) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
+        self.queue.list_by_world(world_id).await
     }
 
     /// Get an approval item by its string ID
@@ -74,10 +69,14 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     ///
     /// This method handles the DM's decision on an approval request and
     /// routes it to the appropriate handler based on the decision type.
-    pub async fn process_decision<S: SessionManagementPort>(
+    ///
+    /// Returns an ApprovalOutcome that the caller should use to:
+    /// 1. Broadcast messages to players via WorldConnectionPort
+    /// 2. Update conversation history
+    /// 3. Record story events
+    pub async fn process_decision(
         &self,
-        session: &mut S,
-        session_id: SessionId,
+        world_id: WorldId,
         item_id: QueueItemId,
         decision: ApprovalDecision,
     ) -> Result<ApprovalOutcome, QueueError> {
@@ -89,10 +88,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         let outcome = match decision {
             ApprovalDecision::Accept => {
-                self.handle_accept(session, session_id, &item.payload, HashMap::new()).await?
+                self.handle_accept(world_id, &item.payload, HashMap::new()).await?
             }
             ApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                self.handle_accept(session, session_id, &item.payload, item_recipients).await?
+                self.handle_accept(world_id, &item.payload, item_recipients).await?
             }
             ApprovalDecision::AcceptWithModification {
                 modified_dialogue,
@@ -100,13 +99,13 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
                 rejected_tools,
                 item_recipients,
             } => {
-                self.handle_accept_modified(session, session_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools, item_recipients).await?
+                self.handle_accept_modified(world_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools, item_recipients).await?
             }
             ApprovalDecision::Reject { feedback } => {
                 self.handle_reject(&item.payload, &feedback).await?
             }
             ApprovalDecision::TakeOver { dm_response } => {
-                self.handle_takeover(session, session_id, &item.payload, &dm_response).await?
+                self.handle_takeover(world_id, &item.payload, &dm_response).await?
             }
         };
 
@@ -137,67 +136,46 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     }
 
     /// Handle accepting an approval as-is
-    async fn handle_accept<S: SessionManagementPort>(
+    ///
+    /// Returns an ApprovalOutcome with the dialogue and executed tools.
+    /// The caller is responsible for:
+    /// - Broadcasting the dialogue to players
+    /// - Adding to conversation history
+    /// - Recording story events
+    async fn handle_accept(
         &self,
-        session: &mut S,
-        session_id: SessionId,
+        world_id: WorldId,
         approval: &ApprovalItem,
         item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
-        // Broadcast the dialogue to players using ServerMessage format
-        let message = serde_json::json!({
-            "type": "dialogue_response",
-            "speaker_id": approval.npc_name,
-            "speaker_name": approval.npc_name,
-            "text": approval.proposed_dialogue,
-            "choices": []
-        });
-
-        session
-            .broadcast_to_session(
-                session_id,
-                &BroadcastMessage {
-                    content: message,
-                },
-            )
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-        
-        // Add to conversation history
-        session
-            .add_to_conversation_history(session_id, &approval.npc_name, &approval.proposed_dialogue)
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-
         // Record dialogue exchange as a story event
-        self.record_dialogue_event(session, session_id, approval, &approval.proposed_dialogue)
+        self.record_dialogue_event(world_id, approval, &approval.proposed_dialogue)
             .await;
 
-        // Get world_id for item creation
-        let world_id = session.get_session_world_id(session_id);
-
         // Execute approved tool calls
+        let mut executed_tools = Vec::new();
         for tool_info in &approval.proposed_tools {
             // Check if this is a give_item with DM-specified recipients
             if tool_info.name == "give_item" {
-                if let Some(world_id) = world_id {
-                    self.execute_give_item_with_recipients(
-                        session,
-                        session_id,
-                        world_id,
-                        tool_info,
-                        item_recipients.get(&tool_info.id),
-                    ).await;
-                }
+                self.execute_give_item_with_recipients(
+                    world_id,
+                    tool_info,
+                    item_recipients.get(&tool_info.id),
+                ).await;
+                executed_tools.push(tool_info.name.clone());
             } else {
                 // Convert ProposedToolInfo to GameTool
                 // Parse the tool arguments JSON to determine tool type
                 if let Ok(tool) = self.parse_tool_from_info(tool_info) {
                     if let Err(e) = self
                         .tool_execution_service
-                        .execute_tool(&tool, session, session_id)
+                        .execute_tool(&tool)
                         .await
                     {
                         tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
                         // Continue with other tools even if one fails
+                    } else {
+                        executed_tools.push(tool_info.name.clone());
                     }
                 }
             }
@@ -205,74 +183,52 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         Ok(ApprovalOutcome::Broadcast {
             dialogue: approval.proposed_dialogue.clone(),
+            npc_name: approval.npc_name.clone(),
+            executed_tools,
         })
     }
 
     /// Handle accepting with modifications
-    async fn handle_accept_modified<S: SessionManagementPort>(
+    ///
+    /// Returns an ApprovalOutcome with the modified dialogue and executed tools.
+    /// The caller is responsible for broadcasting and history updates.
+    async fn handle_accept_modified(
         &self,
-        session: &mut S,
-        session_id: SessionId,
+        world_id: WorldId,
         approval: &ApprovalItem,
         modified_dialogue: &str,
         approved_tools: &[String],
         _rejected_tools: &[String],
         item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
-        // Broadcast the modified dialogue using ServerMessage format
-        let message = serde_json::json!({
-            "type": "dialogue_response",
-            "speaker_id": approval.npc_name,
-            "speaker_name": approval.npc_name,
-            "text": modified_dialogue,
-            "choices": []
-        });
-
-        session
-            .broadcast_to_session(
-                session_id,
-                &BroadcastMessage {
-                    content: message,
-                },
-            )
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-        
-        // Add to conversation history
-        session
-            .add_to_conversation_history(session_id, &approval.npc_name, modified_dialogue)
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-
         // Record dialogue exchange as a story event (with modified dialogue)
-        self.record_dialogue_event(session, session_id, approval, modified_dialogue)
+        self.record_dialogue_event(world_id, approval, modified_dialogue)
             .await;
-
-        // Get world_id for item creation
-        let world_id = session.get_session_world_id(session_id);
 
         // Execute approved tool calls (filter based on approved_tools list)
         // approved_tools contains tool IDs that should be executed
+        let mut executed_tools = Vec::new();
         for tool_info in &approval.proposed_tools {
             // Check if this tool is in the approved list
             if approved_tools.contains(&tool_info.id) {
                 // Check if this is a give_item with DM-specified recipients
                 if tool_info.name == "give_item" {
-                    if let Some(world_id) = world_id {
-                        self.execute_give_item_with_recipients(
-                            session,
-                            session_id,
-                            world_id,
-                            tool_info,
-                            item_recipients.get(&tool_info.id),
-                        ).await;
-                    }
+                    self.execute_give_item_with_recipients(
+                        world_id,
+                        tool_info,
+                        item_recipients.get(&tool_info.id),
+                    ).await;
+                    executed_tools.push(tool_info.name.clone());
                 } else {
                     if let Ok(tool) = self.parse_tool_from_info(tool_info) {
                         if let Err(e) = self
                             .tool_execution_service
-                            .execute_tool(&tool, session, session_id)
+                            .execute_tool(&tool)
                             .await
                         {
                             tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                        } else {
+                            executed_tools.push(tool_info.name.clone());
                         }
                     }
                 }
@@ -282,6 +238,8 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         Ok(ApprovalOutcome::Broadcast {
             dialogue: modified_dialogue.to_string(),
+            npc_name: approval.npc_name.clone(),
+            executed_tools,
         })
     }
 
@@ -313,65 +271,36 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     }
 
     /// Handle DM taking over
-    async fn handle_takeover<S: SessionManagementPort>(
+    ///
+    /// Returns an ApprovalOutcome with the DM's response.
+    /// The caller is responsible for broadcasting and history updates.
+    async fn handle_takeover(
         &self,
-        session: &mut S,
-        session_id: SessionId,
+        world_id: WorldId,
         approval: &ApprovalItem,
         dm_response: &str,
     ) -> Result<ApprovalOutcome, QueueError> {
-        // Broadcast DM's response using ServerMessage format
-        let message = serde_json::json!({
-            "type": "dialogue_response",
-            "speaker_id": approval.npc_name,
-            "speaker_name": approval.npc_name,
-            "text": dm_response,
-            "choices": []
-        });
-
-        session
-            .broadcast_to_session(
-                session_id,
-                &BroadcastMessage {
-                    content: message,
-                },
-            )
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-        
-        // Add to conversation history
-        session
-            .add_to_conversation_history(session_id, &approval.npc_name, dm_response)
-            .map_err(|e| QueueError::Backend(format!("Session error: {}", e)))?;
-
         // Record dialogue exchange as a story event (with DM's response)
-        self.record_dialogue_event(session, session_id, approval, dm_response)
+        self.record_dialogue_event(world_id, approval, dm_response)
             .await;
 
         Ok(ApprovalOutcome::Broadcast {
             dialogue: dm_response.to_string(),
+            npc_name: approval.npc_name.clone(),
+            executed_tools: Vec::new(),
         })
     }
 
     /// Record a dialogue exchange as a story event
     ///
-    /// This is called after dialogue is broadcast to persist it to the story timeline.
+    /// This is called after dialogue is processed to persist it to the story timeline.
     /// Errors are logged but don't fail the approval flow.
-    async fn record_dialogue_event<S: SessionManagementPort>(
+    async fn record_dialogue_event(
         &self,
-        session: &S,
-        session_id: SessionId,
+        world_id: WorldId,
         approval: &ApprovalItem,
         npc_response: &str,
     ) {
-        // Get world_id from session
-        let Some(world_id) = session.get_session_world_id(session_id) else {
-            tracing::warn!(
-                "Cannot record dialogue event: world_id not found for session {}",
-                session_id
-            );
-            return;
-        };
-
         // Parse NPC ID from approval item
         let npc_id = match &approval.npc_id {
             Some(id_str) => match uuid::Uuid::parse_str(id_str) {
@@ -397,8 +326,8 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             .story_event_service
             .record_dialogue_exchange(
                 world_id,
-                None, // scene_id - could be looked up from session if needed
-                None, // location_id - could be looked up from session if needed
+                None, // scene_id - could be looked up if needed
+                None, // location_id - could be looked up if needed
                 npc_id,
                 approval.npc_name.clone(),
                 String::new(), // player_dialogue - not available in ApprovalItem
@@ -456,18 +385,13 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         self.queue.delay(item_id, Utc::now() + duration).await
     }
 
-    /// Get decision history for session
+    /// Get decision history for a world
     pub async fn get_history(
         &self,
-        session_id: SessionId,
+        world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
-        let items = self.queue.get_history(session_id, limit).await?;
-        let session_uuid: uuid::Uuid = session_id.into();
-        Ok(items
-            .into_iter()
-            .filter(|item| item.payload.session_id == session_uuid)
-            .collect())
+        self.queue.get_history_by_world(world_id, limit).await
     }
 
     /// Expire old pending approvals
@@ -611,10 +535,8 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     ///
     /// If recipients is None or empty, the item is not given (DM chose not to give it).
     /// If recipients has PC IDs, creates the item and gives it to each recipient.
-    async fn execute_give_item_with_recipients<S: SessionManagementPort>(
+    async fn execute_give_item_with_recipients(
         &self,
-        session: &mut S,
-        session_id: SessionId,
         world_id: WorldId,
         tool_info: &wrldbldr_protocol::ProposedToolInfo,
         recipients: Option<&Vec<String>>,
@@ -677,29 +599,6 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
                         "Gave item to PC"
                     );
                 }
-
-                // Log to conversation history
-                let recipient_count = results.len();
-                let desc = item_description
-                    .as_ref()
-                    .map(|d| format!(" - {}", d))
-                    .unwrap_or_default();
-                let history_msg = if recipient_count == 1 {
-                    format!("[ITEM RECEIVED] {}{}", item_name, desc)
-                } else {
-                    format!(
-                        "[ITEM RECEIVED] {} x{} (given to {} characters){}",
-                        item_name, recipient_count, recipient_count, desc
-                    )
-                };
-
-                if let Err(e) = session.add_to_conversation_history(
-                    session_id,
-                    "System",
-                    &history_msg,
-                ) {
-                    tracing::warn!("Failed to add item to conversation history: {}", e);
-                }
             }
             Err(e) => {
                 tracing::error!(
@@ -713,11 +612,20 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 }
 
 /// Outcome of processing an approval decision
+///
+/// The caller should use this outcome to:
+/// - Broadcast dialogue to players via WorldConnectionPort
+/// - Update conversation history
 #[derive(Debug, Clone)]
 pub enum ApprovalOutcome {
-    /// Approval was broadcast to players
+    /// Approval was accepted and should be broadcast to players
     Broadcast {
+        /// The dialogue text to broadcast
         dialogue: String,
+        /// The NPC name (speaker)
+        npc_name: String,
+        /// Names of tools that were executed
+        executed_tools: Vec<String>,
     },
     /// Approval was rejected
     Rejected {

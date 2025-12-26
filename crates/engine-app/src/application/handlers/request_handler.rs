@@ -1984,7 +1984,6 @@ impl RequestHandler for AppRequestHandler {
                 });
 
                 let request = crate::application::services::CreatePlayerCharacterRequest {
-                    session_id: None, // Not bound to a session
                     user_id,
                     world_id: wid,
                     name: data.name.clone(),

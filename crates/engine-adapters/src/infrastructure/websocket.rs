@@ -25,8 +25,8 @@ use wrldbldr_engine_app::application::services::interaction_service::Interaction
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
 use wrldbldr_engine_app::application::services::MoodService;
 use wrldbldr_engine_app::application::services::WorldService;
-use wrldbldr_engine_ports::outbound::{PlayerCharacterRepositoryPort, RegionRepositoryPort, SessionParticipantRole};
-use crate::infrastructure::session::ClientId;
+use wrldbldr_engine_ports::outbound::{PlayerCharacterRepositoryPort, RegionRepositoryPort};
+use uuid::Uuid;
 use crate::infrastructure::state::AppState;
 use wrldbldr_domain::ActionId;
 use wrldbldr_protocol::{
@@ -36,15 +36,6 @@ use wrldbldr_protocol::{
 };
 
 // Conversion helpers for adapting between infrastructure message types and service DTOs
-
-/// Convert wire format ParticipantRole to canonical SessionParticipantRole
-fn wire_to_canonical_role(role: ParticipantRole) -> SessionParticipantRole {
-    match role {
-        ParticipantRole::DungeonMaster => SessionParticipantRole::DungeonMaster,
-        ParticipantRole::Player => SessionParticipantRole::Player,
-        ParticipantRole::Spectator => SessionParticipantRole::Spectator,
-    }
-}
 
 /// Convert wrldbldr_protocol::DiceInputType to challenge_resolution_service::DiceInputType
 fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::DiceInputType {
@@ -153,7 +144,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Create a unique client ID for this connection
-    let client_id = ClientId::new();
+    let client_id = Uuid::new_v4();
 
     // Create a channel for sending messages to this client
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
@@ -237,7 +228,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 async fn handle_message(
     msg: ClientMessage,
     state: &AppState,
-    client_id: ClientId,
+    client_id: Uuid,
     sender: mpsc::UnboundedSender<ServerMessage>,
 ) -> Option<ServerMessage> {
     match msg {

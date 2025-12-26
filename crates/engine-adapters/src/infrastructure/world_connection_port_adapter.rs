@@ -86,38 +86,19 @@ impl WorldConnectionPort for WorldConnectionPortAdapter {
             })
     }
     
-    fn has_dm(&self, world_id: &WorldId) -> bool {
-        self.manager.has_dm(world_id.as_uuid())
+    async fn has_dm(&self, world_id: &WorldId) -> bool {
+        self.manager.has_dm(world_id.as_uuid()).await
     }
     
-    fn get_dm_user_id(&self, world_id: &WorldId) -> Option<String> {
-        // get_dm_info is async, but we need sync here
-        // We'll use try_read instead via the has_dm pattern
-        // For now, we'll need to make this async-aware or block
-        // The safest approach is to use tokio::runtime::Handle::current().block_on
-        // but that's not ideal. Let me check if we can restructure.
-        
-        // Actually, looking at the WorldConnectionManager, get_dm_info is async
-        // but we need this to be sync. We'll need to spawn a blocking task or
-        // make the trait method async. Since the spec says this should be sync,
-        // let's use block_on cautiously.
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.manager.get_dm_info(world_id.as_uuid()).await.map(|info| info.user_id)
-            })
-        })
+    async fn get_dm_user_id(&self, world_id: &WorldId) -> Option<String> {
+        self.manager.get_dm_info(world_id.as_uuid()).await.map(|info| info.user_id)
     }
     
-    fn find_player_for_pc(
+    async fn find_player_for_pc(
         &self,
         world_id: &WorldId,
         pc_id: &CharacterId,
     ) -> Option<String> {
-        // Same issue as get_dm_user_id - underlying method is async but trait requires sync
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.manager.find_player_for_pc(world_id.as_uuid(), pc_id.as_uuid()).await
-            })
-        })
+        self.manager.find_player_for_pc(world_id.as_uuid(), pc_id.as_uuid()).await
     }
 }

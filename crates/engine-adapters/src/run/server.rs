@@ -4,11 +4,12 @@ use std::sync::Arc;
 
 use axum::{routing::get, Router};
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{AllowOrigin, Any, CorsLayer},
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::services::GenerationEventPublisher;
 use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueNotificationPort, QueuePort, RegionRepositoryPort};
 
@@ -71,9 +72,13 @@ pub async fn run() -> Result<()> {
     };
 
     // Player action queue worker (processes actions and routes to LLM queue)
+    //
+    // TODO: This worker needs refactoring for world-based architecture.
+    // The build_prompt_from_action function now takes a WorldId instead of SessionManager.
+    // PlayerActionItem.session_id needs to be replaced with world_id, or a lookup mechanism
+    // needs to be added to resolve world_id from the action context.
     let player_action_worker = {
         let service = state.queues.player_action_queue_service.clone();
-        let sessions = state.sessions.clone();
         let challenge_service = state.game.challenge_service.clone();
         let skill_service = state.core.skill_service.clone();
         let narrative_event_service = state.game.narrative_event_service.clone();
@@ -91,7 +96,6 @@ pub async fn run() -> Result<()> {
         tokio::spawn(async move {
             tracing::info!("Starting player action queue worker");
             loop {
-                let sessions_clone = sessions.clone();
                 let challenge_service_clone = challenge_service.clone();
                 let skill_service_clone = skill_service.clone();
                 let narrative_event_service_clone = narrative_event_service.clone();
@@ -103,7 +107,6 @@ pub async fn run() -> Result<()> {
                 let actantial_service_clone = actantial_service.clone();
                 match service
                     .process_next(|action| {
-                        let sessions = sessions_clone.clone();
                         let challenge_service = challenge_service_clone.clone();
                         let skill_service = skill_service_clone.clone();
                         let narrative_event_service = narrative_event_service_clone.clone();
@@ -114,8 +117,11 @@ pub async fn run() -> Result<()> {
                         let mood_service = mood_service_clone.clone();
                         let actantial_service = actantial_service_clone.clone();
                         async move {
+                            // TODO: PlayerActionItem needs world_id field or lookup mechanism
+                            // For now, using session_id as a placeholder (will fail at runtime)
+                            let world_id = WorldId::from_uuid(action.session_id);
                             build_prompt_from_action(
-                                &sessions,
+                                world_id,
                                 &challenge_service,
                                 &skill_service,
                                 &narrative_event_service,
@@ -166,7 +172,6 @@ pub async fn run() -> Result<()> {
         let scene_service = state.core.scene_service.clone();
         let interaction_service = state.core.interaction_service.clone();
         let world_connection_manager = state.world_connection_manager.clone();
-        let sessions = state.sessions.clone();
         let recovery_interval_clone = recovery_interval;
         tokio::spawn(async move {
             dm_action_worker(
@@ -176,7 +181,6 @@ pub async fn run() -> Result<()> {
                 scene_service,
                 interaction_service,
                 world_connection_manager,
-                sessions,
                 recovery_interval_clone,
             )
             .await;
@@ -228,18 +232,34 @@ pub async fn run() -> Result<()> {
         })
     };
 
+    // Build CORS layer based on configuration
+    let cors_layer = if state.config.cors_allowed_origins.len() == 1 
+        && state.config.cors_allowed_origins[0] == "*" 
+    {
+        tracing::warn!("CORS configured to allow ANY origin - this is insecure for production!");
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    } else {
+        let origins: Vec<_> = state.config.cors_allowed_origins
+            .iter()
+            .filter_map(|origin| origin.parse().ok())
+            .collect();
+        tracing::info!("CORS configured for origins: {:?}", state.config.cors_allowed_origins);
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::list(origins))
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
+
     // Build HTTP router
     let app = Router::new()
         .route("/", get(|| async { "WrldBldr Engine API" }))
         .merge(http::create_routes())
         .route("/ws", get(infrastructure::websocket::ws_handler))
         .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(cors_layer)
         .with_state(state.clone());
 
     // Start server
