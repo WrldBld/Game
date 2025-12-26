@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 use crate::presentation::state::game_state::{
-    StagingApprovalData, StagedNpcData, PreviousStagingData, WaitingPcData,
+    StagingApprovalData, PreviousStagingData,
 };
 
 /// NPC selection state for approval

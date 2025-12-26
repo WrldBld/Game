@@ -3,7 +3,7 @@
 //! Shows a smaller version of what players see including backdrop and character sprites.
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::{CharacterData as SceneCharacterState, CharacterPosition};
+use wrldbldr_protocol::CharacterData as SceneCharacterState;
 
 /// Scene preview state for UI display (view model)
 #[derive(Clone, PartialEq)]

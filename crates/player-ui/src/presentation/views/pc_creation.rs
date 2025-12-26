@@ -34,7 +34,7 @@ pub struct PCCreationProps {
 pub fn PCCreationView(props: PCCreationProps) -> Element {
     let navigator = use_navigator();
     let platform = use_context::<Platform>();
-    let session_state = use_session_state();
+    let _session_state = use_session_state();
     let pc_service = use_player_character_service();
     let location_service = use_location_service();
     let world_service = use_world_service();

@@ -18,15 +18,14 @@ use super::connection::Neo4jConnection;
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
-    ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel,
-    Goal, InventoryItem, Item, StatBlock, Want, WantVisibility,
+    ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, Item, StatBlock, Want, WantVisibility,
 };
 use wrldbldr_domain::value_objects::{
     ActantialTarget, ArchetypeChange, CampbellArchetype, MoodLevel, NpcMoodState, RegionFrequency,
     RegionRelationship, RegionRelationshipType, RegionShift, RelationshipLevel, WantTarget,
 };
 use wrldbldr_domain::PlayerCharacterId;
-use wrldbldr_domain::{CharacterId, GoalId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
+use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {

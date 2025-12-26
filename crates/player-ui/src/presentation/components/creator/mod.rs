@@ -165,8 +165,8 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
                 generation_queue::GenerationQueuePanel {
                     on_navigate_to_entity: {
                         let mut selected_id = selected_entity_id;
-                        let world_id = props.world_id.clone();
-                        move |(entity_type, entity_id): (String, String)| {
+                        let _world_id = props.world_id.clone();
+                        move |(_entity_type, entity_id): (String, String)| {
                             // Set the selected entity ID so the form opens
                             selected_id.set(Some(entity_id.clone()));
                             // Note: Navigation to the correct tab is handled by the route

@@ -22,7 +22,7 @@ use wrldbldr_engine_ports::outbound::{
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
 };
 use wrldbldr_domain::entities::{Scene, SceneCondition};
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 
 /// Result of scene resolution
 #[derive(Debug, Clone)]

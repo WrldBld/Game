@@ -15,7 +15,7 @@ use tracing::{debug, instrument};
 
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::value_objects::{
-    ChallengeSignificance, InteractionOutcome, MoodLevel, NpcMoodState, RelationshipLevel,
+    InteractionOutcome, MoodLevel, NpcMoodState, RelationshipLevel,
 };
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 

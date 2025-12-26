@@ -449,7 +449,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                                                 }
                                                 
                                                 // Event nodes
-                                                for (event_idx, event) in visible_events.iter().enumerate() {
+                                                for (_event_idx, event) in visible_events.iter().enumerate() {
                                                     {
                                                         let color = if cluster.is_filtered_out {
                                                             "#4b5563" // gray for filtered out

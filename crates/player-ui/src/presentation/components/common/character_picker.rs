@@ -157,7 +157,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
     };
     
     // Handle selection
-    let mut on_select = {
+    let on_select = {
         let on_change = props.on_change.clone();
         move |char: CharacterOption| {
             on_change.call(char.prefixed_id());

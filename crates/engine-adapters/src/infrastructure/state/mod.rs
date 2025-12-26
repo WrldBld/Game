@@ -20,7 +20,6 @@ pub use queue_services::QueueServices;
 use std::sync::Arc;
 
 use anyhow::Result;
-use tokio::sync::RwLock;
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_app::application::handlers::AppRequestHandler;

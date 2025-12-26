@@ -15,7 +15,7 @@ use dioxus::prelude::*;
 use wrldbldr_protocol::{
     WantVisibilityData, ActantialRoleData,
     NpcActantialContextData, WantData, GoalData,
-    ActantialActorData, WantTargetData,
+    ActantialActorData,
 };
 use wrldbldr_player_app::application::services::{
     CreateWantRequest, UpdateWantRequest, CreateGoalRequest, SuggestionContext,
@@ -322,10 +322,10 @@ struct WantCardProps {
 
 #[component]
 fn WantCard(props: WantCardProps) -> Element {
-    let actantial_service = use_actantial_service();
-    let character_service = use_character_service();
+    let _actantial_service = use_actantial_service();
+    let _character_service = use_character_service();
     let mut expanded = use_signal(|| false);
-    let mut show_add_view = use_signal(|| false);
+    let _show_add_view = use_signal(|| false);
     let want = &props.want;
     
     let visibility_badge = match want.visibility {

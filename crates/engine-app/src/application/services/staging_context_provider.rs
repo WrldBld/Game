@@ -15,11 +15,11 @@ use wrldbldr_engine_ports::outbound::{
     NarrativeEventRepositoryPort, RegionRepositoryPort,
 };
 use crate::application::services::StoryEventService;
-use wrldbldr_domain::entities::{Character, NarrativeEvent};
+use wrldbldr_domain::entities::Character;
 use wrldbldr_domain::value_objects::{
     ActiveEventContext, NpcDialogueContext, RegionRelationshipType, RuleBasedSuggestion, StagingContext,
 };
-use wrldbldr_domain::{CharacterId, GameTime, RegionId, TimeOfDay, WorldId};
+use wrldbldr_domain::{CharacterId, GameTime, RegionId, WorldId};
 
 /// Service for gathering context needed for staging decisions
 pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> {

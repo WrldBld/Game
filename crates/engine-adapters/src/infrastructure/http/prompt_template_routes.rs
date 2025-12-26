@@ -14,7 +14,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_domain::value_objects::{PromptTemplateCategory, PromptTemplateMetadata};
+use wrldbldr_domain::value_objects::PromptTemplateCategory;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::PromptTemplateSource;
 

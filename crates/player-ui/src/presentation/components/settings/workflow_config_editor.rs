@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_workflow_service;
 use wrldbldr_player_app::application::services::{
-    WorkflowConfig, WorkflowAnalysis, WorkflowInput, PromptMapping, InputDefault,
+    WorkflowConfig, WorkflowInput, PromptMapping, InputDefault,
     TestWorkflowResponse,
 };
 

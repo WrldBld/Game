@@ -6,7 +6,7 @@
 
 use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
-use wrldbldr_protocol::{NpcPresenceData, ProposedToolInfo, ServerMessage};
+use wrldbldr_protocol::{NpcPresenceData, ServerMessage};
 use wrldbldr_protocol::responses::ConnectedUser;
 use dioxus::prelude::{ReadableExt, WritableExt};
 use crate::presentation::state::{
@@ -27,7 +27,7 @@ pub fn handle_server_message(
     match message {
         ServerMessage::SessionJoined {
             session_id,
-            role,
+            role: _,
             participants: _,
             world_snapshot,
         } => {

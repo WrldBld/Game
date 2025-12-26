@@ -33,7 +33,7 @@ pub fn DirectorModeContent() -> Element {
     let game_state = use_game_state();
     let skill_service = use_skill_service();
     let challenge_service = use_challenge_service();
-    let generation_state = use_generation_state();
+    let _generation_state = use_generation_state();
     let mut show_queue_panel = use_signal(|| false);
 
     // Local state for directorial inputs

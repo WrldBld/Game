@@ -155,7 +155,7 @@ impl OutcomeTriggerService {
 
             OutcomeTrigger::GiveItem {
                 item_name,
-                item_description,
+                item_description: _,
             } => {
                 debug!(item_name = %item_name, "Giving item");
 

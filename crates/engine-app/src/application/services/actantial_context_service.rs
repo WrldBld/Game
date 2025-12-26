@@ -13,16 +13,16 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, instrument};
 
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, GoalRepositoryPort, ItemRepositoryPort, PlayerCharacterRepositoryPort,
     WantRepositoryPort,
 };
-use wrldbldr_domain::entities::{ActantialRole, ActantialView, Character, Goal, PlayerCharacter, Want, WantVisibility};
+use wrldbldr_domain::entities::{ActantialRole, ActantialView, Goal, Want, WantVisibility};
 use wrldbldr_domain::value_objects::{
     ActantialActor, ActantialContext, ActantialLLMContext, ActantialTarget, SocialViewSummary,
-    WantContext, WantTarget,
+    WantContext,
 };
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
 
@@ -418,7 +418,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
         // This requires the repository to support partial updates
 
         // Build updated Want - repository will handle partial update
-        let mut want = Want {
+        let want = Want {
             id: want_id,
             description: request.description.unwrap_or_default(),
             intensity: request.intensity.unwrap_or(0.5),

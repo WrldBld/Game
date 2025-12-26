@@ -7,7 +7,7 @@ use crate::presentation::state::SessionState;
 /// PC creation route
 #[component]
 pub fn PCCreationRoute(world_id: String) -> Element {
-    let navigator = use_navigator();
+    let _navigator = use_navigator();
     let platform = use_context::<Platform>();
     let session_state = use_context::<SessionState>();
 

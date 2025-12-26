@@ -23,15 +23,13 @@ use wrldbldr_engine_app::application::services::player_character_service::Player
 use wrldbldr_engine_app::application::services::location_service::LocationService;
 use wrldbldr_engine_app::application::services::interaction_service::InteractionService;
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
-use wrldbldr_engine_app::application::services::MoodService;
 use wrldbldr_engine_app::application::services::WorldService;
 use wrldbldr_engine_ports::outbound::{PlayerCharacterRepositoryPort, RegionRepositoryPort};
 use uuid::Uuid;
 use crate::infrastructure::state::AppState;
 use wrldbldr_domain::ActionId;
 use wrldbldr_protocol::{
-    CharacterData, CharacterPosition, ClientMessage, InteractionData, NpcMoodData, ParticipantInfo,
-    ParticipantRole, SceneData, ServerMessage, WorldRole,
+    CharacterData, CharacterPosition, ClientMessage, InteractionData, SceneData, ServerMessage, WorldRole,
     ActantialRoleData, WantVisibilityData,
 };
 
@@ -1452,7 +1450,7 @@ async fn handle_message(
             };
             
             // Extract world_id
-            let world_id = match connection.world_id {
+            let _world_id = match connection.world_id {
                 Some(id) => id,
                 None => return Some(ServerMessage::Error {
                     code: "NO_WORLD".to_string(),

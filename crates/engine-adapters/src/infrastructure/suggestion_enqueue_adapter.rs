@@ -10,8 +10,7 @@ use async_trait::async_trait;
 use wrldbldr_engine_app::application::dto::{LLMRequestItem, LLMRequestType};
 use wrldbldr_engine_app::application::services::{LLMQueueService, SuggestionContext};
 use wrldbldr_engine_ports::outbound::{
-    ProcessingQueuePort, QueueError, QueueNotificationPort, LlmPort,
-    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    ProcessingQueuePort, QueueError, QueueNotificationPort, LlmPort, SuggestionEnqueuePort, SuggestionEnqueueRequest,
     SuggestionEnqueueResponse,
 };
 

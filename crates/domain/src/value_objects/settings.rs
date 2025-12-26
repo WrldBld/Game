@@ -205,7 +205,7 @@ impl AppSettings {
 
     /// Merge per-world settings with global settings.
     /// Per-world values override global where present.
-    pub fn merge_with_global(&self, global: &AppSettings) -> AppSettings {
+    pub fn merge_with_global(&self, _global: &AppSettings) -> AppSettings {
         // If this is global settings, just return a clone
         if self.world_id.is_none() {
             return self.clone();

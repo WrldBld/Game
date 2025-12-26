@@ -21,7 +21,7 @@ use wrldbldr_engine_ports::outbound::{
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
-    EntityChangedData, EntityType, ErrorCode, RequestPayload, ResponseResult,
+    EntityChangedData, ErrorCode, RequestPayload, ResponseResult,
 };
 use wrldbldr_domain::entities::{RegionConnection, RegionExit};
 use wrldbldr_domain::value_objects::RegionShift;

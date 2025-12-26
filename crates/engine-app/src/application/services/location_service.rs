@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, WorldRepositoryPort};
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, Region};
-use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
+use wrldbldr_domain::{GridMapId, LocationId, WorldId};
 
 // Validation constants
 const MAX_LOCATION_NAME_LENGTH: usize = 255;
@@ -218,7 +218,7 @@ impl LocationServiceImpl {
         let locations = self.location_repository.list(world_id).await?;
 
         // Build a map of location_id -> Location
-        let location_map: std::collections::HashMap<LocationId, Location> = locations
+        let _location_map: std::collections::HashMap<LocationId, Location> = locations
             .iter()
             .cloned()
             .map(|l| (l.id, l))

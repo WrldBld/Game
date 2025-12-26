@@ -17,7 +17,7 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-use wrldbldr_domain::{ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
 
 /// A narrative event that can be triggered when conditions are met
 ///

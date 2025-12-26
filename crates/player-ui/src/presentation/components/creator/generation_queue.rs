@@ -47,8 +47,8 @@ pub struct GenerationQueuePanelProps {
 pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
     let generation_state = use_generation_state();
     let game_state = use_game_state();
-    let generation_service = use_generation_service();
-    let platform = use_context::<Platform>();
+    let _generation_service = use_generation_service();
+    let _platform = use_context::<Platform>();
     let mut selected_suggestion: Signal<Option<SuggestionTask>> = use_signal(|| None);
     let mut show_read: Signal<bool> = use_signal(|| false);
     let mut active_filter: Signal<QueueFilter> = use_signal(|| QueueFilter::All);
@@ -345,7 +345,7 @@ fn QueueItemRow(
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let mut expanded_details: Signal<bool> = use_signal(|| false);
     let batch_id = batch.batch_id.clone();
-    let (status_icon, status_color, status_text) = match &batch.status {
+    let (status_icon, status_color, _status_text) = match &batch.status {
                     BatchStatus::Queued { position } => ("🖼️", "#9ca3af", format!("#{} in queue", position)),
                     BatchStatus::Generating { progress } => ("⚙️", "#f59e0b", format!("{}%", progress)),
                     BatchStatus::Ready { asset_count } => ("✅", "#22c55e", format!("{} ready", asset_count)),
@@ -729,7 +729,7 @@ fn SuggestionQueueRow(
                                 move |_| {
                                     let req_id = request_id.clone();
                                     let svc = suggestion_service.clone();
-                                    let gen_state = state;
+                                    let _gen_state = state;
                                     spawn(async move {
                                         match svc.cancel_suggestion(&req_id).await {
                                             Ok(_) => {
