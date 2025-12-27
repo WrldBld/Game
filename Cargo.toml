@@ -15,6 +15,7 @@ repository = "https://github.com/WrldBld/Game"
 # Internal crates
 wrldbldr-domain = { path = "crates/domain", version = "0.1.0" }
 wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }
+wrldbldr-engine-dto = { path = "crates/engine-dto", version = "0.1.0" }
 wrldbldr-engine-ports = { path = "crates/engine-ports", version = "0.1.0" }
 wrldbldr-player-ports = { path = "crates/player-ports", version = "0.1.0" }
 wrldbldr-engine-app = { path = "crates/engine-app", version = "0.1.0" }

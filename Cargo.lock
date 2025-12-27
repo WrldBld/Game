@@ -7257,6 +7257,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrldbldr-engine-dto"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "uuid",
+ "wrldbldr-protocol",
+]
+
+[[package]]
 name = "wrldbldr-engine-ports"
 version = "0.1.0"
 dependencies = [
@@ -7269,6 +7281,7 @@ dependencies = [
  "tokio",
  "uuid",
  "wrldbldr-domain",
+ "wrldbldr-engine-dto",
  "wrldbldr-protocol",
 ]
 
@@ -7386,7 +7399,6 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "thiserror 2.0.17",
  "tracing",
  "uuid",
  "wasm-bindgen",

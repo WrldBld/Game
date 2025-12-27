@@ -30,6 +30,7 @@ mod asset_repository;
 mod challenge_repository;
 mod character_repository;
 mod connection;
+pub(crate) mod converters;
 mod directorial_context_repository;
 mod event_chain_repository;
 mod flag_repository;

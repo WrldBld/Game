@@ -11,27 +11,11 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_protocol::{ParticipantRole, ServerMessage, WorldRole};
+use wrldbldr_protocol::{ServerMessage, WorldRole};
 
 /// Handles heartbeat messages by returning a Pong response.
 pub fn handle_heartbeat() -> Option<ServerMessage> {
     Some(ServerMessage::Pong)
-}
-
-/// Handles deprecated JoinSession messages.
-///
-/// This handler exists for backwards compatibility and always returns an error
-/// directing clients to use JoinWorld instead.
-pub fn handle_join_session(
-    _user_id: String,
-    _role: ParticipantRole,
-    _world_id: Option<Uuid>,
-) -> Option<ServerMessage> {
-    tracing::warn!("JoinSession is deprecated, use JoinWorld instead");
-    Some(ServerMessage::Error {
-        code: "DEPRECATED".to_string(),
-        message: "JoinSession is deprecated. Use JoinWorld instead.".to_string(),
-    })
 }
 
 /// Handles JoinWorld requests.

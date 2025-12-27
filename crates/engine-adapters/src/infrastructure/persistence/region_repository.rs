@@ -13,9 +13,10 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::converters::{row_to_item, row_to_region};
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
-use wrldbldr_domain::entities::{Character, Item, MapBounds, Region, RegionConnection, RegionExit, StatBlock};
+use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
 use wrldbldr_domain::value_objects::{MoodLevel, RegionFrequency, RegionRelationshipType, RegionShift};
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
 
@@ -88,7 +89,7 @@ impl Neo4jRegionRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_region(row)?))
+            Ok(Some(row_to_region(&row)?))
         } else {
             Ok(None)
         }
@@ -107,7 +108,7 @@ impl Neo4jRegionRepository {
         let mut regions = Vec::new();
 
         while let Some(row) = result.next().await? {
-            regions.push(row_to_region(row)?);
+            regions.push(row_to_region(&row)?);
         }
 
         Ok(regions)
@@ -127,7 +128,7 @@ impl Neo4jRegionRepository {
         let mut regions = Vec::new();
 
         while let Some(row) = result.next().await? {
-            regions.push(row_to_region(row)?);
+            regions.push(row_to_region(&row)?);
         }
 
         Ok(regions)
@@ -367,51 +368,6 @@ impl Neo4jRegionRepository {
 // Row conversion helpers
 // =============================================================================
 
-fn row_to_region(row: Row) -> Result<Region> {
-    let node: neo4rs::Node = row.get("r")?;
-
-    let id_str: String = node.get("id")?;
-    let location_id_str: String = node.get("location_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let backdrop_asset: String = node.get("backdrop_asset").unwrap_or_default();
-    let atmosphere: String = node.get("atmosphere").unwrap_or_default();
-    let map_bounds_json: String = node.get("map_bounds").unwrap_or_default();
-    let is_spawn_point: bool = node.get("is_spawn_point").unwrap_or(false);
-    let order: i64 = node.get("order").unwrap_or(0);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let location_id = uuid::Uuid::parse_str(&location_id_str)?;
-
-    // Parse map_bounds from JSON
-    let map_bounds = if map_bounds_json.is_empty() {
-        None
-    } else {
-        serde_json::from_str::<serde_json::Value>(&map_bounds_json)
-            .ok()
-            .and_then(|v| {
-                Some(MapBounds {
-                    x: v.get("x")?.as_u64()? as u32,
-                    y: v.get("y")?.as_u64()? as u32,
-                    width: v.get("width")?.as_u64()? as u32,
-                    height: v.get("height")?.as_u64()? as u32,
-                })
-            })
-    };
-
-    Ok(Region {
-        id: RegionId::from_uuid(id),
-        location_id: LocationId::from_uuid(location_id),
-        name,
-        description,
-        backdrop_asset: if backdrop_asset.is_empty() { None } else { Some(backdrop_asset) },
-        atmosphere: if atmosphere.is_empty() { None } else { Some(atmosphere) },
-        map_bounds,
-        is_spawn_point,
-        order: order as u32,
-    })
-}
-
 fn row_to_region_connection(row: Row) -> Result<RegionConnection> {
     let from_id_str: String = row.get("from_id")?;
     let to_id_str: String = row.get("to_id")?;
@@ -503,7 +459,7 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
         let mut items = Vec::new();
 
         while let Some(row) = result.next().await? {
-            items.push(row_to_item(row)?);
+            items.push(row_to_item(&row)?);
         }
 
         Ok(items)
@@ -696,32 +652,4 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     })
 }
 
-/// Convert a Neo4j row to an Item
-fn row_to_item(row: Row) -> Result<Item> {
-    let node: neo4rs::Node = row.get("i")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let item_type: String = node.get("item_type").unwrap_or_default();
-    let is_unique: bool = node.get("is_unique").unwrap_or(false);
-    let properties: String = node.get("properties").unwrap_or_default();
-    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
-    let container_limit: Option<i64> = node.get("container_limit").ok();
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
-    Ok(Item {
-        id: ItemId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
-        name,
-        description: if description.is_empty() { None } else { Some(description) },
-        item_type: if item_type.is_empty() { None } else { Some(item_type) },
-        is_unique,
-        properties: if properties.is_empty() { None } else { Some(properties) },
-        can_contain_items,
-        container_limit: container_limit.map(|v| v as u32),
-    })
-}

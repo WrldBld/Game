@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
+use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage, WorldRole};
 
 use crate::infrastructure::websocket::protocol::ConnectionState;
 
@@ -182,21 +182,24 @@ impl EngineClient {
         }
     }
 
-    pub async fn join_session(
+    pub async fn join_world(
         &self,
+        world_id: &str,
         user_id: &str,
         role: ParticipantRole,
-        world_id: Option<String>,
     ) -> Result<()> {
-        let world_id = match world_id.as_deref() {
-            Some(s) => Some(uuid::Uuid::parse_str(s)?),
-            None => None,
+        let world_id = uuid::Uuid::parse_str(world_id)?;
+        let world_role = match role {
+            ParticipantRole::DungeonMaster => WorldRole::Dm,
+            ParticipantRole::Player => WorldRole::Player,
+            ParticipantRole::Spectator => WorldRole::Spectator,
         };
 
-        self.send(ClientMessage::JoinSession {
-            user_id: user_id.to_string(),
-            role,
+        self.send(ClientMessage::JoinWorld {
             world_id,
+            role: world_role,
+            pc_id: None, // PC selection happens after joining
+            spectate_pc_id: None,
         })
         .await
     }

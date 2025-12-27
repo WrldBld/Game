@@ -30,14 +30,6 @@ fn default_one() -> u32 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
-    /// Join a game session
-    JoinSession {
-        user_id: String,
-        role: ParticipantRole,
-        /// Optional world ID to join (creates demo session if not provided)
-        #[serde(default)]
-        world_id: Option<Uuid>,
-    },
     /// Player performs an action
     PlayerAction {
         action_type: String,
@@ -283,21 +275,6 @@ pub enum ClientMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ServerMessage {
-    /// Session successfully joined with full details
-    SessionJoined {
-        session_id: String,
-        role: ParticipantRole,
-        participants: Vec<ParticipantInfo>,
-        world_snapshot: serde_json::Value,
-    },
-    /// A player joined the session (broadcast to others)
-    PlayerJoined {
-        user_id: String,
-        role: ParticipantRole,
-        character_name: Option<String>,
-    },
-    /// A player left the session (broadcast to others)
-    PlayerLeft { user_id: String },
     /// Player action was received and is being processed
     ActionReceived {
         action_id: String,

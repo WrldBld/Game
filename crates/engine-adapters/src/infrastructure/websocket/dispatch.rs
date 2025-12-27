@@ -27,12 +27,6 @@ pub async fn handle_message(
         // Connection handlers
         ClientMessage::Heartbeat => connection::handle_heartbeat(),
 
-        ClientMessage::JoinSession {
-            user_id,
-            role,
-            world_id,
-        } => connection::handle_join_session(user_id, role, world_id),
-
         ClientMessage::JoinWorld {
             world_id,
             role,

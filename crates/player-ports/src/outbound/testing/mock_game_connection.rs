@@ -17,9 +17,9 @@ pub struct SentAction {
 
 #[derive(Debug, Clone)]
 pub struct SentJoin {
+    pub world_id: String,
     pub user_id: String,
     pub role: ParticipantRole,
-    pub world_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -132,17 +132,17 @@ impl GameConnectionPort for MockGameConnectionPort {
         s.conn_state = ConnectionState::Disconnected;
     }
 
-    fn join_session(
+    fn join_world(
         &self,
+        world_id: &str,
         user_id: &str,
         role: ParticipantRole,
-        world_id: Option<String>,
     ) -> anyhow::Result<()> {
         let mut s = self.state.lock().unwrap();
         s.sent_joins.push(SentJoin {
+            world_id: world_id.to_string(),
             user_id: user_id.to_string(),
             role,
-            world_id,
         });
         Ok(())
     }

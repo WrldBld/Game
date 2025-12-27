@@ -300,7 +300,7 @@ pub enum OutcomeTrigger {
 | Application | `src/application/services/challenge_resolution_service.rs` | Resolution |
 | Application | `src/application/services/challenge_outcome_approval_service.rs` | Approval |
 | Infrastructure | `src/infrastructure/persistence/challenge_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/http/challenge_routes.rs` | REST |
+| Infrastructure | `src/infrastructure/websocket/handlers/challenge.rs` | WebSocket handlers |
 
 ### Player
 

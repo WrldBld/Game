@@ -123,8 +123,8 @@ How this system affects player experience. What gameplay loop it enables. Why it
 | Ports | `crates/engine-ports/src/outbound/*.rs` | Port traits |
 | Application | `crates/engine-app/src/application/services/xxx_service.rs` | Business logic |
 | Adapters | `crates/engine-adapters/src/infrastructure/persistence/xxx_repository.rs` | Neo4j impl |
-| Adapters | `crates/engine-adapters/src/infrastructure/http/*_routes.rs` | REST routes |
-| Adapters | `crates/engine-adapters/src/infrastructure/websocket/*.rs` | WS server/messages |
+| Adapters | `crates/engine-adapters/src/infrastructure/websocket/handlers/*.rs` | WebSocket handlers |
+| Adapters | `crates/engine-adapters/src/infrastructure/http/*.rs` | HTTP routes (uploads, exports) |
 
 ### Player
 

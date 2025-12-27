@@ -290,9 +290,10 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     HashMap::from([
         ("wrldbldr-domain", HashSet::from([])),
         ("wrldbldr-protocol", HashSet::from([])),
+        ("wrldbldr-engine-dto", HashSet::from(["wrldbldr-protocol"])),
         (
             "wrldbldr-engine-ports",
-            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
+            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol", "wrldbldr-engine-dto"]),
         ),
         (
             "wrldbldr-player-ports",

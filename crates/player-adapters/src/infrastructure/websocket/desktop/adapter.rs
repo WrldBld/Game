@@ -64,18 +64,18 @@ impl GameConnectionPort for DesktopGameConnection {
         });
     }
 
-    fn join_session(
+    fn join_world(
         &self,
+        world_id: &str,
         user_id: &str,
         role: ParticipantRole,
-        world_id: Option<String>,
     ) -> Result<()> {
         let client = self.client.clone();
+        let world_id = world_id.to_string();
         let user_id = user_id.to_string();
-        let world_id = world_id.clone();
         tokio::spawn(async move {
-            if let Err(e) = client.join_session(&user_id, role, world_id).await {
-                tracing::error!("Failed to join session: {}", e);
+            if let Err(e) = client.join_world(&world_id, &user_id, role).await {
+                tracing::error!("Failed to join world: {}", e);
             }
         });
         Ok(())

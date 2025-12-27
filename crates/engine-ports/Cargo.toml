@@ -9,6 +9,7 @@ description = "WrldBldr Engine Ports - Engine-specific port traits"
 [dependencies]
 wrldbldr-domain = { workspace = true }
 wrldbldr-protocol = { workspace = true }
+wrldbldr-engine-dto = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }

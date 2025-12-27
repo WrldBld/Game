@@ -4,11 +4,11 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use neo4rs::{query, Row};
+use neo4rs::query;
 
 use super::connection::Neo4jConnection;
-use wrldbldr_domain::entities::{Want, WantVisibility};
+use super::converters::row_to_want;
+use wrldbldr_domain::entities::Want;
 use wrldbldr_domain::WantId;
 use wrldbldr_engine_ports::outbound::WantRepositoryPort;
 
@@ -69,52 +69,6 @@ impl Neo4jWantRepository {
             Ok(None)
         }
     }
-}
-
-/// Convert a Neo4j row to a Want
-fn row_to_want(row: &Row) -> Result<Want> {
-    let node: neo4rs::Node = row.get("w")?;
-
-    let id_str: String = node.get("id")?;
-    let description: String = node.get("description")?;
-    let intensity: f64 = node.get("intensity")?;
-    let created_at_str: String = node.get("created_at")?;
-
-    // Handle visibility - try new field first, fall back to legacy known_to_player
-    let visibility = if let Ok(vis_str) = node.get::<String>("visibility") {
-        match vis_str.as_str() {
-            "Known" => WantVisibility::Known,
-            "Suspected" => WantVisibility::Suspected,
-            _ => WantVisibility::Hidden,
-        }
-    } else {
-        // Legacy: convert from known_to_player bool
-        let known_to_player: bool = node.get("known_to_player").unwrap_or(false);
-        WantVisibility::from_known_to_player(known_to_player)
-    };
-
-    // Behavioral guidance fields (optional)
-    let deflection_behavior: Option<String> = node
-        .get("deflection_behavior")
-        .ok()
-        .filter(|s: &String| !s.is_empty());
-    let tells_json: String = node.get("tells").unwrap_or_else(|_| "[]".to_string());
-    let tells: Vec<String> = serde_json::from_str(&tells_json).unwrap_or_default();
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let created_at = DateTime::parse_from_rfc3339(&created_at_str)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
-
-    Ok(Want {
-        id: WantId::from_uuid(id),
-        description,
-        intensity: intensity as f32,
-        visibility,
-        created_at,
-        deflection_behavior,
-        tells,
-    })
 }
 
 // =============================================================================

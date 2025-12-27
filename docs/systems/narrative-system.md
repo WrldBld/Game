@@ -351,7 +351,7 @@ pub enum EventEffect {
 | Application | `src/application/services/trigger_evaluation_service.rs` | Trigger eval |
 | Application | `src/application/services/event_effect_executor.rs` | Execute effects |
 | Infrastructure | `src/infrastructure/persistence/narrative_event_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/http/narrative_event_routes.rs` | REST |
+| Infrastructure | `src/infrastructure/websocket/handlers/narrative.rs` | WebSocket handlers |
 
 ### Player
 

@@ -14,6 +14,7 @@ use wrldbldr_domain::{ItemId, WorldId};
 use wrldbldr_domain::entities::Item;
 use wrldbldr_engine_ports::outbound::ItemRepositoryPort;
 
+use super::converters::row_to_item;
 use super::Neo4jConnection;
 
 /// Neo4j implementation of ItemRepositoryPort
@@ -303,50 +304,4 @@ impl ItemRepositoryPort for Neo4jItemRepository {
             Err(anyhow::anyhow!("Container not found"))
         }
     }
-}
-
-// Helper function to convert Neo4j row to Item
-fn row_to_item(row: &neo4rs::Row) -> Result<Item> {
-    let node: neo4rs::Node = row.get("i")?;
-
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let item_type: String = node.get("item_type").unwrap_or_default();
-    let is_unique: bool = node.get("is_unique").unwrap_or(false);
-    let properties: String = node.get("properties").unwrap_or_default();
-    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
-    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
-    Ok(Item {
-        id: ItemId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
-        name,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
-        item_type: if item_type.is_empty() {
-            None
-        } else {
-            Some(item_type)
-        },
-        is_unique,
-        properties: if properties.is_empty() {
-            None
-        } else {
-            Some(properties)
-        },
-        can_contain_items,
-        container_limit: if container_limit < 0 {
-            None
-        } else {
-            Some(container_limit as u32)
-        },
-    })
 }

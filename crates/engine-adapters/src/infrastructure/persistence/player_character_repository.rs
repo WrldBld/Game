@@ -6,6 +6,7 @@ use neo4rs::{query, Row};
 use serde_json;
 
 use super::connection::Neo4jConnection;
+use super::converters::row_to_item;
 use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item, PlayerCharacter, CharacterSheetData};
@@ -447,52 +448,6 @@ fn row_to_inventory_item(row: &Row) -> Result<InventoryItem> {
         equipped,
         acquired_at,
         acquisition_method,
-    })
-}
-
-/// Parse an Item from a Neo4j row
-fn row_to_item(row: &Row) -> Result<Item> {
-    let node: Node = row.get("i")?;
-
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let item_type: String = node.get("item_type").unwrap_or_default();
-    let is_unique: bool = node.get("is_unique").unwrap_or(false);
-    let properties: String = node.get("properties").unwrap_or_default();
-    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
-    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
-    Ok(Item {
-        id: ItemId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
-        name,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
-        item_type: if item_type.is_empty() {
-            None
-        } else {
-            Some(item_type)
-        },
-        is_unique,
-        properties: if properties.is_empty() {
-            None
-        } else {
-            Some(properties)
-        },
-        can_contain_items,
-        container_limit: if container_limit < 0 {
-            None
-        } else {
-            Some(container_limit as u32)
-        },
     })
 }
 

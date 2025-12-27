@@ -1,7 +1,7 @@
 # Consolidated Implementation Plan
 
 **Created**: 2025-12-26
-**Last Updated**: 2025-12-27 (reviewed)
+**Last Updated**: 2025-12-27 (cleanup sprint complete)
 **Status**: ACTIVE
 **Purpose**: Single source of truth for remaining implementation work
 
@@ -336,53 +336,54 @@ crates/engine-adapters/src/infrastructure/websocket/
 
 ---
 
-### P2.2: Delete Dead Code Modules
+### ~~P2.2: Delete Dead Code Modules~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T2.1
-**Status**: Not Started (verified 2025-12-26)
-**Effort**: 2-3 hours
-**Lines to Remove**: ~680
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 30 minutes
+**Lines Removed**: ~815
 
-| Module | Location | Verification |
-|--------|----------|--------------|
-| `json_exporter.rs` | engine-adapters/infrastructure/export/ | Exists, not exported, superseded by world_snapshot.rs |
-| `config_routes.rs` | engine-adapters/infrastructure/http/ | Exists, routes never registered in router |
-| `tool_parser.rs` functions | engine-app/services/llm/ | `parse_tool_calls()`, `parse_single_tool()`, `validate_tool_calls()` only used in tests |
-| `common_goals` module | domain/entities/goal.rs | Exists (lines 44-107), not exported, UI duplicates the data |
+**Resolution**:
+- Deleted `json_exporter.rs` from engine-adapters/infrastructure/export/
+- Deleted `config_routes.rs` from engine-adapters/infrastructure/http/
+- Removed `parse_tool_calls()`, `parse_single_tool()`, `validate_tool_calls()`, `ParsedToolCall` from tool_parser.rs
+- Removed `common_goals` module from domain/entities/goal.rs
 
 ---
 
-### P2.3: Create Shared Row Converters Module
+### ~~P2.3: Create Shared Row Converters Module~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T2.2
-**Status**: Not Started (verified 2025-12-26 - no converters.rs exists)
-**Effort**: 3-4 hours
-**Lines to Consolidate**: ~400
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1 hour
 
-**Duplications found**:
-| Function | Copies | Locations |
-|----------|--------|-----------|
-| `row_to_item()` | 4 | item_repository.rs:309, character_repository.rs:1610, player_character_repository.rs:454, region_repository.rs:700 |
-| `row_to_character()` | 2 | character_repository.rs:1512, region_repository.rs:648 |
-| `row_to_region()` | 2 | region_repository.rs:370, location_repository.rs:657 |
+**Resolution**: Created `crates/engine-adapters/src/infrastructure/persistence/converters.rs` with shared converters:
+- `row_to_item()` - consolidated from 4 locations
+- `row_to_want()` - consolidated from 2 locations  
+- `row_to_region()` - consolidated from 2 locations
 
-**Fix**: Create `crates/engine-adapters/src/infrastructure/persistence/converters.rs`
+Updated 6 repository files to use shared converters:
+- character_repository.rs, player_character_repository.rs, item_repository.rs
+- region_repository.rs, want_repository.rs, location_repository.rs
+
+> **Note**: `row_to_character()` NOT consolidated - implementations differ significantly between files.
 
 ---
 
-### P2.4: Move DTOs from Ports to App/Domain
+### ~~P2.4: Move DTOs from Ports to App/Domain~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T2.4
-**Status**: Not Started (verified 2025-12-26)
-**Effort**: 4-6 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1.5 hours
 
-**Violations found in engine-ports**:
+**Resolution**: Created new `crates/engine-dto/` crate for DTO types:
+- `src/llm.rs` - LlmRequest, ChatMessage, LlmResponse, ToolCall, FinishReason
+- `src/queue.rs` - QueueItem, QueueItemStatus, QueueError  
+- `src/request_context.rs` - RequestContext with validation methods
 
-| File | Issue | Lines |
-|------|-------|-------|
-| `queue_port.rs` | `QueueItem<T>` with `new()` constructor | 19-52 |
-| `llm_port.rs` | `LlmRequest` with builder pattern (`with_*` methods) | 23-67 |
-| `llm_port.rs` | `ChatMessage` with `user()`, `assistant()`, `system()` constructors | 76-97 |
-| `request_handler.rs` | `RequestContext` with 4 constructors + 5 validation methods | 46-169 |
+**Changes**:
+- Added `engine-dto` to workspace Cargo.toml
+- Updated `engine-ports` to depend on and re-export from engine-dto
+- Added engine-dto to arch-check rules in xtask
 
-**Fix**: Move DTOs to domain, keep only trait definitions in ports.
+Port files now contain only trait definitions, re-exporting DTOs from engine-dto.
 
 ---
 
@@ -403,25 +404,19 @@ Also fixes WASM compilation by adding `#[cfg(not(target_arch = "wasm32"))]` guar
 
 ---
 
-### P2.6: Update Stale Documentation
+### ~~P2.6: Update Stale Documentation~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T3.4
-**Status**: Not Started
-**Effort**: 2-3 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 30 minutes
 
-**Verified 2025-12-26**: System docs reference 7 deleted REST route files:
+**Resolution**: Updated 5 system docs to reference WebSocket handlers instead of deleted HTTP routes:
+- `navigation-system.md` - now references `handlers/movement.rs`
+- `observation-system.md` - now references `handlers/misc.rs`
+- `narrative-system.md` - now references `handlers/narrative.rs`
+- `challenge-system.md` - now references `handlers/challenge.rs`
+- `character-system.md` - now references `handlers/inventory.rs`, `handlers/misc.rs`
 
-| Doc File | References | Status |
-|----------|------------|--------|
-| navigation-system.md | `location_routes.rs`, `region_routes.rs` | **DELETED** |
-| observation-system.md | `observation_routes.rs` | **DELETED** |
-| narrative-system.md | `narrative_event_routes.rs` | **DELETED** |
-| challenge-system.md | `challenge_routes.rs` | **DELETED** |
-| character-system.md | `want_routes.rs`, `goal_routes.rs` | **DELETED** |
-
-**Existing route files** (these references are valid):
-- `settings_routes.rs`, `prompt_template_routes.rs`, `asset_routes.rs`
-- `export_routes.rs`, `queue_routes.rs`, `workflow_routes.rs`
-- `rule_system_routes.rs`, `config_routes.rs` (but config_routes unused)
+Also updated `docs/systems/_template.md` to use WebSocket handler pattern.
 
 ---
 
@@ -442,21 +437,14 @@ Key features:
 
 ---
 
-### P3.2: Remove Unused Cargo Dependencies
+### ~~P3.2: Remove Unused Cargo Dependencies~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T3.1
-**Status**: Not Started
-**Effort**: 30 minutes
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 5 minutes
 
-**Verified Unused** (2025-12-26 review):
-| Crate | Dependency | Status |
-|-------|------------|--------|
-| `wrldbldr-player-ui` | `thiserror` | Unused - can remove |
+**Resolution**: Removed unused `thiserror` dependency from `crates/player-ui/Cargo.toml`.
 
-**Previously Listed as Unused but Actually Used**:
-- `wrldbldr-domain`: `anyhow` - USED in `FromStr` impls (region.rs, observation.rs)
-- `wrldbldr-domain`: `serde_json` - USED heavily in settings.rs, workflow_config.rs
-
-> **Note**: Original audit overestimated unused deps. Only `thiserror` in player-ui confirmed unused.
+> **Note**: Only `thiserror` in player-ui was actually unused. Other deps (anyhow, serde_json) are used.
 
 ---
 
@@ -477,26 +465,22 @@ Types defined in both domain and protocol with incompatibilities:
 
 ---
 
-### P3.4: Remove Legacy Protocol Messages
+### ~~P3.4: Remove Legacy Protocol Messages~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T3.3
-**Status**: Not Started
-**Effort**: 2-3 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1.5 hours
 
-**Current State** (2025-12-26 review):
-- All 4 messages still exist in protocol, **none marked `#[deprecated]`**
-- `JoinSession` handler returns error with code "DEPRECATED" (runtime only)
-- Player WebSocket client still sends `JoinSession` in some paths
-- `SessionJoined`, `PlayerJoined`, `PlayerLeft` still actively handled in UI
+**Resolution**:
+- Renamed `join_session()` → `join_world()` in `GameConnectionPort` trait
+- Updated signature to `fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole)`
+- Updated WASM and Desktop clients to send `JoinWorld` message
+- Removed `JoinSession` from `ClientMessage` enum in protocol
+- Removed `SessionJoined`, `PlayerJoined`, `PlayerLeft` from `ServerMessage` enum
+- Removed legacy handlers from player-ui `session_message_handler.rs`
+- Removed deprecated `handle_join_session()` from engine dispatch
 
-**Messages to Remove**:
-| Message | Type | Status |
-|---------|------|--------|
-| `JoinSession` | ClientMessage | Functionally deprecated, still sent by player |
-| `SessionJoined` | ServerMessage | Still handled by player UI |
-| `PlayerJoined` | ServerMessage | Still handled by player UI |
-| `PlayerLeft` | ServerMessage | Still handled by player UI |
-
-**Preferred**: `JoinWorld`, `WorldJoined`, `UserJoined`, `UserLeft`
+**Note**: `session_id` field remains in `ConnectionState` as UI components still reference it.
+This can be cleaned up in a future refactor when UI fully migrates to `world_id`.
 
 ---
 

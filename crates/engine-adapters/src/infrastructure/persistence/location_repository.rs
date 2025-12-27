@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::converters::row_to_region;
 use wrldbldr_engine_ports::outbound::LocationRepositoryPort;
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
 use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
@@ -531,7 +532,7 @@ impl Neo4jLocationRepository {
         let mut regions = Vec::new();
 
         while let Some(row) = result.next().await? {
-            regions.push(row_to_region(row)?);
+            regions.push(row_to_region(&row)?);
         }
 
         Ok(regions)
@@ -651,51 +652,6 @@ fn row_to_connection(row: Row) -> Result<LocationConnection> {
         } else {
             Some(lock_description)
         },
-    })
-}
-
-fn row_to_region(row: Row) -> Result<Region> {
-    let node: neo4rs::Node = row.get("r")?;
-
-    let id_str: String = node.get("id")?;
-    let location_id_str: String = node.get("location_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let backdrop_asset: String = node.get("backdrop_asset").unwrap_or_default();
-    let atmosphere: String = node.get("atmosphere").unwrap_or_default();
-    let map_bounds_json: String = node.get("map_bounds").unwrap_or_default();
-    let is_spawn_point: bool = node.get("is_spawn_point").unwrap_or(false);
-    let order: i64 = node.get("order").unwrap_or(0);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let location_id = uuid::Uuid::parse_str(&location_id_str)?;
-
-    // Parse map_bounds from JSON
-    let map_bounds = if map_bounds_json.is_empty() {
-        None
-    } else {
-        serde_json::from_str::<serde_json::Value>(&map_bounds_json)
-            .ok()
-            .and_then(|v| {
-                Some(MapBounds {
-                    x: v.get("x")?.as_u64()? as u32,
-                    y: v.get("y")?.as_u64()? as u32,
-                    width: v.get("width")?.as_u64()? as u32,
-                    height: v.get("height")?.as_u64()? as u32,
-                })
-            })
-    };
-
-    Ok(Region {
-        id: RegionId::from_uuid(id),
-        location_id: LocationId::from_uuid(location_id),
-        name,
-        description,
-        backdrop_asset: if backdrop_asset.is_empty() { None } else { Some(backdrop_asset) },
-        atmosphere: if atmosphere.is_empty() { None } else { Some(atmosphere) },
-        map_bounds,
-        is_spawn_point,
-        order: order as u32,
     })
 }
 

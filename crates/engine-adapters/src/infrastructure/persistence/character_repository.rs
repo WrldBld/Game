@@ -15,6 +15,7 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
+use super::converters::{row_to_item, row_to_want};
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
@@ -1561,94 +1562,6 @@ fn row_to_character(row: Row) -> Result<Character> {
         is_alive,
         is_active,
         default_mood,
-    })
-}
-
-fn row_to_want(row: &Row) -> Result<Want> {
-    let node: neo4rs::Node = row.get("w")?;
-
-    let id_str: String = node.get("id")?;
-    let description: String = node.get("description")?;
-    let intensity: f64 = node.get("intensity")?;
-    let created_at_str: String = node.get("created_at")?;
-
-    // Handle visibility - try new field first, fall back to legacy known_to_player
-    let visibility = if let Ok(vis_str) = node.get::<String>("visibility") {
-        match vis_str.as_str() {
-            "Known" => WantVisibility::Known,
-            "Suspected" => WantVisibility::Suspected,
-            _ => WantVisibility::Hidden,
-        }
-    } else {
-        // Legacy: convert from known_to_player bool
-        let known_to_player: bool = node.get("known_to_player").unwrap_or(false);
-        WantVisibility::from_known_to_player(known_to_player)
-    };
-
-    // New behavioral guidance fields (optional)
-    let deflection_behavior: Option<String> = node.get("deflection_behavior").ok()
-        .filter(|s: &String| !s.is_empty());
-    let tells_json: String = node.get("tells").unwrap_or_else(|_| "[]".to_string());
-    let tells: Vec<String> = serde_json::from_str(&tells_json).unwrap_or_default();
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let created_at = DateTime::parse_from_rfc3339(&created_at_str)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
-
-    Ok(Want {
-        id: WantId::from_uuid(id),
-        description,
-        intensity: intensity as f32,
-        visibility,
-        created_at,
-        deflection_behavior,
-        tells,
-    })
-}
-
-fn row_to_item(row: &Row) -> Result<Item> {
-    let node: neo4rs::Node = row.get("i")?;
-
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let item_type: String = node.get("item_type").unwrap_or_default();
-    let is_unique: bool = node.get("is_unique").unwrap_or(false);
-    let properties: String = node.get("properties").unwrap_or_default();
-    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
-    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
-    Ok(Item {
-        id: ItemId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
-        name,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
-        item_type: if item_type.is_empty() {
-            None
-        } else {
-            Some(item_type)
-        },
-        is_unique,
-        properties: if properties.is_empty() {
-            None
-        } else {
-            Some(properties)
-        },
-        can_contain_items,
-        container_limit: if container_limit < 0 {
-            None
-        } else {
-            Some(container_limit as u32)
-        },
     })
 }
 

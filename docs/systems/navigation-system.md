@@ -346,10 +346,8 @@ pub enum TimeOfDay {
 | Application | `src/application/services/location_service.rs` | Location business logic |
 | Infrastructure | `src/infrastructure/persistence/location_repository.rs` | Neo4j Location CRUD |
 | Infrastructure | `src/infrastructure/persistence/region_repository.rs` | Neo4j Region CRUD |
-| Infrastructure | `src/infrastructure/http/location_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/http/region_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/websocket/messages.rs` | WS messages |
-| Infrastructure | `src/infrastructure/websocket.rs` | Navigation handlers |
+| Infrastructure | `src/infrastructure/websocket/handlers/movement.rs` | Movement handlers |
+| Infrastructure | `src/infrastructure/websocket/handlers/staging.rs` | Staging handlers |
 
 ### Player
 

@@ -8,7 +8,6 @@
 //! - Health checks
 
 mod asset_routes;
-mod config_routes;
 mod export_routes;
 mod prompt_template_routes;
 mod queue_routes;

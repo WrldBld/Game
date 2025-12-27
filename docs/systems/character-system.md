@@ -433,8 +433,7 @@ The key insight is that the same person can be a HELPER in one character's model
 | Infrastructure | `src/infrastructure/persistence/character_repository.rs` | Neo4j impl |
 | Infrastructure | `src/infrastructure/persistence/goal_repository.rs` | Neo4j goal impl |
 | Infrastructure | `src/infrastructure/persistence/player_character_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/http/want_routes.rs` | Want HTTP routes |
-| Infrastructure | `src/infrastructure/http/goal_routes.rs` | Goal HTTP routes |
+| Infrastructure | `src/infrastructure/websocket/handlers/request.rs` | Want/Goal via RequestPayload |
 
 ### Player
 

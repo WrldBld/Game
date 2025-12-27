@@ -65,7 +65,7 @@ impl SessionService {
         &self,
         user_id: String,
         role: PortParticipantRole,
-        world_id: Option<String>,
+        world_id: String,
     ) -> Result<mpsc::UnboundedReceiver<SessionEvent>> {
         let (tx, rx) = mpsc::unbounded::<SessionEvent>();
 
@@ -79,7 +79,7 @@ impl SessionService {
             self.connection.on_state_change(Box::new(move |state| {
                 let _ = tx.unbounded_send(SessionEvent::StateChanged(state));
                 if matches!(state, PortConnectionState::Connected) {
-                    let _ = connection.join_session(&user_id_for_join, role, world_id_for_join.clone());
+                    let _ = connection.join_world(&world_id_for_join, &user_id_for_join, role);
                 }
             }));
         }

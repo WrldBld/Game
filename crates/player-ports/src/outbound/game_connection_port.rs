@@ -62,15 +62,17 @@ pub trait GameConnectionPort: Send + Sync {
     /// Disconnect from the server
     fn disconnect(&self);
 
-    /// Join a session with the given user ID, role, and optional world context.
+    /// Join a world with the given user ID and role.
     ///
-    /// `world_id` should be the world this session belongs to when known. When
-    /// `None`, the Engine will create or join a demo session.
-    fn join_session(
+    /// # Arguments
+    /// * `world_id` - The world to join (required)
+    /// * `user_id` - The user's identifier
+    /// * `role` - The participant role (Player or DM)
+    fn join_world(
         &self,
+        world_id: &str,
         user_id: &str,
         role: ParticipantRole,
-        world_id: Option<String>,
     ) -> anyhow::Result<()>;
 
     /// Send a player action to the server

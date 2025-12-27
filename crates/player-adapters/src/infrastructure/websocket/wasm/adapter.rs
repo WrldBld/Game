@@ -91,13 +91,13 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
     }
 
-    fn join_session(
+    fn join_world(
         &self,
+        world_id: &str,
         user_id: &str,
         role: ParticipantRole,
-        world_id: Option<String>,
     ) -> Result<()> {
-        self.inner.client.join_session(user_id, role, world_id)
+        self.inner.client.join_world(world_id, user_id, role)
     }
 
     fn send_action(&self, action_type: &str, target: Option<&str>, dialogue: Option<&str>) -> Result<()> {

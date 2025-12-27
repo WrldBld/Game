@@ -194,8 +194,7 @@ pub struct ObservationSummary {
 |-------|------|---------|
 | Domain | `src/domain/entities/observation.rs` | Observation entity |
 | Infrastructure | `src/infrastructure/persistence/observation_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/http/observation_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/websocket.rs` | ShareNpcLocation handler |
+| Infrastructure | `src/infrastructure/websocket/handlers/misc.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
 
 ### Player
 
