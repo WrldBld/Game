@@ -216,6 +216,19 @@ impl<L: LlmPort> LLMService<L> {
                 serde_json::from_str::<NarrativeEventSuggestion>(&suggestion_text).ok()
             });
 
+        // Parse topics from dialogue for persistence/search
+        let topics = self
+            .extract_tag_content(content, "topics")
+            .map(|topics_text| {
+                topics_text
+                    .lines()
+                    .map(|line| line.trim())
+                    .filter(|line| !line.is_empty())
+                    .map(|line| line.trim_start_matches('-').trim().to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(LLMGameResponse {
             npc_dialogue: dialogue.trim().to_string(),
             internal_reasoning: reasoning.trim().to_string(),
@@ -223,6 +236,7 @@ impl<L: LlmPort> LLMService<L> {
             suggested_beats,
             challenge_suggestion,
             narrative_event_suggestion,
+            topics,
         })
     }
 
@@ -291,6 +305,8 @@ pub struct LLMGameResponse {
     pub challenge_suggestion: Option<ChallengeSuggestion>,
     /// Optional suggested narrative event trigger from the LLM
     pub narrative_event_suggestion: Option<NarrativeEventSuggestion>,
+    /// Topics discussed in this dialogue exchange (for persistence/search)
+    pub topics: Vec<String>,
 }
 
 /// A proposed tool call that requires DM approval

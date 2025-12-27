@@ -37,6 +37,22 @@ pub struct GamePromptRequest {
     /// When present, the system prompt will be truncated to fit within the budget
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_budget: Option<ContextBudgetConfig>,
+
+    // =========================================================================
+    // Context for dialogue persistence (P1.2)
+    // These fields are populated in build_prompt_from_action and propagated
+    // through LLMRequestItem -> ApprovalItem for use in record_dialogue_exchange
+    // =========================================================================
+
+    /// Current scene ID (UUID string) for story event recording
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_id: Option<String>,
+    /// Current location ID (UUID string) for story event recording
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_id: Option<String>,
+    /// Current game time as display string for story event recording
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game_time: Option<String>,
 }
 
 /// Context about the player's action

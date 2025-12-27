@@ -195,6 +195,12 @@ pub async fn handle_staging_approval_response(
         npcs_present: npcs_present.clone(),
     };
 
+    // Broadcast to DMs so their staging panel updates
+    state
+        .world_connection_manager
+        .broadcast_to_dms(world_id_uuid, staging_ready.clone())
+        .await;
+
     // Send to each waiting PC
     for waiting_pc in &pending.waiting_pcs {
         // Send StagingReady
@@ -585,6 +591,33 @@ pub async fn handle_pre_stage_region(
                 npc_count = staging.npcs.len(),
                 "Region pre-staged successfully"
             );
+
+            // Build NPC presence list for StagingReady message
+            let npcs_present: Vec<wrldbldr_protocol::NpcPresentInfo> = staging
+                .npcs
+                .iter()
+                .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                .map(|npc| wrldbldr_protocol::NpcPresentInfo {
+                    character_id: npc.character_id.to_string(),
+                    name: npc.name.clone(),
+                    sprite_asset: npc.sprite_asset.clone(),
+                    portrait_asset: npc.portrait_asset.clone(),
+                    is_hidden_from_players: false,
+                })
+                .collect();
+
+            // Broadcast StagingReady to all DMs so their staging panel updates
+            let staging_ready = ServerMessage::StagingReady {
+                region_id: region_id.clone(),
+                npcs_present,
+            };
+            if let Some(world_uuid) = connection.world_id {
+                state
+                    .world_connection_manager
+                    .broadcast_to_dms(world_uuid, staging_ready)
+                    .await;
+            }
+
             None // Success, no response needed
         }
         Err(e) => Some(ServerMessage::Error {

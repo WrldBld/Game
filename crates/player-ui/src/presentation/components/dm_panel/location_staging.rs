@@ -8,7 +8,8 @@ use dioxus::prelude::*;
 use wrldbldr_protocol::ApprovedNpcInfo;
 use wrldbldr_player_app::application::services::CharacterSummary;
 use crate::presentation::services::{use_character_service, use_location_service};
-use crate::presentation::state::use_session_state;
+use crate::presentation::state::{use_game_state, use_session_state};
+use crate::presentation::state::game_state::RegionStagingStatus;
 
 /// Region staging status
 #[derive(Clone, PartialEq)]
@@ -47,6 +48,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
     let location_service = use_location_service();
     let character_service = use_character_service();
     let session_state = use_session_state();
+    let game_state = use_game_state();
 
     let mut regions: Signal<Vec<RegionStagingInfo>> = use_signal(Vec::new);
     let mut characters: Signal<Vec<CharacterSummary>> = use_signal(Vec::new);
@@ -75,17 +77,14 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                 // Load regions
                 match loc_service.get_regions(&lid).await {
                     Ok(region_list) => {
-                        // Convert to RegionStagingInfo with placeholder status
-                        // In a full implementation, we'd fetch actual staging status from the engine
-                        // Note: Real staging status would come from the Engine via a dedicated API.
-                        // For now, we show all regions as "None" and let the DM pre-stage them.
+                        // Convert to RegionStagingInfo - status will be read from game_state below
                         let region_infos: Vec<RegionStagingInfo> = region_list
                             .into_iter()
                             .map(|r| RegionStagingInfo {
                                 id: r.id,
                                 name: r.name,
                                 description: Some(r.description),
-                                status: StagingStatus::None,
+                                status: StagingStatus::None, // Will be updated reactively
                             })
                             .collect();
                         regions.set(region_infos);
@@ -111,6 +110,28 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
             });
         });
     }
+
+    // Apply staging status from game_state reactively
+    let regions_with_status: Vec<RegionStagingInfo> = regions
+        .read()
+        .iter()
+        .map(|r| {
+            let status = match game_state.get_region_staging_status(&r.id) {
+                RegionStagingStatus::None => StagingStatus::None,
+                RegionStagingStatus::Pending => StagingStatus::None, // Show as None while pending
+                RegionStagingStatus::Active { npc_names, .. } => StagingStatus::Active {
+                    expires_in_hours: 24.0, // Default, could be enhanced with actual TTL later
+                    npc_names,
+                },
+            };
+            RegionStagingInfo {
+                id: r.id.clone(),
+                name: r.name.clone(),
+                description: r.description.clone(),
+                status,
+            }
+        })
+        .collect();
 
     rsx! {
         div {
@@ -155,11 +176,10 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                     }
                 } else {
                     {
-                        let region_list = regions.read().clone();
                         rsx! {
                             div {
                                 class: "space-y-4",
-                                {region_list.into_iter().map(|region| {
+                                {regions_with_status.into_iter().map(|region| {
                                     let region_for_prestage = region.clone();
                                     let region_for_clear = region.clone();
                                     rsx! {

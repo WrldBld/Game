@@ -3,6 +3,7 @@
 //! Central game state for the Player application.
 
 use dioxus::prelude::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
@@ -111,6 +112,22 @@ pub struct StagingApprovalData {
     pub waiting_pcs: Vec<WaitingPcData>,
 }
 
+/// Staging status for a specific region (for DM panel display)
+#[derive(Clone, Debug, PartialEq)]
+pub enum RegionStagingStatus {
+    /// No staging set - will prompt when player enters
+    None,
+    /// Staging approval is pending (player waiting)
+    Pending,
+    /// Staging is active with NPCs present
+    Active {
+        /// The staging ID (if known)
+        staging_id: String,
+        /// Names of NPCs currently staged in this region
+        npc_names: Vec<String>,
+    },
+}
+
 /// Central game state stored as Dioxus signals
 #[derive(Clone)]
 pub struct GameState {
@@ -154,6 +171,8 @@ pub struct GameState {
     pub actantial_refresh_counter: Signal<u32>,
     /// NPC moods toward the currently selected PC (populated from NpcMoodsResponse)
     pub npc_moods: Signal<Vec<NpcMoodData>>,
+    /// Per-region staging status for DM panel (updated from staging events)
+    pub region_staging_statuses: Signal<HashMap<String, RegionStagingStatus>>,
 }
 
 impl GameState {
@@ -180,6 +199,7 @@ impl GameState {
             view_mode: Signal::new(ViewMode::default()),
             actantial_refresh_counter: Signal::new(0),
             npc_moods: Signal::new(Vec::new()),
+            region_staging_statuses: Signal::new(HashMap::new()),
         }
     }
 
@@ -344,6 +364,25 @@ impl GameState {
         self.npc_moods.set(Vec::new());
     }
 
+    /// Set the staging status for a specific region
+    pub fn set_region_staging_status(&mut self, region_id: String, status: RegionStagingStatus) {
+        self.region_staging_statuses.write().insert(region_id, status);
+    }
+
+    /// Get the staging status for a specific region
+    pub fn get_region_staging_status(&self, region_id: &str) -> RegionStagingStatus {
+        self.region_staging_statuses
+            .read()
+            .get(region_id)
+            .cloned()
+            .unwrap_or(RegionStagingStatus::None)
+    }
+
+    /// Clear all region staging statuses (when disconnecting or changing world)
+    pub fn clear_region_staging_statuses(&mut self) {
+        self.region_staging_statuses.write().clear();
+    }
+
     /// Trigger appropriate refresh based on entity change notification
     pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
         use wrldbldr_protocol::responses::EntityType;
@@ -448,6 +487,7 @@ impl GameState {
         self.split_party_locations.set(Vec::new());
         self.view_mode.set(ViewMode::Director);
         self.npc_moods.set(Vec::new());
+        self.region_staging_statuses.write().clear();
     }
 
     /// Clear all state

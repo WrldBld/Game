@@ -13,6 +13,7 @@ use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
     challenge_state::{ChallengePromptData, ChallengeResultData},
     approval_state::PendingChallengeOutcome,
+    game_state::RegionStagingStatus,
 };
 
 /// Handle an incoming `ServerMessage` and update presentation state.
@@ -845,6 +846,9 @@ pub fn handle_server_message(
                 player_id: p.player_id,
             }).collect();
 
+            // Update region staging status to Pending
+            game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
+
             game_state.set_pending_staging_approval(StagingApprovalData {
                 request_id,
                 region_id,
@@ -872,6 +876,10 @@ pub fn handle_server_message(
             region_name,
         } => {
             tracing::info!("Staging pending for region {} ({})", region_name, region_id);
+            
+            // Update region staging status to Pending
+            game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
+            
             game_state.set_staging_pending(region_id, region_name.clone());
             session_state.add_log_entry(
                 "System".to_string(),
@@ -893,6 +901,16 @@ pub fn handle_server_message(
             
             // Clear the pending staging overlay
             game_state.clear_staging_pending();
+            
+            // Update region staging status to Active with NPC names
+            let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();
+            game_state.set_region_staging_status(
+                region_id.clone(),
+                RegionStagingStatus::Active {
+                    staging_id: String::new(), // Not provided in this message
+                    npc_names,
+                },
+            );
             
             // Update NPCs present (the SceneChanged message will follow with full data)
             let npcs: Vec<NpcPresenceData> = npcs_present

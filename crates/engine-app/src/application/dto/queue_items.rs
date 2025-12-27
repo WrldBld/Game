@@ -113,6 +113,27 @@ pub struct ApprovalItem {
     /// Optional narrative event suggestion from LLM
     #[serde(default)]
     pub narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
+
+    // =========================================================================
+    // Context for dialogue persistence (P1.2)
+    // Populated from GamePromptRequest in LlmQueueService
+    // =========================================================================
+
+    /// Player's dialogue text (from the original action)
+    #[serde(default)]
+    pub player_dialogue: Option<String>,
+    /// Scene ID where dialogue occurred (UUID string)
+    #[serde(default)]
+    pub scene_id: Option<String>,
+    /// Location ID where dialogue occurred (UUID string)
+    #[serde(default)]
+    pub location_id: Option<String>,
+    /// Game time when dialogue occurred (display string)
+    #[serde(default)]
+    pub game_time: Option<String>,
+    /// Topics discussed in this dialogue (extracted by LLM)
+    #[serde(default)]
+    pub topics: Vec<String>,
 }
 
 // ChallengeSuggestionInfo is now imported from protocol via value_objects

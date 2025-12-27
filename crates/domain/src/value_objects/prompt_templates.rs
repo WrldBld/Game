@@ -144,6 +144,19 @@ Write naturally as the character would speak. Use appropriate dialect or speech 
 Keep responses concise but meaningful (1-3 sentences typically).
 </dialogue>
 
+<topics>
+List 1-3 key topics discussed in this exchange, one per line.
+Choose specific, meaningful topics like:
+- quest_information
+- local_history
+- directions
+- trade_negotiation
+- rumors
+- personal_story
+- threat_warning
+- request_for_help
+</topics>
+
 <suggested_beats>
 Optional narrative suggestions for the Game Master, one per line.
 These help shape the story direction and are only suggestions.

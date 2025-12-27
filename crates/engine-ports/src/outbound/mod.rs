@@ -8,6 +8,7 @@
 
 mod app_event_repository_port;
 mod comfyui_port;
+mod directorial_context_port;
 mod event_bus_port;
 mod generation_read_state_port;
 mod llm_port;
@@ -72,3 +73,5 @@ pub use world_exporter_port::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,
     WorldExporterPort,
 };
+
+pub use directorial_context_port::DirectorialContextRepositoryPort;

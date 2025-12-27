@@ -21,7 +21,7 @@ use crate::application::services::StoryEventService;
 use crate::application::dto::ApprovalItem;
 use wrldbldr_domain::value_objects::GameTool;
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_protocol::ApprovalDecision;
 use std::collections::HashMap;
 
@@ -319,23 +319,28 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             }
         };
 
-        // Record the dialogue exchange
-        // Note: player_dialogue would ideally come from the original action, but for now
-        // we use an empty string as it's not stored in ApprovalItem
+        // Record the dialogue exchange with full context from ApprovalItem
+        let scene_id = approval.scene_id.as_ref().and_then(|s| {
+            uuid::Uuid::parse_str(s).ok().map(SceneId::from_uuid)
+        });
+        let location_id = approval.location_id.as_ref().and_then(|s| {
+            uuid::Uuid::parse_str(s).ok().map(LocationId::from_uuid)
+        });
+        
         if let Err(e) = self
             .story_event_service
             .record_dialogue_exchange(
                 world_id,
-                None, // scene_id - could be looked up if needed
-                None, // location_id - could be looked up if needed
+                scene_id,
+                location_id,
                 npc_id,
                 approval.npc_name.clone(),
-                String::new(), // player_dialogue - not available in ApprovalItem
+                approval.player_dialogue.clone().unwrap_or_default(),
                 npc_response.to_string(),
-                Vec::new(), // topics - could be extracted from dialogue in future
+                approval.topics.clone(),
                 None,       // tone
                 vec![npc_id], // involved_characters
-                None,       // game_time
+                approval.game_time.clone(),
             )
             .await
         {

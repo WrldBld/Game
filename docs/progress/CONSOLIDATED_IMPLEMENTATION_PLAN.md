@@ -81,6 +81,9 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P0.2 | **COMPLETE** | ✅ | Added FromStr to CampbellArchetype |
 | P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
 | P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
+| P1.1a | **COMPLETE** | ✅ | Staging status event-driven UI + DM broadcast |
+| P1.1b | **COMPLETE** | ✅ | DirectorialContext SQLite persistence |
+| P1.2 | **COMPLETE** | ✅ | Dialogue context propagation + LLM topic extraction |
 | P1.3 | **COMPLETE** | ✅ | PlaceItemInRegion and CreateAndPlaceItem DM APIs |
 | P1.4 | **COMPLETE** | ✅ | All LLM context TODOs wired |
 | P1.5 | **COMPLETE** | ✅ | All 4 WebSocket memory leaks fixed |
@@ -160,24 +163,36 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ## P1: High Priority (Core Functionality)
 
-### P1.1: WebSocket Migration Phase 5 Completion
+### ~~P1.1: WebSocket Migration Phase 5 Completion~~ ✅ COMPLETE
 **Source**: [WEBSOCKET_MIGRATION_COMPLETION.md](./WEBSOCKET_MIGRATION_COMPLETION.md)
-**Status**: In Progress
-**Effort**: 3-4 hours remaining
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 3.5-5 hours
 
 | Task | Status | Notes |
 |------|--------|-------|
-| DirectorialUpdate persistence | Not Started | Currently in-memory only via WorldStateManager |
+| ~~DirectorialUpdate persistence~~ | ~~**COMPLETE**~~ | SQLite persistence via settings_pool (P1.1b) |
 | ~~Wire NPC Mood Panel~~ | ~~**COMPLETE**~~ | Handlers exist, DM panel wired via SetNpcMood/GetNpcMoods |
 | ~~Region Item Placement~~ | ~~**COMPLETE**~~ | Implemented in P1.3: PlaceItemInRegion, CreateAndPlaceItem APIs |
-| Staging Status API | **Partial** | Messages exist; UI hardcodes status; need `GetStagingStatus` request |
+| ~~Staging Status API~~ | ~~**COMPLETE**~~ | Event-driven via RegionStagingStatus enum + DM broadcast (P1.1a) |
+
+**P1.1a Resolution** (Staging Status):
+- Added `RegionStagingStatus` enum to `GameState` with `None`, `Pending`, `Active` variants
+- Updated `session_message_handler.rs` to set status on `StagingApprovalRequired`, `StagingPending`, `StagingReady` events
+- Updated `LocationStagingPanel` to read from state instead of hardcoding `None`
+- Added `broadcast_to_dms()` call in `staging.rs` so DMs receive `StagingReady` events
+
+**P1.1b Resolution** (DirectorialUpdate Persistence):
+- Created `DirectorialContextRepositoryPort` trait in engine-ports
+- Implemented `SqliteDirectorialContextRepository` using existing settings_pool
+- Wired repository to AppState and WebSocket handlers
+- Load on `JoinWorld`, persist on `DirectorialUpdate`
 
 ---
 
-### P1.2: Dialogue Persistence System - Complete Gap Analysis
+### ~~P1.2: Dialogue Persistence System - Complete Gap Analysis~~ ✅ COMPLETE
 **Source**: [dialogue-system.md](../systems/dialogue-system.md) US-DLG-011/012/013
-**Status**: **Mostly Complete** (2025-12-26 code review)
-**Effort**: 0.5-1 day (gaps only)
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 3-4 hours
 
 | User Story | Description | Status |
 |------------|-------------|--------|
@@ -192,10 +207,13 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 - `get_dialogue_summary_for_npc()` for LLM context
 - Called from `DMApprovalQueueService` after dialogue approval
 
-**Remaining Gaps**:
-- Player dialogue text not captured (empty string passed)
-- Topics not extracted (empty vector passed)
-- Context missing: scene_id, location_id, game_time passed as None
+**Gap Resolution** (2025-12-27):
+- Added `scene_id`, `location_id`, `game_time` fields to `GamePromptRequest` (domain)
+- Populated fields in `build_prompt_from_action()` (engine-adapters)
+- Added fields to `ApprovalItem` DTO with `player_dialogue`, `topics` (engine-app)
+- Added `topics` field to `LLMGameResponse` with parsing from `<topics>` tag
+- Updated prompt template `DIALOGUE_RESPONSE_FORMAT` to request topic extraction
+- Updated `record_dialogue_exchange()` call to use context from `ApprovalItem`
 
 **Enables**: Staging System LLM context about recent NPC interactions
 
@@ -553,6 +571,9 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P1.2 COMPLETE**: Dialogue gaps fixed - propagated context through LLM flow, added topic extraction |
+| 2025-12-27 | **P1.1b COMPLETE**: DirectorialContext persisted to SQLite via settings_pool |
+| 2025-12-27 | **P1.1a COMPLETE**: Staging status event-driven via RegionStagingStatus + DM broadcast |
 | 2025-12-27 | **P1.6 COMPLETE**: Implemented GetSheetTemplate, GetMyPlayerCharacter handlers, fixed sheet_data parsing |
 | 2025-12-27 | **P1.3 COMPLETE**: Added PlaceItemInRegion and CreateAndPlaceItem DM APIs |
 | 2025-12-27 | **P2.5 COMPLETE**: Fixed hex arch violation, moved MockGameConnectionPort to player-ports |

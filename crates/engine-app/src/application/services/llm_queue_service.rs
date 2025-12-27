@@ -376,6 +376,12 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     retry_count: 0,
                                     challenge_suggestion,
                                     narrative_event_suggestion,
+                                    // P1.2: Context for dialogue persistence
+                                    player_dialogue: prompt.player_action.dialogue.clone(),
+                                    scene_id: prompt.scene_id.clone(),
+                                    location_id: prompt.location_id.clone(),
+                                    game_time: prompt.game_time.clone(),
+                                    topics: response.topics.clone(),
                                 };
 
                                 // Enqueue approval and notify DM

@@ -47,7 +47,8 @@ use crate::infrastructure::export::Neo4jWorldExporter;
 use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::persistence::{
     Neo4jNarrativeEventRepository, Neo4jRegionRepository, Neo4jRepository, 
-    Neo4jStagingRepository, SqlitePromptTemplateRepository, SqliteSettingsRepository,
+    Neo4jStagingRepository, SqliteDirectorialContextRepository, SqlitePromptTemplateRepository,
+    SqliteSettingsRepository,
 };
 use crate::infrastructure::queues::QueueFactory;
 use crate::infrastructure::repositories::{
@@ -110,6 +111,12 @@ pub struct AppState {
     ///
     /// Handles all Request payloads, routing them to appropriate services.
     pub request_handler: Arc<dyn RequestHandler>,
+
+    /// Directorial context repository for persisting DM notes
+    ///
+    /// Stores directorial context (scene notes, tone, NPC motivations)
+    /// so it survives server restarts.
+    pub directorial_context_repo: Arc<dyn wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort>,
 }
 
 impl AppState {
@@ -148,13 +155,21 @@ impl AppState {
         let settings_service = Arc::new(SettingsService::new(settings_repository));
 
         // Initialize prompt template service (uses same pool as settings - they share the DB file)
-        let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool)
+        let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Failed to initialize prompt template repository: {}", e))?;
         let prompt_template_repository: Arc<dyn wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort> =
             Arc::new(prompt_template_repository);
         let prompt_template_service = Arc::new(PromptTemplateService::new(prompt_template_repository));
         tracing::info!("Initialized prompt template service");
+
+        // Initialize directorial context repository (shares same SQLite pool)
+        let directorial_context_repo = SqliteDirectorialContextRepository::new(settings_pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize directorial context repository: {}", e))?;
+        let directorial_context_repo: Arc<dyn wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort> =
+            Arc::new(directorial_context_repo);
+        tracing::info!("Initialized directorial context repository");
 
         // Create individual repository ports as Arc'd trait objects
         let world_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorldRepositoryPort> =
@@ -638,6 +653,7 @@ impl AppState {
             world_connection_manager,
             world_state,
             request_handler,
+            directorial_context_repo,
         }, generation_event_rx))
     }
 }

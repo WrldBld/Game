@@ -257,6 +257,19 @@ pub async fn handle_directorial_update(
         .world_state
         .set_directorial_context(&world_id_domain, context.clone());
 
+    // Persist to database (non-fatal if fails)
+    if let Err(e) = state
+        .directorial_context_repo
+        .save(&world_id_domain, &context)
+        .await
+    {
+        tracing::warn!(
+            error = %e,
+            world_id = %world_id,
+            "Failed to persist directorial context - will retry on next update"
+        );
+    }
+
     tracing::info!(
         world_id = %world_id,
         npc_count = context.npc_motivations.len(),

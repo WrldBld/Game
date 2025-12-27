@@ -108,6 +108,26 @@ pub async fn handle_join_world(
                 }
             };
 
+            // Load persisted directorial context if any
+            match state.directorial_context_repo.get(&world_id_domain).await {
+                Ok(Some(context)) => {
+                    state
+                        .world_state
+                        .set_directorial_context(&world_id_domain, context);
+                    tracing::debug!(world_id = %world_id, "Loaded persisted directorial context");
+                }
+                Ok(None) => {
+                    tracing::debug!(world_id = %world_id, "No persisted directorial context found");
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load directorial context - starting fresh"
+                    );
+                }
+            }
+
             // Fetch PC data if role is Player and pc_id is provided
             let pc_data = if role == WorldRole::Player {
                 if let Some(pc_uuid) = pc_id {

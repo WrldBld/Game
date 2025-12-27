@@ -95,7 +95,8 @@ pub async fn build_prompt_from_action(
     };
 
     // 5. Build scene context from current scene
-    let scene_context = if let Some(scene_id) = &current_scene_id {
+    // Also capture IDs for dialogue persistence (P1.2)
+    let (scene_context, scene_id_for_persistence, location_id_for_persistence) = if let Some(scene_id) = &current_scene_id {
         // Find scene in snapshot
         let scene = snapshot
             .scenes
@@ -104,19 +105,28 @@ pub async fn build_prompt_from_action(
             .or(snapshot.current_scene.as_ref());
 
         if let Some(scene) = scene {
-            SceneContext {
+            let ctx = SceneContext {
                 scene_name: scene.name.clone(),
                 location_name: scene.location_id.clone(), // SceneData has location_id, not location_name
                 time_context: scene.time_context.clone(),
                 present_characters: scene.featured_characters.clone(), // featured_characters, not characters
                 region_items,
-            }
+            };
+            // Capture IDs for persistence
+            let scene_id = Some(scene.id.clone());
+            let location_id = Some(scene.location_id.clone());
+            (ctx, scene_id, location_id)
         } else {
-            default_scene_context()
+            (default_scene_context(), None, None)
         }
     } else {
-        default_scene_context()
+        (default_scene_context(), None, None)
     };
+
+    // Get game time for dialogue persistence
+    let game_time_for_persistence = world_state
+        .get_game_time(&world_id)
+        .map(|gt| gt.display_date());
 
     // 6. Get directorial context
     let directorial_notes = world_state
@@ -187,6 +197,10 @@ pub async fn build_prompt_from_action(
         active_challenges,
         active_narrative_events,
         context_budget: None, // Use default budget
+        // P1.2: Context for dialogue persistence
+        scene_id: scene_id_for_persistence,
+        location_id: location_id_for_persistence,
+        game_time: game_time_for_persistence,
     })
 }
 
