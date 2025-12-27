@@ -137,6 +137,8 @@ impl Default for CampbellArchetype {
 // =============================================================================
 
 /// Monomyth (Hero's Journey) stages for acts
+///
+/// Variant names aligned with domain (wrldbldr_domain::entities::world::MonomythStage)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MonomythStage {
@@ -146,12 +148,12 @@ pub enum MonomythStage {
     MeetingTheMentor,
     CrossingTheThreshold,
     TestsAlliesEnemies,
-    ApproachToTheInmostCave,
+    ApproachToInnermostCave,
     Ordeal,
     Reward,
     TheRoadBack,
     Resurrection,
-    ReturnWithTheElixir,
+    ReturnWithElixir,
 }
 
 impl Default for MonomythStage {
