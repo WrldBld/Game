@@ -2044,7 +2044,13 @@ impl RequestHandler for AppRequestHandler {
                 };
                 // Parse sheet_data from protocol JSON value
                 let sheet_data = data.sheet_data.as_ref().and_then(|v| {
-                    serde_json::from_value::<CharacterSheetData>(v.clone()).ok()
+                    match serde_json::from_value::<CharacterSheetData>(v.clone()) {
+                        Ok(data) => Some(data),
+                        Err(e) => {
+                            tracing::debug!(error = %e, "Failed to parse sheet_data, ignoring");
+                            None
+                        }
+                    }
                 });
                 let request = crate::application::services::UpdatePlayerCharacterRequest {
                     name: data.name,

@@ -169,7 +169,7 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 |------|--------|-------|
 | DirectorialUpdate persistence | Not Started | Currently in-memory only via WorldStateManager |
 | ~~Wire NPC Mood Panel~~ | ~~**COMPLETE**~~ | Handlers exist, DM panel wired via SetNpcMood/GetNpcMoods |
-| Region Item Placement | **Partial** | Read/drop works; missing `place_item()` API for DM manual placement |
+| ~~Region Item Placement~~ | ~~**COMPLETE**~~ | Implemented in P1.3: PlaceItemInRegion, CreateAndPlaceItem APIs |
 | Staging Status API | **Partial** | Messages exist; UI hardcodes status; need `GetStagingStatus` request |
 
 ---
