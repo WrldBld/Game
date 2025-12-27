@@ -25,5 +25,10 @@ tracing = { workspace = true }
 rand = { workspace = true }
 validator = { workspace = true }
 
+[dev-dependencies]
+wrldbldr-engine-ports = { workspace = true, features = ["testing"] }
+wrldbldr-engine-dto = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
 [lints]
 workspace = true

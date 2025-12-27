@@ -287,7 +287,9 @@ Time: {} ({})
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
     use wrldbldr_domain::value_objects::prompt_defaults;
+    use wrldbldr_domain::TimeOfDay;
 
     #[test]
     fn test_build_staging_prompt_basic() {
@@ -301,7 +303,7 @@ mod tests {
 
         let suggestions = vec![
             RuleBasedSuggestion::present(
-                CharacterId::new(),
+                Uuid::new_v4(),
                 "Bob the Baker",
                 "Works here during the day",
             ),

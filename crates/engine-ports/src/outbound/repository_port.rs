@@ -1002,6 +1002,7 @@ pub trait AssetRepositoryPort: Send + Sync {
 // =============================================================================
 
 /// Repository port for Challenge operations
+#[cfg_attr(any(test, feature = "testing"), mockall::automock)]
 #[async_trait]
 pub trait ChallengeRepositoryPort: Send + Sync {
     // -------------------------------------------------------------------------

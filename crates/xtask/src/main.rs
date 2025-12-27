@@ -305,6 +305,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-domain",
                 "wrldbldr-protocol",
                 "wrldbldr-engine-ports",
+                "wrldbldr-engine-dto", // for test mocks (dev-dependency)
             ]),
         ),
         (

@@ -75,3 +75,7 @@ pub use world_exporter_port::{
 };
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
+
+// Re-export mocks for test builds
+#[cfg(any(test, feature = "testing"))]
+pub use repository_port::MockChallengeRepositoryPort;

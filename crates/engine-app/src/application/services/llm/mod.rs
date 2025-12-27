@@ -338,6 +338,7 @@ pub enum LLMServiceError {
 mod tests {
     use super::*;
     use wrldbldr_engine_ports::outbound::{LlmResponse, ToolDefinition, PromptTemplateRepositoryPort, PromptTemplateError};
+    use wrldbldr_engine_dto::FinishReason;
     use wrldbldr_domain::value_objects::{CharacterContext, SceneContext};
     use wrldbldr_domain::WorldId;
 

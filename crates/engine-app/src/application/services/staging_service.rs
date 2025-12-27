@@ -522,6 +522,7 @@ fn extract_json_array(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_extract_json_array() {
@@ -539,7 +540,7 @@ That's all!"#;
     #[test]
     fn test_staged_npc_proposal_from_suggestion() {
         let suggestion = RuleBasedSuggestion::present(
-            CharacterId::new(),
+            Uuid::new_v4(),
             "Test NPC",
             "Test reasoning",
         );

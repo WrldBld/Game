@@ -181,103 +181,13 @@ impl OutcomeTriggerService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::entities::Challenge;
-    use wrldbldr_domain::value_objects::{ChallengeId, WorldId};
-    use async_trait::async_trait;
-
-    /// Fake challenge repository for testing
-    struct FakeChallengeRepository {
-        active_states: Mutex<std::collections::HashMap<ChallengeId, bool>>,
-    }
-
-    impl FakeChallengeRepository {
-        fn new() -> Self {
-            Self {
-                active_states: Mutex::new(std::collections::HashMap::new()),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl ChallengeRepositoryPort for FakeChallengeRepository {
-        async fn create(
-            &self,
-            _challenge: &Challenge,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn get(
-            &self,
-            _id: ChallengeId,
-        ) -> anyhow::Result<Option<Challenge>>
-        {
-            Ok(None)
-        }
-
-        async fn list_by_world(
-            &self,
-            _world_id: WorldId,
-        ) -> anyhow::Result<Vec<Challenge>> {
-            Ok(vec![])
-        }
-
-        async fn list_by_scene(
-            &self,
-            _scene_id: wrldbldr_domain::SceneId,
-        ) -> anyhow::Result<Vec<Challenge>> {
-            Ok(vec![])
-        }
-
-        async fn list_active(
-            &self,
-            _world_id: WorldId,
-        ) -> anyhow::Result<Vec<Challenge>> {
-            Ok(vec![])
-        }
-
-        async fn list_favorites(
-            &self,
-            _world_id: WorldId,
-        ) -> anyhow::Result<Vec<Challenge>> {
-            Ok(vec![])
-        }
-
-        async fn update(
-            &self,
-            _challenge: &Challenge,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn delete(
-            &self,
-            _id: ChallengeId,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn set_active(
-            &self,
-            id: ChallengeId,
-            active: bool,
-        ) -> anyhow::Result<()> {
-            self.active_states.lock().unwrap().insert(id, active);
-            Ok(())
-        }
-
-        async fn toggle_favorite(
-            &self,
-            _id: ChallengeId,
-        ) -> anyhow::Result<bool> {
-            Ok(false)
-        }
-    }
+    use wrldbldr_domain::WorldId;
+    use wrldbldr_engine_ports::outbound::MockChallengeRepositoryPort;
 
     #[tokio::test]
     async fn test_reveal_information() {
-        let repo = Arc::new(FakeChallengeRepository::new());
-        let service = OutcomeTriggerService::new(repo);
+        let mock = MockChallengeRepositoryPort::new();
+        let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 
         let triggers = vec![OutcomeTrigger::reveal("A secret passage is revealed!")];
@@ -297,8 +207,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_give_item() {
-        let repo = Arc::new(FakeChallengeRepository::new());
-        let service = OutcomeTriggerService::new(repo);
+        let mock = MockChallengeRepositoryPort::new();
+        let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 
         let triggers = vec![OutcomeTrigger::GiveItem {
@@ -319,8 +229,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_triggers() {
-        let repo = Arc::new(FakeChallengeRepository::new());
-        let service = OutcomeTriggerService::new(repo);
+        let mock = MockChallengeRepositoryPort::new();
+        let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 
         let triggers = vec![
