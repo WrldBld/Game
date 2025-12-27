@@ -8,6 +8,7 @@ pub mod api_port;
 pub mod raw_api_port;
 pub mod game_connection_port;
 pub mod platform;
+pub mod testing;
 
 pub use api_port::{ApiError, ApiPort};
 pub use raw_api_port::RawApiPort;
@@ -15,3 +16,7 @@ pub use game_connection_port::{ConnectionState, GameConnectionPort};
 pub use platform::{
     Platform, storage_keys,
 };
+
+// Re-export mock for convenience (desktop-only)
+#[cfg(not(target_arch = "wasm32"))]
+pub use testing::MockGameConnectionPort;

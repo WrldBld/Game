@@ -84,7 +84,7 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P1.4 | **COMPLETE** | ✅ | All LLM context TODOs wired |
 | P1.5 | **COMPLETE** | ✅ | All 4 WebSocket memory leaks fixed |
 | P2.1 | ~~Not Started~~ | **COMPLETE** | websocket.rs already split into 15 files |
-| P2.5 | Not Started | **3 violations** | Test imports in narrative_event, challenge, action services |
+| P2.5 | **COMPLETE** | ✅ | Mock moved to player-ports, WASM compiles |
 
 ---
 
@@ -366,25 +366,20 @@ crates/engine-adapters/src/infrastructure/websocket/
 
 ---
 
-### P2.5: Hexagonal Architecture Test Violations
+### ~~P2.5: Hexagonal Architecture Test Violations~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.4
-**Status**: Not Started (verified 2025-12-27 - 3 violations)
-**Effort**: 1-2 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 30 minutes
 
-**Violations found** (all in test modules importing from adapters layer):
+**Resolution**: Moved `MockGameConnectionPort` from `player-adapters` to `player-ports`.
+Updated imports in action_service.rs, narrative_event_service.rs, challenge_service.rs.
+Also fixes WASM compilation by adding `#[cfg(not(target_arch = "wasm32"))]` guard.
 
-| File | Line | Import |
-|------|------|--------|
-| `action_service.rs` | 84 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
-| `narrative_event_service.rs` | 117 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
-| `challenge_service.rs` | 139 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
-
-Application layer imports from adapters layer in test code, breaking hexagonal architecture.
-
-**Fix Options**:
-1. Move `MockGameConnectionPort` to `player-ports` with `#[cfg(test)]`
-2. Use `mockall` to generate mocks from trait
-3. Define mock in `player-app` test module
+**Changes**:
+- Created `player-ports/src/outbound/testing/` module with desktop-only mock
+- Updated 3 test files to import from `wrldbldr_player_ports::outbound`
+- Removed mock from `player-adapters/infrastructure/testing/`
+- Added `tokio` dev-dependency to player-app for async tests
 
 ---
 
@@ -556,6 +551,8 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P2.5 COMPLETE**: Fixed hex arch violation, moved MockGameConnectionPort to player-ports |
+| 2025-12-27 | Fixed WASM compilation by cfg-guarding mock to desktop-only |
 | 2025-12-27 | **P1.5 COMPLETE**: Fixed all 4 WebSocket memory leaks (disconnect cleanup, timeout cleanup, closure storage) |
 | 2025-12-27 | **P1.4 COMPLETE**: Wired region_items into LLM context via build_prompt_from_action() |
 | 2025-12-27 | Code review: Added P1.5 (memory leaks) and P1.6 (missing handlers) |

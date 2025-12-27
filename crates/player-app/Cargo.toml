@@ -21,5 +21,8 @@ tracing = { workspace = true }
 regex-lite = { workspace = true }
 futures-channel = { workspace = true }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+
 [lints]
 workspace = true

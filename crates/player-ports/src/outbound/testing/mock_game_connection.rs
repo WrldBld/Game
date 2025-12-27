@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::future::Future;
 use std::pin::Pin;
 
-use wrldbldr_player_ports::outbound::{ConnectionState, GameConnectionPort};
+use crate::outbound::{ConnectionState, GameConnectionPort};
 use wrldbldr_protocol::{
     ApprovalDecision, ChallengeOutcomeDecisionData, DirectorialContext, ParticipantRole,
     DiceInputType, AdHocOutcomes, ApprovedNpcInfo, RequestPayload, ResponseResult, RequestError,
@@ -316,4 +316,3 @@ impl GameConnectionPort for MockGameConnectionPort {
         self.request(payload)
     }
 }
-

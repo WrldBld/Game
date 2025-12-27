@@ -81,7 +81,7 @@ impl ActionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;
+    use wrldbldr_player_ports::outbound::MockGameConnectionPort;
 
     #[test]
     fn send_action_records_outbound_call() {
