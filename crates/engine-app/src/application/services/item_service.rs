@@ -11,9 +11,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{ItemRepositoryPort, PlayerCharacterRepositoryPort};
+use wrldbldr_engine_ports::outbound::{ItemRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort};
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
-use wrldbldr_domain::{ItemId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
 
 /// Request to create a new item
 #[derive(Debug, Clone)]
@@ -129,6 +129,21 @@ pub trait ItemService: Send + Sync {
 
     /// Check if a PC has a specific item
     async fn pc_has_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<bool>;
+
+    // -------------------------------------------------------------------------
+    // Region Item Placement (DM workflow)
+    // -------------------------------------------------------------------------
+
+    /// Place an existing item into a region
+    async fn place_item_in_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()>;
+
+    /// Create a new item and place it in a region
+    async fn create_and_place_item(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+        request: CreateItemRequest,
+    ) -> Result<Item>;
 }
 
 /// Default implementation of ItemService using port abstractions
@@ -136,6 +151,7 @@ pub trait ItemService: Send + Sync {
 pub struct ItemServiceImpl {
     item_repository: Arc<dyn ItemRepositoryPort>,
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+    region_repository: Option<Arc<dyn RegionRepositoryPort>>,
 }
 
 impl ItemServiceImpl {
@@ -147,7 +163,14 @@ impl ItemServiceImpl {
         Self {
             item_repository,
             pc_repository,
+            region_repository: None,
         }
+    }
+
+    /// Add region repository for item placement operations
+    pub fn with_region_repository(mut self, region_repository: Arc<dyn RegionRepositoryPort>) -> Self {
+        self.region_repository = Some(region_repository);
+        self
     }
 
     /// Validate an item creation request
@@ -323,5 +346,44 @@ impl ItemService for ItemServiceImpl {
             .await
             .context("Failed to check PC inventory")?;
         Ok(item.is_some())
+    }
+
+    #[instrument(skip(self))]
+    async fn place_item_in_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
+        let region_repo = self
+            .region_repository
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Region repository not configured for item placement"))?;
+
+        region_repo
+            .add_item_to_region(region_id, item_id)
+            .await
+            .context("Failed to place item in region")?;
+
+        info!(item_id = %item_id, region_id = %region_id, "Placed item in region");
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    async fn create_and_place_item(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+        request: CreateItemRequest,
+    ) -> Result<Item> {
+        // Create the item first
+        let item = self.create_item(world_id, request).await?;
+
+        // Then place it in the region
+        self.place_item_in_region(region_id, item.id).await?;
+
+        info!(
+            item_id = %item.id,
+            item_name = %item.name,
+            region_id = %region_id,
+            "Created and placed item in region"
+        );
+
+        Ok(item)
     }
 }

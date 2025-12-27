@@ -265,6 +265,11 @@ impl AppRequestHandler {
         let uuid = Self::parse_uuid(id, "story_event")?;
         Ok(wrldbldr_domain::StoryEventId::from_uuid(uuid))
     }
+
+    fn parse_item_id(id: &str) -> Result<wrldbldr_domain::ItemId, ResponseResult> {
+        let uuid = Self::parse_uuid(id, "item")?;
+        Ok(wrldbldr_domain::ItemId::from_uuid(uuid))
+    }
 }
 
 
@@ -3175,6 +3180,65 @@ impl RequestHandler for AppRequestHandler {
                     Ok(cancelled) => ResponseResult::success(serde_json::json!({
                         "cancelled": cancelled
                     })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            // =================================================================
+            // Item Placement Operations (DM only)
+            // =================================================================
+            RequestPayload::PlaceItemInRegion { region_id, item_id } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
+
+                let rid = match Self::parse_region_id(&region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let iid = match Self::parse_item_id(&item_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+
+                match self.item_service.place_item_in_region(rid, iid).await {
+                    Ok(()) => ResponseResult::success(serde_json::json!({ "success": true })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::CreateAndPlaceItem { world_id, region_id, data } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
+
+                let wid = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                let rid = match Self::parse_region_id(&region_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+
+                let request = crate::application::services::CreateItemRequest {
+                    name: data.name,
+                    description: data.description,
+                    item_type: data.item_type,
+                    properties: data.properties.map(|v| v.to_string()),
+                    ..Default::default()
+                };
+
+                match self.item_service.create_and_place_item(wid, rid, request).await {
+                    Ok(item) => {
+                        // Return a simple item response
+                        ResponseResult::success(serde_json::json!({
+                            "id": item.id.to_string(),
+                            "name": item.name,
+                            "description": item.description,
+                            "item_type": item.item_type,
+                        }))
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }

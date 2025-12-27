@@ -193,6 +193,8 @@ impl AppState {
             Arc::new(repository.goals());
         let want_repo: Arc<dyn wrldbldr_engine_ports::outbound::WantRepositoryPort> =
             Arc::new(repository.wants());
+        let region_repo: Arc<dyn wrldbldr_engine_ports::outbound::RegionRepositoryPort> =
+            Arc::new(repository.regions());
 
         // Create world exporter
         let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
@@ -258,9 +260,11 @@ impl AppState {
         let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
         
         let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = 
-            Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone()));
+            Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone())
+                .with_region_repository(region_repo.clone()));
         // Keep concrete version for DMApprovalQueueService
-        let item_service_impl = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone());
+        let item_service_impl = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone())
+            .with_region_repository(region_repo.clone());
         
         let player_character_repo_for_triggers = player_character_repo.clone();
         let player_character_repo_for_actantial = player_character_repo.clone();
@@ -478,11 +482,9 @@ impl AppState {
         ));
 
         // Create staging service (Staging System)
+        // Note: StagingService is generic over concrete types, so we need concrete Arc<...>
         let staging_repo = Arc::new(repository.stagings());
         let region_repo_for_staging = Arc::new(repository.regions());
-        // Create region repo for request handler
-        let region_repo_for_handler: Arc<dyn wrldbldr_engine_ports::outbound::RegionRepositoryPort> = 
-            Arc::new(repository.regions());
         let narrative_event_repo_for_staging = Arc::new(repository.narrative_events());
         let llm_for_staging = Arc::new(llm_client.clone());
         let staging_service = Arc::new(StagingService::new(
@@ -507,7 +509,7 @@ impl AppState {
         // Create region service
         let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> = 
             Arc::new(RegionServiceImpl::new(
-                region_repo_for_handler.clone(),
+                region_repo.clone(),
                 location_repo.clone(),
             ));
 
@@ -613,7 +615,7 @@ impl AppState {
             player.sheet_template_service.clone(),
             character_repo_for_handler,
             observation_repo_for_handler,
-            region_repo_for_handler,
+            region_repo.clone(),
         ).with_suggestion_enqueue(suggestion_enqueue_adapter)
          .with_generation_queue(generation_queue_projection_for_handler, generation_read_state_for_handler));
         tracing::info!("Initialized request handler for WebSocket-first architecture");

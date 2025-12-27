@@ -681,6 +681,22 @@ pub enum RequestPayload {
 
     /// Cancel a pending content suggestion request
     CancelContentSuggestion { request_id: String },
+
+    // =========================================================================
+    // Item Placement Operations (DM only)
+    // =========================================================================
+    /// Place an existing item into a region (DM only)
+    PlaceItemInRegion {
+        region_id: String,
+        item_id: String,
+    },
+
+    /// Create a new item and place it in a region (DM only)
+    CreateAndPlaceItem {
+        world_id: String,
+        region_id: String,
+        data: CreateItemData,
+    },
 }
 
 // =============================================================================
@@ -1058,4 +1074,17 @@ pub struct SuggestionContextData {
     /// Additional context from other fields (e.g., description, backstory)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub additional_context: Option<String>,
+}
+
+/// Data for creating a new item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateItemData {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub item_type: Option<String>,
+    #[serde(default)]
+    pub properties: Option<serde_json::Value>,
 }

@@ -133,6 +133,7 @@ pub use requests::{
     CreateSceneData,
     CreateSkillData,
     CreateWorldData,
+    CreateItemData,
     // Update data types
     UpdateChallengeData,
     UpdateCharacterData,
