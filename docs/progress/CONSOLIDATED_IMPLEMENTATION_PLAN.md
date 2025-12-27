@@ -1,7 +1,7 @@
 # Consolidated Implementation Plan
 
 **Created**: 2025-12-26
-**Last Updated**: 2025-12-27
+**Last Updated**: 2025-12-27 (reviewed)
 **Status**: ACTIVE
 **Purpose**: Single source of truth for remaining implementation work
 
@@ -82,7 +82,8 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
 | P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
 | P1.4 | Partial | **4/5 DONE** | Only region_items TODO remains |
-| P2.1 | Not Started | **DONE** | websocket.rs already split into 14 files |
+| P2.1 | ~~Not Started~~ | **COMPLETE** | websocket.rs already split into 15 files |
+| P2.5 | Not Started | **3 violations** | Test imports in narrative_event, challenge, action services |
 
 ---
 
@@ -235,18 +236,80 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
+### P1.5: Fix WebSocket Memory Leaks (NEW)
+**Source**: Code review 2025-12-27
+**Status**: Not Started
+**Effort**: 2-3 hours
+**Severity**: HIGH - Memory leaks on timeout/disconnect
+
+**Issues Found**:
+
+| Issue | Location | Severity |
+|-------|----------|----------|
+| No cleanup on timeout (WASM) | `game_connection_adapter.rs:770-789` | **HIGH** |
+| No cleanup on disconnect (Desktop) | `client.rs:271-277` | **HIGH** |
+| No cleanup on disconnect (WASM) | `client.rs:518-524` | **HIGH** |
+| Closure leak on reconnect (WASM) | `client.rs:425-465` | Low |
+
+**Problem**: When requests timeout or disconnect occurs, pending requests remain in the `pending_requests` HashMap and are never cleaned up. This causes memory leaks over long sessions.
+
+**Fix**: Add cleanup logic to:
+1. Clear all pending requests on disconnect (send `RequestError::Cancelled`)
+2. Remove timed-out request from map when timeout fires (WASM)
+3. Store closure handles and clean up on disconnect (WASM)
+
+---
+
+### P1.6: Implement Missing Engine Handlers (NEW)
+**Source**: Code review 2025-12-27
+**Status**: Not Started
+**Effort**: 1-2 hours
+**Severity**: HIGH - Player-app calls handlers that don't exist
+
+**Missing Handlers** in `request_handler.rs`:
+
+| RequestPayload | Called By | Current Behavior |
+|----------------|-----------|------------------|
+| `GetSheetTemplate` | WorldService | Returns "not yet fully implemented" error |
+| `GetMyPlayerCharacter` | PlayerCharacterService | Returns "not yet fully implemented" error |
+
+**Also**: `UpdatePlayerCharacter` has `sheet_data: None, // TODO` at line 2022
+
+**Fix**: Implement these handlers or remove the dead code paths.
+
+---
+
 ## P2: Medium Priority (Feature Completion)
 
-### P2.1: WebSocket Migration Phase 6 (Technical Debt)
+### ~~P2.1: WebSocket Migration Phase 6 (Technical Debt)~~ ✅ COMPLETE
 **Source**: [WEBSOCKET_MIGRATION_COMPLETION.md](./WEBSOCKET_MIGRATION_COMPLETION.md)
-**Status**: Not Started
-**Effort**: 3-4 hours
+**Status**: ✅ COMPLETE (verified 2025-12-27)
+**Effort**: Already done
 
-| Task | Description |
-|------|-------------|
-| Split websocket.rs | ~3700 lines -> modules |
-| Error handling audit | Standardize error types |
-| Remove unused code | Compiler warnings cleanup |
+| Task | Status |
+|------|--------|
+| Split websocket.rs | ✅ Split into 15 files |
+| Error handling audit | Partial - standardized in new structure |
+| Remove unused code | ✅ Done during split |
+
+**Structure verified** (2025-12-27):
+```
+crates/engine-adapters/src/infrastructure/websocket/
+├── mod.rs (147 lines)
+├── dispatch.rs (311 lines)
+├── converters.rs (110 lines)
+├── messages.rs (6 lines)
+└── handlers/
+    ├── mod.rs, challenge.rs, connection.rs, inventory.rs
+    ├── misc.rs, movement.rs, narrative.rs, player_action.rs
+    ├── request.rs, scene.rs, staging.rs
+```
+
+**Note**: 4 handler files exceed 500 lines and could be further split:
+- `movement.rs` (973 lines)
+- `challenge.rs` (816 lines)
+- `staging.rs` (595 lines)
+- `inventory.rs` (517 lines)
 
 ---
 
@@ -300,15 +363,18 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
-### P2.5: Hexagonal Architecture Test Violation
+### P2.5: Hexagonal Architecture Test Violations
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.4
-**Status**: Not Started (verified 2025-12-26)
+**Status**: Not Started (verified 2025-12-27 - 3 violations)
 **Effort**: 1-2 hours
 
-**Violation at** `player-app/action_service.rs:84`:
-```rust
-use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;
-```
+**Violations found** (all in test modules importing from adapters layer):
+
+| File | Line | Import |
+|------|------|--------|
+| `action_service.rs` | 84 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
+| `narrative_event_service.rs` | 117 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
+| `challenge_service.rs` | 139 | `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;` |
 
 Application layer imports from adapters layer in test code, breaking hexagonal architecture.
 
@@ -378,7 +444,7 @@ Key features:
 
 ### P3.3: Consolidate Duplicate Type Definitions
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T3.2
-**Status**: Not Started
+**Status**: Partial (MonomythStage fixed in P0.4)
 **Effort**: 4-6 hours
 
 Types defined in both domain and protocol with incompatibilities:
@@ -387,7 +453,7 @@ Types defined in both domain and protocol with incompatibilities:
 |------|--------|----------|-------|
 | `CampbellArchetype` | No serde, rich methods | Has serde, minimal | Incompatible |
 | `GameTime` | `DateTime<Utc>` based | `day/hour/minute` fields | Different structures |
-| `MonomythStage` | `ApproachToInnermostCave` | `ApproachToTheInmostCave` | Variant name mismatch (see P0.4) |
+| ~~`MonomythStage`~~ | ~~`ApproachToInnermostCave`~~ | ~~`ApproachToTheInmostCave`~~ | ~~Fixed in P0.4~~ |
 
 **Recommended approach**: Protocol should re-export from domain for shared enums.
 
@@ -487,6 +553,10 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | Code review: Added P1.5 (memory leaks) and P1.6 (missing handlers) |
+| 2025-12-27 | Code review: P2.1 marked COMPLETE (websocket.rs split into 15 files) |
+| 2025-12-27 | Code review: P2.5 updated with 2 additional test violations |
+| 2025-12-27 | Code review: P3.3 updated (MonomythStage fixed) |
 | 2025-12-27 | **ALL P0 ITEMS COMPLETE** |
 | 2025-12-27 | **P0.4 COMPLETE**: MonomythStage variants aligned between domain and protocol |
 | 2025-12-27 | **P0.3 COMPLETE**: Added FromStr to RelationshipType with all 9 family types |

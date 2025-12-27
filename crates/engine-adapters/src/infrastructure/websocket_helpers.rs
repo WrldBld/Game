@@ -9,9 +9,10 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::NarrativeEvent;
 use wrldbldr_domain::value_objects::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
-    GamePromptRequest, MotivationsContext, PlayerActionContext, SceneContext, SocialStanceContext,
+    GamePromptRequest, MotivationsContext, PlayerActionContext, RegionItemContext, SceneContext,
+    SocialStanceContext,
 };
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
 use wrldbldr_engine_app::application::services::{
     ActantialContextService, ChallengeService, MoodService,
@@ -37,8 +38,8 @@ pub async fn build_prompt_from_action(
     skill_service: &Arc<dyn SkillService>,
     narrative_event_service: &Arc<dyn NarrativeEventService>,
     _character_repo: &Arc<dyn CharacterRepositoryPort>,
-    _pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
-    _region_repo: &Arc<dyn RegionRepositoryPort>,
+    pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
+    region_repo: &Arc<dyn RegionRepositoryPort>,
     _settings_service: &Arc<SettingsService>,
     _mood_service: &Arc<dyn MoodService>,
     _actantial_service: &Arc<dyn ActantialContextService>,
@@ -55,7 +56,45 @@ pub async fn build_prompt_from_action(
         .get_current_scene(&world_id)
         .or_else(|| snapshot.current_scene.as_ref().map(|s| s.id.clone()));
 
-    // 3. Build scene context from current scene
+    // 3. Get PC's current region for item context
+    let region_id = if let Some(pc_uuid) = action.pc_id {
+        let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
+        match pc_repo.get(pc_id).await {
+            Ok(Some(pc)) => pc.current_region_id,
+            Ok(None) => {
+                tracing::debug!("PC {} not found for region item context", pc_uuid);
+                None
+            }
+            Err(e) => {
+                tracing::debug!("Failed to fetch PC for region item context: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // 4. Fetch items in the PC's current region for LLM context
+    let region_items: Vec<RegionItemContext> = if let Some(rid) = region_id {
+        match region_repo.get_region_items(rid).await {
+            Ok(items) => items
+                .into_iter()
+                .map(|item| RegionItemContext {
+                    name: item.name,
+                    description: item.description,
+                    item_type: item.item_type,
+                })
+                .collect(),
+            Err(e) => {
+                tracing::debug!("Failed to fetch region items for LLM context: {}", e);
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
+    // 5. Build scene context from current scene
     let scene_context = if let Some(scene_id) = &current_scene_id {
         // Find scene in snapshot
         let scene = snapshot
@@ -70,7 +109,7 @@ pub async fn build_prompt_from_action(
                 location_name: scene.location_id.clone(), // SceneData has location_id, not location_name
                 time_context: scene.time_context.clone(),
                 present_characters: scene.featured_characters.clone(), // featured_characters, not characters
-                region_items: Vec::new(), // TODO: populate from region items
+                region_items,
             }
         } else {
             default_scene_context()
@@ -79,7 +118,7 @@ pub async fn build_prompt_from_action(
         default_scene_context()
     };
 
-    // 4. Get directorial context
+    // 6. Get directorial context
     let directorial_notes = world_state
         .get_directorial_context(&world_id)
         .map(|dc| {
@@ -97,21 +136,21 @@ pub async fn build_prompt_from_action(
         })
         .unwrap_or_default();
 
-    // 5. Convert conversation history
+    // 7. Convert conversation history
     let conversation_history: Vec<ConversationTurn> = world_state
         .get_conversation_history(&world_id)
         .into_iter()
         .map(conversation_entry_to_turn)
         .collect();
 
-    // 6. Build player action context
+    // 8. Build player action context
     let player_action = PlayerActionContext {
         action_type: action.action_type.clone(),
         target: action.target.clone(),
         dialogue: action.dialogue.clone(),
     };
 
-    // 7. Find responding character (NPC being addressed) with mood and actantial context
+    // 9. Find responding character (NPC being addressed) with mood and actantial context
     let responding_character = find_responding_character(
         &action.target,
         &snapshot.characters,
@@ -121,7 +160,7 @@ pub async fn build_prompt_from_action(
     )
     .await;
 
-    // 8. Get active challenges for the current scene
+    // 10. Get active challenges for the current scene
     let active_challenges = get_active_challenges(
         challenge_service,
         skill_service,
@@ -129,7 +168,7 @@ pub async fn build_prompt_from_action(
     )
     .await;
 
-    // 9. Get active narrative events with featured NPC names
+    // 11. Get active narrative events with featured NPC names
     let active_narrative_events = get_active_narrative_events(
         narrative_event_service,
         _character_repo,
@@ -137,7 +176,7 @@ pub async fn build_prompt_from_action(
     )
     .await;
 
-    // 10. Build the complete prompt request
+    // 12. Build the complete prompt request
     Ok(GamePromptRequest {
         world_id: Some(world_id.to_string()),
         player_action,
