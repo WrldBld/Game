@@ -82,6 +82,7 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
 | P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
 | P1.4 | **COMPLETE** | ✅ | All LLM context TODOs wired |
+| P1.5 | **COMPLETE** | ✅ | All 4 WebSocket memory leaks fixed |
 | P2.1 | ~~Not Started~~ | **COMPLETE** | websocket.rs already split into 15 files |
 | P2.5 | Not Started | **3 violations** | Test imports in narrative_event, challenge, action services |
 
@@ -242,27 +243,23 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
-### P1.5: Fix WebSocket Memory Leaks (NEW)
+### ~~P1.5: Fix WebSocket Memory Leaks~~ ✅ COMPLETE
 **Source**: Code review 2025-12-27
-**Status**: Not Started
-**Effort**: 2-3 hours
-**Severity**: HIGH - Memory leaks on timeout/disconnect
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1.5 hours
 
-**Issues Found**:
+**Resolution**: Fixed all 4 memory leak issues:
 
-| Issue | Location | Severity |
-|-------|----------|----------|
-| No cleanup on timeout (WASM) | `game_connection_adapter.rs:770-789` | **HIGH** |
-| No cleanup on disconnect (Desktop) | `client.rs:271-277` | **HIGH** |
-| No cleanup on disconnect (WASM) | `client.rs:518-524` | **HIGH** |
-| Closure leak on reconnect (WASM) | `client.rs:425-465` | Low |
+| Issue | Fix |
+|-------|-----|
+| Desktop disconnect | Clear `pending_requests` HashMap on disconnect |
+| WASM disconnect | Clear `pending_requests` on disconnect |
+| WASM timeout | Add `request_with_timeout()` to client that removes request on timeout |
+| WASM closure leak | Store closures in `WasmClosures` struct, drop on disconnect/reconnect |
 
-**Problem**: When requests timeout or disconnect occurs, pending requests remain in the `pending_requests` HashMap and are never cleaned up. This causes memory leaks over long sessions.
-
-**Fix**: Add cleanup logic to:
-1. Clear all pending requests on disconnect (send `RequestError::Cancelled`)
-2. Remove timed-out request from map when timeout fires (WASM)
-3. Store closure handles and clean up on disconnect (WASM)
+**Files Modified**:
+- `client.rs`: Added cleanup to both disconnect methods, added WASM `request_with_timeout()`, added `WasmClosures` struct
+- `game_connection_adapter.rs`: Delegate WASM timeout to client method
 
 ---
 
@@ -559,6 +556,7 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P1.5 COMPLETE**: Fixed all 4 WebSocket memory leaks (disconnect cleanup, timeout cleanup, closure storage) |
 | 2025-12-27 | **P1.4 COMPLETE**: Wired region_items into LLM context via build_prompt_from_action() |
 | 2025-12-27 | Code review: Added P1.5 (memory leaks) and P1.6 (missing handlers) |
 | 2025-12-27 | Code review: P2.1 marked COMPLETE (websocket.rs split into 15 files) |
