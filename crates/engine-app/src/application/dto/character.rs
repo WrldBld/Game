@@ -81,15 +81,12 @@ pub fn parse_archetype(s: &str) -> CampbellArchetype {
     s.parse().unwrap_or(CampbellArchetype::Ally)
 }
 
+/// Parse a RelationshipType from a string label.
+///
+/// Delegates to `RelationshipType::from_str()` which provides case-insensitive
+/// matching and support for all relationship types including family relations.
+/// Unknown values become Custom(original_string).
 pub fn parse_relationship_type(s: &str) -> RelationshipType {
-    match s {
-        "Romantic" => RelationshipType::Romantic,
-        "Professional" => RelationshipType::Professional,
-        "Rivalry" => RelationshipType::Rivalry,
-        "Friendship" => RelationshipType::Friendship,
-        "Mentorship" => RelationshipType::Mentorship,
-        "Enmity" => RelationshipType::Enmity,
-        _ => RelationshipType::Custom(s.to_string()),
-    }
+    s.parse().unwrap_or_else(|_| RelationshipType::Custom(s.to_string()))
 }
 

@@ -297,30 +297,7 @@ fn parse_difficulty(s: &str) -> wrldbldr_domain::entities::Difficulty {
     }
 }
 
-/// Parse a relationship type string into a RelationshipType enum
-fn parse_relationship_type(s: &str) -> wrldbldr_domain::value_objects::RelationshipType {
-    use wrldbldr_domain::value_objects::{FamilyRelation, RelationshipType};
-    match s.to_lowercase().as_str() {
-        "romantic" => RelationshipType::Romantic,
-        "professional" => RelationshipType::Professional,
-        "rivalry" => RelationshipType::Rivalry,
-        "friendship" | "friend" => RelationshipType::Friendship,
-        "mentorship" | "mentor" => RelationshipType::Mentorship,
-        "enmity" | "enemy" => RelationshipType::Enmity,
-        // Family relations
-        "parent" => RelationshipType::Family(FamilyRelation::Parent),
-        "child" => RelationshipType::Family(FamilyRelation::Child),
-        "sibling" => RelationshipType::Family(FamilyRelation::Sibling),
-        "spouse" => RelationshipType::Family(FamilyRelation::Spouse),
-        "grandparent" => RelationshipType::Family(FamilyRelation::Grandparent),
-        "grandchild" => RelationshipType::Family(FamilyRelation::Grandchild),
-        "aunt" | "uncle" | "auntuncle" => RelationshipType::Family(FamilyRelation::AuntUncle),
-        "niece" | "nephew" | "niecenephew" => RelationshipType::Family(FamilyRelation::NieceNephew),
-        "cousin" => RelationshipType::Family(FamilyRelation::Cousin),
-        // Default to custom
-        _ => RelationshipType::Custom(s.to_string()),
-    }
-}
+
 
 /// Parse a mood level string into a MoodLevel enum
 fn parse_mood_level(s: &str) -> wrldbldr_domain::value_objects::MoodLevel {
@@ -2108,7 +2085,10 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let relationship_type = parse_relationship_type(&data.relationship_type);
+                let relationship_type: wrldbldr_domain::value_objects::RelationshipType = 
+                    data.relationship_type.parse().unwrap_or_else(|_| {
+                        wrldbldr_domain::value_objects::RelationshipType::Custom(data.relationship_type.clone())
+                    });
                 let relationship = wrldbldr_domain::value_objects::Relationship::new(
                     from_id,
                     to_id,
