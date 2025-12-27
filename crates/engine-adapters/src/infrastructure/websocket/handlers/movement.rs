@@ -3,16 +3,16 @@
 //! Handles PC movement between regions and locations.
 //! Includes staging system integration for NPC presence approval.
 
-use chrono::Timelike;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::converters::fetch_region_items;
+use wrldbldr_protocol::GameTime;
 use crate::infrastructure::world_state_manager::WorldPendingStagingApproval;
 use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use wrldbldr_protocol::{
-    GameTime, NavigationData, NavigationExit, NavigationTarget, NpcPresenceData, RegionData,
+    NavigationData, NavigationExit, NavigationTarget, NpcPresenceData, RegionData,
     ServerMessage, StagedNpcInfo, WaitingPcInfo,
 };
 
@@ -765,12 +765,7 @@ async fn handle_staging_for_region(
     });
 
     // Convert game time to protocol format
-    let game_time_proto = GameTime {
-        day: game_time.day_ordinal(),
-        hour: game_time.current().hour() as u8,
-        minute: game_time.current().minute() as u8,
-        is_paused: game_time.is_paused(),
-    };
+    let game_time_proto = GameTime::from_domain(&game_time);
 
     // Build StagingApprovalRequired message for DM
     let dm_message = ServerMessage::StagingApprovalRequired {
@@ -803,12 +798,7 @@ async fn handle_staging_for_region(
                 region_name: region_name.to_string(),
                 location_id: location_id.to_string(),
                 location_name: location_name.to_string(),
-                game_time: GameTime {
-                    day: game_time.day_ordinal(),
-                    hour: game_time.current().hour() as u8,
-                    minute: game_time.current().minute() as u8,
-                    is_paused: game_time.is_paused(),
-                },
+                game_time: GameTime::from_domain(&game_time),
                 previous_staging: None, // Already sent above
                 rule_based_npcs: vec![],
                 llm_based_npcs: vec![],

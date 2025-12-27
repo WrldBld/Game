@@ -2793,14 +2793,7 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.world_service.get_game_time(id).await {
                     Ok(game_time) => {
-                        let current = game_time.current();
-                        let dto = wrldbldr_protocol::GameTime {
-                            day: game_time.day_ordinal(),
-                            hour: current.hour() as u8,
-                            minute: current.minute() as u8,
-                            is_paused: game_time.is_paused(),
-                        };
-                        ResponseResult::success(dto)
+                        ResponseResult::success(wrldbldr_protocol::GameTime::from_domain(&game_time))
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
@@ -2814,14 +2807,7 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.world_service.advance_game_time(id, hours).await {
                     Ok(game_time) => {
-                        let current = game_time.current();
-                        let dto = wrldbldr_protocol::GameTime {
-                            day: game_time.day_ordinal(),
-                            hour: current.hour() as u8,
-                            minute: current.minute() as u8,
-                            is_paused: game_time.is_paused(),
-                        };
-                        ResponseResult::success(dto)
+                        ResponseResult::success(wrldbldr_protocol::GameTime::from_domain(&game_time))
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }

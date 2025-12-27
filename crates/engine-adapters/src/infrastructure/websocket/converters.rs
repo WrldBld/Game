@@ -108,3 +108,15 @@ pub async fn fetch_region_items(
         }
     }
 }
+
+// =============================================================================
+// GameTime Conversion (Domain -> Protocol)
+// =============================================================================
+
+/// Convert domain GameTime to protocol GameTime for wire transfer.
+///
+/// This is a convenience re-export of `protocol::GameTime::from_domain()`.
+/// Prefer using the protocol method directly where possible.
+pub fn to_protocol_game_time(game_time: &wrldbldr_domain::GameTime) -> wrldbldr_protocol::GameTime {
+    wrldbldr_protocol::GameTime::from_domain(game_time)
+}

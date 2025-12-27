@@ -63,9 +63,9 @@ pub use challenge::{
 
 // Rule system DTOs
 pub use rule_system::{
-    parse_system_type, parse_variant, RuleSystemConfigDto,
+    parse_system_type, parse_variant,
     RuleSystemPresetDetailsDto, RuleSystemPresetSummaryDto, RuleSystemSummaryDto,
-    RuleSystemTypeDetailsDto, RuleSystemVariantDto,
+    RuleSystemTypeDetailsDto,
 };
 
 // Workflow DTOs

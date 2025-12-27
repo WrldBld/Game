@@ -158,4 +158,20 @@ impl GameTime {
             is_paused,
         }
     }
+
+    /// Convert from domain GameTime to protocol GameTime for wire transfer.
+    ///
+    /// Domain GameTime uses `chrono::DateTime<Utc>` internally for rich date/time
+    /// manipulation, while protocol GameTime uses simple numeric fields for
+    /// efficient JSON serialization over the wire.
+    pub fn from_domain(game_time: &wrldbldr_domain::GameTime) -> Self {
+        use chrono::Timelike;
+        let current = game_time.current();
+        Self {
+            day: game_time.day_ordinal(),
+            hour: current.hour() as u8,
+            minute: current.minute() as u8,
+            is_paused: game_time.is_paused(),
+        }
+    }
 }

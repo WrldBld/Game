@@ -1,24 +1,23 @@
 use serde::{Deserialize, Serialize};
 
-use crate::application::dto::{RuleSystemConfigDto, RuleSystemVariantDto};
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
-use wrldbldr_domain::value_objects::RuleSystemConfig;
+use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemVariant};
 
 /// Flexible input for rule system - either a variant name or full config.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum RuleSystemInputDto {
-    VariantOnly { variant: RuleSystemVariantDto },
-    Full(RuleSystemConfigDto),
+    VariantOnly { variant: RuleSystemVariant },
+    Full(RuleSystemConfig),
 }
 
 impl RuleSystemInputDto {
     pub fn into_domain(self) -> RuleSystemConfig {
         match self {
             RuleSystemInputDto::VariantOnly { variant } => {
-                RuleSystemConfig::from_variant(variant.into())
+                RuleSystemConfig::from_variant(variant)
             }
-            RuleSystemInputDto::Full(config) => config.into(),
+            RuleSystemInputDto::Full(config) => config,
         }
     }
 }
@@ -37,7 +36,7 @@ pub struct CreateWorldRequestDto {
 pub struct UpdateWorldRequestDto {
     pub name: String,
     pub description: String,
-    pub rule_system: RuleSystemConfigDto,
+    pub rule_system: RuleSystemConfig,
 }
 
 #[derive(Debug, Serialize)]
@@ -45,7 +44,7 @@ pub struct WorldResponseDto {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub rule_system: RuleSystemConfigDto,
+    pub rule_system: RuleSystemConfig,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -56,7 +55,7 @@ impl From<World> for WorldResponseDto {
             id: world.id.to_string(),
             name: world.name,
             description: world.description,
-            rule_system: world.rule_system.into(),
+            rule_system: world.rule_system,
             created_at: world.created_at.to_rfc3339(),
             updated_at: world.updated_at.to_rfc3339(),
         }

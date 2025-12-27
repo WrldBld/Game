@@ -90,7 +90,7 @@ impl RuleSystemVariant {
 
 /// Configuration for a game's rule system
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RuleSystemConfig {
     /// Display name for this configuration
     pub name: String,
@@ -355,7 +355,7 @@ pub enum SuccessComparison {
 
 /// Definition of a character stat
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct StatDefinition {
     pub name: String,
     pub abbreviation: String,

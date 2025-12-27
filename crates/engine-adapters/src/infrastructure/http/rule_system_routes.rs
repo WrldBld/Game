@@ -14,7 +14,7 @@ use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSyste
 pub async fn list_rule_systems() -> impl IntoResponse {
     let systems = vec![
         RuleSystemSummaryDto {
-            system_type: RuleSystemType::D20.into(),
+            system_type: RuleSystemType::D20,
             name: "D20 System".to_string(),
             description: "Roll d20 + modifier vs Difficulty Class. Used by D&D, Pathfinder, and similar games.".to_string(),
             dice_notation: "1d20".to_string(),
@@ -23,7 +23,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .map(|v| {
                     let config = RuleSystemConfig::from_variant(v.clone());
                     RuleSystemPresetSummaryDto {
-                        variant: v.into(),
+                        variant: v,
                         name: config.name,
                         description: config.description,
                     }
@@ -31,7 +31,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .collect(),
         },
         RuleSystemSummaryDto {
-            system_type: RuleSystemType::D100.into(),
+            system_type: RuleSystemType::D100,
             name: "D100 System".to_string(),
             description: "Roll percentile dice under skill value. Used by Call of Cthulhu, RuneQuest, and similar games.".to_string(),
             dice_notation: "1d100".to_string(),
@@ -40,7 +40,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .map(|v| {
                     let config = RuleSystemConfig::from_variant(v.clone());
                     RuleSystemPresetSummaryDto {
-                        variant: v.into(),
+                        variant: v,
                         name: config.name,
                         description: config.description,
                     }
@@ -48,7 +48,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .collect(),
         },
         RuleSystemSummaryDto {
-            system_type: RuleSystemType::Narrative.into(),
+            system_type: RuleSystemType::Narrative,
             name: "Narrative System".to_string(),
             description: "Fiction-first with descriptive outcomes. Used by Kids on Bikes, FATE, PbtA games.".to_string(),
             dice_notation: "Varies".to_string(),
@@ -57,7 +57,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .map(|v| {
                     let config = RuleSystemConfig::from_variant(v.clone());
                     RuleSystemPresetSummaryDto {
-                        variant: v.into(),
+                        variant: v,
                         name: config.name,
                         description: config.description,
                     }
@@ -65,7 +65,7 @@ pub async fn list_rule_systems() -> impl IntoResponse {
                 .collect(),
         },
         RuleSystemSummaryDto {
-            system_type: RuleSystemType::Custom.into(),
+            system_type: RuleSystemType::Custom,
             name: "Custom System".to_string(),
             description: "Build your own rule system from scratch with custom dice and mechanics.".to_string(),
             dice_notation: "Custom".to_string(),
@@ -110,7 +110,7 @@ pub async fn get_rule_system(
         .map(|v| {
             let config = RuleSystemConfig::from_variant(v.clone());
             RuleSystemPresetSummaryDto {
-                variant: v.into(),
+                variant: v,
                 name: config.name,
                 description: config.description,
             }
@@ -118,7 +118,7 @@ pub async fn get_rule_system(
         .collect();
 
     Ok(Json(RuleSystemTypeDetailsDto {
-        system_type: system_type.into(),
+        system_type,
         name: name.to_string(),
         description: description.to_string(),
         dice_notation: dice_notation.to_string(),
@@ -135,8 +135,8 @@ pub async fn list_presets(
     let presets: Vec<RuleSystemPresetDetailsDto> = RuleSystemVariant::variants_for_type(system_type)
         .into_iter()
         .map(|v| RuleSystemPresetDetailsDto {
-            variant: v.clone().into(),
-            config: RuleSystemConfig::from_variant(v).into(),
+            variant: v.clone(),
+            config: RuleSystemConfig::from_variant(v),
         })
         .collect();
 
@@ -154,7 +154,7 @@ pub async fn get_preset(
     let config = RuleSystemConfig::from_variant(variant.clone());
 
     Ok(Json(RuleSystemPresetDetailsDto {
-        variant: variant.into(),
-        config: config.into(),
+        variant,
+        config,
     }))
 }
