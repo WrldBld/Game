@@ -44,6 +44,7 @@ console_error_panic_hook = { workspace = true }
 tracing-wasm = { workspace = true }
 gloo-timers = { workspace = true }
 gloo-net = { workspace = true }
+getrandom = { workspace = true }
 
 [lints]
 workspace = true

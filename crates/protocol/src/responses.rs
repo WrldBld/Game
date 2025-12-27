@@ -129,6 +129,42 @@ impl ErrorCode {
 }
 
 // =============================================================================
+// Request Error (Client-Side)
+// =============================================================================
+
+/// Client-side request errors
+/// 
+/// These are errors that occur on the client side when making requests,
+/// distinct from server-side errors returned in `ResponseResult::Error`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestError {
+    /// Request was cancelled (e.g., channel closed)
+    Cancelled,
+    /// Request timed out waiting for response
+    Timeout,
+    /// Failed to send request over WebSocket
+    SendFailed(String),
+    /// Not connected to server
+    NotConnected,
+    /// Failed to serialize request
+    SerializationError(String),
+}
+
+impl std::fmt::Display for RequestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestError::Cancelled => write!(f, "Request was cancelled"),
+            RequestError::Timeout => write!(f, "Request timed out"),
+            RequestError::SendFailed(msg) => write!(f, "Failed to send request: {}", msg),
+            RequestError::NotConnected => write!(f, "Not connected to server"),
+            RequestError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RequestError {}
+
+// =============================================================================
 // Entity Changed Broadcast
 // =============================================================================
 

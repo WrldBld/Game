@@ -123,7 +123,7 @@ web-sys = { version = "0.3", features = [
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
-gloo-timers = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
 gloo-net = "0.5"
 
 # Shared workspace lints

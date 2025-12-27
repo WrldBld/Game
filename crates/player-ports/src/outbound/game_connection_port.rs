@@ -4,6 +4,9 @@
 //! allowing application services to manage real-time game sessions without
 //! depending on concrete WebSocket client implementations.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use wrldbldr_protocol::{
     AdHocOutcomes,
     ApprovalDecision,
@@ -12,6 +15,9 @@ use wrldbldr_protocol::{
     DiceInputType,
     DirectorialContext,
     ParticipantRole,
+    RequestError,
+    RequestPayload,
+    ResponseResult,
 };
 
 /// Connection state for the game session
@@ -154,6 +160,34 @@ pub trait GameConnectionPort: Send + Sync {
 
     /// Register a callback for server messages
     fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>);
+
+    /// Send a request and await the response
+    ///
+    /// This is the primary method for WebSocket request-response operations.
+    /// The implementation handles request_id generation, pending request tracking,
+    /// and response correlation.
+    ///
+    /// # Arguments
+    /// * `payload` - The request payload to send
+    ///
+    /// # Returns
+    /// * `Ok(ResponseResult)` - The server's response
+    /// * `Err(RequestError)` - If the request failed to send or timed out
+    fn request(
+        &self,
+        payload: RequestPayload,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>>;
+
+    /// Send a request with a custom timeout
+    ///
+    /// # Arguments
+    /// * `payload` - The request payload to send
+    /// * `timeout_ms` - Timeout in milliseconds (default is from WRLDBLDR_REQUEST_TIMEOUT_MS env var or 120000)
+    fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        timeout_ms: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>>;
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -282,4 +316,32 @@ pub trait GameConnectionPort {
     /// The raw JSON value allows the presentation layer to handle specific
     /// message types as needed.
     fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + 'static>);
+
+    /// Send a request and await the response
+    ///
+    /// This is the primary method for WebSocket request-response operations.
+    /// The implementation handles request_id generation, pending request tracking,
+    /// and response correlation.
+    ///
+    /// # Arguments
+    /// * `payload` - The request payload to send
+    ///
+    /// # Returns
+    /// * `Ok(ResponseResult)` - The server's response
+    /// * `Err(RequestError)` - If the request failed to send or timed out
+    fn request(
+        &self,
+        payload: RequestPayload,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + '_>>;
+
+    /// Send a request with a custom timeout
+    ///
+    /// # Arguments
+    /// * `payload` - The request payload to send
+    /// * `timeout_ms` - Timeout in milliseconds (default is from WRLDBLDR_REQUEST_TIMEOUT_MS env var or 120000)
+    fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        timeout_ms: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + '_>>;
 }

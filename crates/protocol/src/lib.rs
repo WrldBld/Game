@@ -155,6 +155,8 @@ pub use responses::{
     // Response result
     ResponseResult,
     ErrorCode,
+    // Request error (client-side)
+    RequestError,
     // Entity change broadcasts
     EntityChangedData,
     EntityType,

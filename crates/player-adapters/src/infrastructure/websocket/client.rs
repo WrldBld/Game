@@ -23,10 +23,12 @@ pub enum ConnectionState {
 #[cfg(not(target_arch = "wasm32"))]
 mod desktop {
     use super::*;
+    use std::collections::HashMap;
     use std::sync::Arc;
     use futures_util::{SinkExt, StreamExt};
-    use tokio::sync::{mpsc, Mutex, RwLock};
+    use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
     use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use wrldbldr_protocol::{RequestPayload, ResponseResult, RequestError};
 
     /// WebSocket client for communicating with the Engine (Desktop)
     pub struct EngineClient {
@@ -35,6 +37,7 @@ mod desktop {
         tx: Arc<Mutex<Option<mpsc::Sender<ClientMessage>>>>,
         on_message: Arc<Mutex<Option<Box<dyn Fn(ServerMessage) + Send + Sync>>>>,
         on_state_change: Arc<Mutex<Option<Box<dyn Fn(ConnectionState) + Send + Sync>>>>,
+        pending_requests: Arc<Mutex<HashMap<String, oneshot::Sender<ResponseResult>>>>,
     }
 
     impl EngineClient {
@@ -45,6 +48,7 @@ mod desktop {
                 tx: Arc::new(Mutex::new(None)),
                 on_message: Arc::new(Mutex::new(None)),
                 on_state_change: Arc::new(Mutex::new(None)),
+                pending_requests: Arc::new(Mutex::new(HashMap::new())),
             }
         }
 
@@ -103,6 +107,7 @@ mod desktop {
 
                     let on_message = Arc::clone(&self.on_message);
                     let state = Arc::clone(&self.state);
+                    let pending_requests_clone = Arc::clone(&self.pending_requests);
 
                     let read_handle = tokio::spawn(async move {
                         while let Some(msg) = read.next().await {
@@ -110,6 +115,15 @@ mod desktop {
                                 Ok(Message::Text(text)) => {
                                     match serde_json::from_str::<ServerMessage>(&text) {
                                         Ok(server_msg) => {
+                                            // Check if it's a Response and resolve pending request
+                                            if let ServerMessage::Response { request_id, result } = &server_msg {
+                                                let mut pending = pending_requests_clone.lock().await;
+                                                if let Some(tx) = pending.remove(request_id) {
+                                                    let _ = tx.send(result.clone());
+                                                    continue; // Don't pass to callback
+                                                }
+                                            }
+
                                             let callback = on_message.lock().await;
                                             if let Some(ref cb) = *callback {
                                                 cb(server_msg);
@@ -223,6 +237,37 @@ mod desktop {
             self.send(ClientMessage::Heartbeat).await
         }
 
+        /// Send a request and await the response
+        pub async fn request(&self, payload: RequestPayload) -> Result<ResponseResult, RequestError> {
+            let request_id = uuid::Uuid::new_v4().to_string();
+            let (tx, rx) = oneshot::channel();
+            
+            // Register pending request
+            {
+                let mut pending = self.pending_requests.lock().await;
+                pending.insert(request_id.clone(), tx);
+            }
+            
+            // Send the message
+            let msg = ClientMessage::Request { 
+                request_id: request_id.clone(), 
+                payload 
+            };
+            
+            self.send(msg).await.map_err(|e| RequestError::SendFailed(e.to_string()))?;
+            
+            // Await response
+            rx.await.map_err(|_| RequestError::Cancelled)
+        }
+
+        /// Send a request with a timeout
+        pub async fn request_with_timeout(&self, payload: RequestPayload, timeout_ms: u64) -> Result<ResponseResult, RequestError> {
+            tokio::time::timeout(
+                std::time::Duration::from_millis(timeout_ms),
+                self.request(payload)
+            ).await.map_err(|_| RequestError::Timeout)?
+        }
+
         pub async fn disconnect(&self) {
             {
                 let mut tx_lock = self.tx.lock().await;
@@ -240,6 +285,7 @@ mod desktop {
                 tx: Arc::clone(&self.tx),
                 on_message: Arc::clone(&self.on_message),
                 on_state_change: Arc::clone(&self.on_state_change),
+                pending_requests: Arc::clone(&self.pending_requests),
             }
         }
     }
@@ -253,9 +299,11 @@ mod desktop {
 mod wasm {
     use super::*;
     use std::cell::RefCell;
+    use std::collections::HashMap;
     use std::rc::Rc;
     use wasm_bindgen::prelude::*;
     use web_sys::{MessageEvent, WebSocket};
+    use wrldbldr_protocol::{RequestPayload, ResponseResult, RequestError};
 
     /// WebSocket client for communicating with the Engine (WASM)
     pub struct EngineClient {
@@ -264,6 +312,7 @@ mod wasm {
         ws: Rc<RefCell<Option<WebSocket>>>,
         on_message: Rc<RefCell<Option<Box<dyn FnMut(ServerMessage)>>>>,
         on_state_change: Rc<RefCell<Option<Box<dyn FnMut(ConnectionState)>>>>,
+        pending_requests: Rc<RefCell<HashMap<String, Box<dyn FnOnce(ResponseResult)>>>>,
     }
 
     impl EngineClient {
@@ -274,6 +323,7 @@ mod wasm {
                 ws: Rc::new(RefCell::new(None)),
                 on_message: Rc::new(RefCell::new(None)),
                 on_state_change: Rc::new(RefCell::new(None)),
+                pending_requests: Rc::new(RefCell::new(HashMap::new())),
             }
         }
 
@@ -308,6 +358,33 @@ mod wasm {
             }
         }
 
+        /// Send a request and get a future that resolves when response arrives
+        pub fn request(&self, payload: RequestPayload) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
+            use futures_channel::oneshot;
+            
+            let request_id = uuid::Uuid::new_v4().to_string();
+            let (tx, rx) = oneshot::channel();
+            
+            // Store the sender as a callback
+            self.pending_requests.borrow_mut().insert(
+                request_id.clone(),
+                Box::new(move |result| { let _ = tx.send(result); })
+            );
+            
+            // Send the message
+            let msg = ClientMessage::Request { 
+                request_id: request_id.clone(), 
+                payload 
+            };
+            
+            let send_result = self.send(msg);
+            
+            async move {
+                send_result.map_err(|e| RequestError::SendFailed(e.to_string()))?;
+                rx.await.map_err(|_| RequestError::Cancelled)
+            }
+        }
+
         pub fn connect(&self) -> Result<()> {
             self.set_state(ConnectionState::Connecting);
 
@@ -319,11 +396,20 @@ mod wasm {
 
             // Set up message handler
             let on_message = Rc::clone(&self.on_message);
+            let pending_requests_clone = Rc::clone(&self.pending_requests);
             let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                 if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                     let text: String = txt.into();
                     match serde_json::from_str::<ServerMessage>(&text) {
                         Ok(server_msg) => {
+                            // Check if it's a Response and resolve pending request
+                            if let ServerMessage::Response { ref request_id, ref result } = server_msg {
+                                if let Some(callback) = pending_requests_clone.borrow_mut().remove(request_id) {
+                                    callback(result.clone());
+                                    return; // Don't pass to regular callback
+                                }
+                            }
+                            
                             if let Some(ref mut cb) = *on_message.borrow_mut() {
                                 cb(server_msg);
                             }
@@ -446,6 +532,7 @@ mod wasm {
                 ws: Rc::clone(&self.ws),
                 on_message: Rc::clone(&self.on_message),
                 on_state_change: Rc::clone(&self.on_state_change),
+                pending_requests: Rc::clone(&self.pending_requests),
             }
         }
     }

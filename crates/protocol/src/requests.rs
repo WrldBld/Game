@@ -42,6 +42,9 @@ pub enum RequestPayload {
     /// Export a world as JSON
     ExportWorld { world_id: String },
 
+    /// Get character sheet template for a world
+    GetSheetTemplate { world_id: String },
+
     // =========================================================================
     // Character Operations
     // =========================================================================
@@ -433,6 +436,9 @@ pub enum RequestPayload {
 
     /// Update player character location
     UpdatePlayerCharacterLocation { pc_id: String, region_id: String },
+
+    /// Get current user's player character in a world
+    GetMyPlayerCharacter { world_id: String, user_id: String },
 
     // =========================================================================
     // Relationship Operations

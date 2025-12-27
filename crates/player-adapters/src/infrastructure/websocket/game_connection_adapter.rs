@@ -11,8 +11,12 @@ use std::sync::{
 
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 use wrldbldr_protocol::{
-    AdHocOutcomes, ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ClientMessage, DiceInputType, DirectorialContext, ParticipantRole,
+    AdHocOutcomes, ApprovedNpcInfo, ApprovalDecision, ChallengeOutcomeDecisionData, ClientMessage, 
+    DiceInputType, DirectorialContext, ParticipantRole, RequestPayload, ResponseResult, RequestError,
 };
+
+use std::future::Future;
+use std::pin::Pin;
 use super::{ConnectionState as InfraConnectionState, EngineClient};
 
 fn map_state(state: InfraConnectionState) -> PortConnectionState {
@@ -727,6 +731,61 @@ impl GameConnectionPort for EngineGameConnection {
             let value = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
             (cb_for_engine.borrow_mut())(value);
         });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn request(
+        &self,
+        payload: RequestPayload,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
+        let client = self.client.clone();
+        
+        Box::pin(async move {
+            client.request(payload).await
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        timeout_ms: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
+        let client = self.client.clone();
+        
+        Box::pin(async move {
+            client.request_with_timeout(payload, timeout_ms).await
+        })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn request(
+        &self,
+        payload: RequestPayload,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + '_>> {
+        let future = self.client.request(payload);
+        Box::pin(future)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        timeout_ms: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + '_>> {
+        use gloo_timers::future::TimeoutFuture;
+        use futures_util::future::{select, Either};
+        
+        let request_future = self.client.request(payload);
+        
+        Box::pin(async move {
+            let timeout_future = TimeoutFuture::new(timeout_ms as u32);
+            
+            match select(Box::pin(request_future), Box::pin(timeout_future)).await {
+                Either::Left((result, _)) => result,
+                Either::Right((_, _)) => Err(RequestError::Timeout),
+            }
+        })
     }
 }
 
