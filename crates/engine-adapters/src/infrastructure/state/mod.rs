@@ -255,7 +255,7 @@ impl AppState {
         let asset_repo_for_service = asset_repo.clone();
         let asset_service = AssetServiceImpl::new(asset_repo_for_service);
         let workflow_config_service = WorkflowConfigService::new(workflow_repo);
-        let sheet_template_service = SheetTemplateService::new(sheet_template_repo);
+        let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
         
         let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = 
             Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone()));
@@ -610,6 +610,7 @@ impl AppState {
             game.story_event_service.clone(),
             core.item_service.clone(),
             region_service,
+            player.sheet_template_service.clone(),
             character_repo_for_handler,
             observation_repo_for_handler,
             region_repo_for_handler,

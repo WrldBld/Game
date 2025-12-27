@@ -24,21 +24,21 @@ use wrldbldr_engine_ports::outbound::{
 use wrldbldr_protocol::{
     EntityChangedData, ErrorCode, RequestPayload, ResponseResult,
 };
-use wrldbldr_domain::entities::{RegionConnection, RegionExit};
+use wrldbldr_domain::entities::{CharacterSheetData, RegionConnection, RegionExit};
 use wrldbldr_domain::value_objects::RegionShift;
 
 use crate::application::dto::{
     ActResponseDto, ChallengeResponseDto, CharacterResponseDto, ChainStatusResponseDto,
     ConnectionResponseDto, EventChainResponseDto, InteractionResponseDto, LocationResponseDto,
-    NarrativeEventResponseDto, PlayerCharacterResponseDto, SceneResponseDto, SkillResponseDto,
-    WorldResponseDto,
+    NarrativeEventResponseDto, PlayerCharacterResponseDto, SceneResponseDto, SheetTemplateResponseDto,
+    SkillResponseDto, WorldResponseDto,
 };
 use crate::application::services::{
     WorldService, CharacterService, LocationService, SkillService,
     SceneService, InteractionService, ChallengeService, NarrativeEventService,
     EventChainService, PlayerCharacterService, RelationshipService,
     ActantialContextService, MoodService, StoryEventService, ItemService,
-    RegionService, GenerationQueueProjectionService,
+    RegionService, GenerationQueueProjectionService, SheetTemplateService,
 };
 
 // =============================================================================
@@ -67,6 +67,7 @@ pub struct AppRequestHandler {
     story_event_service: Arc<dyn StoryEventService>,
     item_service: Arc<dyn ItemService>,
     region_service: Arc<dyn RegionService>,
+    sheet_template_service: Arc<SheetTemplateService>,
 
     // Repository ports (for simple CRUD that doesn't need a full service)
     character_repo: Arc<dyn CharacterRepositoryPort>,
@@ -104,6 +105,7 @@ impl AppRequestHandler {
         story_event_service: Arc<dyn StoryEventService>,
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
+        sheet_template_service: Arc<SheetTemplateService>,
         character_repo: Arc<dyn CharacterRepositoryPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
@@ -125,6 +127,7 @@ impl AppRequestHandler {
             story_event_service,
             item_service,
             region_service,
+            sheet_template_service,
             character_repo,
             observation_repo,
             region_repo,
@@ -416,6 +419,24 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.world_service.export_world_snapshot(id).await {
                     Ok(snapshot) => ResponseResult::success(snapshot),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::GetSheetTemplate { world_id } => {
+                let wid = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.sheet_template_service.get_default_for_world(&wid).await {
+                    Ok(Some(template)) => {
+                        let dto: SheetTemplateResponseDto = template.into();
+                        ResponseResult::success(dto)
+                    }
+                    Ok(None) => ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "No sheet template found for world",
+                    ),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
@@ -2016,10 +2037,14 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
+                // Parse sheet_data from protocol JSON value
+                let sheet_data = data.sheet_data.as_ref().and_then(|v| {
+                    serde_json::from_value::<CharacterSheetData>(v.clone()).ok()
+                });
                 let request = crate::application::services::UpdatePlayerCharacterRequest {
                     name: data.name,
                     description: None,
-                    sheet_data: None, // TODO: Parse sheet_data from protocol
+                    sheet_data,
                     sprite_asset: None,
                     portrait_asset: None,
                 };
@@ -2045,6 +2070,24 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.player_character_service.update_pc_location(pid, lid).await {
                     Ok(()) => ResponseResult::success_empty(),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::GetMyPlayerCharacter { world_id, user_id } => {
+                let wid = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+                match self.player_character_service.get_pc_by_user_and_world(&user_id, &wid).await {
+                    Ok(Some(pc)) => {
+                        let dto: PlayerCharacterResponseDto = pc.into();
+                        ResponseResult::success(dto)
+                    }
+                    Ok(None) => ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "No player character found for user in this world",
+                    ),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }

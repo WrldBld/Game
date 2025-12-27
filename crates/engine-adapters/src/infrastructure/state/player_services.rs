@@ -14,14 +14,10 @@ use wrldbldr_engine_app::application::services::{
 /// This struct groups services related to players: character sheets,
 /// player characters, and scene resolution.
 ///
-/// Services with traits use `Arc<dyn Trait>`:
-/// - `player_character_service`, `scene_resolution_service`
-///
-/// Concrete services remain as-is:
-/// - `sheet_template_service` (no trait, simple CRUD wrapper)
+/// All services use `Arc<...>` for shared ownership.
 pub struct PlayerServices {
     /// Character sheet template management
-    pub sheet_template_service: SheetTemplateService,
+    pub sheet_template_service: Arc<SheetTemplateService>,
     
     /// Player character CRUD and inventory management
     pub player_character_service: Arc<dyn PlayerCharacterService>,
@@ -33,7 +29,7 @@ pub struct PlayerServices {
 impl PlayerServices {
     /// Creates a new PlayerServices instance with all player-related services
     pub fn new(
-        sheet_template_service: SheetTemplateService,
+        sheet_template_service: Arc<SheetTemplateService>,
         player_character_service: Arc<dyn PlayerCharacterService>,
         scene_resolution_service: Arc<dyn SceneResolutionService>,
     ) -> Self {

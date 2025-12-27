@@ -66,11 +66,15 @@ tasks:
 
   build:
     desc: Build all crates (debug mode)
+    deps:
+      - arch-check
     cmds:
       - cargo build --workspace
 
   build:release:
     desc: Build all crates (release mode)
+    deps:
+      - arch-check
     cmds:
       - cargo build --workspace --release
 
@@ -135,6 +139,15 @@ tasks:
     desc: Run Protocol tests
     cmds:
       - cargo test -p wrldbldr-protocol
+
+  # ===========================================================================
+  # Architecture Enforcement
+  # ===========================================================================
+
+  arch-check:
+    desc: Validate hexagonal architecture dependencies
+    cmds:
+      - cargo xtask arch-check
 
   # ===========================================================================
   # Code Quality
