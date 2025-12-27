@@ -289,7 +289,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     // When the target architecture DAG changes, update this map.
     HashMap::from([
         ("wrldbldr-domain", HashSet::from([])),
-        ("wrldbldr-protocol", HashSet::from([])),
+        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
         ("wrldbldr-engine-dto", HashSet::from(["wrldbldr-protocol"])),
         (
             "wrldbldr-engine-ports",

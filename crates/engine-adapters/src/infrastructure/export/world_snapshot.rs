@@ -11,47 +11,9 @@ use wrldbldr_engine_ports::outbound::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,
     WorldExporterPort,
 };
-use wrldbldr_domain::value_objects::{
-    RuleSystemConfig as DomainRuleSystemConfig, RuleSystemType as DomainRuleSystemType,
-    RuleSystemVariant as DomainRuleSystemVariant,
-};
 use crate::infrastructure::persistence::Neo4jRepository;
 use wrldbldr_domain::{SceneId, WorldId};
-use wrldbldr_protocol::{
-    RuleSystemConfig as ProtocolRuleSystemConfig, RuleSystemType as ProtocolRuleSystemType,
-    RuleSystemVariant as ProtocolRuleSystemVariant,
-};
-
-pub(crate) fn protocol_rule_system_config(
-    domain_config: &DomainRuleSystemConfig,
-) -> ProtocolRuleSystemConfig {
-    ProtocolRuleSystemConfig {
-        system_type: match domain_config.system_type {
-            DomainRuleSystemType::D20 => ProtocolRuleSystemType::D20,
-            DomainRuleSystemType::D100 => ProtocolRuleSystemType::D100,
-            DomainRuleSystemType::Narrative => ProtocolRuleSystemType::Narrative,
-            DomainRuleSystemType::Custom => ProtocolRuleSystemType::Custom,
-        },
-        variant: match &domain_config.variant {
-            DomainRuleSystemVariant::Dnd5e => ProtocolRuleSystemVariant::DnD5e,
-            DomainRuleSystemVariant::Pathfinder2e => ProtocolRuleSystemVariant::Pathfinder2e,
-            DomainRuleSystemVariant::CallOfCthulhu7e => ProtocolRuleSystemVariant::CallOfCthulhu,
-            DomainRuleSystemVariant::RuneQuest => ProtocolRuleSystemVariant::RuneQuest,
-            DomainRuleSystemVariant::FateCore => ProtocolRuleSystemVariant::FateCore,
-            DomainRuleSystemVariant::PoweredByApocalypse => ProtocolRuleSystemVariant::PbtA,
-            DomainRuleSystemVariant::GenericD20 => {
-                ProtocolRuleSystemVariant::Custom("generic_d20".to_string())
-            }
-            DomainRuleSystemVariant::GenericD100 => {
-                ProtocolRuleSystemVariant::Custom("generic_d100".to_string())
-            }
-            DomainRuleSystemVariant::KidsOnBikes => {
-                ProtocolRuleSystemVariant::Custom("kids_on_bikes".to_string())
-            }
-            DomainRuleSystemVariant::Custom(name) => ProtocolRuleSystemVariant::Custom(name.clone()),
-        },
-    }
-}
+// Note: Protocol RuleSystemConfig is now a re-export from domain, so they're the same type
 
 /// Load a complete world snapshot for a Player client
 ///
@@ -88,7 +50,8 @@ pub async fn load_world_snapshot(
         id: world.id.to_string(),
         name: world.name,
         description: world.description,
-        rule_system: protocol_rule_system_config(&world.rule_system),
+            // Protocol re-exports domain types, so we can clone directly
+            rule_system: world.rule_system.clone(),
         created_at: world.created_at.to_rfc3339(),
         updated_at: world.updated_at.to_rfc3339(),
     };
@@ -257,7 +220,7 @@ mod tests {
             id: "test-id".to_string(),
             name: "Test World".to_string(),
             description: "A test world".to_string(),
-            rule_system: protocol_rule_system_config(&RuleSystemConfig::default()),
+            rule_system: RuleSystemConfig::default(),
             created_at: "2025-01-01T00:00:00Z".to_string(),
             updated_at: "2025-01-01T00:00:00Z".to_string(),
         };
@@ -294,7 +257,7 @@ mod tests {
                 id: "world-1".to_string(),
                 name: "Fantasy Realm".to_string(),
                 description: "A magical world".to_string(),
-            rule_system: protocol_rule_system_config(&RuleSystemConfig::default()),
+                rule_system: RuleSystemConfig::default(),
 
                 created_at: "2025-01-01T00:00:00Z".to_string(),
                 updated_at: "2025-01-01T00:00:00Z".to_string(),

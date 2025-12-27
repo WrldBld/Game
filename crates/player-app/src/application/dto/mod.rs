@@ -20,9 +20,11 @@ pub use session_dto::AppConnectionStatus;
 
 // Re-export Engine snapshot contracts (application-owned).
 pub use world_snapshot::{
-    // Rule system types
+    // Rule system types (re-exported from protocol/domain)
     RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemVariant,
     StatDefinition, DiceSystem, SuccessComparison,
+    // Rule system extension traits (UI-specific methods)
+    RuleSystemTypeExt, RuleSystemVariantExt,
     // Skill types
     SkillData, SkillCategory,
     // Character sheet types

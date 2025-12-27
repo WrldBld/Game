@@ -86,7 +86,10 @@ pub use app_events::AppEvent;
 // =============================================================================
 // Rule System Types
 // =============================================================================
-pub use rule_system::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
+pub use rule_system::{
+    DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
+    SuccessComparison,
+};
 
 // =============================================================================
 // Shared Types

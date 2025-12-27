@@ -54,8 +54,9 @@
   - REST request/response DTOs
 
 Constraints:
-- Protocol remains *serialization-only* (serde/uuid/chrono; no axum/sqlx/dioxus/etc).
-- Protocol does **not** depend on domain.
+- Protocol depends only on `wrldbldr-domain` (for shared types) and external serde crates.
+- Protocol remains *serialization-focused* (serde/uuid/chrono; no axum/sqlx/dioxus/etc).
+- Protocol may re-export domain types or define wire-specific representations.
 
 ### D4. Ports strategy
 - Ports are split per app:
@@ -63,10 +64,11 @@ Constraints:
   - `wrldbldr-player-ports`
 
 ### D5. Domain serialization
-- Default: `wrldbldr-domain` is **serde-free**.
-- Allow later, explicit exception via:
-  - `wrldbldr-domain-serde` crate (preferred), or
-  - feature-gated serde support (acceptable but less strict).
+- Domain types MAY include serde derives when serialization is intrinsic to the type's purpose.
+- Types that appear in wire protocols (WebSocket/HTTP) SHOULD have `#[derive(Serialize, Deserialize)]`.
+- Use `#[serde(rename_all = "snake_case")]` for enum variants to ensure consistent JSON serialization.
+- Protocol may re-export domain types directly (protocol depends on domain) or define wire-specific 
+  representations where structural differences are needed (e.g., GameTime uses simplified fields for wire).
 
 ### D6. No shim imports (general policy; strict Option A)
 - **Do not re-export or alias** `wrldbldr-*` crates from “convenience” modules in other crates (Engine/Player app/adapters/bins).
@@ -137,7 +139,7 @@ Allowed exception (rare, requires explicit justification):
 
 Core:
 - `domain` → *(no internal deps)*
-- `protocol` → *(no internal deps)*
+- `protocol` → `domain`
 
 Ports:
 - `engine-ports` → `domain`, `protocol`

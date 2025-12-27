@@ -7,6 +7,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// Re-export rule system types from protocol (which re-exports from domain)
+// These have serde derives and are the canonical source of truth
+pub use wrldbldr_protocol::{
+    DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
+    SuccessComparison,
+};
+
 /// Complete snapshot of a world from the Engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSnapshot {
@@ -186,31 +193,104 @@ pub struct WorldData {
     pub updated_at: String,
 }
 
-/// Rule system configuration (matches Engine's RuleSystemConfig exactly)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RuleSystemConfig {
-    pub name: String,
-    pub description: String,
-    pub system_type: RuleSystemType,
-    pub variant: RuleSystemVariant,
-    #[serde(default)]
-    pub stat_definitions: Vec<StatDefinition>,
-    pub dice_system: DiceSystem,
-    pub success_comparison: SuccessComparison,
-    pub skill_check_formula: String,
+// =============================================================================
+// Rule System Extension Traits - UI-specific methods for domain types
+// =============================================================================
+
+/// Extension trait for UI-specific RuleSystemType methods
+pub trait RuleSystemTypeExt {
+    fn all() -> Vec<RuleSystemType>;
+    fn display_name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
 }
 
-impl Default for RuleSystemConfig {
-    fn default() -> Self {
-        Self {
-            name: "Generic D20".to_string(),
-            description: "A generic d20-based rule system".to_string(),
-            system_type: RuleSystemType::D20,
-            variant: RuleSystemVariant::GenericD20,
-            stat_definitions: vec![],
-            dice_system: DiceSystem::D20,
-            success_comparison: SuccessComparison::GreaterOrEqual,
-            skill_check_formula: "1d20 + modifier vs DC".to_string(),
+impl RuleSystemTypeExt for RuleSystemType {
+    fn all() -> Vec<RuleSystemType> {
+        vec![
+            RuleSystemType::D20,
+            RuleSystemType::D100,
+            RuleSystemType::Narrative,
+            RuleSystemType::Custom,
+        ]
+    }
+
+    fn display_name(&self) -> &'static str {
+        match self {
+            RuleSystemType::D20 => "D20 System",
+            RuleSystemType::D100 => "D100 System",
+            RuleSystemType::Narrative => "Narrative System",
+            RuleSystemType::Custom => "Custom",
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            RuleSystemType::D20 => "Roll d20 + modifier vs DC (D&D, Pathfinder)",
+            RuleSystemType::D100 => "Roll percentile under skill (Call of Cthulhu)",
+            RuleSystemType::Narrative => "Fiction-first, story-driven (Kids on Bikes, FATE)",
+            RuleSystemType::Custom => "Define your own mechanics",
+        }
+    }
+}
+
+/// Extension trait for UI-specific RuleSystemVariant methods
+pub trait RuleSystemVariantExt {
+    fn variants_for_type(system_type: RuleSystemType) -> Vec<RuleSystemVariant>;
+    fn display_name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
+}
+
+impl RuleSystemVariantExt for RuleSystemVariant {
+    fn variants_for_type(system_type: RuleSystemType) -> Vec<RuleSystemVariant> {
+        match system_type {
+            RuleSystemType::D20 => vec![
+                RuleSystemVariant::Dnd5e,
+                RuleSystemVariant::Pathfinder2e,
+                RuleSystemVariant::GenericD20,
+            ],
+            RuleSystemType::D100 => vec![
+                RuleSystemVariant::CallOfCthulhu7e,
+                RuleSystemVariant::RuneQuest,
+                RuleSystemVariant::GenericD100,
+            ],
+            RuleSystemType::Narrative => vec![
+                RuleSystemVariant::KidsOnBikes,
+                RuleSystemVariant::FateCore,
+                RuleSystemVariant::PoweredByApocalypse,
+            ],
+            RuleSystemType::Custom => vec![],
+        }
+    }
+
+    fn display_name(&self) -> &'static str {
+        // Domain already has display_name(), but we provide a UI-specific version
+        // to ensure consistent display across the player UI
+        match self {
+            RuleSystemVariant::Dnd5e => "D&D 5th Edition",
+            RuleSystemVariant::Pathfinder2e => "Pathfinder 2e",
+            RuleSystemVariant::GenericD20 => "Generic D20",
+            RuleSystemVariant::CallOfCthulhu7e => "Call of Cthulhu 7e",
+            RuleSystemVariant::RuneQuest => "RuneQuest",
+            RuleSystemVariant::GenericD100 => "Generic D100",
+            RuleSystemVariant::KidsOnBikes => "Kids on Bikes",
+            RuleSystemVariant::FateCore => "FATE Core",
+            RuleSystemVariant::PoweredByApocalypse => "Powered by the Apocalypse",
+            RuleSystemVariant::Custom(_) => "Custom",
+        }
+    }
+
+    fn description(&self) -> &'static str {
+        match self {
+            RuleSystemVariant::Dnd5e => "Six classic stats (STR, DEX, CON, INT, WIS, CHA)",
+            RuleSystemVariant::Pathfinder2e => "Four degrees of success with proficiency",
+            RuleSystemVariant::GenericD20 => "Simple d20 + modifier vs DC",
+            RuleSystemVariant::CallOfCthulhu7e => "Skill-based percentile with sanity",
+            RuleSystemVariant::RuneQuest => "Percentile with hit locations",
+            RuleSystemVariant::GenericD100 => "Roll under skill value",
+            RuleSystemVariant::KidsOnBikes => "Six stats representing tropes",
+            RuleSystemVariant::FateCore => "Aspects, skills, and stunts",
+            RuleSystemVariant::PoweredByApocalypse => "2d6 with 3 outcome tiers",
+            RuleSystemVariant::Custom(_) => "Custom configuration",
         }
     }
 }
@@ -220,138 +300,6 @@ impl Default for RuleSystemConfig {
 pub struct RuleSystemPresetDetails {
     pub variant: RuleSystemVariant,
     pub config: RuleSystemConfig,
-}
-
-/// The type of rule system (how dice mechanics work)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RuleSystemType {
-    /// Roll d20 + modifier vs Difficulty Class (D&D, Pathfinder)
-    D20,
-    /// Roll d100 under skill value (Call of Cthulhu, RuneQuest)
-    D100,
-    /// Fiction-first with descriptive outcomes (Kids on Bikes, FATE, PbtA)
-    Narrative,
-    /// Custom dice mechanics
-    Custom,
-}
-
-impl RuleSystemType {
-    pub fn all() -> Vec<Self> {
-        vec![Self::D20, Self::D100, Self::Narrative, Self::Custom]
-    }
-
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Self::D20 => "D20 System",
-            Self::D100 => "D100 System",
-            Self::Narrative => "Narrative System",
-            Self::Custom => "Custom",
-        }
-    }
-
-    pub fn description(&self) -> &'static str {
-        match self {
-            Self::D20 => "Roll d20 + modifier vs DC (D&D, Pathfinder)",
-            Self::D100 => "Roll percentile under skill (Call of Cthulhu)",
-            Self::Narrative => "Fiction-first, story-driven (Kids on Bikes, FATE)",
-            Self::Custom => "Define your own mechanics",
-        }
-    }
-}
-
-/// Specific rule system variants/presets
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RuleSystemVariant {
-    // D20 variants
-    Dnd5e,
-    Pathfinder2e,
-    GenericD20,
-    // D100 variants
-    CallOfCthulhu7e,
-    RuneQuest,
-    GenericD100,
-    // Narrative variants
-    KidsOnBikes,
-    FateCore,
-    PoweredByApocalypse,
-    // Custom
-    Custom(String),
-}
-
-impl RuleSystemVariant {
-    pub fn variants_for_type(system_type: RuleSystemType) -> Vec<Self> {
-        match system_type {
-            RuleSystemType::D20 => vec![Self::Dnd5e, Self::Pathfinder2e, Self::GenericD20],
-            RuleSystemType::D100 => vec![Self::CallOfCthulhu7e, Self::RuneQuest, Self::GenericD100],
-            RuleSystemType::Narrative => vec![Self::KidsOnBikes, Self::FateCore, Self::PoweredByApocalypse],
-            RuleSystemType::Custom => vec![],
-        }
-    }
-
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Self::Dnd5e => "D&D 5th Edition",
-            Self::Pathfinder2e => "Pathfinder 2e",
-            Self::GenericD20 => "Generic D20",
-            Self::CallOfCthulhu7e => "Call of Cthulhu 7e",
-            Self::RuneQuest => "RuneQuest",
-            Self::GenericD100 => "Generic D100",
-            Self::KidsOnBikes => "Kids on Bikes",
-            Self::FateCore => "FATE Core",
-            Self::PoweredByApocalypse => "Powered by the Apocalypse",
-            Self::Custom(_) => "Custom",
-        }
-    }
-
-    pub fn description(&self) -> &'static str {
-        match self {
-            Self::Dnd5e => "Six classic stats (STR, DEX, CON, INT, WIS, CHA)",
-            Self::Pathfinder2e => "Four degrees of success with proficiency",
-            Self::GenericD20 => "Simple d20 + modifier vs DC",
-            Self::CallOfCthulhu7e => "Skill-based percentile with sanity",
-            Self::RuneQuest => "Percentile with hit locations",
-            Self::GenericD100 => "Roll under skill value",
-            Self::KidsOnBikes => "Six stats representing tropes",
-            Self::FateCore => "Aspects, skills, and stunts",
-            Self::PoweredByApocalypse => "2d6 with 3 outcome tiers",
-            Self::Custom(_) => "Custom configuration",
-        }
-    }
-}
-
-/// How success is determined
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SuccessComparison {
-    /// Roll must be >= target (D20 systems)
-    GreaterOrEqual,
-    /// Roll must be <= target (D100 systems)
-    LessOrEqual,
-    /// Success tiers based on roll (narrative systems)
-    Narrative,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct StatDefinition {
-    pub name: String,
-    pub abbreviation: String,
-    pub min_value: i32,
-    pub max_value: i32,
-    pub default_value: i32,
-}
-
-/// The dice system used for resolution (mirrors Engine's enum exactly)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum DiceSystem {
-    /// Classic d20 system (D&D, Pathfinder)
-    D20,
-    /// Percentile system (Call of Cthulhu)
-    D100,
-    /// Dice pool system (World of Darkness)
-    DicePool { die_type: u8, success_threshold: u8 },
-    /// FATE/Fudge dice
-    Fate,
-    /// Custom dice expression
-    Custom(String),
 }
 
 /// A skill for character challenges

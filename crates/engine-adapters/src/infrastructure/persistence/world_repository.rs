@@ -7,11 +7,8 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
-use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemVariant};
+use wrldbldr_domain::value_objects::RuleSystemConfig;
 use wrldbldr_domain::{ActId, GameTime, WorldId};
-use wrldbldr_protocol::RuleSystemConfig as ProtocolRuleSystemConfig;
-
-use crate::infrastructure::export::world_snapshot::protocol_rule_system_config;
 
 /// Repository for World aggregate operations
 pub struct Neo4jWorldRepository {
@@ -25,8 +22,8 @@ impl Neo4jWorldRepository {
 
     /// Create a new world
     pub async fn create(&self, world: &World) -> Result<()> {
-        let rule_system_json =
-            serde_json::to_string(&protocol_rule_system_config(&world.rule_system))?;
+        // Domain RuleSystemConfig now has serde derives, serialize directly
+        let rule_system_json = serde_json::to_string(&world.rule_system)?;
 
         let q = query(
             "CREATE (w:World {
@@ -98,8 +95,8 @@ impl Neo4jWorldRepository {
 
     /// Update a world
     pub async fn update(&self, world: &World) -> Result<()> {
-        let rule_system_json =
-            serde_json::to_string(&protocol_rule_system_config(&world.rule_system))?;
+        // Domain RuleSystemConfig now has serde derives, serialize directly
+        let rule_system_json = serde_json::to_string(&world.rule_system)?;
 
         let q = query(
             "MATCH (w:World {id: $id})
@@ -200,37 +197,8 @@ fn row_to_world(row: Row) -> Result<World> {
     let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
 
     let id = uuid::Uuid::parse_str(&id_str)?;
-    let protocol_rule_system = serde_json::from_str::<ProtocolRuleSystemConfig>(&rule_system_json)?;
-    let rule_system: RuleSystemConfig = match protocol_rule_system.variant {
-        wrldbldr_protocol::RuleSystemVariant::DnD5e => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::Dnd5e)
-        }
-        wrldbldr_protocol::RuleSystemVariant::Pathfinder2e => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::Pathfinder2e)
-        }
-        wrldbldr_protocol::RuleSystemVariant::CallOfCthulhu => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::CallOfCthulhu7e)
-        }
-        wrldbldr_protocol::RuleSystemVariant::RuneQuest => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::RuneQuest)
-        }
-        wrldbldr_protocol::RuleSystemVariant::FateCore => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::FateCore)
-        }
-        wrldbldr_protocol::RuleSystemVariant::PbtA => {
-            RuleSystemConfig::from_variant(RuleSystemVariant::PoweredByApocalypse)
-        }
-        wrldbldr_protocol::RuleSystemVariant::Custom(name) => {
-            // Preserve well-known generic/named variants that are serialized via `Custom`
-            let variant = match name.as_str() {
-                "generic_d20" => RuleSystemVariant::GenericD20,
-                "generic_d100" => RuleSystemVariant::GenericD100,
-                "kids_on_bikes" => RuleSystemVariant::KidsOnBikes,
-                _ => RuleSystemVariant::Custom(name),
-            };
-            RuleSystemConfig::from_variant(variant)
-        }
-    };
+    // Domain RuleSystemConfig now has serde derives, deserialize directly
+    let rule_system: RuleSystemConfig = serde_json::from_str(&rule_system_json)?;
     let created_at =
         chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
     let updated_at =

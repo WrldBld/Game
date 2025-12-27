@@ -4,6 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
+// Re-export domain types that have serde derives
+pub use wrldbldr_domain::entities::MonomythStage;
+pub use wrldbldr_domain::value_objects::CampbellArchetype;
+
 // =============================================================================
 // Session & Participant Types
 // =============================================================================
@@ -109,58 +113,12 @@ pub struct NarrativeEventSuggestionInfo {
 }
 
 // =============================================================================
-// Character Archetypes
+// Character Archetypes - Re-exported from domain (see top of file)
 // =============================================================================
 
-/// Campbell's character archetypes from the Hero's Journey
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CampbellArchetype {
-    Hero,
-    Mentor,
-    ThresholdGuardian,
-    Herald,
-    Shapeshifter,
-    Shadow,
-    Trickster,
-    Ally,
-}
-
-impl Default for CampbellArchetype {
-    fn default() -> Self {
-        Self::Ally
-    }
-}
-
 // =============================================================================
-// Monomyth Stages
+// Monomyth Stages - Re-exported from domain (see top of file)
 // =============================================================================
-
-/// Monomyth (Hero's Journey) stages for acts
-///
-/// Variant names aligned with domain (wrldbldr_domain::entities::world::MonomythStage)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MonomythStage {
-    OrdinaryWorld,
-    CallToAdventure,
-    RefusalOfTheCall,
-    MeetingTheMentor,
-    CrossingTheThreshold,
-    TestsAlliesEnemies,
-    ApproachToInnermostCave,
-    Ordeal,
-    Reward,
-    TheRoadBack,
-    Resurrection,
-    ReturnWithElixir,
-}
-
-impl Default for MonomythStage {
-    fn default() -> Self {
-        Self::OrdinaryWorld
-    }
-}
 
 // =============================================================================
 // Game Time

@@ -7496,6 +7496,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "wrldbldr-domain",
 ]
 
 [[package]]

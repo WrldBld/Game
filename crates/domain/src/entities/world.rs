@@ -1,6 +1,7 @@
 //! World entity - The top-level container for a campaign setting
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::value_objects::RuleSystemConfig;
 use crate::{GameTime, WorldId};
@@ -49,7 +50,8 @@ impl World {
 }
 
 /// The stage of the monomyth (Hero's Journey)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MonomythStage {
     /// The hero's normal life before the adventure
     OrdinaryWorld,
@@ -75,6 +77,12 @@ pub enum MonomythStage {
     Resurrection,
     /// The hero returns with new wisdom
     ReturnWithElixir,
+}
+
+impl Default for MonomythStage {
+    fn default() -> Self {
+        Self::OrdinaryWorld
+    }
 }
 
 impl MonomythStage {

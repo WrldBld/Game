@@ -448,20 +448,25 @@ Key features:
 
 ---
 
-### P3.3: Consolidate Duplicate Type Definitions
+### ~~P3.3: Consolidate Duplicate Type Definitions~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T3.2
-**Status**: Partial (MonomythStage fixed in P0.4)
-**Effort**: 4-6 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 3 hours
 
-Types defined in both domain and protocol with incompatibilities:
+**Resolution**: Established domain as single source of truth for shared types:
 
-| Type | Domain | Protocol | Issue |
-|------|--------|----------|-------|
-| `CampbellArchetype` | No serde, rich methods | Has serde, minimal | Incompatible |
-| `GameTime` | `DateTime<Utc>` based | `day/hour/minute` fields | Different structures |
-| ~~`MonomythStage`~~ | ~~`ApproachToInnermostCave`~~ | ~~`ApproachToTheInmostCave`~~ | ~~Fixed in P0.4~~ |
+| Change | Description |
+|--------|-------------|
+| Architecture rules | Updated xtask to allow `protocol → domain` dependency |
+| Domain types | Added serde derives to `CampbellArchetype`, `MonomythStage`, `RuleSystemType`, `RuleSystemVariant`, `RuleSystemConfig`, `StatDefinition`, `DiceSystem`, `SuccessComparison` |
+| Protocol cleanup | Replaced duplicate types with re-exports from domain |
+| Engine-adapters | Simplified world_repository.rs (direct serialize/deserialize) and world_snapshot.rs (removed conversion function) |
+| Player-app | Replaced duplicate types with protocol re-exports + extension traits for UI methods (`RuleSystemTypeExt`, `RuleSystemVariantExt`) |
 
-**Recommended approach**: Protocol should re-export from domain for shared enums.
+**Intentionally not unified** (per D7):
+- `GameTime`: Domain uses `chrono::DateTime<Utc>`, protocol uses simple `{day, hour, minute, is_paused}` for wire efficiency
+
+**Documentation updated**: HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md D3 and D5 now reflect reality.
 
 ---
 
@@ -555,6 +560,7 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P3.3 COMPLETE**: Type consolidation - domain is now single source of truth for shared types; protocol re-exports from domain |
 | 2025-12-27 | **P1.2 COMPLETE**: Dialogue gaps fixed - propagated context through LLM flow, added topic extraction |
 | 2025-12-27 | **P1.1b COMPLETE**: DirectorialContext persisted to SQLite via settings_pool |
 | 2025-12-27 | **P1.1a COMPLETE**: Staging status event-driven via RegionStagingStatus + DM broadcast |

@@ -8,8 +8,8 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::dto::{
-    DiceSystem, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemVariant,
-    StatDefinition, SuccessComparison,
+    DiceSystem, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemTypeExt,
+    RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::WorldSummary;
 use wrldbldr_player_ports::outbound::Platform;

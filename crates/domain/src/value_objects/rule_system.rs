@@ -2,8 +2,11 @@
 //!
 //! Supports multiple TTRPG systems through presets and customization.
 
+use serde::{Deserialize, Serialize};
+
 /// The type of rule system (determines dice mechanics and success calculation)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RuleSystemType {
     /// Roll d20 + modifier vs DC (D&D, Pathfinder)
     D20,
@@ -22,7 +25,8 @@ impl Default for RuleSystemType {
 }
 
 /// Known presets for rule systems
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RuleSystemVariant {
     // D20 variants
     Dnd5e,
@@ -85,7 +89,8 @@ impl RuleSystemVariant {
 }
 
 /// Configuration for a game's rule system
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RuleSystemConfig {
     /// Display name for this configuration
     pub name: String,
@@ -337,7 +342,8 @@ impl RuleSystemConfig {
 
 
 /// How success is determined
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SuccessComparison {
     /// Roll must be >= target (D20 systems)
     GreaterOrEqual,
@@ -348,7 +354,8 @@ pub enum SuccessComparison {
 }
 
 /// Definition of a character stat
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatDefinition {
     pub name: String,
     pub abbreviation: String,
@@ -376,7 +383,8 @@ impl StatDefinition {
 }
 
 /// The dice system used for resolution
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DiceSystem {
     /// Classic d20 system (D&D, Pathfinder)
     D20,

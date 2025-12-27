@@ -7,6 +7,9 @@ authors.workspace = true
 description = "WrldBldr Protocol - Shared types for Engine and Player communication"
 
 [dependencies]
+# Domain types (shared enums re-exported for wire serialization)
+wrldbldr-domain = { workspace = true }
+
 # Serialization (required for wire protocol)
 serde = { workspace = true }
 serde_json = { workspace = true }

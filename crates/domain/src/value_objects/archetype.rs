@@ -1,7 +1,10 @@
 //! Campbell's character archetypes from "The Hero with a Thousand Faces"
 
+use serde::{Deserialize, Serialize};
+
 /// Character archetypes based on Joseph Campbell's monomyth
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CampbellArchetype {
     /// The protagonist of the story
     Hero,
@@ -105,6 +108,12 @@ impl std::fmt::Display for CampbellArchetype {
             Self::Ally => "Ally",
         };
         write!(f, "{}", name)
+    }
+}
+
+impl Default for CampbellArchetype {
+    fn default() -> Self {
+        Self::Ally
     }
 }
 
