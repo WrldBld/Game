@@ -399,8 +399,7 @@ Improve DM workflow. These don't block player gameplay.
 - `crates/engine-app/src/application/services/dm_approval_queue_service.rs`
 - `crates/engine-app/src/application/services/scene_resolution_service.rs`
 - `crates/protocol/src/types.rs` (ApprovalDecision)
-- `docs/progress/US-INV-001-PLAN.md` (implementation plan)
-- `docs/progress/US-REGION-ITEMS.md` (future region items story)
+- US-INV-001 and US-REGION-ITEMS implementation plans (completed and archived)
 
 ---
 

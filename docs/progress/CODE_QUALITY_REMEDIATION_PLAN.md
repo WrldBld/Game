@@ -325,7 +325,7 @@ Also duplicated: `row_to_region()`, `row_to_character()`
 | `docs/systems/challenge-system.md:299` | References `challenge_routes.rs` |
 | `docs/systems/character-system.md:318-345` | REST endpoint table |
 | `docs/systems/scene-system.md:270-278` | REST endpoint table |
-| `docs/progress/SPRINT_6_TIER2_PLAN.md:269-306` | Session broadcast pattern |
+| SPRINT_6_TIER2_PLAN (archived) | Session broadcast pattern |
 
 **Tasks:**
 - [ ] Update each system doc to reflect WebSocket-first architecture
@@ -468,7 +468,7 @@ After each tier is complete:
 
 ## Related Documentation
 
-- [CODE_REVIEW_REMEDIATION_PLAN.md](./CODE_REVIEW_REMEDIATION_PLAN.md) - Previous remediation plan
+- Previous CODE_REVIEW_REMEDIATION_PLAN.md (completed and archived)
 - [WEBSOCKET_MIGRATION_COMPLETION.md](./WEBSOCKET_MIGRATION_COMPLETION.md) - WebSocket migration status
 - [HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md](./HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md) - Architecture enforcement
 - [ACTIVE_DEVELOPMENT.md](./ACTIVE_DEVELOPMENT.md) - Current sprint work

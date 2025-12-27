@@ -238,12 +238,14 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
                                 let event_id = event.id.clone();
                                 let world_id = props.world_id.clone();
                                 let service = story_event_service.clone();
+                                // Toggle: if hidden, make visible; if visible, make hidden
+                                let new_visible = event.is_hidden; // If hidden, new_visible = true (show it)
                                 move |_| {
                                     let event_id = event_id.clone();
                                     let world_id = world_id.clone();
                                     let service = service.clone();
                                     spawn(async move {
-                                        if let Err(e) = service.toggle_event_visibility(&event_id).await {
+                                        if let Err(e) = service.toggle_event_visibility(&event_id, new_visible).await {
                                             tracing::error!("Failed to toggle visibility: {}", e);
                                         }
                                         // Reload events

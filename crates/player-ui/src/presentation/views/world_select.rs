@@ -11,7 +11,7 @@ use wrldbldr_player_app::application::dto::{
     DiceSystem, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemVariant,
     StatDefinition, SuccessComparison,
 };
-use wrldbldr_player_app::application::services::world_service::{WorldSummary, SessionInfo};
+use wrldbldr_player_app::application::services::world_service::WorldSummary;
 use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_protocol::ParticipantRole;
 use crate::presentation::services::use_world_service;
@@ -35,7 +35,6 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     let platform = use_context::<Platform>();
     let world_service = use_world_service();
     let mut worlds: Signal<Vec<WorldSummary>> = use_signal(Vec::new);
-    let mut sessions: Signal<Vec<SessionInfo>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut show_create_form = use_signal(|| false);
@@ -64,22 +63,8 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
         });
     });
 
-    // Fetch active sessions for all worlds (for DM "Continue" and Player/Spectator views)
+    // Get user ID for DM session handling
     let user_id = platform.get_user_id();
-    let world_service_for_sessions = world_service.clone();
-    use_effect(move || {
-        let svc = world_service_for_sessions.clone();
-        spawn(async move {
-            match svc.list_sessions().await {
-                Ok(list) => {
-                    sessions.set(list);
-                }
-                Err(e) => {
-                    tracing::error!("Failed to load sessions: {}", e);
-                }
-            }
-        });
-    });
 
     // Effect to load world when world_to_load is set
     use_effect(move || {
@@ -123,21 +108,12 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
         ParticipantRole::Spectator => "Watch",
     };
 
-    // Snapshot worlds and sessions for rendering
+    // Snapshot worlds for rendering
     let worlds_val_snapshot = worlds.read().clone();
-    let sessions_val_snapshot = sessions.read().clone();
 
-    // For Players/Spectators, only show worlds that currently have an active session.
-    // For DMs, show all worlds (they can start new sessions).
-    let filtered_worlds: Vec<WorldSummary> = if is_dm {
-        worlds_val_snapshot.clone()
-    } else {
-        worlds_val_snapshot
-            .iter()
-            .filter(|w| sessions_val_snapshot.iter().any(|s| s.world_id == w.id))
-            .cloned()
-            .collect()
-    };
+    // Show all worlds - in the new architecture, connecting to a world
+    // automatically establishes the session via WebSocket
+    let filtered_worlds: Vec<WorldSummary> = worlds_val_snapshot.clone();
 
     rsx! {
         div {
@@ -230,39 +206,12 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
                                     world: world.clone(),
                                     action_label: action_label,
                                     is_dm: is_dm,
-                                    has_dm_session: if is_dm {
-                                        sessions_val_snapshot.iter().any(|s| {
-                                            s.world_id == world.id && s.dm_user_id == user_id
-                                        })
-                                    } else {
-                                        false
-                                    },
                                     on_select: {
                                         let mut world_to_load = world_to_load.clone();
-                                        let user_id = user_id.clone();
-                                        let svc = world_service.clone();
                                         move |id: String| {
-                                            if is_dm {
-                                                // For DMs, ensure there is an active deterministic session
-                                                // for this world. We optimistically start loading the world,
-                                                // and fire-and-forget the session creation.
-                                                world_to_load.set(Some(id.clone()));
-                                                let world_id = id.clone();
-                                                let dm_id = user_id.clone();
-                                                let svc_for_async = svc.clone();
-                                                spawn(async move {
-                                                    if let Err(e) =
-                                                        svc_for_async.create_session(&world_id, &dm_id).await
-                                                    {
-                                                        tracing::error!(
-                                                            "Failed to create/resume DM session: {}",
-                                                            e
-                                                        );
-                                                    }
-                                                });
-                                            } else {
-                                                world_to_load.set(Some(id));
-                                            }
+                                            // In the new WebSocket-first architecture,
+                                            // sessions are established when connecting to the world
+                                            world_to_load.set(Some(id));
                                         }
                                     },
                                 }
@@ -281,17 +230,12 @@ fn WorldCard(
     world: WorldSummary,
     action_label: &'static str,
     is_dm: bool,
-    has_dm_session: bool,
     on_select: EventHandler<String>,
 ) -> Element {
     let world_id = world.id.clone();
 
     let button_label = if is_dm {
-        if has_dm_session {
-            "Continue Session →"
-        } else {
-            "Start Session →"
-        }
+        "Enter World →"
     } else {
         action_label
     };

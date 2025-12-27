@@ -9,65 +9,67 @@ This document consolidates remaining work from all active planning documents int
 
 ---
 
-## 🚧 ACTIVE WORK: P0.1 WebSocket-First Services Refactor
+## ✅ COMPLETED: P0.1 WebSocket-First Services Refactor
 
-### Status: IN PROGRESS (2025-12-27)
+### Status: COMPLETE (2025-12-27)
 
-The player-app services currently use REST (ApiPort) for entity CRUD operations, but the engine-side
-REST endpoints were deleted during the WebSocket migration. This refactor migrates all 16 REST services
-to use WebSocket request-response pattern.
+All player-app services have been migrated from REST (ApiPort) to WebSocket (GameConnectionPort).
+The refactor successfully migrated 13 services to WebSocket, with 3 services intentionally remaining REST.
 
-### Key Decisions:
-- **Remove session concept entirely** - connect to worlds, not sessions
-- **AssetService remains fully REST** - file uploads require HTTP multipart
-- **Request timeout: 2 minutes** - configurable via `WRLDBLDR_REQUEST_TIMEOUT_MS` env var
-- **Global error handler** for WebSocket request errors
+### Key Decisions (Implemented):
+- **Remove session concept entirely** - connect to worlds, not sessions ✅
+- **AssetService remains fully REST** - file uploads require HTTP multipart ✅
+- **WorkflowService remains REST** - large JSON payloads (50-500KB ComfyUI workflows) ✅
+- **SettingsService remains REST** - global/admin config, not session-tied ✅
+- **Request timeout: 2 minutes** - configurable via `WRLDBLDR_REQUEST_TIMEOUT_MS` env var ✅
+- **Global error handler** for WebSocket request errors ✅
 
-### Phase 1: Infrastructure ⏳
+### Phase 1: Infrastructure ✅
 | Task | Status |
 |------|--------|
-| Add `RequestError` type to protocol | ⏳ |
-| Extend `GameConnectionPort` trait with `request()` method | ⏳ |
-| Implement desktop pending request tracking (tokio::sync::oneshot) | ⏳ |
-| Implement WASM pending request tracking (futures::channel::oneshot) | ⏳ |
-| Add missing `RequestPayload` variants (GetSheetTemplate, etc.) | ⏳ |
+| Add `RequestError` type to protocol | ✅ |
+| Extend `GameConnectionPort` trait with `request()` method | ✅ |
+| Implement desktop pending request tracking (tokio::sync::oneshot) | ✅ |
+| Implement WASM pending request tracking (futures::channel::oneshot) | ✅ |
+| Add missing `RequestPayload` variants (GetSheetTemplate, etc.) | ✅ |
 
-### Phase 2: Service Layer Refactor
+### Phase 2: Service Layer Refactor ✅
+| Task | Status | Notes |
+|------|--------|-------|
+| Create `ServiceError` type in player-app | ✅ | |
+| Refactor WorldService (remove session methods, add WebSocket) | ✅ | Keeps REST for exports |
+| Refactor PlayerCharacterService | ✅ | |
+| Refactor CharacterService | ✅ | |
+| Refactor LocationService | ✅ | |
+| Refactor ChallengeService | ✅ | |
+| Refactor NarrativeEventService | ✅ | |
+| Refactor SkillService | ✅ | |
+| Refactor EventChainService | ✅ | |
+| Refactor StoryEventService | ✅ | |
+| Refactor ObservationService | ✅ | |
+| Refactor ActantialService | ✅ | |
+| Refactor GenerationService | ✅ | |
+| Refactor SuggestionService | ✅ | With auto-enrichment from world data |
+| SettingsService | N/A | Intentionally REST (admin config) |
+| WorkflowService | N/A | Intentionally REST (large payloads) |
+| AssetService | N/A | Intentionally REST (file uploads) |
+
+### Phase 3: UI Layer Updates ✅
 | Task | Status |
 |------|--------|
-| Create `ServiceError` type in player-app | ⏳ |
-| Refactor WorldService (remove session methods, add WebSocket) | ⏳ |
-| Refactor PlayerCharacterService | ⏳ |
-| Refactor CharacterService | ⏳ |
-| Refactor LocationService | ⏳ |
-| Refactor ChallengeService | ⏳ |
-| Refactor NarrativeEventService | ⏳ |
-| Refactor SkillService | ⏳ |
-| Refactor EventChainService | ⏳ |
-| Refactor StoryEventService | ⏳ |
-| Refactor ObservationService | ⏳ |
-| Refactor ActantialService | ⏳ |
-| Refactor SettingsService | ⏳ |
-| Refactor WorkflowService | ⏳ |
-| Refactor SuggestionService | ⏳ |
-| Refactor GenerationService | ⏳ |
+| Update Services bundle to use GameConnectionPort | ✅ |
+| Remove session-related UI components | ✅ |
+| Update service hooks | ✅ |
+| Add global WebSocket error handler | ✅ |
 
-### Phase 3: UI Layer Updates
+### Phase 4: Cleanup ✅
 | Task | Status |
 |------|--------|
-| Update Services bundle to use GameConnectionPort | ⏳ |
-| Remove session-related UI components | ⏳ |
-| Update service hooks | ⏳ |
-| Add global WebSocket error handler | ⏳ |
-
-### Phase 4: Cleanup
-| Task | Status |
-|------|--------|
-| Remove ApiPort from migrated services | ⏳ |
-| Remove session-related code from WorldService | ⏳ |
-| Clean up unused RawApiPort if applicable | ⏳ |
-| Update Cargo dependencies | ⏳ |
-| Verify compilation for desktop and WASM | ⏳ |
+| Remove ApiPort from migrated services | ✅ |
+| Remove session-related code from WorldService | ✅ |
+| Clean up unused RawApiPort if applicable | ✅ (still used for world export) |
+| Update Cargo dependencies | ✅ |
+| Verify compilation for desktop and WASM | ✅ |
 
 ---
 
@@ -75,7 +77,7 @@ to use WebSocket request-response pattern.
 
 | Item | Plan Status | Verified | Notes |
 |------|-------------|----------|-------|
-| P0.1 | Not Started | **VALID - CRITICAL** | 16 services call deleted REST endpoints |
+| P0.1 | **COMPLETE** | ✅ | All 13 services migrated to WebSocket |
 | P0.2 | Not Started | **VALID** | 2 inconsistent parse_archetype implementations |
 | P0.3 | Not Started | **PARTIALLY FIXED** | request_handler.rs fixed, dto/character.rs still missing family |
 | P0.4 | Not Started | **VALID** | MonomythStage variant mismatches |
@@ -97,18 +99,24 @@ to use WebSocket request-response pattern.
 
 ## P0: Critical (Runtime Failures)
 
-### P0.1: Fix Player-App REST Service Calls
+### ~~P0.1: Fix Player-App REST Service Calls~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.1
-**Status**: Not Started
-**Effort**: 4-6 hours
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 4-6 hours (actual: ~8 hours across multiple sessions)
 **Severity**: CRITICAL - These services call deleted REST endpoints
 
-| File | Issue |
-|------|-------|
-| `player_character_service.rs` | Calls deleted `/api/sessions/{id}/player-characters/*` |
-| `world_service.rs` | Calls deleted `/api/sessions`, `/api/worlds/{id}/sessions` |
+**Resolution**: All 13 player-app services migrated from REST to WebSocket:
+- WorldService, CharacterService, LocationService, PlayerCharacterService
+- ChallengeService, NarrativeEventService, StoryEventService, EventChainService
+- ObservationService, ActantialService, SkillService, GenerationService, SuggestionService
 
-**Fix**: Refactor services to use WebSocket `RequestPayload` instead of REST calls.
+Three services intentionally remain REST:
+- AssetService (file uploads require HTTP multipart)
+- WorkflowService (large JSON payloads 50-500KB)
+- SettingsService (global admin config)
+
+**Bonus**: SuggestionService migration included auto-enrichment feature that fetches
+world data to enhance LLM suggestion context when `world_setting` is not provided.
 
 ---
 
@@ -482,6 +490,10 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P0.1 COMPLETE**: All 13 player-app services migrated to WebSocket |
+| 2025-12-27 | SuggestionService: Added auto-enrichment (fetches world data for LLM context) |
+| 2025-12-27 | Protocol: Added `SuggestionContextData`, `EnqueueContentSuggestion`, `CancelContentSuggestion` |
+| 2025-12-27 | Engine: `SuggestionEnqueueAdapter` now auto-enriches `world_setting` from world repository |
 | 2025-12-26 | Full code validation: All P0-P3 items verified against codebase |
 | 2025-12-26 | P1.2 Dialogue Persistence: Marked as MOSTLY COMPLETE (was Not Started) |
 | 2025-12-26 | P0.4: Added second mismatch (ReturnWithElixir vs ReturnWithTheElixir) |

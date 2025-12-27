@@ -78,13 +78,13 @@ WrldBldr uses theatre and story terminology throughout:
   - *Implementation*: Dimmed backdrop with "Setting the scene..." overlay
   - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
 
-- [ ] **US-STG-013**: As a DM, I can stage NPCs as present but hidden from players
-  - *Design*: Hidden NPCs do not appear in player presence payloads (`SceneChanged`, `StagingReady`)
-  - *Design*: Hidden NPCs can still interact via DM-triggered approach events
-  - *Implementation (planned)*:
-    - Add `is_hidden_from_players` per NPC in staging (per region per staging entry)
-    - Persist flag on `INCLUDES_NPC` edge
-    - Filter hidden NPCs out of player-facing `npcs_present`
+- [x] **US-STG-013**: As a DM, I can stage NPCs as present but hidden from players
+  - *Implementation*: Hidden NPCs do not appear in player presence payloads (`SceneChanged`, `StagingReady`)
+  - *Implementation*: Hidden NPCs can still interact via DM-triggered approach events
+  - *Completed 2025-12-25*:
+    - Added `is_hidden_from_players` per NPC in staging (per region per staging entry)
+    - Persisted flag on `INCLUDES_NPC` edge
+    - Filtered hidden NPCs out of player-facing `npcs_present`
     - DM UI shows hidden state and allows toggling
   - *Key files*:
     - `crates/domain/src/entities/staging.rs`
@@ -527,5 +527,6 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Marked US-STG-013 (hidden NPCs) as complete |
 | 2025-12-24 | Updated status: Engine complete, UI partial |
 | 2025-12-19 | Initial version - Phase 3 planning |

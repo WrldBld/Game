@@ -339,7 +339,8 @@ impl ApiPort for MockApiPort {
         path: &str,
         body: &B,
     ) -> Result<T, ApiError> {
-        self.record("PATCH", path, Some(body));
+        let json_body = serde_json::to_value(body).ok();
+        self.record("PATCH", path, json_body);
         let resp = self.take_response(Key {
             method: Method::Patch,
             path: path.to_string(),

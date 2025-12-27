@@ -13,15 +13,14 @@
 use dioxus::prelude::*;
 
 use wrldbldr_protocol::{
-    WantVisibilityData, ActantialRoleData,
+    WantVisibilityData, ActantialRoleData, WantTargetTypeData,
     NpcActantialContextData, WantData, GoalData,
-    ActantialActorData,
+    ActantialActorData, ActorTypeData,
 };
 use wrldbldr_player_app::application::services::{
     CreateWantRequest, UpdateWantRequest, CreateGoalRequest, SuggestionContext,
     SetWantTargetRequest, AddActantialViewRequest, RemoveActantialViewRequest,
 };
-use wrldbldr_protocol::ActorTypeData;
 use crate::presentation::services::{use_actantial_service, use_character_service};
 use crate::presentation::state::use_game_state;
 use crate::presentation::components::common::CharacterPicker;
@@ -540,14 +539,14 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
         }
     };
     
-    // Remove view handler
+    // Remove view handler - takes actor and role
     let remove_view = {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want.id.clone();
         let on_refresh = props.on_refresh.clone();
         
-        move |actor: ActantialActorData| {
+        move |actor: ActantialActorData, role: ActantialRoleData| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
@@ -559,6 +558,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     want_id: want_id.clone(),
                     actor_id: actor.id.clone(),
                     actor_type,
+                    role,
                 };
                 
                 match service.remove_actantial_view(&character_id, &req).await {
@@ -665,7 +665,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             on_remove: {
                                 let actor = actor.clone();
                                 let remove_fn = remove_view.clone();
-                                move |_| remove_fn(actor.clone())
+                                move |_| remove_fn(actor.clone(), ActantialRoleData::Helper)
                             },
                         }
                     }
@@ -676,7 +676,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             on_remove: {
                                 let actor = actor.clone();
                                 let remove_fn = remove_view.clone();
-                                move |_| remove_fn(actor.clone())
+                                move |_| remove_fn(actor.clone(), ActantialRoleData::Opponent)
                             },
                         }
                     }
@@ -687,7 +687,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             on_remove: {
                                 let actor = actor.clone();
                                 let remove_fn = remove_view.clone();
-                                move |_| remove_fn(actor.clone())
+                                move |_| remove_fn(actor.clone(), ActantialRoleData::Sender)
                             },
                         }
                     }
@@ -698,7 +698,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             on_remove: {
                                 let actor = actor.clone();
                                 let remove_fn = remove_view.clone();
-                                move |_| remove_fn(actor.clone())
+                                move |_| remove_fn(actor.clone(), ActantialRoleData::Receiver)
                             },
                         }
                     }
@@ -1049,9 +1049,16 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                     // Also update target if changed
                     if update_result.is_ok() {
                         if let (Some(tid), Some(ttype)) = (&target_id, &target_type) {
+                            // Convert string to WantTargetTypeData
+                            let target_type_data = match ttype.as_str() {
+                                "Character" => WantTargetTypeData::Character,
+                                "Item" => WantTargetTypeData::Item,
+                                "Goal" => WantTargetTypeData::Goal,
+                                _ => WantTargetTypeData::Character, // Default
+                            };
                             let _ = service.set_want_target(&want_id, &SetWantTargetRequest {
                                 target_id: tid.clone(),
-                                target_type: ttype.clone(),
+                                target_type: target_type_data,
                             }).await;
                         } else {
                             // Remove target if set to none

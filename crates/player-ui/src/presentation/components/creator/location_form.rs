@@ -85,7 +85,7 @@ pub fn LocationForm(
 
                     // Load location data if editing
                     if load_existing {
-                        match svc.get_location(&world_id_clone, &loc_id).await {
+                        match svc.get_location(&loc_id).await {
                         Ok(loc_data) => {
                             name.set(loc_data.name);
                             description.set(loc_data.description.unwrap_or_default());

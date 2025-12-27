@@ -1,15 +1,19 @@
 //! Story Event Service - Application service for story event management
 //!
 //! This service provides use case implementations for listing, creating,
-//! and managing story events (timeline events). It abstracts away the HTTP client
-//! details from the presentation layer.
+//! and managing story events (timeline events) via WebSocket request/response pattern.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::StoryEventData;
-use wrldbldr_player_ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use wrldbldr_player_ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::requests::CreateDmMarkerData;
+use wrldbldr_protocol::RequestPayload;
 
-/// Paginated response wrapper from Engine API
+/// Paginated response wrapper from Engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedStoryEventsResponse {
     pub events: Vec<StoryEventData>,
@@ -32,32 +36,57 @@ pub struct CreateDmMarkerRequest {
 /// Story event service for managing story events
 ///
 /// This service provides methods for story event-related operations
-/// while depending only on the `ApiPort` trait, not concrete
-/// infrastructure implementations.
-pub struct StoryEventService<A: ApiPort> {
-    api: A,
+/// using WebSocket request/response pattern via the `GameConnectionPort`.
+#[derive(Clone)]
+pub struct StoryEventService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> StoryEventService<A> {
-    /// Create a new StoryEventService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl StoryEventService {
+    /// Create a new StoryEventService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// List all story events for a world
     pub async fn list_story_events(
         &self,
         world_id: &str,
-    ) -> Result<Vec<StoryEventData>, ApiError> {
-        let path = format!("/api/worlds/{}/story-events", world_id);
-        let paginated: PaginatedStoryEventsResponse = self.api.get(&path).await?;
-        Ok(paginated.events)
+    ) -> Result<Vec<StoryEventData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::ListStoryEvents {
+                    world_id: world_id.to_string(),
+                    page: None,
+                    page_size: None,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        // The response might be paginated or just a list
+        result.parse()
     }
 
     /// Toggle event visibility
-    pub async fn toggle_event_visibility(&self, event_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/story-events/{}/visibility", event_id);
-        self.api.put_empty(&path).await
+    pub async fn toggle_event_visibility(
+        &self,
+        event_id: &str,
+        visible: bool,
+    ) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::SetStoryEventVisibility {
+                    event_id: event_id.to_string(),
+                    visible,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Create a DM marker
@@ -65,16 +94,23 @@ impl<A: ApiPort> StoryEventService<A> {
         &self,
         world_id: &str,
         request: &CreateDmMarkerRequest,
-    ) -> Result<(), ApiError> {
-        let path = format!("/api/worlds/{}/story-events", world_id);
-        self.api.post_no_response(&path, request).await
-    }
-}
+    ) -> Result<(), ServiceError> {
+        let data = CreateDmMarkerData {
+            title: request.title.clone(),
+            content: Some(request.note.clone()),
+        };
 
-impl<A: ApiPort + Clone> Clone for StoryEventService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::CreateDmMarker {
+                    world_id: world_id.to_string(),
+                    data,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 }

@@ -1,12 +1,16 @@
+use std::sync::Arc;
+
 use wrldbldr_player_app::application::api::Api;
 use wrldbldr_player_ports::{
     config::RunnerConfig,
-    outbound::Platform,
+    outbound::{GameConnectionPort, Platform, RawApiPort},
 };
 
 pub struct RunnerDeps {
     pub platform: Platform,
     pub api: Api,
+    pub raw_api: Arc<dyn RawApiPort>,
+    pub connection: Arc<dyn GameConnectionPort>,
     pub config: RunnerConfig,
 }
 
@@ -14,6 +18,8 @@ pub fn run(deps: RunnerDeps) {
     let RunnerDeps {
         platform,
         api,
+        raw_api,
+        connection,
         config,
     } = deps;
 
@@ -30,7 +36,7 @@ pub fn run(deps: RunnerDeps) {
     builder
         .with_context(platform)
         .with_context(config)
-        .with_context(wrldbldr_player_ui::presentation::Services::new(api))
+        .with_context(wrldbldr_player_ui::presentation::Services::new(api, raw_api, connection))
         .launch(wrldbldr_player_ui::app);
 }
 

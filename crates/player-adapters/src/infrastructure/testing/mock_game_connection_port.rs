@@ -1,7 +1,11 @@
 use std::sync::{Arc, Mutex};
+use std::future::Future;
+use std::pin::Pin;
 
-use wrldbldr_player_ports::outbound::{
-    ApprovalDecision, ChallengeOutcomeDecisionData, ConnectionState, DirectorialContext, GameConnectionPort, ParticipantRole,
+use wrldbldr_player_ports::outbound::{ConnectionState, GameConnectionPort};
+use wrldbldr_protocol::{
+    ApprovalDecision, ChallengeOutcomeDecisionData, DirectorialContext, ParticipantRole,
+    DiceInputType, AdHocOutcomes, ApprovedNpcInfo, RequestPayload, ResponseResult, RequestError,
 };
 
 #[derive(Debug, Clone)]
@@ -204,12 +208,12 @@ impl GameConnectionPort for MockGameConnectionPort {
     fn submit_challenge_roll_input(
         &self,
         challenge_id: &str,
-        input: wrldbldr_player_ports::outbound::DiceInputType,
+        input: DiceInputType,
     ) -> anyhow::Result<()> {
         // For mock purposes, extract the value and use the existing roll tracking
         let roll_value = match &input {
-            wrldbldr_player_ports::outbound::DiceInputType::Manual(v) => *v,
-            wrldbldr_player_ports::outbound::DiceInputType::Formula(_) => 0, // Formula parsing not implemented in mock
+            DiceInputType::Manual(v) => *v,
+            DiceInputType::Formula(_) => 0, // Formula parsing not implemented in mock
         };
         let mut s = self.state.lock().unwrap();
         s.sent_rolls.push((challenge_id.to_string(), roll_value));
@@ -228,7 +232,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn send_staging_approval(&self, _request_id: &str, _approved_npcs: Vec<wrldbldr_player_ports::outbound::ApprovedNpcInfo>, _ttl_hours: i32, _source: &str) -> anyhow::Result<()> {
+    fn send_staging_approval(&self, _request_id: &str, _approved_npcs: Vec<ApprovedNpcInfo>, _ttl_hours: i32, _source: &str) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -236,7 +240,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn pre_stage_region(&self, _region_id: &str, _npcs: Vec<wrldbldr_player_ports::outbound::ApprovedNpcInfo>, _ttl_hours: i32) -> anyhow::Result<()> {
+    fn pre_stage_region(&self, _region_id: &str, _npcs: Vec<ApprovedNpcInfo>, _ttl_hours: i32) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -246,7 +250,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         _skill_name: &str,
         _difficulty: &str,
         _target_pc_id: &str,
-        _outcomes: wrldbldr_player_ports::outbound::AdHocOutcomes,
+        _outcomes: AdHocOutcomes,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -291,6 +295,25 @@ impl GameConnectionPort for MockGameConnectionPort {
     fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>) {
         let mut s = self.state.lock().unwrap();
         s.on_message = Some(callback);
+    }
+
+    fn request(
+        &self,
+        _payload: RequestPayload,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
+        // Mock always returns success with empty data
+        Box::pin(async move {
+            Ok(ResponseResult::Success { data: None })
+        })
+    }
+
+    fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        _timeout_ms: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
+        // Just delegate to request for mock
+        self.request(payload)
     }
 }
 

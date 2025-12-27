@@ -7,6 +7,9 @@ pub mod platform;
 pub mod storage;
 pub mod websocket;
 
+// Re-export ConnectionFactory for convenience
+pub use connection_factory::ConnectionFactory;
+
 // Test-only infrastructure fakes (ports/adapters).
-#[cfg(test)]
+// Available for integration testing from other crates as well
 pub mod testing;

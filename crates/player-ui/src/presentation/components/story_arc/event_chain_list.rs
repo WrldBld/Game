@@ -30,7 +30,7 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut selected_chain: Signal<Option<String>> = use_signal(|| None);
 
-    // Load chains based on filter
+    // Load all chains and filter client-side
     let world_id = props.world_id.clone();
     let filter = props.filter;
     let service_for_effect = event_chain_service.clone();
@@ -41,14 +41,16 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
         spawn(async move {
             is_loading.set(true);
             error.set(None);
-            let result = match filter_val {
-                ChainFilter::All => service.list_chains(&world_id).await,
-                ChainFilter::Active => service.list_active(&world_id).await,
-                ChainFilter::Favorites => service.list_favorites(&world_id).await,
-            };
-            match result {
-                Ok(loaded) => {
-                    chains.set(loaded);
+            // Always fetch all chains, then filter client-side
+            match service.list_chains(&world_id).await {
+                Ok(all_chains) => {
+                    // Apply filter client-side
+                    let filtered = match filter_val {
+                        ChainFilter::All => all_chains,
+                        ChainFilter::Active => all_chains.into_iter().filter(|c| c.is_active).collect(),
+                        ChainFilter::Favorites => all_chains.into_iter().filter(|c| c.is_favorite).collect(),
+                    };
+                    chains.set(filtered);
                 }
                 Err(e) => {
                     error.set(Some(e.to_string()));
@@ -148,12 +150,14 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
                                 let chain_id = chain.id.clone();
                                 let service = event_chain_service.clone();
                                 let chains_signal = chains;
+                                let current_favorite = chain.is_favorite;
                                 move |_| {
                                     let cid = chain_id.clone();
                                     let svc = service.clone();
                                     let mut chains_state = chains_signal;
+                                    let new_favorite = !current_favorite;
                                     spawn(async move {
-                                        if let Ok(new_favorite) = svc.toggle_favorite(&cid).await {
+                                        if svc.toggle_favorite(&cid, new_favorite).await.is_ok() {
                                             // Update local state
                                             let mut chains_list = chains_state.write();
                                             if let Some(chain) = chains_list.iter_mut().find(|c| c.id == cid) {

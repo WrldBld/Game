@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_player_app::application::services::CreatePlayerCharacterRequest;
-use wrldbldr_player_app::application::services::player_character_service::CharacterSheetDataApi;
 use crate::presentation::services::{
     use_location_service, use_player_character_service, use_world_service,
 };
@@ -186,14 +185,15 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         error_message.set(None);
 
         spawn(async move {
+            // Convert sheet values to JSON if present
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                Some(CharacterSheetDataApi { values: sheet_vals })
+                serde_json::to_value(&sheet_vals).ok()
             };
 
-            let starting_location_id = match location_id {
-                Some(id) => id,
+            let starting_region_id = match location_id {
+                Some(id) => Some(id),
                 None => {
                     error_message.set(Some("Please select a starting location".to_string()));
                     is_creating.set(false);
@@ -203,18 +203,12 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
 
             let request = CreatePlayerCharacterRequest {
                 name: name_val,
-                description: if desc_val.trim().is_empty() {
-                    None
-                } else {
-                    Some(desc_val)
-                },
-                starting_location_id,
+                user_id: None, // Will be set by the server from the connection context
+                starting_region_id,
                 sheet_data,
-                sprite_asset: None,
-                portrait_asset: None,
             };
 
-            match pc_svc.create_pc(&session_id, &request).await {
+            match pc_svc.create_pc(&world_id, &request).await {
                 Ok(_pc) => {
                     // Navigate to PC View
                     nav.push(crate::routes::Route::PCViewRoute {

@@ -17,7 +17,8 @@ use uuid::Uuid;
 
 use wrldbldr_engine_ports::inbound::{BroadcastSink, RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ObservationRepositoryPort, RegionRepositoryPort,
+    CharacterRepositoryPort, GenerationReadKind, GenerationReadStatePort,
+    ObservationRepositoryPort, RegionRepositoryPort,
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
@@ -37,7 +38,7 @@ use crate::application::services::{
     SceneService, InteractionService, ChallengeService, NarrativeEventService,
     EventChainService, PlayerCharacterService, RelationshipService,
     ActantialContextService, MoodService, StoryEventService, ItemService,
-    RegionService,
+    RegionService, GenerationQueueProjectionService,
 };
 
 // =============================================================================
@@ -77,6 +78,10 @@ pub struct AppRequestHandler {
 
     // Broadcast sink for entity change notifications
     broadcast_sink: Option<Arc<dyn BroadcastSink>>,
+
+    // Generation queue services (for WebSocket hydration)
+    generation_queue_projection: Option<Arc<GenerationQueueProjectionService>>,
+    generation_read_state: Option<Arc<dyn GenerationReadStatePort>>,
 }
 
 impl AppRequestHandler {
@@ -125,6 +130,8 @@ impl AppRequestHandler {
             region_repo,
             suggestion_enqueue: None,
             broadcast_sink: None,
+            generation_queue_projection: None,
+            generation_read_state: None,
         }
     }
 
@@ -137,6 +144,17 @@ impl AppRequestHandler {
     /// Set the broadcast sink for entity change notifications
     pub fn with_broadcast_sink(mut self, sink: Arc<dyn BroadcastSink>) -> Self {
         self.broadcast_sink = Some(sink);
+        self
+    }
+
+    /// Set the generation queue projection service for WebSocket hydration
+    pub fn with_generation_queue(
+        mut self,
+        projection: Arc<GenerationQueueProjectionService>,
+        read_state: Arc<dyn GenerationReadStatePort>,
+    ) -> Self {
+        self.generation_queue_projection = Some(projection);
+        self.generation_read_state = Some(read_state);
         self
     }
 
@@ -1116,10 +1134,15 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
+                // Parse category from string or default to Physical
+                let category = data.category
+                    .as_deref()
+                    .and_then(|c| c.parse().ok())
+                    .unwrap_or(wrldbldr_domain::entities::SkillCategory::Physical);
                 let request = crate::application::services::CreateSkillRequest {
                     name: data.name,
                     description: data.description.unwrap_or_default(),
-                    category: wrldbldr_domain::entities::SkillCategory::Physical, // Default
+                    category,
                     base_attribute: data.attribute,
                 };
                 match self.skill_service.create_skill(id, request).await {
@@ -1137,12 +1160,16 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
+                // Parse category from string if provided
+                let category = data.category
+                    .as_deref()
+                    .and_then(|c| c.parse().ok());
                 let request = crate::application::services::UpdateSkillRequest {
                     name: data.name,
                     description: data.description,
-                    category: None, // No category in protocol data
+                    category,
                     base_attribute: data.attribute,
-                    is_hidden: None,
+                    is_hidden: data.is_hidden,
                     order: None,
                 };
                 match self.skill_service.update_skill(id, request).await {
@@ -3001,6 +3028,142 @@ impl RequestHandler for AppRequestHandler {
                     Ok(response) => ResponseResult::success(serde_json::json!({
                         "request_id": response.request_id,
                         "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            // =================================================================
+            // Generation Queue Operations
+            // =================================================================
+            RequestPayload::GetGenerationQueue { world_id, user_id } => {
+                let wid = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+
+                let Some(projection) = &self.generation_queue_projection else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Generation queue projection not configured",
+                    );
+                };
+
+                // Use provided user_id or fall back to context user_id
+                let effective_user_id = user_id.as_deref().or(Some(&ctx.user_id));
+
+                match projection.project_queue(effective_user_id, wid).await {
+                    Ok(snapshot) => ResponseResult::success(snapshot),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::SyncGenerationReadState { world_id, read_batches, read_suggestions } => {
+                let Some(read_state) = &self.generation_read_state else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Generation read state not configured",
+                    );
+                };
+
+                let user_id = &ctx.user_id;
+                
+                // Mark batches as read
+                for batch_id in &read_batches {
+                    if let Err(e) = read_state
+                        .mark_read(user_id, &world_id, batch_id, GenerationReadKind::Batch)
+                        .await
+                    {
+                        return ResponseResult::error(
+                            ErrorCode::InternalError,
+                            format!("Failed to mark batch read: {}", e),
+                        );
+                    }
+                }
+
+                // Mark suggestions as read
+                for request_id in &read_suggestions {
+                    if let Err(e) = read_state
+                        .mark_read(user_id, &world_id, request_id, GenerationReadKind::Suggestion)
+                        .await
+                    {
+                        return ResponseResult::error(
+                            ErrorCode::InternalError,
+                            format!("Failed to mark suggestion read: {}", e),
+                        );
+                    }
+                }
+
+                ResponseResult::success_empty()
+            }
+
+            // =================================================================
+            // Content Suggestion Operations (General LLM Suggestions)
+            // =================================================================
+            RequestPayload::EnqueueContentSuggestion {
+                world_id,
+                suggestion_type,
+                context,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
+
+                let world_uuid = match Self::parse_world_id(&world_id) {
+                    Ok(id) => id,
+                    Err(e) => return e,
+                };
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                // Convert protocol context to port context
+                let suggestion_context = SuggestionEnqueueContext {
+                    entity_type: context.entity_type,
+                    entity_name: context.entity_name,
+                    world_setting: context.world_setting,
+                    hints: context.hints,
+                    additional_context: context.additional_context,
+                    world_id: Some(world_id.clone()),
+                };
+
+                let request = SuggestionEnqueueRequest {
+                    field_type: suggestion_type,
+                    entity_id: None, // General content suggestions don't have a specific entity
+                    world_id: Some(world_uuid.to_uuid()),
+                    context: suggestion_context,
+                };
+
+                match suggestion_port.enqueue_suggestion(request).await {
+                    Ok(response) => ResponseResult::success(serde_json::json!({
+                        "request_id": response.request_id,
+                        "status": "queued"
+                    })),
+                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                }
+            }
+
+            RequestPayload::CancelContentSuggestion { request_id } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
+
+                // Check for suggestion enqueue port
+                let Some(suggestion_port) = &self.suggestion_enqueue else {
+                    return ResponseResult::error(
+                        ErrorCode::ServiceUnavailable,
+                        "Suggestion service not available",
+                    );
+                };
+
+                match suggestion_port.cancel_suggestion(&request_id).await {
+                    Ok(cancelled) => ResponseResult::success(serde_json::json!({
+                        "cancelled": cancelled
                     })),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }

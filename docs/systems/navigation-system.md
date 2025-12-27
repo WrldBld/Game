@@ -78,6 +78,11 @@ Navigation creates the physical framework for storytelling. Players explore the 
   - *Effect*: Better coordination without revealing all information
   - *Priority*: Low - depends on party formation feature
 
+- [ ] **US-NAV-014**: As an LLM, I can see items placed in the current region
+  - *Design*: Add `region_items` to LLM context (currently hardcoded to empty in `build_prompt_from_action`)
+  - *Blocked by*: Region item placement system (US-REGION-ITEMS)
+  - *Priority*: Medium - enables NPCs to reference visible items in dialogue
+
 ---
 
 ## UI Mockups
@@ -368,5 +373,6 @@ pub enum TimeOfDay {
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Added US-NAV-014 for region items in LLM context |
 | 2025-12-24 | Marked US-NAV-008/009/010 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

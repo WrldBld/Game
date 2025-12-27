@@ -155,7 +155,7 @@ This document tracks all unimplemented features in priority order with implement
 |-------|-------|
 | **Status** | Stubs Only |
 | **Effort** | 2-3 days |
-| **Plan File** | `docs/progress/US-REGION-ITEMS.md` |
+| **Plan File** | (completed and archived) |
 
 **Problem**: Dropped items are destroyed; no items can exist in world locations.
 
@@ -259,7 +259,7 @@ region_items: Vec<ItemSummary> // name, description, type
 |-------|-------|
 | **Status** | ✅ COMPLETED (Already Implemented) |
 | **Effort** | 0 hours (was already done) |
-| **Plan File** | `docs/progress/STAGING_IMPLEMENTATION_PLAN.md` |
+| **Plan File** | (completed and archived) |
 
 **Problem**: NPCs cannot be staged as "present but hidden" for surprise reveals.
 
@@ -333,7 +333,7 @@ region_items: Vec<ItemSummary> // name, description, type
 |-------|-------|
 | **Status** | Planning Complete |
 | **Effort** | 15-17 hours (5 phases across 3 sessions) |
-| **Plan File** | `docs/progress/ACTANTIAL_MODEL_IMPLEMENTATION_PLAN.md` |
+| **Plan File** | (completed and archived) |
 
 **Problem**: The Actantial Model (Wants, Goals, Helper/Opponent views) is stored in Neo4j but completely invisible to the LLM and DM. NPCs have rich motivational data that isn't being used.
 
@@ -358,7 +358,7 @@ region_items: Vec<ItemSummary> // name, description, type
 - Session B: Phase 3 + 5 (5-6h) - LLM integration + Goal UI
 - Session C: Phase 4 (4h) - DM tools
 
-**See Full Plan**: `docs/progress/ACTANTIAL_MODEL_IMPLEMENTATION_PLAN.md`
+**Plan Status**: Completed and archived
 
 ---
 
@@ -695,7 +695,7 @@ region_items: Vec<ItemSummary> // name, description, type
   - **Secret Wants**: Designed tiered visibility (Known/Suspected/Hidden) with behavioral guidance
   - **NPC → PC Views**: NPCs can now view player characters as Helpers/Opponents
   - **UI Mockups**: Created detailed mockups for Actantial Panel, Want Editor, Goal Manager
-  - **Plan Document**: Created `docs/progress/ACTANTIAL_MODEL_IMPLEMENTATION_PLAN.md`
+  - **Plan Document**: ACTANTIAL_MODEL_IMPLEMENTATION_PLAN.md (completed and archived)
   - **Phases Defined**: 5 phases across 3 sessions (15-17 hours total)
 
 **Validation**: ✅ `cargo check --workspace && cargo xtask arch-check` both pass

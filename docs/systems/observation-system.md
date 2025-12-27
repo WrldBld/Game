@@ -43,15 +43,16 @@ This supports mystery scenarios where players must investigate to find people.
   - *Implementation*: Observation cards display last seen location and game time
   - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`, `crates/player-app/src/application/services/observation_service.rs`
 
-### Pending
+### Implemented (Unrevealed Interactions)
 
-- [ ] **US-OBS-006**: As a DM, I can record an interaction without revealing the NPC
-  - *Design*: Unrevealed observations render as `npc_name = "Unknown Figure"` and have no portrait/sprite
-  - *Implementation (planned)*:
-    - Add `is_revealed_to_player` to observation entity + persistence
+- [x] **US-OBS-006**: As a DM, I can record an interaction without revealing the NPC
+  - *Implementation*: Unrevealed observations render as `npc_name = "Unknown Figure"` and have no portrait/sprite
+  - *Completed 2025-12-25*:
+    - Added `is_revealed_to_player` to observation entity + persistence
     - Approach events can set `reveal=false` to create an unrevealed direct observation
     - Observation list API scrubs identity when unrevealed
     - Player Known NPCs UI respects the reveal flag
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
 
 ---
 
@@ -176,11 +177,12 @@ pub struct ObservationSummary {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Observation Entity | ✅ | - | Three observation types |
-| Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge |
+| Observation Entity | ✅ | - | Three observation types + reveal flag |
+| Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge with is_revealed |
 | Auto-record on Scene | ✅ | - | Direct observations |
-| DM Share Location | ✅ | ⏳ | WebSocket handler done |
+| DM Share Location | ✅ | ✅ | WebSocket handler complete |
 | Known NPCs Panel | - | ✅ | Full UI with observation types |
+| Unrevealed Observations | ✅ | ✅ | "Unknown Figure" for hidden NPCs |
 
 ---
 
@@ -215,5 +217,6 @@ pub struct ObservationSummary {
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Marked US-OBS-006 (unrevealed interactions) as complete |
 | 2025-12-24 | Marked US-OBS-004/005 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

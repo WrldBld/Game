@@ -165,15 +165,15 @@ Note: `player_character_routes.rs` and `session_routes.rs` were deleted in Phase
 | PC Data in UserJoined | `websocket.rs` | [x] Includes PC in broadcast |
 | Fix SetSpectateTarget | `websocket.rs` | [x] Full implementation |
 | WorldConnectionManager.set_spectate_target | `world_connection_manager.rs` | [x] Added method |
-| DirectorialUpdate persist | `websocket.rs` | [ ] TODO |
-| Wire NPC Mood Panel | `session_message_handler.rs` | [ ] TODO |
+| DirectorialUpdate persist | `websocket.rs` | [ ] TODO - currently in-memory only |
+| Wire NPC Mood Panel | `session_message_handler.rs` | [x] **DONE** - handlers exist, DM panel wired |
 
 ### Feature Implementation
 | Feature | Status |
 |---------|--------|
-| Region Item Placement | [ ] |
-| Staging Status API | [ ] |
-| Character Stat Updates | [ ] |
+| Region Item Placement | [~] Partial - read/drop works, need place_item API |
+| Staging Status API | [~] Partial - messages exist, need GetStagingStatus request |
+| Character Stat Updates | [x] **DONE** - CharacterStatUpdated handler implemented |
 
 ---
 
@@ -208,13 +208,13 @@ Note: `player_character_routes.rs` and `session_routes.rs` were deleted in Phase
 ## Remaining Work
 
 ### High Priority
-- DirectorialUpdate persistence
-- NPC Mood Panel wiring
-- Region Item Placement
+- DirectorialUpdate persistence (currently in-memory only)
+- Region Item Placement - complete the `place_item()` API
+- Staging Status API - add `GetStagingStatus` request/response
 
-### Medium Priority
-- Staging Status API improvements
-- Character Stat Updates via WebSocket
+### Completed (2025-12-26 review)
+- ~~NPC Mood Panel wiring~~ - handlers exist, DM panel fully wired
+- ~~Character Stat Updates~~ - CharacterStatUpdated handler implemented
 
 ### Low Priority (Phase 6)
 - Split websocket.rs into modules

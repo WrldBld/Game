@@ -1,14 +1,18 @@
 //! Event Chain Service - Application service for event chain management
 //!
 //! This service provides use case implementations for fetching, creating,
-//! updating, and managing event chains. It abstracts away the HTTP client
-//! details from the presentation layer.
+//! updating, and managing event chains via WebSocket request/response pattern.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_player_ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use wrldbldr_player_ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::requests::{CreateEventChainData, UpdateEventChainData};
+use wrldbldr_protocol::RequestPayload;
 
-/// Event chain data from API
+/// Event chain data from engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EventChainData {
     pub id: String,
@@ -91,44 +95,46 @@ pub struct ChainStatusData {
 /// Event chain service for managing event chains
 ///
 /// This service provides methods for event chain-related operations
-/// while depending only on the `ApiPort` trait, not concrete
-/// infrastructure implementations.
-pub struct EventChainService<A: ApiPort> {
-    api: A,
+/// using WebSocket request/response pattern via the `GameConnectionPort`.
+#[derive(Clone)]
+pub struct EventChainService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> EventChainService<A> {
-    /// Create a new EventChainService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl EventChainService {
+    /// Create a new EventChainService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// List all event chains for a world
-    pub async fn list_chains(&self, world_id: &str) -> Result<Vec<EventChainData>, ApiError> {
-        let path = format!("/api/worlds/{}/event-chains", world_id);
-        let chains: Vec<EventChainData> = self.api.get(&path).await?;
-        Ok(chains)
-    }
+    pub async fn list_chains(&self, world_id: &str) -> Result<Vec<EventChainData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::ListEventChains {
+                    world_id: world_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-    /// List active event chains
-    pub async fn list_active(&self, world_id: &str) -> Result<Vec<EventChainData>, ApiError> {
-        let path = format!("/api/worlds/{}/event-chains/active", world_id);
-        let chains: Vec<EventChainData> = self.api.get(&path).await?;
-        Ok(chains)
-    }
-
-    /// List favorite event chains
-    pub async fn list_favorites(&self, world_id: &str) -> Result<Vec<EventChainData>, ApiError> {
-        let path = format!("/api/worlds/{}/event-chains/favorites", world_id);
-        let chains: Vec<EventChainData> = self.api.get(&path).await?;
-        Ok(chains)
+        result.parse()
     }
 
     /// Get a single event chain by ID
-    pub async fn get_chain(&self, chain_id: &str) -> Result<EventChainData, ApiError> {
-        let path = format!("/api/event-chains/{}", chain_id);
-        let chain: EventChainData = self.api.get(&path).await?;
-        Ok(chain)
+    pub async fn get_chain(&self, chain_id: &str) -> Result<EventChainData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::GetEventChain {
+                    chain_id: chain_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 
     /// Create a new event chain
@@ -136,10 +142,28 @@ impl<A: ApiPort> EventChainService<A> {
         &self,
         world_id: &str,
         request: &CreateEventChainRequest,
-    ) -> Result<EventChainData, ApiError> {
-        let path = format!("/api/worlds/{}/event-chains", world_id);
-        let chain: EventChainData = self.api.post(&path, request).await?;
-        Ok(chain)
+    ) -> Result<EventChainData, ServiceError> {
+        let data = CreateEventChainData {
+            name: request.name.clone(),
+            description: if request.description.is_empty() {
+                None
+            } else {
+                Some(request.description.clone())
+            },
+        };
+
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::CreateEventChain {
+                    world_id: world_id.to_string(),
+                    data,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 
     /// Update an event chain
@@ -147,16 +171,39 @@ impl<A: ApiPort> EventChainService<A> {
         &self,
         chain_id: &str,
         request: &UpdateEventChainRequest,
-    ) -> Result<EventChainData, ApiError> {
-        let path = format!("/api/event-chains/{}", chain_id);
-        let chain: EventChainData = self.api.put(&path, request).await?;
-        Ok(chain)
+    ) -> Result<EventChainData, ServiceError> {
+        let data = UpdateEventChainData {
+            name: request.name.clone(),
+            description: request.description.clone(),
+        };
+
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::UpdateEventChain {
+                    chain_id: chain_id.to_string(),
+                    data,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 
     /// Delete an event chain
-    pub async fn delete_chain(&self, chain_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/event-chains/{}", chain_id);
-        self.api.delete(&path).await
+    pub async fn delete_chain(&self, chain_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::DeleteEventChain {
+                    chain_id: chain_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Add an event to a chain
@@ -164,69 +211,117 @@ impl<A: ApiPort> EventChainService<A> {
         &self,
         chain_id: &str,
         request: &AddEventRequest,
-    ) -> Result<EventChainData, ApiError> {
-        let path = format!("/api/event-chains/{}/events", chain_id);
-        let chain: EventChainData = self.api.post(&path, request).await?;
-        Ok(chain)
+    ) -> Result<EventChainData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::AddEventToChain {
+                    chain_id: chain_id.to_string(),
+                    event_id: request.event_id.clone(),
+                    position: request.position.map(|p| p as u32),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 
     /// Remove an event from a chain
-    pub async fn remove_event(
-        &self,
-        chain_id: &str,
-        event_id: &str,
-    ) -> Result<(), ApiError> {
-        let path = format!("/api/event-chains/{}/events/{}", chain_id, event_id);
-        self.api.delete(&path).await
+    pub async fn remove_event(&self, chain_id: &str, event_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::RemoveEventFromChain {
+                    chain_id: chain_id.to_string(),
+                    event_id: event_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Complete an event in a chain
-    pub async fn complete_event(
-        &self,
-        chain_id: &str,
-        event_id: &str,
-    ) -> Result<(), ApiError> {
-        let path = format!("/api/event-chains/{}/events/{}/complete", chain_id, event_id);
-        self.api.post_empty(&path).await
+    pub async fn complete_event(&self, chain_id: &str, event_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::CompleteChainEvent {
+                    chain_id: chain_id.to_string(),
+                    event_id: event_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Toggle favorite status
-    pub async fn toggle_favorite(&self, chain_id: &str) -> Result<bool, ApiError> {
-        let path = format!("/api/event-chains/{}/favorite", chain_id);
-        // PUT with empty body returns bool
-        let is_favorite: bool = self.api.put_empty_with_response(&path).await?;
-        Ok(is_favorite)
+    pub async fn toggle_favorite(
+        &self,
+        chain_id: &str,
+        favorite: bool,
+    ) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::SetEventChainFavorite {
+                    chain_id: chain_id.to_string(),
+                    favorite,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Set active status
-    pub async fn set_active(&self, chain_id: &str, is_active: bool) -> Result<(), ApiError> {
-        let path = format!("/api/event-chains/{}/active", chain_id);
-        #[derive(Serialize)]
-        struct ActiveRequest {
-            is_active: bool,
-        }
-        self.api.put_no_response(&path, &ActiveRequest { is_active }).await
+    pub async fn set_active(&self, chain_id: &str, active: bool) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::SetEventChainActive {
+                    chain_id: chain_id.to_string(),
+                    active,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Reset a chain to the beginning
-    pub async fn reset_chain(&self, chain_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/event-chains/{}/reset", chain_id);
-        self.api.post_empty(&path).await
+    pub async fn reset_chain(&self, chain_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::ResetEventChain {
+                    chain_id: chain_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Get chain status
-    pub async fn get_status(&self, chain_id: &str) -> Result<ChainStatusData, ApiError> {
-        let path = format!("/api/event-chains/{}/status", chain_id);
-        let status: ChainStatusData = self.api.get(&path).await?;
-        Ok(status)
+    pub async fn get_status(&self, chain_id: &str) -> Result<ChainStatusData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::GetEventChainStatus {
+                    chain_id: chain_id.to_string(),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 }
-
-impl<A: ApiPort + Clone> Clone for EventChainService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
-    }
-}
-

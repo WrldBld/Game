@@ -62,21 +62,37 @@ This is the heart of the AI game master experience:
   - *Implementation*: `PromptBuilder` resolves `dialogue.response_format`, `dialogue.challenge_suggestion_format`, and `dialogue.narrative_event_format` templates via `PromptTemplateService`
   - *Files*: `crates/engine-app/src/application/services/llm/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
 
-### Pending (Dialogue Tracking Enhancement)
+### Implemented (Dialogue Tracking Enhancement)
 
-- [ ] **US-DLG-010**: As a system, I persist dialogue exchanges as StoryEvents for later querying
-  - *Implementation*: Call `record_dialogue_exchange` in DMApprovalQueueService after approval
-  - *Files*: `crates/engine-app/src/application/services/dm_approval_queue_service.rs`, `crates/engine-app/src/application/services/story_event_service.rs`
+- [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
+  - *Implementation*: `record_dialogue_exchange()` called from `DMApprovalQueueService` after approval
+  - *Files*: `dm_approval_queue_service.rs:325-340`, `story_event_service.rs:311-359`
+  - *Completed*: 2025-12-26 code review confirmed implementation
 
-- [ ] **US-DLG-011**: As a system, I can query the last dialogues with a specific NPC
-  - *Implementation*: Add `get_dialogues_with_npc` method to StoryEventRepository
-  - *Files*: `crates/engine-ports/src/outbound/repository_port.rs`, `crates/engine-adapters/src/infrastructure/persistence/story_event_repository.rs`
+- [x] **US-DLG-012**: As a system, I can query the last dialogues with a specific NPC
+  - *Implementation*: `get_dialogues_with_npc()` and `get_dialogue_summary_for_npc()` methods
+  - *Files*: `repository_port.rs:1342-1347`, `story_event_repository.rs:1652-1686`
+  - *Completed*: 2025-12-26 code review confirmed implementation
 
-- [ ] **US-DLG-012**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
-  - *Implementation*: SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/story_event_repository.rs`
+- [x] **US-DLG-013**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
+  - *Implementation*: `update_spoke_to_edge()` creates/updates SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
+  - *Files*: `repository_port.rs:1349-1362`, `story_event_repository.rs:1688-1718`
+  - *Completed*: 2025-12-26 code review confirmed implementation
 
-> **Note**: These dialogue tracking enhancements are required by the [Staging System](./staging-system.md) to provide LLM context about recent NPC interactions (e.g., if an NPC said they'd be somewhere else).
+### Remaining Gaps (Dialogue Tracking)
+
+The core functionality is implemented but has data quality gaps:
+
+- [ ] **US-DLG-014**: Capture player dialogue text in exchange records
+  - *Issue*: `player_dialogue` passed as empty string (not available in ApprovalItem)
+  
+- [ ] **US-DLG-015**: Extract topics from dialogue content
+  - *Issue*: `topics_discussed` passed as empty vector
+  
+- [ ] **US-DLG-016**: Include scene/location/game_time context in records
+  - *Issue*: Currently passed as None
+
+> **Note**: Core dialogue persistence works for LLM context via `get_dialogue_summary_for_npc()` used by Staging System.
 
 ---
 
@@ -231,16 +247,20 @@ pub enum GameTool {
 | Token Counter | ✅ | - | Multiple counting methods |
 | Summarization | ✅ | - | Auto-summarize when over budget |
 | Prompt Builder | ✅ | - | System prompt with all categories |
+| NPC Mood in Prompts | ✅ | - | Wired in build_prompt_from_action (2025-12-26) |
+| Actantial Context | ✅ | - | Wired in build_prompt_from_action (2025-12-26) |
+| Featured NPC Names | ✅ | - | Included in narrative event context (2025-12-26) |
 | Tool Parsing | ✅ | - | Parse LLM tool suggestions |
 | Tool Execution | ✅ | - | Execute approved tools |
 | DM Approval Flow | ✅ | ✅ | Full approval UI |
 | Conversation History | ✅ | ✅ | 30-turn limit (in-memory) |
-| Dialogue Persistence | ⏳ | - | Store as StoryEvent::DialogueExchange |
-| NPC Dialogue Queries | ⏳ | - | get_dialogues_with_npc method |
-| SPOKE_TO Edges | ⏳ | - | Track PC-NPC conversation metadata |
+| Dialogue Persistence | ✅ | - | `record_dialogue_exchange()` creates StoryEvent::DialogueExchange |
+| NPC Dialogue Queries | ✅ | - | `get_dialogues_with_npc()`, `get_dialogue_summary_for_npc()` |
+| SPOKE_TO Edges | ✅ | - | `update_spoke_to_edge()` tracks PC-NPC metadata |
 | Directorial Notes | ✅ | ✅ | DM guidance |
 | Dialogue Display | - | ✅ | Typewriter effect |
 | Choice Selection | - | ✅ | Player choices |
+| Region Items in Context | ⏳ | - | Hardcoded to empty; needs WorldStateManager |
 
 ---
 
@@ -287,3 +307,6 @@ pub enum GameTool {
 |------|--------|
 | 2025-12-18 | Initial version extracted from MVP.md |
 | 2025-12-19 | Added dialogue tracking enhancements for Staging System |
+| 2025-12-26 | Marked NPC mood, actantial context, and featured NPC names as implemented |
+| 2025-12-26 | Code review: US-DLG-011/012/013 confirmed as IMPLEMENTED |
+| 2025-12-26 | Added US-DLG-014/015/016 for remaining data quality gaps |

@@ -106,6 +106,34 @@ impl SkillCategory {
     }
 }
 
+impl std::fmt::Display for SkillCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
+impl std::str::FromStr for SkillCategory {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "physical" => Ok(Self::Physical),
+            "mental" => Ok(Self::Mental),
+            "social" => Ok(Self::Social),
+            "interpersonal" => Ok(Self::Interpersonal),
+            "investigation" => Ok(Self::Investigation),
+            "academic" => Ok(Self::Academic),
+            "practical" => Ok(Self::Practical),
+            "combat" => Ok(Self::Combat),
+            "approach" => Ok(Self::Approach),
+            "aspect" => Ok(Self::Aspect),
+            "other" => Ok(Self::Other),
+            "custom" => Ok(Self::Custom),
+            _ => Err(format!("Unknown skill category: {}", s)),
+        }
+    }
+}
+
 /// Default skills for each rule system variant
 pub fn default_skills_for_variant(world_id: WorldId, variant: &RuleSystemVariant) -> Vec<Skill> {
     match variant {

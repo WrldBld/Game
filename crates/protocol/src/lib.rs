@@ -146,6 +146,8 @@ pub use requests::{
     UpdateSkillData,
     UpdateStoryEventData,
     UpdateWorldData,
+    // Suggestion types
+    SuggestionContextData,
 };
 
 // =============================================================================

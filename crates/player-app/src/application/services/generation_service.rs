@@ -1,14 +1,19 @@
 //! Generation Service - Application service for generation queue management
 //!
 //! This service provides use case implementations for managing the generation queue,
-//! including hydrating queue state from the Engine and syncing read state back to it.
+//! including hydrating queue state from the Engine and syncing read state back to it
+//! via WebSocket request/response pattern.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_player_ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use wrldbldr_player_ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::RequestPayload;
 
 /// DTO for batch status information from the Engine
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchInfo {
     pub batch_id: String,
     pub entity_type: String,
@@ -24,7 +29,7 @@ pub struct BatchInfo {
 }
 
 /// DTO for suggestion task information from the Engine
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SuggestionInfo {
     pub request_id: String,
     pub field_type: String,
@@ -37,33 +42,25 @@ pub struct SuggestionInfo {
 }
 
 /// Complete generation queue snapshot from the Engine
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct GenerationQueueSnapshot {
     pub batches: Vec<BatchInfo>,
     pub suggestions: Vec<SuggestionInfo>,
 }
 
-/// Request to sync read state to the Engine
-#[derive(Clone, Debug, Serialize)]
-pub struct SyncReadStateRequest {
-    pub read_batches: Vec<String>,
-    pub read_suggestions: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub world_id: Option<String>,
-}
-
 /// Generation service for managing generation queue
 ///
 /// This service provides methods for fetching the generation queue state
-/// from the Engine and syncing read/unread markers back to it.
-pub struct GenerationService<A: ApiPort> {
-    api: A,
+/// from the Engine and syncing read/unread markers back to it via WebSocket.
+#[derive(Clone)]
+pub struct GenerationService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> GenerationService<A> {
-    /// Create a new GenerationService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl GenerationService {
+    /// Create a new GenerationService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// Fetch the generation queue snapshot from the Engine
@@ -75,13 +72,19 @@ impl<A: ApiPort> GenerationService<A> {
         &self,
         user_id: Option<&str>,
         world_id: &str,
-    ) -> Result<GenerationQueueSnapshot, ApiError> {
-        let path = if let Some(uid) = user_id {
-            format!("/api/generation/queue?user_id={}&world_id={}", uid, world_id)
-        } else {
-            format!("/api/generation/queue?world_id={}", world_id)
-        };
-        self.api.get(&path).await
+    ) -> Result<GenerationQueueSnapshot, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::GetGenerationQueue {
+                    world_id: world_id.to_string(),
+                    user_id: user_id.map(|s| s.to_string()),
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse()
     }
 
     /// Sync generation read state to the Engine
@@ -98,20 +101,19 @@ impl<A: ApiPort> GenerationService<A> {
         read_batches: Vec<String>,
         read_suggestions: Vec<String>,
         world_id: Option<&str>,
-    ) -> Result<(), ApiError> {
-        let request = SyncReadStateRequest {
-            read_batches,
-            read_suggestions,
-            world_id: world_id.map(|s| s.to_string()),
-        };
-        self.api.post_no_response("/api/generation/read-state", &request).await
-    }
-}
+    ) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::SyncGenerationReadState {
+                    world_id: world_id.unwrap_or("GLOBAL").to_string(),
+                    read_batches,
+                    read_suggestions,
+                },
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-impl<A: ApiPort + Clone> Clone for GenerationService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+        result.parse_empty()
     }
 }

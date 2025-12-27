@@ -113,7 +113,6 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
                 &mut generation_state,
                 user_id.as_deref(),
                 &world_id,
-                &platform_clone,
             )
             .await
             {

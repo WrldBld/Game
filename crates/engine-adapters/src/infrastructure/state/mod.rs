@@ -555,6 +555,10 @@ impl AppState {
             dm_approval_queue_service,
         );
 
+        // Clone generation services for use in request handler
+        let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
+        let generation_read_state_for_handler = generation_read_state_repository.clone();
+
         let assets = AssetServices::new(
             asset_service,
             workflow_config_service,
@@ -576,9 +580,13 @@ impl AppState {
         );
 
         // Create suggestion enqueue adapter for AI suggestions
-        let suggestion_enqueue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort> = 
-            Arc::new(SuggestionEnqueueAdapter::new(queues.llm_queue_service.clone()));
-        tracing::info!("Initialized suggestion enqueue adapter");
+        // Pass world_repo for auto-enrichment of suggestion context
+        let suggestion_enqueue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort> =
+            Arc::new(SuggestionEnqueueAdapter::new(
+                queues.llm_queue_service.clone(),
+                world_repo.clone(),
+            ));
+        tracing::info!("Initialized suggestion enqueue adapter with world auto-enrichment");
 
         // Create request handler for WebSocket-first architecture
         // Services are already Arc<dyn Trait>, so just clone them
@@ -605,7 +613,8 @@ impl AppState {
             character_repo_for_handler,
             observation_repo_for_handler,
             region_repo_for_handler,
-        ).with_suggestion_enqueue(suggestion_enqueue_adapter));
+        ).with_suggestion_enqueue(suggestion_enqueue_adapter)
+         .with_generation_queue(generation_queue_projection_for_handler, generation_read_state_for_handler));
         tracing::info!("Initialized request handler for WebSocket-first architecture");
 
         Ok((Self {

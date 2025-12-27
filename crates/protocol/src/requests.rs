@@ -643,6 +643,44 @@ pub enum RequestPayload {
         target_id: String,
         role: ActantialRoleData,
     },
+
+    // =========================================================================
+    // Generation Queue Operations
+    // =========================================================================
+    /// Get generation queue snapshot for hydration
+    GetGenerationQueue {
+        world_id: String,
+        #[serde(default)]
+        user_id: Option<String>,
+    },
+
+    /// Sync read state markers to backend
+    SyncGenerationReadState {
+        world_id: String,
+        read_batches: Vec<String>,
+        read_suggestions: Vec<String>,
+    },
+
+    // =========================================================================
+    // Content Suggestion Operations (General LLM Suggestions)
+    // =========================================================================
+    /// Enqueue a content suggestion request (async, queued)
+    ///
+    /// Used for character names, descriptions, location details, etc.
+    /// Returns a request_id immediately; results are delivered via
+    /// SuggestionCompleted/SuggestionFailed WebSocket events.
+    EnqueueContentSuggestion {
+        world_id: String,
+        /// Suggestion type: "character_name", "character_description",
+        /// "character_wants", "character_fears", "character_backstory",
+        /// "location_name", "location_description", "location_atmosphere",
+        /// "location_features", "location_secrets"
+        suggestion_type: String,
+        context: SuggestionContextData,
+    },
+
+    /// Cancel a pending content suggestion request
+    CancelContentSuggestion { request_id: String },
 }
 
 // =============================================================================
@@ -833,6 +871,8 @@ pub struct CreateSkillData {
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
     pub attribute: Option<String>,
 }
 
@@ -844,7 +884,11 @@ pub struct UpdateSkillData {
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
     pub attribute: Option<String>,
+    #[serde(default)]
+    pub is_hidden: Option<bool>,
 }
 
 /// Data for creating a challenge
@@ -980,4 +1024,38 @@ pub struct CreateObservationData {
     pub region_id: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+}
+
+// =============================================================================
+// Suggestion Types
+// =============================================================================
+
+/// Context data for content suggestions
+///
+/// This context is passed to the LLM to help generate relevant suggestions.
+/// Fields can be populated by the client with whatever information is available.
+/// The engine may auto-enrich this context with world data when world_id is available.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SuggestionContextData {
+    /// Type of entity being created (e.g., "character", "location", "tavern", "forest")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entity_type: Option<String>,
+
+    /// Name of the entity (if already set)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entity_name: Option<String>,
+
+    /// World/setting name or type (e.g., "Dark Fantasy", "Sci-Fi Western")
+    /// If not provided, the engine may auto-populate this from the world record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_setting: Option<String>,
+
+    /// Hints or keywords to guide generation (e.g., archetype, theme)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hints: Option<String>,
+
+    /// Additional context from other fields (e.g., description, backstory)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_context: Option<String>,
 }

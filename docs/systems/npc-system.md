@@ -211,7 +211,9 @@ Result: List of NPCs with presence suggestions and reasoning
 | Staging System | ✅ | ⏳ | Partial - see [Staging System](./staging-system.md) |
 | Approach Events | ✅ | ✅ | Full modal overlay |
 | Location Events | ✅ | ✅ | Banner with dismiss |
-| Share NPC Location | ✅ | ⏳ | Engine sends, Player pending |
+| Share NPC Location | ✅ | ✅ | Full WebSocket integration |
+| NPC Mood Panel | ✅ | ✅ | DM can view/modify moods toward PCs |
+| Mood in LLM Context | ✅ | - | Wired to build_prompt_from_action (2025-12-26) |
 
 ---
 
@@ -252,6 +254,7 @@ Result: List of NPCs with presence suggestions and reasoning
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Added NPC Mood Panel and LLM context integration status |
 | 2025-12-24 | Marked US-NPC-008/009 complete; updated staging status |
 | 2025-12-19 | Updated to reference Staging System for presence determination |
 | 2025-12-18 | Initial version extracted from MVP.md |

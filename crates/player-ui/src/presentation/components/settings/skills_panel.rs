@@ -277,7 +277,7 @@ fn SkillRow(
             let new_hidden = !is_hidden;
             let service = service.clone();
             spawn(async move {
-                match service.update_skill_visibility(&world_id, &skill_id, new_hidden).await {
+                match service.update_skill_visibility(&skill_id, new_hidden).await {
                     Ok(updated) => {
                         let mut skills_write = skills_signal.write();
                         if let Some(skill) = skills_write.iter_mut().find(|s| s.id == skill_id) {
@@ -295,11 +295,10 @@ fn SkillRow(
     let handle_delete = {
         let service = skill_service.clone();
         move |_| {
-            let world_id = world_id_for_delete.clone();
             let skill_id = skill_id_for_delete.clone();
             let service = service.clone();
             spawn(async move {
-                match service.delete_skill(&world_id, &skill_id).await {
+                match service.delete_skill(&skill_id).await {
                     Ok(()) => {
                         skills_signal.write().retain(|s| s.id != skill_id);
                     }
@@ -563,7 +562,7 @@ fn EditSkillForm(
                 is_hidden: None,
             };
 
-            match service.update_skill(&world_id, &skill_id, &request).await {
+            match service.update_skill(&skill_id, &request).await {
                 Ok(skill) => {
                     on_updated.call(skill);
                 }

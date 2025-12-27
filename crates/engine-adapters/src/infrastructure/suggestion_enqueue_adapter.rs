@@ -2,22 +2,31 @@
 //!
 //! This adapter implements the `SuggestionEnqueuePort` trait using the concrete
 //! `LLMQueueService`, hiding the complex generics from consumers.
+//!
+//! ## Auto-Enrichment
+//!
+//! When `world_id` is provided but `world_setting` is not, this adapter will
+//! automatically fetch the world from the repository and populate `world_setting`
+//! with the world's name and description. This improves suggestion quality by
+//! providing the LLM with world context.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::dto::{LLMRequestItem, LLMRequestType};
 use wrldbldr_engine_app::application::services::{LLMQueueService, SuggestionContext};
 use wrldbldr_engine_ports::outbound::{
-    ProcessingQueuePort, QueueError, QueueNotificationPort, LlmPort, SuggestionEnqueuePort, SuggestionEnqueueRequest,
-    SuggestionEnqueueResponse,
+    LlmPort, ProcessingQueuePort, QueueError, QueueNotificationPort, SuggestionEnqueuePort,
+    SuggestionEnqueueRequest, SuggestionEnqueueResponse, WorldRepositoryPort,
 };
 
 /// Adapter that implements SuggestionEnqueuePort for LLMQueueService
 ///
 /// This adapter wraps the generic LLMQueueService and exposes a simple
-/// async interface for enqueuing suggestion requests.
+/// async interface for enqueuing suggestion requests. It also handles
+/// auto-enrichment of suggestion context with world data.
 pub struct SuggestionEnqueueAdapter<Q, L, N>
 where
     Q: ProcessingQueuePort<LLMRequestItem> + 'static,
@@ -25,6 +34,7 @@ where
     N: QueueNotificationPort + 'static,
 {
     llm_queue_service: Arc<LLMQueueService<Q, L, N>>,
+    world_repository: Arc<dyn WorldRepositoryPort>,
 }
 
 impl<Q, L, N> SuggestionEnqueueAdapter<Q, L, N>
@@ -34,8 +44,67 @@ where
     N: QueueNotificationPort + 'static,
 {
     /// Create a new adapter wrapping an LLMQueueService
-    pub fn new(llm_queue_service: Arc<LLMQueueService<Q, L, N>>) -> Self {
-        Self { llm_queue_service }
+    ///
+    /// # Arguments
+    /// * `llm_queue_service` - The LLM queue service to delegate to
+    /// * `world_repository` - Repository for fetching world data for auto-enrichment
+    pub fn new(
+        llm_queue_service: Arc<LLMQueueService<Q, L, N>>,
+        world_repository: Arc<dyn WorldRepositoryPort>,
+    ) -> Self {
+        Self {
+            llm_queue_service,
+            world_repository,
+        }
+    }
+
+    /// Auto-enrich the suggestion context with world data if not already provided
+    ///
+    /// If `world_setting` is None and `world_id` is Some, fetches the world
+    /// and populates `world_setting` with "{world_name}: {world_description}".
+    async fn enrich_context(
+        &self,
+        mut context: SuggestionContext,
+        world_id: Option<uuid::Uuid>,
+    ) -> SuggestionContext {
+        // Only enrich if world_setting is not already provided
+        if context.world_setting.is_some() {
+            return context;
+        }
+
+        // Try to fetch world data for enrichment
+        if let Some(wid) = world_id {
+            match self.world_repository.get(WorldId::from_uuid(wid)).await {
+                Ok(Some(world)) => {
+                    // Build world_setting from world name and description
+                    let setting = if world.description.is_empty() {
+                        world.name
+                    } else {
+                        format!("{}: {}", world.name, world.description)
+                    };
+                    context.world_setting = Some(setting);
+                    tracing::debug!(
+                        "Auto-enriched suggestion context with world setting for world {}",
+                        wid
+                    );
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        "World {} not found for suggestion context enrichment",
+                        wid
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to fetch world {} for suggestion context enrichment: {}",
+                        wid,
+                        e
+                    );
+                }
+            }
+        }
+
+        context
     }
 }
 
@@ -53,6 +122,11 @@ where
         // Generate request ID
         let request_id = uuid::Uuid::new_v4().to_string();
 
+        // Require world_id for suggestion requests
+        let world_id = request.world_id.ok_or_else(|| {
+            QueueError::Backend("world_id is required for suggestion requests".to_string())
+        })?;
+
         // Convert context
         let suggestion_context = SuggestionContext {
             entity_type: request.context.entity_type,
@@ -63,10 +137,10 @@ where
             world_id: request.context.world_id,
         };
 
-        // Require world_id for suggestion requests
-        let world_id = request.world_id.ok_or_else(|| {
-            QueueError::Backend("world_id is required for suggestion requests".to_string())
-        })?;
+        // Auto-enrich context with world data if needed
+        let enriched_context = self
+            .enrich_context(suggestion_context, Some(world_id))
+            .await;
 
         // Create LLM request item
         let llm_request = LLMRequestItem {
@@ -77,7 +151,7 @@ where
             world_id,
             pc_id: None,
             prompt: None,
-            suggestion_context: Some(suggestion_context),
+            suggestion_context: Some(enriched_context),
             callback_id: request_id.clone(),
         };
 

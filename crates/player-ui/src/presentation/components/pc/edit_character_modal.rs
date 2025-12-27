@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
-use wrldbldr_player_app::application::services::player_character_service::CharacterSheetDataApi;
 use crate::presentation::services::{use_player_character_service, use_world_service};
 
 /// Props for EditCharacterModal
@@ -77,22 +76,16 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         error_message.set(None);
 
         spawn(async move {
+            // Convert sheet values to JSON if present
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                Some(CharacterSheetDataApi { values: sheet_vals })
+                serde_json::to_value(&sheet_vals).ok()
             };
 
             let request = UpdatePlayerCharacterRequest {
                 name: Some(name_val),
-                description: if desc_val.trim().is_empty() {
-                    None
-                } else {
-                    Some(desc_val)
-                },
                 sheet_data,
-                sprite_asset: None,
-                portrait_asset: None,
             };
 
             match pc_svc.update_pc(&pc_id, &request).await {

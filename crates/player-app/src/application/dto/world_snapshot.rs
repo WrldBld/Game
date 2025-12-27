@@ -425,6 +425,12 @@ impl SkillCategory {
     }
 }
 
+impl std::fmt::Display for SkillCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
 // ============================================================================
 // Challenge Types
 // ============================================================================

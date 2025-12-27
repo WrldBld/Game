@@ -2,8 +2,8 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2025-12-25  
-**Overall Progress**: Core gameplay complete; Queue System complete; Prompt Template System complete; Sprint 4 UX Polish complete
+**Last Updated**: 2025-12-26  
+**Overall Progress**: Core gameplay complete; WebSocket-first migration complete; LLM context wiring complete; Code quality audit done
 
 ---
 
@@ -13,9 +13,11 @@ This document tracks implementation progress and remaining work. For detailed sy
 |------|-------------|--------|
 | Tier 1 | Critical Path (Core Gameplay) | **COMPLETE** |
 | Tier 2 | Feature Completeness | **COMPLETE** |
-| Tier 3 | Architecture & Quality | Partial |
-| Tier 4 | Session & World Management | **COMPLETE** |
+| Tier 3 | Architecture & Quality | **IN PROGRESS** |
+| Tier 4 | Session & World Management | **COMPLETE** (WebSocket-first) |
 | Tier 5 | Future Features | Not Started |
+
+See [CONSOLIDATED_IMPLEMENTATION_PLAN.md](./CONSOLIDATED_IMPLEMENTATION_PLAN.md) for prioritized remaining work.
 
 ---
 
@@ -39,29 +41,39 @@ This document tracks implementation progress and remaining work. For detailed sy
 
 ### Tier 3: Architecture & Quality - IN PROGRESS
 
+See [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) for detailed audit findings.
+
 #### 3.1 Domain-Driven Design Patterns
 - [x] Event bus architecture implemented (SQLite-backed pub/sub)
 - [ ] Wire WorldAggregate into services
 - [ ] Implement use case traits in services
 
-#### 3.2 Error Handling
+#### 3.2 Code Quality (NEW - 2025-12-26)
+- [x] WebSocket-first migration complete (sessions removed)
+- [x] LLM context wiring complete (mood, actantial, featured NPCs)
+- [ ] Fix player-app REST service calls to deleted endpoints (CRITICAL)
+- [ ] Delete dead code modules (~680 lines)
+- [ ] Create shared row converters module
+- [ ] Move DTOs from ports to app/domain layer
+
+#### 3.3 Error Handling
 - [ ] Define domain/application/infrastructure errors
 - [ ] Replace `anyhow::Result` with typed errors
 - [ ] Map errors to HTTP responses
 
-#### 3.3 Testing (Engine)
+#### 3.4 Testing (Engine)
 - [ ] Set up test infrastructure
 - [ ] Domain entity unit tests
 - [ ] Repository integration tests
 - [ ] API endpoint tests
 
-#### 3.4 Security (Engine)
-- [ ] Fix CORS configuration
+#### 3.5 Security (Engine)
+- [x] Fix CORS configuration (env-based)
 - [ ] Add authentication middleware
 - [ ] Add authorization checks
 - [ ] Input validation
 
-#### 3.5 Testing (Player)
+#### 3.6 Testing (Player)
 - [ ] Set up test infrastructure
 - [ ] State management tests
 - [ ] Component tests
@@ -82,14 +94,20 @@ These improvements enhance existing systems without adding major new features:
 - [ ] Travel time between regions/locations (triggers game time, random encounters)
 - [ ] Party formation mechanics for coordinated exploration
 - [ ] Party member location visibility on mini-map
+- [ ] Region item placement (items visible on scene, pick up/drop)
 
 **NPC Schedule Improvements**
 - [ ] Multi-slot schedules for NPCs (e.g., 9am-5pm shop, 6pm-10pm tavern)
 - [ ] Daily timeline visualization for schedule planning
 
 **Challenge System Improvements**
-- [ ] Region-level challenge binding (schema exists, needs UI/service integration)
+- [x] Region-level challenge binding (completed 2025-12-24)
 - [ ] Context-aware challenge suggestions in Director Mode
+
+**Dialogue System Improvements**
+- [ ] Dialogue persistence as StoryEvents
+- [ ] SPOKE_TO relationship tracking
+- [ ] Mood & Expression system (inline markers in dialogue)
 
 See individual system documents for detailed user stories.
 
@@ -188,8 +206,13 @@ A task is complete when:
 
 | Date | Changes |
 |------|---------|
+| 2025-12-26 | LLM context wiring complete: mood, actantial context, featured NPC names |
+| 2025-12-26 | WebSocket migration Phases 1-5 complete: ~10,100 lines removed |
+| 2025-12-26 | Code quality audit complete: 6 categories, 53-80h estimated remediation |
+| 2025-12-26 | Created CONSOLIDATED_IMPLEMENTATION_PLAN.md |
 | 2025-12-25 | Sprint 4 UX Polish complete (Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline) |
 | 2025-12-25 | Session ID refactor: removed session_id from story events (world-scoped only) |
+| 2025-12-25 | US-STG-013 (hidden NPCs) and US-OBS-006 (unrevealed interactions) complete |
 | 2025-12-24 | Documentation alignment: system docs updated to match ACTIVE_DEVELOPMENT.md |
 | 2025-12-20 | Prompt Template System complete (configurable LLM prompts) |
 | 2025-12-18 | Phase B complete (Inventory, Known NPCs, Mini-map, Events) |
@@ -209,5 +232,8 @@ A task is complete when:
 |----------|---------|
 | [_index.md](../_index.md) | Documentation overview |
 | [MVP.md](./MVP.md) | Vision and acceptance criteria |
+| [CONSOLIDATED_IMPLEMENTATION_PLAN.md](./CONSOLIDATED_IMPLEMENTATION_PLAN.md) | Prioritized remaining work |
+| [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) | Technical debt audit |
+| [ACTIVE_DEVELOPMENT.md](./ACTIVE_DEVELOPMENT.md) | Current sprint tracking |
 | [systems/](../systems/) | Game system specifications |
 | [architecture/](../architecture/) | Technical architecture docs |

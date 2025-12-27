@@ -45,7 +45,7 @@ pub fn LocationPreviewModal(props: LocationPreviewModalProps) -> Element {
                 error.set(None);
 
                 // Fetch location data first
-                match svc.get_location(&world_id, &loc_id).await {
+                match svc.get_location(&loc_id).await {
                     Ok(loc_data) => location.set(Some(loc_data)),
                     Err(e) => {
                         error.set(Some(format!("Failed to load location: {}", e)));

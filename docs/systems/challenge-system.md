@@ -58,15 +58,19 @@ Challenges create dramatic tension and player agency. Key design principles:
   - *Implementation*: SkillsDisplay component shows all skills with modifiers; ChallengeRollModal displays modifier in header and result breakdown (dice + modifier + skill = total)
   - *Files*: `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`, `crates/player-ui/src/presentation/components/tactical/skills_display.rs`
 
+- [x] **US-CHAL-010**: As a DM, I can bind challenges to specific regions (not just locations)
+  - *Implementation*: `AVAILABLE_AT_REGION` edge with `ChallengeRegionAvailability` entity
+  - *Files*: `crates/domain/src/entities/challenge.rs`, `crates/engine-adapters/src/infrastructure/persistence/challenge_repository.rs`
+  - *Completed*: 2025-12-24
+
+- [x] **US-CHAL-011**: Character stats are updated when challenge outcomes modify them
+  - *Implementation*: `CharacterStatUpdated` message broadcast after approval; handler resolves "active_pc" placeholder
+  - *Files*: `crates/engine-app/src/application/services/challenge_outcome_approval_service.rs`, `crates/protocol/src/messages.rs`
+  - *Completed*: 2025-12-26
+
 ### Future Improvements
 
-- [ ] **US-CHAL-010**: As a DM, I can bind challenges to specific regions (not just locations)
-  - *Design*: Add `AVAILABLE_AT_REGION` edge alongside existing `AVAILABLE_AT_LOCATION`
-  - *Effect*: More granular challenge placement (e.g., "Lockpick Back Room Door" only in "Back Room" region)
-  - *Current State*: `AVAILABLE_AT_REGION` edge defined in schema but not fully used
-  - *Priority*: Medium - enables location-specific puzzles
-
-- [ ] **US-CHAL-011**: As a DM, I can see which challenges are available in the current region
+- [ ] **US-CHAL-012**: As a DM, I can see which challenges are available in the current region
   - *Design*: RegionScene includes available challenges based on both location and region edges
   - *Effect*: Context-aware challenge suggestions in Director Mode
   - *Priority*: Low - UI enhancement
