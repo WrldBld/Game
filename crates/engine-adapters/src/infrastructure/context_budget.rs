@@ -5,9 +5,9 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! let enforcer = ContextBudgetEnforcer::new(config);
-//! let (scene_text, truncated) = enforcer.enforce(
+//! let result = enforcer.enforce(
 //!     ContextCategory::Scene,
 //!     &scene_context_string,
 //! );

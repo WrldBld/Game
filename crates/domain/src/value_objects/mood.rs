@@ -494,16 +494,21 @@ mod tests {
             PlayerCharacterId::new(),
         );
 
+        // Starts as Stranger (0 points)
         assert_eq!(state.relationship, RelationshipLevel::Stranger);
 
+        // +15 = 15 points -> Acquaintance (>= 10)
         state.add_relationship_points(15);
         assert_eq!(state.relationship, RelationshipLevel::Acquaintance);
 
+        // +20 = 35 points -> Friend (>= 25)
         state.add_relationship_points(20);
         assert_eq!(state.relationship, RelationshipLevel::Friend);
 
+        // -60 = -25 points -> Enemy (> -50 but <= -25)
+        // Thresholds: Rival > -25, Enemy > -50, Nemesis <= -50
         state.add_relationship_points(-60);
-        assert_eq!(state.relationship, RelationshipLevel::Rival);
+        assert_eq!(state.relationship, RelationshipLevel::Enemy);
     }
 
     #[test]
