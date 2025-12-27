@@ -45,6 +45,7 @@ tracing-wasm = { workspace = true }
 gloo-timers = { workspace = true }
 gloo-net = { workspace = true }
 getrandom = { workspace = true }
+send_wrapper = { workspace = true, features = ["futures"] }
 
 [lints]
 workspace = true

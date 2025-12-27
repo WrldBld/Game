@@ -1,7 +1,23 @@
 //! WebSocket client for Engine connection
+//!
+//! Platform-specific implementations are in submodules:
+//! - `desktop`: tokio-tungstenite based client
+//! - `wasm`: web-sys WebSocket based client
 
-mod client;
-mod game_connection_adapter;
+mod protocol;
 
-pub use client::{EngineClient, ConnectionState};
-pub use game_connection_adapter::EngineGameConnection;
+#[cfg(not(target_arch = "wasm32"))]
+mod desktop;
+
+#[cfg(target_arch = "wasm32")]
+mod wasm;
+
+// Re-export shared protocol types
+pub use protocol::ConnectionState;
+
+// Re-export platform-specific types with unified names
+#[cfg(not(target_arch = "wasm32"))]
+pub use desktop::{DesktopGameConnection as EngineGameConnection, EngineClient};
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm::{EngineClient, WasmGameConnection as EngineGameConnection};
