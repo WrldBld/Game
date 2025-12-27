@@ -81,7 +81,7 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P0.2 | **COMPLETE** | ✅ | Added FromStr to CampbellArchetype |
 | P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
 | P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
-| P1.4 | Partial | **4/5 DONE** | Only region_items TODO remains |
+| P1.4 | **COMPLETE** | ✅ | All LLM context TODOs wired |
 | P2.1 | ~~Not Started~~ | **COMPLETE** | websocket.rs already split into 15 files |
 | P2.5 | Not Started | **3 violations** | Test imports in narrative_event, challenge, action services |
 
@@ -220,19 +220,25 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
-### P1.4: Wire LLM Context - Region Items
+### ~~P1.4: Wire LLM Context - Region Items~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T2.3
-**Status**: Mostly Complete
-**Effort**: 30 minutes (once P1.3 complete)
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 30 minutes
+
+**Resolution**: Updated `build_prompt_from_action()` in `websocket_helpers.rs` to:
+1. Get PC's current region from `pc_repo.get(pc_id)`
+2. Fetch items via `region_repo.get_region_items(region_id)`
+3. Convert to `Vec<RegionItemContext>` for LLM prompt
+4. NPCs now aware of visible items during dialogue
 
 | TODO | Location | Status |
 |------|----------|--------|
-| `region_items: Vec::new()` | websocket_helpers.rs:73 | Blocked by P1.3 |
+| ~~`region_items: Vec::new()`~~ | ~~websocket_helpers.rs:73~~ | ~~**DONE** (2025-12-27)~~ |
 | ~~`current_mood: None`~~ | ~~websocket_helpers.rs:199~~ | ~~**DONE** (2025-12-26)~~ |
 | ~~`motivations: None`~~ | ~~websocket_helpers.rs:200~~ | ~~**DONE** (2025-12-26)~~ |
 | ~~`featured_npc_names: Vec::new()`~~ | ~~websocket_helpers.rs:298~~ | ~~**DONE** (2025-12-26)~~ |
 
-> **Note**: Only `region_items` remains. This is blocked by P1.3 Region Item Placement.
+> **Note**: All LLM context TODOs are now complete.
 
 ---
 
@@ -553,6 +559,7 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P1.4 COMPLETE**: Wired region_items into LLM context via build_prompt_from_action() |
 | 2025-12-27 | Code review: Added P1.5 (memory leaks) and P1.6 (missing handlers) |
 | 2025-12-27 | Code review: P2.1 marked COMPLETE (websocket.rs split into 15 files) |
 | 2025-12-27 | Code review: P2.5 updated with 2 additional test violations |
