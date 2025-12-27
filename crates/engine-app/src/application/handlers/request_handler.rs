@@ -264,21 +264,7 @@ impl AppRequestHandler {
     }
 }
 
-/// Parse a string archetype name into a CampbellArchetype
-fn parse_archetype(s: &str) -> wrldbldr_domain::value_objects::CampbellArchetype {
-    use wrldbldr_domain::value_objects::CampbellArchetype;
-    match s.to_lowercase().as_str() {
-        "hero" => CampbellArchetype::Hero,
-        "mentor" => CampbellArchetype::Mentor,
-        "herald" => CampbellArchetype::Herald,
-        "shadow" => CampbellArchetype::Shadow,
-        "shapeshifter" => CampbellArchetype::Shapeshifter,
-        "threshold_guardian" | "thresholdguardian" | "threshold guardian" => CampbellArchetype::ThresholdGuardian,
-        "trickster" => CampbellArchetype::Trickster,
-        "ally" => CampbellArchetype::Ally,
-        _ => CampbellArchetype::Ally, // Default to Ally for unknown archetypes
-    }
-}
+
 
 /// Parse a difficulty string into a Difficulty enum
 fn parse_difficulty(s: &str) -> wrldbldr_domain::entities::Difficulty {
@@ -558,7 +544,7 @@ impl RequestHandler for AppRequestHandler {
                 // Parse archetype (default to Ally if not specified)
                 let archetype = data.archetype
                     .as_deref()
-                    .map(|s| parse_archetype(s))
+                    .and_then(|s| s.parse().ok())
                     .unwrap_or(wrldbldr_domain::value_objects::CampbellArchetype::Ally);
                 
                 let request = crate::application::services::CreateCharacterRequest {
@@ -610,7 +596,8 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let archetype = parse_archetype(&data.new_archetype);
+                let archetype = data.new_archetype.parse()
+                    .unwrap_or(wrldbldr_domain::value_objects::CampbellArchetype::Ally);
                 let request = crate::application::services::ChangeArchetypeRequest {
                     new_archetype: archetype,
                     reason: data.reason,

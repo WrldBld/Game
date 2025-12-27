@@ -108,6 +108,35 @@ impl std::fmt::Display for CampbellArchetype {
     }
 }
 
+impl std::str::FromStr for CampbellArchetype {
+    type Err = String;
+
+    /// Parse an archetype from a string (case-insensitive)
+    ///
+    /// Supports multiple formats:
+    /// - PascalCase: "Hero", "ThresholdGuardian"
+    /// - lowercase: "hero", "threshold_guardian"
+    /// - With spaces: "Threshold Guardian"
+    ///
+    /// Unknown values default to `Ally`.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Normalize: lowercase and remove spaces/underscores for matching
+        let normalized = s.to_lowercase().replace(['_', ' '], "");
+
+        Ok(match normalized.as_str() {
+            "hero" => Self::Hero,
+            "mentor" => Self::Mentor,
+            "thresholdguardian" => Self::ThresholdGuardian,
+            "herald" => Self::Herald,
+            "shapeshifter" => Self::Shapeshifter,
+            "shadow" => Self::Shadow,
+            "trickster" => Self::Trickster,
+            "ally" => Self::Ally,
+            _ => Self::Ally, // Default to Ally for unknown archetypes
+        })
+    }
+}
+
 /// Record of an archetype change for a character
 #[derive(Debug, Clone)]
 pub struct ArchetypeChange {

@@ -74,20 +74,11 @@ pub struct CreatedIdResponseDto {
 
 /// Parse a CampbellArchetype from a string label.
 ///
-/// This helper is used from both application DTOs and persistence code to keep
-/// archetype mapping consistent in a single place.
+/// Delegates to `CampbellArchetype::from_str()` which provides case-insensitive
+/// matching and support for multiple formats (PascalCase, snake_case, lowercase).
+/// Unknown values default to `Ally`.
 pub fn parse_archetype(s: &str) -> CampbellArchetype {
-    match s {
-        "Hero" => CampbellArchetype::Hero,
-        "Mentor" => CampbellArchetype::Mentor,
-        "ThresholdGuardian" => CampbellArchetype::ThresholdGuardian,
-        "Herald" => CampbellArchetype::Herald,
-        "Shapeshifter" => CampbellArchetype::Shapeshifter,
-        "Shadow" => CampbellArchetype::Shadow,
-        "Trickster" => CampbellArchetype::Trickster,
-        "Ally" => CampbellArchetype::Ally,
-        _ => CampbellArchetype::Ally,
-    }
+    s.parse().unwrap_or(CampbellArchetype::Ally)
 }
 
 pub fn parse_relationship_type(s: &str) -> RelationshipType {
