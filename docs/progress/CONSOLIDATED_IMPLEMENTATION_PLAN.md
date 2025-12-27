@@ -81,8 +81,10 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | P0.2 | **COMPLETE** | ✅ | Added FromStr to CampbellArchetype |
 | P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
 | P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
+| P1.3 | **COMPLETE** | ✅ | PlaceItemInRegion and CreateAndPlaceItem DM APIs |
 | P1.4 | **COMPLETE** | ✅ | All LLM context TODOs wired |
 | P1.5 | **COMPLETE** | ✅ | All 4 WebSocket memory leaks fixed |
+| P1.6 | **COMPLETE** | ✅ | GetSheetTemplate, GetMyPlayerCharacter handlers, sheet_data parsing |
 | P2.1 | ~~Not Started~~ | **COMPLETE** | websocket.rs already split into 15 files |
 | P2.5 | **COMPLETE** | ✅ | Mock moved to player-ports, WASM compiles |
 
@@ -199,25 +201,26 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
-### P1.3: Region Item Placement (Complete the System)
+### ~~P1.3: Region Item Placement (Complete the System)~~ ✅ COMPLETE
 **Source**: Previously identified as US-REGION-ITEMS (archived)
-**Status**: Partial
-**Effort**: 1-2 days (reduced - partial implementation exists)
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1.5 hours
 
-**Already Implemented**:
-- `get_region_items()` in RegionRepository - reads items via `[:CONTAINS_ITEM]` edge
-- `add_item_to_region()` in RegionRepository - creates edge with metadata
-- Drop item flow places items in regions
-- `SceneChanged` message includes `region_items` field
-- `RegionItemsPanel` UI component exists
+**Resolution**: Added DM-only WebSocket APIs for placing items in regions:
+- `PlaceItemInRegion`: Place an existing item into a region
+- `CreateAndPlaceItem`: Create a new item and place it in a region
 
-**Still Needed**:
-- `place_item()` standalone API for DM to manually place items
-- Pick up item from region flow
-- LLM context wiring (currently hardcoded to empty)
+**Changes**:
+- Added `PlaceItemInRegion` and `CreateAndPlaceItem` to RequestPayload enum
+- Added `CreateItemData` struct for item creation parameters
+- Added `place_item_in_region()` and `create_and_place_item()` to ItemService trait
+- Wired `RegionRepositoryPort` into `ItemServiceImpl` via `with_region_repository()`
+- Added `parse_item_id()` helper to request handler
+- Implemented handlers with DM-only access check
 
-**Blocked by**: None
-**Enables**: US-NAV-014 (region items in LLM context)
+**Remaining Work** (P2 priority):
+- Pick up item from region flow (PickupItem already exists via WebSocket message)
+- LLM context wiring done in P1.4
 
 ---
 
@@ -263,22 +266,21 @@ Removed duplicate functions from request_handler.rs and dto/character.rs.
 
 ---
 
-### P1.6: Implement Missing Engine Handlers (NEW)
+### ~~P1.6: Implement Missing Engine Handlers~~ ✅ COMPLETE
 **Source**: Code review 2025-12-27
-**Status**: Not Started
-**Effort**: 1-2 hours
-**Severity**: HIGH - Player-app calls handlers that don't exist
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 1.5 hours
 
-**Missing Handlers** in `request_handler.rs`:
+**Resolution**: Implemented all missing handlers:
+- `GetSheetTemplate`: Returns `SheetTemplateResponseDto` for world's default template
+- `GetMyPlayerCharacter`: Uses existing `get_pc_by_user_and_world()` service method
+- `UpdatePlayerCharacter`: Fixed `sheet_data` parsing from protocol JSON to `CharacterSheetData`
 
-| RequestPayload | Called By | Current Behavior |
-|----------------|-----------|------------------|
-| `GetSheetTemplate` | WorldService | Returns "not yet fully implemented" error |
-| `GetMyPlayerCharacter` | PlayerCharacterService | Returns "not yet fully implemented" error |
-
-**Also**: `UpdatePlayerCharacter` has `sheet_data: None, // TODO` at line 2022
-
-**Fix**: Implement these handlers or remove the dead code paths.
+**Changes**:
+- Wired `SheetTemplateService` to `AppRequestHandler` (as `Arc<SheetTemplateService>`)
+- Updated `PlayerServices` to use `Arc<SheetTemplateService>` for sharing
+- Added import for `SheetTemplateResponseDto` in handler
+- Added import for `CharacterSheetData` for JSON parsing
 
 ---
 
@@ -551,6 +553,8 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P1.6 COMPLETE**: Implemented GetSheetTemplate, GetMyPlayerCharacter handlers, fixed sheet_data parsing |
+| 2025-12-27 | **P1.3 COMPLETE**: Added PlaceItemInRegion and CreateAndPlaceItem DM APIs |
 | 2025-12-27 | **P2.5 COMPLETE**: Fixed hex arch violation, moved MockGameConnectionPort to player-ports |
 | 2025-12-27 | Fixed WASM compilation by cfg-guarding mock to desktop-only |
 | 2025-12-27 | **P1.5 COMPLETE**: Fixed all 4 WebSocket memory leaks (disconnect cleanup, timeout cleanup, closure storage) |
