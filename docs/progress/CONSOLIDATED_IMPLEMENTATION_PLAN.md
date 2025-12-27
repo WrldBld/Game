@@ -78,9 +78,9 @@ The refactor successfully migrated 13 services to WebSocket, with 3 services int
 | Item | Plan Status | Verified | Notes |
 |------|-------------|----------|-------|
 | P0.1 | **COMPLETE** | ✅ | All 13 services migrated to WebSocket |
-| P0.2 | Not Started | **VALID** | 2 inconsistent parse_archetype implementations |
-| P0.3 | Not Started | **PARTIALLY FIXED** | request_handler.rs fixed, dto/character.rs still missing family |
-| P0.4 | Not Started | **VALID** | MonomythStage variant mismatches |
+| P0.2 | **COMPLETE** | ✅ | Added FromStr to CampbellArchetype |
+| P0.3 | **COMPLETE** | ✅ | Added FromStr to RelationshipType with all family types |
+| P0.4 | **COMPLETE** | ✅ | MonomythStage variants aligned |
 | P1.4 | Partial | **4/5 DONE** | Only region_items TODO remains |
 | P2.1 | Not Started | **DONE** | websocket.rs already split into 14 files |
 
@@ -120,40 +120,37 @@ world data to enhance LLM suggestion context when `world_setting` is not provide
 
 ---
 
-### P0.2: Fix parse_archetype Inconsistency
+### ~~P0.2: Fix parse_archetype Inconsistency~~ ✅ COMPLETE
 **Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.2
-**Status**: Not Started
-**Effort**: 1 hour
-**Severity**: HIGH - Case sensitivity inconsistency
-
-**Fix**: Add `FromStr` impl on `CampbellArchetype` in domain with case-insensitive matching.
-
----
-
-### P0.3: Fix parse_relationship_type Inconsistency
-**Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.3
-**Status**: Not Started
-**Effort**: 1 hour
-**Severity**: HIGH - Missing family relationship variants
-
-**Fix**: Add canonical `FromStr` in domain with all variants.
-
----
-
-### P0.4: Fix MonomythStage Variant Name Mismatches
-**Source**: Code review 2025-12-26
-**Status**: Not Started
+**Status**: ✅ COMPLETE (2025-12-27)
 **Effort**: 30 minutes
-**Severity**: HIGH - Cross-crate type inconsistency will cause serialization failures
 
-**Problem**: Two variant naming mismatches between domain and protocol:
+**Resolution**: Added `FromStr` impl to `CampbellArchetype` in domain with case-insensitive
+matching. Supports PascalCase, snake_case, lowercase, and space-separated formats.
+Removed duplicate `parse_archetype` functions from request_handler.rs and dto/character.rs.
 
-| Domain (`entities/world.rs`) | Protocol (`types.rs`) |
-|------------------------------|----------------------|
-| `ApproachToInnermostCave` | `ApproachToTheInmostCave` |
-| `ReturnWithElixir` | `ReturnWithTheElixir` |
+---
 
-**Fix**: Align variant names across both crates (prefer domain naming).
+### ~~P0.3: Fix parse_relationship_type Inconsistency~~ ✅ COMPLETE
+**Source**: [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) T1.3
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 30 minutes
+
+**Resolution**: Added `FromStr` impl to `RelationshipType` and `FamilyRelation` in domain.
+Now supports all 9 family relation types (parent, child, sibling, spouse, grandparent,
+grandchild, aunt/uncle, niece/nephew, cousin) plus aliases (friend, mentor, enemy).
+Removed duplicate functions from request_handler.rs and dto/character.rs.
+
+---
+
+### ~~P0.4: Fix MonomythStage Variant Name Mismatches~~ ✅ COMPLETE
+**Source**: Code review 2025-12-26
+**Status**: ✅ COMPLETE (2025-12-27)
+**Effort**: 10 minutes
+
+**Resolution**: Aligned protocol variant names to match domain:
+- `ApproachToTheInmostCave` → `ApproachToInnermostCave`
+- `ReturnWithTheElixir` → `ReturnWithElixir`
 
 ---
 
@@ -490,6 +487,10 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **ALL P0 ITEMS COMPLETE** |
+| 2025-12-27 | **P0.4 COMPLETE**: MonomythStage variants aligned between domain and protocol |
+| 2025-12-27 | **P0.3 COMPLETE**: Added FromStr to RelationshipType with all 9 family types |
+| 2025-12-27 | **P0.2 COMPLETE**: Added FromStr to CampbellArchetype for case-insensitive parsing |
 | 2025-12-27 | **P0.1 COMPLETE**: All 13 player-app services migrated to WebSocket |
 | 2025-12-27 | SuggestionService: Added auto-enrichment (fetches world data for LLM context) |
 | 2025-12-27 | Protocol: Added `SuggestionContextData`, `EnqueueContentSuggestion`, `CancelContentSuggestion` |
