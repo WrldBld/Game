@@ -773,19 +773,8 @@ impl GameConnectionPort for EngineGameConnection {
         payload: RequestPayload,
         timeout_ms: u64,
     ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + '_>> {
-        use gloo_timers::future::TimeoutFuture;
-        use futures_util::future::{select, Either};
-        
-        let request_future = self.client.request(payload);
-        
-        Box::pin(async move {
-            let timeout_future = TimeoutFuture::new(timeout_ms as u32);
-            
-            match select(Box::pin(request_future), Box::pin(timeout_future)).await {
-                Either::Left((result, _)) => result,
-                Either::Right((_, _)) => Err(RequestError::Timeout),
-            }
-        })
+        // Delegate to client's request_with_timeout which handles cleanup on timeout
+        Box::pin(self.client.request_with_timeout(payload, timeout_ms))
     }
 }
 

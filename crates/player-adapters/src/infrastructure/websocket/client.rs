@@ -269,6 +269,15 @@ mod desktop {
         }
 
         pub async fn disconnect(&self) {
+            // Clear pending requests - dropping senders causes Cancelled errors for waiters
+            {
+                let mut pending = self.pending_requests.lock().await;
+                let count = pending.len();
+                pending.clear();
+                if count > 0 {
+                    tracing::debug!("Cleared {} pending requests on disconnect", count);
+                }
+            }
             {
                 let mut tx_lock = self.tx.lock().await;
                 *tx_lock = None;
@@ -303,7 +312,19 @@ mod wasm {
     use std::rc::Rc;
     use wasm_bindgen::prelude::*;
     use web_sys::{MessageEvent, WebSocket};
-    use wrldbldr_protocol::{RequestPayload, ResponseResult, RequestError};
+    use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
+
+    /// Storage for WebSocket event closures to prevent leaks on reconnect
+    struct WasmClosures {
+        #[allow(dead_code)]
+        onmessage: Closure<dyn FnMut(MessageEvent)>,
+        #[allow(dead_code)]
+        onopen: Closure<dyn FnMut()>,
+        #[allow(dead_code)]
+        onclose: Closure<dyn FnMut()>,
+        #[allow(dead_code)]
+        onerror: Closure<dyn FnMut()>,
+    }
 
     /// WebSocket client for communicating with the Engine (WASM)
     pub struct EngineClient {
@@ -313,6 +334,8 @@ mod wasm {
         on_message: Rc<RefCell<Option<Box<dyn FnMut(ServerMessage)>>>>,
         on_state_change: Rc<RefCell<Option<Box<dyn FnMut(ConnectionState)>>>>,
         pending_requests: Rc<RefCell<HashMap<String, Box<dyn FnOnce(ResponseResult)>>>>,
+        /// Stored closures for cleanup on disconnect/reconnect
+        closures: Rc<RefCell<Option<WasmClosures>>>,
     }
 
     impl EngineClient {
@@ -324,6 +347,7 @@ mod wasm {
                 on_message: Rc::new(RefCell::new(None)),
                 on_state_change: Rc::new(RefCell::new(None)),
                 pending_requests: Rc::new(RefCell::new(HashMap::new())),
+                closures: Rc::new(RefCell::new(None)),
             }
         }
 
@@ -385,7 +409,61 @@ mod wasm {
             }
         }
 
+        /// Send a request with timeout, cleaning up on timeout
+        pub fn request_with_timeout(
+            &self,
+            payload: RequestPayload,
+            timeout_ms: u64,
+        ) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
+            use futures_channel::oneshot;
+            use futures_util::future::{select, Either};
+            use gloo_timers::future::TimeoutFuture;
+
+            let request_id = uuid::Uuid::new_v4().to_string();
+            let (tx, rx) = oneshot::channel();
+
+            // Store the sender as a callback
+            self.pending_requests.borrow_mut().insert(
+                request_id.clone(),
+                Box::new(move |result| {
+                    let _ = tx.send(result);
+                }),
+            );
+
+            // Send the message
+            let msg = ClientMessage::Request {
+                request_id: request_id.clone(),
+                payload,
+            };
+
+            let send_result = self.send(msg);
+            let pending_requests = Rc::clone(&self.pending_requests);
+            let request_id_for_cleanup = request_id;
+
+            async move {
+                send_result.map_err(|e| RequestError::SendFailed(e.to_string()))?;
+
+                let timeout_future = TimeoutFuture::new(timeout_ms as u32);
+
+                match select(Box::pin(rx), Box::pin(timeout_future)).await {
+                    Either::Left((result, _)) => result.map_err(|_| RequestError::Cancelled),
+                    Either::Right((_, _)) => {
+                        // Timeout - remove from pending requests to prevent leak
+                        pending_requests.borrow_mut().remove(&request_id_for_cleanup);
+                        tracing::debug!(
+                            "Request {} timed out, removed from pending",
+                            request_id_for_cleanup
+                        );
+                        Err(RequestError::Timeout)
+                    }
+                }
+            }
+        }
+
         pub fn connect(&self) -> Result<()> {
+            // Drop existing closures before creating new ones to prevent leaks
+            *self.closures.borrow_mut() = None;
+
             self.set_state(ConnectionState::Connecting);
 
             let ws = WebSocket::new(&self.url).map_err(|e| {
@@ -403,13 +481,19 @@ mod wasm {
                     match serde_json::from_str::<ServerMessage>(&text) {
                         Ok(server_msg) => {
                             // Check if it's a Response and resolve pending request
-                            if let ServerMessage::Response { ref request_id, ref result } = server_msg {
-                                if let Some(callback) = pending_requests_clone.borrow_mut().remove(request_id) {
+                            if let ServerMessage::Response {
+                                ref request_id,
+                                ref result,
+                            } = server_msg
+                            {
+                                if let Some(callback) =
+                                    pending_requests_clone.borrow_mut().remove(request_id)
+                                {
                                     callback(result.clone());
                                     return; // Don't pass to regular callback
                                 }
                             }
-                            
+
                             if let Some(ref mut cb) = *on_message.borrow_mut() {
                                 cb(server_msg);
                             }
@@ -423,7 +507,6 @@ mod wasm {
                 }
             });
             ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
-            onmessage_callback.forget();
 
             // Set up open handler
             let state = Rc::clone(&self.state);
@@ -436,7 +519,6 @@ mod wasm {
                 web_sys::console::log_1(&"WebSocket connected".into());
             });
             ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
-            onopen_callback.forget();
 
             // Set up close handler
             let state = Rc::clone(&self.state);
@@ -449,7 +531,6 @@ mod wasm {
                 web_sys::console::log_1(&"WebSocket closed".into());
             });
             ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
-            onclose_callback.forget();
 
             // Set up error handler
             let state = Rc::clone(&self.state);
@@ -462,7 +543,14 @@ mod wasm {
                 web_sys::console::error_1(&"WebSocket error".into());
             });
             ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
-            onerror_callback.forget();
+
+            // Store closures instead of forgetting them to allow cleanup on disconnect/reconnect
+            *self.closures.borrow_mut() = Some(WasmClosures {
+                onmessage: onmessage_callback,
+                onopen: onopen_callback,
+                onclose: onclose_callback,
+                onerror: onerror_callback,
+            });
 
             *self.ws.borrow_mut() = Some(ws);
 
@@ -516,6 +604,19 @@ mod wasm {
         }
 
         pub fn disconnect(&self) {
+            // Clear pending requests - dropping callbacks causes Cancelled errors for waiters
+            {
+                let mut pending = self.pending_requests.borrow_mut();
+                let count = pending.len();
+                pending.clear();
+                if count > 0 {
+                    tracing::debug!("Cleared {} pending requests on disconnect", count);
+                }
+            }
+
+            // Drop closures to free memory
+            *self.closures.borrow_mut() = None;
+
             if let Some(ref ws) = *self.ws.borrow() {
                 let _ = ws.close();
             }
@@ -533,6 +634,7 @@ mod wasm {
                 on_message: Rc::clone(&self.on_message),
                 on_state_change: Rc::clone(&self.on_state_change),
                 pending_requests: Rc::clone(&self.pending_requests),
+                closures: Rc::clone(&self.closures),
             }
         }
     }
