@@ -39,7 +39,7 @@ use wrldbldr_engine_app::application::services::{
 };
 use wrldbldr_engine_app::application::services::generation_service::{GenerationService, GenerationEvent};
 use wrldbldr_engine_ports::outbound::{
-    AppEventRepositoryPort, DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
+    DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
 };
 use crate::infrastructure::comfyui::ComfyUIClient;
 use crate::infrastructure::config::AppConfig;
@@ -53,7 +53,7 @@ use crate::infrastructure::persistence::{
 };
 use crate::infrastructure::queues::QueueFactory;
 use crate::infrastructure::repositories::{
-    SqliteAppEventRepository, SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
+    SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
 };
 
 use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
@@ -379,31 +379,24 @@ impl AppState {
 
         // Note: settings_service was initialized earlier (needed by services for validation)
 
-        let app_event_repository_impl = SqliteAppEventRepository::new(event_pool).await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize event repository: {}", e))?;
-        // Generation read-state repository shares the same SQLite pool as app events
+        // Domain event repository - the only event repository needed
+        // Handles conversion to/from wire format (AppEvent) internally
+        let domain_event_repository_impl = SqliteDomainEventRepository::new(event_pool).await
+            .map_err(|e| anyhow::anyhow!("Failed to initialize domain event repository: {}", e))?;
+        
+        // Generation read-state repository shares the same SQLite pool as domain events
         let generation_read_state_repository =
-            SqliteGenerationReadStateRepository::new(app_event_repository_impl.pool().clone());
+            SqliteGenerationReadStateRepository::new(domain_event_repository_impl.pool().clone());
         generation_read_state_repository.init_schema().await?;
         let generation_read_state_repository: Arc<dyn GenerationReadStatePort> =
             Arc::new(generation_read_state_repository);
 
-        let app_event_repository: Arc<dyn AppEventRepositoryPort> =
-            Arc::new(app_event_repository_impl);
-
-        // Domain event repository for services that need DomainEvent interface
-        let domain_event_repository_impl = SqliteDomainEventRepository::new(
-            sqlx::SqlitePool::connect(&format!("sqlite:{}?mode=rwc", event_db_path))
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to connect to event database for domain events: {}", e))?
-        ).await
-            .map_err(|e| anyhow::anyhow!("Failed to initialize domain event repository: {}", e))?;
         let domain_event_repository: Arc<dyn DomainEventRepositoryPort> =
             Arc::new(domain_event_repository_impl);
 
         let event_notifier = InProcessEventNotifier::new();
         let event_bus: Arc<dyn EventBusPort> = Arc::new(SqliteEventBus::new(
-            app_event_repository.clone(),
+            domain_event_repository.clone(),
             event_notifier.clone(),
         ));
 
@@ -631,7 +624,7 @@ impl AppState {
         let events = EventInfrastructure::new(
             event_bus,
             event_notifier,
-            app_event_repository,
+            domain_event_repository.clone(),
             generation_read_state_repository,
         );
 

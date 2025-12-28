@@ -1,29 +1,26 @@
 //! SQLite Event Bus - Persistent event bus backed by SQLite
 //!
 //! Publishes domain events to SQLite storage and triggers in-process notifications.
-//! The adapter converts DomainEvent to AppEvent (wire format) for storage.
+//! Uses DomainEventRepositoryPort which handles domain event storage directly.
 
 use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{
-    AppEventRepositoryPort, EventBusError, EventBusPort,
-};
+use wrldbldr_engine_ports::outbound::{DomainEventRepositoryPort, EventBusError, EventBusPort};
 
-use super::domain_event_mapper::domain_event_to_app_event;
 use super::in_process_notifier::InProcessEventNotifier;
 
 /// SQLite-backed event bus implementation
 pub struct SqliteEventBus {
-    repository: Arc<dyn AppEventRepositoryPort>,
+    repository: Arc<dyn DomainEventRepositoryPort>,
     notifier: InProcessEventNotifier,
 }
 
 impl SqliteEventBus {
     /// Create a new SQLite event bus
     pub fn new(
-        repository: Arc<dyn AppEventRepositoryPort>,
+        repository: Arc<dyn DomainEventRepositoryPort>,
         notifier: InProcessEventNotifier,
     ) -> Self {
         Self {
@@ -36,12 +33,9 @@ impl SqliteEventBus {
 #[async_trait]
 impl EventBusPort for SqliteEventBus {
     async fn publish(&self, event: DomainEvent) -> Result<(), EventBusError> {
-        // Convert DomainEvent to AppEvent for storage
-        let app_event = domain_event_to_app_event(event);
-        
-        // Insert into storage
+        // Insert domain event directly - repository handles conversion to wire format
         self.repository
-            .insert(&app_event)
+            .insert(&event)
             .await
             .map_err(|e| EventBusError::Transport(e.to_string()))?;
 

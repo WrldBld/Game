@@ -35,21 +35,48 @@ Run all commands inside the repo Nix shell:
 
 ## Architecture constraints (strict)
 
-### 1) Ports ownership
+### 1) Port ownership (two types)
 
-- `wrldbldr-engine-ports` and `wrldbldr-player-ports` are the **only** source of truth for port traits.
-- App crates must not create `application::ports` modules or re-export “ports layers”.
+**Infrastructure ports** (`*-ports` crates):
+- Repository traits (`CharacterRepositoryPort`, `LocationRepositoryPort`)
+- External service traits (`LlmPort`, `ComfyUIPort`, `BroadcastPort`)
+- Connection/transport traits (`GameConnectionPort`)
 
-### 2) No shim import paths
+**Use-case ports** (`*-app` crates, allowed):
+- Service facade traits injected into use cases for dependency injection
+- Use-case-specific abstractions that wrap infrastructure ports
+- Example: `SceneServicePort`, `ChallengeResolutionPort`, `DmNotificationPort`
 
-Do not add “convenience” shims:
+### 2) Protocol import rules
+
+| Layer | Protocol Imports | Rationale |
+|-------|------------------|-----------|
+| domain | FORBIDDEN | Pure business logic |
+| *-ports | FORBIDDEN (except API boundaries) | Infrastructure contracts |
+| *-app/use_cases | FORBIDDEN | Business logic orchestration |
+| *-app/services | Use app-layer DTOs, convert before calling port | Service layer isolation |
+| *-app/handlers | ALLOWED | Boundary layer, converts protocol↔domain |
+| *-adapters | ALLOWED | Implements wire-format conversion |
+| player-ui | ALLOWED | Presentation boundary |
+
+### 3) GameConnectionPort pattern
+
+The `GameConnectionPort::request(payload: RequestPayload)` method is the correct design:
+- Generic method handles all 118+ RequestPayload variants
+- Individual methods exist only for operations needing special handling
+- Services create app-layer DTOs, convert to RequestPayload before calling `request()`
+- This is NOT a violation to fix
+
+### 4) No shim import paths
+
+Do not add "convenience" shims:
 
 - No re-exports of `wrldbldr_*` from other crates/modules (`pub use`, `pub(crate) use`, `pub(super) use`).
 - No crate aliasing (`use wrldbldr_* as foo;` or `extern crate wrldbldr_* as foo;`).
 
 Goal: a single canonical import path for every type.
 
-### 3) Composition roots own construction
+### 5) Composition roots own construction
 
 - Binaries (and runner crates) may wire concrete adapters into services.
 - UI must not construct infrastructure adapters.

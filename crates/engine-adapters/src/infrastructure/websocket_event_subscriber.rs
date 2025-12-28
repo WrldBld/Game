@@ -1,20 +1,23 @@
-//! WebSocket Event Subscriber - Maps AppEvents to ServerMessages
+//! WebSocket Event Subscriber - Maps DomainEvents to ServerMessages
 //!
 //! This subscriber polls the event repository and broadcasts relevant events
 //! to WebSocket clients via the WorldConnectionManager.
+//!
+//! Uses DomainEventRepositoryPort and converts domain events to protocol
+//! ServerMessage internally (adapters layer handles wire format conversion).
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use wrldbldr_protocol::AppEvent;
-use wrldbldr_engine_ports::outbound::AppEventRepositoryPort;
+use wrldbldr_domain::DomainEvent;
+use wrldbldr_engine_ports::outbound::DomainEventRepositoryPort;
 use crate::infrastructure::event_bus::InProcessEventNotifier;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_protocol::ServerMessage;
 
 /// WebSocket event subscriber
 pub struct WebSocketEventSubscriber {
-    repository: Arc<dyn AppEventRepositoryPort>,
+    repository: Arc<dyn DomainEventRepositoryPort>,
     notifier: InProcessEventNotifier,
     world_connection_manager: SharedWorldConnectionManager,
     poll_interval: Duration,
@@ -23,7 +26,7 @@ pub struct WebSocketEventSubscriber {
 impl WebSocketEventSubscriber {
     /// Create a new WebSocket event subscriber
     pub fn new(
-        repository: Arc<dyn AppEventRepositoryPort>,
+        repository: Arc<dyn DomainEventRepositoryPort>,
         notifier: InProcessEventNotifier,
         world_connection_manager: SharedWorldConnectionManager,
         poll_interval_seconds: u64,
@@ -77,19 +80,15 @@ impl WebSocketEventSubscriber {
         tracing::debug!("Processing {} new events", events.len());
 
         for (event_id, event, _timestamp) in events {
-            // Map AppEvent to ServerMessage and determine target world
+            // Map DomainEvent to ServerMessage and determine target world
             if let Some(message) = self.map_to_server_message(&event) {
-                let target_world = event.world_id().map(|s| s.to_string());
+                let target_world = event.world_id();
 
-                if let Some(ref world_id_str) = target_world {
+                if let Some(world_uuid) = target_world {
                     // Route to specific world
-                    if let Ok(world_uuid) = uuid::Uuid::parse_str(world_id_str) {
-                        self.world_connection_manager
-                            .broadcast_to_world(world_uuid, message)
-                            .await;
-                    } else {
-                        tracing::warn!("Invalid world_id on AppEvent: {}", world_id_str);
-                    }
+                    self.world_connection_manager
+                        .broadcast_to_world(world_uuid, message)
+                        .await;
                 } else {
                     // No world_id: broadcast to all connected worlds
                     let world_ids = self.world_connection_manager.get_all_world_ids().await;
@@ -109,12 +108,13 @@ impl WebSocketEventSubscriber {
         Ok(())
     }
 
-    /// Map an AppEvent to a ServerMessage
+    /// Map a DomainEvent to a ServerMessage
     ///
-    /// Returns None if the event is not relevant to WebSocket clients
-    fn map_to_server_message(&self, event: &AppEvent) -> Option<ServerMessage> {
+    /// Returns None if the event is not relevant to WebSocket clients.
+    /// This is where adapters layer converts domain events to wire format.
+    fn map_to_server_message(&self, event: &DomainEvent) -> Option<ServerMessage> {
         match event {
-            AppEvent::GenerationBatchQueued {
+            DomainEvent::GenerationBatchQueued {
                 batch_id,
                 entity_type,
                 entity_id,
@@ -122,33 +122,33 @@ impl WebSocketEventSubscriber {
                 position,
                 ..
             } => Some(ServerMessage::GenerationQueued {
-                batch_id: batch_id.clone(),
+                batch_id: batch_id.to_string(),
                 entity_type: entity_type.clone(),
-                entity_id: entity_id.clone(),
+                entity_id: entity_id.to_string(),
                 asset_type: asset_type.clone(),
                 position: *position,
             }),
-            AppEvent::GenerationBatchProgress { batch_id, progress, .. } => {
+            DomainEvent::GenerationBatchProgress { batch_id, progress, .. } => {
                 Some(ServerMessage::GenerationProgress {
-                    batch_id: batch_id.clone(),
+                    batch_id: batch_id.to_string(),
                     progress: *progress,
                 })
             }
-            AppEvent::GenerationBatchCompleted {
+            DomainEvent::GenerationBatchCompleted {
                 batch_id,
                 asset_count,
                 ..
             } => Some(ServerMessage::GenerationComplete {
-                batch_id: batch_id.clone(),
+                batch_id: batch_id.to_string(),
                 asset_count: *asset_count,
             }),
-            AppEvent::GenerationBatchFailed { batch_id, error, .. } => {
+            DomainEvent::GenerationBatchFailed { batch_id, error, .. } => {
                 Some(ServerMessage::GenerationFailed {
-                    batch_id: batch_id.clone(),
+                    batch_id: batch_id.to_string(),
                     error: error.clone(),
                 })
             }
-            AppEvent::SuggestionQueued {
+            DomainEvent::SuggestionQueued {
                 request_id,
                 field_type,
                 entity_id,
@@ -156,15 +156,15 @@ impl WebSocketEventSubscriber {
             } => Some(ServerMessage::SuggestionQueued {
                 request_id: request_id.clone(),
                 field_type: field_type.clone(),
-                entity_id: entity_id.clone(),
+                entity_id: entity_id.to_string(),
             }),
-            AppEvent::SuggestionProgress { request_id, status, .. } => {
+            DomainEvent::SuggestionProgress { request_id, status, .. } => {
                 Some(ServerMessage::SuggestionProgress {
                     request_id: request_id.clone(),
                     status: status.clone(),
                 })
             }
-            AppEvent::SuggestionCompleted {
+            DomainEvent::SuggestionCompleted {
                 request_id,
                 suggestions,
                 ..
@@ -172,7 +172,7 @@ impl WebSocketEventSubscriber {
                 request_id: request_id.clone(),
                 suggestions: suggestions.clone(),
             }),
-            AppEvent::SuggestionFailed {
+            DomainEvent::SuggestionFailed {
                 request_id,
                 error,
                 ..
@@ -182,9 +182,9 @@ impl WebSocketEventSubscriber {
             }),
             // Story events, narrative events, and challenges are not yet broadcasted via WebSocket
             // These could be added in the future if needed
-            AppEvent::StoryEventCreated { .. }
-            | AppEvent::NarrativeEventTriggered { .. }
-            | AppEvent::ChallengeResolved { .. } => None,
+            DomainEvent::StoryEventCreated { .. }
+            | DomainEvent::NarrativeEventTriggered { .. }
+            | DomainEvent::ChallengeResolved { .. } => None,
         }
     }
 }

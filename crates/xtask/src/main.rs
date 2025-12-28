@@ -538,9 +538,7 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
 
         // Exempt files:
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
-        // - app_event_repository_port.rs: Storage-layer port that works with wire format (AppEvent)
-        //   The new DomainEventRepositoryPort is the clean domain interface
-        if file_name == "request_handler.rs" || file_name == "app_event_repository_port.rs" {
+        if file_name == "request_handler.rs" {
             continue;
         }
 

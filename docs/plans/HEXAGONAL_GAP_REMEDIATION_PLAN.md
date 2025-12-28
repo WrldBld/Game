@@ -79,9 +79,9 @@ grep -l "use wrldbldr_protocol::" crates/player-app/src/application/services/*.r
 
 ---
 
-## Phase 1: Foundation & Documentation (2-3 hours)
+## Phase 1: Foundation & Documentation (2-3 hours) ✅ COMPLETE
 
-### 1.1 Update CLAUDE.md with Architecture Rules
+### 1.1 Update CLAUDE.md with Architecture Rules ✅
 
 Add the following section to `CLAUDE.md`:
 
@@ -137,29 +137,25 @@ The `GameConnectionPort::request(payload: RequestPayload)` method is the correct
 - This is NOT a violation to fix
 ```
 
-### 1.2 Delete app_event_repository_port.rs (G2)
+### 1.2 Delete app_event_repository_port.rs (G2) ✅
 
 **Problem**: Ports layer imports protocol type directly.
 
-**Files to modify**:
+**Files modified**:
 
-| File | Action |
-|------|--------|
-| `crates/engine-ports/src/outbound/app_event_repository_port.rs` | DELETE |
-| `crates/engine-ports/src/outbound/mod.rs` | Remove export |
-| `crates/engine-adapters/src/infrastructure/repositories/sqlite_app_event_repository.rs` | Convert to internal adapter module |
-| `crates/engine-adapters/src/infrastructure/event_bus/sqlite_event_bus.rs` | Use DomainEventRepositoryPort, convert internally |
-| `crates/engine-adapters/src/infrastructure/websocket_event_subscriber.rs` | Use DomainEventRepositoryPort, convert internally |
-| `crates/engine-adapters/src/infrastructure/state/event_infra.rs` | Remove app_event_repository field |
-| `crates/engine-adapters/src/infrastructure/state/mod.rs` | Update wiring |
-| `crates/xtask/src/main.rs` | Remove exemption for app_event_repository_port.rs |
+| File | Action | Status |
+|------|--------|--------|
+| `crates/engine-ports/src/outbound/app_event_repository_port.rs` | DELETE | ✅ |
+| `crates/engine-ports/src/outbound/mod.rs` | Remove export | ✅ |
+| `crates/engine-adapters/src/infrastructure/event_bus/sqlite_event_bus.rs` | Use DomainEventRepositoryPort | ✅ |
+| `crates/engine-adapters/src/infrastructure/websocket_event_subscriber.rs` | Use DomainEventRepositoryPort | ✅ |
+| `crates/engine-adapters/src/infrastructure/state/event_infra.rs` | Use domain_event_repository | ✅ |
+| `crates/engine-adapters/src/infrastructure/state/mod.rs` | Update wiring | ✅ |
+| `crates/xtask/src/main.rs` | Remove exemption | ✅ |
 
-**Implementation approach**:
-1. `SqliteEventBus` converts `DomainEvent` → `AppEvent` internally before storage
-2. `WebSocketEventSubscriber` receives `DomainEvent`, converts to `ServerMessage` internally
-3. `SqliteAppEventRepository` becomes an internal adapter module (not a port implementation)
+**Note**: SqliteAppEventRepository is kept as an internal module but no longer implements a port.
 
-### 1.3 Document Protocol Re-exports (G7)
+### 1.3 Document Protocol Re-exports (G7) ✅
 
 **Files to modify**:
 

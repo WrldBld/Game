@@ -6,7 +6,6 @@
 //! Ports that still depend on engine-app internals remain in `wrldbldr-engine-app`
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
-mod app_event_repository_port;
 mod broadcast_port;
 mod comfyui_port;
 mod directorial_context_port;
@@ -24,10 +23,7 @@ mod staging_repository_port;
 mod suggestion_enqueue_port;
 mod world_exporter_port;
 
-// Legacy AppEvent repository - still used by some adapters for wire format storage
-pub use app_event_repository_port::{AppEventRepositoryError, AppEventRepositoryPort};
-
-// New DomainEvent repository - domain-layer interface
+// DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
 
 pub use comfyui_port::{
