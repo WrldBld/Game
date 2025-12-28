@@ -4,7 +4,7 @@
 //! Supports challenge outcome regeneration and discard functionality.
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData};
+use wrldbldr_player_app::application::dto::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData};
 
 /// A proposed action/tool call from the LLM
 #[derive(Clone, PartialEq)]

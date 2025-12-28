@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::DialogueChoice;
+use wrldbldr_player_app::application::dto::DialogueChoice;
 use wrldbldr_player_ports::outbound::Platform;
 
 /// Dialogue state for the visual novel UI

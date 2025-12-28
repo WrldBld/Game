@@ -6,8 +6,7 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use wrldbldr_player_app::application::dto::{DiceInput, FieldValue, PlayerAction, SheetTemplate};
-use wrldbldr_protocol::InteractionData;
+use wrldbldr_player_app::application::dto::{DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate};
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};

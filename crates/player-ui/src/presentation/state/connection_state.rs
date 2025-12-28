@@ -6,8 +6,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_player_ports::session_types::ParticipantRole;
-use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
+use wrldbldr_player_app::application::dto::{ParticipantRole, ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server

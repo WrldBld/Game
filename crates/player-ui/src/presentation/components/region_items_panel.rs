@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::RegionItemData;
+use wrldbldr_player_app::application::dto::RegionItemData;
 
 /// Props for the RegionItemsPanel component
 #[derive(Props, Clone, PartialEq)]

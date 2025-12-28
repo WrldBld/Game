@@ -8,9 +8,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_player_app::application::dto::ApprovalDecision;
-use wrldbldr_player_ports::session_types::ParticipantRole;
-use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
+use wrldbldr_player_app::application::dto::{ApprovalDecision, OutcomeBranchData, ParticipantRole, ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 use crate::presentation::components::tactical::PlayerSkillData;
 
@@ -327,7 +325,7 @@ impl SessionState {
         &mut self,
         resolution_id: &str,
         outcome_type: String,
-        branches: Vec<wrldbldr_protocol::OutcomeBranchData>,
+        branches: Vec<OutcomeBranchData>,
     ) {
         self.approval.update_challenge_branches(resolution_id, outcome_type, branches);
     }

@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::{CharacterData as SceneCharacterState, CharacterPosition};
+use wrldbldr_player_app::application::dto::{CharacterData as SceneCharacterState, CharacterPosition};
 
 /// Props for the CharacterSprite component
 #[derive(Props, Clone, PartialEq)]

@@ -16,7 +16,7 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Scene data for display
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SceneData {
     pub id: String,
     pub name: String,
@@ -28,7 +28,7 @@ pub struct SceneData {
 }
 
 /// Character data for display
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CharacterData {
     pub id: String,
     pub name: String,
@@ -48,8 +48,20 @@ pub enum CharacterPosition {
     OffScreen,
 }
 
+impl CharacterPosition {
+    /// Get Tailwind CSS classes for positioning
+    pub fn as_tailwind_classes(&self) -> &'static str {
+        match self {
+            CharacterPosition::Left => "left-[10%]",
+            CharacterPosition::Center => "left-1/2 -translate-x-1/2",
+            CharacterPosition::Right => "right-[10%]",
+            CharacterPosition::OffScreen => "hidden",
+        }
+    }
+}
+
 /// Available interaction
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InteractionData {
     pub id: String,
     pub name: String,
@@ -59,7 +71,7 @@ pub struct InteractionData {
 }
 
 /// Dialogue choice for player
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DialogueChoice {
     pub id: String,
     pub text: String,
@@ -67,7 +79,7 @@ pub struct DialogueChoice {
 }
 
 /// Region data for scene display
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RegionData {
     pub id: String,
     pub name: String,
@@ -79,7 +91,7 @@ pub struct RegionData {
 }
 
 /// NPC presence data for scene display
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NpcPresenceData {
     pub character_id: String,
     pub name: String,
@@ -88,14 +100,14 @@ pub struct NpcPresenceData {
 }
 
 /// Navigation options from current region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NavigationData {
     pub connected_regions: Vec<NavigationTarget>,
     pub exits: Vec<NavigationExit>,
 }
 
 /// A navigation target (region within same location)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NavigationTarget {
     pub region_id: String,
     pub name: String,
@@ -104,7 +116,7 @@ pub struct NavigationTarget {
 }
 
 /// An exit to another location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NavigationExit {
     pub location_id: String,
     pub location_name: String,
@@ -113,7 +125,7 @@ pub struct NavigationExit {
 }
 
 /// Item data for region display
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RegionItemData {
     pub id: String,
     pub name: String,
@@ -122,7 +134,7 @@ pub struct RegionItemData {
 }
 
 /// Location info for split party notification
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SplitPartyLocation {
     pub location_id: String,
     pub location_name: String,
@@ -131,7 +143,7 @@ pub struct SplitPartyLocation {
 }
 
 /// Proposed tool info for DM approval
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProposedToolInfo {
     pub id: String,
     pub name: String,
@@ -140,7 +152,7 @@ pub struct ProposedToolInfo {
 }
 
 /// Challenge suggestion info for DM approval
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ChallengeSuggestionInfo {
     pub challenge_id: String,
     pub challenge_name: String,
@@ -149,10 +161,21 @@ pub struct ChallengeSuggestionInfo {
     pub confidence: String,
     pub reasoning: String,
     pub target_pc_id: Option<String>,
+    /// Optional editable outcomes for DM modification
+    pub outcomes: Option<ChallengeSuggestionOutcomes>,
+}
+
+/// Editable challenge outcomes for DM modification
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ChallengeSuggestionOutcomes {
+    pub success: Option<String>,
+    pub failure: Option<String>,
+    pub critical_success: Option<String>,
+    pub critical_failure: Option<String>,
 }
 
 /// Narrative event suggestion info
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NarrativeEventSuggestionInfo {
     pub event_id: String,
     pub event_name: String,
@@ -165,7 +188,7 @@ pub struct NarrativeEventSuggestionInfo {
 }
 
 /// Outcome detail data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutcomeDetailData {
     pub flavor_text: String,
     pub scene_direction: String,
@@ -173,7 +196,7 @@ pub struct OutcomeDetailData {
 }
 
 /// Outcome branch data for DM selection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OutcomeBranchData {
     pub id: String,
     pub title: String,
@@ -182,7 +205,7 @@ pub struct OutcomeBranchData {
 }
 
 /// Staged NPC info for approval UI
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StagedNpcInfo {
     pub character_id: String,
     pub name: String,
@@ -194,7 +217,7 @@ pub struct StagedNpcInfo {
 }
 
 /// Previous staging info for reference
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PreviousStagingInfo {
     pub staging_id: String,
     pub approved_at: String,
@@ -202,7 +225,7 @@ pub struct PreviousStagingInfo {
 }
 
 /// PC waiting for staging info
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WaitingPcInfo {
     pub pc_id: String,
     pub pc_name: String,
@@ -210,7 +233,7 @@ pub struct WaitingPcInfo {
 }
 
 /// NPC present info (simplified for players)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NpcPresentInfo {
     pub character_id: String,
     pub name: String,
@@ -220,7 +243,7 @@ pub struct NpcPresentInfo {
 }
 
 /// Game time representation
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GameTime {
     /// Day number (ordinal-style, 1-based)
     pub day: u32,
@@ -233,7 +256,7 @@ pub struct GameTime {
 }
 
 /// NPC disposition data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NpcDispositionData {
     pub npc_id: String,
     pub npc_name: String,
@@ -244,7 +267,7 @@ pub struct NpcDispositionData {
 }
 
 /// Want data for actantial model
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WantData {
     pub id: String,
     pub description: String,
@@ -257,7 +280,7 @@ pub struct WantData {
 }
 
 /// Want target data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WantTargetData {
     pub id: String,
     pub name: String,
@@ -266,7 +289,7 @@ pub struct WantTargetData {
 }
 
 /// Actantial view data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ActantialViewData {
     pub want_id: String,
     pub target_id: String,
@@ -277,7 +300,7 @@ pub struct ActantialViewData {
 }
 
 /// Goal data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GoalData {
     pub id: String,
     pub name: String,
@@ -286,26 +309,30 @@ pub struct GoalData {
 }
 
 /// Connected user info
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ConnectedUser {
     pub user_id: String,
     pub username: Option<String>,
     pub role: String,
+    /// Player character ID (for Player role)
+    pub pc_id: Option<String>,
+    /// Number of active connections (for DM with multiple screens)
+    pub connection_count: u32,
 }
 
 /// World role (DM, Player, Spectator)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WorldRole(pub String);
 
 /// Join error info
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JoinError {
     pub code: String,
     pub message: String,
 }
 
 /// Entity changed data for cache invalidation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EntityChangedData {
     pub entity_type: String,
     pub entity_id: String,
@@ -315,7 +342,7 @@ pub struct EntityChangedData {
 }
 
 /// Response result from a request
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ResponseResult {
     pub success: bool,
     pub data: Option<serde_json::Value>,
@@ -1000,6 +1027,315 @@ impl PlayerEvent {
             Self::SpectateTargetChanged { .. } => "SpectateTargetChanged",
             Self::Error { .. } => "Error",
             Self::Raw { .. } => "Raw"
+        }
+    }
+}
+
+// ============================================================================
+// Conversions from Protocol Types
+// ============================================================================
+
+impl From<wrldbldr_protocol::SceneData> for SceneData {
+    fn from(p: wrldbldr_protocol::SceneData) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            location_id: p.location_id,
+            location_name: p.location_name,
+            backdrop_asset: p.backdrop_asset,
+            time_context: p.time_context,
+            directorial_notes: p.directorial_notes,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::CharacterPosition> for CharacterPosition {
+    fn from(p: wrldbldr_protocol::CharacterPosition) -> Self {
+        match p {
+            wrldbldr_protocol::CharacterPosition::Left => Self::Left,
+            wrldbldr_protocol::CharacterPosition::Center => Self::Center,
+            wrldbldr_protocol::CharacterPosition::Right => Self::Right,
+            wrldbldr_protocol::CharacterPosition::OffScreen => Self::OffScreen,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::CharacterData> for CharacterData {
+    fn from(p: wrldbldr_protocol::CharacterData) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            sprite_asset: p.sprite_asset,
+            portrait_asset: p.portrait_asset,
+            position: p.position.into(),
+            is_speaking: p.is_speaking,
+            emotion: p.emotion,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::InteractionData> for InteractionData {
+    fn from(p: wrldbldr_protocol::InteractionData) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            interaction_type: p.interaction_type,
+            target_name: p.target_name,
+            is_available: p.is_available,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::DialogueChoice> for DialogueChoice {
+    fn from(p: wrldbldr_protocol::DialogueChoice) -> Self {
+        Self {
+            id: p.id,
+            text: p.text,
+            is_custom_input: p.is_custom_input,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::RegionData> for RegionData {
+    fn from(p: wrldbldr_protocol::RegionData) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            location_id: p.location_id,
+            location_name: p.location_name,
+            backdrop_asset: p.backdrop_asset,
+            atmosphere: p.atmosphere,
+            map_asset: p.map_asset,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NpcPresenceData> for NpcPresenceData {
+    fn from(p: wrldbldr_protocol::NpcPresenceData) -> Self {
+        Self {
+            character_id: p.character_id,
+            name: p.name,
+            sprite_asset: p.sprite_asset,
+            portrait_asset: p.portrait_asset,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NavigationTarget> for NavigationTarget {
+    fn from(p: wrldbldr_protocol::NavigationTarget) -> Self {
+        Self {
+            region_id: p.region_id,
+            name: p.name,
+            is_locked: p.is_locked,
+            lock_description: p.lock_description,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NavigationExit> for NavigationExit {
+    fn from(p: wrldbldr_protocol::NavigationExit) -> Self {
+        Self {
+            location_id: p.location_id,
+            location_name: p.location_name,
+            arrival_region_id: p.arrival_region_id,
+            description: p.description,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NavigationData> for NavigationData {
+    fn from(p: wrldbldr_protocol::NavigationData) -> Self {
+        Self {
+            connected_regions: p.connected_regions.into_iter().map(Into::into).collect(),
+            exits: p.exits.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::RegionItemData> for RegionItemData {
+    fn from(p: wrldbldr_protocol::RegionItemData) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            item_type: p.item_type,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::GameTime> for GameTime {
+    fn from(p: wrldbldr_protocol::GameTime) -> Self {
+        Self {
+            day: p.day,
+            hour: p.hour,
+            minute: p.minute,
+            is_paused: p.is_paused,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::responses::ConnectedUser> for ConnectedUser {
+    fn from(p: wrldbldr_protocol::responses::ConnectedUser) -> Self {
+        // Convert protocol WorldRole enum to string
+        let role_str = match p.role {
+            wrldbldr_protocol::responses::WorldRole::Dm => "dm",
+            wrldbldr_protocol::responses::WorldRole::Player => "player",
+            wrldbldr_protocol::responses::WorldRole::Spectator => "spectator",
+        };
+        Self {
+            user_id: p.user_id,
+            username: p.username,
+            role: role_str.to_string(),
+            pc_id: p.pc_id,
+            connection_count: p.connection_count,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::SplitPartyLocation> for SplitPartyLocation {
+    fn from(p: wrldbldr_protocol::SplitPartyLocation) -> Self {
+        Self {
+            location_id: p.location_id,
+            location_name: p.location_name,
+            pc_count: p.pc_count,
+            pc_names: p.pc_names,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::ProposedToolInfo> for ProposedToolInfo {
+    fn from(p: wrldbldr_protocol::ProposedToolInfo) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            arguments: p.arguments,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::ChallengeSuggestionOutcomes> for ChallengeSuggestionOutcomes {
+    fn from(p: wrldbldr_protocol::ChallengeSuggestionOutcomes) -> Self {
+        Self {
+            success: p.success,
+            failure: p.failure,
+            critical_success: p.critical_success,
+            critical_failure: p.critical_failure,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::ChallengeSuggestionInfo> for ChallengeSuggestionInfo {
+    fn from(p: wrldbldr_protocol::ChallengeSuggestionInfo) -> Self {
+        Self {
+            challenge_id: p.challenge_id,
+            challenge_name: p.challenge_name,
+            skill_name: p.skill_name,
+            difficulty_display: p.difficulty_display,
+            confidence: p.confidence,
+            reasoning: p.reasoning,
+            target_pc_id: p.target_pc_id,
+            outcomes: p.outcomes.map(Into::into),
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NarrativeEventSuggestionInfo> for NarrativeEventSuggestionInfo {
+    fn from(p: wrldbldr_protocol::NarrativeEventSuggestionInfo) -> Self {
+        Self {
+            event_id: p.event_id,
+            event_name: p.event_name,
+            description: p.description,
+            scene_direction: p.scene_direction,
+            confidence: p.confidence,
+            reasoning: p.reasoning,
+            matched_triggers: p.matched_triggers,
+            suggested_outcome: p.suggested_outcome,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::OutcomeDetailData> for OutcomeDetailData {
+    fn from(p: wrldbldr_protocol::OutcomeDetailData) -> Self {
+        Self {
+            flavor_text: p.flavor_text,
+            scene_direction: p.scene_direction,
+            proposed_tools: p.proposed_tools.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::OutcomeBranchData> for OutcomeBranchData {
+    fn from(p: wrldbldr_protocol::OutcomeBranchData) -> Self {
+        Self {
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            effects: p.effects,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::NpcDispositionData> for NpcDispositionData {
+    fn from(p: wrldbldr_protocol::NpcDispositionData) -> Self {
+        Self {
+            npc_id: p.npc_id,
+            npc_name: p.npc_name,
+            disposition: p.disposition,
+            relationship: p.relationship,
+            sentiment: p.sentiment,
+            last_reason: p.last_reason,
+        }
+    }
+}
+
+impl From<wrldbldr_protocol::responses::WorldRole> for WorldRole {
+    fn from(p: wrldbldr_protocol::responses::WorldRole) -> Self {
+        let role_str = match p {
+            wrldbldr_protocol::responses::WorldRole::Dm => "dm",
+            wrldbldr_protocol::responses::WorldRole::Player => "player",
+            wrldbldr_protocol::responses::WorldRole::Spectator => "spectator",
+        };
+        Self(role_str.to_string())
+    }
+}
+
+impl From<wrldbldr_protocol::responses::EntityChangedData> for EntityChangedData {
+    fn from(p: wrldbldr_protocol::responses::EntityChangedData) -> Self {
+        // Convert EntityType enum to string
+        let entity_type_str = match p.entity_type {
+            wrldbldr_protocol::responses::EntityType::World => "World",
+            wrldbldr_protocol::responses::EntityType::Character => "Character",
+            wrldbldr_protocol::responses::EntityType::Location => "Location",
+            wrldbldr_protocol::responses::EntityType::Region => "Region",
+            wrldbldr_protocol::responses::EntityType::Scene => "Scene",
+            wrldbldr_protocol::responses::EntityType::Act => "Act",
+            wrldbldr_protocol::responses::EntityType::Interaction => "Interaction",
+            wrldbldr_protocol::responses::EntityType::Skill => "Skill",
+            wrldbldr_protocol::responses::EntityType::Challenge => "Challenge",
+            wrldbldr_protocol::responses::EntityType::NarrativeEvent => "NarrativeEvent",
+            wrldbldr_protocol::responses::EntityType::EventChain => "EventChain",
+            wrldbldr_protocol::responses::EntityType::StoryEvent => "StoryEvent",
+            wrldbldr_protocol::responses::EntityType::PlayerCharacter => "PlayerCharacter",
+            wrldbldr_protocol::responses::EntityType::Relationship => "Relationship",
+            wrldbldr_protocol::responses::EntityType::Observation => "Observation",
+            wrldbldr_protocol::responses::EntityType::Goal => "Goal",
+            wrldbldr_protocol::responses::EntityType::Want => "Want",
+            wrldbldr_protocol::responses::EntityType::ActantialView => "ActantialView",
+            wrldbldr_protocol::responses::EntityType::GameTime => "GameTime",
+        };
+        // Convert ChangeType enum to string
+        let change_type_str = match p.change_type {
+            wrldbldr_protocol::responses::ChangeType::Created => "Created",
+            wrldbldr_protocol::responses::ChangeType::Updated => "Updated",
+            wrldbldr_protocol::responses::ChangeType::Deleted => "Deleted",
+        };
+        Self {
+            entity_type: entity_type_str.to_string(),
+            entity_id: p.entity_id,
+            change_type: change_type_str.to_string(),
+            data: p.data,
+            world_id: p.world_id,
         }
     }
 }

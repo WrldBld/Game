@@ -5,9 +5,13 @@
 //! dependencies and keeps the WebSocket transport parsing separate from UI state.
 
 use wrldbldr_player_ports::outbound::Platform;
-use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
-use wrldbldr_protocol::{NpcPresenceData, ServerMessage};
-use wrldbldr_protocol::responses::ConnectedUser;
+use wrldbldr_player_app::application::dto::{
+    CharacterData, ChallengeSuggestionInfo, ConnectedUser, DialogueChoice, EntityChangedData,
+    GameTime, InteractionData, NarrativeEventSuggestionInfo, NavigationData, NpcDispositionData,
+    NpcPresenceData, OutcomeBranchData, ProposedToolInfo, RegionData, RegionItemData, SceneData,
+    SessionWorldSnapshot, SplitPartyLocation, WorldRole,
+};
+use wrldbldr_protocol::ServerMessage;
 use dioxus::prelude::{ReadableExt, WritableExt};
 use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
@@ -46,6 +50,10 @@ pub fn handle_server_message(
             interactions,
         } => {
             tracing::info!("SceneUpdate: {}", scene.name);
+            // Convert protocol types to app DTOs
+            let scene: SceneData = scene.into();
+            let characters: Vec<CharacterData> = characters.into_iter().map(Into::into).collect();
+            let interactions: Vec<InteractionData> = interactions.into_iter().map(Into::into).collect();
             game_state.apply_scene_update(scene, characters, interactions);
         }
 
@@ -57,7 +65,9 @@ pub fn handle_server_message(
         } => {
             // Add to conversation log for DM view
             session_state.add_log_entry(speaker_name.clone(), text.clone(), false, platform);
-            dialogue_state.apply_dialogue(speaker_id, speaker_name, text, choices);
+            // Convert protocol choices to app DTOs
+            let choices_dto: Vec<DialogueChoice> = choices.into_iter().map(Into::into).collect();
+            dialogue_state.apply_dialogue(speaker_id, speaker_name, text, choices_dto);
         }
 
         ServerMessage::LLMProcessing { action_id } => {
@@ -79,14 +89,18 @@ pub fn handle_server_message(
             challenge_suggestion,
             narrative_event_suggestion,
         } => {
+            // Convert protocol types to app DTOs
+            let tools: Vec<ProposedToolInfo> = proposed_tools.into_iter().map(Into::into).collect();
+            let challenge: Option<ChallengeSuggestionInfo> = challenge_suggestion.map(Into::into);
+            let narrative: Option<NarrativeEventSuggestionInfo> = narrative_event_suggestion.map(Into::into);
             session_state.add_pending_approval(PendingApproval {
                 request_id,
                 npc_name,
                 proposed_dialogue,
                 internal_reasoning,
-                proposed_tools,
-                challenge_suggestion,
-                narrative_event_suggestion,
+                proposed_tools: tools,
+                challenge_suggestion: challenge,
+                narrative_event_suggestion: narrative,
             });
         }
 
@@ -273,7 +287,9 @@ pub fn handle_server_message(
             );
             // Update UI to show split party warning banner
             if location_count > 1 {
-                game_state.set_split_party_locations(locations);
+                // Convert protocol types to app DTOs
+                let locations_dto: Vec<SplitPartyLocation> = locations.into_iter().map(Into::into).collect();
+                game_state.set_split_party_locations(locations_dto);
             } else {
                 // Party is together (or only one location)
                 game_state.clear_split_party();
@@ -415,6 +431,9 @@ pub fn handle_server_message(
                 total
             );
 
+            // Convert protocol types to app DTOs
+            let triggers: Vec<ProposedToolInfo> = outcome_triggers.into_iter().map(Into::into).collect();
+
             let timestamp = platform.now_unix_secs();
             let pending = PendingChallengeOutcome {
                 resolution_id,
@@ -426,7 +445,7 @@ pub fn handle_server_message(
                 total,
                 outcome_type,
                 outcome_description,
-                outcome_triggers,
+                outcome_triggers: triggers,
                 roll_breakdown,
                 suggestions: None,
                 branches: None,
@@ -461,6 +480,8 @@ pub fn handle_server_message(
                 outcome_type,
                 branches.len()
             );
+            // Convert protocol types to app DTOs at the boundary
+            let branches: Vec<OutcomeBranchData> = branches.into_iter().map(Into::into).collect();
             session_state.update_challenge_branches(&resolution_id, outcome_type, branches);
         }
 
@@ -577,13 +598,19 @@ pub fn handle_server_message(
                 region_items.len()
             );
             
+            // Convert protocol types to app DTOs
+            let region_dto: RegionData = region.clone().into();
+            let npcs_dto: Vec<NpcPresenceData> = npcs_present.into_iter().map(Into::into).collect();
+            let navigation_dto: NavigationData = navigation.into();
+            let items_dto: Vec<RegionItemData> = region_items.into_iter().map(Into::into).collect();
+            
             // Update game state with navigation data and region items
             game_state.apply_scene_changed(
                 pc_id.clone(),
-                region.clone(),
-                npcs_present,
-                navigation,
-                region_items,
+                region_dto,
+                npcs_dto,
+                navigation_dto,
+                items_dto,
             );
             
             session_state.add_log_entry(
@@ -609,17 +636,19 @@ pub fn handle_server_message(
         // =========================================================================
 
         ServerMessage::GameTimeUpdated { game_time } => {
-            let time_display = crate::presentation::game_time_format::display_date(game_time);
-            let time_of_day = crate::presentation::game_time_format::time_of_day(game_time);
+            // Convert protocol type to app DTO
+            let game_time_dto: GameTime = game_time.into();
+            let time_display = crate::presentation::game_time_format::display_date(game_time_dto);
+            let time_of_day = crate::presentation::game_time_format::time_of_day(game_time_dto);
 
             tracing::info!(
                 "Game time updated: {} ({}, paused: {})",
                 time_display,
                 time_of_day,
-                game_time.is_paused
+                game_time_dto.is_paused
             );
 
-            game_state.apply_game_time_update(game_time);
+            game_state.apply_game_time_update(game_time_dto);
 
             session_state.add_log_entry(
                 "System".to_string(),
@@ -735,6 +764,9 @@ pub fn handle_server_message(
                 player_id: p.player_id,
             }).collect();
 
+            // Convert protocol GameTime to app DTO
+            let game_time_dto: GameTime = game_time.into();
+
             // Update region staging status to Pending
             game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
 
@@ -744,7 +776,7 @@ pub fn handle_server_message(
                 region_name: region_name.clone(),
                 location_id,
                 location_name: location_name.clone(),
-                game_time,
+                game_time: game_time_dto,
                 previous_staging: previous,
                 rule_based_npcs: rule_npcs,
                 llm_based_npcs: llm_npcs,
@@ -956,8 +988,10 @@ pub fn handle_server_message(
                 disposition_count = dispositions.len(),
                 "Received NPC dispositions for PC"
             );
+            // Convert protocol types to app DTOs
+            let dispositions_dto: Vec<NpcDispositionData> = dispositions.into_iter().map(Into::into).collect();
             // Replace entire disposition list for this PC
-            game_state.set_npc_dispositions(dispositions);
+            game_state.set_npc_dispositions(dispositions_dto);
         }
 
         // =========================================================================
@@ -1118,8 +1152,12 @@ pub fn handle_server_message(
                 "Joined world via WebSocket-first protocol"
             );
 
+            // Convert protocol types to app DTOs
+            let role_dto: WorldRole = your_role.clone().into();
+            let users_dto: Vec<ConnectedUser> = connected_users.into_iter().map(Into::into).collect();
+
             // Update connection state with world info
-            session_state.set_world_joined(world_id, your_role.clone(), connected_users);
+            session_state.set_world_joined(world_id, role_dto, users_dto);
 
             // Parse and load the world snapshot
             match serde_json::from_value::<SessionWorldSnapshot>(snapshot) {
@@ -1136,7 +1174,8 @@ pub fn handle_server_message(
                                 .find(|l| l.id == first_scene.location_id)
                                 .and_then(|l| l.backdrop_asset.clone()));
 
-                        let initial_scene = wrldbldr_protocol::SceneData {
+                        // Construct app DTO directly
+                        let initial_scene = SceneData {
                             id: first_scene.id.clone(),
                             name: first_scene.name.clone(),
                             location_id: first_scene.location_id.clone(),
@@ -1146,17 +1185,19 @@ pub fn handle_server_message(
                             directorial_notes: first_scene.directorial_notes.clone(),
                         };
 
-                        let scene_characters: Vec<wrldbldr_protocol::CharacterData> = first_scene
+                        // Construct app DTOs directly
+                        use wrldbldr_player_app::application::dto::CharacterPosition;
+                        let scene_characters: Vec<CharacterData> = first_scene
                             .featured_characters
                             .iter()
                             .filter_map(|char_id| {
                                 world_snapshot.characters.iter().find(|c| &c.id == char_id).map(|c| {
-                                    wrldbldr_protocol::CharacterData {
+                                    CharacterData {
                                         id: c.id.clone(),
                                         name: c.name.clone(),
                                         sprite_asset: c.sprite_asset.clone(),
                                         portrait_asset: c.portrait_asset.clone(),
-                                        position: wrldbldr_protocol::CharacterPosition::Center,
+                                        position: CharacterPosition::Center,
                                         is_speaking: false,
                                         emotion: None,
                                     }
@@ -1219,11 +1260,18 @@ pub fn handle_server_message(
                 "User joined world"
             );
             
+            // Convert protocol WorldRole to string for app DTO
+            let role_str = match role {
+                wrldbldr_protocol::responses::WorldRole::Dm => "dm",
+                wrldbldr_protocol::responses::WorldRole::Player => "player",
+                wrldbldr_protocol::responses::WorldRole::Spectator => "spectator",
+            };
+            
             // Add to connected users list
             let new_user = ConnectedUser {
                 user_id: user_id.clone(),
                 username: username.clone(),
-                role: role.clone(),
+                role: role_str.to_string(),
                 pc_id: pc.as_ref().and_then(|p| {
                     p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())
                 }),
@@ -1271,9 +1319,11 @@ pub fn handle_server_message(
                 change_type = ?entity_changed.change_type,
                 "Entity changed broadcast received"
             );
+            // Convert protocol type to app DTO at the boundary
+            let entity_changed_dto: EntityChangedData = entity_changed.into();
             // Trigger a refresh of relevant UI state based on entity type
             // This enables cache invalidation and reactive updates
-            game_state.trigger_entity_refresh(&entity_changed);
+            game_state.trigger_entity_refresh(&entity_changed_dto);
         }
 
         ServerMessage::SpectateTargetChanged { pc_id, pc_name } => {

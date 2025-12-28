@@ -6,8 +6,8 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
-use wrldbldr_protocol::{
+use wrldbldr_player_app::application::dto::{
+    SessionWorldSnapshot,
     CharacterData as SceneCharacterState,
     GameTime,
     InteractionData,
@@ -18,8 +18,8 @@ use wrldbldr_protocol::{
     RegionItemData,
     SceneData as SceneSnapshot,
     SplitPartyLocation,
+    EntityChangedData,
 };
-use wrldbldr_protocol::responses::EntityChangedData;
 
 
 /// Approach event data (NPC approaching player)
@@ -385,25 +385,23 @@ impl GameState {
 
     /// Trigger appropriate refresh based on entity change notification
     pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
-        use wrldbldr_protocol::responses::EntityType;
-        
-        match entity_changed.entity_type {
-            EntityType::Character | EntityType::PlayerCharacter => {
+        match entity_changed.entity_type.as_str() {
+            "Character" | "PlayerCharacter" => {
                 // Characters might affect scenes, observations, etc.
                 self.trigger_observations_refresh();
             }
-            EntityType::Goal | EntityType::Want | EntityType::ActantialView => {
+            "Goal" | "Want" | "ActantialView" => {
                 self.trigger_actantial_refresh();
             }
-            EntityType::Observation => {
+            "Observation" => {
                 self.trigger_observations_refresh();
             }
             // For other entity types, we might need to trigger world reload
             // but for now just log them
-            _ => {
+            other => {
                 tracing::debug!(
-                    "Entity change for {:?} - no specific refresh handler",
-                    entity_changed.entity_type
+                    "Entity change for {} - no specific refresh handler",
+                    other
                 );
             }
         }

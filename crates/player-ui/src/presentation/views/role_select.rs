@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::ParticipantRole;
+use wrldbldr_player_app::application::dto::ParticipantRole;
 
 #[component]
 pub fn RoleSelect(on_select_role: EventHandler<ParticipantRole>) -> Element {

@@ -8,12 +8,11 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_app::application::dto::{
-    DiceSystem, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemTypeExt,
-    RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
+    DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
+    RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::WorldSummary;
 use wrldbldr_player_ports::outbound::Platform;
-use wrldbldr_protocol::ParticipantRole;
 use crate::presentation::services::use_world_service;
 use crate::presentation::state::GameState;
 

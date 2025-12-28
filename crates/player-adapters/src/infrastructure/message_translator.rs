@@ -11,12 +11,12 @@
 
 use wrldbldr_player_app::application::dto::player_events::{
     ActantialViewData, CharacterData, CharacterPosition, ChallengeSuggestionInfo,
-    ConnectedUser, DialogueChoice, EntityChangedData, GameTime, GoalData, InteractionData,
-    JoinError, NarrativeEventSuggestionInfo, NavigationData, NavigationExit, NavigationTarget,
-    NpcDispositionData, NpcPresenceData, NpcPresentInfo, OutcomeBranchData, OutcomeDetailData,
-    PlayerEvent, PreviousStagingInfo, ProposedToolInfo, RegionData, RegionItemData, ResponseResult,
-    SceneData, SplitPartyLocation, StagedNpcInfo, WaitingPcInfo, WantData, WantTargetData,
-    WorldRole,
+    ChallengeSuggestionOutcomes, ConnectedUser, DialogueChoice, EntityChangedData, GameTime,
+    GoalData, InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData,
+    NavigationExit, NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo,
+    OutcomeBranchData, OutcomeDetailData, PlayerEvent, PreviousStagingInfo, ProposedToolInfo,
+    RegionData, RegionItemData, ResponseResult, SceneData, SplitPartyLocation, StagedNpcInfo,
+    WaitingPcInfo, WantData, WantTargetData, WorldRole,
 };
 use wrldbldr_protocol::ServerMessage;
 
@@ -715,6 +715,8 @@ fn translate_connected_user(u: wrldbldr_protocol::responses::ConnectedUser) -> C
         user_id: u.user_id,
         username: u.username,
         role: format!("{:?}", u.role),
+        pc_id: u.pc_id,
+        connection_count: u.connection_count,
     }
 }
 
@@ -853,6 +855,12 @@ fn translate_challenge_suggestion_info(
         confidence: c.confidence,
         reasoning: c.reasoning,
         target_pc_id: c.target_pc_id,
+        outcomes: c.outcomes.map(|o| ChallengeSuggestionOutcomes {
+            success: o.success,
+            failure: o.failure,
+            critical_success: o.critical_success,
+            critical_failure: o.critical_failure,
+        }),
     }
 }
 

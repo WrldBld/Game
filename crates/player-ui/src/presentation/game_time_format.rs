@@ -1,4 +1,4 @@
-use wrldbldr_protocol::GameTime;
+use wrldbldr_player_app::application::dto::GameTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimeOfDay {

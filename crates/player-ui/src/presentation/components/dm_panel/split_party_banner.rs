@@ -1,7 +1,7 @@
 //! Split Party Banner - Warning displayed when party members are at different locations
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::SplitPartyLocation;
+use wrldbldr_player_app::application::dto::SplitPartyLocation;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct SplitPartyBannerProps {

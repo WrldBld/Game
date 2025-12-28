@@ -56,4 +56,36 @@ pub use session_types::{
     DiceInput, DirectorialContext, NpcMotivationData, ParticipantRole,
 };
 
+// Re-export player event types for UI components
+pub use player_events::{
+    // Scene & character display
+    CharacterData, CharacterPosition, SceneData, RegionData,
+    // Dialogue
+    DialogueChoice,
+    // Navigation
+    NavigationData, NavigationTarget, NavigationExit,
+    // Interactions & items
+    InteractionData, RegionItemData,
+    // NPCs & staging
+    NpcPresenceData, SplitPartyLocation, StagedNpcInfo, PreviousStagingInfo,
+    WaitingPcInfo, NpcPresentInfo, NpcDispositionData,
+    // Approval & challenges
+    ProposedToolInfo, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo,
+    OutcomeDetailData, OutcomeBranchData,
+    // Game time
+    GameTime,
+    // Connection
+    ConnectedUser, WorldRole, JoinError, EntityChangedData, ResponseResult,
+    // Actantial model (from player_events for UI)
+    WantData as PlayerEventWantData, WantTargetData, ActantialViewData, GoalData as PlayerEventGoalData,
+};
+
+// Re-export actantial model types from protocol (Phase P5: facade pattern for UI layer)
+// These are used by motivations_tab and other actantial-related components.
+pub use wrldbldr_protocol::{
+    WantVisibilityData, ActantialRoleData, WantTargetTypeData,
+    NpcActantialContextData, WantData, GoalData,
+    ActantialActorData, ActorTypeData, SocialRelationData,
+};
+
 // NOTE: Infrastructure asset loader now depends inward on these DTOs.

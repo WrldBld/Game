@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::InteractionData;
+use wrldbldr_player_app::application::dto::InteractionData;
 
 /// Props for the ActionPanel component
 #[derive(Props, Clone, PartialEq)]

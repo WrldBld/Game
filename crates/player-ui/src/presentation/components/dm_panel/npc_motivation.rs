@@ -7,7 +7,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::CharacterData as SceneCharacterState;
+use wrldbldr_player_app::application::dto::CharacterData as SceneCharacterState;
 use crate::presentation::components::dm_panel::director_generate_modal::DirectorGenerateModal;
 
 /// NPC motivation state

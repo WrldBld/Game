@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::DialogueChoice;
+use wrldbldr_player_app::application::dto::DialogueChoice;
 
 /// Props for the ChoiceMenu component
 #[derive(Props, Clone, PartialEq)]

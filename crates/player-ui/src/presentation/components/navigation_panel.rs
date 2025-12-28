@@ -7,7 +7,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::{GameTime, NavigationData, NavigationExit, NavigationTarget};
+use wrldbldr_player_app::application::dto::{GameTime, NavigationData, NavigationExit, NavigationTarget};
 
 use crate::presentation::game_time_format;
 

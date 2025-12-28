@@ -3,8 +3,7 @@
 //! Allows DM to select and trigger a challenge for a specific character.
 
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::dto::ChallengeData;
-use wrldbldr_protocol::CharacterData as SceneCharacterState;
+use wrldbldr_player_app::application::dto::{ChallengeData, CharacterData as SceneCharacterState};
 
 /// Props for TriggerChallengeModal
 #[derive(Props, Clone, PartialEq)]

@@ -12,10 +12,10 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::{
+use wrldbldr_player_app::application::dto::{
     WantVisibilityData, ActantialRoleData, WantTargetTypeData,
     NpcActantialContextData, WantData, GoalData,
-    ActantialActorData, ActorTypeData,
+    ActantialActorData, ActorTypeData, SocialRelationData,
 };
 use wrldbldr_player_app::application::services::{
     CreateWantRequest, UpdateWantRequest, CreateGoalRequest, SuggestionContext,
@@ -891,8 +891,8 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
 
 #[derive(Props, Clone, PartialEq)]
 struct SocialStanceSectionProps {
-    allies: Vec<wrldbldr_protocol::SocialRelationData>,
-    enemies: Vec<wrldbldr_protocol::SocialRelationData>,
+    allies: Vec<SocialRelationData>,
+    enemies: Vec<SocialRelationData>,
 }
 
 #[component]
@@ -988,9 +988,9 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
             .and_then(|w| w.target.as_ref())
             .map(|t| {
                 let type_str = match t.target_type {
-                    wrldbldr_protocol::WantTargetTypeData::Goal => "goal",
-                    wrldbldr_protocol::WantTargetTypeData::Character => "character",
-                    wrldbldr_protocol::WantTargetTypeData::Item => "item",
+                    WantTargetTypeData::Goal => "goal",
+                    WantTargetTypeData::Character => "character",
+                    WantTargetTypeData::Item => "item",
                 };
                 format!("{}:{}", type_str, t.id)
             })
