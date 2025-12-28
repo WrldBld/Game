@@ -7,13 +7,13 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | 🟡 Partial | All adapters created, 5 use cases fully wired, 3 have adapters pending wiring |
+| 4 | Adapter Implementation | ✅ Complete | All 8 use cases wired into UseCases container |
 | 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
 | 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
 | 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
-| 8 | Documentation & Cleanup | ⏳ Not Started | Depends on Phase 4 |
+| 8 | Documentation & Cleanup | ⏳ Not Started | Depends on handler refactoring |
 
-**Last Updated:** Dec 28, 2024 (Session 2)
+**Last Updated:** Dec 28, 2024 (Session 3)
 
 ### Phase 4 Details (Current)
 
@@ -47,21 +47,26 @@
 - [x] `ConnectionDirectorialContextAdapter` - implements DirectorialContextPort for ConnectionUseCase
 - [x] `ConnectionWorldStateAdapter` - implements ConnectionWorldStatePort wrapping WorldStateManager
 
-**Remaining - Wiring to UseCases Container:**
-All adapters are created. The following use cases have adapters but are not yet wired into the UseCases container:
+**All Use Cases Wired:**
 
 | Use Case | Required Port Adapters | Status |
 |----------|----------------------|--------|
-| ChallengeUseCase | ChallengeResolutionAdapter, ChallengeOutcomeApprovalAdapter, DmApprovalQueueAdapter | Adapters created, wiring pending (complex generics with 6 type params) |
-| SceneUseCase | SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder | Adapters created, wiring pending |
-| ConnectionUseCase | ConnectionManagerAdapter, WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter | Adapters created, wiring pending |
+| MovementUseCase | StagingServiceAdapter, StagingStateAdapter, SceneBuilder | ✅ Wired |
+| StagingApprovalUseCase | StagingServiceAdapter, StagingStateAdapter, SceneBuilder | ✅ Wired |
+| InventoryUseCase | (uses existing ports directly) | ✅ Wired |
+| PlayerActionUseCase | PlayerActionQueueAdapter, DmNotificationAdapter, MovementUseCase | ✅ Wired |
+| ObservationUseCase | ObservationRepositoryAdapter, WorldMessageAdapter | ✅ Wired |
+| ChallengeUseCase | ChallengeResolutionPlaceholder, ChallengeOutcomeApprovalAdapter, ChallengeDmApprovalQueueAdapter | ✅ Wired |
+| SceneUseCase | SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder | ✅ Wired |
+| ConnectionUseCase | ConnectionManagerAdapter, WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter | ✅ Wired |
 
-**Next Steps:**
-- [ ] Wire SceneUseCase into UseCases container
-- [ ] Wire ConnectionUseCase into UseCases container
-- [ ] Wire ChallengeUseCase into UseCases container (complex due to 6 generic type parameters)
+**Next Steps (Phase 4.3):**
 - [ ] Refactor handlers to use use cases
 - [ ] Target: reduce handler files from ~4,693 lines to ~840 lines
+
+**Note on Placeholder Adapters:**
+- `ChallengeResolutionPlaceholder` - Returns errors; handlers should call ChallengeResolutionService directly until service refactoring is complete
+- `DmActionQueuePlaceholder` - Returns errors; scene approval uses a different approval flow
 
 **Files Created/Modified:**
 - `crates/engine-adapters/src/infrastructure/websocket/broadcast_adapter.rs` (~475 lines)

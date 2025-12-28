@@ -563,6 +563,12 @@ impl AppState {
             item_service.clone(),
         );
 
+        // Clone services before moving to QueueServices/GameServices
+        // (use cases also need references to them)
+        let player_action_queue_for_use_cases = player_action_queue_service.clone();
+        let dm_approval_queue_for_use_cases = dm_approval_queue_service.clone();
+        let challenge_outcome_approval_for_use_cases = challenge_outcome_approval_service.clone();
+
         let game = GameServices::new(
             story_event_service,
             challenge_service.clone(),
@@ -576,10 +582,6 @@ impl AppState {
             disposition_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::DispositionService>,
             actantial_context_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
         );
-
-        // Clone player_action_queue_service before moving it to QueueServices
-        // (use cases also need a reference to it)
-        let player_action_queue_for_use_cases = player_action_queue_service.clone();
 
         let queues = QueueServices::new(
             player_action_queue_service,
@@ -628,6 +630,12 @@ impl AppState {
         let character_repo_for_handler = character_repo.clone();
         let character_repo_for_use_cases = character_repo.clone();
         let observation_repo_for_use_cases = observation_repo_for_handler.clone();
+        
+        // Clone services needed for use cases
+        let scene_service_for_use_cases = core.scene_service.clone();
+        let interaction_service_for_use_cases = core.interaction_service.clone();
+        let world_service_for_use_cases = core.world_service.clone();
+        let pc_service_for_use_cases = player.player_character_service.clone();
 
         let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
             core.world_service.clone(),
@@ -665,8 +673,17 @@ impl AppState {
             observation_repo_for_use_cases,
             staging_service.clone(),
             player_action_queue_for_use_cases,
+            // Scene and Connection dependencies
+            scene_service_for_use_cases,
+            interaction_service_for_use_cases,
+            directorial_context_repo.clone(),
+            world_service_for_use_cases,
+            pc_service_for_use_cases,
+            // Challenge dependencies
+            challenge_outcome_approval_for_use_cases,
+            dm_approval_queue_for_use_cases,
         );
-        tracing::info!("Initialized use cases container with MovementUseCase, StagingApprovalUseCase, InventoryUseCase, PlayerActionUseCase, ObservationUseCase");
+        tracing::info!("Initialized use cases container with all 8 use cases");
 
         Ok((Self {
             config: config.clone(),

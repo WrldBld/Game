@@ -23,28 +23,37 @@
 //! - [x] InventoryUseCase - Item management
 //! - [x] PlayerActionUseCase - Player action handling
 //! - [x] ObservationUseCase - NPC observation events
-//! - [ ] ChallengeUseCase - Challenge resolution (needs adapters for local ports)
-//! - [ ] SceneUseCase - Scene management (needs adapters for local ports)
-//! - [ ] ConnectionUseCase - World connection management (needs adapters for local ports)
+//! - [x] ChallengeUseCase - Challenge resolution
+//! - [x] SceneUseCase - Scene management
+//! - [x] ConnectionUseCase - World connection management
 
 use std::sync::Arc;
 
-use wrldbldr_engine_app::application::dto::{LLMRequestItem, PlayerActionItem};
+use wrldbldr_engine_app::application::dto::{ApprovalItem, LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
-use wrldbldr_engine_app::application::services::PlayerActionQueueService;
+use wrldbldr_engine_app::application::services::{
+    ChallengeOutcomeApprovalService, DMApprovalQueueService, InteractionService, ItemService,
+    PlayerActionQueueService, PlayerCharacterService, SceneService, WorldService,
+};
 use wrldbldr_engine_app::application::use_cases::{
-    InventoryUseCase, MovementUseCase, ObservationUseCase, PlayerActionUseCase, SceneBuilder,
-    StagingApprovalUseCase,
+    ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, ObservationUseCase,
+    PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
 };
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterRepositoryPort, LlmPort, LocationRepositoryPort,
-    NarrativeEventRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
-    ProcessingQueuePort, QueuePort, RegionRepositoryPort, StagingRepositoryPort,
+    ApprovalQueuePort, BroadcastPort, CharacterRepositoryPort,
+    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, LlmPort,
+    LocationRepositoryPort, NarrativeEventRepositoryPort, ObservationRepositoryPort,
+    PlayerCharacterRepositoryPort, ProcessingQueuePort, QueuePort, RegionRepositoryPort,
+    StagingRepositoryPort,
 };
 
 use crate::infrastructure::ports::{
-    DmNotificationAdapter, ObservationRepositoryAdapter, PlayerActionQueueAdapter,
-    StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter,
+    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionPlaceholder,
+    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
+    DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
+    InteractionServiceAdapter, ObservationRepositoryAdapter, PlayerActionQueueAdapter,
+    PlayerCharacterServiceAdapter, SceneServiceAdapter, SceneWorldStateAdapter,
+    StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter, WorldServiceAdapter,
 };
 use crate::infrastructure::websocket::WebSocketBroadcastAdapter;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
@@ -73,11 +82,14 @@ pub struct UseCases {
     /// Observation use case for NPC observation and event triggering
     pub observation: Arc<ObservationUseCase>,
 
-    // Future: Add other use case instances as their port adapters are created
-    // These use cases define their own port traits locally and need adapters:
-    // pub challenge: Arc<ChallengeUseCase>,     // needs: ChallengeResolutionPort, ChallengeOutcomeApprovalPort, DmApprovalQueuePort
-    // pub scene: Arc<SceneUseCase>,             // needs: SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort
-    // pub connection: Arc<ConnectionUseCase>,   // needs: ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort
+    /// Challenge use case for dice rolls and challenge resolution
+    pub challenge: Arc<ChallengeUseCase>,
+
+    /// Scene use case for scene changes and directorial context
+    pub scene: Arc<SceneUseCase>,
+
+    /// Connection use case for join/leave world operations
+    pub connection: Arc<ConnectionUseCase>,
 }
 
 impl UseCases {
@@ -94,8 +106,15 @@ impl UseCases {
     /// * `observation_repo` - Observation repository (for ObservationUseCase)
     /// * `staging_service` - The staging service (generic over its dependencies)
     /// * `player_action_queue_service` - The player action queue service
+    /// * `scene_service` - Scene service for scene operations
+    /// * `interaction_service` - Interaction service for scene interactions
+    /// * `directorial_context_repo` - Repository for directorial context persistence
+    /// * `world_service` - World service for world snapshots
+    /// * `pc_service` - Player character service for PC data
+    /// * `challenge_outcome_approval_service` - Service for challenge outcome approval (generic over LLM)
+    /// * `dm_approval_queue_service` - Service for DM approval queue (generic over queue and item service)
     #[allow(clippy::too_many_arguments)]
-    pub fn new<L, R, N, S, PAQ, LQ>(
+    pub fn new<L, R, N, S, PAQ, LQ, COAL, AQ, IS>(
         connection_manager: SharedWorldConnectionManager,
         world_state: Arc<WorldStateManager>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
@@ -105,6 +124,15 @@ impl UseCases {
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         staging_service: Arc<StagingService<L, R, N, S>>,
         player_action_queue_service: Arc<PlayerActionQueueService<PAQ, LQ>>,
+        // Scene and Connection dependencies
+        scene_service: Arc<dyn SceneService>,
+        interaction_service: Arc<dyn InteractionService>,
+        directorial_context_repo: Arc<dyn PortDirectorialContextRepositoryPort>,
+        world_service: Arc<dyn WorldService>,
+        pc_service: Arc<dyn PlayerCharacterService>,
+        // Challenge dependencies
+        challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<COAL>>,
+        dm_approval_queue_service: Arc<DMApprovalQueueService<AQ, IS>>,
     ) -> Self
     where
         L: LlmPort + Send + Sync + 'static,
@@ -113,6 +141,9 @@ impl UseCases {
         S: StagingRepositoryPort + Send + Sync + 'static,
         PAQ: QueuePort<PlayerActionItem> + Send + Sync + 'static,
         LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+        COAL: LlmPort + Send + Sync + 'static,
+        AQ: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+        IS: ItemService + Send + Sync + 'static,
     {
         // Create broadcast adapter
         let broadcast: Arc<dyn BroadcastPort> =
@@ -124,7 +155,7 @@ impl UseCases {
         // Create staging adapters
         // Note: StagingStateAdapter implements both StagingStatePort and StagingStateExtPort
         // Note: StagingServiceAdapter implements both StagingServicePort and StagingServiceExtPort
-        let staging_state_adapter = Arc::new(StagingStateAdapter::new(world_state));
+        let staging_state_adapter = Arc::new(StagingStateAdapter::new(world_state.clone()));
         let staging_service_adapter = Arc::new(StagingServiceAdapter::new(staging_service));
 
         // Create shared scene builder
@@ -174,14 +205,69 @@ impl UseCases {
 
         // Create observation adapters
         let observation_repo_adapter = Arc::new(ObservationRepositoryAdapter::new(observation_repo));
-        let world_message_adapter = Arc::new(WorldMessageAdapter::new(connection_manager));
+        let world_message_adapter = Arc::new(WorldMessageAdapter::new(connection_manager.clone()));
 
         // Create observation use case
         let observation = Arc::new(ObservationUseCase::new(
-            pc_repo,
+            pc_repo.clone(),
             character_repo,
             observation_repo_adapter,
             world_message_adapter,
+            broadcast.clone(),
+        ));
+
+        // =========================================================================
+        // Challenge Use Case
+        // =========================================================================
+        // Uses placeholder for resolution port (handlers call services directly)
+        // and adapters for outcome approval and DM approval queue
+        let challenge_resolution_placeholder = Arc::new(ChallengeResolutionPlaceholder);
+        let challenge_outcome_adapter =
+            Arc::new(ChallengeOutcomeApprovalAdapter::new(challenge_outcome_approval_service));
+        let challenge_dm_queue_adapter =
+            Arc::new(ChallengeDmApprovalQueueAdapter::new(dm_approval_queue_service));
+
+        let challenge = Arc::new(ChallengeUseCase::new(
+            challenge_resolution_placeholder,
+            challenge_outcome_adapter,
+            challenge_dm_queue_adapter,
+            broadcast.clone(),
+        ));
+
+        // =========================================================================
+        // Scene Use Case
+        // =========================================================================
+        let scene_service_adapter = Arc::new(SceneServiceAdapter::new(scene_service));
+        let interaction_service_adapter = Arc::new(InteractionServiceAdapter::new(interaction_service));
+        let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(world_state.clone()));
+        let scene_directorial_adapter = Arc::new(DirectorialContextAdapter::new(directorial_context_repo.clone()));
+        let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
+
+        let scene = Arc::new(SceneUseCase::new(
+            scene_service_adapter,
+            interaction_service_adapter,
+            scene_world_state_adapter,
+            scene_directorial_adapter,
+            dm_action_queue_placeholder,
+            broadcast.clone(),
+        ));
+
+        // =========================================================================
+        // Connection Use Case
+        // =========================================================================
+        let connection_manager_adapter = Arc::new(ConnectionManagerAdapter::new(connection_manager));
+        let world_service_adapter = Arc::new(WorldServiceAdapter::new(world_service));
+        let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(pc_service));
+        let connection_directorial_adapter =
+            Arc::new(ConnectionDirectorialContextAdapter::new(directorial_context_repo));
+        let connection_world_state_adapter = Arc::new(ConnectionWorldStateAdapter::new(world_state));
+
+        let connection = Arc::new(ConnectionUseCase::new(
+            connection_manager_adapter,
+            world_service_adapter,
+            pc_service_adapter,
+            connection_directorial_adapter,
+            connection_world_state_adapter,
             broadcast.clone(),
         ));
 
@@ -192,6 +278,9 @@ impl UseCases {
             inventory,
             player_action,
             observation,
+            challenge,
+            scene,
+            connection,
         }
     }
 
