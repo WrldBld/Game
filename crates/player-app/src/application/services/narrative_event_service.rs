@@ -93,9 +93,7 @@ impl NarrativeEventService {
         world_id: &str,
         request: CreateNarrativeEventRequest,
     ) -> Result<NarrativeEventData, ServiceError> {
-        use wrldbldr_protocol::CreateNarrativeEventData;
-
-        let data = CreateNarrativeEventData {
+        let data = wrldbldr_protocol::CreateNarrativeEventData {
             name: request.name,
             description: Some(request.description),
             trigger_conditions: None,

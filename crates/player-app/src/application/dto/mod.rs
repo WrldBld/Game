@@ -3,11 +3,10 @@
 //! DTOs are used to transfer data between layers. The application layer
 //! provides these types so that presentation doesn't need to import
 //! directly from infrastructure.
-//!
-//! TODO (Phase 16.3): replace infra re-exports with real application DTOs + conversions.
 
 pub mod player_action;
 pub mod player_events;
+pub mod requests;
 pub mod session_dto;
 pub mod session_types;
 pub mod world_snapshot;

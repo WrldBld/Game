@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::application::dto::requests::{
+    ChangeArchetypeRequest, CreateCharacterRequest, UpdateCharacterRequest,
+};
 use crate::application::dto::{FieldValue, InventoryItemData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::requests::{ChangeArchetypeData, CreateCharacterData, UpdateCharacterData};
 use wrldbldr_protocol::RequestPayload;
 
 /// Character summary for list views
@@ -109,7 +111,7 @@ impl CharacterService {
         world_id: &str,
         character: &CharacterFormData,
     ) -> Result<CharacterFormData, ServiceError> {
-        let data = CreateCharacterData {
+        let request = CreateCharacterRequest {
             name: character.name.clone(),
             description: character.description.clone(),
             archetype: character.archetype.clone(),
@@ -122,7 +124,7 @@ impl CharacterService {
             .request_with_timeout(
                 RequestPayload::CreateCharacter {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -136,7 +138,7 @@ impl CharacterService {
         character_id: &str,
         character: &CharacterFormData,
     ) -> Result<CharacterFormData, ServiceError> {
-        let data = UpdateCharacterData {
+        let request = UpdateCharacterRequest {
             name: Some(character.name.clone()),
             description: character.description.clone(),
             sprite_asset: character.sprite_asset.clone(),
@@ -150,7 +152,7 @@ impl CharacterService {
             .request_with_timeout(
                 RequestPayload::UpdateCharacter {
                     character_id: character_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -179,7 +181,7 @@ impl CharacterService {
         new_archetype: &str,
         reason: &str,
     ) -> Result<(), ServiceError> {
-        let data = ChangeArchetypeData {
+        let request = ChangeArchetypeRequest {
             new_archetype: new_archetype.to_string(),
             reason: reason.to_string(),
         };
@@ -189,7 +191,7 @@ impl CharacterService {
             .request_with_timeout(
                 RequestPayload::ChangeArchetype {
                     character_id: character_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )

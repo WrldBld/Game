@@ -9,8 +9,9 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use wrldbldr_player_ports::outbound::{ApiError, GameConnectionPort, RawApiPort};
-use wrldbldr_protocol::{CreateWorldData, RequestPayload};
+use wrldbldr_protocol::RequestPayload;
 
+use crate::application::dto::requests::CreateWorldRequest;
 use crate::application::dto::SessionWorldSnapshot;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 
@@ -85,8 +86,8 @@ impl WorldService {
         description: Option<&str>,
         _rule_system: Option<serde_json::Value>,
     ) -> Result<String, ServiceError> {
-        // Note: rule_system is not yet part of CreateWorldData in the protocol
-        let data = CreateWorldData {
+        // Note: rule_system is not yet part of the protocol
+        let request = CreateWorldRequest {
             name: name.to_string(),
             description: description.map(|s| s.to_string()),
             setting: None,
@@ -95,7 +96,7 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateWorld { data },
+                RequestPayload::CreateWorld { data: request.into() },
                 get_request_timeout_ms(),
             )
             .await?;

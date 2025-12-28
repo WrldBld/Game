@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::requests::{CreateEventChainData, UpdateEventChainData};
 use wrldbldr_protocol::RequestPayload;
 
 /// Event chain data from engine
@@ -92,6 +91,29 @@ pub struct ChainStatusData {
     pub current_event_id: Option<String>,
 }
 
+// From impls for protocol conversion at the boundary
+impl From<&CreateEventChainRequest> for wrldbldr_protocol::requests::CreateEventChainData {
+    fn from(req: &CreateEventChainRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: if req.description.is_empty() {
+                None
+            } else {
+                Some(req.description.clone())
+            },
+        }
+    }
+}
+
+impl From<&UpdateEventChainRequest> for wrldbldr_protocol::requests::UpdateEventChainData {
+    fn from(req: &UpdateEventChainRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: req.description.clone(),
+        }
+    }
+}
+
 /// Event chain service for managing event chains
 ///
 /// This service provides methods for event chain-related operations
@@ -143,21 +165,12 @@ impl EventChainService {
         world_id: &str,
         request: &CreateEventChainRequest,
     ) -> Result<EventChainData, ServiceError> {
-        let data = CreateEventChainData {
-            name: request.name.clone(),
-            description: if request.description.is_empty() {
-                None
-            } else {
-                Some(request.description.clone())
-            },
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateEventChain {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -172,17 +185,12 @@ impl EventChainService {
         chain_id: &str,
         request: &UpdateEventChainRequest,
     ) -> Result<EventChainData, ServiceError> {
-        let data = UpdateEventChainData {
-            name: request.name.clone(),
-            description: request.description.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdateEventChain {
                     chain_id: chain_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )

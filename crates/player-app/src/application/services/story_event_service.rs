@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::StoryEventData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::requests::CreateDmMarkerData;
 use wrldbldr_protocol::RequestPayload;
 
 /// Paginated response wrapper from Engine
@@ -31,6 +30,16 @@ pub struct CreateDmMarkerRequest {
     pub marker_type: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+}
+
+// From impl for protocol conversion at the boundary
+impl From<&CreateDmMarkerRequest> for wrldbldr_protocol::requests::CreateDmMarkerData {
+    fn from(req: &CreateDmMarkerRequest) -> Self {
+        Self {
+            title: req.title.clone(),
+            content: Some(req.note.clone()),
+        }
+    }
 }
 
 /// Story event service for managing story events
@@ -95,17 +104,12 @@ impl StoryEventService {
         world_id: &str,
         request: &CreateDmMarkerRequest,
     ) -> Result<(), ServiceError> {
-        let data = CreateDmMarkerData {
-            title: request.title.clone(),
-            content: Some(request.note.clone()),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateDmMarker {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )

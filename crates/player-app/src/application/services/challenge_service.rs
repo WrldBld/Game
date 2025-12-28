@@ -52,9 +52,7 @@ impl ChallengeService {
         world_id: &str,
         challenge: &ChallengeData,
     ) -> Result<ChallengeData, ServiceError> {
-        use wrldbldr_protocol::CreateChallengeData;
-
-        let data = CreateChallengeData {
+        let data = wrldbldr_protocol::CreateChallengeData {
             name: challenge.name.clone(),
             description: Some(challenge.description.clone()),
             skill_id: challenge.skill_id.clone(),
@@ -76,9 +74,7 @@ impl ChallengeService {
         &self,
         challenge: &ChallengeData,
     ) -> Result<ChallengeData, ServiceError> {
-        use wrldbldr_protocol::UpdateChallengeData;
-
-        let data = UpdateChallengeData {
+        let data = wrldbldr_protocol::UpdateChallengeData {
             name: Some(challenge.name.clone()),
             description: Some(challenge.description.clone()),
             skill_id: Some(challenge.skill_id.clone()),

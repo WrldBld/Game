@@ -84,10 +84,10 @@ impl WebSocketEventSubscriber {
             if let Some(message) = self.map_to_server_message(&event) {
                 let target_world = event.world_id();
 
-                if let Some(world_uuid) = target_world {
-                    // Route to specific world
+                if let Some(world_id) = target_world {
+                    // Route to specific world (convert WorldId to Uuid)
                     self.world_connection_manager
-                        .broadcast_to_world(world_uuid, message)
+                        .broadcast_to_world(*world_id.as_uuid(), message)
                         .await;
                 } else {
                     // No world_id: broadcast to all connected worlds
@@ -129,9 +129,11 @@ impl WebSocketEventSubscriber {
                 position: *position,
             }),
             DomainEvent::GenerationBatchProgress { batch_id, progress, .. } => {
+                // Convert f32 (0.0-1.0) to u8 (0-100)
+                let progress_percent = (*progress * 100.0).clamp(0.0, 100.0) as u8;
                 Some(ServerMessage::GenerationProgress {
                     batch_id: batch_id.to_string(),
-                    progress: *progress,
+                    progress: progress_percent,
                 })
             }
             DomainEvent::GenerationBatchCompleted {
@@ -156,7 +158,7 @@ impl WebSocketEventSubscriber {
             } => Some(ServerMessage::SuggestionQueued {
                 request_id: request_id.clone(),
                 field_type: field_type.clone(),
-                entity_id: entity_id.to_string(),
+                entity_id: entity_id.clone(),
             }),
             DomainEvent::SuggestionProgress { request_id, status, .. } => {
                 Some(ServerMessage::SuggestionProgress {

@@ -10,7 +10,6 @@ use serde::Serialize;
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::requests::{CreateSkillData, UpdateSkillData};
 use wrldbldr_protocol::RequestPayload;
 
 /// Request to create a new skill
@@ -36,6 +35,34 @@ pub struct UpdateSkillRequest {
     pub base_attribute: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_hidden: Option<bool>,
+}
+
+// From impls for protocol conversion at the boundary
+impl From<&CreateSkillRequest> for wrldbldr_protocol::requests::CreateSkillData {
+    fn from(req: &CreateSkillRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: if req.description.is_empty() {
+                None
+            } else {
+                Some(req.description.clone())
+            },
+            category: Some(req.category.to_string()),
+            attribute: req.base_attribute.clone(),
+        }
+    }
+}
+
+impl From<&UpdateSkillRequest> for wrldbldr_protocol::requests::UpdateSkillData {
+    fn from(req: &UpdateSkillRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: req.description.clone(),
+            category: req.category.as_ref().map(|c| c.to_string()),
+            attribute: req.base_attribute.clone(),
+            is_hidden: req.is_hidden,
+        }
+    }
 }
 
 /// Skill service for managing skills
@@ -89,23 +116,12 @@ impl SkillService {
         world_id: &str,
         request: &CreateSkillRequest,
     ) -> Result<SkillData, ServiceError> {
-        let data = CreateSkillData {
-            name: request.name.clone(),
-            description: if request.description.is_empty() {
-                None
-            } else {
-                Some(request.description.clone())
-            },
-            category: Some(request.category.to_string()),
-            attribute: request.base_attribute.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateSkill {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -120,20 +136,12 @@ impl SkillService {
         skill_id: &str,
         request: &UpdateSkillRequest,
     ) -> Result<SkillData, ServiceError> {
-        let data = UpdateSkillData {
-            name: request.name.clone(),
-            description: request.description.clone(),
-            category: request.category.as_ref().map(|c| c.to_string()),
-            attribute: request.base_attribute.clone(),
-            is_hidden: request.is_hidden,
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdateSkill {
                     skill_id: skill_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -148,11 +156,11 @@ impl SkillService {
         skill_id: &str,
         is_hidden: bool,
     ) -> Result<SkillData, ServiceError> {
-        let data = UpdateSkillData {
+        let request = UpdateSkillRequest {
             name: None,
             description: None,
             category: None,
-            attribute: None,
+            base_attribute: None,
             is_hidden: Some(is_hidden),
         };
 
@@ -161,7 +169,7 @@ impl SkillService {
             .request_with_timeout(
                 RequestPayload::UpdateSkill {
                     skill_id: skill_id.to_string(),
-                    data,
+                    data: (&request).into(),
                 },
                 get_request_timeout_ms(),
             )

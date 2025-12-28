@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use crate::application::dto::FieldValue;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::{CreatePlayerCharacterData, RequestPayload, UpdatePlayerCharacterData};
+use wrldbldr_protocol::RequestPayload;
 
 /// Character sheet data from API
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -72,6 +72,27 @@ pub struct UpdateLocationResponse {
     pub scene_id: Option<String>,
 }
 
+// From impls for protocol conversion at the boundary
+impl From<&CreatePlayerCharacterRequest> for wrldbldr_protocol::CreatePlayerCharacterData {
+    fn from(req: &CreatePlayerCharacterRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            user_id: req.user_id.clone(),
+            starting_region_id: req.starting_region_id.clone(),
+            sheet_data: req.sheet_data.clone(),
+        }
+    }
+}
+
+impl From<&UpdatePlayerCharacterRequest> for wrldbldr_protocol::UpdatePlayerCharacterData {
+    fn from(req: &UpdatePlayerCharacterRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            sheet_data: req.sheet_data.clone(),
+        }
+    }
+}
+
 /// Player character service for managing player characters
 ///
 /// This service provides methods for player character-related operations
@@ -93,19 +114,12 @@ impl PlayerCharacterService {
         world_id: &str,
         request: &CreatePlayerCharacterRequest,
     ) -> Result<PlayerCharacterData, ServiceError> {
-        let data = CreatePlayerCharacterData {
-            name: request.name.clone(),
-            user_id: request.user_id.clone(),
-            starting_region_id: request.starting_region_id.clone(),
-            sheet_data: request.sheet_data.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreatePlayerCharacter {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -170,17 +184,12 @@ impl PlayerCharacterService {
         pc_id: &str,
         request: &UpdatePlayerCharacterRequest,
     ) -> Result<PlayerCharacterData, ServiceError> {
-        let data = UpdatePlayerCharacterData {
-            name: request.name.clone(),
-            sheet_data: request.sheet_data.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdatePlayerCharacter {
                     pc_id: pc_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )

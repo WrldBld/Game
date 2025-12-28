@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::requests::{CreateLocationConnectionData, CreateLocationData, UpdateLocationData};
 use wrldbldr_protocol::RequestPayload;
 
 /// Location summary for list views
@@ -64,6 +63,35 @@ pub struct ConnectionData {
 
 fn default_bidirectional() -> bool {
     true
+}
+
+// From impls for protocol conversion at the boundary
+impl LocationFormData {
+    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationData {
+        wrldbldr_protocol::requests::CreateLocationData {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            setting: self.atmosphere.clone(),
+        }
+    }
+
+    fn to_update_data(&self) -> wrldbldr_protocol::requests::UpdateLocationData {
+        wrldbldr_protocol::requests::UpdateLocationData {
+            name: Some(self.name.clone()),
+            description: self.description.clone(),
+            setting: self.atmosphere.clone(),
+        }
+    }
+}
+
+impl ConnectionData {
+    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationConnectionData {
+        wrldbldr_protocol::requests::CreateLocationConnectionData {
+            from_id: self.from_location_id.clone(),
+            to_id: self.to_location_id.clone(),
+            bidirectional: Some(self.bidirectional),
+        }
+    }
 }
 
 /// Region data with map bounds (for mini-map)
@@ -145,18 +173,12 @@ impl LocationService {
         world_id: &str,
         location: &LocationFormData,
     ) -> Result<LocationFormData, ServiceError> {
-        let data = CreateLocationData {
-            name: location.name.clone(),
-            description: location.description.clone(),
-            setting: location.atmosphere.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateLocation {
                     world_id: world_id.to_string(),
-                    data,
+                    data: location.to_create_data(),
                 },
                 get_request_timeout_ms(),
             )
@@ -170,18 +192,12 @@ impl LocationService {
         location_id: &str,
         location: &LocationFormData,
     ) -> Result<LocationFormData, ServiceError> {
-        let data = UpdateLocationData {
-            name: Some(location.name.clone()),
-            description: location.description.clone(),
-            setting: location.atmosphere.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdateLocation {
                     location_id: location_id.to_string(),
-                    data,
+                    data: location.to_update_data(),
                 },
                 get_request_timeout_ms(),
             )
@@ -222,16 +238,12 @@ impl LocationService {
 
     /// Create a connection between locations
     pub async fn create_connection(&self, connection: &ConnectionData) -> Result<(), ServiceError> {
-        let data = CreateLocationConnectionData {
-            from_id: connection.from_location_id.clone(),
-            to_id: connection.to_location_id.clone(),
-            bidirectional: Some(connection.bidirectional),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateLocationConnection { data },
+                RequestPayload::CreateLocationConnection {
+                    data: connection.to_create_data(),
+                },
                 get_request_timeout_ms(),
             )
             .await?;

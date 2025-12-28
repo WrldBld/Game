@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::messages::{CreateGoalData, CreateWantData, UpdateGoalData, UpdateWantData};
+// Note: Actantial enum types (WantVisibilityData, ActantialRoleData, etc.) are imported
+// as shared value objects. These are essentially protocol primitives used in DTOs.
+// This is a documented exception in the hexagonal architecture.
 use wrldbldr_protocol::{
     ActantialRoleData, ActorTypeData, NpcActantialContextData, RequestPayload,
     WantTargetData, WantTargetTypeData, WantVisibilityData,
@@ -114,6 +116,60 @@ pub struct GoalResponse {
     pub description: Option<String>,
 }
 
+// From impls for protocol conversion at the boundary
+impl CreateWantRequest {
+    fn to_protocol_data(&self) -> wrldbldr_protocol::messages::CreateWantData {
+        wrldbldr_protocol::messages::CreateWantData {
+            description: self.description.clone(),
+            intensity: self.intensity,
+            priority: self.priority,
+            visibility: self.visibility.clone(),
+            target_id: self.target_id.clone(),
+            target_type: self.target_type.as_ref().and_then(|t| {
+                match t.as_str() {
+                    "Character" => Some(WantTargetTypeData::Character),
+                    "Item" => Some(WantTargetTypeData::Item),
+                    "Goal" => Some(WantTargetTypeData::Goal),
+                    _ => None,
+                }
+            }),
+            deflection_behavior: self.deflection_behavior.clone(),
+            tells: self.tells.clone().map(|t| vec![t]).unwrap_or_default(),
+        }
+    }
+}
+
+impl UpdateWantRequest {
+    fn to_protocol_data(&self) -> wrldbldr_protocol::messages::UpdateWantData {
+        wrldbldr_protocol::messages::UpdateWantData {
+            description: self.description.clone(),
+            intensity: self.intensity,
+            priority: self.priority,
+            visibility: self.visibility.clone(),
+            deflection_behavior: self.deflection_behavior.clone(),
+            tells: self.tells.clone().map(|t| vec![t]),
+        }
+    }
+}
+
+impl From<&CreateGoalRequest> for wrldbldr_protocol::messages::CreateGoalData {
+    fn from(req: &CreateGoalRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: req.description.clone(),
+        }
+    }
+}
+
+impl From<&UpdateGoalRequest> for wrldbldr_protocol::messages::UpdateGoalData {
+    fn from(req: &UpdateGoalRequest) -> Self {
+        Self {
+            name: req.name.clone(),
+            description: req.description.clone(),
+        }
+    }
+}
+
 /// Actantial service for managing NPC motivations
 ///
 /// This service provides methods for want, goal, and actantial view operations
@@ -152,31 +208,12 @@ impl ActantialService {
         character_id: &str,
         request: &CreateWantRequest,
     ) -> Result<WantResponse, ServiceError> {
-        let data = CreateWantData {
-            description: request.description.clone(),
-            intensity: request.intensity,
-            priority: request.priority,
-            visibility: request.visibility.clone(),
-            target_id: request.target_id.clone(),
-            target_type: request.target_type.as_ref().and_then(|t| {
-                // Convert string to WantTargetTypeData
-                match t.as_str() {
-                    "Character" => Some(WantTargetTypeData::Character),
-                    "Item" => Some(WantTargetTypeData::Item),
-                    "Goal" => Some(WantTargetTypeData::Goal),
-                    _ => None,
-                }
-            }),
-            deflection_behavior: request.deflection_behavior.clone(),
-            tells: request.tells.clone().map(|t| vec![t]).unwrap_or_default(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateWant {
                     character_id: character_id.to_string(),
-                    data,
+                    data: request.to_protocol_data(),
                 },
                 get_request_timeout_ms(),
             )
@@ -191,21 +228,12 @@ impl ActantialService {
         want_id: &str,
         request: &UpdateWantRequest,
     ) -> Result<WantResponse, ServiceError> {
-        let data = UpdateWantData {
-            description: request.description.clone(),
-            intensity: request.intensity,
-            priority: request.priority,
-            visibility: request.visibility.clone(),
-            deflection_behavior: request.deflection_behavior.clone(),
-            tells: request.tells.clone().map(|t| vec![t]),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdateWant {
                     want_id: want_id.to_string(),
-                    data,
+                    data: request.to_protocol_data(),
                 },
                 get_request_timeout_ms(),
             )
@@ -355,17 +383,12 @@ impl ActantialService {
         world_id: &str,
         request: &CreateGoalRequest,
     ) -> Result<GoalResponse, ServiceError> {
-        let data = CreateGoalData {
-            name: request.name.clone(),
-            description: request.description.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::CreateGoal {
                     world_id: world_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
@@ -380,17 +403,12 @@ impl ActantialService {
         goal_id: &str,
         request: &UpdateGoalRequest,
     ) -> Result<GoalResponse, ServiceError> {
-        let data = UpdateGoalData {
-            name: request.name.clone(),
-            description: request.description.clone(),
-        };
-
         let result = self
             .connection
             .request_with_timeout(
                 RequestPayload::UpdateGoal {
                     goal_id: goal_id.to_string(),
-                    data,
+                    data: request.into(),
                 },
                 get_request_timeout_ms(),
             )
