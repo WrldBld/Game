@@ -593,6 +593,7 @@ impl AppState {
             llm_queue_service,
             asset_generation_queue_service,
             dm_approval_queue_service,
+            challenge_outcome_queue,
         );
 
         // Clone generation services for use in request handler

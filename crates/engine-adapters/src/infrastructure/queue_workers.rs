@@ -6,12 +6,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use wrldbldr_engine_app::application::dto::{DMAction, DMActionItem};
+use wrldbldr_engine_app::application::dto::{ChallengeOutcomeApprovalItem, DMAction, DMActionItem};
 use wrldbldr_engine_ports::outbound::QueueNotificationPort;
 use wrldbldr_engine_app::application::services::{
     ApprovalOutcome, DMActionQueueService, DMApprovalQueueService, InteractionService,
     ItemServiceImpl, NarrativeEventService, SceneService,
 };
+use crate::infrastructure::queues::QueueBackendEnum;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_domain::{NarrativeEventId, SceneId, WorldId};
 use wrldbldr_protocol::{
@@ -372,4 +373,84 @@ async fn process_dm_action(
     }
 
     Ok(())
+}
+
+/// Worker that sends pending challenge outcomes to DM for approval
+///
+/// This worker polls the challenge outcome queue and sends `ChallengeOutcomePending`
+/// messages to connected DMs. It handles DM reconnection automatically by continuously
+/// polling for pending items.
+pub async fn challenge_outcome_notification_worker(
+    challenge_queue: Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>,
+    world_connection_manager: SharedWorldConnectionManager,
+    recovery_interval: Duration,
+) {
+    use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
+
+    tracing::info!("Starting challenge outcome notification worker");
+    let notifier = challenge_queue.notifier();
+
+    loop {
+        let world_ids = world_connection_manager.get_all_world_ids().await;
+        let mut has_work = false;
+
+        for world_id in world_ids {
+            // Only process if world has a DM connected
+            if !world_connection_manager.has_dm(&world_id).await {
+                continue;
+            }
+
+            let pending = match challenge_queue.list_by_world(WorldId::from(world_id)).await {
+                Ok(items) => items,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to get pending challenge outcomes for world {}: {}",
+                        world_id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            if !pending.is_empty() {
+                has_work = true;
+            }
+
+            for queue_item in pending {
+                let item = queue_item.payload;
+                let message = ServerMessage::ChallengeOutcomePending {
+                    resolution_id: item.resolution_id.clone(),
+                    challenge_id: item.challenge_id,
+                    challenge_name: item.challenge_name,
+                    character_id: item.character_id,
+                    character_name: item.character_name,
+                    roll: item.roll,
+                    modifier: item.modifier,
+                    total: item.total,
+                    outcome_type: item.outcome_type,
+                    outcome_description: item.outcome_description,
+                    outcome_triggers: item.outcome_triggers,
+                    roll_breakdown: item.roll_breakdown,
+                };
+
+                if let Err(e) = world_connection_manager.send_to_dm(&world_id, message).await {
+                    tracing::warn!(
+                        "Failed to send challenge outcome to DM for world {}: {}",
+                        world_id,
+                        e
+                    );
+                } else {
+                    tracing::debug!(
+                        "Sent ChallengeOutcomePending {} to DM",
+                        item.resolution_id
+                    );
+                }
+            }
+        }
+
+        // Wait for notification if no work, otherwise check again immediately
+        if !has_work {
+            let _ = notifier.wait_for_work(recovery_interval).await;
+        }
+    }
 }

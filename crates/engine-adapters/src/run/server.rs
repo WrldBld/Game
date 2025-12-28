@@ -16,7 +16,9 @@ use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort
 use crate::infrastructure;
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::http;
-use crate::infrastructure::queue_workers::{approval_notification_worker, dm_action_worker};
+use crate::infrastructure::queue_workers::{
+    approval_notification_worker, challenge_outcome_notification_worker, dm_action_worker,
+};
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket_helpers::build_prompt_from_action;
 
@@ -188,6 +190,21 @@ pub async fn run() -> Result<()> {
         })
     };
 
+    // Challenge outcome notification worker (sends pending challenge outcomes to DM)
+    let challenge_outcome_worker_task = {
+        let challenge_queue = state.queues.challenge_outcome_queue.clone();
+        let world_connection_manager = state.world_connection_manager.clone();
+        let recovery_interval_clone = recovery_interval;
+        tokio::spawn(async move {
+            challenge_outcome_notification_worker(
+                challenge_queue,
+                world_connection_manager,
+                recovery_interval_clone,
+            )
+            .await;
+        })
+    };
+
     // Cleanup worker (removes old completed/failed queue items)
     let cleanup_worker = {
         let player_action_service = state.queues.player_action_queue_service.clone();
@@ -278,6 +295,7 @@ pub async fn run() -> Result<()> {
         _ = player_action_worker => {}
         _ = approval_notification_worker_task => {}
         _ = dm_action_worker_task => {}
+        _ = challenge_outcome_worker_task => {}
         _ = cleanup_worker => {}
         _ = generation_event_worker => {}
     }
