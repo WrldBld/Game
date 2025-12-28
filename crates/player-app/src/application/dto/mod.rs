@@ -79,8 +79,12 @@ pub use player_events::{
     WantData as PlayerEventWantData, WantTargetData, ActantialViewData, GoalData as PlayerEventGoalData,
 };
 
-// Re-export actantial model types from protocol (Phase P5: facade pattern for UI layer)
-// These are used by motivations_tab and other actantial-related components.
+// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
+// Re-export actantial model types from protocol (facade pattern for UI layer).
+// These are value objects/enums used across layers. Creating app-layer equivalents
+// for all 9 types would require 18+ From impls with no benefit. The protocol types
+// are stable and serialization-ready.
+// See: docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md Appendix B
 pub use wrldbldr_protocol::{
     WantVisibilityData, ActantialRoleData, WantTargetTypeData,
     NpcActantialContextData, WantData, GoalData,

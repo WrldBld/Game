@@ -9,9 +9,10 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::converters::{
     movement_result_to_message, select_character_result_to_message,
 };
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ExitToLocationInput, MoveToRegionInput, MovementError, SelectCharacterInput,
+    ExitToLocationInput, MoveToRegionInput, SelectCharacterInput,
 };
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
@@ -50,7 +51,7 @@ pub async fn handle_select_player_character(
             );
             Some(select_character_result_to_message(result))
         }
-        Err(e) => Some(movement_error_to_message(e)),
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
@@ -92,7 +93,7 @@ pub async fn handle_move_to_region(
 
     match state.use_cases.movement.move_to_region(ctx, input).await {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
-        Err(e) => Some(movement_error_to_message(e)),
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
@@ -140,7 +141,7 @@ pub async fn handle_exit_to_location(
 
     match state.use_cases.movement.exit_to_location(ctx, input).await {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
-        Err(e) => Some(movement_error_to_message(e)),
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
@@ -177,19 +178,4 @@ fn parse_region_id(id: &str) -> Option<RegionId> {
 
 fn parse_location_id(id: &str) -> Option<LocationId> {
     Uuid::parse_str(id).ok().map(LocationId::from_uuid)
-}
-
-fn movement_error_to_message(error: MovementError) -> ServerMessage {
-    let (code, message) = match error {
-        MovementError::PcNotFound(id) => ("PC_NOT_FOUND".to_string(), format!("Player character {} not found", id)),
-        MovementError::RegionNotFound(id) => ("REGION_NOT_FOUND".to_string(), format!("Region {} not found", id)),
-        MovementError::LocationNotFound(id) => ("LOCATION_NOT_FOUND".to_string(), format!("Location {} not found", id)),
-        MovementError::ConnectionLocked(reason) => ("CONNECTION_LOCKED".to_string(), reason),
-        MovementError::RegionLocationMismatch => ("REGION_MISMATCH".to_string(), "Arrival region does not belong to target location".to_string()),
-        MovementError::NoArrivalRegion => ("NO_ARRIVAL_REGION".to_string(), "Could not determine arrival region for location".to_string()),
-        MovementError::NotConnected => ("NOT_CONNECTED".to_string(), "Not connected to a world".to_string()),
-        MovementError::Database(msg) => ("DATABASE_ERROR".to_string(), msg),
-        MovementError::Staging(msg) => ("STAGING_ERROR".to_string(), msg),
-    };
-    ServerMessage::Error { code, message }
 }

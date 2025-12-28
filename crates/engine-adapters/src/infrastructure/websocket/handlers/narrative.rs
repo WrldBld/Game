@@ -5,10 +5,11 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_engine_app::application::use_cases::NarrativeEventSuggestionDecisionInput;
 use wrldbldr_protocol::ServerMessage;
 
-use super::common::{error_msg, extract_dm_context};
+use super::common::extract_dm_context;
 
 /// Handle NarrativeEventSuggestionDecision message
 ///
@@ -50,6 +51,6 @@ pub async fn handle_narrative_event_suggestion_decision(
         .await
     {
         Ok(_) => None, // Success - use case has already broadcast if approved
-        Err(e) => Some(error_msg("NARRATIVE_EVENT_ERROR", &e.to_string())),
+        Err(e) => Some(e.into_server_error()),
     }
 }

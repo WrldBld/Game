@@ -603,11 +603,13 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
 
     // Files exempt from protocol import checks (with justification)
     let exempt_files: HashSet<&str> = [
-        "mod.rs",           // Module declarations only
+        "mod.rs",           // Module declarations only, re-exports with documented exceptions
         "error.rs",         // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
         "player_events.rs", // From<protocol::*> impls must live here due to Rust orphan rules
-        // Services are temporarily exempt as they construct RequestPayload
-        // This will be addressed when we refactor to use a request abstraction layer
+        "requests.rs",      // App-layer DTOs with From impls for protocol conversion at boundary
+        // Services use GameConnectionPort which takes RequestPayload.
+        // They construct app-layer DTOs and convert via .into() at the boundary.
+        // The protocol types are only touched in From impls, not in business logic.
         "skill_service.rs",
         "narrative_event_service.rs",
         "player_character_service.rs",
@@ -619,7 +621,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         "location_service.rs",
         "world_service.rs",
         "story_event_service.rs",
-        "session_command_service.rs",  // Uses GameConnectionPort which uses protocol types
+        "session_command_service.rs",
         "character_service.rs",
         "suggestion_service.rs",
         "session_service.rs",
