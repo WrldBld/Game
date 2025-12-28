@@ -11,7 +11,8 @@ use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 use wrldbldr_protocol::messages::{CreateGoalData, CreateWantData, UpdateGoalData, UpdateWantData};
 use wrldbldr_protocol::{
-    RequestPayload, WantVisibilityData,
+    ActantialRoleData, ActorTypeData, NpcActantialContextData, RequestPayload,
+    WantTargetData, WantTargetTypeData, WantVisibilityData,
 };
 
 /// Request to create a new want
