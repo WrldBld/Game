@@ -2,9 +2,24 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28  
+**Last Updated**: 2025-12-28 (Validated and corrected after peer review)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 40-50 hours
+
+---
+
+## Validation Notes (2025-12-28)
+
+This plan was validated by a peer review agent. Key corrections applied:
+
+1. **Phase 1.3 REMOVED** - The `staging_service.rs:535` unwrap is inside `#[cfg(test)]` (test code), not production
+2. **God trait method counts corrected**:
+   - CharacterRepositoryPort: ~35 → **42 methods** (verified)
+   - StoryEventRepositoryPort: ~35 → **34 methods** (verified)
+   - ChallengeRepositoryPort: ~25 → **31 methods** (verified)
+3. **Swallowed error count verified** - 43 instances confirmed in `services/` directory
+4. **Phase 3.5 warning added** - Splitting god traits will break test compilation until Phase 7
+5. **HTTP timeout/client claims verified** - Confirmed no timeouts, 11 instances of per-request client creation
 
 ---
 
@@ -16,9 +31,9 @@ Two comprehensive code reviews identified issues across the WrldBldr codebase. T
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Critical | 2 | Production panic risks |
-| High | ~60 | Swallowed errors, god traits, architecture gaps |
-| Medium | ~80 | Dead code, missing derives, config issues |
+| Critical | 1 | Production panic risk (motivations_tab.rs) |
+| High | ~60 | Swallowed errors (43), god traits (3), architecture gaps |
+| Medium | ~80 | Dead code, missing derives, config issues (hardcoded IPs) |
 | Low | ~100+ | Unused variables, documentation, naming |
 
 ### Progress Tracking
@@ -36,7 +51,7 @@ Two comprehensive code reviews identified issues across the WrldBldr codebase. T
 
 ---
 
-## Phase 1: Critical Fixes (1-2 hours)
+## Phase 1: Critical Fixes (1 hour)
 
 **Priority**: IMMEDIATE - These can cause production crashes or security issues
 
@@ -46,6 +61,8 @@ Two comprehensive code reviews identified issues across the WrldBldr codebase. T
 - `crates/player-ui/src/presentation/components/creator/motivations_tab.rs`
 
 **Issue**: Lines 498 and 500 use `.unwrap()` on `strip_prefix()` which can panic if the guard condition doesn't match.
+
+**Risk Level**: Low-Medium (guarded by `starts_with()` check, but still a code smell)
 
 **Current Code** (lines 496-502):
 ```rust
@@ -106,26 +123,11 @@ comfyui_base_url: env::var("COMFYUI_BASE_URL")
 
 ---
 
-### 1.3 Fix Production unwrap() in Staging Service
+### ~~1.3 Fix Production unwrap() in Staging Service~~ REMOVED
 
-**File**: `crates/engine-app/src/application/services/staging_service.rs:535`
+**Status**: ~~INVALID~~ - This item was removed after validation.
 
-**Issue**: Production code uses `.unwrap()` on JSON parsing.
-
-**Current Code**:
-```rust
-let json = extract_json_array(response).unwrap();
-```
-
-**Fix**:
-```rust
-let json = extract_json_array(response)
-    .ok_or_else(|| anyhow::anyhow!("Failed to parse LLM response as JSON array"))?;
-```
-
-| Task | Status |
-|------|--------|
-| [ ] Fix staging_service.rs:535 unwrap | Pending |
+**Reason**: The `staging_service.rs:535` unwrap is inside `#[cfg(test)] mod tests`, not production code. Test code unwraps are acceptable.
 
 ---
 
@@ -358,11 +360,13 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 **Issue**: Several repository traits are too large (35+ methods each).
 
+> **WARNING**: Splitting these traits will break test compilation until Phase 7 (Test Infrastructure) updates the mock implementations. Consider doing this as the last item in Phase 3, or as a separate PR that includes mock updates.
+
 **Traits to split**:
 
-#### CharacterRepositoryPort (~35 methods)
+#### CharacterRepositoryPort (42 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:94-382`
+**Current**: `engine-ports/src/outbound/repository_port.rs:94-389`
 
 **Split into**:
 - `CharacterCrudPort` - Basic CRUD (5 methods)
@@ -371,19 +375,20 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 - `CharacterInventoryPort` - Inventory operations (5 methods)
 - `CharacterLocationPort` - Location relationships (8 methods)
 - `NpcDispositionPort` - NPC disposition (7 methods)
+- `CharacterRegionPort` - Region relationships (4 methods)
 
-#### StoryEventRepositoryPort (~35 methods)
+#### StoryEventRepositoryPort (34 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:1183-1364`
+**Current**: `engine-ports/src/outbound/repository_port.rs:1184-1371`
 
 **Split into**:
 - `StoryEventCrudPort` - CRUD and search
 - `StoryEventRelationshipPort` - Edge methods
 - `DialogueHistoryPort` - Dialogue-specific methods
 
-#### ChallengeRepositoryPort (~25 methods)
+#### ChallengeRepositoryPort (31 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:1007-1176`
+**Current**: `engine-ports/src/outbound/repository_port.rs:1007-1183`
 
 **Split into**:
 - `ChallengeCrudPort` - Basic CRUD
@@ -393,14 +398,15 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 | Task | Status |
 |------|--------|
 | [ ] Create new trait files in engine-ports/outbound/ | Pending |
-| [ ] Split CharacterRepositoryPort | Pending |
-| [ ] Split StoryEventRepositoryPort | Pending |
-| [ ] Split ChallengeRepositoryPort | Pending |
+| [ ] Split CharacterRepositoryPort (42 methods) | Pending |
+| [ ] Split StoryEventRepositoryPort (34 methods) | Pending |
+| [ ] Split ChallengeRepositoryPort (31 methods) | Pending |
 | [ ] Update all trait implementations in adapters | Pending |
 | [ ] Update all trait usages in app layer | Pending |
+| [ ] Update mock implementations (coordinate with Phase 7) | Pending |
 | [ ] Verify compilation | Pending |
 
-**Note**: This is a significant refactor. Consider doing in a separate PR.
+**Note**: This is a significant refactor (~107 methods total). Consider doing in a separate PR that includes mock updates to avoid breaking test compilation.
 
 ---
 
@@ -911,10 +917,10 @@ cargo test --workspace
 
 | Metric | Before | Target |
 |--------|--------|--------|
-| Critical issues | 2 | 0 |
+| Critical issues | 1 | 0 |
 | Compiler warnings | 51 | 0 |
 | Swallowed errors | 43 | 0 (logged) |
-| God traits (35+ methods) | 3 | 0 |
+| God traits (35+ methods) | 3 (107 methods total) | 0 |
 | Protocol imports in services | 14 | 0 |
 | Unused structs | 4 | 0 |
 | Unused fields | 12 | 0 |
@@ -929,7 +935,6 @@ cargo test --workspace
 ### Phase 1
 - `player-ui/src/presentation/components/creator/motivations_tab.rs`
 - `engine-adapters/src/infrastructure/config.rs`
-- `engine-app/src/application/services/staging_service.rs`
 
 ### Phase 2
 - `engine-app/src/application/services/llm_queue_service.rs`
@@ -1018,16 +1023,26 @@ Recommended commit sequence:
 Phase 1 (Critical) ──┬── Phase 2 (Error Handling)
                      │
                      ├── Phase 3 (Architecture) ──── Phase 3.5 (God Traits)*
+                     │                                      │
+                     │                                      ▼
+                     ├── Phase 4 (Dead Code)          Phase 7 (Tests)**
+                     │                                      │
+                     ├── Phase 5 (Domain) ───────────────────┘
+                     │         │
+                     │         └── Phase 6 (Protocol)
                      │
-                     ├── Phase 4 (Dead Code)
-                     │
-                     ├── Phase 5 (Domain) ─────────── Phase 6 (Protocol)
-                     │
-                     └── Phase 7 (Tests) ──────────── Phase 8 (Docs)
+                     └── Phase 8 (Docs)
 
-* Phase 3.5 (God Traits) is large and can be done as separate PR
+* Phase 3.5 (God Traits) is large (~107 methods) and should be done as separate PR
+** Phase 3.5 will BREAK test compilation until Phase 7 updates mock implementations
 ```
 
-Phases 1, 2, 4, 5 can be done in parallel after Phase 1 critical fixes.
-Phase 3 should be done before Phase 7 (tests depend on stable interfaces).
-Phase 8 should be done last to capture final state.
+**Recommended execution order**:
+1. Phase 1 (Critical) - Do first
+2. Phases 2, 4, 5 - Can be done in parallel
+3. Phase 3.1-3.4 - Architecture documentation
+4. Phase 6 - Protocol polish
+5. Phase 3.5 + Phase 7 - God traits + test fixes (do together or sequentially)
+6. Phase 8 - Documentation (last)
+
+**Alternative**: Skip Phase 3.5 initially, complete everything else, then do Phase 3.5 + Phase 7 as a dedicated "Interface Segregation" PR.
