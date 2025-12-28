@@ -607,6 +607,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     let exempt_files: HashSet<&str> = [
         "mod.rs",           // Module declarations only
         "error.rs",         // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
+        "player_events.rs", // From<protocol::*> impls must live here due to Rust orphan rules
         // Services are temporarily exempt as they construct RequestPayload
         // This will be addressed when we refactor to use a request abstraction layer
         "skill_service.rs",
