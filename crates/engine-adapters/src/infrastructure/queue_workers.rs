@@ -9,7 +9,7 @@ use std::time::Duration;
 use wrldbldr_engine_app::application::dto::{DMAction, DMActionItem};
 use wrldbldr_engine_ports::outbound::QueueNotificationPort;
 use wrldbldr_engine_app::application::services::{
-    DMActionQueueService, DMApprovalQueueService, InteractionService,
+    ApprovalOutcome, DMActionQueueService, DMApprovalQueueService, InteractionService,
     ItemServiceImpl, NarrativeEventService, SceneService,
 };
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
@@ -169,8 +169,25 @@ async fn process_dm_action(
                 .process_decision(world_id, approval_item_id, decision.clone())
                 .await
             {
-                Ok(outcome) => {
-                    tracing::info!("Processed approval decision: {:?}", outcome);
+                Ok(outcome) => match outcome {
+                    ApprovalOutcome::Broadcast { dialogue, npc_name, executed_tools } => {
+                        let message = ServerMessage::DialogueResponse {
+                            speaker_id: npc_name.clone(),
+                            speaker_name: npc_name,
+                            text: dialogue,
+                            choices: vec![],
+                        };
+                        world_connection_manager
+                            .broadcast_to_players(action.world_id, message)
+                            .await;
+                        tracing::info!("Broadcast approved dialogue, tools: {:?}", executed_tools);
+                    }
+                    ApprovalOutcome::Rejected { feedback, needs_reprocessing } => {
+                        tracing::info!("Approval rejected: {}, reprocess: {}", feedback, needs_reprocessing);
+                    }
+                    ApprovalOutcome::MaxRetriesExceeded { feedback } => {
+                        tracing::warn!("Approval max retries exceeded: {}", feedback);
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Failed to process approval decision: {}", e);
