@@ -20,18 +20,18 @@
 //!
 //! - [x] MovementUseCase - PC movement between regions/locations
 //! - [x] StagingApprovalUseCase - DM staging approval, regeneration, pre-staging
-//! - [ ] InventoryUseCase - Item management
-//! - [ ] ChallengeUseCase - Challenge resolution
-//! - [ ] ObservationUseCase - NPC observation events
-//! - [ ] SceneUseCase - Scene management
-//! - [ ] ConnectionUseCase - World connection management
-//! - [ ] PlayerActionUseCase - Player action handling
+//! - [x] InventoryUseCase - Item management
+//! - [ ] ChallengeUseCase - Challenge resolution (needs adapters for local ports)
+//! - [ ] ObservationUseCase - NPC observation events (needs adapters for local ports)
+//! - [ ] SceneUseCase - Scene management (needs adapters for local ports)
+//! - [ ] ConnectionUseCase - World connection management (needs adapters for local ports)
+//! - [ ] PlayerActionUseCase - Player action handling (needs adapters for local ports)
 
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
 use wrldbldr_engine_app::application::use_cases::{
-    MovementUseCase, SceneBuilder, StagingApprovalUseCase,
+    InventoryUseCase, MovementUseCase, SceneBuilder, StagingApprovalUseCase,
 };
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, LlmPort, LocationRepositoryPort,
@@ -58,13 +58,16 @@ pub struct UseCases {
     /// Staging approval use case for DM staging operations
     pub staging: Arc<StagingApprovalUseCase>,
 
-    // Future: Add other use case instances as handlers are refactored
-    // pub inventory: Arc<InventoryUseCase>,
-    // pub challenge: Arc<ChallengeUseCase>,
-    // pub observation: Arc<ObservationUseCase>,
-    // pub scene: Arc<SceneUseCase>,
-    // pub connection: Arc<ConnectionUseCase>,
-    // pub player_action: Arc<PlayerActionUseCase>,
+    /// Inventory use case for item equip/unequip/drop/pickup
+    pub inventory: Arc<InventoryUseCase>,
+
+    // Future: Add other use case instances as their port adapters are created
+    // These use cases define their own port traits locally and need adapters:
+    // pub challenge: Arc<ChallengeUseCase>,     // needs: ChallengeResolutionPort, ChallengeOutcomeApprovalPort, DmApprovalQueuePort
+    // pub observation: Arc<ObservationUseCase>, // needs: ObservationRepositoryPort, WorldMessagePort
+    // pub scene: Arc<SceneUseCase>,             // needs: SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort
+    // pub connection: Arc<ConnectionUseCase>,   // needs: ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort
+    // pub player_action: Arc<PlayerActionUseCase>, // needs: PlayerActionQueuePort, DmNotificationPort (depends on MovementUseCase)
 }
 
 impl UseCases {
@@ -112,13 +115,20 @@ impl UseCases {
 
         // Create movement use case
         let movement = Arc::new(MovementUseCase::new(
-            pc_repo,
+            pc_repo.clone(),
             region_repo.clone(),
             location_repo.clone(),
             staging_service_adapter.clone(),
             staging_state_adapter.clone(),
             broadcast.clone(),
             scene_builder.clone(),
+        ));
+
+        // Create inventory use case
+        let inventory = Arc::new(InventoryUseCase::new(
+            pc_repo,
+            region_repo.clone(),
+            broadcast.clone(),
         ));
 
         // Create staging approval use case
@@ -136,6 +146,7 @@ impl UseCases {
             broadcast,
             movement,
             staging,
+            inventory,
         }
     }
 

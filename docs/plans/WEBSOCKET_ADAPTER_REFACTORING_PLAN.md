@@ -7,7 +7,7 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | 🟡 Partial | MovementUseCase + StagingApprovalUseCase wired, handler refactoring pending |
+| 4 | Adapter Implementation | 🟡 Partial | 3 use cases wired (movement, staging, inventory), 5 need port adapters |
 | 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
 | 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
 | 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
@@ -26,20 +26,33 @@
 - [x] `ConnectionManagerAdapter` - implements ConnectionManagerPort (not yet wired)
 - [x] `MovementUseCase` wired into UseCases container with adapters
 - [x] `StagingApprovalUseCase` wired into UseCases container with adapters
+- [x] `InventoryUseCase` wired into UseCases container (uses existing ports)
 
-**Remaining:**
-- [ ] Fix and wire remaining adapters (challenge, scene, observation, player_action)
-- [ ] Wire remaining use cases (InventoryUseCase, ChallengeUseCase, etc.)
+**Remaining - Need Port Adapters:**
+The following use cases define their own port traits locally and need adapter implementations:
+
+| Use Case | Required Port Adapters |
+|----------|----------------------|
+| ChallengeUseCase | ChallengeResolutionPort, ChallengeOutcomeApprovalPort, DmApprovalQueuePort |
+| ObservationUseCase | ObservationRepositoryPort, WorldMessagePort |
+| SceneUseCase | SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort |
+| ConnectionUseCase | ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort |
+| PlayerActionUseCase | PlayerActionQueuePort, DmNotificationPort (also depends on MovementUseCase which is done) |
+
+**Next Steps:**
+- [ ] Create adapters wrapping existing services for remaining use cases
+- [ ] Wire remaining 5 use cases as adapters are created
 - [ ] Refactor handlers to use use cases
 - [ ] Target: reduce handler files from ~4,693 lines to ~840 lines
 
 **Files Created/Modified:**
 - `crates/engine-adapters/src/infrastructure/websocket/broadcast_adapter.rs` (~475 lines)
-- `crates/engine-adapters/src/infrastructure/state/use_cases.rs` (~155 lines)
+- `crates/engine-adapters/src/infrastructure/state/use_cases.rs` (~166 lines)
 - `crates/engine-adapters/src/infrastructure/state/mod.rs` (updated UseCases::new() call)
 - `crates/engine-adapters/src/infrastructure/ports/staging_state_adapter.rs` (~200 lines)
 - `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs` (~240 lines)
 - `crates/engine-adapters/src/infrastructure/ports/connection_manager_adapter.rs` (~190 lines)
+- `crates/engine-adapters/src/infrastructure/ports/mod.rs` (~57 lines)
 
 ---
 
