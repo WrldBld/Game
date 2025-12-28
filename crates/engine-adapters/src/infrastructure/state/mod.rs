@@ -624,9 +624,10 @@ impl AppState {
 
         // Create request handler for WebSocket-first architecture
         // Services are already Arc<dyn Trait>, so just clone them
-        // Clone character_repo for the handler and use cases
+        // Clone repos for the handler and use cases
         let character_repo_for_handler = character_repo.clone();
         let character_repo_for_use_cases = character_repo.clone();
+        let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
         let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
             core.world_service.clone(),
@@ -661,10 +662,11 @@ impl AppState {
             region_repo.clone(),
             location_repo.clone(),
             character_repo_for_use_cases,
+            observation_repo_for_use_cases,
             staging_service.clone(),
             player_action_queue_for_use_cases,
         );
-        tracing::info!("Initialized use cases container with MovementUseCase, StagingApprovalUseCase, InventoryUseCase, PlayerActionUseCase");
+        tracing::info!("Initialized use cases container with MovementUseCase, StagingApprovalUseCase, InventoryUseCase, PlayerActionUseCase, ObservationUseCase");
 
         Ok((Self {
             config: config.clone(),

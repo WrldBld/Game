@@ -24,7 +24,7 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-use wrldbldr_domain::{CharacterId, PlayerCharacterId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
@@ -213,11 +213,13 @@ pub struct OutcomeDetail {
 /// Port for challenge resolution operations
 ///
 /// This abstracts the ChallengeResolutionService for use case consumption.
+/// Methods include `world_id` to support world-scoped challenge resolution.
 #[async_trait::async_trait]
 pub trait ChallengeResolutionPort: Send + Sync {
     /// Handle a dice roll submission
     async fn handle_roll(
         &self,
+        world_id: &WorldId,
         pc_id: PlayerCharacterId,
         challenge_id: String,
         roll: i32,
@@ -226,6 +228,7 @@ pub trait ChallengeResolutionPort: Send + Sync {
     /// Handle dice input (formula or manual)
     async fn handle_roll_input(
         &self,
+        world_id: &WorldId,
         pc_id: PlayerCharacterId,
         challenge_id: String,
         input_type: DiceInputType,
@@ -234,6 +237,7 @@ pub trait ChallengeResolutionPort: Send + Sync {
     /// Trigger a challenge against a target
     async fn trigger_challenge(
         &self,
+        world_id: &WorldId,
         challenge_id: String,
         target_character_id: CharacterId,
     ) -> Result<TriggerResult, String>;
@@ -241,6 +245,7 @@ pub trait ChallengeResolutionPort: Send + Sync {
     /// Handle DM's decision on a suggestion
     async fn handle_suggestion_decision(
         &self,
+        world_id: &WorldId,
         request_id: String,
         approved: bool,
         modified_difficulty: Option<String>,
@@ -249,6 +254,7 @@ pub trait ChallengeResolutionPort: Send + Sync {
     /// Create an ad-hoc challenge
     async fn create_adhoc_challenge(
         &self,
+        world_id: &WorldId,
         challenge_name: String,
         skill_name: String,
         difficulty: String,
@@ -263,6 +269,7 @@ pub trait ChallengeOutcomeApprovalPort: Send + Sync {
     /// Process DM's decision on an outcome
     async fn process_decision(
         &self,
+        world_id: &WorldId,
         resolution_id: &str,
         decision: OutcomeDecision,
     ) -> Result<(), String>;
@@ -270,6 +277,7 @@ pub trait ChallengeOutcomeApprovalPort: Send + Sync {
     /// Request outcome branches
     async fn request_branches(
         &self,
+        world_id: &WorldId,
         resolution_id: &str,
         guidance: Option<String>,
     ) -> Result<(), String>;
@@ -277,6 +285,7 @@ pub trait ChallengeOutcomeApprovalPort: Send + Sync {
     /// Select a specific branch
     async fn select_branch(
         &self,
+        world_id: &WorldId,
         resolution_id: &str,
         branch_id: &str,
         modified_description: Option<String>,
@@ -350,7 +359,7 @@ impl ChallengeUseCase {
         );
 
         self.resolution_service
-            .handle_roll(pc_id, input.challenge_id.clone(), input.roll)
+            .handle_roll(&ctx.world_id, pc_id, input.challenge_id.clone(), input.roll)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
     }
@@ -372,7 +381,7 @@ impl ChallengeUseCase {
         );
 
         self.resolution_service
-            .handle_roll_input(pc_id, input.challenge_id.clone(), input.input_type)
+            .handle_roll_input(&ctx.world_id, pc_id, input.challenge_id.clone(), input.input_type)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
     }
@@ -396,7 +405,7 @@ impl ChallengeUseCase {
         );
 
         self.resolution_service
-            .trigger_challenge(input.challenge_id, input.target_character_id)
+            .trigger_challenge(&ctx.world_id, input.challenge_id, input.target_character_id)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
     }
@@ -413,6 +422,7 @@ impl ChallengeUseCase {
 
         self.resolution_service
             .handle_suggestion_decision(
+                &ctx.world_id,
                 input.request_id,
                 input.approved,
                 input.modified_difficulty,
@@ -516,6 +526,7 @@ impl ChallengeUseCase {
 
         self.resolution_service
             .create_adhoc_challenge(
+                &ctx.world_id,
                 input.challenge_name,
                 input.skill_name,
                 input.difficulty,
@@ -543,7 +554,7 @@ impl ChallengeUseCase {
         );
 
         self.outcome_approval
-            .process_decision(&input.resolution_id, input.decision)
+            .process_decision(&ctx.world_id, &input.resolution_id, input.decision)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))?;
 
@@ -574,7 +585,7 @@ impl ChallengeUseCase {
         };
 
         self.outcome_approval
-            .process_decision(&input.resolution_id, decision)
+            .process_decision(&ctx.world_id, &input.resolution_id, decision)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
     }
@@ -596,7 +607,7 @@ impl ChallengeUseCase {
         );
 
         self.outcome_approval
-            .request_branches(&input.resolution_id, input.guidance)
+            .request_branches(&ctx.world_id, &input.resolution_id, input.guidance)
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
     }
@@ -619,6 +630,7 @@ impl ChallengeUseCase {
 
         self.outcome_approval
             .select_branch(
+                &ctx.world_id,
                 &input.resolution_id,
                 &input.branch_id,
                 input.modified_description,

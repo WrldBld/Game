@@ -22,8 +22,8 @@
 //! - [x] StagingApprovalUseCase - DM staging approval, regeneration, pre-staging
 //! - [x] InventoryUseCase - Item management
 //! - [x] PlayerActionUseCase - Player action handling
+//! - [x] ObservationUseCase - NPC observation events
 //! - [ ] ChallengeUseCase - Challenge resolution (needs adapters for local ports)
-//! - [ ] ObservationUseCase - NPC observation events (needs adapters for local ports)
 //! - [ ] SceneUseCase - Scene management (needs adapters for local ports)
 //! - [ ] ConnectionUseCase - World connection management (needs adapters for local ports)
 
@@ -33,16 +33,18 @@ use wrldbldr_engine_app::application::dto::{LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
 use wrldbldr_engine_app::application::services::PlayerActionQueueService;
 use wrldbldr_engine_app::application::use_cases::{
-    InventoryUseCase, MovementUseCase, PlayerActionUseCase, SceneBuilder, StagingApprovalUseCase,
+    InventoryUseCase, MovementUseCase, ObservationUseCase, PlayerActionUseCase, SceneBuilder,
+    StagingApprovalUseCase,
 };
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, LlmPort, LocationRepositoryPort,
-    NarrativeEventRepositoryPort, PlayerCharacterRepositoryPort, ProcessingQueuePort, QueuePort,
-    RegionRepositoryPort, StagingRepositoryPort,
+    NarrativeEventRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
+    ProcessingQueuePort, QueuePort, RegionRepositoryPort, StagingRepositoryPort,
 };
 
 use crate::infrastructure::ports::{
-    DmNotificationAdapter, PlayerActionQueueAdapter, StagingServiceAdapter, StagingStateAdapter,
+    DmNotificationAdapter, ObservationRepositoryAdapter, PlayerActionQueueAdapter,
+    StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter,
 };
 use crate::infrastructure::websocket::WebSocketBroadcastAdapter;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
@@ -68,10 +70,12 @@ pub struct UseCases {
     /// Player action use case for travel and queued actions
     pub player_action: Arc<PlayerActionUseCase>,
 
+    /// Observation use case for NPC observation and event triggering
+    pub observation: Arc<ObservationUseCase>,
+
     // Future: Add other use case instances as their port adapters are created
     // These use cases define their own port traits locally and need adapters:
     // pub challenge: Arc<ChallengeUseCase>,     // needs: ChallengeResolutionPort, ChallengeOutcomeApprovalPort, DmApprovalQueuePort
-    // pub observation: Arc<ObservationUseCase>, // needs: ObservationRepositoryPort, WorldMessagePort
     // pub scene: Arc<SceneUseCase>,             // needs: SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort
     // pub connection: Arc<ConnectionUseCase>,   // needs: ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort
 }
@@ -86,7 +90,8 @@ impl UseCases {
     /// * `pc_repo` - Player character repository
     /// * `region_repo` - Region repository
     /// * `location_repo` - Location repository
-    /// * `character_repo` - Character repository (for StagingApprovalUseCase)
+    /// * `character_repo` - Character repository (for StagingApprovalUseCase and ObservationUseCase)
+    /// * `observation_repo` - Observation repository (for ObservationUseCase)
     /// * `staging_service` - The staging service (generic over its dependencies)
     /// * `player_action_queue_service` - The player action queue service
     #[allow(clippy::too_many_arguments)]
@@ -97,6 +102,7 @@ impl UseCases {
         region_repo: Arc<dyn RegionRepositoryPort>,
         location_repo: Arc<dyn LocationRepositoryPort>,
         character_repo: Arc<dyn CharacterRepositoryPort>,
+        observation_repo: Arc<dyn ObservationRepositoryPort>,
         staging_service: Arc<StagingService<L, R, N, S>>,
         player_action_queue_service: Arc<PlayerActionQueueService<PAQ, LQ>>,
     ) -> Self
@@ -112,8 +118,8 @@ impl UseCases {
         let broadcast: Arc<dyn BroadcastPort> =
             Arc::new(WebSocketBroadcastAdapter::new(connection_manager.clone()));
 
-        // Create DM notification adapter
-        let dm_notification = Arc::new(DmNotificationAdapter::new(connection_manager));
+        // Create DM notification adapter (clone connection_manager since we'll use it again)
+        let dm_notification = Arc::new(DmNotificationAdapter::new(connection_manager.clone()));
 
         // Create staging adapters
         // Note: StagingStateAdapter implements both StagingStatePort and StagingStateExtPort
@@ -140,7 +146,7 @@ impl UseCases {
 
         // Create inventory use case
         let inventory = Arc::new(InventoryUseCase::new(
-            pc_repo,
+            pc_repo.clone(),
             region_repo.clone(),
             broadcast.clone(),
         ));
@@ -149,7 +155,7 @@ impl UseCases {
         let staging = Arc::new(StagingApprovalUseCase::new(
             staging_service_adapter,
             staging_state_adapter,
-            character_repo,
+            character_repo.clone(),
             region_repo,
             location_repo,
             broadcast.clone(),
@@ -166,12 +172,26 @@ impl UseCases {
             broadcast.clone(),
         ));
 
+        // Create observation adapters
+        let observation_repo_adapter = Arc::new(ObservationRepositoryAdapter::new(observation_repo));
+        let world_message_adapter = Arc::new(WorldMessageAdapter::new(connection_manager));
+
+        // Create observation use case
+        let observation = Arc::new(ObservationUseCase::new(
+            pc_repo,
+            character_repo,
+            observation_repo_adapter,
+            world_message_adapter,
+            broadcast.clone(),
+        ));
+
         Self {
             broadcast,
             movement,
             staging,
             inventory,
             player_action,
+            observation,
         }
     }
 

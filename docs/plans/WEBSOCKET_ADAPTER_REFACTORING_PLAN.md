@@ -7,7 +7,7 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | 🟡 Partial | 4 use cases wired (movement, staging, inventory, player_action), 4 need port adapters |
+| 4 | Adapter Implementation | 🟡 Partial | 5 use cases wired (movement, staging, inventory, player_action, observation), 3 need adapters+wiring |
 | 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
 | 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
 | 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
@@ -30,16 +30,22 @@
 - [x] `PlayerActionQueueAdapter` - implements PlayerActionQueuePort wrapping PlayerActionQueueService
 - [x] `DmNotificationAdapter` - implements DmNotificationPort wrapping WorldConnectionManager
 - [x] `PlayerActionUseCase` wired into UseCases container with adapters
+- [x] `ObservationRepositoryAdapter` - implements ObservationRepositoryPort wrapping Neo4jObservationRepository
+- [x] `WorldMessageAdapter` - implements WorldMessagePort wrapping WorldConnectionManager
+- [x] `ObservationUseCase` wired into UseCases container with adapters
+- [x] `ChallengeResolutionAdapter` - implements ChallengeResolutionPort (adapters created, not yet wired)
+- [x] `ChallengeOutcomeApprovalAdapter` - implements ChallengeOutcomeApprovalPort (adapters created, not yet wired)
+- [x] `DmApprovalQueueAdapter` - implements DmApprovalQueuePort (adapters created, not yet wired)
+- [x] Updated ChallengeResolutionPort to include WorldId in method signatures
 
-**Remaining - Need Port Adapters:**
+**Remaining - Need Port Adapters and Wiring:**
 The following use cases define their own port traits locally and need adapter implementations:
 
-| Use Case | Required Port Adapters |
-|----------|----------------------|
-| ChallengeUseCase | ChallengeResolutionPort, ChallengeOutcomeApprovalPort, DmApprovalQueuePort |
-| ObservationUseCase | ObservationRepositoryPort, WorldMessagePort |
-| SceneUseCase | SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort |
-| ConnectionUseCase | ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort |
+| Use Case | Required Port Adapters | Status |
+|----------|----------------------|--------|
+| ChallengeUseCase | ChallengeResolutionAdapter, ChallengeOutcomeApprovalAdapter, DmApprovalQueueAdapter | Adapters created, wiring pending (complex generics) |
+| SceneUseCase | SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort | Not started |
+| ConnectionUseCase | ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort | Not started |
 
 **Next Steps:**
 - [ ] Create adapters wrapping existing services for remaining 4 use cases
@@ -54,7 +60,10 @@ The following use cases define their own port traits locally and need adapter im
 - `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs` (~240 lines)
 - `crates/engine-adapters/src/infrastructure/ports/connection_manager_adapter.rs` (~190 lines)
 - `crates/engine-adapters/src/infrastructure/ports/player_action_adapters.rs` (~98 lines)
-- `crates/engine-adapters/src/infrastructure/ports/mod.rs` (~57 lines)
+- `crates/engine-adapters/src/infrastructure/ports/observation_adapters.rs` (~98 lines)
+- `crates/engine-adapters/src/infrastructure/ports/challenge_adapters.rs` (~300 lines)
+- `crates/engine-adapters/src/infrastructure/ports/mod.rs` (~60 lines)
+- `crates/engine-app/src/application/use_cases/challenge.rs` (updated port signatures with WorldId)
 
 ---
 

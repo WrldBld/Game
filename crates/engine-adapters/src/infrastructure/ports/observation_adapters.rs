@@ -28,7 +28,7 @@ impl ObservationRepositoryAdapter {
 #[async_trait::async_trait]
 impl ObservationRepositoryPort for ObservationRepositoryAdapter {
     async fn upsert(&self, observation: &NpcObservation) -> Result<(), String> {
-        self.repo.upsert(observation).await
+        self.repo.upsert(observation).await.map_err(|e| e.to_string())
     }
 }
 
@@ -46,7 +46,7 @@ impl WorldMessageAdapter {
 #[async_trait::async_trait]
 impl WorldMessagePort for WorldMessageAdapter {
     async fn send_to_user(&self, user_id: &str, world_id: Uuid, event: ApproachEventData) {
-        let message = ServerMessage::NpcApproach {
+        let message = ServerMessage::ApproachEvent {
             npc_id: event.npc_id,
             npc_name: event.npc_name,
             npc_sprite: event.npc_sprite,
