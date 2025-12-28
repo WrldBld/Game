@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use wrldbldr_player_app::application::dto::{FieldValue, PlayerAction, SheetTemplate};
-use wrldbldr_protocol::{DiceInputType, InteractionData};
+use wrldbldr_player_app::application::dto::{DiceInput, FieldValue, PlayerAction, SheetTemplate};
+use wrldbldr_protocol::InteractionData;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
@@ -591,7 +591,7 @@ pub fn PCView() -> Element {
                     on_roll: {
                         let session_state = session_state.clone();
                         let challenge_id = challenge.challenge_id.clone();
-                        move |input: DiceInputType| {
+                        move |input: DiceInput| {
                             send_challenge_roll_input(&session_state, &challenge_id, input);
                         }
                     },
@@ -1096,7 +1096,7 @@ fn handle_interaction(
 fn send_challenge_roll_input(
     session_state: &crate::presentation::state::SessionState,
     challenge_id: &str,
-    input: DiceInputType,
+    input: DiceInput,
 ) {
     let engine_client_signal = session_state.engine_client();
     let client_binding = engine_client_signal.read();

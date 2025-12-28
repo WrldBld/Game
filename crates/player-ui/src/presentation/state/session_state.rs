@@ -8,7 +8,8 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_protocol::types::{ApprovalDecision, ParticipantRole};
+use wrldbldr_player_app::application::dto::ApprovalDecision;
+use wrldbldr_player_ports::session_types::ParticipantRole;
 use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 use crate::presentation::components::tactical::PlayerSkillData;

@@ -4,7 +4,7 @@
 //! The DM specifies all challenge details including outcomes.
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::AdHocOutcomes;
+use wrldbldr_player_app::application::dto::AdHocOutcomes;
 use wrldbldr_protocol::CharacterData as SceneCharacterState;
 
 /// Data for an ad-hoc challenge creation

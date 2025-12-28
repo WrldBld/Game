@@ -10,12 +10,15 @@ use std::sync::{
 use anyhow::Result;
 
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
-use wrldbldr_protocol::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DiceInputType, DirectorialContext, ParticipantRole, RequestError, RequestPayload, ResponseResult,
-};
+use wrldbldr_player_ports::session_types as app;
+use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};
 
 use super::client::EngineClient;
+use crate::infrastructure::session_type_converters::{
+    adhoc_outcomes_to_proto, approval_decision_to_proto, approved_npc_info_to_proto,
+    challenge_outcome_decision_to_proto, dice_input_to_proto, directorial_context_to_proto,
+    participant_role_to_proto,
+};
 use crate::infrastructure::websocket::message_builder::ClientMessageBuilder;
 use crate::infrastructure::websocket::protocol::{map_state, state_to_u8, u8_to_state};
 
@@ -75,12 +78,13 @@ impl GameConnectionPort for DesktopGameConnection {
         });
     }
 
-    fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole) -> Result<()> {
+    fn join_world(&self, world_id: &str, user_id: &str, role: app::ParticipantRole) -> Result<()> {
         let client = self.client.clone();
         let world_id = world_id.to_string();
         let user_id = user_id.to_string();
+        let proto_role = participant_role_to_proto(role);
         tokio::spawn(async move {
-            if let Err(e) = client.join_world(&world_id, &user_id, role).await {
+            if let Err(e) = client.join_world(&world_id, &user_id, proto_role).await {
                 tracing::error!("Failed to join world: {}", e);
             }
         });
@@ -105,18 +109,21 @@ impl GameConnectionPort for DesktopGameConnection {
         Ok(())
     }
 
-    fn send_directorial_update(&self, context: DirectorialContext) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::directorial_update(context), "send directorial update");
+    fn send_directorial_update(&self, context: app::DirectorialContext) -> Result<()> {
+        let proto_context = directorial_context_to_proto(context);
+        self.spawn_send(ClientMessageBuilder::directorial_update(proto_context), "send directorial update");
         Ok(())
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::approval_decision(request_id, decision), "send approval decision");
+    fn send_approval_decision(&self, request_id: &str, decision: app::ApprovalDecision) -> Result<()> {
+        let proto_decision = approval_decision_to_proto(decision);
+        self.spawn_send(ClientMessageBuilder::approval_decision(request_id, proto_decision), "send approval decision");
         Ok(())
     }
 
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecisionData) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, decision), "send challenge outcome decision");
+    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: app::ChallengeOutcomeDecision) -> Result<()> {
+        let proto_decision = challenge_outcome_decision_to_proto(decision);
+        self.spawn_send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, proto_decision), "send challenge outcome decision");
         Ok(())
     }
 
@@ -130,8 +137,9 @@ impl GameConnectionPort for DesktopGameConnection {
         Ok(())
     }
 
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInputType) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::challenge_roll_input(challenge_id, input), "submit challenge roll input");
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: app::DiceInput) -> Result<()> {
+        let proto_input = dice_input_to_proto(input);
+        self.spawn_send(ClientMessageBuilder::challenge_roll_input(challenge_id, proto_input), "submit challenge roll input");
         Ok(())
     }
 
@@ -153,12 +161,13 @@ impl GameConnectionPort for DesktopGameConnection {
     fn send_staging_approval(
         &self,
         request_id: &str,
-        approved_npcs: Vec<ApprovedNpcInfo>,
+        approved_npcs: Vec<app::ApprovedNpcInfo>,
         ttl_hours: i32,
         source: &str,
     ) -> Result<()> {
+        let proto_npcs = approved_npcs.into_iter().map(approved_npc_info_to_proto).collect();
         self.spawn_send(
-            ClientMessageBuilder::staging_approval_response(request_id, approved_npcs, ttl_hours, source),
+            ClientMessageBuilder::staging_approval_response(request_id, proto_npcs, ttl_hours, source),
             "send staging approval",
         );
         Ok(())
@@ -169,8 +178,9 @@ impl GameConnectionPort for DesktopGameConnection {
         Ok(())
     }
 
-    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::pre_stage_region(region_id, npcs, ttl_hours), "pre-stage region");
+    fn pre_stage_region(&self, region_id: &str, npcs: Vec<app::ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
+        let proto_npcs = npcs.into_iter().map(approved_npc_info_to_proto).collect();
+        self.spawn_send(ClientMessageBuilder::pre_stage_region(region_id, proto_npcs, ttl_hours), "pre-stage region");
         Ok(())
     }
 
@@ -180,10 +190,11 @@ impl GameConnectionPort for DesktopGameConnection {
         skill_name: &str,
         difficulty: &str,
         target_pc_id: &str,
-        outcomes: AdHocOutcomes,
+        outcomes: app::AdHocOutcomes,
     ) -> Result<()> {
+        let proto_outcomes = adhoc_outcomes_to_proto(outcomes);
         self.spawn_send(
-            ClientMessageBuilder::create_adhoc_challenge(challenge_name, skill_name, difficulty, target_pc_id, outcomes),
+            ClientMessageBuilder::create_adhoc_challenge(challenge_name, skill_name, difficulty, target_pc_id, proto_outcomes),
             "create ad-hoc challenge",
         );
         Ok(())

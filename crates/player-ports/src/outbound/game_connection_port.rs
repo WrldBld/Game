@@ -7,18 +7,14 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use wrldbldr_protocol::{
-    AdHocOutcomes,
-    ApprovalDecision,
-    ApprovedNpcInfo,
-    ChallengeOutcomeDecisionData,
-    DiceInputType,
-    DirectorialContext,
-    ParticipantRole,
-    RequestError,
-    RequestPayload,
-    ResponseResult,
+// Import session types from this crate (ports layer owns these DTOs)
+use crate::session_types::{
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
+    DiceInput, DirectorialContext, ParticipantRole,
 };
+
+// Keep these for now - they're the request/response contract
+use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
 
 /// Connection state for the game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,7 +89,7 @@ pub trait GameConnectionPort: Send + Sync {
     fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> anyhow::Result<()>;
 
     /// Send a challenge outcome decision (DM only)
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecisionData) -> anyhow::Result<()>;
+    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecision) -> anyhow::Result<()>;
 
     /// Trigger a challenge (DM only)
     fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> anyhow::Result<()>;
@@ -102,7 +98,7 @@ pub trait GameConnectionPort: Send + Sync {
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> anyhow::Result<()>;
 
     /// Submit a challenge roll with dice input (Player only) - supports formulas and manual input
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInputType) -> anyhow::Result<()>;
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInput) -> anyhow::Result<()>;
 
     /// Send a heartbeat ping
     fn heartbeat(&self) -> anyhow::Result<()>;

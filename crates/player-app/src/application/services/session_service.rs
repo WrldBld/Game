@@ -15,15 +15,13 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
-use wrldbldr_protocol::{ParticipantRole as PortParticipantRole, ServerMessage};
+use wrldbldr_protocol::ServerMessage;
 
-use crate::application::dto::AppConnectionStatus;
+use crate::application::dto::{AppConnectionStatus, ParticipantRole};
 use futures_channel::mpsc;
 
 /// Default WebSocket URL for the Engine server
 pub const DEFAULT_ENGINE_URL: &str = "ws://localhost:3000/ws";
-
-pub type ParticipantRolePort = wrldbldr_protocol::ParticipantRole;
 
 /// Convert port ConnectionState to application ConnectionStatus
 pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnectionStatus {
@@ -64,7 +62,7 @@ impl SessionService {
     pub async fn connect(
         &self,
         user_id: String,
-        role: PortParticipantRole,
+        role: ParticipantRole,
         world_id: String,
     ) -> Result<mpsc::UnboundedReceiver<SessionEvent>> {
         let (tx, rx) = mpsc::unbounded::<SessionEvent>();

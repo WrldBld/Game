@@ -3,10 +3,11 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::outbound::{ConnectionState, GameConnectionPort};
-use wrldbldr_protocol::{
-    ApprovalDecision, ChallengeOutcomeDecisionData, DirectorialContext, ParticipantRole,
-    DiceInputType, AdHocOutcomes, ApprovedNpcInfo, RequestPayload, ResponseResult, RequestError,
+use crate::session_types::{
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
+    DiceInput, DirectorialContext, ParticipantRole,
 };
+use wrldbldr_protocol::{RequestPayload, ResponseResult, RequestError};
 
 #[derive(Debug, Clone)]
 pub struct SentAction {
@@ -185,7 +186,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn send_challenge_outcome_decision(&self, _resolution_id: &str, _decision: ChallengeOutcomeDecisionData) -> anyhow::Result<()> {
+    fn send_challenge_outcome_decision(&self, _resolution_id: &str, _decision: ChallengeOutcomeDecision) -> anyhow::Result<()> {
         // Mock implementation - does nothing for now
         Ok(())
     }
@@ -208,12 +209,12 @@ impl GameConnectionPort for MockGameConnectionPort {
     fn submit_challenge_roll_input(
         &self,
         challenge_id: &str,
-        input: DiceInputType,
+        input: DiceInput,
     ) -> anyhow::Result<()> {
         // For mock purposes, extract the value and use the existing roll tracking
         let roll_value = match &input {
-            DiceInputType::Manual(v) => *v,
-            DiceInputType::Formula(_) => 0, // Formula parsing not implemented in mock
+            DiceInput::Manual(v) => *v,
+            DiceInput::Formula(_) => 0, // Formula parsing not implemented in mock
         };
         let mut s = self.state.lock().unwrap();
         s.sent_rolls.push((challenge_id.to_string(), roll_value));

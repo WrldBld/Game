@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use wrldbldr_protocol::messages::{DiceInputType, DirectorialContext};
-use wrldbldr_protocol::types::ApprovalDecision;
+use crate::application::dto::{ApprovalDecision, DiceInput, DirectorialContext};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Application service for sending session commands via the game connection.
@@ -38,7 +37,7 @@ impl SessionCommandService {
         self.connection.submit_challenge_roll(challenge_id, roll)
     }
 
-    pub fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInputType) -> Result<()> {
+    pub fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInput) -> Result<()> {
         self.connection.submit_challenge_roll_input(challenge_id, input)
     }
 }

@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_protocol::types::ParticipantRole;
+use wrldbldr_player_ports::session_types::ParticipantRole;
 use wrldbldr_protocol::responses::{ConnectedUser, WorldRole};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 

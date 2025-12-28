@@ -26,12 +26,15 @@ use anyhow::Result;
 use send_wrapper::SendWrapper;
 
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
-use wrldbldr_protocol::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData,
-    DiceInputType, DirectorialContext, ParticipantRole, RequestError, RequestPayload, ResponseResult,
-};
+use wrldbldr_player_ports::session_types as app;
+use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
 
 use super::client::EngineClient;
+use crate::infrastructure::session_type_converters::{
+    adhoc_outcomes_to_proto, approval_decision_to_proto, approved_npc_info_to_proto,
+    challenge_outcome_decision_to_proto, dice_input_to_proto, directorial_context_to_proto,
+    participant_role_to_proto,
+};
 use crate::infrastructure::websocket::message_builder::ClientMessageBuilder;
 use crate::infrastructure::websocket::protocol::{map_state, state_to_u8, u8_to_state};
 
@@ -92,8 +95,9 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
     }
 
-    fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole) -> Result<()> {
-        self.inner.client.join_world(world_id, user_id, role)
+    fn join_world(&self, world_id: &str, user_id: &str, role: app::ParticipantRole) -> Result<()> {
+        let proto_role = participant_role_to_proto(role);
+        self.inner.client.join_world(world_id, user_id, proto_role)
     }
 
     fn send_action(&self, action_type: &str, target: Option<&str>, dialogue: Option<&str>) -> Result<()> {
@@ -104,16 +108,19 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.client.send(ClientMessageBuilder::request_scene_change(scene_id))
     }
 
-    fn send_directorial_update(&self, context: DirectorialContext) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::directorial_update(context))
+    fn send_directorial_update(&self, context: app::DirectorialContext) -> Result<()> {
+        let proto_context = directorial_context_to_proto(context);
+        self.inner.client.send(ClientMessageBuilder::directorial_update(proto_context))
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::approval_decision(request_id, decision))
+    fn send_approval_decision(&self, request_id: &str, decision: app::ApprovalDecision) -> Result<()> {
+        let proto_decision = approval_decision_to_proto(decision);
+        self.inner.client.send(ClientMessageBuilder::approval_decision(request_id, proto_decision))
     }
 
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecisionData) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, decision))
+    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: app::ChallengeOutcomeDecision) -> Result<()> {
+        let proto_decision = challenge_outcome_decision_to_proto(decision);
+        self.inner.client.send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, proto_decision))
     }
 
     fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
@@ -124,8 +131,9 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.client.send(ClientMessageBuilder::challenge_roll(challenge_id, roll))
     }
 
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInputType) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::challenge_roll_input(challenge_id, input))
+    fn submit_challenge_roll_input(&self, challenge_id: &str, input: app::DiceInput) -> Result<()> {
+        let proto_input = dice_input_to_proto(input);
+        self.inner.client.send(ClientMessageBuilder::challenge_roll_input(challenge_id, proto_input))
     }
 
     fn heartbeat(&self) -> Result<()> {
@@ -143,19 +151,21 @@ impl GameConnectionPort for WasmGameConnection {
     fn send_staging_approval(
         &self,
         request_id: &str,
-        approved_npcs: Vec<ApprovedNpcInfo>,
+        approved_npcs: Vec<app::ApprovedNpcInfo>,
         ttl_hours: i32,
         source: &str,
     ) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::staging_approval_response(request_id, approved_npcs, ttl_hours, source))
+        let proto_npcs = approved_npcs.into_iter().map(approved_npc_info_to_proto).collect();
+        self.inner.client.send(ClientMessageBuilder::staging_approval_response(request_id, proto_npcs, ttl_hours, source))
     }
 
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> Result<()> {
         self.inner.client.send(ClientMessageBuilder::staging_regenerate_request(request_id, guidance))
     }
 
-    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::pre_stage_region(region_id, npcs, ttl_hours))
+    fn pre_stage_region(&self, region_id: &str, npcs: Vec<app::ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
+        let proto_npcs = npcs.into_iter().map(approved_npc_info_to_proto).collect();
+        self.inner.client.send(ClientMessageBuilder::pre_stage_region(region_id, proto_npcs, ttl_hours))
     }
 
     fn create_adhoc_challenge(
@@ -164,10 +174,11 @@ impl GameConnectionPort for WasmGameConnection {
         skill_name: &str,
         difficulty: &str,
         target_pc_id: &str,
-        outcomes: AdHocOutcomes,
+        outcomes: app::AdHocOutcomes,
     ) -> Result<()> {
+        let proto_outcomes = adhoc_outcomes_to_proto(outcomes);
         self.inner.client.send(ClientMessageBuilder::create_adhoc_challenge(
-            challenge_name, skill_name, difficulty, target_pc_id, outcomes,
+            challenge_name, skill_name, difficulty, target_pc_id, proto_outcomes,
         ))
     }
 

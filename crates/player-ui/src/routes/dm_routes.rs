@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 use wrldbldr_player_ports::outbound::{Platform, storage_keys};
-use wrldbldr_player_app::application::services::ParticipantRolePort as ParticipantRole;
+use wrldbldr_player_ports::session_types::ParticipantRole;
 use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
 use crate::presentation::views::dm_view::DMMode;
 use super::connection::handle_disconnect;

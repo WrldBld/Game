@@ -8,6 +8,7 @@
 
 pub mod player_action;
 pub mod session_dto;
+pub mod session_types;
 pub mod world_snapshot;
 pub mod settings;
 
@@ -44,5 +45,11 @@ pub use world_snapshot::{
 
 // Re-export settings DTOs
 pub use settings::{AppSettings, ContextBudgetConfig, SettingsFieldMetadata, SettingsMetadataResponse};
+
+// Re-export session types (application-owned DTOs for GameConnectionPort)
+pub use session_types::{
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
+    DiceInput, DirectorialContext, NpcMotivationData, ParticipantRole,
+};
 
 // NOTE: Infrastructure asset loader now depends inward on these DTOs.

@@ -31,7 +31,7 @@ pub use action_service::ActionService;
 pub use session_command_service::SessionCommandService;
 
 // Re-export session service types
-pub use session_service::{port_connection_state_to_status, ParticipantRolePort, DEFAULT_ENGINE_URL};
+pub use session_service::{port_connection_state_to_status, DEFAULT_ENGINE_URL};
 
 pub use session_service::{SessionEvent, SessionService};
 

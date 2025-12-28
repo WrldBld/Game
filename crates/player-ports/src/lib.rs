@@ -1,5 +1,10 @@
 //! Player port definitions and shared cross-layer types.
 
+pub mod session_types;
+
+// Re-export session types at crate root for convenience
+pub use session_types::*;
+
 pub mod config {
     use std::str::FromStr;
 

@@ -1,8 +1,8 @@
 //! Player and spectator route handlers
 
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::services::ParticipantRolePort as ParticipantRole;
 use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_ports::session_types::ParticipantRole;
 use crate::presentation::state::SessionState;
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;

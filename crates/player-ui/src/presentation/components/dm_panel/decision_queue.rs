@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_protocol::ChallengeOutcomeDecisionData;
+use wrldbldr_player_app::application::dto::ChallengeOutcomeDecision;
 use crate::presentation::components::dm_panel::challenge_outcome_approval::ChallengeOutcomesSection;
 use crate::presentation::state::use_session_state;
 
@@ -61,7 +61,7 @@ pub fn DecisionQueuePanel() -> Element {
                 if has_pending_outcomes && !*show_history_only.read() {
                     ChallengeOutcomesSection {
                         pending_outcomes: pending_outcomes.clone(),
-                        on_decision: move |(resolution_id, decision): (String, ChallengeOutcomeDecisionData)| {
+                        on_decision: move |(resolution_id, decision): (String, ChallengeOutcomeDecision)| {
                             // Send the decision to the Engine via WebSocket
                             if let Some(client) = session_state.engine_client().read().as_ref() {
                                 if let Err(e) = client.send_challenge_outcome_decision(&resolution_id, decision) {

@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 use crate::presentation::state::PendingChallengeOutcome;
-use wrldbldr_protocol::ChallengeOutcomeDecisionData;
+use wrldbldr_player_app::application::dto::ChallengeOutcomeDecision;
 
 /// Props for ChallengeOutcomeApprovalCard
 #[derive(Props, Clone, PartialEq)]
@@ -13,7 +13,7 @@ pub struct ChallengeOutcomeApprovalCardProps {
     /// The pending outcome to display
     pub outcome: PendingChallengeOutcome,
     /// Callback when DM makes a decision
-    pub on_decision: EventHandler<(String, ChallengeOutcomeDecisionData)>,
+    pub on_decision: EventHandler<(String, ChallengeOutcomeDecision)>,
 }
 
 /// Card for approving a challenge outcome (P3.3/P3.4)
@@ -126,7 +126,7 @@ pub fn ChallengeOutcomeApprovalCard(props: ChallengeOutcomeApprovalCardProps) ->
                                     let description = edited_description.read().clone();
                                     props.on_decision.call((
                                         resolution_id.clone(),
-                                        ChallengeOutcomeDecisionData::Edit { modified_description: description }
+                                        ChallengeOutcomeDecision::Edit { modified_description: description }
                                     ));
                                 }
                             },
@@ -206,7 +206,7 @@ pub fn ChallengeOutcomeApprovalCard(props: ChallengeOutcomeApprovalCardProps) ->
                             move |_| {
                                 props.on_decision.call((
                                     resolution_id.clone(),
-                                    ChallengeOutcomeDecisionData::Accept
+                                    ChallengeOutcomeDecision::Accept
                                 ));
                             }
                         },
@@ -239,7 +239,7 @@ pub fn ChallengeOutcomeApprovalCard(props: ChallengeOutcomeApprovalCardProps) ->
                                 move |_| {
                                     props.on_decision.call((
                                         resolution_id.clone(),
-                                        ChallengeOutcomeDecisionData::Suggest { guidance: None }
+                                        ChallengeOutcomeDecision::Suggest { guidance: None }
                                     ));
                                 }
                             },
@@ -256,7 +256,7 @@ pub fn ChallengeOutcomeApprovalCard(props: ChallengeOutcomeApprovalCardProps) ->
 #[component]
 pub fn ChallengeOutcomesSection(
     pending_outcomes: Vec<PendingChallengeOutcome>,
-    on_decision: EventHandler<(String, ChallengeOutcomeDecisionData)>,
+    on_decision: EventHandler<(String, ChallengeOutcomeDecision)>,
 ) -> Element {
     if pending_outcomes.is_empty() {
         return rsx! {};

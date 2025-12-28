@@ -7,7 +7,8 @@
 use dioxus::prelude::*;
 
 use wrldbldr_player_ports::outbound::{Platform, storage_keys};
-use wrldbldr_player_app::application::services::{ParticipantRolePort as ParticipantRole, SessionService, DEFAULT_ENGINE_URL};
+use wrldbldr_player_ports::session_types::ParticipantRole;
+use wrldbldr_player_app::application::services::{SessionService, DEFAULT_ENGINE_URL};
 use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, GenerationState, SessionState};
 
 /// Ensure a WebSocket connection is established for the given world and role.

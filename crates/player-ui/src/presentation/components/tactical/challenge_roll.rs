@@ -10,7 +10,7 @@
 //! for physical dice rolls.
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::DiceInputType;
+use wrldbldr_player_app::application::dto::DiceInput;
 use wrldbldr_player_ports::outbound::Platform;
 use crate::presentation::state::{RollSubmissionStatus, use_session_state};
 use crate::presentation::state::challenge_state::ChallengeResultData;
@@ -37,7 +37,7 @@ pub struct ChallengeRollModalProps {
     #[props(default)]
     pub rule_system_hint: Option<String>,
     /// Called with the dice input when roll is submitted
-    pub on_roll: EventHandler<DiceInputType>,
+    pub on_roll: EventHandler<DiceInput>,
     /// Called when modal should close
     pub on_close: EventHandler<()>,
     /// Called when user clicks "Continue" after viewing result (P3.3/P3.4)
@@ -140,7 +140,7 @@ pub fn ChallengeRollModal(props: ChallengeRollModalProps) -> Element {
                                 suggested_dice_display: suggested_dice_display.clone(),
                                 rule_hint: rule_hint.clone(),
                                 on_close: move |_| props.on_close.call(()),
-                                on_roll: move |input: DiceInputType| props.on_roll.call(input),
+                                on_roll: move |input: DiceInput| props.on_roll.call(input),
                             }
                         }
                     }
@@ -161,7 +161,7 @@ fn RollInputPhase(
     suggested_dice_display: String,
     rule_hint: Option<String>,
     on_close: EventHandler<()>,
-    on_roll: EventHandler<DiceInputType>,
+    on_roll: EventHandler<DiceInput>,
 ) -> Element {
     // Input mode: true = use formula roll, false = manual input
     let mut use_formula_mode = use_signal(|| true);
@@ -318,9 +318,9 @@ fn RollInputPhase(
                 on_submit: move |_| {
                     let result = result.clone();
                     if result.is_manual {
-                        on_roll.call(DiceInputType::Manual(result.total - character_modifier));
+                        on_roll.call(DiceInput::Manual(result.total - character_modifier));
                     } else {
-                        on_roll.call(DiceInputType::Formula(result.formula.clone()));
+                        on_roll.call(DiceInput::Formula(result.formula.clone()));
                     }
                 },
                 on_reroll: move |_| {
