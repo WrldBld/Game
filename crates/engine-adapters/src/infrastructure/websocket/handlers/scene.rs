@@ -4,9 +4,10 @@
 
 use uuid::Uuid;
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::SceneId;
 use wrldbldr_engine_app::application::use_cases::{
-    ErrorCode, NpcMotivation, RequestSceneChangeInput, SceneApprovalDecision,
+    NpcMotivation, RequestSceneChangeInput, SceneApprovalDecision,
     SceneApprovalDecisionInput, SceneChangeResult, UpdateDirectorialInput,
 };
 use wrldbldr_protocol::{CharacterPosition, DirectorialContext, ServerMessage};

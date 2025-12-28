@@ -6,9 +6,10 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ConnectionError, ErrorCode, JoinWorldInput, SetSpectateTargetInput,
+    ConnectionError, JoinWorldInput, SetSpectateTargetInput,
     WorldRole as UseCaseWorldRole,
 };
 use wrldbldr_protocol::{JoinError, ServerMessage, WorldRole};

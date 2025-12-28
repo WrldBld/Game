@@ -6,9 +6,10 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId};
 use wrldbldr_engine_app::application::use_cases::{
-    DropInput, EquipInput, ErrorCode, InventoryUseCase, PickupInput, UnequipInput,
+    DropInput, EquipInput, InventoryUseCase, PickupInput, UnequipInput,
 };
 use wrldbldr_protocol::ServerMessage;
 

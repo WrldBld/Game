@@ -120,7 +120,7 @@ impl DomainEventRepositoryPort for SqliteDomainEventRepository {
 
             // Convert to domain event
             let domain_event = app_event_to_domain_event(app_event)
-                .map_err(|e| DomainEventRepositoryError::ConversionError(e))?;
+                .map_err(|e| DomainEventRepositoryError::ConversionError(e.to_string()))?;
 
             let created_at = DateTime::parse_from_rfc3339(&created_at_str)
                 .map_err(|e| {

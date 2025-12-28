@@ -8,8 +8,9 @@ use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::converters::scene_changed_event_to_message;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::use_cases::{ActionResult, ErrorCode, PlayerActionInput};
+use wrldbldr_engine_app::application::use_cases::{ActionResult, PlayerActionInput};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
 

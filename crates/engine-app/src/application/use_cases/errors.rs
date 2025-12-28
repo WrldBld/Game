@@ -1,16 +1,15 @@
-//! Use case error types with protocol conversion support
+//! Use case error types for hexagonal architecture
 //!
 //! Each use case has its own error type with:
 //! - Meaningful variants with domain context
 //! - Display implementation for user-facing messages
-//! - ErrorCode implementation for protocol conversion
+//! - ErrorCode implementation for error code extraction
 //!
 //! # Design Rationale
 //!
 //! 1. Separate error types per use case: Clearer ownership, avoids "god error enum"
-//! 2. ErrorCode trait: Standardized conversion to ServerMessage::Error
-//! 3. Protocol import in errors: This module is the boundary - use cases themselves
-//!    don't import protocol, but errors provide the conversion helper
+//! 2. ErrorCode trait: Provides error codes; adapters handle protocol conversion
+//! 3. No protocol dependencies: App layer is protocol-agnostic
 //!
 //! # Error Code Conventions
 //!
@@ -27,35 +26,26 @@ use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, Region
 // ErrorCode Trait
 // =============================================================================
 
-/// Trait for converting errors to protocol error codes
+/// Trait for extracting error codes from use case errors
 ///
 /// Implemented by all use case error types to provide standardized
-/// conversion to ServerMessage::Error format.
+/// error code strings. The adapters layer uses the `IntoServerError`
+/// extension trait to convert errors to protocol messages.
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// // In handler:
+/// // In handler (adapters layer):
+/// use crate::infrastructure::websocket::IntoServerError;
+///
 /// match use_case.do_thing(ctx, input).await {
 ///     Ok(result) => convert_to_message(result),
-///     Err(e) => e.into_server_error(), // Uses ErrorCode trait
+///     Err(e) => e.into_server_error(), // Uses IntoServerError from adapters
 /// }
 /// ```
 pub trait ErrorCode: Display {
     /// Get the error code string (e.g., "PC_NOT_FOUND")
     fn code(&self) -> &'static str;
-
-    /// Convert to a ServerMessage::Error
-    ///
-    /// Note: This returns the protocol type directly. While use cases
-    /// should not import ServerMessage, the errors module is allowed
-    /// to provide this conversion for handler convenience.
-    fn into_server_error(&self) -> wrldbldr_protocol::ServerMessage {
-        wrldbldr_protocol::ServerMessage::Error {
-            code: self.code().to_string(),
-            message: self.to_string(),
-        }
-    }
 }
 
 // =============================================================================
@@ -564,19 +554,5 @@ mod tests {
         assert_eq!(err.code(), "INSUFFICIENT_QUANTITY");
         assert!(err.to_string().contains("need 5"));
         assert!(err.to_string().contains("have 2"));
-    }
-
-    #[test]
-    fn test_into_server_error() {
-        let err = MovementError::NotConnected;
-        let server_msg = err.into_server_error();
-
-        match server_msg {
-            wrldbldr_protocol::ServerMessage::Error { code, message } => {
-                assert_eq!(code, "NOT_CONNECTED");
-                assert_eq!(message, "Not connected to a world");
-            }
-            _ => panic!("Expected Error message"),
-        }
     }
 }

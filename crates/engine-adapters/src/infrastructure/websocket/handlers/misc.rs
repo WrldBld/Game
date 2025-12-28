@@ -7,9 +7,10 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_app::application::use_cases::{
-    ErrorCode, ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
+    ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
 };
 use wrldbldr_protocol::ServerMessage;
 

@@ -31,8 +31,11 @@ mod broadcast_adapter;
 pub mod context;
 pub mod converters;
 pub mod dispatch;
+pub mod error_conversion;
 pub mod handlers;
 mod messages;
+
+pub use error_conversion::IntoServerError;
 
 pub use approval_converters::*;
 

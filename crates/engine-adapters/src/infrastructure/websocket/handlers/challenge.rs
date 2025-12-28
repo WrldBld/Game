@@ -30,10 +30,11 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
+use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_app::application::use_cases::{
     AdHocOutcomes, ChallengeOutcomeDecision, CreateAdHocInput, DiceInputType,
-    DiscardChallengeInput, ErrorCode, OutcomeDecisionInput, RegenerateOutcomeInput,
+    DiscardChallengeInput, OutcomeDecisionInput, RegenerateOutcomeInput,
     RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
     SuggestionDecisionInput, TriggerChallengeInput, UseCaseContext,
 };
