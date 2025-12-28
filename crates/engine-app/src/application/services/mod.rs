@@ -160,7 +160,8 @@ pub use outcome_trigger_service::OutcomeTriggerService;
 
 // Re-export challenge outcome approval service (P3.3)
 pub use challenge_outcome_approval_service::{
-    ChallengeOutcomeApprovalService, ChallengeOutcomeError,
+    ChallengeApprovalResult, ChallengeOutcomeApprovalService, ChallengeOutcomeError,
+    OutcomeBranchInfo, ResolvedOutcome,
 };
 
 // Re-export outcome suggestion service (P3.3)

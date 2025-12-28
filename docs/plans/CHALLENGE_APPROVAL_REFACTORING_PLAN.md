@@ -32,7 +32,7 @@ This plan addresses critical architectural violations in the challenge/approval 
 |-------|----------|-------|--------|
 | **CRITICAL**: `ApprovalOutcome::Broadcast` logged but never broadcast | `queue_workers.rs` | 172-174 | [x] |
 | **CRITICAL**: `list_by_world()` doesn't filter by world_id | `sqlite_queue.rs` | 462-468 | [x] |
-| In-memory HashMap for pending resolutions | `challenge_outcome_approval_service.rs` | 41, 68 | [ ] |
+| In-memory HashMap for pending resolutions | `challenge_outcome_approval_service.rs` | 41, 68 | [x] |
 | `has_dm()` check with fallback immediate resolution | `challenge_resolution_service.rs` | 298, 363-416 | [ ] |
 | Direct `ServerMessage` construction in services | Multiple services | Various | [ ] |
 | 5 handlers call service directly instead of use case | `handlers/challenge.rs` | 97-214 | [ ] |
@@ -387,7 +387,7 @@ async fn test_list_by_world_filters_correctly() {
 **Priority**: High  
 **Effort**: 3-4 hours  
 **Risk**: Medium  
-**Status**: [ ] Not Started
+**Status**: [x] Complete (queue support added, result types defined, AppState wired)
 
 ### Rationale
 

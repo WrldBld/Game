@@ -358,6 +358,7 @@ impl AppState {
         let dm_action_queue = queue_factory.create_dm_action_queue().await?;
         let asset_generation_queue = queue_factory.create_asset_generation_queue().await?;
         let approval_queue = queue_factory.create_approval_queue().await?;
+        let challenge_outcome_queue = queue_factory.create_challenge_outcome_queue().await?;
 
         // Initialize event bus infrastructure
         // For now, use a separate SQLite database for events
@@ -456,7 +457,8 @@ impl AppState {
         ));
 
         // Create challenge outcome approval service (P3.3) - must be created before resolution service
-        // Wire LLM port for suggestion generation and settings service for branch count
+        // Wire LLM port for suggestion generation, settings service for branch count,
+        // and persistent queue for challenge outcomes
         let llm_for_suggestions = Arc::new(llm_client.clone());
         let challenge_outcome_approval_service = Arc::new(
             ChallengeOutcomeApprovalService::new(
@@ -466,6 +468,7 @@ impl AppState {
                 item_repo.clone(),
                 prompt_template_service.clone(),
             )
+            .with_queue(challenge_outcome_queue.clone())
             .with_llm_port(llm_for_suggestions)
             .with_settings_service(settings_service.clone()),
         );

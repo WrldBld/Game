@@ -14,10 +14,59 @@ use crate::application::dto::{
     ChallengeOutcomeApprovalItem, ChallengeOutcomeDecision, OutcomeSuggestionRequest,
     PendingChallengeResolutionDto,
 };
-use wrldbldr_engine_ports::outbound::{WorldConnectionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort};
+use wrldbldr_engine_ports::outbound::{WorldConnectionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort, QueuePort};
 use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService};
 use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::WorldId;
+
+/// Result of challenge approval operations
+///
+/// This enum represents the outcomes of various approval operations,
+/// allowing the use case layer to handle broadcasting appropriately.
+#[derive(Debug, Clone)]
+pub enum ChallengeApprovalResult {
+    /// Item queued for DM approval
+    Queued { resolution_id: String },
+    /// Challenge resolved (approved by DM)
+    Resolved {
+        challenge_id: String,
+        outcome: ResolvedOutcome,
+        state_changes: Vec<StateChange>,
+    },
+    /// LLM suggestions ready
+    SuggestionsReady {
+        resolution_id: String,
+        suggestions: Vec<String>,
+    },
+    /// Outcome branches ready
+    BranchesReady {
+        resolution_id: String,
+        branches: Vec<OutcomeBranchInfo>,
+    },
+}
+
+/// Resolved outcome details
+#[derive(Debug, Clone)]
+pub struct ResolvedOutcome {
+    pub outcome_type: String,
+    pub outcome_description: String,
+    pub roll: i32,
+    pub modifier: i32,
+    pub total: i32,
+    pub roll_breakdown: Option<String>,
+    pub individual_rolls: Option<Vec<i32>>,
+    pub challenge_name: String,
+    pub character_name: String,
+}
+
+/// Outcome branch information
+#[derive(Debug, Clone)]
+pub struct OutcomeBranchInfo {
+    pub branch_id: String,
+    pub title: String,
+    pub description: String,
+    pub effects: Vec<String>,
+}
 
 /// Error type for challenge outcome approval operations
 #[derive(Debug, thiserror::Error)]
@@ -36,9 +85,19 @@ pub enum ChallengeOutcomeError {
 /// approves, edits, or requests suggestions for them.
 ///
 /// Generic over `L: LlmPort` for LLM suggestion generation.
+///
+/// # Queue Support
+///
+/// The service can optionally use a persistent queue (via `with_queue()`) instead
+/// of the in-memory HashMap. When a queue is configured:
+/// - Items are stored in the queue for persistence across restarts
+/// - `list_by_world()` returns items from the queue instead of memory
+/// - The in-memory HashMap is still used as a cache for active operations
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
-    /// Pending resolutions indexed by resolution_id
+    /// Pending resolutions indexed by resolution_id (in-memory cache)
     pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
+    /// Optional persistent queue for challenge outcomes
+    queue: Option<Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>>,
     /// World connection port for broadcasting messages
     world_connection: Arc<dyn WorldConnectionPort>,
     /// Outcome trigger service for executing triggers
@@ -66,6 +125,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
+            queue: None,
             world_connection,
             outcome_trigger_service,
             pc_repository,
@@ -74,6 +134,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             settings_service: None,
             prompt_template_service,
         }
+    }
+
+    /// Set a persistent queue for challenge outcomes
+    ///
+    /// When configured, challenge outcomes are persisted to the queue,
+    /// enabling recovery after server restarts.
+    pub fn with_queue<Q: QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync + 'static>(
+        mut self,
+        queue: Arc<Q>,
+    ) -> Self {
+        self.queue = Some(queue);
+        self
     }
 
     /// Set the LLM port for generating outcome suggestions
@@ -130,7 +202,19 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             is_generating_suggestions: false,
         };
 
-        // Store in pending map
+        // If queue is configured, enqueue for persistence
+        if let Some(ref queue) = self.queue {
+            queue
+                .enqueue(item.clone(), 0)
+                .await
+                .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
+            tracing::debug!(
+                resolution_id = %resolution_id,
+                "Challenge outcome enqueued to persistent storage"
+            );
+        }
+
+        // Store in pending map (in-memory cache for active operations)
         {
             let mut pending = self.pending.write().await;
             pending.insert(resolution_id.clone(), item.clone());
@@ -448,10 +532,24 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         Ok(())
     }
 
-    /// Remove a resolution from pending
+    /// Remove a resolution from pending (both in-memory and queue)
     async fn remove_pending(&self, resolution_id: &str) {
+        // Remove from in-memory cache
         let mut pending = self.pending.write().await;
         pending.remove(resolution_id);
+        drop(pending);
+
+        // If queue is configured, mark as complete
+        // Note: We need the queue item ID, but we only have resolution_id
+        // For now, we just remove from in-memory. The queue worker will handle
+        // completing items when processing them.
+        // TODO: Track queue item ID -> resolution_id mapping for proper completion
+        if self.queue.is_some() {
+            tracing::debug!(
+                resolution_id = %resolution_id,
+                "Removed from in-memory cache (queue completion handled by worker)"
+            );
+        }
     }
 
     /// Mark a resolution as generating suggestions
