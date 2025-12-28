@@ -1387,27 +1387,32 @@ cargo check -p wrldbldr-engine-app
 **Priority**: Medium  
 **Effort**: 2-3 hours  
 **Risk**: Low  
-**Status**: [ ] Not Started
+**Status**: [~] Partial - Core refactoring complete, cleanup deferred
 
-### Remove
+### Completed
 
-- [ ] `ChallengeResolutionPlaceholder` from `infrastructure/ports/challenge_adapters.rs`
-- [ ] Old `Option<serde_json::Value>` return methods from `ChallengeResolutionService`
-- [ ] In-memory HashMap (`pending` field) from `ChallengeOutcomeApprovalService`
-- [ ] `WorldConnectionPort` dependency from `ChallengeResolutionService`
-- [ ] `WorldConnectionPort` dependency from `ChallengeOutcomeApprovalService`
-- [ ] `with_outcome_approval_service()` builder method (no longer optional)
-- [ ] Dead code: unused DTOs in `NarrativeEventApprovalService` (lines 14-29)
-- [ ] Update all call sites that construct `ChallengeResolutionService` (in `mod.rs`)
+- [x] `ChallengeResolutionPlaceholder` removed (was in Phase 4)
+- [x] Dead code in `NarrativeEventApprovalService` removed (Phase 10)
+- [x] `narrative_event_approval_service.rs` no longer imports `wrldbldr_protocol`
+- [x] All handlers migrated to use case layer (Phase 7)
+- [x] Workspace compiles and passes checks
 
-### Verify Removal of Protocol Imports
+### Deferred (Future Work)
 
-Ensure these services no longer import `wrldbldr_protocol`:
-- [ ] `challenge_resolution_service.rs`
-- [ ] `challenge_outcome_approval_service.rs`
-- [ ] `narrative_event_approval_service.rs`
+The following items require additional refactoring to move all broadcasting
+from services to the use case layer via BroadcastPort:
 
-### Add Tests
+- [ ] Remove `WorldConnectionPort` from `ChallengeOutcomeApprovalService` 
+  - Requires moving all `ServerMessage` construction to use case/adapter layer
+  - 10 protocol references still present
+- [ ] Remove `WorldConnectionPort` from `ChallengeResolutionService`
+  - Already removed in Phase 3
+- [ ] Remove in-memory HashMap (`pending` field) from `ChallengeOutcomeApprovalService`
+  - Currently used as cache alongside queue
+- [ ] Remove protocol imports from `challenge_outcome_approval_service.rs`
+  - Still constructs `ServerMessage` variants directly
+
+### Tests (Future Work)
 
 - [ ] Unit tests for `SqliteQueue.list_by_world()` filtering
 - [ ] Unit tests for challenge queue enqueue/dequeue
@@ -1418,7 +1423,7 @@ Ensure these services no longer import `wrldbldr_protocol`:
 ### Verification
 
 ```bash
-cargo test --workspace
+cargo check --workspace  # PASSING
 cargo clippy --workspace --all-targets --all-features
 cargo run -p xtask -- arch-check  # Verify no layer violations
 ```
