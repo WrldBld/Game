@@ -60,7 +60,6 @@ use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use crate::infrastructure::world_connection_manager::{
     SharedWorldConnectionManager, new_shared_manager,
 };
-use crate::infrastructure::world_connection_port_adapter::WorldConnectionPortAdapter;
 use crate::infrastructure::WorldStateManager;
 
 /// Shared application state
@@ -353,11 +352,6 @@ impl AppState {
         // Create world state manager for per-world state (game time, conversation, approvals)
         let world_state = Arc::new(WorldStateManager::new());
         tracing::info!("Initialized world state manager for per-world state");
-
-        // Create WorldConnectionPort adapter for application services
-        let world_connection_port_adapter: Arc<dyn wrldbldr_engine_ports::outbound::WorldConnectionPort> = 
-            Arc::new(WorldConnectionPortAdapter::new(world_connection_manager.clone()));
-        tracing::info!("Initialized world connection port adapter");
 
         // Initialize queue infrastructure using factory
         let queue_factory = QueueFactory::new(config.queue.clone()).await?;

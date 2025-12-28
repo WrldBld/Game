@@ -14,14 +14,15 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
 use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
 use wrldbldr_engine_app::application::use_cases::{
     DirectorialContextData, DirectorialContextPort, NpcMotivation, PcData,
     PlayerCharacterServicePort, ConnectionWorldStatePort, WorldServicePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
-use wrldbldr_protocol::DirectorialContext;
 
+use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
 /// Adapter for WorldService implementing WorldServicePort
@@ -95,32 +96,42 @@ impl ConnectionDirectorialContextAdapter {
 impl DirectorialContextPort for ConnectionDirectorialContextAdapter {
     async fn get(&self, world_id: &WorldId) -> Result<Option<DirectorialContextData>, String> {
         match self.repo.get(world_id).await {
-            Ok(Some(ctx)) => {
-                // Convert protocol DirectorialContext to use case DirectorialContextData
+            Ok(Some(notes)) => {
+                // Convert domain DirectorialNotes to use case DirectorialContextData
+                let pacing_str = match notes.pacing {
+                    PacingGuidance::Natural => None,
+                    PacingGuidance::Fast => Some("fast".to_string()),
+                    PacingGuidance::Slow => Some("slow".to_string()),
+                    PacingGuidance::Building => Some("building".to_string()),
+                    PacingGuidance::Urgent => Some("urgent".to_string()),
+                };
+
+                let tone_str = notes.tone.description().to_string();
+
                 Ok(Some(DirectorialContextData {
-                    npc_motivations: ctx
+                    npc_motivations: notes
                         .npc_motivations
                         .into_iter()
-                        .map(|m| NpcMotivation {
-                            character_id: m.character_id,
+                        .map(|(char_id, m)| NpcMotivation {
+                            character_id: char_id,
                             motivation: m.immediate_goal,
-                            emotional_state: if m.emotional_guidance.is_empty() {
+                            emotional_state: if m.current_mood.is_empty() {
                                 None
                             } else {
-                                Some(m.emotional_guidance)
+                                Some(m.current_mood)
                             },
                         })
                         .collect(),
-                    scene_mood: if ctx.tone.is_empty() {
+                    scene_mood: if tone_str.is_empty() || tone_str == "Neutral - balanced, conversational" {
                         None
                     } else {
-                        Some(ctx.tone)
+                        Some(tone_str)
                     },
-                    pacing: None, // Protocol doesn't have this field
-                    dm_notes: if ctx.scene_notes.is_empty() {
+                    pacing: pacing_str,
+                    dm_notes: if notes.general_notes.is_empty() {
                         None
                     } else {
-                        Some(ctx.scene_notes)
+                        Some(notes.general_notes)
                     },
                 }))
             }
@@ -143,25 +154,40 @@ impl ConnectionWorldStateAdapter {
 
 impl ConnectionWorldStatePort for ConnectionWorldStateAdapter {
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
-        // Convert to protocol DirectorialContext
-        let protocol_context = DirectorialContext {
-            scene_notes: context.dm_notes.unwrap_or_default(),
-            tone: context.scene_mood.unwrap_or_default(),
-            npc_motivations: context
-                .npc_motivations
-                .into_iter()
-                .map(|m| wrldbldr_protocol::NpcMotivationData {
-                    character_id: m.character_id,
-                    emotional_guidance: m.emotional_state.unwrap_or_default(),
-                    immediate_goal: m.motivation,
-                    secret_agenda: None,
+        // Convert use case DirectorialContextData to domain DirectorialNotes
+        let npc_motivations = context
+            .npc_motivations
+            .into_iter()
+            .map(|m| {
+                let motivation = DomainNpcMotivation::new(
+                    m.emotional_state.unwrap_or_default(),
+                    m.motivation,
+                );
+                (m.character_id, motivation)
+            })
+            .collect();
+
+        let notes = DirectorialNotes {
+            general_notes: context.dm_notes.unwrap_or_default(),
+            tone: parse_tone(&context.scene_mood.unwrap_or_default()),
+            npc_motivations,
+            forbidden_topics: Vec::new(),
+            allowed_tools: Vec::new(),
+            suggested_beats: Vec::new(),
+            pacing: context
+                .pacing
+                .as_ref()
+                .map(|p| match p.to_lowercase().as_str() {
+                    "fast" => PacingGuidance::Fast,
+                    "slow" => PacingGuidance::Slow,
+                    "building" => PacingGuidance::Building,
+                    "urgent" => PacingGuidance::Urgent,
+                    _ => PacingGuidance::Natural,
                 })
-                .collect(),
-            forbidden_topics: vec![],
+                .unwrap_or(PacingGuidance::Natural),
         };
 
-        self.state
-            .set_directorial_context(world_id, protocol_context);
+        self.state.set_directorial_context(world_id, notes);
     }
 }
 

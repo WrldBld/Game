@@ -128,22 +128,10 @@ pub async fn build_prompt_from_action(
         .get_game_time(&world_id)
         .map(|gt| gt.display_date());
 
-    // 6. Get directorial context
+    // 6. Get directorial context - use the domain type's built-in to_prompt() method
     let directorial_notes = world_state
         .get_directorial_context(&world_id)
-        .map(|dc| {
-            let mut notes = Vec::new();
-            if !dc.scene_notes.is_empty() {
-                notes.push(format!("Scene Notes: {}", dc.scene_notes));
-            }
-            if !dc.tone.is_empty() {
-                notes.push(format!("Tone: {}", dc.tone));
-            }
-            if !dc.forbidden_topics.is_empty() {
-                notes.push(format!("Forbidden Topics: {}", dc.forbidden_topics.join(", ")));
-            }
-            notes.join("\n")
-        })
+        .map(|dc| dc.to_prompt())
         .unwrap_or_default();
 
     // 7. Convert conversation history

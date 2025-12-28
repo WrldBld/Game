@@ -1,8 +1,8 @@
 use dashmap::DashMap;
 use uuid::Uuid;
 use wrldbldr_domain::{WorldId, GameTime, LocationId, RegionId};
+use wrldbldr_domain::value_objects::DirectorialNotes;
 use wrldbldr_engine_app::application::services::staging_service::StagingProposal;
-use wrldbldr_protocol::DirectorialContext;
 use chrono::{DateTime, Utc};
 
 /// Manages per-world state (game time, conversation, approvals)
@@ -27,7 +27,7 @@ struct WorldState {
     current_scene_id: Option<String>,
     
     /// DM's directorial context (runtime guidance for NPCs)
-    directorial_context: Option<DirectorialContext>,
+    directorial_context: Option<DirectorialNotes>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -446,17 +446,17 @@ impl WorldStateManager {
     // === Directorial Context ===
     
     /// Get the current directorial context for a world
-    pub fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialContext> {
+    pub fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes> {
         self.states
             .get(world_id)
             .and_then(|state| state.directorial_context.clone())
     }
     
     /// Set the directorial context for a world
-    pub fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContext) {
+    pub fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes) {
         self.states.entry(world_id.clone())
             .and_modify(|state| {
-                state.directorial_context = Some(context.clone());
+                state.directorial_context = Some(notes.clone());
             })
             .or_insert_with(|| WorldState {
                 game_time: GameTime::default(),
@@ -464,7 +464,7 @@ impl WorldStateManager {
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
                 current_scene_id: None,
-                directorial_context: Some(context),
+                directorial_context: Some(notes),
             });
     }
     

@@ -33,7 +33,7 @@ pub use context_budget::{
     TokenCountMethod, TokenCounter, count_tokens, exceeds_token_budget,
 };
 pub use dice::DiceRollInput;
-pub use directorial::{DirectorialNotes};
+pub use directorial::{DirectorialNotes, NpcMotivation as DomainNpcMotivation, PacingGuidance, ToneGuidance};
 pub use game_tools::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
 pub use llm_context::{
     ActantialActorEntry, ActiveChallengeContext, ActiveNarrativeEventContext,

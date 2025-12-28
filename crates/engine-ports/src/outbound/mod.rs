@@ -22,7 +22,6 @@ mod prompt_template_port;
 mod settings_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
-mod world_connection_port;
 mod world_exporter_port;
 
 // Legacy AppEvent repository - still used by some adapters for wire format storage
@@ -73,8 +72,6 @@ pub use queue_port::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueuePort,
 };
-
-pub use world_connection_port::{WorldConnectionPort, WorldConnectionError};
 
 pub use world_exporter_port::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,

@@ -13,8 +13,8 @@
 | Phase E6 (arch-check) | Complete | dcd376c |
 | Phase E1 (DomainEvent) | Complete | 7f76736 |
 | Phase E2 (Approval DTOs) | Complete | 7c6faa9 |
-| Phase E3 (ErrorCode) | In Progress | - |
-| Phase E4 (Ports Layer) | Pending | - |
+| Phase E3 (ErrorCode) | Complete | f0f470f |
+| Phase E4 (Ports Layer) | In Progress | - |
 | Phase E5 (Split Handler) | Pending | - |
 | Phase P1 (Player Domain Types) | Pending | - |
 | Phase P2 (GameConnectionPort) | Pending | - |

@@ -30,6 +30,7 @@ mod approval_converters;
 mod broadcast_adapter;
 pub mod context;
 pub mod converters;
+pub mod directorial_converters;
 pub mod dispatch;
 pub mod error_conversion;
 pub mod handlers;

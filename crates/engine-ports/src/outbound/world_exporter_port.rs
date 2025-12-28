@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{SceneId, WorldId};
-use wrldbldr_protocol::RuleSystemConfig;
+use wrldbldr_domain::value_objects::RuleSystemConfig;
 
 /// Simplified world snapshot for Player clients
 ///

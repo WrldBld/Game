@@ -12,6 +12,7 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{InteractionTarget as DomainInteractionTarget, SceneId, TimeContext as DomainTimeContext, WorldId};
+use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
 use wrldbldr_engine_app::application::services::{InteractionService, SceneService};
 use wrldbldr_engine_app::application::use_cases::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
@@ -20,8 +21,8 @@ use wrldbldr_engine_app::application::use_cases::{
     SceneDmActionQueuePort, SceneWorldStatePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
-use wrldbldr_protocol::{DirectorialContext, NpcMotivationData};
 
+use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
 /// Adapter for SceneService
@@ -141,26 +142,40 @@ impl SceneWorldStatePort for SceneWorldStateAdapter {
     }
 
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
-        // Convert to protocol DirectorialContext
-        // Note: Protocol DirectorialContext has different fields than use case DirectorialContextData
-        let protocol_context = DirectorialContext {
-            scene_notes: context.dm_notes.unwrap_or_default(),
-            tone: context.scene_mood.unwrap_or_default(),
-            npc_motivations: context
-                .npc_motivations
-                .into_iter()
-                .map(|m| NpcMotivationData {
-                    character_id: m.character_id,
-                    emotional_guidance: m.emotional_state.unwrap_or_default(),
-                    immediate_goal: m.motivation,
-                    secret_agenda: None,
+        // Convert use case DirectorialContextData to domain DirectorialNotes
+        let npc_motivations = context
+            .npc_motivations
+            .into_iter()
+            .map(|m| {
+                let motivation = DomainNpcMotivation::new(
+                    m.emotional_state.unwrap_or_default(),
+                    m.motivation,
+                );
+                (m.character_id, motivation)
+            })
+            .collect();
+
+        let notes = DirectorialNotes {
+            general_notes: context.dm_notes.unwrap_or_default(),
+            tone: parse_tone(&context.scene_mood.unwrap_or_default()),
+            npc_motivations,
+            forbidden_topics: Vec::new(),
+            allowed_tools: Vec::new(),
+            suggested_beats: Vec::new(),
+            pacing: context
+                .pacing
+                .as_ref()
+                .map(|p| match p.to_lowercase().as_str() {
+                    "fast" => PacingGuidance::Fast,
+                    "slow" => PacingGuidance::Slow,
+                    "building" => PacingGuidance::Building,
+                    "urgent" => PacingGuidance::Urgent,
+                    _ => PacingGuidance::Natural,
                 })
-                .collect(),
-            forbidden_topics: vec![],
+                .unwrap_or(PacingGuidance::Natural),
         };
 
-        self.state
-            .set_directorial_context(world_id, protocol_context);
+        self.state.set_directorial_context(world_id, notes);
     }
 }
 
@@ -182,25 +197,41 @@ impl DirectorialContextRepositoryPort for DirectorialContextAdapter {
         world_id: &WorldId,
         context: &DirectorialContextData,
     ) -> Result<(), String> {
-        // Convert to protocol DirectorialContext (engine-ports uses protocol types)
-        let protocol_context = DirectorialContext {
-            scene_notes: context.dm_notes.clone().unwrap_or_default(),
-            tone: context.scene_mood.clone().unwrap_or_default(),
-            npc_motivations: context
-                .npc_motivations
-                .iter()
-                .map(|m| NpcMotivationData {
-                    character_id: m.character_id.clone(),
-                    emotional_guidance: m.emotional_state.clone().unwrap_or_default(),
-                    immediate_goal: m.motivation.clone(),
-                    secret_agenda: None,
+        // Convert use case DirectorialContextData to domain DirectorialNotes
+        let npc_motivations = context
+            .npc_motivations
+            .iter()
+            .map(|m| {
+                let motivation = DomainNpcMotivation::new(
+                    m.emotional_state.clone().unwrap_or_default(),
+                    m.motivation.clone(),
+                );
+                (m.character_id.clone(), motivation)
+            })
+            .collect();
+
+        let notes = DirectorialNotes {
+            general_notes: context.dm_notes.clone().unwrap_or_default(),
+            tone: parse_tone(&context.scene_mood.clone().unwrap_or_default()),
+            npc_motivations,
+            forbidden_topics: Vec::new(),
+            allowed_tools: Vec::new(),
+            suggested_beats: Vec::new(),
+            pacing: context
+                .pacing
+                .as_ref()
+                .map(|p| match p.to_lowercase().as_str() {
+                    "fast" => PacingGuidance::Fast,
+                    "slow" => PacingGuidance::Slow,
+                    "building" => PacingGuidance::Building,
+                    "urgent" => PacingGuidance::Urgent,
+                    _ => PacingGuidance::Natural,
                 })
-                .collect(),
-            forbidden_topics: vec![],
+                .unwrap_or(PacingGuidance::Natural),
         };
 
         self.repo
-            .save(world_id, &protocol_context)
+            .save(world_id, &notes)
             .await
             .map_err(|e| e.to_string())
     }
@@ -244,6 +275,7 @@ impl SceneDmActionQueuePort for DmActionQueuePlaceholder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_engine_app::application::use_cases::NpcMotivation;
 
     #[test]
     fn test_time_context_conversion() {
