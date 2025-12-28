@@ -7,13 +7,13 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | 🟡 Partial | 5 use cases wired (movement, staging, inventory, player_action, observation), 3 need adapters+wiring |
+| 4 | Adapter Implementation | 🟡 Partial | All adapters created, 5 use cases fully wired, 3 have adapters pending wiring |
 | 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
 | 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
 | 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
 | 8 | Documentation & Cleanup | ⏳ Not Started | Depends on Phase 4 |
 
-**Last Updated:** Dec 28, 2024
+**Last Updated:** Dec 28, 2024 (Session 2)
 
 ### Phase 4 Details (Current)
 
@@ -37,18 +37,29 @@
 - [x] `ChallengeOutcomeApprovalAdapter` - implements ChallengeOutcomeApprovalPort (adapters created, not yet wired)
 - [x] `DmApprovalQueueAdapter` - implements DmApprovalQueuePort (adapters created, not yet wired)
 - [x] Updated ChallengeResolutionPort to include WorldId in method signatures
+- [x] `SceneServiceAdapter` - implements SceneServicePort wrapping SceneService
+- [x] `InteractionServiceAdapter` - implements InteractionServicePort wrapping InteractionService
+- [x] `SceneWorldStateAdapter` - implements SceneWorldStatePort wrapping WorldStateManager
+- [x] `DirectorialContextAdapter` - implements DirectorialContextRepositoryPort wrapping PortDirectorialContextRepositoryPort
+- [x] `DmActionQueuePlaceholder` - placeholder for DmActionQueuePort (type mismatch with DTO DMAction)
+- [x] `WorldServiceAdapter` - implements WorldServicePort wrapping WorldService
+- [x] `PlayerCharacterServiceAdapter` - implements PlayerCharacterServicePort wrapping PlayerCharacterService
+- [x] `ConnectionDirectorialContextAdapter` - implements DirectorialContextPort for ConnectionUseCase
+- [x] `ConnectionWorldStateAdapter` - implements ConnectionWorldStatePort wrapping WorldStateManager
 
-**Remaining - Need Port Adapters and Wiring:**
-The following use cases define their own port traits locally and need adapter implementations:
+**Remaining - Wiring to UseCases Container:**
+All adapters are created. The following use cases have adapters but are not yet wired into the UseCases container:
 
 | Use Case | Required Port Adapters | Status |
 |----------|----------------------|--------|
-| ChallengeUseCase | ChallengeResolutionAdapter, ChallengeOutcomeApprovalAdapter, DmApprovalQueueAdapter | Adapters created, wiring pending (complex generics) |
-| SceneUseCase | SceneServicePort, InteractionServicePort, WorldStatePort, DirectorialContextRepositoryPort, DmActionQueuePort | Not started |
-| ConnectionUseCase | ConnectionManagerPort, WorldServicePort, PlayerCharacterServicePort, DirectorialContextPort, WorldStatePort | Not started |
+| ChallengeUseCase | ChallengeResolutionAdapter, ChallengeOutcomeApprovalAdapter, DmApprovalQueueAdapter | Adapters created, wiring pending (complex generics with 6 type params) |
+| SceneUseCase | SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder | Adapters created, wiring pending |
+| ConnectionUseCase | ConnectionManagerAdapter, WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter | Adapters created, wiring pending |
 
 **Next Steps:**
-- [ ] Create adapters wrapping existing services for remaining 4 use cases
+- [ ] Wire SceneUseCase into UseCases container
+- [ ] Wire ConnectionUseCase into UseCases container
+- [ ] Wire ChallengeUseCase into UseCases container (complex due to 6 generic type parameters)
 - [ ] Refactor handlers to use use cases
 - [ ] Target: reduce handler files from ~4,693 lines to ~840 lines
 
@@ -62,6 +73,8 @@ The following use cases define their own port traits locally and need adapter im
 - `crates/engine-adapters/src/infrastructure/ports/player_action_adapters.rs` (~98 lines)
 - `crates/engine-adapters/src/infrastructure/ports/observation_adapters.rs` (~98 lines)
 - `crates/engine-adapters/src/infrastructure/ports/challenge_adapters.rs` (~300 lines)
+- `crates/engine-adapters/src/infrastructure/ports/scene_adapters.rs` (~235 lines) - NEW
+- `crates/engine-adapters/src/infrastructure/ports/connection_adapters.rs` (~175 lines) - NEW
 - `crates/engine-adapters/src/infrastructure/ports/mod.rs` (~60 lines)
 - `crates/engine-app/src/application/use_cases/challenge.rs` (updated port signatures with WorldId)
 
