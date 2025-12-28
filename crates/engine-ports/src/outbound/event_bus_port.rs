@@ -1,19 +1,19 @@
-//! Event Bus Port - Interface for publishing application events
+//! Event Bus Port - Interface for publishing domain events
 //!
 //! This port abstracts the event bus, allowing the application to publish
-//! events without knowing the underlying transport (in-process, SQLite, Redis, etc.)
+//! domain events without knowing the underlying transport (in-process, SQLite, Redis, etc.)
 
 use async_trait::async_trait;
-use serde::Serialize;
+use wrldbldr_domain::DomainEvent;
 
-/// Port for publishing application events
+/// Port for publishing domain events
 #[async_trait]
-pub trait EventBusPort<E: Serialize + Send + Sync + 'static>: Send + Sync {
-    /// Publish an event to the bus
+pub trait EventBusPort: Send + Sync {
+    /// Publish a domain event to the bus
     ///
     /// This is a best-effort operation; failures should be logged but typically
     /// should not break the main application flow.
-    async fn publish(&self, event: E) -> Result<(), EventBusError>;
+    async fn publish(&self, event: DomainEvent) -> Result<(), EventBusError>;
 }
 
 /// Errors that can occur when publishing events

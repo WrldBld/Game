@@ -14,7 +14,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use wrldbldr_protocol::AppEvent;
+use wrldbldr_domain::DomainEvent;
 use wrldbldr_engine_ports::outbound::{EventBusPort, StoryEventRepositoryPort};
 use wrldbldr_domain::entities::{
     ChallengeEventOutcome, DmMarkerType, InfoType, InvolvedCharacter, ItemSource, MarkerImportance,
@@ -284,23 +284,23 @@ pub trait StoryEventService: Send + Sync {
 #[derive(Clone)]
 pub struct StoryEventServiceImpl {
     repository: Arc<dyn StoryEventRepositoryPort>,
-    event_bus: Arc<dyn EventBusPort<AppEvent>>,
+    event_bus: Arc<dyn EventBusPort>,
 }
 
 impl StoryEventServiceImpl {
-    pub fn new(repository: Arc<dyn StoryEventRepositoryPort>, event_bus: Arc<dyn EventBusPort<AppEvent>>) -> Self {
+    pub fn new(repository: Arc<dyn StoryEventRepositoryPort>, event_bus: Arc<dyn EventBusPort>) -> Self {
         Self { repository, event_bus }
     }
 
     /// Helper to publish StoryEventCreated after persisting
     async fn publish_event_created(&self, event: &StoryEvent) {
-        let app_event = AppEvent::StoryEventCreated {
-            story_event_id: event.id.to_string(),
-            world_id: event.world_id.to_string(),
+        let domain_event = DomainEvent::StoryEventCreated {
+            story_event_id: event.id,
+            world_id: event.world_id,
             event_type: format!("{:?}", event.event_type), // Debug format for event type
         };
         
-        if let Err(e) = self.event_bus.publish(app_event).await {
+        if let Err(e) = self.event_bus.publish(domain_event).await {
             tracing::error!("Failed to publish StoryEventCreated for {}: {}", event.id, e);
         }
     }

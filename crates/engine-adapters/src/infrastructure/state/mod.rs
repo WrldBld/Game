@@ -38,7 +38,6 @@ use wrldbldr_engine_app::application::services::{
     staging_service::StagingService,
 };
 use wrldbldr_engine_app::application::services::generation_service::{GenerationService, GenerationEvent};
-use wrldbldr_protocol::AppEvent;
 use wrldbldr_engine_ports::outbound::{
     AppEventRepositoryPort, EventBusPort, GenerationReadStatePort,
 };
@@ -399,7 +398,7 @@ impl AppState {
             Arc::new(app_event_repository_impl);
 
         let event_notifier = InProcessEventNotifier::new();
-        let event_bus: Arc<dyn EventBusPort<AppEvent>> = Arc::new(SqliteEventBus::new(
+        let event_bus: Arc<dyn EventBusPort> = Arc::new(SqliteEventBus::new(
             app_event_repository.clone(),
             event_notifier.clone(),
         ));

@@ -10,6 +10,7 @@ mod app_event_repository_port;
 mod broadcast_port;
 mod comfyui_port;
 mod directorial_context_port;
+mod domain_event_repository_port;
 mod event_bus_port;
 mod game_events;
 mod generation_read_state_port;
@@ -24,7 +25,11 @@ mod suggestion_enqueue_port;
 mod world_connection_port;
 mod world_exporter_port;
 
+// Legacy AppEvent repository - still used by some adapters for wire format storage
 pub use app_event_repository_port::{AppEventRepositoryError, AppEventRepositoryPort};
+
+// New DomainEvent repository - domain-layer interface
+pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
 
 pub use comfyui_port::{
     ComfyUIPort, GeneratedImage, HistoryResponse, NodeOutput, PromptHistory, PromptStatus,

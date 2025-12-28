@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use wrldbldr_protocol::AppEvent;
 use wrldbldr_engine_ports::outbound::{AppEventRepositoryPort, EventBusPort, GenerationReadStatePort};
 use crate::infrastructure::event_bus::InProcessEventNotifier;
 
@@ -11,7 +10,7 @@ use crate::infrastructure::event_bus::InProcessEventNotifier;
 /// This struct groups the event bus, event notification system, and
 /// repositories for tracking application events and generation state.
 pub struct EventInfrastructure {
-    pub event_bus: Arc<dyn EventBusPort<AppEvent>>,
+    pub event_bus: Arc<dyn EventBusPort>,
     pub event_notifier: InProcessEventNotifier,
     pub app_event_repository: Arc<dyn AppEventRepositoryPort>,
     pub generation_read_state_repository: Arc<dyn GenerationReadStatePort>,
@@ -20,7 +19,7 @@ pub struct EventInfrastructure {
 impl EventInfrastructure {
     /// Creates a new EventInfrastructure instance
     pub fn new(
-        event_bus: Arc<dyn EventBusPort<AppEvent>>,
+        event_bus: Arc<dyn EventBusPort>,
         event_notifier: InProcessEventNotifier,
         app_event_repository: Arc<dyn AppEventRepositoryPort>,
         generation_read_state_repository: Arc<dyn GenerationReadStatePort>,

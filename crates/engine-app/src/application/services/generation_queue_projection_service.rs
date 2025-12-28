@@ -2,7 +2,7 @@
 //!
 //! Builds a unified `GenerationQueueSnapshot` for a given (user, world) from:
 //! - Active generation batches exposed by `AssetService`
-//! - Suggestion-related `AppEvent`s from the event repository
+//! - Suggestion-related `DomainEvent`s from the event repository
 //! - Per-user/world read markers from `GenerationReadStatePort`
 //!
 //! This keeps HTTP routes thin and centralizes queue reconstruction logic.
@@ -10,10 +10,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::application::dto::GenerationBatchResponseDto;
-use wrldbldr_protocol::AppEvent;
-use wrldbldr_engine_ports::outbound::{AppEventRepositoryPort, GenerationReadKind, GenerationReadStatePort};
+use wrldbldr_domain::{DomainEvent, WorldId};
+use wrldbldr_engine_ports::outbound::{DomainEventRepositoryPort, GenerationReadKind, GenerationReadStatePort};
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
-use wrldbldr_domain::WorldId;
 
 /// Snapshot DTO for suggestion tasks, mirrored from `infrastructure::http::queue_routes`.
 #[derive(Debug, serde::Serialize)]
@@ -47,19 +46,19 @@ pub struct GenerationBatchResponseDtoWithRead {
 /// Service responsible for projecting the current generation queue state.
 pub struct GenerationQueueProjectionService {
     asset_service: AssetServiceImpl,
-    app_event_repository: std::sync::Arc<dyn AppEventRepositoryPort>,
+    domain_event_repository: std::sync::Arc<dyn DomainEventRepositoryPort>,
     read_state: std::sync::Arc<dyn GenerationReadStatePort>,
 }
 
 impl GenerationQueueProjectionService {
     pub fn new(
         asset_service: AssetServiceImpl,
-        app_event_repository: std::sync::Arc<dyn AppEventRepositoryPort>,
+        domain_event_repository: std::sync::Arc<dyn DomainEventRepositoryPort>,
         read_state: std::sync::Arc<dyn GenerationReadStatePort>,
     ) -> Self {
         Self {
             asset_service,
-            app_event_repository,
+            domain_event_repository,
             read_state,
         }
     }
@@ -105,13 +104,13 @@ impl GenerationQueueProjectionService {
             })
             .collect();
 
-        // 3. Suggestion tasks reconstructed from recent AppEvents
+        // 3. Suggestion tasks reconstructed from recent DomainEvents
         let mut suggestions_map: HashMap<String, SuggestionTaskSnapshot> = HashMap::new();
 
-        if let Ok(events) = self.app_event_repository.fetch_since(0, 500).await {
+        if let Ok(events) = self.domain_event_repository.fetch_since(0, 500).await {
             for (_id, event, _ts) in events {
                 match event {
-                    AppEvent::SuggestionQueued {
+                    DomainEvent::SuggestionQueued {
                         request_id,
                         field_type,
                         entity_id,
@@ -130,7 +129,7 @@ impl GenerationQueueProjectionService {
                             });
                         entry.status = "queued".to_string();
                     }
-                    AppEvent::SuggestionProgress { request_id, .. } => {
+                    DomainEvent::SuggestionProgress { request_id, .. } => {
                         let entry = suggestions_map
                             .entry(request_id.clone())
                             .or_insert(SuggestionTaskSnapshot {
@@ -144,7 +143,7 @@ impl GenerationQueueProjectionService {
                             });
                         entry.status = "processing".to_string();
                     }
-                    AppEvent::SuggestionCompleted {
+                    DomainEvent::SuggestionCompleted {
                         request_id,
                         field_type,
                         suggestions,
@@ -166,7 +165,7 @@ impl GenerationQueueProjectionService {
                         entry.suggestions = Some(suggestions);
                         entry.error = None;
                     }
-                    AppEvent::SuggestionFailed {
+                    DomainEvent::SuggestionFailed {
                         request_id,
                         field_type,
                         error,

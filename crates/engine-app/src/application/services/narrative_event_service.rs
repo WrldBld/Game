@@ -140,19 +140,19 @@ pub trait NarrativeEventService: Send + Sync {
     async fn list_by_featured_npc(&self, character_id: CharacterId) -> Result<Vec<NarrativeEvent>>;
 }
 
-use wrldbldr_protocol::AppEvent;
+use wrldbldr_domain::DomainEvent;
 use wrldbldr_engine_ports::outbound::EventBusPort;
 
 /// Default implementation of NarrativeEventService using port abstractions
 #[derive(Clone)]
 pub struct NarrativeEventServiceImpl {
     repository: Arc<dyn NarrativeEventRepositoryPort>,
-    event_bus: Arc<dyn EventBusPort<AppEvent>>,
+    event_bus: Arc<dyn EventBusPort>,
 }
 
 impl NarrativeEventServiceImpl {
     /// Create a new NarrativeEventServiceImpl with the given repository
-    pub fn new(repository: Arc<dyn NarrativeEventRepositoryPort>, event_bus: Arc<dyn EventBusPort<AppEvent>>) -> Self {
+    pub fn new(repository: Arc<dyn NarrativeEventRepositoryPort>, event_bus: Arc<dyn EventBusPort>) -> Self {
         Self { repository, event_bus }
     }
 }
@@ -284,11 +284,11 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             .await
             .context("Failed to mark narrative event as triggered")?;
         
-        // Publish AppEvent if we have the event details
+        // Publish DomainEvent if we have the event details
         if let Some(event) = event {
-            let app_event = AppEvent::NarrativeEventTriggered {
-                event_id: id.to_string(),
-                world_id: event.world_id.to_string(),
+            let domain_event = DomainEvent::NarrativeEventTriggered {
+                event_id: id,
+                world_id: event.world_id,
                 event_name: event.name.clone(),
                 outcome_name: outcome_name.unwrap_or_else(|| "default".to_string()),
                 // Narrative events are world-scoped for now; session_id will be
@@ -297,7 +297,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
                 session_id: None,
             };
 
-            if let Err(e) = self.event_bus.publish(app_event).await {
+            if let Err(e) = self.event_bus.publish(domain_event).await {
                 tracing::error!("Failed to publish NarrativeEventTriggered for {}: {}", id, e);
             }
         }
