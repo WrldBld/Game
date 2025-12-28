@@ -26,7 +26,9 @@ use tracing::{debug, info};
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
-use wrldbldr_engine_ports::outbound::BroadcastPort;
+use wrldbldr_engine_ports::outbound::{
+    BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo,
+};
 
 use super::errors::ChallengeError;
 
@@ -149,12 +151,41 @@ pub struct SelectBranchInput {
 /// Result of submitting a roll
 #[derive(Debug, Clone)]
 pub struct RollResult {
-    /// The final roll value
+    /// Resolution ID for tracking this pending approval
+    pub resolution_id: String,
+    /// Challenge ID
+    pub challenge_id: String,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Character ID who rolled
+    pub character_id: String,
+    /// Character name who rolled
+    pub character_name: String,
+    /// The raw roll value
     pub roll: i32,
+    /// Skill modifier applied
+    pub modifier: i32,
+    /// Total result (roll + modifier)
+    pub total: i32,
     /// Outcome type (success, failure, etc.)
-    pub outcome: String,
+    pub outcome_type: String,
+    /// Outcome description text
+    pub outcome_description: String,
+    /// Roll breakdown string (e.g., "1d20+5 = 15 + 5 = 20")
+    pub roll_breakdown: Option<String>,
+    /// Individual dice results
+    pub individual_rolls: Option<Vec<i32>>,
+    /// Triggers to execute on approval
+    pub triggers: Vec<TriggerInfo>,
     /// Whether outcome requires DM approval
     pub pending_approval: bool,
+}
+
+/// Trigger information for roll results
+#[derive(Debug, Clone)]
+pub struct TriggerInfo {
+    pub trigger_type: String,
+    pub description: String,
 }
 
 /// Result of triggering a challenge
@@ -162,8 +193,20 @@ pub struct RollResult {
 pub struct TriggerResult {
     /// Challenge ID
     pub challenge_id: String,
-    /// Target character name
-    pub target_name: String,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Skill name required
+    pub skill_name: String,
+    /// Difficulty display string
+    pub difficulty_display: String,
+    /// Challenge description
+    pub description: String,
+    /// Target character's modifier for this skill
+    pub character_modifier: i32,
+    /// Suggested dice formula
+    pub suggested_dice: String,
+    /// Rule system hint
+    pub rule_system_hint: String,
 }
 
 /// Result of an outcome decision
@@ -358,10 +401,44 @@ impl ChallengeUseCase {
             "Submitting challenge roll"
         );
 
-        self.resolution_service
+        let result = self
+            .resolution_service
             .handle_roll(&ctx.world_id, pc_id, input.challenge_id.clone(), input.roll)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+
+        // Broadcast roll submission event
+        // Adapter routes to DM (full details) and players (status only)
+        self.broadcast
+            .broadcast(
+                ctx.world_id.clone(),
+                GameEvent::ChallengeRollSubmitted {
+                    world_id: ctx.world_id,
+                    resolution_id: result.resolution_id.clone(),
+                    challenge_id: result.challenge_id.clone(),
+                    challenge_name: result.challenge_name.clone(),
+                    character_id: result.character_id.clone(),
+                    character_name: result.character_name.clone(),
+                    roll: result.roll,
+                    modifier: result.modifier,
+                    total: result.total,
+                    outcome_type: result.outcome_type.clone(),
+                    outcome_description: result.outcome_description.clone(),
+                    roll_breakdown: result.roll_breakdown.clone(),
+                    individual_rolls: result.individual_rolls.clone(),
+                    outcome_triggers: result
+                        .triggers
+                        .iter()
+                        .map(|t| PortTriggerInfo {
+                            trigger_type: t.trigger_type.clone(),
+                            description: t.description.clone(),
+                        })
+                        .collect(),
+                },
+            )
+            .await;
+
+        Ok(result)
     }
 
     /// Submit dice input (formula or manual) for a challenge
@@ -380,10 +457,44 @@ impl ChallengeUseCase {
             "Submitting dice input"
         );
 
-        self.resolution_service
+        let result = self
+            .resolution_service
             .handle_roll_input(&ctx.world_id, pc_id, input.challenge_id.clone(), input.input_type)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+
+        // Broadcast roll submission event
+        // Adapter routes to DM (full details) and players (status only)
+        self.broadcast
+            .broadcast(
+                ctx.world_id.clone(),
+                GameEvent::ChallengeRollSubmitted {
+                    world_id: ctx.world_id,
+                    resolution_id: result.resolution_id.clone(),
+                    challenge_id: result.challenge_id.clone(),
+                    challenge_name: result.challenge_name.clone(),
+                    character_id: result.character_id.clone(),
+                    character_name: result.character_name.clone(),
+                    roll: result.roll,
+                    modifier: result.modifier,
+                    total: result.total,
+                    outcome_type: result.outcome_type.clone(),
+                    outcome_description: result.outcome_description.clone(),
+                    roll_breakdown: result.roll_breakdown.clone(),
+                    individual_rolls: result.individual_rolls.clone(),
+                    outcome_triggers: result
+                        .triggers
+                        .iter()
+                        .map(|t| PortTriggerInfo {
+                            trigger_type: t.trigger_type.clone(),
+                            description: t.description.clone(),
+                        })
+                        .collect(),
+                },
+            )
+            .await;
+
+        Ok(result)
     }
 
     /// Trigger a challenge against a target character
@@ -404,10 +515,31 @@ impl ChallengeUseCase {
             "DM triggering challenge"
         );
 
-        self.resolution_service
+        let result = self
+            .resolution_service
             .trigger_challenge(&ctx.world_id, input.challenge_id, input.target_character_id)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+
+        // Broadcast challenge prompt to world
+        self.broadcast
+            .broadcast(
+                ctx.world_id.clone(),
+                GameEvent::ChallengePromptSent {
+                    world_id: ctx.world_id,
+                    challenge_id: result.challenge_id.clone(),
+                    challenge_name: result.challenge_name.clone(),
+                    skill_name: result.skill_name.clone(),
+                    difficulty_display: result.difficulty_display.clone(),
+                    description: result.description.clone(),
+                    character_modifier: result.character_modifier,
+                    suggested_dice: result.suggested_dice.clone(),
+                    rule_system_hint: result.rule_system_hint.clone(),
+                },
+            )
+            .await;
+
+        Ok(result)
     }
 
     /// Handle DM's decision on a challenge suggestion

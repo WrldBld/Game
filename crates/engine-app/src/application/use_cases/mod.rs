@@ -87,7 +87,7 @@ pub use challenge::{
     OutcomeDecisionInput, OutcomeDecisionResult, OutcomeDetail, RegenerateOutcomeInput,
     RegenerateResult as ChallengeRegenerateResult, RequestBranchesInput, RequestSuggestionInput,
     RollResult, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
-    SuggestionDecisionInput, TriggerChallengeInput, TriggerResult,
+    SuggestionDecisionInput, TriggerChallengeInput, TriggerInfo, TriggerResult,
 };
 
 pub use connection::{

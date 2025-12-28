@@ -19,10 +19,9 @@ use wrldbldr_engine_app::application::services::{
 use wrldbldr_engine_app::application::use_cases::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeOutcomeApprovalPort,
     ChallengeOutcomeDecision, ChallengeDmApprovalQueuePort, ChallengeResolutionPort, DiceInputType,
-    RollResult, TriggerResult,
+    RollResult, TriggerInfo, TriggerResult,
 };
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, EventBusPort, LlmPort};
-use wrldbldr_protocol::AppEvent;
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort};
 
 // =============================================================================
 // ChallengeOutcomeApprovalAdapter
@@ -204,8 +203,26 @@ where
 
         // Convert RollSubmissionResult to use case RollResult
         Ok(RollResult {
-            roll: result.total,
-            outcome: result.outcome_type,
+            resolution_id: result.resolution_id,
+            challenge_id: result.challenge_id,
+            challenge_name: result.challenge_name,
+            character_id: result.character_id,
+            character_name: result.character_name,
+            roll: result.roll,
+            modifier: result.modifier,
+            total: result.total,
+            outcome_type: result.outcome_type,
+            outcome_description: result.outcome_description,
+            roll_breakdown: result.roll_breakdown,
+            individual_rolls: result.individual_rolls,
+            triggers: result
+                .outcome_triggers
+                .into_iter()
+                .map(|t| TriggerInfo {
+                    trigger_type: t.trigger_type,
+                    description: t.description,
+                })
+                .collect(),
             pending_approval: true, // All challenges now go through approval
         })
     }
@@ -232,8 +249,26 @@ where
             .map_err(|e| e.to_string())?;
 
         Ok(RollResult {
-            roll: result.total,
-            outcome: result.outcome_type,
+            resolution_id: result.resolution_id,
+            challenge_id: result.challenge_id,
+            challenge_name: result.challenge_name,
+            character_id: result.character_id,
+            character_name: result.character_name,
+            roll: result.roll,
+            modifier: result.modifier,
+            total: result.total,
+            outcome_type: result.outcome_type,
+            outcome_description: result.outcome_description,
+            roll_breakdown: result.roll_breakdown,
+            individual_rolls: result.individual_rolls,
+            triggers: result
+                .outcome_triggers
+                .into_iter()
+                .map(|t| TriggerInfo {
+                    trigger_type: t.trigger_type,
+                    description: t.description,
+                })
+                .collect(),
             pending_approval: true,
         })
     }
@@ -252,7 +287,13 @@ where
 
         Ok(TriggerResult {
             challenge_id: result.challenge_id,
-            target_name: result.challenge_name, // Use challenge name as placeholder
+            challenge_name: result.challenge_name,
+            skill_name: result.skill_name,
+            difficulty_display: result.difficulty_display,
+            description: result.description,
+            character_modifier: result.character_modifier,
+            suggested_dice: result.suggested_dice,
+            rule_system_hint: result.rule_system_hint,
         })
     }
 
