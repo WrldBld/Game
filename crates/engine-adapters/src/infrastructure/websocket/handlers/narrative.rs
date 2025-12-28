@@ -5,7 +5,6 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::infrastructure::websocket::converters::value_to_server_message;
 use wrldbldr_protocol::ServerMessage;
 
 /// Handle NarrativeEventSuggestionDecision message
@@ -16,16 +15,8 @@ use wrldbldr_protocol::ServerMessage;
 /// - Reject it to discard the suggestion
 /// - Select a specific outcome if multiple options are available
 ///
-/// # Arguments
-/// * `state` - Application state containing services and connection manager
-/// * `client_id` - The UUID of the connected client (must be DM)
-/// * `request_id` - The ID of the narrative event suggestion request
-/// * `event_id` - The ID of the narrative event being decided upon
-/// * `approved` - Whether the DM approves the narrative event
-/// * `selected_outcome` - Optional selected outcome if multiple outcomes are available
-///
-/// # Returns
-/// A `ServerMessage` confirming the decision, or an error if not authorized.
+/// Returns None on success (use case layer should broadcast events).
+/// Returns Some(error) on failure.
 pub async fn handle_narrative_event_suggestion_decision(
     state: &AppState,
     client_id: Uuid,
@@ -68,16 +59,32 @@ pub async fn handle_narrative_event_suggestion_decision(
         });
     }
 
-    state
+    match state
         .game
         .narrative_event_approval_service
-        .handle_decision(
-            world_id,
-            request_id,
-            event_id,
-            approved,
-            selected_outcome,
-        )
+        .handle_decision(world_id, request_id, event_id.clone(), approved, selected_outcome)
         .await
-        .and_then(value_to_server_message)
+    {
+        Ok(Some(result)) => {
+            // Broadcast NarrativeEventTriggered to the world
+            // TODO: Move to use case layer with BroadcastPort
+            let message = ServerMessage::NarrativeEventTriggered {
+                event_id,
+                event_name: result.event_name,
+                outcome_description: result.outcome_description,
+                scene_direction: result.scene_direction.unwrap_or_default(),
+            };
+            let world_uuid: Uuid = world_id.into();
+            state
+                .world_connection_manager
+                .broadcast_to_world(world_uuid, message)
+                .await;
+            None
+        }
+        Ok(None) => None, // Rejected - no broadcast needed
+        Err(e) => Some(ServerMessage::Error {
+            code: "NARRATIVE_EVENT_ERROR".to_string(),
+            message: e.to_string(),
+        }),
+    }
 }

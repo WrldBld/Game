@@ -491,7 +491,6 @@ impl AppState {
         // Create narrative event approval service
         // Uses concrete service impls for generics compatibility
         let narrative_event_approval_service = Arc::new(NarrativeEventApprovalService::new(
-            world_connection_port_adapter.clone(),
             Arc::new(narrative_event_service_impl.clone()),
             story_event_service.clone(),
         ));

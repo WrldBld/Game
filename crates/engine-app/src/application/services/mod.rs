@@ -100,7 +100,9 @@ pub use workflow_service::WorkflowService;
 pub use story_event_service::{StoryEventService, StoryEventServiceImpl};
 
 // Re-export narrative event approval service
-pub use narrative_event_approval_service::NarrativeEventApprovalService;
+pub use narrative_event_approval_service::{
+    NarrativeEventApprovalError, NarrativeEventApprovalService, NarrativeEventTriggerResult,
+};
 
 // Re-export skill service types
 pub use skill_service::{
