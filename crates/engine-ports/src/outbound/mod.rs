@@ -7,9 +7,11 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod app_event_repository_port;
+mod broadcast_port;
 mod comfyui_port;
 mod directorial_context_port;
 mod event_bus_port;
+mod game_events;
 mod generation_read_state_port;
 mod llm_port;
 mod queue_notification_port;
@@ -76,6 +78,11 @@ pub use world_exporter_port::{
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
 
+pub use broadcast_port::BroadcastPort;
+pub use game_events::*;
+
 // Re-export mocks for test builds
+#[cfg(any(test, feature = "testing"))]
+pub use broadcast_port::MockBroadcastPort;
 #[cfg(any(test, feature = "testing"))]
 pub use repository_port::MockChallengeRepositoryPort;

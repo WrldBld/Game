@@ -9,6 +9,7 @@
 
 mod asset_routes;
 mod export_routes;
+pub mod middleware;
 mod prompt_template_routes;
 mod queue_routes;
 mod rule_system_routes;

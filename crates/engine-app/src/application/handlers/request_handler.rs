@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use chrono::Timelike;
 use uuid::Uuid;
 
-use wrldbldr_engine_ports::inbound::{BroadcastSink, RequestContext, RequestHandler};
+use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, GenerationReadKind, GenerationReadStatePort,
     ObservationRepositoryPort, RegionRepositoryPort,
@@ -77,8 +77,8 @@ pub struct AppRequestHandler {
     // AI suggestion enqueue port (for async LLM suggestions)
     suggestion_enqueue: Option<Arc<dyn SuggestionEnqueuePort>>,
 
-    // Broadcast sink for entity change notifications
-    broadcast_sink: Option<Arc<dyn BroadcastSink>>,
+    // Reserved for future BroadcastPort integration
+    // broadcast_port: Option<Arc<dyn BroadcastPort>>,
 
     // Generation queue services (for WebSocket hydration)
     generation_queue_projection: Option<Arc<GenerationQueueProjectionService>>,
@@ -132,7 +132,7 @@ impl AppRequestHandler {
             observation_repo,
             region_repo,
             suggestion_enqueue: None,
-            broadcast_sink: None,
+            // broadcast_port: None,
             generation_queue_projection: None,
             generation_read_state: None,
         }
@@ -144,11 +144,11 @@ impl AppRequestHandler {
         self
     }
 
-    /// Set the broadcast sink for entity change notifications
-    pub fn with_broadcast_sink(mut self, sink: Arc<dyn BroadcastSink>) -> Self {
-        self.broadcast_sink = Some(sink);
-        self
-    }
+    // Reserved for future BroadcastPort integration
+    // pub fn with_broadcast_port(mut self, port: Arc<dyn BroadcastPort>) -> Self {
+    //     self.broadcast_port = Some(port);
+    //     self
+    // }
 
     /// Set the generation queue projection service for WebSocket hydration
     pub fn with_generation_queue(
@@ -161,13 +161,12 @@ impl AppRequestHandler {
         self
     }
 
-    /// Broadcast an entity change to the world
-    #[allow(dead_code)]
-    async fn broadcast_change(&self, world_id: Uuid, change: EntityChangedData) {
-        if let Some(sink) = &self.broadcast_sink {
-            sink.broadcast_entity_change(world_id, change).await;
-        }
-    }
+    // Reserved for future BroadcastPort integration
+    // async fn broadcast_event(&self, world_id: WorldId, event: GameEvent) {
+    //     if let Some(port) = &self.broadcast_port {
+    //         port.broadcast(world_id, event).await;
+    //     }
+    // }
 
     // =========================================================================
     // ID Parsing Helpers

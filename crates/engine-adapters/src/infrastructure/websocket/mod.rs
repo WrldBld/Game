@@ -26,10 +26,15 @@
 //! responses. Most CRUD operations use the `Request`/`Response` pattern which is
 //! delegated to the `AppRequestHandler` in the engine-ports crate.
 
+mod broadcast_adapter;
+pub mod context;
 pub mod converters;
 pub mod dispatch;
 pub mod handlers;
 mod messages;
+
+pub use broadcast_adapter::WebSocketBroadcastAdapter;
+pub use context::*;
 
 use std::sync::Arc;
 

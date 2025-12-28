@@ -32,7 +32,6 @@
 //! ```
 
 use async_trait::async_trait;
-use uuid::Uuid;
 use wrldbldr_protocol::{RequestPayload, ResponseResult};
 
 // Re-export RequestContext from engine-dto for convenience
@@ -94,68 +93,14 @@ pub trait RequestHandler: Send + Sync {
 }
 
 // =============================================================================
-// Broadcast Sink Trait
+// NOTE: BroadcastSink has been removed
 // =============================================================================
-
-/// Sink for broadcasting entity changes to connected clients
-///
-/// When an entity is created, updated, or deleted, the handler can use this
-/// trait to broadcast the change to all clients connected to the same world.
-#[async_trait]
-pub trait BroadcastSink: Send + Sync {
-    /// Broadcast an entity change to all clients in a world
-    ///
-    /// # Arguments
-    ///
-    /// * `world_id` - The world to broadcast to
-    /// * `change` - The entity change data
-    async fn broadcast_entity_change(
-        &self,
-        world_id: Uuid,
-        change: wrldbldr_protocol::EntityChangedData,
-    );
-
-    /// Send a message to a specific connection
-    ///
-    /// # Arguments
-    ///
-    /// * `connection_id` - The connection to send to
-    /// * `message` - The message to send
-    async fn send_to_connection(
-        &self,
-        connection_id: Uuid,
-        message: wrldbldr_protocol::ServerMessage,
-    );
-
-    /// Send a message to all connections for a specific user
-    ///
-    /// Useful for DMs with multiple screens.
-    ///
-    /// # Arguments
-    ///
-    /// * `user_id` - The user to send to
-    /// * `world_id` - The world context
-    /// * `message` - The message to send
-    async fn send_to_user(
-        &self,
-        user_id: &str,
-        world_id: Uuid,
-        message: wrldbldr_protocol::ServerMessage,
-    );
-
-    /// Broadcast a message to all DMs in a world
-    ///
-    /// # Arguments
-    ///
-    /// * `world_id` - The world to broadcast to
-    /// * `message` - The message to send
-    async fn broadcast_to_dms(&self, world_id: Uuid, message: wrldbldr_protocol::ServerMessage);
-
-    /// Broadcast a message to all players in a world
-    ///
-    /// # Arguments
-    ///
-    /// * `world_id` - The world to broadcast to
-    /// * `message` - The message to send
-    async fn broadcast_to_players(&self, world_id: Uuid, message: wrldbldr_protocol::ServerMessage);
-}
+//
+// The legacy BroadcastSink trait has been replaced by BroadcastPort in
+// engine-ports/src/outbound/broadcast_port.rs
+//
+// Key differences:
+// - BroadcastSink took ServerMessage (protocol type) - violated hexagonal architecture
+// - BroadcastPort takes GameEvent (domain type) - proper abstraction
+// - BroadcastSink was in inbound ports (wrong semantically)
+// - BroadcastPort is in outbound ports (correct - app pushes to infrastructure)

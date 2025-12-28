@@ -9,6 +9,7 @@ mod event_infra;
 mod game_services;
 mod player_services;
 mod queue_services;
+mod use_cases;
 
 pub use asset_services::AssetServices;
 pub use core_services::CoreServices;
@@ -16,6 +17,7 @@ pub use event_infra::EventInfrastructure;
 pub use game_services::GameServices;
 pub use player_services::PlayerServices;
 pub use queue_services::QueueServices;
+pub use use_cases::UseCases;
 
 use std::sync::Arc;
 
@@ -117,6 +119,16 @@ pub struct AppState {
     /// Stores directorial context (scene notes, tone, NPC motivations)
     /// so it survives server restarts.
     pub directorial_context_repo: Arc<dyn wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort>,
+
+    /// Use cases for WebSocket handlers
+    ///
+    /// Container for all use cases that coordinate domain services to fulfill
+    /// specific user intents. Use cases are called by WebSocket handlers and
+    /// return domain result types.
+    ///
+    /// Note: This is a partial implementation (Phase 4.1). Full wiring of all
+    /// use cases requires creating adapters for port traits defined in each use case.
+    pub use_cases: UseCases,
 }
 
 impl AppState {
@@ -635,6 +647,10 @@ impl AppState {
          .with_generation_queue(generation_queue_projection_for_handler, generation_read_state_for_handler));
         tracing::info!("Initialized request handler for WebSocket-first architecture");
 
+        // Create use cases container with broadcast adapter
+        let use_cases = UseCases::new(world_connection_manager.clone());
+        tracing::info!("Initialized use cases container with broadcast adapter");
+
         Ok((Self {
             config: config.clone(),
             repository,
@@ -654,6 +670,7 @@ impl AppState {
             world_state,
             request_handler,
             directorial_context_repo,
+            use_cases,
         }, generation_event_rx))
     }
 }
