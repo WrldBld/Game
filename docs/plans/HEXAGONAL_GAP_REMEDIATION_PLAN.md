@@ -1,663 +1,434 @@
 # Hexagonal Architecture Gap Remediation Plan
 
-**Status**: Ready for Implementation  
+**Status**: FINAL - Ready for Implementation  
 **Created**: 2025-12-28  
-**Updated**: 2025-12-28 (Post-validation corrections)  
-**Priority**: High - Architecture violations identified  
-**Estimated Total Effort**: 6-10 hours (excluding deferred items)
+**Updated**: 2025-12-28 (Final validation with deep codebase analysis)  
+**Priority**: High - Clean architecture finalization  
+**Estimated Total Effort**: 13-16 hours
 
 ## Executive Summary
 
-Validation of the Hexagonal Enforcement Master Plan revealed gaps in implementation. This unified plan addresses all remaining architecture violations and incomplete work, incorporating detailed analysis from multiple validation passes.
+This plan finalizes the hexagonal architecture refactor for WrldBldr. After extensive validation by multiple agents, we have identified the true remaining work and eliminated phantom issues.
 
-**Important Update**: Deep validation revealed that **Phase G1 describes issues that don't exist**. The `DirectorialContextData` and use-case-specific `DirectorialContextRepositoryPort` in `scene.rs` are **proper hexagonal architecture patterns** (use-case-specific DTOs and ports), not violations. The adapters are **required bridge adapters**. G1 has been marked as INVALID.
+### Key Validation Findings
 
-### Gaps Identified
+1. **G1 is INVALID** - Use-case-specific DTOs and ports are valid hexagonal patterns
+2. **G2 should be DELETED** - `app_event_repository_port.rs` is a true violation (protocol in ports layer)
+3. **G3 does NOT require GameConnectionPort refactor** - The generic `request(RequestPayload)` pattern is correct; we only need app-layer DTOs
+4. **Engine-app has port consolidation issues** - 6 ports need attention (duplicates, infrastructure ports in wrong place)
+5. **arch-check passes** - Current exemptions are documented and tracked
 
-| ID | Severity | Issue | Location | Status |
-|----|----------|-------|----------|--------|
-| G1 | ~~Critical~~ | ~~Duplicate DirectorialContextRepositoryPort~~ | `scene.rs`, adapters | **INVALID** - Not a violation |
-| G2 | **High** | `app_event_repository_port.rs` imports protocol `AppEvent` | `engine-ports` | Active |
-| G3 | **High** | Player-app services import protocol `Create*Data` types | 25+ imports across 13 services | Active |
-| G4 | **Low** | 2 handlers not using `IntoServerError` | `movement.rs`, `narrative.rs` | Active |
-| G5 | **Low** | Player-app dto/mod.rs re-exports protocol types | `dto/mod.rs` | Active |
-| G6 | **Medium** | Phase E5 handler split incomplete (Deferred) | `request_handler.rs` (3,058 lines) | Deferred |
-| G7 | **Medium** | Protocol re-exports domain types | `protocol/types.rs`, `protocol/rule_system.rs` | **NEW** |
-| G8 | **Low** | Player-app DTO re-exports domain/ports | `world_snapshot.rs`, `session_types.rs` | **NEW** |
+### Architecture Status
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        CURRENT ARCHITECTURE                          │
+├─────────────────────────────────────────────────────────────────────┤
+│  Domain Layer              ✅ CLEAN (0 violations)                   │
+│  Protocol Layer            ⚠️  8 re-exports from domain (approved)   │
+│  Engine-Ports Layer        ⚠️  1 violation (app_event_repository)    │
+│  Engine-App Layer          ⚠️  6 ports need consolidation            │
+│  Engine-Adapters Layer     ✅ CLEAN                                  │
+│  Player-Ports Layer        ⚠️  2 protocol imports (tracked Phase P2) │
+│  Player-App Layer          ❌ 14 services import protocol types      │
+│  Player-Adapters Layer     ✅ CLEAN                                  │
+│  Player-UI Layer           ✅ CLEAN                                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Gaps Summary
+
+| ID | Severity | Issue | Status |
+|----|----------|-------|--------|
+| G1 | ~~Critical~~ | ~~DirectorialContext duplication~~ | **INVALID** |
+| G2 | **High** | `app_event_repository_port.rs` imports protocol | Active |
+| G3 | **High** | Player-app services import protocol Create/Update types | Active |
+| G4 | **Low** | 2 handlers not using `IntoServerError` | Active |
+| G5 | **Low** | Player-app dto re-exports protocol types | Active |
+| G6 | **Medium** | Handler split incomplete | Deferred |
+| G7 | **Low** | Protocol re-exports domain types | Document as Exception |
+| G8 | **Low** | Player-app DTO re-exports | Document as Exception |
+| G9 | **Medium** | Engine-app port consolidation | **NEW** |
 
 ---
 
-## Phase G1: DirectorialContext Duplication - INVALID
+## Phase 0: Baseline Verification
 
-**Status**: **INVALID - No changes needed**  
-**Resolution**: Deep validation confirmed this is NOT a violation
+**Estimated Time**: 30 minutes  
+**Purpose**: Document current state before changes
 
-### Why G1 is Invalid
+### Steps
 
-Initial analysis incorrectly identified the `DirectorialContextData` and use-case-specific `DirectorialContextRepositoryPort` in `scene.rs` as "duplicate" violations. However, deeper validation revealed:
+```bash
+# 1. Verify build
+cargo check --workspace
 
-1. **`DirectorialContextData` is a proper use-case-specific DTO** - It serves a different purpose than `DirectorialNotes`:
-   - `DirectorialNotes` (domain): Rich domain model with enums (`ToneGuidance`, `PacingGuidance`)
-   - `DirectorialContextData` (app): Simplified DTO for scene use-case operations
+# 2. Run architecture check
+cargo xtask arch-check
 
-2. **The use-case-specific `DirectorialContextRepositoryPort` is a valid pattern** - Having a use-case-specific port in the application layer that gets adapted to the infrastructure port is a **correct hexagonal architecture pattern**, not a violation.
-
-3. **The bridge adapters are required** - `DirectorialContextAdapter` and `ConnectionDirectorialContextAdapter` perform the legitimate function of converting between application-layer DTOs and infrastructure-layer domain types.
-
-4. **`DirectorialNotes` already has `Serialize`/`Deserialize`** - Confirmed present in domain.
-
-### Architecture Pattern Explanation
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Use-Case Layer (engine-app)                                    │
-│  - DirectorialContextData (use-case DTO)                        │
-│  - DirectorialContextRepositoryPort (use-case contract)         │
-│       ↓ (adapted by)                                            │
-├─────────────────────────────────────────────────────────────────┤
-│  Adapter Layer (engine-adapters)                                │
-│  - DirectorialContextAdapter (converts DTO ↔ domain)            │
-│       ↓ (delegates to)                                          │
-├─────────────────────────────────────────────────────────────────┤
-│  Ports Layer (engine-ports)                                     │
-│  - DirectorialContextRepositoryPort (infrastructure contract)   │
-│       ↓ (implemented by)                                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Infrastructure (engine-adapters)                               │
-│  - SqliteDirectorialContextRepository                           │
-└─────────────────────────────────────────────────────────────────┘
+# 3. Document current violations
+grep -r "AppEventRepositoryPort" crates/ | wc -l
+grep -l "use wrldbldr_protocol::" crates/player-app/src/application/services/*.rs | wc -l
 ```
 
-This is a **valid hexagonal layering pattern** where each layer has appropriate types.
+### Expected Results
 
-### No Action Required
-
-G1 has been marked **INVALID**. No code changes are needed.
+- arch-check: PASS (with documented exemptions)
+- AppEventRepositoryPort usages: ~6 files
+- Player-app services with protocol imports: 14 files
 
 ---
 
-## Phase G2: Fix app_event_repository_port Protocol Import (High)
+## Phase 1: Foundation & Documentation (2-3 hours)
 
-**Estimated Time**: 1-2 hours  
-**Priority**: High - Ports layer should not import protocol
+### 1.1 Update CLAUDE.md with Architecture Rules
 
-### Problem
+Add the following section to `CLAUDE.md`:
 
-`crates/engine-ports/src/outbound/app_event_repository_port.rs` imports `wrldbldr_protocol::AppEvent` directly. Ports should only use domain types.
+```markdown
+## Hexagonal Architecture Rules
 
-### Solution Options
+### Layer Structure
 
-**Option A (Recommended): Deprecate and Remove**
-
-Since `DomainEventRepositoryPort` already exists and uses the correct domain type:
-1. Migrate all usages to `DomainEventRepositoryPort`
-2. Delete `app_event_repository_port.rs`
-
-**Option B: Keep as Adapter-Layer Storage Format**
-
-If `AppEvent` is the persistence format:
-1. Move `AppEventRepositoryPort` to adapters layer (it's a storage concern)
-2. Have adapters convert `DomainEvent` → `AppEvent` before storage
-
-### Implementation (Option A)
-
-#### Step 1: Find usages
-
-```bash
-grep -r "AppEventRepositoryPort" crates/
+```
+RUNNERS: Composition root, wires adapters to ports
+PRESENTATION: UI components, views (player-ui only)
+ADAPTERS: Implements ports, handles I/O, external systems
+         ONLY layer that should construct protocol types for wire conversion
+APPLICATION: Services, use cases, app-layer DTOs
+            May define use-case-specific port traits (dependency injection)
+PORTS: Infrastructure port traits (repos, external services)
+PROTOCOL: Wire-format DTOs, shared Engine↔Player types
+          May re-export stable domain types for serialization
+DOMAIN: Entities, value objects, domain events
+        Zero external dependencies
 ```
 
-#### Step 2: Update usages to DomainEventRepositoryPort
+### Port Ownership Rules
 
-Update any files importing `AppEventRepositoryPort` to use `DomainEventRepositoryPort` instead.
+**Infrastructure ports** (`*-ports` crates):
+- Repository traits (CharacterRepositoryPort, LocationRepositoryPort)
+- External service traits (LlmPort, ComfyUIPort, BroadcastPort)
+- Connection/transport traits (GameConnectionPort)
 
-#### Step 3: Delete app_event_repository_port.rs
+**Use-case ports** (`*-app` crates, allowed):
+- Service facade traits injected into use cases
+- Use-case-specific abstractions for dependency injection
+- Example: `SceneServicePort`, `ChallengeResolutionPort`
 
-```bash
-rm crates/engine-ports/src/outbound/app_event_repository_port.rs
+### Protocol Import Rules
+
+| Layer | Protocol Imports | Rationale |
+|-------|------------------|-----------|
+| domain | FORBIDDEN | Pure business logic |
+| *-ports | FORBIDDEN (except API boundaries) | Infrastructure contracts |
+| *-app/use_cases | FORBIDDEN | Business logic orchestration |
+| *-app/services | Use app-layer DTOs, convert before calling port | Service layer isolation |
+| *-app/handlers | ALLOWED | Boundary layer, converts protocol↔domain |
+| *-adapters | ALLOWED | Implements wire-format conversion |
+| player-ui | ALLOWED | Presentation boundary |
+
+### GameConnectionPort Pattern
+
+The `GameConnectionPort::request(payload: RequestPayload)` method is the correct design:
+- Generic method handles all 118+ RequestPayload variants
+- Individual methods exist only for operations needing special handling
+- Services create app-layer DTOs, convert to RequestPayload before calling `request()`
+- This is NOT a violation to fix
 ```
 
-#### Step 4: Update mod.rs exports
+### 1.2 Delete app_event_repository_port.rs (G2)
 
-Remove the export from `crates/engine-ports/src/outbound/mod.rs`.
+**Problem**: Ports layer imports protocol type directly.
 
-### Files to Modify
+**Files to modify**:
 
 | File | Action |
 |------|--------|
-| `crates/engine-ports/src/outbound/app_event_repository_port.rs` | Delete |
+| `crates/engine-ports/src/outbound/app_event_repository_port.rs` | DELETE |
 | `crates/engine-ports/src/outbound/mod.rs` | Remove export |
-| Any files importing `AppEventRepositoryPort` | Update to use `DomainEventRepositoryPort` |
+| `crates/engine-adapters/src/infrastructure/repositories/sqlite_app_event_repository.rs` | Convert to internal adapter module |
+| `crates/engine-adapters/src/infrastructure/event_bus/sqlite_event_bus.rs` | Use DomainEventRepositoryPort, convert internally |
+| `crates/engine-adapters/src/infrastructure/websocket_event_subscriber.rs` | Use DomainEventRepositoryPort, convert internally |
+| `crates/engine-adapters/src/infrastructure/state/event_infra.rs` | Remove app_event_repository field |
+| `crates/engine-adapters/src/infrastructure/state/mod.rs` | Update wiring |
+| `crates/xtask/src/main.rs` | Remove exemption for app_event_repository_port.rs |
 
-### Verification
+**Implementation approach**:
+1. `SqliteEventBus` converts `DomainEvent` → `AppEvent` internally before storage
+2. `WebSocketEventSubscriber` receives `DomainEvent`, converts to `ServerMessage` internally
+3. `SqliteAppEventRepository` becomes an internal adapter module (not a port implementation)
 
-```bash
-# Should return NO results after completion
-grep -r "AppEventRepositoryPort" crates/
-grep -r "app_event_repository_port" crates/
+### 1.3 Document Protocol Re-exports (G7)
+
+**Files to modify**:
+
+| File | Action |
+|------|--------|
+| `crates/protocol/src/types.rs` | Add ARCHITECTURE EXCEPTION comment |
+| `crates/protocol/src/rule_system.rs` | Add ARCHITECTURE EXCEPTION comment |
+
+**Comment to add**:
+```rust
+// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
+// Re-exports stable domain types for wire serialization. Domain remains
+// the canonical source. These types have serde derives and are used
+// unchanged in protocol messages.
+// See: docs/architecture/hexagonal-architecture.md
 ```
 
 ---
 
-## Phase G3: Create Player-App Request DTOs (High)
+## Phase 2: Player-App DTO Cleanup (6-8 hours)
 
-**Estimated Time**: 4-6 hours  
-**Priority**: High - Application layer should not import protocol types
+### Important: NOT a GameConnectionPort Refactor
 
-### Problem
+The validation confirmed:
+- `GameConnectionPort::request(RequestPayload)` is the **correct** pattern
+- 111+ RequestPayload variants would require 150+ individual methods (anti-pattern)
+- We only need to isolate **service-level** protocol type construction
 
-Player-app services directly import protocol `Create*Data` and `Update*Data` types:
-- `CreateWorldData`, `CreateChallengeData`, `CreateSkillData`, etc.
-- `UpdateChallengeData`, `UpdateSkillData`, `UpdateEventChainData`, etc.
+### Special Case: actantial_service.rs
 
-This violates hexagonal architecture - application layer should use its own DTOs.
+This service has **deeper protocol coupling** than others and requires extra work:
+- Returns `NpcActantialContextData` directly (complex nested type)
+- Embeds 5 protocol enums in its DTOs (`WantVisibilityData`, `WantTargetTypeData`, `ActorTypeData`, `ActantialRoleData`)
+- Requires creating app-layer versions of nested types
 
-### Affected Services
+**Additional effort**: +1-2 hours on top of standard service updates
 
-| Service | Protocol Types Imported |
+### 2.1 Create player-app/dto/requests.rs
+
+**File**: `crates/player-app/src/application/dto/requests.rs`
+
+Create app-layer DTOs for the 11 protocol types currently imported:
+
+| App DTO | Replaces Protocol Type |
 |---------|------------------------|
-| `world_service.rs` | `CreateWorldData` |
-| `challenge_service.rs` | `CreateChallengeData`, `UpdateChallengeData` |
-| `skill_service.rs` | `CreateSkillData`, `UpdateSkillData` |
-| `character_service.rs` | `CreateCharacterData`, `UpdateCharacterData` |
-| `location_service.rs` | `CreateLocationData`, `UpdateLocationData` |
-| `event_chain_service.rs` | `CreateEventChainData`, `UpdateEventChainData` |
-| `narrative_event_service.rs` | `CreateNarrativeEventData` |
-| `actantial_service.rs` | `CreateGoalData`, `CreateWantData`, `UpdateGoalData`, `UpdateWantData` |
-| `session_service.rs` | `ServerMessage` |
+| `CreateWorldRequest` | `CreateWorldData` |
+| `CreateChallengeRequest` | `CreateChallengeData` |
+| `UpdateChallengeRequest` | `UpdateChallengeData` |
+| `CreateSkillRequest` | `CreateSkillData` |
+| `UpdateSkillRequest` | `UpdateSkillData` |
+| `CreateCharacterRequest` | `CreateCharacterData` |
+| `UpdateCharacterRequest` | `UpdateCharacterData` |
+| `ChangeArchetypeRequest` | `ChangeArchetypeData` |
+| `CreateLocationRequest` | `CreateLocationData` |
+| `UpdateLocationRequest` | `UpdateLocationData` |
+| `CreateLocationConnectionRequest` | `CreateLocationConnectionData` |
+| `CreateEventChainRequest` | `CreateEventChainData` |
+| `UpdateEventChainRequest` | `UpdateEventChainData` |
+| `CreateNarrativeEventRequest` | `CreateNarrativeEventData` |
+| `CreateGoalRequest` | `CreateGoalData` |
+| `UpdateGoalRequest` | `UpdateGoalData` |
+| `CreateWantRequest` | `CreateWantData` |
+| `UpdateWantRequest` | `UpdateWantData` |
+| `CreatePlayerCharacterRequest` | `CreatePlayerCharacterData` |
+| `UpdatePlayerCharacterRequest` | `UpdatePlayerCharacterData` |
+| `CreateDmMarkerRequest` | `CreateDmMarkerData` |
 
-### Solution
+### 2.2 Add From Conversions
 
-Create player-app owned request DTOs and add converters in player-adapters.
-
-### Implementation
-
-#### Step 1: Create player-app request DTOs
-
-**File:** `crates/player-app/src/application/dto/requests.rs`
-
-```rust
-//! Request DTOs for player-app services
-//!
-//! These mirror protocol Create*/Update* types but are owned by the
-//! application layer. Conversion to protocol types happens in adapters.
-
-use serde::{Deserialize, Serialize};
-
-// === World ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateWorldRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub genre: Option<String>,
-    pub setting: Option<String>,
-}
-
-// === Challenge ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateChallengeRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub skill_id: Option<String>,
-    pub difficulty: Option<String>,
-    pub success_description: Option<String>,
-    pub failure_description: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateChallengeRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub skill_id: Option<String>,
-    pub difficulty: Option<String>,
-}
-
-// === Skill ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSkillRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub base_stat: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateSkillRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub base_stat: Option<String>,
-}
-
-// === Character ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateCharacterRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub archetype_id: Option<String>,
-    pub location_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateCharacterRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub archetype_id: Option<String>,
-}
-
-// === Location ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateLocationRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub region_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateLocationRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-}
-
-// === EventChain ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateEventChainRequest {
-    pub name: String,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateEventChainRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-}
-
-// === NarrativeEvent ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateNarrativeEventRequest {
-    pub name: String,
-    pub description: Option<String>,
-    pub event_chain_id: Option<String>,
-}
-
-// === Actantial (Goal/Want) ===
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateGoalRequest {
-    pub character_id: String,
-    pub description: String,
-    pub priority: Option<i32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateGoalRequest {
-    pub description: Option<String>,
-    pub priority: Option<i32>,
-    pub completed: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateWantRequest {
-    pub character_id: String,
-    pub description: String,
-    pub target_type: Option<String>,
-    pub target_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateWantRequest {
-    pub description: Option<String>,
-    pub satisfied: Option<bool>,
-}
-```
-
-#### Step 2: Create converters in player-adapters
-
-**File:** `crates/player-adapters/src/infrastructure/request_converters.rs`
+**Location**: Can be in `player-app/dto/requests.rs` (Rust orphan rules allow `impl From<LocalType> for ForeignType`)
 
 ```rust
-//! Converters from player-app request DTOs to protocol types
-//!
-//! These conversions happen at the adapter boundary when making
-//! requests to the engine via GameConnectionPort.
-
-use wrldbldr_player_app::application::dto::requests::*;
-use wrldbldr_protocol::*;
-
-// === World ===
-
-impl From<CreateWorldRequest> for CreateWorldData {
+impl From<CreateWorldRequest> for wrldbldr_protocol::CreateWorldData {
     fn from(req: CreateWorldRequest) -> Self {
         Self {
             name: req.name,
             description: req.description,
-            genre: req.genre,
-            setting: req.setting,
+            // ... fields
         }
     }
 }
-
-// === Challenge ===
-
-impl From<CreateChallengeRequest> for CreateChallengeData {
-    fn from(req: CreateChallengeRequest) -> Self {
-        Self {
-            name: req.name,
-            description: req.description,
-            skill_id: req.skill_id,
-            difficulty: req.difficulty,
-            success_description: req.success_description,
-            failure_description: req.failure_description,
-        }
-    }
-}
-
-impl From<UpdateChallengeRequest> for UpdateChallengeData {
-    fn from(req: UpdateChallengeRequest) -> Self {
-        Self {
-            name: req.name,
-            description: req.description,
-            skill_id: req.skill_id,
-            difficulty: req.difficulty,
-        }
-    }
-}
-
-// ... Similar for all other types
 ```
 
-#### Step 3: Update player-app services
+### 2.3 Update Services
 
-Replace protocol imports with app-layer imports in each service file.
+Update these 11 service files to use app-layer DTOs:
 
-#### Step 4: Export from dto/mod.rs
+| Service File | Protocol Imports to Replace |
+|--------------|----------------------------|
+| `world_service.rs` | `CreateWorldData` |
+| `challenge_service.rs` | `CreateChallengeData`, `UpdateChallengeData` |
+| `skill_service.rs` | `CreateSkillData`, `UpdateSkillData` |
+| `character_service.rs` | `CreateCharacterData`, `UpdateCharacterData`, `ChangeArchetypeData` |
+| `location_service.rs` | `CreateLocationData`, `UpdateLocationData`, `CreateLocationConnectionData` |
+| `event_chain_service.rs` | `CreateEventChainData`, `UpdateEventChainData` |
+| `narrative_event_service.rs` | `CreateNarrativeEventData` |
+| `actantial_service.rs` | `CreateGoalData`, `UpdateGoalData`, `CreateWantData`, `UpdateWantData` + enum types (see below) |
+| `player_character_service.rs` | `CreatePlayerCharacterData`, `UpdatePlayerCharacterData` |
+| `story_event_service.rs` | `CreateDmMarkerData` |
 
-Add `pub mod requests;` to `crates/player-app/src/application/dto/mod.rs`.
+**Pattern for services**:
+```rust
+// Before:
+use wrldbldr_protocol::CreateChallengeData;
+let data = CreateChallengeData { ... };
+let payload = RequestPayload::CreateChallenge { world_id, data };
 
-### Files to Create
+// After:
+use crate::application::dto::requests::CreateChallengeRequest;
+let request = CreateChallengeRequest { ... };
+let payload = RequestPayload::CreateChallenge { world_id, data: request.into() };
+```
 
-| File | Content |
-|------|---------|
-| `crates/player-app/src/application/dto/requests.rs` | Request DTOs |
-| `crates/player-adapters/src/infrastructure/request_converters.rs` | DTO → Protocol converters |
+### 2.4 Special Handling: actantial_service.rs
 
-### Files to Modify
+This service requires additional app-layer types due to deep protocol coupling:
 
-| File | Action |
-|------|--------|
-| `crates/player-app/src/application/dto/mod.rs` | Add `pub mod requests` |
-| `crates/player-app/src/application/services/world_service.rs` | Update imports |
-| `crates/player-app/src/application/services/challenge_service.rs` | Update imports |
-| `crates/player-app/src/application/services/skill_service.rs` | Update imports |
-| `crates/player-app/src/application/services/character_service.rs` | Update imports |
-| `crates/player-app/src/application/services/location_service.rs` | Update imports |
-| `crates/player-app/src/application/services/event_chain_service.rs` | Update imports |
-| `crates/player-app/src/application/services/narrative_event_service.rs` | Update imports |
-| `crates/player-app/src/application/services/actantial_service.rs` | Update imports |
+**Enums to create** (in `player-app/dto/actantial.rs`):
+| App Enum | Protocol Enum |
+|----------|---------------|
+| `AppWantVisibility` | `WantVisibilityData` |
+| `AppWantTargetType` | `WantTargetTypeData` |
+| `AppActorType` | `ActorTypeData` |
+| `AppActantialRole` | `ActantialRoleData` |
 
-### Verification
+**Structs to create**:
+| App Struct | Protocol Struct |
+|------------|-----------------|
+| `AppWantTarget` | `WantTargetData` |
+| `AppNpcActantialContext` | `NpcActantialContextData` |
+| `AppWantData` | `WantData` |
+| `AppActantialActor` | `ActantialActorData` |
 
-```bash
-# Should return NO results (excluding documented exemptions for RequestPayload)
-grep -r "use wrldbldr_protocol::Create" crates/player-app/src/application/services/
-grep -r "use wrldbldr_protocol::Update" crates/player-app/src/application/services/
+**Method to update**:
+- `get_actantial_context()` - Change return type from `NpcActantialContextData` to `AppNpcActantialContext`
+
+### 2.5 Update xtask Exemptions
+
+After cleaning services, remove them from the exempt list in `crates/xtask/src/main.rs`:
+
+```rust
+// Remove from exempt_files:
+// "skill_service.rs", "challenge_service.rs", "character_service.rs",
+// "location_service.rs", "event_chain_service.rs", "narrative_event_service.rs",
+// "actantial_service.rs", "world_service.rs", "story_event_service.rs",
+// "player_character_service.rs"
 ```
 
 ---
 
-## Phase G4: Migrate Remaining Handlers to IntoServerError (Low)
+## Phase 3: Engine Port Consolidation (3-4 hours)
 
-**Estimated Time**: 30 minutes  
-**Priority**: Low - Consistency improvement, not architecture violation
+### 3.1 Fix Internal Duplicates
 
-### Problem
+**Issue**: `WorldStatePort` is defined twice within engine-app:
+- `connection.rs:211`
+- `scene.rs:227`
 
-Two handlers use different error handling patterns:
-- `movement.rs` - uses local `movement_error_to_message()` function
-- `narrative.rs` - uses `error_msg()` helper
+**Action**: Consolidate into a single definition, likely in a shared module.
 
-### Solution
+### 3.2 Remove Cross-Crate Duplicates
 
-Migrate both to use `IntoServerError` trait for consistency.
+| Port in engine-app | Equivalent in engine-ports | Action |
+|--------------------|---------------------------|--------|
+| `ObservationRepositoryPort` (observation.rs:100) | `ObservationRepositoryPort` (repository_port.rs:1709) | Remove from engine-app, use engine-ports |
+| `DirectorialContextRepositoryPort` (scene.rs:250) | `DirectorialContextRepositoryPort` (directorial_context_port.rs:14) | Keep in engine-app (use-case specific signature) |
 
-### Implementation
+### 3.3 Move Infrastructure Ports to engine-ports
 
-#### Step 1: Update movement.rs
+| Port | Current Location | Recommendation |
+|------|-----------------|----------------|
+| `ConnectionManagerPort` | connection.rs:117 | MOVE to engine-ports |
+| `WorldStatePort` | connection.rs:211, scene.rs:227 | CONSOLIDATE then MOVE |
+| `StagingStatePort` | movement.rs:130 | MOVE to engine-ports |
+| `StagingStateExtPort` | staging.rs:134 | MOVE with StagingStatePort |
 
-**File:** `crates/engine-adapters/src/infrastructure/websocket/handlers/movement.rs`
+### 3.4 Notification Ports - Keep Separate (NOT Duplicates)
 
-```rust
-// ADD import:
-use crate::infrastructure::websocket::IntoServerError;
+These ports serve **different purposes** at different layers and should NOT be consolidated:
 
-// REMOVE function movement_error_to_message() (lines 182-195)
+| Port | Location | Purpose | Recommendation |
+|------|----------|---------|----------------|
+| `BroadcastPort` | engine-ports | Generic WebSocket broadcast | Keep - infrastructure |
+| `DmNotificationPort` | engine-app/player_action.rs | DM-specific action notifications | Keep - use-case specific |
+| `WorldMessagePort` | engine-app/observation.rs | World event broadcasts | Keep - use-case specific |
 
-// REPLACE calls:
-// FROM: movement_error_to_message(e)
-// TO: e.into_server_error()
-```
+These are proper hexagonal layering where use-cases define their notification needs and adapters implement them.
 
-#### Step 2: Update narrative.rs
+### 3.5 Document Use-Case Ports
 
-**File:** `crates/engine-adapters/src/infrastructure/websocket/handlers/narrative.rs`
+These ports are **valid** in engine-app (use-case dependency injection pattern):
 
-```rust
-// ADD import:
-use crate::infrastructure::websocket::IntoServerError;
+- `ChallengeResolutionPort`
+- `ChallengeOutcomeApprovalPort`
+- `DmApprovalQueuePort`
+- `WorldServicePort`
+- `PlayerCharacterServicePort`
+- `SceneServicePort`
+- `InteractionServicePort`
+- `DmActionQueuePort`
+- `StagingServicePort`
+- `DmNotificationPort` (use-case specific notification)
+- `WorldMessagePort` (use-case specific notification)
 
-// REPLACE:
-// FROM: error_msg("NARRATIVE_EVENT_ERROR", &e.to_string())
-// TO: e.into_server_error()
-```
-
-### Files to Modify
-
-| File | Action |
-|------|--------|
-| `crates/engine-adapters/src/infrastructure/websocket/handlers/movement.rs` | Migrate error handling |
-| `crates/engine-adapters/src/infrastructure/websocket/handlers/narrative.rs` | Migrate error handling |
-
----
-
-## Phase G5: Remove Protocol Re-exports from Player DTO (Low)
-
-**Estimated Time**: 1 hour  
-**Priority**: Low - API hygiene improvement
-
-### Problem
-
-`crates/player-app/src/application/dto/mod.rs` re-exports protocol actantial types:
-
-```rust
-pub use wrldbldr_protocol::{
-    WantVisibilityData, ActantialRoleData, WantTargetTypeData,
-    NpcActantialContextData, WantData, GoalData,
-    ActantialActorData, ActorTypeData, SocialRelationData,
-};
-```
-
-This leaks protocol types through player-app's public API.
-
-### Solution
-
-**Option A (Recommended): Private imports only**
-
-Remove the `pub use` and update files that need these types to import from protocol directly. This is acceptable for adapter-boundary code where protocol types are legitimately needed.
-
-**Option B: Create app-layer types**
-
-Create equivalents in player-app/dto and add converters. This is more work but provides better isolation.
-
-### Implementation (Option A)
-
-1. Remove `pub use wrldbldr_protocol::{...}` block from `dto/mod.rs`
-2. Update any files that were using these re-exports to import directly from protocol
+Add documentation explaining why they're in engine-app.
 
 ---
 
-## Phase G6: Complete Handler Split (Medium - DEFERRED)
+## Phase 4: Polish (1-2 hours)
 
-**Estimated Time**: 8-12 hours  
-**Priority**: Medium - Maintainability improvement, not architecture violation  
-**Status**: DEFERRED
+### 4.1 G4: IntoServerError Migration
 
-### Problem
+**Files**:
+- `crates/engine-adapters/src/infrastructure/websocket/handlers/movement.rs`
+- `crates/engine-adapters/src/infrastructure/websocket/handlers/narrative.rs`
 
-`request_handler.rs` is 3,058 lines with 134 request variants.
+**Action**: Replace local error conversion functions with `IntoServerError` trait.
 
-### Current State
+### 4.2 G5/G8: Re-export Cleanup
 
-This was Phase E5 of the original plan. Only `common.rs` (helper extraction) was completed (~20% of the work).
+**Option A (Recommended)**: Document as approved exceptions with comments.
 
-### Recommendation
+**Option B**: Remove re-exports and update consumers to import directly.
 
-**Defer this phase** - it's a maintainability improvement, not an architecture violation. The current code works and passes arch-check.
+### 4.3 Enable Full arch-check Enforcement
 
-If implemented later, follow the original Phase E5 plan:
-1. Create 8 domain-specific handlers
-2. Create RequestRouter for dispatch
-3. Split the monolithic handler
-
----
-
-## Phase G7: Protocol Re-exports Domain Types (Medium - NEW)
-
-**Estimated Time**: 1-2 hours  
-**Priority**: Medium - Cross-layer type leakage  
-**Status**: Active (newly discovered)
-
-### Problem
-
-The `protocol` crate re-exports types from `domain`, violating the architecture rule that each layer should own its types:
-
-**File:** `crates/protocol/src/types.rs:8-9`
-```rust
-pub use wrldbldr_domain::value_objects::npc_context::CharacterMood;
-pub use wrldbldr_domain::value_objects::npc_context::RelationshipModifier;
-```
-
-**File:** `crates/protocol/src/rule_system.rs:7-10`
-```rust
-pub use wrldbldr_domain::value_objects::archetype::ArchetypeData;
-pub use wrldbldr_domain::value_objects::archetype::ArchetypeRelation;
-pub use wrldbldr_domain::value_objects::archetype::RelationType;
-pub use wrldbldr_domain::entities::skill::SkillData;
-```
-
-### Analysis
-
-This is a gray area:
-- **Argument for keeping**: Protocol is the wire format, domain types are stable
-- **Argument for removing**: Violates strict hexagonal layering; consumers should import from domain directly
-
-### Solution Options
-
-**Option A (Recommended): Document as Approved Exception**
-
-These are stable domain types used for serialization. Adding re-exports to protocol simplifies consumer imports. Document this as an approved architectural exception rather than fixing it.
-
-**Option B: Remove Re-exports**
-
-Remove the `pub use` statements and have consumers import from `wrldbldr_domain` directly. This is more work and may break downstream code.
-
-### Implementation (Option A)
-
-Add documentation comment to `protocol/src/types.rs` and `protocol/src/rule_system.rs`:
-
-```rust
-// Re-exports from domain for convenience. These are stable types used
-// in protocol serialization. Approved exception to strict layering rules.
-```
-
-### Files to Modify
-
-| File | Action |
-|------|--------|
-| `crates/protocol/src/types.rs` | Add documentation comment |
-| `crates/protocol/src/rule_system.rs` | Add documentation comment |
-
----
-
-## Phase G8: Player-App DTO Re-exports (Low - NEW)
-
-**Estimated Time**: 30 minutes  
-**Priority**: Low - Minor type leakage  
-**Status**: Active (newly discovered)
-
-### Problem
-
-Player-app DTO files re-export types from domain and ports:
-
-**File:** `crates/player-app/src/application/dto/world_snapshot.rs`
-- Re-exports domain types
-
-**File:** `crates/player-app/src/application/dto/session_types.rs`  
-- Re-exports from `wrldbldr_player_ports::session_types`
-
-### Analysis
-
-Similar to G7, this is convenience re-exporting. The severity is lower because:
-- Player-app is the boundary layer where protocol/domain types meet
-- These re-exports simplify the public API
-
-### Solution Options
-
-**Option A (Recommended): Document as Approved Exception**
-
-These serve a legitimate API simplification purpose. Document rather than fix.
-
-**Option B: Remove Re-exports**
-
-Have consumers import directly from source crates.
-
-### Implementation (Option A)
-
-Add documentation comment explaining the re-exports.
+After all phases complete:
+1. Remove remaining xtask exemptions
+2. Uncomment the `bail!` in `check_player_ports_protocol_isolation()` (line 776)
+3. Verify all checks pass
 
 ---
 
 ## Implementation Order
 
-### Phase 1: High Priority (Do First)
-1. **G2**: Fix app_event_repository_port (1-2 hours)
-2. **G3**: Create player-app request DTOs (4-6 hours)
+| Phase | Description | Effort | Dependencies |
+|-------|-------------|--------|--------------|
+| 0 | Baseline verification | 30 min | None |
+| 1 | Foundation + G2 + G7 | 2-3 hrs | None |
+| 2 | Player-app DTOs (G3) | 6-8 hrs | Phase 1 |
+| 2a | Standard services (10 files) | 4-5 hrs | - |
+| 2b | actantial_service.rs (special) | 2-3 hrs | - |
+| 3 | Engine port consolidation (G9) | 3-4 hrs | Phase 1 |
+| 4 | Polish (G4, G5, G8) | 1-2 hrs | Phases 2, 3 |
 
-### Phase 2: Low Priority (Do When Time Permits)
-3. **G4**: Migrate handlers to IntoServerError (30 minutes)
-4. **G5**: Remove protocol re-exports from player DTO (1 hour)
-5. **G7**: Document protocol re-exports as approved exception (30 minutes)
-6. **G8**: Document player-app DTO re-exports (15 minutes)
+**Total**: 13-16 hours
 
-### Deferred
-7. **G6**: Handler split (8-12 hours) - Optional maintainability improvement
-
-### Invalid (No Action)
-- **G1**: DirectorialContext duplication - INVALID (not a violation)
+Phases 2 and 3 can be done in parallel after Phase 1.
 
 ---
 
-## Verification
-
-After completing each phase:
+## Verification Commands
 
 ```bash
-# Build check
-cargo check --workspace
-
-# Architecture check
-cargo run -p xtask -- arch-check
-
-# Phase G2 verification
+# After Phase 1
 grep -r "AppEventRepositoryPort" crates/  # Should be 0
+cargo xtask arch-check  # Should pass
 
-# Phase G3 verification
+# After Phase 2
 grep -r "use wrldbldr_protocol::Create" crates/player-app/src/application/services/  # Should be 0
 grep -r "use wrldbldr_protocol::Update" crates/player-app/src/application/services/  # Should be 0
+cargo check --workspace
+
+# After Phase 3
+grep -rn "trait WorldStatePort" crates/engine-app/  # Should be 1 or 0
+cargo check --workspace
+
+# Final
+cargo xtask arch-check  # Should pass with no exemptions needed
 ```
 
 ---
@@ -666,62 +437,157 @@ grep -r "use wrldbldr_protocol::Update" crates/player-app/src/application/servic
 
 | Metric | Before | After |
 |--------|--------|-------|
-| AppEventRepositoryPort usages | >0 | 0 |
-| Protocol imports in player-app services | 25+ | 0 (excluding documented exemptions) |
-| Handlers using IntoServerError | 7/9 | 9/9 |
-| Protocol re-exports documented | No | Yes (G7) |
-| arch-check | Pass | Pass |
+| arch-check | Pass (with exemptions) | Pass (minimal exemptions) |
+| AppEventRepositoryPort usages | 6 files | 0 |
+| Protocol Create/Update in player-app services | 14 files | 0 |
+| Duplicate ports in engine-app | 2 | 0 |
+| Infrastructure ports in engine-app | 4 | 0 |
+| Documented architecture patterns | Incomplete | Complete |
 
 ---
 
 ## Appendix A: Files Affected Summary
 
 ### To Delete
-- `crates/engine-ports/src/outbound/app_event_repository_port.rs` (after G2)
+- `crates/engine-ports/src/outbound/app_event_repository_port.rs`
 
 ### To Create
-- `crates/player-app/src/application/dto/requests.rs` (G3)
-- `crates/player-adapters/src/infrastructure/request_converters.rs` (G3)
+- `crates/player-app/src/application/dto/requests.rs`
+- `crates/player-app/src/application/dto/actantial.rs` (app-layer enums/structs for actantial service)
 
-### To Modify (High - G2)
+### To Modify (Phase 1)
 - `crates/engine-ports/src/outbound/mod.rs`
-- Any files importing `AppEventRepositoryPort`
+- `crates/engine-adapters/src/infrastructure/event_bus/sqlite_event_bus.rs`
+- `crates/engine-adapters/src/infrastructure/websocket_event_subscriber.rs`
+- `crates/engine-adapters/src/infrastructure/state/event_infra.rs`
+- `crates/engine-adapters/src/infrastructure/state/mod.rs`
+- `crates/protocol/src/types.rs`
+- `crates/protocol/src/rule_system.rs`
+- `CLAUDE.md`
 
-### To Modify (High - G3)
+### To Modify (Phase 2)
 - `crates/player-app/src/application/dto/mod.rs`
-- 13 player-app service files
+- 11 player-app service files
 
-### To Modify (Low - G4)
+### To Modify (Phase 3)
+- `crates/engine-app/src/application/use_cases/connection.rs`
+- `crates/engine-app/src/application/use_cases/scene.rs`
+- `crates/engine-app/src/application/use_cases/movement.rs`
+- `crates/engine-app/src/application/use_cases/staging.rs`
+- `crates/engine-app/src/application/use_cases/observation.rs`
+- `crates/engine-ports/src/outbound/mod.rs` (add moved ports)
+
+### To Modify (Phase 4)
 - `crates/engine-adapters/src/infrastructure/websocket/handlers/movement.rs`
 - `crates/engine-adapters/src/infrastructure/websocket/handlers/narrative.rs`
-
-### To Modify (Low - G5)
 - `crates/player-app/src/application/dto/mod.rs`
-
-### To Modify (Medium - G7)
-- `crates/protocol/src/types.rs` (add documentation)
-- `crates/protocol/src/rule_system.rs` (add documentation)
-
-### To Modify (Low - G8)
-- `crates/player-app/src/application/dto/world_snapshot.rs` (add documentation)
-- `crates/player-app/src/application/dto/session_types.rs` (add documentation)
+- `crates/xtask/src/main.rs`
 
 ---
 
-## Appendix B: Handler Protocol Usage Clarification
+## Appendix B: Critical Design Decisions
 
-The `engine-app/handlers/request_handler.rs` and `common.rs` files use protocol types. This is **acceptable** because:
+### GameConnectionPort is Correct
 
-1. These handlers are the **boundary layer** where protocol↔domain conversion happens
-2. The Cargo.toml explicitly allows `engine-app → protocol` dependency  
-3. The documented rule is only that `use_cases` must NOT import `ServerMessage`
+The `GameConnectionPort::request(payload: RequestPayload)` method is the **right design**:
+- 118 RequestPayload variants exist
+- Individual methods would require 150+ trait methods (anti-pattern)
+- The generic approach is clean and extensible
+- Services construct app DTOs, convert to RequestPayload, then call `request()`
 
-This is **not** a violation to fix.
+**This is NOT a violation to fix.**
+
+### Use-Case Ports in engine-app are Valid
+
+Having use-case-specific port traits in `engine-app` is a **valid hexagonal pattern**:
+- They represent use-case dependencies (dependency injection)
+- They're different from infrastructure ports (which go in `*-ports`)
+- Examples: `SceneServicePort`, `ChallengeResolutionPort`
+
+**Document this pattern, don't "fix" it.**
+
+### Protocol Re-exports are Acceptable
+
+Protocol re-exporting stable domain types (enums, simple structs) is an **approved exception**:
+- Reduces import complexity for consumers
+- Domain remains the canonical source
+- Types are serde-ready and stable
+
+**Document with ARCHITECTURE EXCEPTION comments.**
 
 ---
 
-## Appendix C: Related Documentation
+## Appendix C: actantial_service.rs Deep Analysis
 
-- Original plan: `docs/plans/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md`
-- Cleanup plan: `docs/plans/HEXAGONAL_CLEANUP_PLAN.md`
-- Architecture documentation: `docs/architecture/hexagonal-architecture.md`
+This service has the deepest protocol coupling in player-app and requires special handling.
+
+### Protocol Types Imported (11 total)
+
+| Type | Category | Usage |
+|------|----------|-------|
+| `CreateGoalData` | Request DTO | Internal construction |
+| `UpdateGoalData` | Request DTO | Internal construction |
+| `CreateWantData` | Request DTO | Internal construction |
+| `UpdateWantData` | Request DTO | Internal construction |
+| `WantVisibilityData` | Enum | Embedded in request/response structs |
+| `WantTargetTypeData` | Enum | Embedded in request structs |
+| `ActorTypeData` | Enum | Embedded in request structs |
+| `ActantialRoleData` | Enum | Embedded in request structs |
+| `NpcActantialContextData` | Struct | **Returned directly from `get_actantial_context()`** |
+| `WantTargetData` | Struct | Embedded in response structs |
+| `RequestPayload` | Enum | WebSocket request construction |
+
+### Methods Affected
+
+| Method | Protocol Leak | Fix Required |
+|--------|---------------|--------------|
+| `get_actantial_context()` | Returns `NpcActantialContextData` | Change return type to app-layer DTO |
+| `list_wants()` | `WantResponse` embeds protocol enums | Update `WantResponse` fields |
+| `create_want()` | Same as above | Same fix |
+| `update_want()` | Same as above | Same fix |
+| `set_want_target()` | Request uses `WantTargetTypeData` | Update request type |
+| `add_actantial_view()` | Request uses `ActorTypeData`, `ActantialRoleData` | Update request type |
+| `remove_actantial_view()` | Same as above | Same fix |
+
+### Estimated New Code
+
+- ~150-200 lines of new DTO definitions
+- ~80-100 lines of `From` trait implementations
+- All existing method signatures can remain (except `get_actantial_context` return type)
+
+---
+
+## Appendix D: Notification Ports Clarification
+
+Three notification-related ports exist, but they are **NOT duplicates**:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  engine-ports (Infrastructure Layer)                            │
+│  └── BroadcastPort                                               │
+│      - Generic WebSocket broadcast to all/some connections       │
+│      - Infrastructure concern                                    │
+├─────────────────────────────────────────────────────────────────┤
+│  engine-app (Application Layer)                                  │
+│  ├── DmNotificationPort (player_action.rs)                       │
+│  │   - Notifies DM when player action is queued                  │
+│  │   - Use-case specific: "action queued" semantics              │
+│  │                                                               │
+│  └── WorldMessagePort (observation.rs)                           │
+│      - Sends events to users in a world                          │
+│      - Use-case specific: "approach event", "location event"     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+The use-case ports define **what** needs to happen (domain semantics).
+The infrastructure port defines **how** it happens (WebSocket mechanics).
+Adapters bridge them.
+
+---
+
+## Appendix E: Related Documentation
+
+- Architecture overview: `docs/architecture/hexagonal-architecture.md`
+- Original master plan: `docs/plans/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md`
+- Queue system: `docs/architecture/queue-system.md`
+- WebSocket protocol: `docs/architecture/websocket-protocol.md`
