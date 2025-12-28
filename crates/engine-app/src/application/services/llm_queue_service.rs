@@ -17,12 +17,10 @@ use crate::application::services::llm::LLMService;
 use crate::application::services::generation_service::GenerationEvent;
 use crate::application::services::PromptTemplateService;
 use crate::application::dto::{
-    ApprovalItem, DecisionType, DecisionUrgency, LLMRequestItem, LLMRequestType,
+    ApprovalItem, ChallengeSuggestionInfo, DecisionType, DecisionUrgency, LLMRequestItem,
+    LLMRequestType, NarrativeEventSuggestionInfo, ProposedToolInfo,
 };
 use wrldbldr_domain::WorldId;
-use wrldbldr_protocol::{
-    ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo,
-};
 
 /// Priority constants for queue operations
 const PRIORITY_NORMAL: u8 = 0;

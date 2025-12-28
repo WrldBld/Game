@@ -4,6 +4,7 @@
 //! They provide a stable API that is decoupled from domain entities.
 
 // NOTE: App events moved to `wrldbldr-protocol`.
+mod approval;
 mod asset;
 mod challenge;
 mod character;
@@ -32,6 +33,12 @@ mod world_snapshot;
 //
 // (The old `application::dto::AppEvent` has been removed.)
 
+// Approval DTOs (app-layer versions of protocol approval types)
+pub use approval::{
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalDecision,
+    NarrativeEventSuggestionInfo, ProposedToolInfo,
+};
+
 // Queue items (used by queue services)
 pub use queue_items::{
     ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem,
@@ -39,8 +46,6 @@ pub use queue_items::{
     EnhancedChallengeSuggestion, EnhancedOutcomes, OutcomeDetail,
     LLMRequestItem, LLMRequestType, PlayerActionItem,
 };
-// Suggestion info types are protocol-owned; import directly from `wrldbldr_protocol`
-// at call sites (Decision D6, no re-export shims).
 
 // Asset DTOs
 pub use asset::{

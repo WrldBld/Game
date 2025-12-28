@@ -19,7 +19,7 @@ use tokio::sync::{mpsc, RwLock};
 
 use crate::application::dto::{
     ChallengeOutcomeApprovalItem, ChallengeOutcomeDecision, OutcomeSuggestionRequest,
-    PendingChallengeResolutionDto,
+    PendingChallengeResolutionDto, ProposedToolInfo,
 };
 use crate::application::services::challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
@@ -214,7 +214,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             outcome_triggers: resolution
                 .outcome_triggers
                 .iter()
-                .map(|t| wrldbldr_protocol::ProposedToolInfo {
+                .map(|t| ProposedToolInfo {
                     id: uuid::Uuid::new_v4().to_string(),
                     name: format!("{:?}", t),
                     description: String::new(),

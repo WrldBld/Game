@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use wrldbldr_domain::value_objects::GamePromptRequest;
-use wrldbldr_protocol::{
-    ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo,
+use super::{
+    ChallengeSuggestionInfo, DmApprovalDecision, NarrativeEventSuggestionInfo,
+    OutcomeTriggerRequestDto, ProposedToolInfo,
 };
-use super::OutcomeTriggerRequestDto;
 
 /// Player action waiting to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,7 +41,7 @@ pub struct DMActionItem {
 pub enum DMAction {
     ApprovalDecision {
         request_id: String,
-        decision: ApprovalDecision,
+        decision: DmApprovalDecision,
     },
     DirectNPCControl {
         npc_id: String,
@@ -136,7 +136,7 @@ pub struct ApprovalItem {
     pub topics: Vec<String>,
 }
 
-// ChallengeSuggestionInfo is now imported from protocol via value_objects
+// ChallengeSuggestionInfo is now defined in approval.rs (app-layer DTO)
 
 /// Enhanced challenge suggestion with detailed outcomes and tool receipts
 ///
@@ -187,7 +187,7 @@ pub struct OutcomeDetail {
     pub proposed_tools: Vec<ProposedToolInfo>,
 }
 
-// NarrativeEventSuggestionInfo is now imported from protocol via value_objects
+// NarrativeEventSuggestionInfo is now defined in approval.rs (app-layer DTO)
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -18,11 +18,10 @@ use wrldbldr_engine_ports::outbound::{
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use crate::application::services::item_service::ItemService;
 use crate::application::services::StoryEventService;
-use crate::application::dto::ApprovalItem;
+use crate::application::dto::{ApprovalItem, DmApprovalDecision, ProposedToolInfo};
 use wrldbldr_domain::value_objects::GameTool;
 use wrldbldr_domain::entities::AcquisitionMethod;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
-use wrldbldr_protocol::ApprovalDecision;
 use std::collections::HashMap;
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
@@ -78,7 +77,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         &self,
         world_id: WorldId,
         item_id: QueueItemId,
-        decision: ApprovalDecision,
+        decision: DmApprovalDecision,
     ) -> Result<ApprovalOutcome, QueueError> {
         let item = self
             .queue
@@ -87,13 +86,13 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             .ok_or_else(|| QueueError::NotFound(item_id.to_string()))?;
 
         let outcome = match decision {
-            ApprovalDecision::Accept => {
+            DmApprovalDecision::Accept => {
                 self.handle_accept(world_id, &item.payload, HashMap::new()).await?
             }
-            ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            DmApprovalDecision::AcceptWithRecipients { item_recipients } => {
                 self.handle_accept(world_id, &item.payload, item_recipients).await?
             }
-            ApprovalDecision::AcceptWithModification {
+            DmApprovalDecision::AcceptWithModification {
                 modified_dialogue,
                 approved_tools,
                 rejected_tools,
@@ -101,10 +100,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             } => {
                 self.handle_accept_modified(world_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools, item_recipients).await?
             }
-            ApprovalDecision::Reject { feedback } => {
+            DmApprovalDecision::Reject { feedback } => {
                 self.handle_reject(&item.payload, &feedback).await?
             }
-            ApprovalDecision::TakeOver { dm_response } => {
+            DmApprovalDecision::TakeOver { dm_response } => {
                 self.handle_takeover(world_id, &item.payload, &dm_response).await?
             }
         };
@@ -436,7 +435,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     /// Parse ProposedToolInfo into GameTool
     fn parse_tool_from_info(
         &self,
-        tool_info: &wrldbldr_protocol::ProposedToolInfo,
+        tool_info: &ProposedToolInfo,
     ) -> Result<GameTool, QueueError> {
         // Parse tool based on name and arguments (arguments is serde_json::Value)
         let args = &tool_info.arguments;
@@ -543,7 +542,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn execute_give_item_with_recipients(
         &self,
         world_id: WorldId,
-        tool_info: &wrldbldr_protocol::ProposedToolInfo,
+        tool_info: &ProposedToolInfo,
         recipients: Option<&Vec<String>>,
     ) {
         let args = &tool_info.arguments;

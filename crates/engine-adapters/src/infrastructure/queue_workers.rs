@@ -6,18 +6,22 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use wrldbldr_engine_app::application::dto::{ChallengeOutcomeApprovalItem, DMAction, DMActionItem};
+use wrldbldr_engine_app::application::dto::{
+    ChallengeOutcomeApprovalItem, DMAction, DMActionItem,
+};
 use wrldbldr_engine_ports::outbound::QueueNotificationPort;
 use wrldbldr_engine_app::application::services::{
     ApprovalOutcome, DMActionQueueService, DMApprovalQueueService, InteractionService,
     ItemServiceImpl, NarrativeEventService, SceneService,
 };
 use crate::infrastructure::queues::QueueBackendEnum;
+use crate::infrastructure::websocket::{
+    app_challenge_suggestion_to_proto, app_narrative_suggestion_to_proto, app_tools_to_proto,
+};
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_domain::{NarrativeEventId, SceneId, WorldId};
 use wrldbldr_protocol::{
-    ChallengeSuggestionInfo, CharacterData, CharacterPosition, InteractionData,
-    NarrativeEventSuggestionInfo, ProposedToolInfo, SceneData, ServerMessage,
+    CharacterData, CharacterPosition, InteractionData, ProposedToolInfo, SceneData, ServerMessage,
 };
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
@@ -50,11 +54,10 @@ pub async fn approval_notification_worker(
             // Send ApprovalRequired messages for new approvals
             for item in pending {
                 let approval_id = item.id.to_string();
-                let proposed_tools: Vec<ProposedToolInfo> = item.payload.proposed_tools.clone();
-
-                // Use DTO types directly (they match the WebSocket message types)
-                let challenge_suggestion: Option<ChallengeSuggestionInfo> = item.payload.challenge_suggestion.clone();
-                let narrative_event_suggestion: Option<NarrativeEventSuggestionInfo> = item.payload.narrative_event_suggestion.clone();
+                // Convert app-layer DTOs to protocol types for wire transmission
+                let proposed_tools: Vec<ProposedToolInfo> = app_tools_to_proto(item.payload.proposed_tools.clone());
+                let challenge_suggestion = app_challenge_suggestion_to_proto(item.payload.challenge_suggestion.clone());
+                let narrative_event_suggestion = app_narrative_suggestion_to_proto(item.payload.narrative_event_suggestion.clone());
 
                 // Send ApprovalRequired message to DM via world connection manager
                 let approval_msg = ServerMessage::ApprovalRequired {
@@ -418,6 +421,8 @@ pub async fn challenge_outcome_notification_worker(
 
             for queue_item in pending {
                 let item = queue_item.payload;
+                // Convert app-layer ProposedToolInfo to protocol ProposedToolInfo
+                let outcome_triggers = app_tools_to_proto(item.outcome_triggers);
                 let message = ServerMessage::ChallengeOutcomePending {
                     resolution_id: item.resolution_id.clone(),
                     challenge_id: item.challenge_id,
@@ -429,7 +434,7 @@ pub async fn challenge_outcome_notification_worker(
                     total: item.total,
                     outcome_type: item.outcome_type,
                     outcome_description: item.outcome_description,
-                    outcome_triggers: item.outcome_triggers,
+                    outcome_triggers,
                     roll_breakdown: item.roll_breakdown,
                 };
 

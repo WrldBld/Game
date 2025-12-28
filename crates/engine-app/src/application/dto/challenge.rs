@@ -729,7 +729,7 @@ pub struct ChallengeOutcomePendingNotification {
     pub total: i32,
     pub outcome_type: String,
     pub outcome_description: String,
-    pub outcome_triggers: Vec<wrldbldr_protocol::ProposedToolInfo>,
+    pub outcome_triggers: Vec<super::ProposedToolInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roll_breakdown: Option<String>,
 }
@@ -747,7 +747,7 @@ impl ChallengeOutcomePendingNotification {
         total: i32,
         outcome_type: String,
         outcome_description: String,
-        outcome_triggers: Vec<wrldbldr_protocol::ProposedToolInfo>,
+        outcome_triggers: Vec<super::ProposedToolInfo>,
         roll_breakdown: Option<String>,
     ) -> Self {
         Self {
