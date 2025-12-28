@@ -16,7 +16,9 @@
 | Phase E3 (ErrorCode) | Complete | f0f470f |
 | Phase E4 (Ports Layer) | Complete | 2ed181b |
 | Phase E5 (Split Handler) | Partial | 6957955 |
-| Phase P1 (Player Domain Types) | In Progress | - |
+| arch-check exemptions | Complete | c0ffe75 |
+| Build fix (actantial) | Complete | ee8e313 |
+| Phase P1 (Player Domain Types) | Pending | - |
 | Phase P2 (GameConnectionPort) | Pending | - |
 | Phase P3 (Message Translation) | Pending | - |
 | Phase P4 (player-app Services) | Pending | - |
