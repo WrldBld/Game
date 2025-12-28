@@ -33,7 +33,7 @@ This plan addresses critical architectural violations in the challenge/approval 
 | **CRITICAL**: `ApprovalOutcome::Broadcast` logged but never broadcast | `queue_workers.rs` | 172-174 | [x] |
 | **CRITICAL**: `list_by_world()` doesn't filter by world_id | `sqlite_queue.rs` | 462-468 | [x] |
 | In-memory HashMap for pending resolutions | `challenge_outcome_approval_service.rs` | 41, 68 | [x] |
-| `has_dm()` check with fallback immediate resolution | `challenge_resolution_service.rs` | 298, 363-416 | [ ] |
+| `has_dm()` check with fallback immediate resolution | `challenge_resolution_service.rs` | 298, 363-416 | [x] |
 | Direct `ServerMessage` construction in services | Multiple services | Various | [ ] |
 | 5 handlers call service directly instead of use case | `handlers/challenge.rs` | 97-214 | [ ] |
 | `ChallengeResolutionPort` trait defined but not implemented | `use_cases/challenge.rs` | 218-264 | [ ] |
@@ -494,7 +494,7 @@ cargo test -p wrldbldr-engine-app
 **Priority**: High  
 **Effort**: 2-3 hours  
 **Risk**: Medium  
-**Status**: [ ] Not Started
+**Status**: [x] Complete
 
 ### Rationale
 

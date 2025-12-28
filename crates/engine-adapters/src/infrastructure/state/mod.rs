@@ -473,19 +473,19 @@ impl AppState {
             .with_settings_service(settings_service.clone()),
         );
 
-        // Create challenge resolution service with approval service wired in
+        // Create challenge resolution service with required approval service
         // Uses concrete service impls for generics compatibility
+        // Note: No longer takes WorldConnectionPort - returns typed results for use case layer to broadcast
         let challenge_resolution_service = Arc::new(
             ChallengeResolutionService::new(
-                world_connection_port_adapter.clone(),
                 Arc::new(challenge_service_impl.clone()),
                 Arc::new(skill_service_impl.clone()),
                 Arc::new(player_character_service_impl.clone()),
                 event_bus.clone(),
                 dm_approval_queue_service.clone(),
                 outcome_trigger_service,
-            )
-            .with_outcome_approval_service(challenge_outcome_approval_service.clone()),
+                challenge_outcome_approval_service.clone(),
+            ),
         );
 
         // Create narrative event approval service

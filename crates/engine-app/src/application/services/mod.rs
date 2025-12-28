@@ -118,7 +118,12 @@ pub use item_service::{
 // Re-export challenge service types (used in HTTP routes)
 pub use challenge_service::{ChallengeService, ChallengeServiceImpl};
 
-// Re-export challenge resolution service
+// Re-export challenge resolution service types
+pub use challenge_resolution_service::{
+    ChallengeResolutionService, ChallengeResolutionError,
+    RollSubmissionResult, ChallengeTriggerResult, AdHocChallengeResult,
+    OutcomeTriggerInfo, DiceInputType,
+};
 
 // Re-export relationship service types
 pub use relationship_service::{RelationshipService, RelationshipServiceImpl};
@@ -144,7 +149,7 @@ pub use event_chain_service::{EventChainService, EventChainServiceImpl};
 // Re-export queue service types (used in infrastructure layer)
 pub use asset_generation_queue_service::AssetGenerationQueueService;
 pub use dm_action_queue_service::DMActionQueueService;
-pub use dm_approval_queue_service::DMApprovalQueueService;
+pub use dm_approval_queue_service::{DMApprovalQueueService, ApprovalOutcome};
 pub use generation_event_publisher::GenerationEventPublisher;
 pub use llm_queue_service::LLMQueueService;
 pub use player_action_queue_service::PlayerActionQueueService;

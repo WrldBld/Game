@@ -4,13 +4,17 @@
 //! This moves challenge-related business logic out of the websocket handler into a
 //! dedicated application service, keeping the transport layer thin.
 //!
-//! Uses `WorldConnectionPort` for world-scoped connection management, maintaining hexagonal architecture.
+//! ## Architecture Note
+//!
+//! This service returns typed results instead of constructing protocol messages.
+//! Broadcasting is handled by the use case layer via `BroadcastPort`.
 
 use std::sync::Arc;
 
+use thiserror::Error;
+
 use crate::application::dto::AdHocOutcomesDto;
 use wrldbldr_protocol::AppEvent;
-use wrldbldr_engine_ports::outbound::WorldConnectionPort;
 use wrldbldr_engine_ports::outbound::EventBusPort;
 use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
@@ -23,6 +27,121 @@ use wrldbldr_domain::value_objects::DiceRollInput;
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, WorldId, SkillId};
 use tracing::{debug, info};
 
+// ============================================================================
+// Error Types
+// ============================================================================
+
+/// Error type for challenge resolution operations
+#[derive(Debug, Error)]
+pub enum ChallengeResolutionError {
+    #[error("Invalid challenge ID: {0}")]
+    InvalidChallengeId(String),
+
+    #[error("Challenge not found: {0}")]
+    ChallengeNotFound(String),
+
+    #[error("Failed to load challenge: {0}")]
+    ChallengeLoadFailed(String),
+
+    #[error("Player character not found")]
+    PlayerCharacterNotFound,
+
+    #[error("Failed to load player character: {0}")]
+    PlayerCharacterLoadFailed(String),
+
+    #[error("Invalid dice formula: {0}")]
+    InvalidDiceFormula(String),
+
+    #[error("Failed to queue for approval: {0}")]
+    ApprovalQueueFailed(String),
+
+    #[error("Approval lookup error: {0}")]
+    ApprovalLookupError(String),
+
+    #[error("Challenge suggestion not found in approval: {0}")]
+    ChallengeSuggestionNotFound(String),
+}
+
+// ============================================================================
+// Result Types
+// ============================================================================
+
+/// Result of submitting a roll for challenge resolution
+#[derive(Debug, Clone)]
+pub struct RollSubmissionResult {
+    /// Resolution ID for tracking this pending approval
+    pub resolution_id: String,
+    /// Challenge ID
+    pub challenge_id: String,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Challenge description
+    pub challenge_description: Option<String>,
+    /// Skill name (if applicable)
+    pub skill_name: Option<String>,
+    /// Character ID who rolled
+    pub character_id: String,
+    /// Character name who rolled
+    pub character_name: String,
+    /// The raw roll value
+    pub roll: i32,
+    /// Skill modifier applied
+    pub modifier: i32,
+    /// Total result (roll + modifier)
+    pub total: i32,
+    /// Outcome type (success, failure, critical, etc.)
+    pub outcome_type: String,
+    /// Outcome description text
+    pub outcome_description: String,
+    /// Roll breakdown string (e.g., "1d20+5 = 15 + 5 = 20")
+    pub roll_breakdown: Option<String>,
+    /// Individual dice results
+    pub individual_rolls: Option<Vec<i32>>,
+    /// Triggers to execute on approval
+    pub outcome_triggers: Vec<OutcomeTriggerInfo>,
+}
+
+/// Trigger information for roll results
+#[derive(Debug, Clone)]
+pub struct OutcomeTriggerInfo {
+    pub trigger_type: String,
+    pub description: String,
+}
+
+/// Result of triggering a challenge for a player
+#[derive(Debug, Clone)]
+pub struct ChallengeTriggerResult {
+    /// Challenge ID
+    pub challenge_id: String,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Skill name required
+    pub skill_name: String,
+    /// Difficulty display string
+    pub difficulty_display: String,
+    /// Challenge description
+    pub description: String,
+    /// Target character's modifier for this skill
+    pub character_modifier: i32,
+    /// Suggested dice formula
+    pub suggested_dice: String,
+    /// Rule system hint
+    pub rule_system_hint: String,
+}
+
+/// Result of creating an ad-hoc challenge
+#[derive(Debug, Clone)]
+pub struct AdHocChallengeResult {
+    /// Generated challenge ID
+    pub challenge_id: String,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Target player character ID
+    pub target_pc_id: String,
+    /// Challenge outcomes
+    pub outcomes: AdHocOutcomesDto,
+}
+
 /// Dice input type for challenge rolls
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type")]
@@ -31,64 +150,6 @@ pub enum DiceInputType {
     Formula(String),
     #[serde(rename = "manual")]
     Manual(i32),
-}
-
-/// Challenge resolved message DTO
-#[derive(Debug, Clone, serde::Serialize)]
-struct ChallengeResolvedMessage {
-    r#type: &'static str,
-    challenge_id: String,
-    challenge_name: String,
-    character_name: String,
-    roll: i32,
-    modifier: i32,
-    total: i32,
-    outcome: String,
-    outcome_description: String,
-    roll_breakdown: Option<String>,
-    individual_rolls: Option<Vec<i32>>,
-}
-
-/// Challenge prompt message DTO
-#[derive(Debug, Clone, serde::Serialize)]
-struct ChallengePromptMessage {
-    r#type: &'static str,
-    challenge_id: String,
-    challenge_name: String,
-    skill_name: String,
-    difficulty_display: String,
-    description: String,
-    character_modifier: i32,
-    suggested_dice: Option<String>,
-    rule_system_hint: Option<String>,
-}
-
-/// Error message DTO
-#[derive(Debug, Clone, serde::Serialize)]
-struct ErrorMessage {
-    r#type: &'static str,
-    code: String,
-    message: String,
-}
-
-/// Ad-hoc challenge created message DTO
-#[derive(Debug, Clone, serde::Serialize)]
-struct AdHocChallengeCreatedMessage {
-    r#type: &'static str,
-    challenge_id: String,
-    challenge_name: String,
-    target_pc_id: String,
-    outcomes: AdHocOutcomesDto,
-}
-
-/// Helper function to create error messages
-fn error_message(code: &str, message: &str) -> Option<serde_json::Value> {
-    let error_msg = ErrorMessage {
-        r#type: "Error",
-        code: code.to_string(),
-        message: message.to_string(),
-    };
-    serde_json::to_value(&error_msg).ok()
 }
 
 /// Preamble data gathered for challenge resolution.
@@ -107,21 +168,29 @@ use wrldbldr_engine_ports::outbound::LlmPort;
 
 /// Service responsible for challenge-related flows.
 ///
-/// This service uses `AsyncSessionPort` for all session operations, maintaining
-/// hexagonal architecture compliance. Session lookups and broadcasts go through
-/// the port trait rather than concrete infrastructure types.
+/// This service returns typed results and delegates all broadcasting to the use case layer.
+/// It orchestrates domain logic for challenge resolution, including:
+/// - Roll evaluation against challenge difficulty
+/// - Queuing outcomes for DM approval
+/// - Triggering challenges for players
+/// - Handling DM suggestion decisions
+///
+/// ## Architecture
+///
+/// - Returns `Result<T, ChallengeResolutionError>` instead of `Option<serde_json::Value>`
+/// - Does NOT construct `ServerMessage` (hexagonal architecture compliance)
+/// - All challenge outcomes go through DM approval (no `has_dm()` bypass)
 ///
 /// Generic over `L: LlmPort` for LLM-powered suggestion generation via the approval service.
 /// Generic over `I: ItemService` for item operations in the DM approval queue.
 pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>, P: PlayerCharacterService, L: LlmPort, I: ItemService> {
-    world_connection: Arc<dyn WorldConnectionPort>,
     challenge_service: Arc<S>,
     skill_service: Arc<K>,
     player_character_service: Arc<P>,
     event_bus: Arc<dyn EventBusPort<AppEvent>>,
     dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
     outcome_trigger_service: Arc<OutcomeTriggerService>,
-    challenge_outcome_approval_service: Option<Arc<ChallengeOutcomeApprovalService<L>>>,
+    challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
 }
 
 impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
@@ -133,34 +202,27 @@ where
     L: LlmPort + 'static,
     I: ItemService,
 {
+    /// Create a new challenge resolution service
+    ///
+    /// All challenges are routed through the approval service for DM review.
     pub fn new(
-        world_connection: Arc<dyn WorldConnectionPort>,
         challenge_service: Arc<S>,
         skill_service: Arc<K>,
         player_character_service: Arc<P>,
         event_bus: Arc<dyn EventBusPort<AppEvent>>,
         dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
+        challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
     ) -> Self {
         Self {
-            world_connection,
             challenge_service,
             skill_service,
             player_character_service,
             event_bus,
             dm_approval_queue_service,
             outcome_trigger_service,
-            challenge_outcome_approval_service: None,
+            challenge_outcome_approval_service,
         }
-    }
-
-    /// Set the challenge outcome approval service for P3.3 DM approval workflow
-    pub fn with_outcome_approval_service(
-        mut self,
-        service: Arc<ChallengeOutcomeApprovalService<L>>,
-    ) -> Self {
-        self.challenge_outcome_approval_service = Some(service);
-        self
     }
 
     /// Gather the common preamble data needed for challenge resolution.
@@ -170,35 +232,27 @@ where
     /// - Player name lookup
     /// - Character modifier lookup
     /// - Character ID resolution
-    ///
-    /// Returns `Ok(preamble)` on success, or `Err(error_message)` on failure.
     async fn gather_challenge_preamble(
         &self,
         world_id: &WorldId,
         pc_id: &PlayerCharacterId,
         challenge_id_str: &str,
         log_prefix: &str,
-    ) -> Result<ChallengePreamble, Option<serde_json::Value>> {
+    ) -> Result<ChallengePreamble, ChallengeResolutionError> {
         // Parse challenge_id
-        let challenge_uuid = match uuid::Uuid::parse_str(challenge_id_str) {
-            Ok(uuid) => ChallengeId::from_uuid(uuid),
-            Err(_) => {
-                return Err(error_message("INVALID_CHALLENGE_ID", "Invalid challenge ID format"));
-            }
-        };
+        let challenge_uuid = uuid::Uuid::parse_str(challenge_id_str)
+            .map(ChallengeId::from_uuid)
+            .map_err(|_| ChallengeResolutionError::InvalidChallengeId(challenge_id_str.to_string()))?;
 
         // Load challenge from service
         let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
             Ok(Some(challenge)) => challenge,
             Ok(None) => {
-                return Err(error_message(
-                    "CHALLENGE_NOT_FOUND",
-                    &format!("Challenge {} not found", challenge_id_str),
-                ));
+                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_id_str.to_string()));
             }
             Err(e) => {
                 tracing::error!("Failed to load challenge: {}", e);
-                return Err(error_message("CHALLENGE_LOAD_ERROR", "Failed to load challenge"));
+                return Err(ChallengeResolutionError::ChallengeLoadFailed(e.to_string()));
             }
         };
 
@@ -215,14 +269,11 @@ where
         let pc = match self.player_character_service.get_pc(*pc_id).await {
             Ok(Some(pc)) => pc,
             Ok(None) => {
-                return Err(error_message(
-                    "PLAYER_CHARACTER_NOT_FOUND",
-                    "Player character not found",
-                ));
+                return Err(ChallengeResolutionError::PlayerCharacterNotFound);
             }
             Err(e) => {
                 tracing::error!("Failed to load player character: {}", e);
-                return Err(error_message("PLAYER_CHARACTER_LOAD_ERROR", "Failed to load player character"));
+                return Err(ChallengeResolutionError::PlayerCharacterLoadFailed(e.to_string()));
             }
         };
 
@@ -273,12 +324,14 @@ where
         })
     }
 
-    /// Internal helper to resolve challenge outcome and broadcast results.
+    /// Internal helper to queue challenge outcome for DM approval.
     ///
-    /// This handles the common logic shared between `handle_roll()` and `handle_roll_input()`:
-    /// 1. If world has DM and approval service is configured, queue for DM approval (P3.3)
-    /// 2. Otherwise: Publishes AppEvent, executes triggers, broadcasts ChallengeResolved
-    async fn resolve_challenge_internal(
+    /// All challenge outcomes go through DM approval. This method:
+    /// 1. Looks up skill name for display
+    /// 2. Builds the pending resolution DTO
+    /// 3. Queues for DM approval
+    /// 4. Returns the result for broadcasting by the use case layer
+    async fn queue_for_approval(
         &self,
         challenge_id_str: &str,
         challenge: &wrldbldr_domain::entities::Challenge,
@@ -293,151 +346,115 @@ where
         total: i32,
         roll_breakdown: Option<String>,
         individual_rolls: Option<Vec<i32>>,
-    ) {
-        // P3.3: If world has DM and approval service is configured, queue for approval
-        if self.world_connection.has_dm(&world_id).await {
-            if let Some(ref approval_service) = self.challenge_outcome_approval_service {
-                    // Look up skill name if we have a skill_id
-                    let skill_name = if let Some(ref sid) = skill_id {
-                        match self.skill_service.get_skill(sid.clone()).await {
-                            Ok(Some(skill)) => Some(skill.name),
-                            Ok(None) => {
-                                tracing::warn!("Skill {} not found for challenge {}", sid, challenge_id_str);
-                                None
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to look up skill {} for challenge {}: {}", sid, challenge_id_str, e);
-                                None
-                            }
-                        }
-                    } else {
-                        None
-                    };
-
-                // Build PendingChallengeResolutionDto for approval queue
-                let resolution = PendingChallengeResolutionDto {
-                    resolution_id: uuid::Uuid::new_v4().to_string(),
-                    challenge_id: challenge_id_str.to_string(),
-                    challenge_name: challenge.name.clone(),
-                    challenge_description: challenge.description.clone(),
-                    skill_name,
-                    character_id: character_id.clone(),
-                    character_name: player_name.clone(),
-                    roll,
-                    modifier,
-                    total,
-                    outcome_type: outcome_type.display_name().to_string(),
-                    outcome_description: outcome.description.clone(),
-                    outcome_triggers: outcome
-                        .triggers
-                        .iter()
-                        .cloned()
-                        .map(OutcomeTriggerRequestDto::from)
-                        .collect(),
-                    roll_breakdown: roll_breakdown.clone(),
-                    individual_rolls: individual_rolls.clone(),
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                };
-
-                match approval_service.queue_for_approval(&world_id, resolution).await {
-                    Ok(resolution_id) => {
-                        info!(
-                            resolution_id = %resolution_id,
-                            challenge_id = %challenge_id_str,
-                            "Challenge outcome queued for DM approval"
-                        );
-                        // Return early - don't broadcast yet, DM will approve
-                        return;
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to queue challenge for DM approval: {}, falling back to immediate broadcast",
-                            e
-                        );
-                        // Fall through to immediate broadcast
-                    }
+    ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
+        // Look up skill name if we have a skill_id
+        let skill_name = if let Some(ref sid) = skill_id {
+            match self.skill_service.get_skill(sid.clone()).await {
+                Ok(Some(skill)) => Some(skill.name),
+                Ok(None) => {
+                    tracing::warn!("Skill {} not found for challenge {}", sid, challenge_id_str);
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to look up skill {} for challenge {}: {}", sid, challenge_id_str, e);
+                    None
                 }
             }
-        }
-
-        // No DM or approval service not configured - immediate resolution
-        let success =
-            outcome_type == OutcomeType::Success || outcome_type == OutcomeType::CriticalSuccess;
-
-        // Publish AppEvent for challenge resolution
-        let app_event = AppEvent::ChallengeResolved {
-            challenge_id: Some(challenge_id_str.to_string()),
-            challenge_name: challenge.name.clone(),
-            world_id: world_id.to_string(),
-            character_id: character_id.clone(),
-            success,
-            roll: Some(roll),
-            total: Some(total),
-            session_id: None, // No longer session-based
+        } else {
+            None
         };
-        if let Err(e) = self.event_bus.publish(app_event).await {
-            tracing::error!("Failed to publish ChallengeResolved event: {}", e);
-        }
 
-        // Execute outcome triggers
-        let trigger_result = self
-            .outcome_trigger_service
-            .execute_triggers(&outcome.triggers, world_id)
-            .await;
+        // Generate resolution ID
+        let resolution_id = uuid::Uuid::new_v4().to_string();
 
-        if !trigger_result.warnings.is_empty() {
-            info!(
-                trigger_count = trigger_result.trigger_count,
-                warnings = ?trigger_result.warnings,
-                "Outcome triggers executed with warnings"
-            );
-        }
+        // Convert outcome triggers to info structs
+        let outcome_triggers: Vec<OutcomeTriggerInfo> = outcome
+            .triggers
+            .iter()
+            .map(|t| OutcomeTriggerInfo {
+                trigger_type: format!("{:?}", t),
+                description: String::new(), // Triggers don't have description field
+            })
+            .collect();
 
-        // Broadcast ChallengeResolved to all participants
-        let message = wrldbldr_protocol::ServerMessage::ChallengeResolved {
+        // Build PendingChallengeResolutionDto for approval queue
+        let resolution = PendingChallengeResolutionDto {
+            resolution_id: resolution_id.clone(),
             challenge_id: challenge_id_str.to_string(),
             challenge_name: challenge.name.clone(),
+            challenge_description: challenge.description.clone(),
+            skill_name: skill_name.clone(),
+            character_id: character_id.clone(),
+            character_name: player_name.clone(),
+            roll,
+            modifier,
+            total,
+            outcome_type: outcome_type.display_name().to_string(),
+            outcome_description: outcome.description.clone(),
+            outcome_triggers: outcome
+                .triggers
+                .iter()
+                .cloned()
+                .map(OutcomeTriggerRequestDto::from)
+                .collect(),
+            roll_breakdown: roll_breakdown.clone(),
+            individual_rolls: individual_rolls.clone(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+
+        // Queue for DM approval
+        self.challenge_outcome_approval_service
+            .queue_for_approval(&world_id, resolution)
+            .await
+            .map_err(|e| ChallengeResolutionError::ApprovalQueueFailed(e.to_string()))?;
+
+        info!(
+            resolution_id = %resolution_id,
+            challenge_id = %challenge_id_str,
+            "Challenge outcome queued for DM approval"
+        );
+
+        // Return result for broadcasting by use case layer
+        Ok(RollSubmissionResult {
+            resolution_id,
+            challenge_id: challenge_id_str.to_string(),
+            challenge_name: challenge.name.clone(),
+            challenge_description: Some(challenge.description.clone()),
+            skill_name,
+            character_id,
             character_name: player_name,
             roll,
             modifier,
             total,
-            outcome: outcome_type.display_name().to_string(),
+            outcome_type: outcome_type.display_name().to_string(),
             outcome_description: outcome.description.clone(),
             roll_breakdown,
             individual_rolls,
-        };
-        if let Err(e) = self
-            .world_connection
-            .broadcast_to_world(&world_id, message)
-            .await
-        {
-            tracing::error!("Failed to broadcast ChallengeResolved: {}", e);
-        }
+            outcome_triggers,
+        })
     }
 
     /// Handle a player submitting a challenge roll (legacy method with simple integer roll).
+    ///
+    /// Returns the roll submission result for broadcasting by the use case layer.
     pub async fn handle_roll(
         &self,
         world_id: &WorldId,
         pc_id: &PlayerCharacterId,
         challenge_id_str: String,
         roll: i32,
-    ) -> Option<serde_json::Value> {
+    ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
         // Gather common preamble data
-        let preamble = match self
+        let preamble = self
             .gather_challenge_preamble(world_id, pc_id, &challenge_id_str, "legacy roll")
-            .await
-        {
-            Ok(p) => p,
-            Err(err_msg) => return err_msg,
-        };
+            .await?;
 
         // Evaluate challenge result
         let (outcome_type, outcome) =
             evaluate_challenge_result(&preamble.challenge, roll, preamble.character_modifier);
 
-        // Use common helper to publish events, execute triggers, and broadcast
-        self.resolve_challenge_internal(
+        // Queue for DM approval and return result
+        self.queue_for_approval(
             &challenge_id_str,
             &preamble.challenge,
             preamble.skill_id,
@@ -452,28 +469,24 @@ where
             None, // Legacy method doesn't have formula info
             None,
         )
-        .await;
-
-        None
+        .await
     }
 
     /// Handle a player submitting a challenge roll with dice input (formula or manual).
     /// This is the enhanced version that supports dice formulas like "1d20+5".
+    ///
+    /// Returns the roll submission result for broadcasting by the use case layer.
     pub async fn handle_roll_input(
         &self,
         world_id: &WorldId,
         pc_id: &PlayerCharacterId,
         challenge_id_str: String,
         dice_input: DiceInputType,
-    ) -> Option<serde_json::Value> {
+    ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
         // Gather common preamble data
-        let preamble = match self
+        let preamble = self
             .gather_challenge_preamble(world_id, pc_id, &challenge_id_str, "dice input roll")
-            .await
-        {
-            Ok(p) => p,
-            Err(err_msg) => return err_msg,
-        };
+            .await?;
 
         // Convert DiceInputType to DiceRollInput
         let roll_input = match dice_input {
@@ -482,12 +495,9 @@ where
         };
 
         // Resolve the dice roll with character modifier
-        let roll_result = match roll_input.resolve_with_modifier(preamble.character_modifier) {
-            Ok(result) => result,
-            Err(e) => {
-                return error_message("INVALID_DICE_FORMULA", &format!("Invalid dice formula: {}", e));
-            }
-        };
+        let roll_result = roll_input
+            .resolve_with_modifier(preamble.character_modifier)
+            .map_err(|e| ChallengeResolutionError::InvalidDiceFormula(e.to_string()))?;
 
         // For d20 systems, check natural 1/20 using the raw die roll (before modifier)
         let raw_roll = if roll_result.is_manual() {
@@ -500,8 +510,8 @@ where
         let (outcome_type, outcome) =
             evaluate_challenge_result(&preamble.challenge, raw_roll, preamble.character_modifier);
 
-        // Use common helper to publish events, execute triggers, and broadcast
-        self.resolve_challenge_internal(
+        // Queue for DM approval and return result
+        self.queue_for_approval(
             &challenge_id_str,
             &preamble.challenge,
             preamble.skill_id,
@@ -520,36 +530,32 @@ where
                 Some(roll_result.individual_rolls.clone())
             },
         )
-        .await;
-
-        None
+        .await
     }
 
     /// Handle DM-triggered challenges.
+    ///
+    /// Returns the challenge trigger result for broadcasting by the use case layer.
     pub async fn handle_trigger(
         &self,
-        world_id: &WorldId,
+        _world_id: &WorldId,
         challenge_id_str: String,
         target_character_id: String,
-    ) -> Option<serde_json::Value> {
-
+    ) -> Result<ChallengeTriggerResult, ChallengeResolutionError> {
         // Parse challenge_id
-        let challenge_uuid = match uuid::Uuid::parse_str(&challenge_id_str) {
-            Ok(uuid) => ChallengeId::from_uuid(uuid),
-            Err(_) => {
-                return error_message("INVALID_CHALLENGE_ID", "Invalid challenge ID format");
-            }
-        };
+        let challenge_uuid = uuid::Uuid::parse_str(&challenge_id_str)
+            .map(ChallengeId::from_uuid)
+            .map_err(|_| ChallengeResolutionError::InvalidChallengeId(challenge_id_str.clone()))?;
 
         // Load challenge from service
         let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
             Ok(Some(challenge)) => challenge,
             Ok(None) => {
-                return error_message("CHALLENGE_NOT_FOUND", &format!("Challenge {} not found", challenge_id_str));
+                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_id_str));
             }
             Err(e) => {
                 tracing::error!("Failed to load challenge: {}", e);
-                return error_message("CHALLENGE_LOAD_ERROR", "Failed to load challenge");
+                return Err(ChallengeResolutionError::ChallengeLoadFailed(e.to_string()));
             }
         };
 
@@ -611,188 +617,154 @@ where
         // Get suggested dice based on difficulty type
         let (suggested_dice, rule_system_hint) = get_dice_suggestion_for_challenge(&challenge);
 
-        let message = wrldbldr_protocol::ServerMessage::ChallengePrompt {
-            challenge_id: challenge_id_str.clone(),
+        info!(
+            challenge_id = %challenge_id_str,
+            target_character_id = %target_character_id,
+            "Challenge triggered for player"
+        );
+
+        Ok(ChallengeTriggerResult {
+            challenge_id: challenge_id_str,
             challenge_name: challenge.name.clone(),
-            skill_name: skill_name.clone(),
+            skill_name,
             difficulty_display: challenge.difficulty.display(),
             description: challenge.description.clone(),
             character_modifier,
-            suggested_dice: Some(suggested_dice),
-            rule_system_hint: Some(rule_system_hint),
-        };
-
-        if let Err(e) = self.world_connection.broadcast_to_world(world_id, message).await {
-            tracing::error!("Failed to broadcast challenge prompt: {}", e);
-        }
-
-        tracing::info!(
-            "DM triggered challenge {} for character {} in world {}",
-            challenge_id_str,
-            target_character_id,
-            world_id
-        );
-
-        None
+            suggested_dice,
+            rule_system_hint,
+        })
     }
 
     /// Handle DM approval/rejection of a challenge suggestion.
+    ///
+    /// Returns the trigger result if approved, for broadcasting by the use case layer.
     pub async fn handle_suggestion_decision(
         &self,
-        world_id: &WorldId,
+        _world_id: &WorldId,
         request_id: String,
         approved: bool,
         modified_difficulty: Option<String>,
-    ) -> Option<serde_json::Value> {
-
-        if approved {
-            let approval_item = self.dm_approval_queue_service.get_by_id(&request_id).await;
-
-            match approval_item {
-                Ok(Some(item)) => {
-                    if let Some(challenge_suggestion) = &item.payload.challenge_suggestion {
-                        let challenge_uuid =
-                            match uuid::Uuid::parse_str(&challenge_suggestion.challenge_id) {
-                                Ok(uuid) => ChallengeId::from_uuid(uuid),
-                                Err(_) => {
-                                    tracing::error!(
-                                        "Invalid challenge_id in suggestion: {}",
-                                        challenge_suggestion.challenge_id
-                                    );
-                                    return error_message("INVALID_CHALLENGE_ID", "Invalid challenge ID format");
-                                }
-                            };
-
-                        let challenge =
-                            match self.challenge_service.get_challenge(challenge_uuid).await {
-                                Ok(Some(c)) => c,
-                                Ok(None) => {
-                                    tracing::error!(
-                                        "Challenge {} not found",
-                                        challenge_suggestion.challenge_id
-                                    );
-                                    return error_message("CHALLENGE_NOT_FOUND", &format!("Challenge {} not found", challenge_suggestion.challenge_id));
-                                }
-                                Err(e) => {
-                                    tracing::error!("Failed to load challenge: {}", e);
-                                    return error_message("CHALLENGE_LOAD_ERROR", &format!("Failed to load challenge: {}", e));
-                                }
-                            };
-
-                        // Fetch skill_id from REQUIRES_SKILL edge
-                        let skill_id = match self.challenge_service.get_required_skill(challenge_uuid).await {
-                            Ok(skill_id) => skill_id,
-                            Err(e) => {
-                                tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_uuid, e);
-                                None
-                            }
-                        };
-
-                        let difficulty_display = modified_difficulty
-                            .unwrap_or_else(|| challenge.difficulty.display());
-
-                        // Look up skill modifier for target character if available
-                        let character_modifier = if let Some(ref sid) = skill_id {
-                            if let Some(ref pc_id_str) = challenge_suggestion.target_pc_id {
-                                if let Ok(pc_id) = uuid::Uuid::parse_str(pc_id_str)
-                                    .map(PlayerCharacterId::from_uuid)
-                                {
-                                    match self.player_character_service
-                                        .get_skill_modifier(pc_id, sid.clone())
-                                        .await
-                                    {
-                                        Ok(modifier) => modifier,
-                                        Err(e) => {
-                                            tracing::warn!(
-                                                "Failed to get skill modifier for PC {}: {}, using 0",
-                                                pc_id_str, e
-                                            );
-                                            0
-                                        }
-                                    }
-                                } else {
-                                    tracing::warn!(
-                                        "Invalid target_pc_id format: {}, using modifier 0",
-                                        pc_id_str
-                                    );
-                                    0
-                                }
-                            } else {
-                                tracing::debug!("No target_pc_id in challenge suggestion, using modifier 0");
-                                0
-                            }
-                        } else {
-                            0
-                        };
-
-                        // Get suggested dice based on difficulty type
-                        let (suggested_dice, rule_system_hint) =
-                            get_dice_suggestion_for_challenge(&challenge);
-
-                        let message = wrldbldr_protocol::ServerMessage::ChallengePrompt {
-                            challenge_id: challenge_suggestion.challenge_id.clone(),
-                            challenge_name: challenge.name.clone(),
-                            skill_name: challenge_suggestion.skill_name.clone(),
-                            difficulty_display,
-                            description: challenge.description.clone(),
-                            character_modifier,
-                            suggested_dice: Some(suggested_dice),
-                            rule_system_hint: Some(rule_system_hint),
-                        };
-
-                        if let Err(e) = self.world_connection.broadcast_to_world(world_id, message).await {
-                            tracing::error!("Failed to broadcast challenge prompt: {}", e);
-                        }
-
-                        tracing::info!(
-                            "Triggered challenge '{}' for world via suggestion approval",
-                            challenge.name
-                        );
-                    } else {
-                        tracing::warn!(
-                            "No challenge suggestion found in approval item {}",
-                            request_id
-                        );
-                        return error_message("NO_CHALLENGE_SUGGESTION", "No challenge suggestion found in approval request");
-                    }
-                }
-                Ok(None) => {
-                    tracing::error!("Approval item {} not found", request_id);
-                    return error_message("APPROVAL_NOT_FOUND", &format!("Approval request {} not found", request_id));
-                }
-                Err(e) => {
-                    tracing::error!("Failed to get approval item: {}", e);
-                    return error_message("APPROVAL_LOOKUP_ERROR", &format!("Failed to look up approval: {}", e));
-                }
-            }
-        } else {
-            tracing::info!("DM rejected challenge suggestion for request {}", request_id);
+    ) -> Result<Option<ChallengeTriggerResult>, ChallengeResolutionError> {
+        if !approved {
+            info!(request_id = %request_id, "DM rejected challenge suggestion");
+            return Ok(None);
         }
 
-        None
+        // Look up the approval item
+        let approval_item = self.dm_approval_queue_service
+            .get_by_id(&request_id)
+            .await
+            .map_err(|e| ChallengeResolutionError::ApprovalLookupError(e.to_string()))?
+            .ok_or_else(|| ChallengeResolutionError::ApprovalLookupError(format!("Approval request {} not found", request_id)))?;
+
+        // Get challenge suggestion from the approval item
+        let challenge_suggestion = approval_item.payload.challenge_suggestion
+            .as_ref()
+            .ok_or_else(|| ChallengeResolutionError::ChallengeSuggestionNotFound(request_id.clone()))?;
+
+        // Parse challenge ID
+        let challenge_uuid = uuid::Uuid::parse_str(&challenge_suggestion.challenge_id)
+            .map(ChallengeId::from_uuid)
+            .map_err(|_| ChallengeResolutionError::InvalidChallengeId(challenge_suggestion.challenge_id.clone()))?;
+
+        // Load challenge
+        let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_suggestion.challenge_id.clone()));
+            }
+            Err(e) => {
+                return Err(ChallengeResolutionError::ChallengeLoadFailed(e.to_string()));
+            }
+        };
+
+        // Fetch skill_id from REQUIRES_SKILL edge
+        let skill_id = match self.challenge_service.get_required_skill(challenge_uuid).await {
+            Ok(skill_id) => skill_id,
+            Err(e) => {
+                tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_uuid, e);
+                None
+            }
+        };
+
+        let difficulty_display = modified_difficulty
+            .unwrap_or_else(|| challenge.difficulty.display());
+
+        // Look up skill modifier for target character if available
+        let character_modifier = if let Some(ref sid) = skill_id {
+            if let Some(ref pc_id_str) = challenge_suggestion.target_pc_id {
+                if let Ok(pc_id) = uuid::Uuid::parse_str(pc_id_str)
+                    .map(PlayerCharacterId::from_uuid)
+                {
+                    match self.player_character_service
+                        .get_skill_modifier(pc_id, sid.clone())
+                        .await
+                    {
+                        Ok(modifier) => modifier,
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to get skill modifier for PC {}: {}, using 0",
+                                pc_id_str, e
+                            );
+                            0
+                        }
+                    }
+                } else {
+                    tracing::warn!(
+                        "Invalid target_pc_id format: {}, using modifier 0",
+                        pc_id_str
+                    );
+                    0
+                }
+            } else {
+                tracing::debug!("No target_pc_id in challenge suggestion, using modifier 0");
+                0
+            }
+        } else {
+            0
+        };
+
+        // Get suggested dice based on difficulty type
+        let (suggested_dice, rule_system_hint) = get_dice_suggestion_for_challenge(&challenge);
+
+        info!(
+            challenge_name = %challenge.name,
+            request_id = %request_id,
+            "Challenge suggestion approved, triggering challenge"
+        );
+
+        Ok(Some(ChallengeTriggerResult {
+            challenge_id: challenge_suggestion.challenge_id.clone(),
+            challenge_name: challenge.name.clone(),
+            skill_name: challenge_suggestion.skill_name.clone(),
+            difficulty_display,
+            description: challenge.description.clone(),
+            character_modifier,
+            suggested_dice,
+            rule_system_hint,
+        }))
     }
 
     /// Handle DM creating an ad-hoc challenge (no LLM involved)
+    ///
+    /// Returns both the created challenge result and the trigger result for broadcasting.
     pub async fn handle_adhoc_challenge(
         &self,
-        world_id: &WorldId,
+        _world_id: &WorldId,
         challenge_name: String,
         skill_name: String,
         difficulty: String,
         target_pc_id: String,
         outcomes: AdHocOutcomesDto,
-    ) -> Option<serde_json::Value> {
-
+    ) -> Result<(AdHocChallengeResult, ChallengeTriggerResult), ChallengeResolutionError> {
         // Generate a temporary challenge ID for this ad-hoc challenge
         let adhoc_challenge_id = uuid::Uuid::new_v4().to_string();
 
-        // Store the ad-hoc outcomes in the session for later resolution
-        // For now, we just broadcast the challenge prompt to the target player
-        tracing::info!(
-            "DM created ad-hoc challenge '{}' for PC {}: difficulty {}",
-            challenge_name,
-            target_pc_id,
-            difficulty
+        info!(
+            challenge_name = %challenge_name,
+            target_pc_id = %target_pc_id,
+            difficulty = %difficulty,
+            "DM created ad-hoc challenge"
         );
 
         // Determine suggested dice from difficulty string
@@ -804,31 +776,27 @@ where
             ("2d6".to_string(), "Roll 2d6 and add your modifier".to_string())
         };
 
-        let message = wrldbldr_protocol::ServerMessage::ChallengePrompt {
+        // Build the ad-hoc challenge result for the DM
+        let adhoc_result = AdHocChallengeResult {
             challenge_id: adhoc_challenge_id.clone(),
             challenge_name: challenge_name.clone(),
-            skill_name,
-            difficulty_display: difficulty,
-            description: format!("Ad-hoc challenge created by DM"),
-            character_modifier: 0, // DM would need to specify this
-            suggested_dice: Some(suggested_dice),
-            rule_system_hint: Some(rule_system_hint),
-        };
-
-        // Broadcast to world (the target player will see it)
-        if let Err(e) = self.world_connection.broadcast_to_world(world_id, message).await {
-            tracing::error!("Failed to broadcast ad-hoc challenge prompt: {}", e);
-        }
-
-        // Notify DM that challenge was created (includes outcomes for confirmation)
-        let msg = AdHocChallengeCreatedMessage {
-            r#type: "AdHocChallengeCreated",
-            challenge_id: adhoc_challenge_id,
-            challenge_name,
-            target_pc_id,
+            target_pc_id: target_pc_id.clone(),
             outcomes,
         };
-        serde_json::to_value(&msg).ok()
+
+        // Build the trigger result for broadcasting to the player
+        let trigger_result = ChallengeTriggerResult {
+            challenge_id: adhoc_challenge_id,
+            challenge_name,
+            skill_name,
+            difficulty_display: difficulty,
+            description: "Ad-hoc challenge created by DM".to_string(),
+            character_modifier: 0, // DM would need to specify this
+            suggested_dice,
+            rule_system_hint,
+        };
+
+        Ok((adhoc_result, trigger_result))
     }
 }
 
