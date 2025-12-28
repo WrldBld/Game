@@ -22,7 +22,7 @@ use wrldbldr_domain::entities::{
     ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, Item, StatBlock, Want, WantVisibility,
 };
 use wrldbldr_domain::value_objects::{
-    ActantialTarget, ArchetypeChange, CampbellArchetype, MoodLevel, NpcMoodState, RegionFrequency,
+    ActantialTarget, ArchetypeChange, CampbellArchetype, DispositionLevel, NpcDispositionState, RegionFrequency,
     RegionRelationship, RegionRelationshipType, RegionShift, RelationshipLevel, WantTarget,
 };
 use wrldbldr_domain::PlayerCharacterId;
@@ -69,7 +69,7 @@ impl Neo4jCharacterRepository {
                 stats: $stats,
                 is_alive: $is_alive,
                 is_active: $is_active,
-                default_mood: $default_mood
+                default_disposition: $default_disposition
             })
             CREATE (w)-[:CONTAINS_CHARACTER]->(c)
             RETURN c.id as id",
@@ -95,7 +95,7 @@ impl Neo4jCharacterRepository {
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
         .param("is_active", character.is_active)
-        .param("default_mood", character.default_mood.to_string());
+        .param("default_disposition", character.default_disposition.to_string());
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Created character: {}", character.name);
@@ -181,7 +181,7 @@ impl Neo4jCharacterRepository {
                 c.stats = $stats,
                 c.is_alive = $is_alive,
                 c.is_active = $is_active,
-                c.default_mood = $default_mood
+                c.default_disposition = $default_disposition
             RETURN c.id as id",
         )
         .param("id", character.id.to_string())
@@ -204,7 +204,7 @@ impl Neo4jCharacterRepository {
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
         .param("is_active", character.is_active)
-        .param("default_mood", character.default_mood.to_string());
+        .param("default_disposition", character.default_disposition.to_string());
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Updated character: {}", character.name);
@@ -1294,19 +1294,19 @@ impl Neo4jCharacterRepository {
     }
 
     // =========================================================================
-    // NPC Mood & Relationship Methods
+    // NPC Disposition & Relationship Methods
     // =========================================================================
 
-    /// Get an NPC's mood state toward a specific PC
-    pub async fn get_mood_toward_pc(
+    /// Get an NPC's disposition state toward a specific PC
+    pub async fn get_disposition_toward_pc(
         &self,
         npc_id: CharacterId,
         pc_id: PlayerCharacterId,
-    ) -> Result<Option<NpcMoodState>> {
+    ) -> Result<Option<NpcDispositionState>> {
         let q = query(
             "MATCH (npc:Character {id: $npc_id})-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
-            RETURN r.mood as mood, r.relationship as relationship, r.sentiment as sentiment,
-                   r.updated_at as updated_at, r.mood_reason as mood_reason, r.relationship_points as relationship_points",
+            RETURN r.disposition as disposition, r.relationship as relationship, r.sentiment as sentiment,
+                   r.updated_at as updated_at, r.disposition_reason as disposition_reason, r.relationship_points as relationship_points",
         )
         .param("npc_id", npc_id.to_string())
         .param("pc_id", pc_id.to_string());
@@ -1314,25 +1314,25 @@ impl Neo4jCharacterRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
             let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
             let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now());
 
-            Ok(Some(NpcMoodState {
+            Ok(Some(NpcDispositionState {
                 npc_id,
                 pc_id,
-                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
                 relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
-                mood_reason,
+                disposition_reason,
                 relationship_points: relationship_points as i32,
             }))
         } else {
@@ -1340,44 +1340,44 @@ impl Neo4jCharacterRepository {
         }
     }
 
-    /// Set/update an NPC's mood state toward a specific PC
-    pub async fn set_mood_toward_pc(&self, mood_state: &NpcMoodState) -> Result<()> {
+    /// Set/update an NPC's disposition state toward a specific PC
+    pub async fn set_disposition_toward_pc(&self, disposition_state: &NpcDispositionState) -> Result<()> {
         let q = query(
             "MATCH (npc:Character {id: $npc_id}), (pc:PlayerCharacter {id: $pc_id})
             MERGE (npc)-[r:DISPOSITION_TOWARD]->(pc)
-            SET r.mood = $mood,
+            SET r.disposition = $disposition,
                 r.relationship = $relationship,
                 r.sentiment = $sentiment,
                 r.updated_at = $updated_at,
-                r.mood_reason = $mood_reason,
+                r.disposition_reason = $disposition_reason,
                 r.relationship_points = $relationship_points
             RETURN npc.id as id",
         )
-        .param("npc_id", mood_state.npc_id.to_string())
-        .param("pc_id", mood_state.pc_id.to_string())
-        .param("mood", mood_state.mood.to_string())
-        .param("relationship", mood_state.relationship.to_string())
-        .param("sentiment", mood_state.sentiment as f64)
-        .param("updated_at", mood_state.updated_at.to_rfc3339())
-        .param("mood_reason", mood_state.mood_reason.clone().unwrap_or_default())
-        .param("relationship_points", mood_state.relationship_points as i64);
+        .param("npc_id", disposition_state.npc_id.to_string())
+        .param("pc_id", disposition_state.pc_id.to_string())
+        .param("disposition", disposition_state.disposition.to_string())
+        .param("relationship", disposition_state.relationship.to_string())
+        .param("sentiment", disposition_state.sentiment as f64)
+        .param("updated_at", disposition_state.updated_at.to_rfc3339())
+        .param("disposition_reason", disposition_state.disposition_reason.clone().unwrap_or_default())
+        .param("relationship_points", disposition_state.relationship_points as i64);
 
         self.connection.graph().run(q).await?;
         tracing::debug!(
-            "Set mood for NPC {} toward PC {}: {:?}",
-            mood_state.npc_id,
-            mood_state.pc_id,
-            mood_state.mood
+            "Set disposition for NPC {} toward PC {}: {:?}",
+            disposition_state.npc_id,
+            disposition_state.pc_id,
+            disposition_state.disposition
         );
         Ok(())
     }
 
-    /// Get mood states for multiple NPCs toward a PC (for scene context)
-    pub async fn get_scene_moods(
+    /// Get disposition states for multiple NPCs toward a PC (for scene context)
+    pub async fn get_scene_dispositions(
         &self,
         npc_ids: &[CharacterId],
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcMoodState>> {
+    ) -> Result<Vec<NpcDispositionState>> {
         if npc_ids.is_empty() {
             return Ok(vec![]);
         }
@@ -1387,23 +1387,23 @@ impl Neo4jCharacterRepository {
         let q = query(
             "MATCH (npc:Character)-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
             WHERE npc.id IN $npc_ids
-            RETURN npc.id as npc_id, r.mood as mood, r.relationship as relationship,
+            RETURN npc.id as npc_id, r.disposition as disposition, r.relationship as relationship,
                    r.sentiment as sentiment, r.updated_at as updated_at,
-                   r.mood_reason as mood_reason, r.relationship_points as relationship_points",
+                   r.disposition_reason as disposition_reason, r.relationship_points as relationship_points",
         )
         .param("pc_id", pc_id.to_string())
         .param("npc_ids", npc_id_strings);
 
         let mut result = self.connection.graph().execute(q).await?;
-        let mut moods = Vec::new();
+        let mut dispositions = Vec::new();
 
         while let Some(row) = result.next().await? {
             let npc_id_str: String = row.get("npc_id")?;
-            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
             let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
             let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
@@ -1411,45 +1411,45 @@ impl Neo4jCharacterRepository {
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now());
 
-            moods.push(NpcMoodState {
+            dispositions.push(NpcDispositionState {
                 npc_id: CharacterId::from_uuid(npc_uuid),
                 pc_id,
-                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
                 relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
-                mood_reason,
+                disposition_reason,
                 relationship_points: relationship_points as i32,
             });
         }
 
-        Ok(moods)
+        Ok(dispositions)
     }
 
     /// Get all NPCs who have a relationship with a PC (for DM panel)
-    pub async fn get_all_npc_moods_for_pc(
+    pub async fn get_all_npc_dispositions_for_pc(
         &self,
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcMoodState>> {
+    ) -> Result<Vec<NpcDispositionState>> {
         let q = query(
             "MATCH (npc:Character)-[r:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
-            RETURN npc.id as npc_id, r.mood as mood, r.relationship as relationship,
+            RETURN npc.id as npc_id, r.disposition as disposition, r.relationship as relationship,
                    r.sentiment as sentiment, r.updated_at as updated_at,
-                   r.mood_reason as mood_reason, r.relationship_points as relationship_points
+                   r.disposition_reason as disposition_reason, r.relationship_points as relationship_points
             ORDER BY r.updated_at DESC",
         )
         .param("pc_id", pc_id.to_string());
 
         let mut result = self.connection.graph().execute(q).await?;
-        let mut moods = Vec::new();
+        let mut dispositions = Vec::new();
 
         while let Some(row) = result.next().await? {
             let npc_id_str: String = row.get("npc_id")?;
-            let mood_str: String = row.get("mood").unwrap_or_else(|_| "Neutral".to_string());
+            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
             let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-            let mood_reason: Option<String> = row.get("mood_reason").ok();
+            let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
             let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
@@ -1457,51 +1457,51 @@ impl Neo4jCharacterRepository {
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now());
 
-            moods.push(NpcMoodState {
+            dispositions.push(NpcDispositionState {
                 npc_id: CharacterId::from_uuid(npc_uuid),
                 pc_id,
-                mood: mood_str.parse().unwrap_or(MoodLevel::Neutral),
+                disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
                 relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
-                mood_reason,
+                disposition_reason,
                 relationship_points: relationship_points as i32,
             });
         }
 
-        Ok(moods)
+        Ok(dispositions)
     }
 
-    /// Get the NPC's default/global mood (from Character node)
-    pub async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel> {
+    /// Get the NPC's default/global disposition (from Character node)
+    pub async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel> {
         let q = query(
             "MATCH (c:Character {id: $id})
-            RETURN c.default_mood as default_mood",
+            RETURN c.default_disposition as default_disposition",
         )
         .param("id", npc_id.to_string());
 
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let mood_str: String = row.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
-            Ok(mood_str.parse().unwrap_or(MoodLevel::Neutral))
+            let disposition_str: String = row.get("default_disposition").unwrap_or_else(|_| "Neutral".to_string());
+            Ok(disposition_str.parse().unwrap_or(DispositionLevel::Neutral))
         } else {
-            Ok(MoodLevel::Neutral)
+            Ok(DispositionLevel::Neutral)
         }
     }
 
-    /// Set the NPC's default/global mood (on Character node)
-    pub async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()> {
+    /// Set the NPC's default/global disposition (on Character node)
+    pub async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()> {
         let q = query(
             "MATCH (c:Character {id: $id})
-            SET c.default_mood = $mood
+            SET c.default_disposition = $disposition
             RETURN c.id as id",
         )
         .param("id", npc_id.to_string())
-        .param("mood", mood.to_string());
+        .param("disposition", disposition.to_string());
 
         self.connection.graph().run(q).await?;
-        tracing::debug!("Set default mood for NPC {}: {:?}", npc_id, mood);
+        tracing::debug!("Set default disposition for NPC {}: {:?}", npc_id, disposition);
         Ok(())
     }
 }
@@ -1525,8 +1525,7 @@ fn row_to_character(row: Row) -> Result<Character> {
     let stats_json: String = node.get("stats")?;
     let is_alive: bool = node.get("is_alive")?;
     let is_active: bool = node.get("is_active")?;
-    // default_mood is optional for backwards compatibility with existing data
-    let default_mood_str: String = node.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
+    let default_disposition_str: String = node.get("default_disposition")?;
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -1538,7 +1537,7 @@ fn row_to_character(row: Row) -> Result<Character> {
             .map(Into::into)
             .collect();
     let stats: StatBlock = serde_json::from_str::<StatBlockStored>(&stats_json)?.into();
-    let default_mood = default_mood_str.parse().unwrap_or(MoodLevel::Neutral);
+    let default_disposition = default_disposition_str.parse().map_err(|e: String| anyhow::anyhow!(e))?;
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -1561,7 +1560,7 @@ fn row_to_character(row: Row) -> Result<Character> {
         stats,
         is_alive,
         is_active,
-        default_mood,
+        default_disposition,
     })
 }
 
@@ -1884,37 +1883,37 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::get_npcs_at_location(self, location_id, time_of_day).await
     }
 
-    // Mood & Relationship
-    async fn get_mood_toward_pc(
+    // Disposition & Relationship
+    async fn get_disposition_toward_pc(
         &self,
         npc_id: CharacterId,
         pc_id: PlayerCharacterId,
-    ) -> Result<Option<NpcMoodState>> {
-        Neo4jCharacterRepository::get_mood_toward_pc(self, npc_id, pc_id).await
+    ) -> Result<Option<NpcDispositionState>> {
+        Neo4jCharacterRepository::get_disposition_toward_pc(self, npc_id, pc_id).await
     }
 
-    async fn set_mood_toward_pc(&self, mood_state: &NpcMoodState) -> Result<()> {
-        Neo4jCharacterRepository::set_mood_toward_pc(self, mood_state).await
+    async fn set_disposition_toward_pc(&self, disposition_state: &NpcDispositionState) -> Result<()> {
+        Neo4jCharacterRepository::set_disposition_toward_pc(self, disposition_state).await
     }
 
-    async fn get_scene_moods(
+    async fn get_scene_dispositions(
         &self,
         npc_ids: &[CharacterId],
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcMoodState>> {
-        Neo4jCharacterRepository::get_scene_moods(self, npc_ids, pc_id).await
+    ) -> Result<Vec<NpcDispositionState>> {
+        Neo4jCharacterRepository::get_scene_dispositions(self, npc_ids, pc_id).await
     }
 
-    async fn get_all_npc_moods_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcMoodState>> {
-        Neo4jCharacterRepository::get_all_npc_moods_for_pc(self, pc_id).await
+    async fn get_all_npc_dispositions_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcDispositionState>> {
+        Neo4jCharacterRepository::get_all_npc_dispositions_for_pc(self, pc_id).await
     }
 
-    async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel> {
-        Neo4jCharacterRepository::get_default_mood(self, npc_id).await
+    async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel> {
+        Neo4jCharacterRepository::get_default_disposition(self, npc_id).await
     }
 
-    async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()> {
-        Neo4jCharacterRepository::set_default_mood(self, npc_id, mood).await
+    async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()> {
+        Neo4jCharacterRepository::set_default_disposition(self, npc_id, disposition).await
     }
 
     // Character-Region Relationships

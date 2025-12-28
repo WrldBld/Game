@@ -269,13 +269,13 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.client.send(msg)
     }
 
-    fn set_npc_mood(&self, npc_id: &str, pc_id: &str, mood: &str, reason: Option<&str>) -> Result<()> {
+    fn set_npc_disposition(&self, npc_id: &str, pc_id: &str, disposition: &str, reason: Option<&str>) -> Result<()> {
         let msg = ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::SetNpcMood {
+            payload: RequestPayload::SetNpcDisposition {
                 npc_id: npc_id.to_string(),
                 pc_id: pc_id.to_string(),
-                mood: mood.to_string(),
+                disposition: disposition.to_string(),
                 reason: reason.map(|s| s.to_string()),
             },
         };
@@ -294,10 +294,10 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.client.send(msg)
     }
 
-    fn get_npc_moods(&self, pc_id: &str) -> Result<()> {
+    fn get_npc_dispositions(&self, pc_id: &str) -> Result<()> {
         let msg = ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::GetNpcMoods {
+            payload: RequestPayload::GetNpcDispositions {
                 pc_id: pc_id.to_string(),
             },
         };

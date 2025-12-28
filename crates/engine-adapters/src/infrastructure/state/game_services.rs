@@ -9,7 +9,7 @@ use wrldbldr_engine_app::application::dto::ApprovalItem;
 use wrldbldr_engine_ports::outbound::LlmPort;
 use wrldbldr_engine_app::application::services::{
     ActantialContextService, ChallengeService, EventChainService,
-    MoodService, NarrativeEventService,
+    DispositionService, NarrativeEventService,
     challenge_resolution_service::ChallengeResolutionService,
     ChallengeOutcomeApprovalService, ChallengeServiceImpl, EventEffectExecutor,
     ItemServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
@@ -23,7 +23,7 @@ use wrldbldr_engine_app::application::services::{
 ///
 /// Services with simple traits use `Arc<dyn Trait>` for flexibility:
 /// - `challenge_service`, `narrative_event_service`, `event_chain_service`
-/// - `mood_service`, `actantial_context_service`
+/// - `disposition_service`, `actantial_context_service`
 ///
 /// Complex generic services remain concrete for type safety:
 /// - `challenge_resolution_service`, `challenge_outcome_approval_service`
@@ -68,8 +68,8 @@ pub struct GameServices<L: LlmPort> {
     /// Service for executing narrative event outcome effects (Phase 2)
     pub event_effect_executor: Arc<EventEffectExecutor>,
     
-    /// Service for NPC mood and relationship tracking (P1.4)
-    pub mood_service: Arc<dyn MoodService>,
+    /// Service for NPC disposition and relationship tracking (P1.4)
+    pub disposition_service: Arc<dyn DispositionService>,
     
     /// Service for actantial model context (P1.5)
     pub actantial_context_service: Arc<dyn ActantialContextService>,
@@ -97,7 +97,7 @@ impl<L: LlmPort + 'static> GameServices<L> {
         event_chain_service: Arc<dyn EventChainService>,
         trigger_evaluation_service: Arc<TriggerEvaluationService>,
         event_effect_executor: Arc<EventEffectExecutor>,
-        mood_service: Arc<dyn MoodService>,
+        disposition_service: Arc<dyn DispositionService>,
         actantial_context_service: Arc<dyn ActantialContextService>,
     ) -> Self {
         Self {
@@ -110,7 +110,7 @@ impl<L: LlmPort + 'static> GameServices<L> {
             event_chain_service,
             trigger_evaluation_service,
             event_effect_executor,
-            mood_service,
+            disposition_service,
             actantial_context_service,
         }
     }

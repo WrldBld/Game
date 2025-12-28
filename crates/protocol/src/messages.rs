@@ -625,24 +625,24 @@ pub enum ServerMessage {
     },
 
     // =========================================================================
-    // NPC Mood Updates (P1.4)
+    // NPC Disposition Updates (P1.4)
     // =========================================================================
 
-    /// NPC mood/relationship changed (sent to DM and optionally PC)
-    NpcMoodChanged {
+    /// NPC disposition/relationship changed (sent to DM and optionally PC)
+    NpcDispositionChanged {
         npc_id: String,
         npc_name: String,
         pc_id: String,
-        mood: String,
+        disposition: String,
         relationship: String,
         #[serde(default)]
         reason: Option<String>,
     },
 
-    /// All NPC moods for a PC (response to GetNpcMoods)
-    NpcMoodsResponse {
+    /// All NPC dispositions for a PC (response to GetNpcDispositions)
+    NpcDispositionsResponse {
         pc_id: String,
-        moods: Vec<NpcMoodData>,
+        dispositions: Vec<NpcDispositionData>,
     },
 
     // =========================================================================
@@ -846,11 +846,16 @@ pub struct DirectorialContext {
     pub forbidden_topics: Vec<String>,
 }
 
-/// NPC motivation data
+/// NPC motivation data for directorial context
+///
+/// Note: `emotional_guidance` is a free-form string for DM guidance,
+/// not the same as DispositionLevel or MoodState enums.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NpcMotivationData {
     pub character_id: String,
-    pub mood: String,
+    /// Free-form emotional guidance for the NPC (e.g., "Conflicted about revealing secrets")
+    /// UI label: "Demeanor"
+    pub emotional_guidance: String,
     pub immediate_goal: String,
     pub secret_agenda: Option<String>,
 }
@@ -1111,20 +1116,20 @@ pub struct ApprovedNpcInfo {
 }
 
 // =============================================================================
-// NPC Mood Types (P1.4)
+// NPC Disposition Types (P1.4)
 // =============================================================================
 
-/// NPC mood/relationship data for a specific PC
+/// NPC disposition/relationship data for a specific PC
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NpcMoodData {
+pub struct NpcDispositionData {
     pub npc_id: String,
     pub npc_name: String,
-    pub mood: String,
+    pub disposition: String,
     pub relationship: String,
     /// Sentiment value (-1.0 to 1.0)
     #[serde(default)]
     pub sentiment: f32,
-    /// Last reason for mood change
+    /// Last reason for disposition change
     #[serde(default)]
     pub last_reason: Option<String>,
 }

@@ -28,7 +28,7 @@ use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, ChallengeOutcomeApprovalService,
     ChallengeServiceImpl, CharacterServiceImpl, DMActionQueueService, DMApprovalQueueService,
     EventChainServiceImpl, InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
-    MoodServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
+    DispositionServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl, PlayerActionQueueService,
     PlayerCharacterServiceImpl, PromptTemplateService, RegionServiceImpl, SceneResolutionServiceImpl, SceneServiceImpl,
     SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, RelationshipServiceImpl,
     WorkflowConfigService, WorldServiceImpl, GenerationQueueProjectionService,
@@ -518,8 +518,8 @@ impl AppState {
             generation_read_state_repository.clone(),
         ));
 
-        // Create mood service (P1.4)
-        let mood_service = Arc::new(MoodServiceImpl::new(character_repo.clone()));
+        // Create disposition service (P1.4)
+        let disposition_service = Arc::new(DispositionServiceImpl::new(character_repo.clone()));
 
         // Create region service
         let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> = 
@@ -560,7 +560,7 @@ impl AppState {
             event_chain_service.clone(),
             trigger_evaluation_service,
             event_effect_executor,
-            mood_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::MoodService>,
+            disposition_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::DispositionService>,
             actantial_context_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
         );
 
@@ -623,7 +623,7 @@ impl AppState {
             player.player_character_service.clone(),
             core.relationship_service.clone(),
             game.actantial_context_service.clone(),
-            game.mood_service.clone(),
+            game.disposition_service.clone(),
             game.story_event_service.clone(),
             core.item_service.clone(),
             region_service,

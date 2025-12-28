@@ -19,7 +19,7 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::value_objects::{
-    ActantialTarget, MoodLevel, NpcMoodState, RegionRelationship, RegionRelationshipType,
+    ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship, RegionRelationshipType,
     RegionShift, Relationship, WantTarget,
 };
 use wrldbldr_domain::{
@@ -310,40 +310,40 @@ pub trait CharacterRepositoryPort: Send + Sync {
     ) -> Result<Vec<Character>>;
 
     // -------------------------------------------------------------------------
-    // NPC Mood & Relationship (DISPOSITION_TOWARD edges to PlayerCharacter)
+    // NPC Disposition & Relationship (DISPOSITION_TOWARD edges to PlayerCharacter)
     // -------------------------------------------------------------------------
 
-    /// Get an NPC's mood state toward a specific PC
-    async fn get_mood_toward_pc(
+    /// Get an NPC's disposition state toward a specific PC
+    async fn get_disposition_toward_pc(
         &self,
         npc_id: CharacterId,
         pc_id: PlayerCharacterId,
-    ) -> Result<Option<NpcMoodState>>;
+    ) -> Result<Option<NpcDispositionState>>;
 
-    /// Set/update an NPC's mood state toward a specific PC
-    async fn set_mood_toward_pc(
+    /// Set/update an NPC's disposition state toward a specific PC
+    async fn set_disposition_toward_pc(
         &self,
-        mood_state: &NpcMoodState,
+        disposition_state: &NpcDispositionState,
     ) -> Result<()>;
 
-    /// Get mood states for multiple NPCs toward a PC (for scene context)
-    async fn get_scene_moods(
+    /// Get disposition states for multiple NPCs toward a PC (for scene context)
+    async fn get_scene_dispositions(
         &self,
         npc_ids: &[CharacterId],
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcMoodState>>;
+    ) -> Result<Vec<NpcDispositionState>>;
 
     /// Get all NPCs who have a relationship with a PC (for DM panel)
-    async fn get_all_npc_moods_for_pc(
+    async fn get_all_npc_dispositions_for_pc(
         &self,
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcMoodState>>;
+    ) -> Result<Vec<NpcDispositionState>>;
 
-    /// Get the NPC's default/global mood (from Character node)
-    async fn get_default_mood(&self, npc_id: CharacterId) -> Result<MoodLevel>;
+    /// Get the NPC's default/global disposition (from Character node)
+    async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel>;
 
-    /// Set the NPC's default/global mood (on Character node)
-    async fn set_default_mood(&self, npc_id: CharacterId, mood: MoodLevel) -> Result<()>;
+    /// Set the NPC's default/global disposition (on Character node)
+    async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()>;
 
     // -------------------------------------------------------------------------
     // Character-Region Relationships (HOME_REGION, WORKS_AT_REGION, etc.)

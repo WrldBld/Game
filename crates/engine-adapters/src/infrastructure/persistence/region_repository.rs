@@ -17,7 +17,7 @@ use super::converters::{row_to_item, row_to_region};
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
-use wrldbldr_domain::value_objects::{MoodLevel, RegionFrequency, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::value_objects::{DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift};
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
 
 /// Repository for Region operations
@@ -614,7 +614,7 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     let current_archetype_str: String = node.get("current_archetype").unwrap_or_default();
     let is_alive: bool = node.get("is_alive").unwrap_or(true);
     let is_active: bool = node.get("is_active").unwrap_or(true);
-    let default_mood_str: String = node.get("default_mood").unwrap_or_else(|_| "Neutral".to_string());
+    let default_disposition_str: String = node.get("default_disposition")?;
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
@@ -625,7 +625,7 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     } else {
         parse_archetype(&current_archetype_str)
     };
-    let default_mood = default_mood_str.parse().unwrap_or(MoodLevel::Neutral);
+    let default_disposition = default_disposition_str.parse().unwrap_or(DispositionLevel::Neutral);
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -648,7 +648,7 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
         stats: StatBlock::default(),
         is_alive,
         is_active,
-        default_mood,
+        default_disposition,
     })
 }
 

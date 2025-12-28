@@ -15,7 +15,7 @@ use wrldbldr_domain::value_objects::{
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::dto::PlayerActionItem;
 use wrldbldr_engine_app::application::services::{
-    ActantialContextService, ChallengeService, MoodService,
+    ActantialContextService, ChallengeService, DispositionService,
     NarrativeEventService, SettingsService, SkillService, WorldService,
 };
 use wrldbldr_engine_ports::outbound::{
@@ -41,7 +41,7 @@ pub async fn build_prompt_from_action(
     pc_repo: &Arc<dyn PlayerCharacterRepositoryPort>,
     region_repo: &Arc<dyn RegionRepositoryPort>,
     _settings_service: &Arc<SettingsService>,
-    _mood_service: &Arc<dyn MoodService>,
+    _disposition_service: &Arc<dyn DispositionService>,
     _actantial_service: &Arc<dyn ActantialContextService>,
     action: &PlayerActionItem,
 ) -> Result<GamePromptRequest, QueueError> {
@@ -165,7 +165,7 @@ pub async fn build_prompt_from_action(
         &action.target,
         &snapshot.characters,
         action.pc_id,
-        _mood_service,
+        _disposition_service,
         _actantial_service,
     )
     .await;
@@ -232,7 +232,7 @@ async fn find_responding_character(
     target: &Option<String>,
     characters: &[wrldbldr_engine_ports::outbound::CharacterData],
     pc_id: Option<Uuid>,
-    mood_service: &Arc<dyn MoodService>,
+    disposition_service: &Arc<dyn DispositionService>,
     actantial_service: &Arc<dyn ActantialContextService>,
 ) -> CharacterContext {
     // Try to find character by name in target
@@ -250,11 +250,11 @@ async fn find_responding_character(
         .or_else(|| characters.first()); // Fallback to first character
 
     if let Some(char_data) = character_data {
-        // Try to get mood if we have both NPC ID and PC ID
-        let current_mood = get_npc_mood_toward_pc(
+        // Try to get disposition if we have both NPC ID and PC ID
+        let current_mood = get_npc_disposition_toward_pc(
             &char_data.id,
             pc_id,
-            mood_service,
+            disposition_service,
         ).await;
 
         // Try to get actantial context (motivations and social stance)
@@ -286,31 +286,31 @@ async fn find_responding_character(
     }
 }
 
-/// Get the NPC's mood toward a specific PC
-async fn get_npc_mood_toward_pc(
+/// Get the NPC's disposition toward a specific PC
+async fn get_npc_disposition_toward_pc(
     npc_id_str: &str,
     pc_id: Option<Uuid>,
-    mood_service: &Arc<dyn MoodService>,
+    disposition_service: &Arc<dyn DispositionService>,
 ) -> Option<String> {
-    // Need both NPC ID and PC ID to query mood
+    // Need both NPC ID and PC ID to query disposition
     let pc_uuid = pc_id?;
     
     let npc_uuid = Uuid::parse_str(npc_id_str).ok()?;
     let npc_id = wrldbldr_domain::CharacterId::from_uuid(npc_uuid);
     let pc_id = wrldbldr_domain::PlayerCharacterId::from_uuid(pc_uuid);
     
-    // Get the mood state
-    match mood_service.get_mood(npc_id, pc_id).await {
-        Ok(mood_state) => {
-            // Convert mood level to a descriptive string
-            Some(format!("{:?}", mood_state.mood))
+    // Get the disposition state
+    match disposition_service.get_disposition(npc_id, pc_id).await {
+        Ok(disposition_state) => {
+            // Convert disposition level to a descriptive string
+            Some(format!("{:?}", disposition_state.disposition))
         }
         Err(e) => {
             tracing::debug!(
                 npc_id = %npc_id_str,
                 pc_id = %pc_uuid,
                 error = %e,
-                "Could not get NPC mood toward PC, using default"
+                "Could not get NPC disposition toward PC, using default"
             );
             None
         }

@@ -591,13 +591,13 @@ pub enum RequestPayload {
     ListRegionNpcs { region_id: String },
 
     // =========================================================================
-    // NPC Mood Operations
+    // NPC Disposition Operations
     // =========================================================================
-    /// Set an NPC's mood toward a specific PC
-    SetNpcMood {
+    /// Set an NPC's disposition toward a specific PC
+    SetNpcDisposition {
         npc_id: String,
         pc_id: String,
-        mood: String,
+        disposition: String,
         #[serde(default)]
         reason: Option<String>,
     },
@@ -609,8 +609,8 @@ pub enum RequestPayload {
         relationship: String,
     },
 
-    /// Get all NPCs' moods toward a specific PC
-    GetNpcMoods { pc_id: String },
+    /// Get all NPCs' dispositions toward a specific PC
+    GetNpcDispositions { pc_id: String },
 
     // =========================================================================
     // LLM Suggestion Operations

@@ -12,7 +12,7 @@ use wrldbldr_protocol::{
     GameTime,
     InteractionData,
     NavigationData,
-    NpcMoodData,
+    NpcDispositionData,
     NpcPresenceData,
     RegionData as SceneRegionInfo,
     RegionItemData,
@@ -169,8 +169,8 @@ pub struct GameState {
     pub view_mode: Signal<ViewMode>,
     /// Counter to trigger actantial/motivations refresh (incremented on wants/goals changes)
     pub actantial_refresh_counter: Signal<u32>,
-    /// NPC moods toward the currently selected PC (populated from NpcMoodsResponse)
-    pub npc_moods: Signal<Vec<NpcMoodData>>,
+    /// NPC dispositions toward the currently selected PC (populated from NpcDispositionsResponse)
+    pub npc_dispositions: Signal<Vec<NpcDispositionData>>,
     /// Per-region staging status for DM panel (updated from staging events)
     pub region_staging_statuses: Signal<HashMap<String, RegionStagingStatus>>,
 }
@@ -198,7 +198,7 @@ impl GameState {
             split_party_locations: Signal::new(Vec::new()),
             view_mode: Signal::new(ViewMode::default()),
             actantial_refresh_counter: Signal::new(0),
-            npc_moods: Signal::new(Vec::new()),
+            npc_dispositions: Signal::new(Vec::new()),
             region_staging_statuses: Signal::new(HashMap::new()),
         }
     }
@@ -336,32 +336,32 @@ impl GameState {
         self.actantial_refresh_counter.set(current.wrapping_add(1));
     }
 
-    /// Set NPC moods (from NpcMoodsResponse)
-    pub fn set_npc_moods(&mut self, moods: Vec<NpcMoodData>) {
-        self.npc_moods.set(moods);
+    /// Set NPC dispositions (from NpcDispositionsResponse)
+    pub fn set_npc_dispositions(&mut self, dispositions: Vec<NpcDispositionData>) {
+        self.npc_dispositions.set(dispositions);
     }
 
-    /// Update a single NPC mood (from NpcMoodChanged)
-    pub fn update_npc_mood(
+    /// Update a single NPC disposition (from NpcDispositionChanged)
+    pub fn update_npc_disposition(
         &mut self,
         npc_id: &str,
-        mood: String,
+        disposition: String,
         relationship: String,
         reason: Option<String>,
     ) {
-        let mut moods = self.npc_moods.write();
-        if let Some(m) = moods.iter_mut().find(|m| m.npc_id == npc_id) {
-            m.mood = mood;
-            m.relationship = relationship;
-            m.last_reason = reason;
+        let mut dispositions = self.npc_dispositions.write();
+        if let Some(d) = dispositions.iter_mut().find(|d| d.npc_id == npc_id) {
+            d.disposition = disposition;
+            d.relationship = relationship;
+            d.last_reason = reason;
         }
         // Note: If NPC not in list, we don't add it - this is expected behavior
-        // The full mood list should be fetched via GetNpcMoods request
+        // The full disposition list should be fetched via GetNpcDispositions request
     }
 
-    /// Clear NPC moods (when changing scene or PC)
-    pub fn clear_npc_moods(&mut self) {
-        self.npc_moods.set(Vec::new());
+    /// Clear NPC dispositions (when changing scene or PC)
+    pub fn clear_npc_dispositions(&mut self) {
+        self.npc_dispositions.set(Vec::new());
     }
 
     /// Set the staging status for a specific region
@@ -486,7 +486,7 @@ impl GameState {
         self.pending_staging_approval.set(None);
         self.split_party_locations.set(Vec::new());
         self.view_mode.set(ViewMode::Director);
-        self.npc_moods.set(Vec::new());
+        self.npc_dispositions.set(Vec::new());
         self.region_staging_statuses.write().clear();
     }
 

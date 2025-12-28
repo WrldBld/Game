@@ -936,28 +936,28 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
-        // NPC Mood messages (P1.4) - Update DM panel state
-        ServerMessage::NpcMoodChanged { npc_id, npc_name: _, pc_id, mood, relationship, reason } => {
+        // NPC Disposition messages (P1.4) - Update DM panel state
+        ServerMessage::NpcDispositionChanged { npc_id, npc_name: _, pc_id, disposition, relationship, reason } => {
             tracing::info!(
                 npc_id = %npc_id,
                 pc_id = %pc_id,
-                mood = %mood,
+                disposition = %disposition,
                 relationship = %relationship,
                 reason = ?reason,
-                "NPC mood changed"
+                "NPC disposition changed"
             );
-            // Update specific NPC mood in game state
-            game_state.update_npc_mood(&npc_id, mood, relationship, reason);
+            // Update specific NPC disposition in game state
+            game_state.update_npc_disposition(&npc_id, disposition, relationship, reason);
         }
 
-        ServerMessage::NpcMoodsResponse { pc_id, moods } => {
+        ServerMessage::NpcDispositionsResponse { pc_id, dispositions } => {
             tracing::info!(
                 pc_id = %pc_id,
-                mood_count = moods.len(),
-                "Received NPC moods for PC"
+                disposition_count = dispositions.len(),
+                "Received NPC dispositions for PC"
             );
-            // Replace entire mood list for this PC
-            game_state.set_npc_moods(moods);
+            // Replace entire disposition list for this PC
+            game_state.set_npc_dispositions(dispositions);
         }
 
         // =========================================================================

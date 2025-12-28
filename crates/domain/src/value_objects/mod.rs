@@ -9,7 +9,7 @@ mod directorial;
 mod game_tools;
 // IDs live in `wrldbldr-domain`
 mod llm_context;
-mod mood;
+mod disposition;
 mod region;
 mod relationship;
 mod rule_system;
@@ -41,8 +41,8 @@ pub use llm_context::{
     PlayerActionContext, RegionItemContext, SceneContext, SecretMotivationEntry,
     SocialRelationEntry, SocialStanceContext,
 };
-pub use mood::{
-    ChallengeSignificance, InteractionOutcome, MoodLevel, NpcMoodState, NpcMoodStateDto, RelationshipLevel,
+pub use disposition::{
+    ChallengeSignificance, DispositionLevel, InteractionOutcome, NpcDispositionState, NpcDispositionStateDto, RelationshipLevel,
 };
 pub use region::{RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
 pub use relationship::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};

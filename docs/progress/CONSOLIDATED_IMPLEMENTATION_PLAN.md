@@ -423,17 +423,41 @@ Also updated `docs/systems/_template.md` to use WebSocket handler pattern.
 ## P3: Low Priority (Polish)
 
 ### P3.1: Mood & Expression System
-**Source**: [MOOD_EXPRESSION_SYSTEM.md](../plans/MOOD_EXPRESSION_SYSTEM.md)
-**Status**: Planning
-**Effort**: 3-4 days
+**Source**: [MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md](../plans/MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md)
+**Status**: Planning Complete - Ready for Implementation
+**Effort**: 30-35 hours (4-5 days)
 
-Redesign mood from static DM value to dynamic dialogue-embedded expression system.
+Implement a **three-tier emotional model** with clear terminology:
+1. **Disposition** (persistent NPC→PC relationship) - renamed from MoodLevel
+2. **Mood** (semi-persistent NPC state) - set during staging, cached until next staging
+3. **Expression** (transient dialogue state) - inline markers that change sprites
 
-Key features:
-- Inline mood markers: `*happy*` or `*excited|happy*`
-- Expression changes during typewriter playback
-- Tool-based permanent mood changes
-- PC mood marker support
+**Key Features**:
+- Clear terminology separation: Disposition vs Mood vs Expression
+- Disposition persists in Neo4j per NPC-PC pair (renamed from "mood")
+- Mood set by DM during staging approval, cached with staging
+- Expression markers in dialogue: `*happy*` or `*excited|happy*`
+- LLM context includes both disposition AND mood for richer responses
+- LLM tool calls: `change_disposition` and `change_mood` (both require DM approval)
+- DM editable dialogue with live marker validation (green/red/gray underlines)
+- Expression sheet generation via ComfyUI (3x3 grids)
+
+**Implementation Phases** (13 phases):
+0. Disposition Rename Refactor (prerequisite)
+1. New Mood System (Domain & Protocol)
+2. Staging System Mood Integration
+3. Persistence & Repository Updates
+4. LLM Prompt Updates
+5. Expression Sheet Generation
+6. Typewriter with Expression Changes
+7. Character Sprite Updates
+8. Player Input Validation
+9. Expression Config Editor UI
+10. Expression Sheet Generation UI
+11. DM Approval Marker Support
+12. Testing & Polish
+
+See full implementation plan: [MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md](../plans/MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md)
 
 ---
 
@@ -564,6 +588,7 @@ Sound and music:
 
 | Date | Change |
 |------|--------|
+| 2025-12-27 | **P3.1 Planning Complete**: Created comprehensive implementation plan with 13 phases, three-tier emotional model (Disposition/Mood/Expression), UI mockups, staging mood integration |
 | 2025-12-27 | **P3.3 COMPLETE (Part 2)**: Engine-app DTO removal (~200 lines), GameTime utility, serde casing fix |
 | 2025-12-27 | **P3.3 COMPLETE (Part 1)**: Type consolidation - domain is now single source of truth for shared types; protocol re-exports from domain |
 | 2025-12-27 | **P1.2 COMPLETE**: Dialogue gaps fixed - propagated context through LLM flow, added topic extraction |

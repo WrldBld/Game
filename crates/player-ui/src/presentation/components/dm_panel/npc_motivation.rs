@@ -1,6 +1,9 @@
 //! NPC motivation tracking component
 //!
-//! Displays and allows editing of NPC mood and immediate goals.
+//! Displays and allows editing of NPC demeanor and immediate goals.
+//!
+//! Note: "Demeanor" here is free-form emotional guidance for the DM,
+//! distinct from DispositionLevel (per NPC-PC relationship tracking).
 
 use dioxus::prelude::*;
 
@@ -10,8 +13,8 @@ use crate::presentation::components::dm_panel::director_generate_modal::Director
 /// NPC motivation state
 #[derive(Clone, PartialEq)]
 pub struct Motivation {
-    /// Current mood/emotional state
-    pub mood: String,
+    /// Current demeanor/emotional guidance (free-form, for DM reference)
+    pub demeanor: String,
     /// Immediate goal the NPC is pursuing
     pub goal: String,
 }
@@ -32,8 +35,8 @@ pub struct NPCMotivationProps {
     pub character_description: Option<String>,
 }
 
-/// Mood options available for selection
-const MOOD_OPTIONS: &[&str] = &[
+/// Demeanor options available for selection (motivational states, not disposition levels)
+const DEMEANOR_OPTIONS: &[&str] = &[
     "Friendly",
     "Neutral",
     "Suspicious",
@@ -46,21 +49,21 @@ const MOOD_OPTIONS: &[&str] = &[
     "Determined",
 ];
 
-/// NPCMotivation component - Track NPC mood and goals
+/// NPCMotivation component - Track NPC demeanor and goals
 ///
-/// Displays NPC name with editable mood dropdown and goal text input.
+/// Displays NPC name with editable demeanor dropdown and goal text input.
 /// Helps DMs manage NPC state during gameplay.
 #[component]
 pub fn NPCMotivation(props: NPCMotivationProps) -> Element {
     let char_name = props.character.name.clone();
     let char_id = props.character.id.clone();
-    let motivation_mood = props.motivation.mood.clone();
+    let motivation_demeanor = props.motivation.demeanor.clone();
     let motivation_goal = props.motivation.goal.clone();
     let mut show_generate_modal = use_signal(|| false);
     let mut generate_asset_type = use_signal(|| "portrait".to_string());
 
     // Clone for each closure to avoid move conflicts
-    let motivation_for_mood = props.motivation.clone();
+    let motivation_for_demeanor = props.motivation.clone();
     let motivation_for_goal = props.motivation.clone();
 
     rsx! {
@@ -73,28 +76,28 @@ pub fn NPCMotivation(props: NPCMotivationProps) -> Element {
                 "{char_name}"
             }
 
-            // Mood selector
+            // Demeanor selector
             div {
                 class: "mb-3",
 
                 label {
                     class: "block text-gray-400 text-xs uppercase mb-1",
-                    "Mood"
+                    "Demeanor"
                 }
 
                 select {
-                    value: "{motivation_mood}",
+                    value: "{motivation_demeanor}",
                     onchange: move |e| {
-                        let mut updated = motivation_for_mood.clone();
-                        updated.mood = e.value();
+                        let mut updated = motivation_for_demeanor.clone();
+                        updated.demeanor = e.value();
                         props.on_update.call(updated);
                     },
                     class: "w-full p-2 bg-dark-surface border border-gray-700 rounded-md text-white text-sm cursor-pointer",
 
-                    for mood in MOOD_OPTIONS.iter() {
+                    for demeanor in DEMEANOR_OPTIONS.iter() {
                         option {
-                            value: "{mood}",
-                            "{mood}"
+                            value: "{demeanor}",
+                            "{demeanor}"
                         }
                     }
                     option {

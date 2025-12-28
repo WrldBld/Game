@@ -22,7 +22,7 @@ pub mod item_service;
 pub mod llm_queue_service;
 pub mod llm;
 pub mod location_service;
-pub mod mood_service;
+pub mod disposition_service;
 pub mod region_service;
 
 // Re-export LLM service types for backward compatibility
@@ -182,8 +182,8 @@ pub use event_effect_executor::{
 pub use staging_context_provider::{StagingContextProvider, build_staging_prompt};
 pub use staging_service::{StagingService, StagingProposal};
 
-// Re-export mood service (P1.4)
-pub use mood_service::{MoodService, MoodServiceImpl};
+// Re-export disposition service (P1.4)
+pub use disposition_service::{DispositionService, DispositionServiceImpl};
 
 // Re-export actantial context service (P1.5)
 pub use actantial_context_service::{

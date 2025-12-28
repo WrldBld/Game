@@ -11,8 +11,8 @@ use crate::presentation::components::dm_panel::challenge_library::ChallengeLibra
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
 use crate::presentation::components::dm_panel::location_preview_modal::LocationPreviewModal;
-use crate::presentation::components::dm_panel::npc_mood_panel::{
-    MoodChangeEvent, NpcMoodListPanel, RelationshipChangeEvent, SceneNpcInfo,
+use crate::presentation::components::dm_panel::npc_disposition_panel::{
+    DispositionChangeEvent, NpcDispositionListPanel, RelationshipChangeEvent, SceneNpcInfo,
 };
 use crate::presentation::components::dm_panel::split_party_banner::SplitPartyBanner;
 use crate::presentation::components::dm_panel::staging_approval::{
@@ -277,52 +277,52 @@ pub fn DirectorModeContent() -> Element {
                     }
                 }
 
-                // NPC Moods Panel (shows moods for selected PC)
+                // NPC Dispositions Panel (shows dispositions for selected PC)
                 {
-                    let npc_moods = game_state.npc_moods.read().clone();
+                    let npc_dispositions = game_state.npc_dispositions.read().clone();
                     let selected_pc_id = game_state.selected_pc_id.read().clone();
                     
-                    // Only show if we have moods data
-                    if !npc_moods.is_empty() {
+                    // Only show if we have dispositions data
+                    if !npc_dispositions.is_empty() {
                         let pc_name = selected_pc_id.clone().unwrap_or_else(|| "Unknown".to_string());
-                        let scene_npcs: Vec<SceneNpcInfo> = npc_moods.iter()
-                            .map(|m| SceneNpcInfo {
-                                id: m.npc_id.clone(),
-                                name: m.npc_name.clone(),
-                                current_mood: Some(m.mood.clone()),
-                                current_relationship: Some(m.relationship.clone()),
+                        let scene_npcs: Vec<SceneNpcInfo> = npc_dispositions.iter()
+                            .map(|d| SceneNpcInfo {
+                                id: d.npc_id.clone(),
+                                name: d.npc_name.clone(),
+                                current_disposition: Some(d.disposition.clone()),
+                                current_relationship: Some(d.relationship.clone()),
                             })
                             .collect();
                         
-                        let session_state_mood = session_state.clone();
+                        let session_state_disposition = session_state.clone();
                         let session_state_rel = session_state.clone();
                         
                         rsx! {
                             div {
                                 class: "panel-section bg-dark-surface rounded-lg p-4",
                                 
-                                h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPC Moods" }
+                                h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPC Dispositions" }
                                 
-                                NpcMoodListPanel {
+                                NpcDispositionListPanel {
                                     pc_id: selected_pc_id.clone().unwrap_or_default(),
                                     pc_name: pc_name,
                                     scene_npcs: scene_npcs,
-                                    on_mood_change: move |evt: MoodChangeEvent| {
+                                    on_disposition_change: move |evt: DispositionChangeEvent| {
                                         tracing::info!(
                                             npc_id = %evt.npc_id,
                                             pc_id = %evt.pc_id,
-                                            mood = %evt.mood,
-                                            "DM changed NPC mood"
+                                            disposition = %evt.disposition,
+                                            "DM changed NPC disposition"
                                         );
-                                        // Send mood change to engine
-                                        if let Some(client) = session_state_mood.engine_client().read().as_ref() {
-                                            if let Err(e) = client.set_npc_mood(
+                                        // Send disposition change to engine
+                                        if let Some(client) = session_state_disposition.engine_client().read().as_ref() {
+                                            if let Err(e) = client.set_npc_disposition(
                                                 &evt.npc_id,
                                                 &evt.pc_id,
-                                                &evt.mood,
+                                                &evt.disposition,
                                                 evt.reason.as_deref(),
                                             ) {
-                                                tracing::error!("Failed to send mood change: {}", e);
+                                                tracing::error!("Failed to send disposition change: {}", e);
                                             }
                                         }
                                     },

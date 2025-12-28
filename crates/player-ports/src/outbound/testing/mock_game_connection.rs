@@ -275,7 +275,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn set_npc_mood(&self, _npc_id: &str, _pc_id: &str, _mood: &str, _reason: Option<&str>) -> anyhow::Result<()> {
+    fn set_npc_disposition(&self, _npc_id: &str, _pc_id: &str, _disposition: &str, _reason: Option<&str>) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -283,7 +283,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn get_npc_moods(&self, _pc_id: &str) -> anyhow::Result<()> {
+    fn get_npc_dispositions(&self, _pc_id: &str) -> anyhow::Result<()> {
         Ok(())
     }
 

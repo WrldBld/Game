@@ -86,7 +86,7 @@ pub async fn run() -> Result<()> {
         let region_repo: Arc<dyn RegionRepositoryPort> =
             Arc::new(state.repository.regions());
         let settings_service = state.settings_service.clone();
-        let mood_service = state.game.mood_service.clone();
+        let disposition_service = state.game.disposition_service.clone();
         let actantial_service = state.game.actantial_context_service.clone();
         let notifier = service.queue().notifier();
         let recovery_interval_clone = recovery_interval;
@@ -102,7 +102,7 @@ pub async fn run() -> Result<()> {
                 let pc_repo_clone = pc_repo.clone();
                 let region_repo_clone = region_repo.clone();
                 let settings_service_clone = settings_service.clone();
-                let mood_service_clone = mood_service.clone();
+                let disposition_service_clone = disposition_service.clone();
                 let actantial_service_clone = actantial_service.clone();
                 match service
                     .process_next(|action| {
@@ -115,7 +115,7 @@ pub async fn run() -> Result<()> {
                         let pc_repo = pc_repo_clone.clone();
                         let region_repo = region_repo_clone.clone();
                         let settings_service = settings_service_clone.clone();
-                        let mood_service = mood_service_clone.clone();
+                        let disposition_service = disposition_service_clone.clone();
                         let actantial_service = actantial_service_clone.clone();
                         async move {
                             let world_id = WorldId::from_uuid(action.world_id);
@@ -130,7 +130,7 @@ pub async fn run() -> Result<()> {
                                 &pc_repo,
                                 &region_repo,
                                 &settings_service,
-                                &mood_service,
+                                &disposition_service,
                                 &actantial_service,
                                 &action,
                             )

@@ -37,7 +37,7 @@ use crate::application::services::{
     WorldService, CharacterService, LocationService, SkillService,
     SceneService, InteractionService, ChallengeService, NarrativeEventService,
     EventChainService, PlayerCharacterService, RelationshipService,
-    ActantialContextService, MoodService, StoryEventService, ItemService,
+    ActantialContextService, DispositionService, StoryEventService, ItemService,
     RegionService, GenerationQueueProjectionService, SheetTemplateService,
 };
 
@@ -63,7 +63,7 @@ pub struct AppRequestHandler {
     player_character_service: Arc<dyn PlayerCharacterService>,
     relationship_service: Arc<dyn RelationshipService>,
     actantial_service: Arc<dyn ActantialContextService>,
-    mood_service: Arc<dyn MoodService>,
+        disposition_service: Arc<dyn DispositionService>,
     story_event_service: Arc<dyn StoryEventService>,
     item_service: Arc<dyn ItemService>,
     region_service: Arc<dyn RegionService>,
@@ -101,7 +101,7 @@ impl AppRequestHandler {
         player_character_service: Arc<dyn PlayerCharacterService>,
         relationship_service: Arc<dyn RelationshipService>,
         actantial_service: Arc<dyn ActantialContextService>,
-        mood_service: Arc<dyn MoodService>,
+    disposition_service: Arc<dyn DispositionService>,
         story_event_service: Arc<dyn StoryEventService>,
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
@@ -123,7 +123,7 @@ impl AppRequestHandler {
             player_character_service,
             relationship_service,
             actantial_service,
-            mood_service,
+            disposition_service,
             story_event_service,
             item_service,
             region_service,
@@ -307,20 +307,18 @@ fn parse_difficulty(s: &str) -> wrldbldr_domain::entities::Difficulty {
 
 
 
-/// Parse a mood level string into a MoodLevel enum
-fn parse_mood_level(s: &str) -> wrldbldr_domain::value_objects::MoodLevel {
-    use wrldbldr_domain::value_objects::MoodLevel;
+/// Parse a disposition level string into a DispositionLevel enum
+fn parse_disposition_level(s: &str) -> wrldbldr_domain::value_objects::DispositionLevel {
+    use wrldbldr_domain::value_objects::DispositionLevel;
     match s.to_lowercase().as_str() {
-        "friendly" => MoodLevel::Friendly,
-        "neutral" => MoodLevel::Neutral,
-        "suspicious" => MoodLevel::Suspicious,
-        "hostile" => MoodLevel::Hostile,
-        "afraid" => MoodLevel::Afraid,
-        "grateful" => MoodLevel::Grateful,
-        "annoyed" => MoodLevel::Annoyed,
-        "curious" => MoodLevel::Curious,
-        "melancholic" => MoodLevel::Melancholic,
-        _ => MoodLevel::Neutral, // Default to neutral
+        "hostile" => DispositionLevel::Hostile,
+        "suspicious" => DispositionLevel::Suspicious,
+        "dismissive" => DispositionLevel::Dismissive,
+        "neutral" => DispositionLevel::Neutral,
+        "respectful" => DispositionLevel::Respectful,
+        "friendly" => DispositionLevel::Friendly,
+        "grateful" => DispositionLevel::Grateful,
+        _ => DispositionLevel::Neutral, // Default to neutral
     }
 }
 
@@ -2214,18 +2212,18 @@ impl RequestHandler for AppRequestHandler {
             }
 
             // =================================================================
-            // NPC Mood Operations
+            // NPC Disposition Operations
             // =================================================================
-            RequestPayload::GetNpcMoods { pc_id } => {
+            RequestPayload::GetNpcDispositions { pc_id } => {
                 let id = match Self::parse_player_character_id(&pc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.mood_service.get_all_relationships(id).await {
-                    Ok(moods) => {
-                        let dtos: Vec<wrldbldr_domain::value_objects::NpcMoodStateDto> = moods
+                match self.disposition_service.get_all_relationships(id).await {
+                    Ok(dispositions) => {
+                        let dtos: Vec<wrldbldr_domain::value_objects::NpcDispositionStateDto> = dispositions
                             .iter()
-                            .map(|m| m.into())
+                            .map(|d| d.into())
                             .collect();
                         ResponseResult::success(dtos)
                     }
@@ -2233,7 +2231,7 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetNpcMood { npc_id, pc_id, mood, reason } => {
+            RequestPayload::SetNpcDisposition { npc_id, pc_id, disposition, reason } => {
                 if let Err(e) = ctx.require_dm() { return e; }
                 let nid = match Self::parse_character_id(&npc_id) {
                     Ok(id) => id,
@@ -2243,10 +2241,10 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let mood_level = parse_mood_level(&mood);
-                match self.mood_service.set_mood(nid, pid, mood_level, reason).await {
+                let disposition_level = parse_disposition_level(&disposition);
+                match self.disposition_service.set_disposition(nid, pid, disposition_level, reason).await {
                     Ok(state) => {
-                        let dto: wrldbldr_domain::value_objects::NpcMoodStateDto = (&state).into();
+                        let dto: wrldbldr_domain::value_objects::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2264,9 +2262,9 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 let rel_level = parse_relationship_level(&relationship);
-                match self.mood_service.set_relationship(nid, pid, rel_level).await {
+                match self.disposition_service.set_relationship(nid, pid, rel_level).await {
                     Ok(state) => {
-                        let dto: wrldbldr_domain::value_objects::NpcMoodStateDto = (&state).into();
+                        let dto: wrldbldr_domain::value_objects::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),

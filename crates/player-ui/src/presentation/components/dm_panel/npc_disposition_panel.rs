@@ -1,21 +1,19 @@
-//! NPC Mood Management Panel (P1.4)
+//! NPC Disposition Management Panel (P1.4)
 //!
-//! Allows the DM to view and manage NPC moods and relationships toward PCs.
+//! Allows the DM to view and manage NPC dispositions and relationships toward PCs.
 //! This component emits events that the parent should handle to persist changes.
 
 use dioxus::prelude::*;
 
-/// Mood options available for selection (matches domain::MoodLevel)
-pub const MOOD_OPTIONS: &[&str] = &[
-    "Friendly",
-    "Neutral",
-    "Suspicious",
+/// Disposition options available for selection (matches domain::DispositionLevel)
+pub const DISPOSITION_OPTIONS: &[&str] = &[
     "Hostile",
-    "Afraid",
+    "Suspicious",
+    "Dismissive",
+    "Neutral",
+    "Respectful",
+    "Friendly",
     "Grateful",
-    "Annoyed",
-    "Curious",
-    "Melancholic",
 ];
 
 /// Relationship options (matches domain::RelationshipLevel)
@@ -29,12 +27,12 @@ pub const RELATIONSHIP_OPTIONS: &[&str] = &[
     "Nemesis",
 ];
 
-/// Event emitted when DM changes an NPC's mood
+/// Event emitted when DM changes an NPC's disposition
 #[derive(Clone, PartialEq)]
-pub struct MoodChangeEvent {
+pub struct DispositionChangeEvent {
     pub npc_id: String,
     pub pc_id: String,
-    pub mood: String,
+    pub disposition: String,
     pub reason: Option<String>,
 }
 
@@ -46,36 +44,36 @@ pub struct RelationshipChangeEvent {
     pub relationship: String,
 }
 
-/// Props for the NpcMoodPanel component
+/// Props for the NpcDispositionPanel component
 #[derive(Props, Clone, PartialEq)]
-pub struct NpcMoodPanelProps {
+pub struct NpcDispositionPanelProps {
     /// NPC ID
     pub npc_id: String,
     /// NPC name
     pub npc_name: String,
-    /// PC ID (whose perspective we're showing mood for)
+    /// PC ID (whose perspective we're showing disposition for)
     pub pc_id: String,
     /// PC name
     pub pc_name: String,
-    /// Current mood (from server or default)
+    /// Current disposition (from server or default)
     #[props(default = "Neutral".to_string())]
-    pub current_mood: String,
+    pub current_disposition: String,
     /// Current relationship (from server or default)
     #[props(default = "Stranger".to_string())]
     pub current_relationship: String,
-    /// Handler called when mood is changed
-    pub on_mood_change: EventHandler<MoodChangeEvent>,
+    /// Handler called when disposition is changed
+    pub on_disposition_change: EventHandler<DispositionChangeEvent>,
     /// Handler called when relationship is changed
     pub on_relationship_change: EventHandler<RelationshipChangeEvent>,
 }
 
-/// NpcMoodPanel component - Manage NPC mood toward a specific PC
+/// NpcDispositionPanel component - Manage NPC disposition toward a specific PC
 ///
-/// Displays NPC mood and relationship with controls to update them.
+/// Displays NPC disposition and relationship with controls to update them.
 /// Emits events for the parent to handle.
 #[component]
-pub fn NpcMoodPanel(props: NpcMoodPanelProps) -> Element {
-    let mut selected_mood = use_signal(|| props.current_mood.clone());
+pub fn NpcDispositionPanel(props: NpcDispositionPanelProps) -> Element {
+    let mut selected_disposition = use_signal(|| props.current_disposition.clone());
     let mut selected_relationship = use_signal(|| props.current_relationship.clone());
     let mut reason = use_signal(|| String::new());
 
@@ -84,7 +82,7 @@ pub fn NpcMoodPanel(props: NpcMoodPanelProps) -> Element {
 
     rsx! {
         div {
-            class: "npc-mood-panel p-3 bg-dark-bg rounded-lg mb-2 border-l-4 border-amber-500",
+            class: "npc-disposition-panel p-3 bg-dark-bg rounded-lg mb-2 border-l-4 border-amber-500",
 
             // Header with NPC name and PC context
             div {
@@ -99,40 +97,40 @@ pub fn NpcMoodPanel(props: NpcMoodPanelProps) -> Element {
                 }
             }
 
-            // Mood selector
+            // Disposition selector
             div {
                 class: "mb-3",
                 label {
                     class: "block text-gray-400 text-xs uppercase mb-1",
-                    "Mood"
+                    "Disposition"
                 }
                 select {
-                    value: "{selected_mood}",
+                    value: "{selected_disposition}",
                     onchange: {
                         let npc_id = npc_id.clone();
                         let pc_id = pc_id.clone();
                         move |e: Event<FormData>| {
-                            let new_mood = e.value();
-                            selected_mood.set(new_mood.clone());
+                            let new_disposition = e.value();
+                            selected_disposition.set(new_disposition.clone());
 
                             let reason_str = reason.read().clone();
                             let reason_opt = if reason_str.is_empty() { None } else { Some(reason_str) };
                             
-                            props.on_mood_change.call(MoodChangeEvent {
+                            props.on_disposition_change.call(DispositionChangeEvent {
                                 npc_id: npc_id.clone(),
                                 pc_id: pc_id.clone(),
-                                mood: new_mood,
+                                disposition: new_disposition,
                                 reason: reason_opt,
                             });
                         }
                     },
                     class: "w-full p-2 bg-dark-surface border border-gray-700 rounded-md text-white text-sm cursor-pointer",
 
-                    for mood in MOOD_OPTIONS.iter() {
+                    for disposition in DISPOSITION_OPTIONS.iter() {
                         option {
-                            value: "{mood}",
-                            selected: *mood == selected_mood.read().as_str(),
-                            "{mood}"
+                            value: "{disposition}",
+                            selected: *disposition == selected_disposition.read().as_str(),
+                            "{disposition}"
                         }
                     }
                 }
@@ -182,7 +180,7 @@ pub fn NpcMoodPanel(props: NpcMoodPanelProps) -> Element {
                 input {
                     r#type: "text",
                     value: "{reason}",
-                    placeholder: "Why is this NPC's mood changing?",
+                    placeholder: "Why is this NPC's disposition changing?",
                     oninput: move |e| reason.set(e.value()),
                     class: "w-full p-2 bg-dark-surface border border-gray-700 rounded-md text-white text-sm box-border",
                 }
@@ -191,33 +189,33 @@ pub fn NpcMoodPanel(props: NpcMoodPanelProps) -> Element {
     }
 }
 
-/// Props for the NpcMoodListPanel component
+/// Props for the NpcDispositionListPanel component
 #[derive(Props, Clone, PartialEq)]
-pub struct NpcMoodListPanelProps {
-    /// PC ID to show moods for
+pub struct NpcDispositionListPanelProps {
+    /// PC ID to show dispositions for
     pub pc_id: String,
     /// PC name
     pub pc_name: String,
     /// NPCs in the current scene
     pub scene_npcs: Vec<SceneNpcInfo>,
-    /// Handler called when mood is changed for any NPC
-    pub on_mood_change: EventHandler<MoodChangeEvent>,
+    /// Handler called when disposition is changed for any NPC
+    pub on_disposition_change: EventHandler<DispositionChangeEvent>,
     /// Handler called when relationship is changed for any NPC
     pub on_relationship_change: EventHandler<RelationshipChangeEvent>,
 }
 
-/// NPC info for the mood list
+/// NPC info for the disposition list
 #[derive(Clone, PartialEq)]
 pub struct SceneNpcInfo {
     pub id: String,
     pub name: String,
-    pub current_mood: Option<String>,
+    pub current_disposition: Option<String>,
     pub current_relationship: Option<String>,
 }
 
-/// NpcMoodListPanel - Shows moods for all NPCs in a scene toward a PC
+/// NpcDispositionListPanel - Shows dispositions for all NPCs in a scene toward a PC
 #[component]
-pub fn NpcMoodListPanel(props: NpcMoodListPanelProps) -> Element {
+pub fn NpcDispositionListPanel(props: NpcDispositionListPanelProps) -> Element {
     if props.scene_npcs.is_empty() {
         return rsx! {
             div {
@@ -229,17 +227,17 @@ pub fn NpcMoodListPanel(props: NpcMoodListPanelProps) -> Element {
 
     rsx! {
         div {
-            class: "npc-mood-list",
+            class: "npc-disposition-list",
             for npc in props.scene_npcs.iter() {
-                NpcMoodPanel {
+                NpcDispositionPanel {
                     key: "{npc.id}",
                     npc_id: npc.id.clone(),
                     npc_name: npc.name.clone(),
                     pc_id: props.pc_id.clone(),
                     pc_name: props.pc_name.clone(),
-                    current_mood: npc.current_mood.clone().unwrap_or_else(|| "Neutral".to_string()),
+                    current_disposition: npc.current_disposition.clone().unwrap_or_else(|| "Neutral".to_string()),
                     current_relationship: npc.current_relationship.clone().unwrap_or_else(|| "Stranger".to_string()),
-                    on_mood_change: props.on_mood_change.clone(),
+                    on_disposition_change: props.on_disposition_change.clone(),
                     on_relationship_change: props.on_relationship_change.clone(),
                 }
             }

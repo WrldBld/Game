@@ -57,8 +57,8 @@ pub use messages::{
     PreviousStagingInfo,
     StagedNpcInfo,
     WaitingPcInfo,
-    // NPC Mood types (P1.4)
-    NpcMoodData,
+    // NPC Disposition types (P1.4)
+    NpcDispositionData,
     // Actantial Model types (P1.5)
     WantData,
     WantTargetData,
