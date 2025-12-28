@@ -111,21 +111,115 @@ pub enum GameEvent {
         equipped: bool,
     },
 
-    // === Challenge Events ===
-    /// Challenge triggered (DM notification)
-    ChallengeTriggerRequested {
-        request_id: String,
+    // === Challenge Events (Enhanced) ===
+    
+    /// Roll submitted, awaiting DM approval
+    /// 
+    /// Sent when a player submits a dice roll for a challenge. The adapter
+    /// routes this to DM (full details) and players (status only).
+    ChallengeRollSubmitted {
+        /// World this challenge is in
+        world_id: wrldbldr_domain::WorldId,
+        /// Unique resolution ID for tracking
+        resolution_id: String,
+        /// Challenge ID
+        challenge_id: String,
+        /// Challenge name
         challenge_name: String,
-        pc_name: String,
-        context: String,
+        /// Character ID who rolled
+        character_id: String,
+        /// Character name who rolled
+        character_name: String,
+        /// Raw roll value
+        roll: i32,
+        /// Modifier applied
+        modifier: i32,
+        /// Total (roll + modifier)
+        total: i32,
+        /// Outcome type (success, failure, critical_success, etc.)
+        outcome_type: String,
+        /// Outcome description text
+        outcome_description: String,
+        /// Roll breakdown (e.g., "1d20+5 = 15 + 5 = 20")
+        roll_breakdown: Option<String>,
+        /// Individual dice results
+        individual_rolls: Option<Vec<i32>>,
+        /// Triggers to execute on approval
+        outcome_triggers: Vec<OutcomeTriggerInfo>,
     },
-    /// Challenge outcome pending approval (DM notification)
-    ChallengeOutcomePending {
-        request_id: String,
+    
+    /// Challenge fully resolved and approved
+    ///
+    /// Sent when DM approves a challenge outcome. Broadcast to all players.
+    ChallengeResolved {
+        /// World this challenge is in
+        world_id: wrldbldr_domain::WorldId,
+        /// Challenge ID
+        challenge_id: String,
+        /// Challenge name
         challenge_name: String,
-        pc_name: String,
-        roll_result: i32,
-        outcome_branch: String,
+        /// Character name who rolled
+        character_name: String,
+        /// Raw roll value
+        roll: i32,
+        /// Modifier applied
+        modifier: i32,
+        /// Total (roll + modifier)
+        total: i32,
+        /// Final outcome type
+        outcome: String,
+        /// Final outcome description
+        outcome_description: String,
+        /// Roll breakdown
+        roll_breakdown: Option<String>,
+        /// Individual dice results
+        individual_rolls: Option<Vec<i32>>,
+        /// State changes that occurred
+        state_changes: Vec<StateChangeInfo>,
+    },
+    
+    /// Challenge prompt sent to player
+    ///
+    /// Sent when DM triggers a challenge for a specific player.
+    ChallengePromptSent {
+        /// World this challenge is in
+        world_id: wrldbldr_domain::WorldId,
+        /// Challenge ID
+        challenge_id: String,
+        /// Challenge name
+        challenge_name: String,
+        /// Skill required
+        skill_name: String,
+        /// Difficulty display string
+        difficulty_display: String,
+        /// Challenge description
+        description: String,
+        /// Target character's modifier
+        character_modifier: i32,
+        /// Suggested dice formula
+        suggested_dice: String,
+        /// Rule system hint
+        rule_system_hint: String,
+    },
+    
+    /// LLM suggestions ready for outcome
+    ///
+    /// Sent to DM when AI-generated suggestions are ready.
+    ChallengeSuggestionsReady {
+        /// Resolution ID
+        resolution_id: String,
+        /// Generated suggestions
+        suggestions: Vec<String>,
+    },
+    
+    /// Outcome branches ready for selection
+    ///
+    /// Sent to DM when branching outcome options are ready.
+    ChallengeBranchesReady {
+        /// Resolution ID
+        resolution_id: String,
+        /// Available branches
+        branches: Vec<OutcomeBranchInfo>,
     },
 }
 
@@ -358,4 +452,39 @@ pub struct ItemInfo {
     pub item_id: ItemId,
     /// Item name
     pub name: String,
+}
+
+// =============================================================================
+// Challenge Event Supporting Types
+// =============================================================================
+
+/// Trigger information for challenge outcomes
+#[derive(Debug, Clone)]
+pub struct OutcomeTriggerInfo {
+    /// Type of trigger (e.g., "ItemAdded", "CharacterStatUpdated")
+    pub trigger_type: String,
+    /// Human-readable description
+    pub description: String,
+}
+
+/// State change that occurred during challenge resolution
+#[derive(Debug, Clone)]
+pub struct StateChangeInfo {
+    /// Type of change (e.g., "item_added", "stat_updated")
+    pub change_type: String,
+    /// Human-readable description
+    pub description: String,
+}
+
+/// Branch option for challenge outcome
+#[derive(Debug, Clone)]
+pub struct OutcomeBranchInfo {
+    /// Unique branch ID
+    pub branch_id: String,
+    /// Branch title
+    pub title: String,
+    /// Branch description
+    pub description: String,
+    /// Potential consequences
+    pub consequences: Vec<String>,
 }

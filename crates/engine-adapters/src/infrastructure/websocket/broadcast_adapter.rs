@@ -25,8 +25,9 @@ use wrldbldr_engine_ports::outbound::{
 use wrldbldr_protocol::{
     GameTime as ProtoGameTime, NavigationData, NavigationExit as ProtoNavigationExit,
     NavigationTarget as ProtoNavigationTarget, NpcPresenceData as ProtoNpcPresenceData,
-    NpcPresentInfo, PreviousStagingInfo, RegionData, RegionItemData as ProtoRegionItemData,
-    ServerMessage, SplitPartyLocation, StagedNpcInfo, WaitingPcInfo,
+    NpcPresentInfo, PreviousStagingInfo, ProposedToolInfo, RegionData,
+    RegionItemData as ProtoRegionItemData, ServerMessage, SplitPartyLocation, StagedNpcInfo,
+    WaitingPcInfo,
 };
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
@@ -228,27 +229,139 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             // =====================================================================
             // Challenge Events
             // =====================================================================
-            GameEvent::ChallengeTriggerRequested {
-                request_id: _,
-                challenge_name: _,
-                pc_name: _,
-                context: _,
+            GameEvent::ChallengeRollSubmitted {
+                world_id: _,
+                ref resolution_id,
+                ref challenge_id,
+                ref challenge_name,
+                ref character_id,
+                ref character_name,
+                roll,
+                modifier,
+                total,
+                ref outcome_type,
+                ref outcome_description,
+                ref roll_breakdown,
+                individual_rolls: _,
+                ref outcome_triggers,
             } => {
-                // This is typically handled via the existing ApprovalRequired flow
-                // For now, we skip direct broadcast - the handler manages this
-                tracing::debug!("ChallengeTriggerRequested event received - handled by existing flow");
+                // 1. Send full pending data to DM for approval UI
+                let dm_message = ServerMessage::ChallengeOutcomePending {
+                    resolution_id: resolution_id.clone(),
+                    challenge_id: challenge_id.clone(),
+                    challenge_name: challenge_name.clone(),
+                    character_id: character_id.clone(),
+                    character_name: character_name.clone(),
+                    roll,
+                    modifier,
+                    total,
+                    outcome_type: outcome_type.clone(),
+                    outcome_description: outcome_description.clone(),
+                    outcome_triggers: outcome_triggers
+                        .iter()
+                        .map(|t| ProposedToolInfo {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            name: t.trigger_type.clone(),
+                            description: t.description.clone(),
+                            arguments: serde_json::Value::Null,
+                        })
+                        .collect(),
+                    roll_breakdown: roll_breakdown.clone(),
+                };
+                self.connection_manager
+                    .broadcast_to_dms(*world_uuid, dm_message)
+                    .await;
+
+                // 2. Send status confirmation to all players
+                let player_message = ServerMessage::ChallengeRollSubmitted {
+                    challenge_id: challenge_id.clone(),
+                    challenge_name: challenge_name.clone(),
+                    roll,
+                    modifier,
+                    total,
+                    outcome_type: outcome_type.clone(),
+                    status: "pending_approval".to_string(),
+                };
+                self.connection_manager
+                    .broadcast_to_players(*world_uuid, player_message)
+                    .await;
             }
 
-            GameEvent::ChallengeOutcomePending {
-                request_id: _,
-                challenge_name: _,
-                pc_name: _,
-                roll_result: _,
-                outcome_branch: _,
+            GameEvent::ChallengeResolved {
+                world_id: _,
+                ref challenge_id,
+                ref challenge_name,
+                ref character_name,
+                roll,
+                modifier,
+                total,
+                ref outcome,
+                ref outcome_description,
+                ref roll_breakdown,
+                ref individual_rolls,
+                state_changes: _,
             } => {
-                // This is handled via ChallengeOutcomePending ServerMessage
-                // from the challenge resolution service
-                tracing::debug!("ChallengeOutcomePending event received - handled by existing flow");
+                // Broadcast resolution to all players
+                let message = ServerMessage::ChallengeResolved {
+                    challenge_id: challenge_id.clone(),
+                    challenge_name: challenge_name.clone(),
+                    character_name: character_name.clone(),
+                    roll,
+                    modifier,
+                    total,
+                    outcome: outcome.clone(),
+                    outcome_description: outcome_description.clone(),
+                    roll_breakdown: roll_breakdown.clone(),
+                    individual_rolls: individual_rolls.clone(),
+                };
+                self.connection_manager
+                    .broadcast_to_world(*world_uuid, message)
+                    .await;
+            }
+
+            GameEvent::ChallengePromptSent {
+                world_id: _,
+                ref challenge_id,
+                ref challenge_name,
+                ref skill_name,
+                ref difficulty_display,
+                ref description,
+                character_modifier,
+                ref suggested_dice,
+                ref rule_system_hint,
+            } => {
+                // Broadcast challenge prompt to world
+                let message = ServerMessage::ChallengePrompt {
+                    challenge_id: challenge_id.clone(),
+                    challenge_name: challenge_name.clone(),
+                    skill_name: skill_name.clone(),
+                    difficulty_display: difficulty_display.clone(),
+                    description: description.clone(),
+                    character_modifier,
+                    suggested_dice: Some(suggested_dice.clone()),
+                    rule_system_hint: Some(rule_system_hint.clone()),
+                };
+                self.connection_manager
+                    .broadcast_to_world(*world_uuid, message)
+                    .await;
+            }
+
+            GameEvent::ChallengeSuggestionsReady {
+                resolution_id: _,
+                suggestions: _,
+            } => {
+                // Suggestions are sent directly to DM via the approval service
+                // This event is for logging/metrics only
+                tracing::debug!("ChallengeSuggestionsReady event - already handled by approval service");
+            }
+
+            GameEvent::ChallengeBranchesReady {
+                resolution_id: _,
+                branches: _,
+            } => {
+                // Branches are sent directly to DM via the approval service
+                // This event is for logging/metrics only
+                tracing::debug!("ChallengeBranchesReady event - already handled by approval service");
             }
         }
     }
