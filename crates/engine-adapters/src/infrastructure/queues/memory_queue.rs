@@ -221,22 +221,27 @@ impl<T, N: QueueNotificationPort + 'static> ApprovalQueuePort<T> for InMemoryQue
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    async fn list_by_world(&self, _world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
-        // For ApprovalQueuePort, we need to extract world_id from the payload
-        // Since T is generic, we can't directly access it. This is a limitation
-        // of the in-memory implementation. In practice, ApprovalQueuePort should
-        // only be used with ApprovalItem which has world_id.
-        //
-        // For now, we'll return all pending/processing items. The actual filtering
-        // should be done at the service layer with proper type information.
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
+        let world_id_str = world_id.to_string();
         let items = self.items.read().await;
+        
         Ok(items
             .iter()
             .filter(|i| {
-                matches!(
-                    i.status,
-                    QueueItemStatus::Pending | QueueItemStatus::Processing
-                )
+                // Must be pending or processing
+                if !matches!(i.status, QueueItemStatus::Pending | QueueItemStatus::Processing) {
+                    return false;
+                }
+                
+                // Extract world_id from payload by serializing and checking JSON
+                if let Ok(json) = serde_json::to_value(&i.payload) {
+                    if let Some(payload_world_id) = json.get("world_id").and_then(|v| v.as_str()) {
+                        return payload_world_id == world_id_str;
+                    }
+                }
+                
+                // If we can't extract world_id, don't include this item
+                false
             })
             .cloned()
             .collect())
@@ -244,17 +249,32 @@ where
 
     async fn get_history_by_world(
         &self,
-        _world_id: WorldId,
+        world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<QueueItem<T>>, QueueError> {
+        let world_id_str = world_id.to_string();
         let items = self.items.read().await;
+        
         let mut history: Vec<_> = items
             .iter()
             .filter(|i| {
-                matches!(
+                // Must be completed, failed, or expired
+                if !matches!(
                     i.status,
                     QueueItemStatus::Completed | QueueItemStatus::Failed | QueueItemStatus::Expired
-                )
+                ) {
+                    return false;
+                }
+                
+                // Extract world_id from payload by serializing and checking JSON
+                if let Ok(json) = serde_json::to_value(&i.payload) {
+                    if let Some(payload_world_id) = json.get("world_id").and_then(|v| v.as_str()) {
+                        return payload_world_id == world_id_str;
+                    }
+                }
+                
+                // If we can't extract world_id, don't include this item
+                false
             })
             .cloned()
             .collect();

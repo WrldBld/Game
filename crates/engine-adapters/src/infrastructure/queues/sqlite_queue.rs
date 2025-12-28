@@ -45,6 +45,7 @@ where
             CREATE TABLE IF NOT EXISTS queue_items (
                 id TEXT PRIMARY KEY,
                 queue_name TEXT NOT NULL,
+                world_id TEXT,
                 payload_json TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
                 priority INTEGER NOT NULL DEFAULT 0,
@@ -62,6 +63,25 @@ where
         .await
         .map_err(|e| QueueError::Database(e.to_string()))?;
 
+        // Add world_id column if it doesn't exist (migration for existing databases)
+        // SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we check first
+        let has_world_id: bool = sqlx::query_scalar::<_, i32>(
+            r#"
+            SELECT COUNT(*) FROM pragma_table_info('queue_items') WHERE name = 'world_id'
+            "#,
+        )
+        .fetch_one(&pool)
+        .await
+        .map(|count| count > 0)
+        .unwrap_or(false);
+
+        if !has_world_id {
+            sqlx::query("ALTER TABLE queue_items ADD COLUMN world_id TEXT")
+                .execute(&pool)
+                .await
+                .map_err(|e| QueueError::Database(e.to_string()))?;
+        }
+
         // Create indexes
         sqlx::query(
             r#"
@@ -78,6 +98,17 @@ where
             CREATE INDEX IF NOT EXISTS idx_queue_scheduled 
             ON queue_items(queue_name, status, scheduled_at) 
             WHERE status = 'delayed'
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| QueueError::Database(e.to_string()))?;
+
+        // Create index for world_id filtering
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_queue_world 
+            ON queue_items(queue_name, world_id, status)
             "#,
         )
         .execute(&pool)
@@ -197,15 +228,25 @@ where
         let now = Utc::now();
         let now_str = now.to_rfc3339();
 
+        // Extract world_id from payload JSON if present
+        // Works for both string UUIDs and raw UUID objects
+        let world_id: Option<String> = serde_json::from_str::<serde_json::Value>(&payload_json)
+            .ok()
+            .and_then(|v| v.get("world_id").and_then(|w| {
+                // Handle both string UUID and quoted UUID format
+                w.as_str().map(String::from)
+            }));
+
         sqlx::query(
             r#"
             INSERT INTO queue_items 
-            (id, queue_name, payload_json, status, priority, created_at, updated_at, attempts, max_attempts, metadata_json)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?, 0, 3, '{}')
+            (id, queue_name, world_id, payload_json, status, priority, created_at, updated_at, attempts, max_attempts, metadata_json)
+            VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, 0, 3, '{}')
             "#,
         )
         .bind(id.to_string())
         .bind(&self.queue_name)
+        .bind(&world_id)
         .bind(&payload_json)
         .bind(priority as i64)
         .bind(&now_str)
@@ -459,30 +500,50 @@ impl<T, N: QueueNotificationPort + 'static> ApprovalQueuePort<T> for SqliteQueue
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned + 'static,
 {
-    async fn list_by_world(&self, _world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
-        // Extract world_id from payload JSON
-        // This is a limitation - we need to know the structure of T
-        // In practice, ApprovalQueuePort should only be used with ApprovalItem
-        // which has world_id. For now, we'll return all pending/processing items.
-        // The service layer should filter by world_id after deserialization.
-        self.list_by_status(QueueItemStatus::Pending).await
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError> {
+        let world_id_str = world_id.to_string();
+
+        let rows = sqlx::query(
+            r#"
+            SELECT * FROM queue_items
+            WHERE queue_name = ? 
+            AND world_id = ?
+            AND status IN ('pending', 'processing')
+            ORDER BY priority DESC, created_at ASC
+            "#,
+        )
+        .bind(&self.queue_name)
+        .bind(&world_id_str)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| QueueError::Database(e.to_string()))?;
+
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(self.row_to_item(row).await?);
+        }
+        Ok(items)
     }
 
     async fn get_history_by_world(
         &self,
-        _world_id: WorldId,
+        world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<QueueItem<T>>, QueueError> {
+        let world_id_str = world_id.to_string();
+
         let rows = sqlx::query(
             r#"
             SELECT * FROM queue_items
             WHERE queue_name = ?
+            AND world_id = ?
             AND status IN ('completed', 'failed', 'expired')
             ORDER BY updated_at DESC
             LIMIT ?
             "#,
         )
         .bind(&self.queue_name)
+        .bind(&world_id_str)
         .bind(limit as i64)
         .fetch_all(&self.pool)
         .await
