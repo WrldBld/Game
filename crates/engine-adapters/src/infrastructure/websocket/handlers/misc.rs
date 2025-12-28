@@ -7,12 +7,13 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_app::application::use_cases::{
     ErrorCode, ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
 };
-use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
+
+use super::common::extract_dm_context_opt;
 
 /// Handles a ComfyUI health check request.
 ///
@@ -48,10 +49,7 @@ pub async fn handle_share_npc_location(
     region_id: String,
     notes: Option<String>,
 ) -> Option<ServerMessage> {
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can share NPC locations"));
-    }
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     let input = ShareNpcLocationInput {
         pc_id: parse_pc_id(&pc_id)?,
@@ -76,10 +74,7 @@ pub async fn handle_trigger_approach_event(
     description: String,
     reveal: bool,
 ) -> Option<ServerMessage> {
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can trigger approach events"));
-    }
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     let input = TriggerApproachInput {
         npc_id: parse_npc_id(&npc_id)?,
@@ -101,10 +96,7 @@ pub async fn handle_trigger_location_event(
     region_id: String,
     description: String,
 ) -> Option<ServerMessage> {
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can trigger location events"));
-    }
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     let input = TriggerLocationEventInput {
         region_id: RegionId::from_uuid(Uuid::parse_str(&region_id).ok()?),
@@ -121,28 +113,10 @@ pub async fn handle_trigger_location_event(
 // Helper Functions
 // =============================================================================
 
-/// Extract UseCaseContext from connection state
-async fn extract_dm_context(state: &AppState, client_id: Uuid) -> Option<UseCaseContext> {
-    let conn = state.world_connection_manager
-        .get_connection_by_client_id(&client_id.to_string())
-        .await?;
-
-    Some(UseCaseContext {
-        world_id: WorldId::from_uuid(conn.world_id?),
-        user_id: conn.user_id.clone(),
-        is_dm: conn.is_dm(),
-        pc_id: conn.pc_id.map(PlayerCharacterId::from_uuid),
-    })
-}
-
 fn parse_pc_id(id: &str) -> Option<PlayerCharacterId> {
     Some(PlayerCharacterId::from_uuid(Uuid::parse_str(id).ok()?))
 }
 
 fn parse_npc_id(id: &str) -> Option<CharacterId> {
     Some(CharacterId::from_uuid(Uuid::parse_str(id).ok()?))
-}
-
-fn error_msg(code: &str, message: &str) -> ServerMessage {
-    ServerMessage::Error { code: code.to_string(), message: message.to_string() }
 }

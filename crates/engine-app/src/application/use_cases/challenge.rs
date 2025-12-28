@@ -430,8 +430,10 @@ impl ChallengeUseCase {
                         .triggers
                         .iter()
                         .map(|t| PortTriggerInfo {
-                            trigger_type: t.trigger_type.clone(),
+                            id: uuid::Uuid::new_v4().to_string(),
+                            name: t.trigger_type.clone(),
                             description: t.description.clone(),
+                            arguments: serde_json::Value::Null,
                         })
                         .collect(),
                 },
@@ -486,8 +488,10 @@ impl ChallengeUseCase {
                         .triggers
                         .iter()
                         .map(|t| PortTriggerInfo {
-                            trigger_type: t.trigger_type.clone(),
+                            id: uuid::Uuid::new_v4().to_string(),
+                            name: t.trigger_type.clone(),
                             description: t.description.clone(),
+                            arguments: serde_json::Value::Null,
                         })
                         .collect(),
                 },

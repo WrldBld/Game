@@ -33,13 +33,14 @@ use wrldbldr_engine_app::application::dto::{ApprovalItem, LLMRequestItem, Player
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
 use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
-    DMApprovalQueueService, InteractionService, ItemService, PlayerActionQueueService,
-    PlayerCharacterService, SceneService, SkillService, WorldService,
+    DMApprovalQueueService, InteractionService, ItemService, NarrativeEventApprovalService,
+    PlayerActionQueueService, PlayerCharacterService, SceneService, SkillService, WorldService,
 };
 use wrldbldr_engine_app::application::use_cases::{
-    ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, ObservationUseCase,
-    PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
+    ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
+    ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
 };
+use wrldbldr_engine_app::application::services::NarrativeEventServiceImpl;
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, BroadcastPort, CharacterRepositoryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, LlmPort,
@@ -92,6 +93,9 @@ pub struct UseCases {
 
     /// Connection use case for join/leave world operations
     pub connection: Arc<ConnectionUseCase>,
+
+    /// Narrative event use case for DM approval of narrative events
+    pub narrative_event: Arc<NarrativeEventUseCase<NarrativeEventServiceImpl>>,
 }
 
 impl UseCases {
@@ -137,6 +141,8 @@ impl UseCases {
         challenge_resolution_service: Arc<ChallengeResolutionService<CS, KS, QueueBackendEnum<ApprovalItem>, PCS, COAL, IS>>,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<COAL>>,
         dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalItem>, IS>>,
+        // Narrative event dependencies
+        narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
     ) -> Self
     where
         L: LlmPort + Send + Sync + 'static,
@@ -277,6 +283,14 @@ impl UseCases {
             broadcast.clone(),
         ));
 
+        // =========================================================================
+        // Narrative Event Use Case
+        // =========================================================================
+        let narrative_event = Arc::new(NarrativeEventUseCase::new(
+            narrative_event_approval_service,
+            broadcast.clone(),
+        ));
+
         Self {
             broadcast,
             movement,
@@ -287,6 +301,7 @@ impl UseCases {
             challenge,
             scene,
             connection,
+            narrative_event,
         }
     }
 

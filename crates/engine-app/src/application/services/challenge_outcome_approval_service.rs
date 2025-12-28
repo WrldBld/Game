@@ -3,21 +3,33 @@
 //! Manages the DM approval workflow for challenge resolutions.
 //! After a player rolls, the outcome goes to this service before
 //! being broadcast to all players.
+//!
+//! # Architecture
+//!
+//! This service uses an event channel pattern for hexagonal architecture compliance:
+//! - Service emits `ChallengeApprovalEvent` through an mpsc channel
+//! - `ChallengeApprovalEventPublisher` receives events and broadcasts via `BroadcastPort`
+//! - No direct protocol message construction in the service layer
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::Utc;
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 
 use crate::application::dto::{
     ChallengeOutcomeApprovalItem, ChallengeOutcomeDecision, OutcomeSuggestionRequest,
     PendingChallengeResolutionDto,
 };
-use wrldbldr_engine_ports::outbound::{WorldConnectionPort, LlmPort, PlayerCharacterRepositoryPort, ItemRepositoryPort, QueuePort};
-use crate::application::services::{OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService};
+use crate::application::services::challenge_approval_events::{
+    ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
+};
+use crate::application::services::{
+    OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService,
+};
 use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort};
 
 /// Result of challenge approval operations
 ///
@@ -93,13 +105,19 @@ pub enum ChallengeOutcomeError {
 /// - Items are stored in the queue for persistence across restarts
 /// - `list_by_world()` returns items from the queue instead of memory
 /// - The in-memory HashMap is still used as a cache for active operations
+///
+/// # Event Channel
+///
+/// The service sends `ChallengeApprovalEvent` through a channel rather than
+/// directly constructing protocol messages. This maintains hexagonal architecture
+/// by keeping the service layer protocol-agnostic.
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Pending resolutions indexed by resolution_id (in-memory cache)
     pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
     /// Optional persistent queue for challenge outcomes
     queue: Option<Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>>,
-    /// World connection port for broadcasting messages
-    world_connection: Arc<dyn WorldConnectionPort>,
+    /// Event channel sender for broadcasting events
+    event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
     outcome_trigger_service: Arc<OutcomeTriggerService>,
     /// Player Character repository for inventory management
@@ -116,8 +134,16 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
 
 impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Create a new challenge outcome approval service
+    ///
+    /// # Arguments
+    ///
+    /// * `event_sender` - Channel sender for emitting `ChallengeApprovalEvent`
+    /// * `outcome_trigger_service` - Service for executing outcome triggers
+    /// * `pc_repository` - Repository for player character data
+    /// * `item_repository` - Repository for item data
+    /// * `prompt_template_service` - Service for resolving prompt templates
     pub fn new(
-        world_connection: Arc<dyn WorldConnectionPort>,
+        event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
@@ -126,7 +152,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
             queue: None,
-            world_connection,
+            event_sender,
             outcome_trigger_service,
             pc_repository,
             item_repository,
@@ -220,11 +246,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             pending.insert(resolution_id.clone(), item.clone());
         }
 
-        // Notify DM of pending outcome
-        self.notify_dm_pending_outcome(world_id, &item).await?;
-
-        // Notify player that roll is awaiting approval
-        self.notify_player_awaiting_approval(world_id, &item).await?;
+        // Emit roll submitted event (notifies both DM and players via publisher)
+        self.emit_roll_submitted(world_id, &item);
 
         tracing::info!(
             "Challenge resolution {} queued for DM approval",
@@ -305,10 +328,10 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     // Spawn async task to generate suggestions
                     let llm = llm_port.clone();
                     let pending = self.pending.clone();
-                    let world_connection = self.world_connection.clone();
+                    let event_sender = self.event_sender.clone();
                     let resolution_id_owned = resolution_id.to_string();
                     let prompt_template_service = self.prompt_template_service.clone();
-                    let world_id_owned = world_id.clone();
+                    let world_id_owned = *world_id;
 
                     tokio::spawn(async move {
                         let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
@@ -321,13 +344,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                     pending_item.is_generating_suggestions = false;
                                     drop(pending_guard);
 
-                                    // Notify DM
-                                    let message = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                    // Emit suggestions ready event
+                                    let event = ChallengeApprovalEvent::SuggestionsReady {
+                                        world_id: world_id_owned,
                                         resolution_id: resolution_id_owned.clone(),
                                         suggestions,
                                     };
-                                    if let Err(e) = world_connection.send_to_dm(&world_id_owned, message).await {
-                                        tracing::error!("Failed to send suggestions to DM: {}", e);
+                                    if let Err(e) = event_sender.send(event) {
+                                        tracing::error!("Failed to emit SuggestionsReady event: {}", e);
                                     }
                                 }
                             }
@@ -370,18 +394,19 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             item.suggestions = Some(suggestions.clone());
             item.is_generating_suggestions = false;
 
-            // Notify DM that suggestions are ready
+            // Emit suggestions ready event
             let world_id = WorldId::from_uuid(item.world_id);
             drop(pending);
 
-            let message = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+            let event = ChallengeApprovalEvent::SuggestionsReady {
+                world_id,
                 resolution_id: resolution_id.to_string(),
                 suggestions,
             };
-            self.world_connection
-                .send_to_dm(&world_id, message)
-                .await
-                .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
+
+            if let Err(e) = self.event_sender.send(event) {
+                tracing::error!("Failed to emit SuggestionsReady event: {}", e);
+            }
 
             Ok(())
         } else {
@@ -411,8 +436,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Result<(), ChallengeOutcomeError> {
         let description = modified_description.unwrap_or_else(|| item.outcome_description.clone());
 
-        // Build ChallengeResolved message
-        let message = wrldbldr_protocol::ServerMessage::ChallengeResolved {
+        // Emit resolved event
+        let event = ChallengeApprovalEvent::Resolved {
+            world_id: *world_id,
             challenge_id: item.challenge_id.clone(),
             challenge_name: item.challenge_name.clone(),
             character_name: item.character_name.clone(),
@@ -425,11 +451,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             individual_rolls: None,
         };
 
-        // Broadcast to all world participants
-        self.world_connection
-            .broadcast_to_world(world_id, message)
-            .await
-            .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
+        if let Err(e) = self.event_sender.send(event) {
+            tracing::error!("Failed to emit Resolved event: {}", e);
+        }
 
         // Execute outcome triggers if any
         if !item.original_triggers.is_empty() {
@@ -478,13 +502,17 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         Ok(())
     }
 
-    /// Notify DM of a pending outcome approval
-    async fn notify_dm_pending_outcome(
+    /// Notify of a roll submission (triggers both DM pending and player status events)
+    ///
+    /// The `ChallengeApprovalEvent::RollSubmitted` event will be processed by the
+    /// publisher to send appropriate messages to DM and players.
+    fn emit_roll_submitted(
         &self,
         world_id: &WorldId,
         item: &ChallengeOutcomeApprovalItem,
-    ) -> Result<(), ChallengeOutcomeError> {
-        let message = wrldbldr_protocol::ServerMessage::ChallengeOutcomePending {
+    ) {
+        let event = ChallengeApprovalEvent::RollSubmitted {
+            world_id: *world_id,
             resolution_id: item.resolution_id.clone(),
             challenge_id: item.challenge_id.clone(),
             challenge_name: item.challenge_name.clone(),
@@ -495,41 +523,22 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             total: item.total,
             outcome_type: item.outcome_type.clone(),
             outcome_description: item.outcome_description.clone(),
-            outcome_triggers: item.outcome_triggers.clone(),
             roll_breakdown: item.roll_breakdown.clone(),
+            outcome_triggers: item
+                .outcome_triggers
+                .iter()
+                .map(|t| OutcomeTriggerData {
+                    id: t.id.clone(),
+                    name: t.name.clone(),
+                    description: t.description.clone(),
+                    arguments: t.arguments.clone(),
+                })
+                .collect(),
         };
 
-        self.world_connection
-            .send_to_dm(world_id, message)
-            .await
-            .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
-
-        Ok(())
-    }
-
-    /// Notify player that their roll is awaiting DM approval
-    async fn notify_player_awaiting_approval(
-        &self,
-        world_id: &WorldId,
-        item: &ChallengeOutcomeApprovalItem,
-    ) -> Result<(), ChallengeOutcomeError> {
-        let message = wrldbldr_protocol::ServerMessage::ChallengeRollSubmitted {
-            challenge_id: item.challenge_id.clone(),
-            challenge_name: item.challenge_name.clone(),
-            roll: item.roll,
-            modifier: item.modifier,
-            total: item.total,
-            outcome_type: item.outcome_type.clone(),
-            status: "pending_approval".to_string(),
-        };
-
-        // Broadcast to all world participants (they'll see the roll is pending)
-        self.world_connection
-            .broadcast_to_world(world_id, message)
-            .await
-            .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
-
-        Ok(())
+        if let Err(e) = self.event_sender.send(event) {
+            tracing::error!("Failed to emit RollSubmitted event: {}", e);
+        }
     }
 
     /// Remove a resolution from pending (both in-memory and queue)
@@ -625,11 +634,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             // Spawn async task to generate branches
             let llm = llm_port.clone();
             let pending = self.pending.clone();
-            let world_connection = self.world_connection.clone();
+            let event_sender = self.event_sender.clone();
             let resolution_id_owned = resolution_id.to_string();
             let outcome_type = item.outcome_type.clone();
             let prompt_template_service = self.prompt_template_service.clone();
-            let world_id_owned = world_id.clone();
+            let world_id_owned = *world_id;
 
             tokio::spawn(async move {
                 let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
@@ -645,25 +654,23 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                             pending_item.is_generating_suggestions = false;
                             drop(pending_guard);
 
-                            // Notify DM with structured branches
-                            // Convert OutcomeBranchDto to OutcomeBranchData
-                            let branches_data: Vec<wrldbldr_protocol::OutcomeBranchData> = branches
-                                .into_iter()
-                                .map(|b| wrldbldr_protocol::OutcomeBranchData {
-                                    id: b.id,
-                                    title: b.title,
-                                    description: b.description,
-                                    effects: b.effects,
-                                })
-                                .collect();
-                            
-                            let message = wrldbldr_protocol::ServerMessage::OutcomeBranchesReady {
+                            // Emit branches ready event
+                            let event = ChallengeApprovalEvent::BranchesReady {
+                                world_id: world_id_owned,
                                 resolution_id: resolution_id_owned.clone(),
                                 outcome_type,
-                                branches: branches_data,
+                                branches: branches
+                                    .into_iter()
+                                    .map(|b| OutcomeBranchData {
+                                        id: b.id,
+                                        title: b.title,
+                                        description: b.description,
+                                        effects: b.effects,
+                                    })
+                                    .collect(),
                             };
-                            if let Err(e) = world_connection.send_to_dm(&world_id_owned, message).await {
-                                tracing::error!("Failed to send branches to DM: {}", e);
+                            if let Err(e) = event_sender.send(event) {
+                                tracing::error!("Failed to emit BranchesReady event: {}", e);
                             }
                         }
                     }
@@ -887,24 +894,23 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         "Successfully updated character stat"
                     );
 
-                    // Broadcast stat update to all connected clients
-                    let stat_update_msg = wrldbldr_protocol::ServerMessage::CharacterStatUpdated {
+                    // Emit stat update event
+                    let event = ChallengeApprovalEvent::StatUpdated {
+                        world_id: WorldId::from(item.world_id),
                         character_id: resolved_character_id.clone(),
                         character_name: pc.name.clone(),
                         stat_name: stat_name.clone(),
                         old_value: current_value,
                         new_value,
                         delta: *delta,
-                        source: "challenge_outcome".to_string(),
                     };
 
-                    let world_id = WorldId::from(item.world_id);
-                    if let Err(e) = self.world_connection.broadcast_to_world(&world_id, stat_update_msg).await {
+                    if let Err(e) = self.event_sender.send(event) {
                         tracing::warn!(
                             character_id = %resolved_character_id,
                             stat_name = %stat_name,
                             error = %e,
-                            "Failed to broadcast character stat update"
+                            "Failed to emit stat update event"
                         );
                     }
                 }

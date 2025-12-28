@@ -30,77 +30,16 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_app::application::use_cases::{
     AdHocOutcomes, ChallengeOutcomeDecision, CreateAdHocInput, DiceInputType,
     DiscardChallengeInput, ErrorCode, OutcomeDecisionInput, RegenerateOutcomeInput,
     RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
-    SuggestionDecisionInput, TriggerChallengeInput,
+    SuggestionDecisionInput, TriggerChallengeInput, UseCaseContext,
 };
-use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
 
-// =============================================================================
-// Context Extraction Helpers
-// =============================================================================
-
-/// Extract player context (world_id, pc_id) for player-facing operations
-async fn extract_player_context(
-    state: &AppState,
-    client_id: Uuid,
-) -> Result<(WorldId, PlayerCharacterId), ServerMessage> {
-    let client_id_str = client_id.to_string();
-    let connection = state
-        .world_connection_manager
-        .get_connection_by_client_id(&client_id_str)
-        .await
-        .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
-
-    let world_id = connection
-        .world_id
-        .map(WorldId::from_uuid)
-        .ok_or_else(|| error_msg("NO_WORLD", "Not connected to a world"))?;
-
-    let pc_id = connection
-        .pc_id
-        .map(PlayerCharacterId::from_uuid)
-        .ok_or_else(|| error_msg("NO_PC", "No player character selected"))?;
-
-    Ok((world_id, pc_id))
-}
-
-/// Extract DM context for DM-only operations
-async fn extract_dm_context(state: &AppState, client_id: Uuid) -> Result<UseCaseContext, ServerMessage> {
-    let client_id_str = client_id.to_string();
-    let connection = state
-        .world_connection_manager
-        .get_connection_by_client_id(&client_id_str)
-        .await
-        .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
-
-    let world_id = connection
-        .world_id
-        .map(WorldId::from_uuid)
-        .ok_or_else(|| error_msg("NO_WORLD", "Not connected to a world"))?;
-
-    if !connection.is_dm() {
-        return Err(error_msg("NOT_AUTHORIZED", "Only the DM can perform this action"));
-    }
-
-    Ok(UseCaseContext {
-        world_id,
-        user_id: connection.user_id.clone(),
-        is_dm: true,
-        pc_id: connection.pc_id.map(PlayerCharacterId::from_uuid),
-    })
-}
-
-fn error_msg(code: &str, message: &str) -> ServerMessage {
-    ServerMessage::Error {
-        code: code.to_string(),
-        message: message.to_string(),
-    }
-}
+use super::common::{error_msg, extract_dm_context, extract_player_context};
 
 // =============================================================================
 // Player Operations (Use Case - Properly Wired)

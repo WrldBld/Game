@@ -454,6 +454,31 @@ impl ErrorCode for ConnectionError {
 }
 
 // =============================================================================
+// Narrative Event Errors
+// =============================================================================
+
+/// Errors that can occur during narrative event operations
+#[derive(Debug, Error)]
+pub enum NarrativeEventError {
+    /// User not authorized (not DM)
+    #[error("Not authorized: {0}")]
+    Unauthorized(String),
+
+    /// Narrative event approval failed
+    #[error("Approval failed: {0}")]
+    ApprovalFailed(String),
+}
+
+impl ErrorCode for NarrativeEventError {
+    fn code(&self) -> &'static str {
+        match self {
+            Self::Unauthorized(_) => "NOT_AUTHORIZED",
+            Self::ApprovalFailed(_) => "NARRATIVE_EVENT_ERROR",
+        }
+    }
+}
+
+// =============================================================================
 // Action Errors
 // =============================================================================
 

@@ -7,6 +7,8 @@
 pub mod actantial_context_service;
 pub mod asset_generation_queue_service;
 pub mod asset_service;
+pub mod challenge_approval_event_publisher;
+pub mod challenge_approval_events;
 pub mod challenge_outcome_approval_service;
 pub mod challenge_resolution_service;
 pub mod challenge_service;
@@ -173,6 +175,13 @@ pub use challenge_outcome_approval_service::{
 
 // Re-export outcome suggestion service (P3.3)
 pub use outcome_suggestion_service::{OutcomeSuggestionService, SuggestionError};
+
+// Re-export challenge approval event types (P3.3 refactor)
+pub use challenge_approval_events::{
+    ChallengeApprovalEvent, OutcomeBranchData as ChallengeOutcomeBranchData,
+    OutcomeTriggerData as ChallengeOutcomeTriggerData,
+};
+pub use challenge_approval_event_publisher::ChallengeApprovalEventPublisher;
 
 // Re-export trigger evaluation service (Phase 2)
 pub use trigger_evaluation_service::{

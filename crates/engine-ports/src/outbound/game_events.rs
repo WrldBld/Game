@@ -218,8 +218,80 @@ pub enum GameEvent {
     ChallengeBranchesReady {
         /// Resolution ID
         resolution_id: String,
+        /// Outcome type (success/failure/etc)
+        outcome_type: String,
         /// Available branches
         branches: Vec<OutcomeBranchInfo>,
+    },
+
+    /// Challenge outcome pending DM approval
+    ///
+    /// Sent to DM when a player roll needs approval.
+    ChallengeOutcomePending {
+        /// World ID
+        world_id: wrldbldr_domain::WorldId,
+        /// Resolution ID for tracking
+        resolution_id: String,
+        /// Challenge ID
+        challenge_id: String,
+        /// Challenge name
+        challenge_name: String,
+        /// Character ID who rolled
+        character_id: String,
+        /// Character name who rolled
+        character_name: String,
+        /// Raw roll value
+        roll: i32,
+        /// Modifier applied
+        modifier: i32,
+        /// Total (roll + modifier)
+        total: i32,
+        /// Outcome type
+        outcome_type: String,
+        /// Outcome description
+        outcome_description: String,
+        /// Triggers to execute
+        outcome_triggers: Vec<OutcomeTriggerInfo>,
+        /// Roll breakdown
+        roll_breakdown: Option<String>,
+    },
+
+    /// Character stat updated from outcome trigger
+    ///
+    /// Broadcast to all players when a stat changes.
+    CharacterStatUpdated {
+        /// World ID
+        world_id: wrldbldr_domain::WorldId,
+        /// Character ID
+        character_id: String,
+        /// Character name
+        character_name: String,
+        /// Stat name
+        stat_name: String,
+        /// Old value
+        old_value: i32,
+        /// New value
+        new_value: i32,
+        /// Delta change
+        delta: i32,
+        /// Source of change
+        source: String,
+    },
+
+    // === Narrative Events ===
+
+    /// Narrative event triggered (broadcast to all players)
+    ///
+    /// Sent when DM approves a narrative event suggestion.
+    NarrativeEventTriggered {
+        /// Event ID
+        event_id: String,
+        /// Event name
+        event_name: String,
+        /// Outcome description
+        outcome_description: String,
+        /// Scene direction for DM (optional)
+        scene_direction: Option<String>,
     },
 }
 
@@ -461,10 +533,14 @@ pub struct ItemInfo {
 /// Trigger information for challenge outcomes
 #[derive(Debug, Clone)]
 pub struct OutcomeTriggerInfo {
-    /// Type of trigger (e.g., "ItemAdded", "CharacterStatUpdated")
-    pub trigger_type: String,
+    /// Unique ID for this trigger
+    pub id: String,
+    /// Name/type of trigger (e.g., "ItemAdded", "CharacterStatUpdated")
+    pub name: String,
     /// Human-readable description
     pub description: String,
+    /// JSON arguments for the trigger
+    pub arguments: serde_json::Value,
 }
 
 /// State change that occurred during challenge resolution
@@ -485,6 +561,6 @@ pub struct OutcomeBranchInfo {
     pub title: String,
     /// Branch description
     pub description: String,
-    /// Potential consequences
-    pub consequences: Vec<String>,
+    /// Potential effects/consequences
+    pub effects: Vec<String>,
 }

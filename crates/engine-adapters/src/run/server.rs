@@ -10,7 +10,9 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_app::application::services::GenerationEventPublisher;
+use wrldbldr_engine_app::application::services::{
+    ChallengeApprovalEventPublisher, GenerationEventPublisher,
+};
 use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueNotificationPort, QueuePort, RegionRepositoryPort};
 
 use crate::infrastructure;
@@ -45,7 +47,7 @@ pub async fn run() -> Result<()> {
     tracing::info!("  ComfyUI: {}", config.comfyui_base_url);
 
     // Initialize application state
-    let (state, generation_event_rx) = AppState::new(config).await?;
+    let (state, generation_event_rx, challenge_approval_rx) = AppState::new(config).await?;
     let state = Arc::new(state);
     tracing::info!("Application state initialized");
 
@@ -250,6 +252,16 @@ pub async fn run() -> Result<()> {
         })
     };
 
+    // Challenge approval event publisher (converts ChallengeApprovalEvents to GameEvents and broadcasts via BroadcastPort)
+    let challenge_approval_worker = {
+        let broadcast_port = state.use_cases.broadcast.clone();
+        let publisher = ChallengeApprovalEventPublisher::new(broadcast_port);
+        tokio::spawn(async move {
+            tracing::info!("Starting challenge approval event publisher");
+            publisher.run(challenge_approval_rx).await;
+        })
+    };
+
     // Build CORS layer based on configuration
     let cors_layer = if state.config.cors_allowed_origins.len() == 1 
         && state.config.cors_allowed_origins[0] == "*" 
@@ -298,6 +310,7 @@ pub async fn run() -> Result<()> {
         _ = challenge_outcome_worker_task => {}
         _ = cleanup_worker => {}
         _ = generation_event_worker => {}
+        _ = challenge_approval_worker => {}
     }
 
     Ok(())

@@ -60,6 +60,7 @@ mod connection;
 mod errors;
 mod inventory;
 mod movement;
+mod narrative_event;
 mod observation;
 mod player_action;
 mod scene;
@@ -118,4 +119,9 @@ pub use staging::{
     PreStageResult, ProposedNpc, RegenerateInput, RegenerateResult as StagingRegenerateResult,
     RegeneratedNpc, StagingApprovalSource, StagingApprovalUseCase,
     StagingServiceExtPort, StagingStateExtPort, WaitingPcInfo,
+};
+
+pub use narrative_event::{
+    DecisionResult as NarrativeEventDecisionResult, NarrativeEventUseCase,
+    SuggestionDecisionInput as NarrativeEventSuggestionDecisionInput,
 };

@@ -6,13 +6,14 @@
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, RegionId};
 use wrldbldr_engine_app::application::use_cases::{
     ApproveInput, ApprovedNpc, ErrorCode, PreStageInput, RegenerateInput,
     StagingApprovalSource,
 };
-use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::{ApprovedNpcInfo, ServerMessage, StagedNpcInfo};
+
+use super::common::{error_msg, extract_dm_context_opt};
 
 // =============================================================================
 // Staging Approval Response Handler
@@ -40,11 +41,8 @@ pub async fn handle_staging_approval_response(
         "Staging approval response received"
     );
 
-    // Extract context
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can approve staging"));
-    }
+    // Extract context (returns None if not DM)
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     // Parse source
     let staging_source = match source.as_str() {
@@ -103,11 +101,8 @@ pub async fn handle_staging_regenerate_request(
         "Staging regenerate request received"
     );
 
-    // Extract context
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can regenerate staging"));
-    }
+    // Extract context (returns None if not DM)
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     let input = RegenerateInput {
         request_id: request_id.clone(),
@@ -163,11 +158,8 @@ pub async fn handle_pre_stage_region(
         "Pre-stage region request received"
     );
 
-    // Extract context
-    let ctx = extract_dm_context(state, client_id).await?;
-    if !ctx.is_dm {
-        return Some(error_msg("NOT_AUTHORIZED", "Only the DM can pre-stage regions"));
-    }
+    // Extract context (returns None if not DM)
+    let ctx = extract_dm_context_opt(state, client_id).await?;
 
     // Parse region ID
     let region_uuid = match Uuid::parse_str(&region_id) {
@@ -201,33 +193,5 @@ pub async fn handle_pre_stage_region(
     match state.use_cases.staging.pre_stage(ctx, input).await {
         Ok(_) => None, // Success, no response needed
         Err(e) => Some(e.into_server_error()),
-    }
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/// Extract UseCaseContext from connection state
-async fn extract_dm_context(state: &AppState, client_id: Uuid) -> Option<UseCaseContext> {
-    let conn = state
-        .world_connection_manager
-        .get_connection_by_client_id(&client_id.to_string())
-        .await?;
-
-    let world_id = conn.world_id?;
-
-    Some(UseCaseContext {
-        world_id: WorldId::from_uuid(world_id),
-        user_id: conn.user_id.clone(),
-        is_dm: conn.is_dm(),
-        pc_id: conn.pc_id.map(PlayerCharacterId::from_uuid),
-    })
-}
-
-fn error_msg(code: &str, message: &str) -> ServerMessage {
-    ServerMessage::Error {
-        code: code.to_string(),
-        message: message.to_string(),
     }
 }

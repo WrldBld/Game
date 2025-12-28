@@ -14,12 +14,10 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::application::dto::AdHocOutcomesDto;
-use wrldbldr_protocol::AppEvent;
-use wrldbldr_engine_ports::outbound::EventBusPort;
 use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
 use crate::application::services::{
-    ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService, OutcomeTriggerService,
+    ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
     PlayerCharacterService, SkillService,
 };
 use wrldbldr_domain::entities::OutcomeType;
@@ -187,9 +185,7 @@ pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: A
     challenge_service: Arc<S>,
     skill_service: Arc<K>,
     player_character_service: Arc<P>,
-    event_bus: Arc<dyn EventBusPort<AppEvent>>,
     dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
-    outcome_trigger_service: Arc<OutcomeTriggerService>,
     challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
 }
 
@@ -209,18 +205,14 @@ where
         challenge_service: Arc<S>,
         skill_service: Arc<K>,
         player_character_service: Arc<P>,
-        event_bus: Arc<dyn EventBusPort<AppEvent>>,
         dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
-        outcome_trigger_service: Arc<OutcomeTriggerService>,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
     ) -> Self {
         Self {
             challenge_service,
             skill_service,
             player_character_service,
-            event_bus,
             dm_approval_queue_service,
-            outcome_trigger_service,
             challenge_outcome_approval_service,
         }
     }

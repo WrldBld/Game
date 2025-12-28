@@ -240,21 +240,21 @@ pub async fn handle_message(
 
         // Inventory handlers
         ClientMessage::EquipItem { pc_id, item_id } => {
-            inventory::handle_equip_item(state, pc_id, item_id).await
+            inventory::handle_equip_item(state, client_id, pc_id, item_id).await
         }
 
         ClientMessage::UnequipItem { pc_id, item_id } => {
-            inventory::handle_unequip_item(state, pc_id, item_id).await
+            inventory::handle_unequip_item(state, client_id, pc_id, item_id).await
         }
 
         ClientMessage::DropItem {
             pc_id,
             item_id,
             quantity,
-        } => inventory::handle_drop_item(state, pc_id, item_id, quantity).await,
+        } => inventory::handle_drop_item(state, client_id, pc_id, item_id, quantity).await,
 
         ClientMessage::PickupItem { pc_id, item_id } => {
-            inventory::handle_pickup_item(state, pc_id, item_id).await
+            inventory::handle_pickup_item(state, client_id, pc_id, item_id).await
         }
 
         // Misc handlers

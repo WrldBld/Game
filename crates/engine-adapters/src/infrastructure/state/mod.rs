@@ -131,8 +131,19 @@ pub struct AppState {
     pub use_cases: UseCases,
 }
 
+use wrldbldr_engine_app::application::services::ChallengeApprovalEvent;
+
 impl AppState {
-    pub async fn new(config: AppConfig) -> Result<(Self, tokio::sync::mpsc::UnboundedReceiver<GenerationEvent>)> {
+    /// Creates a new AppState with all services initialized.
+    ///
+    /// Returns the state along with event receivers that need to be consumed by background workers:
+    /// - `generation_event_rx`: GenerationEvent receiver for GenerationEventPublisher
+    /// - `challenge_approval_rx`: ChallengeApprovalEvent receiver for ChallengeApprovalEventPublisher
+    pub async fn new(config: AppConfig) -> Result<(
+        Self, 
+        tokio::sync::mpsc::UnboundedReceiver<GenerationEvent>,
+        tokio::sync::mpsc::UnboundedReceiver<ChallengeApprovalEvent>,
+    )> {
         // Initialize Neo4j repository
         let repository = Neo4jRepository::new(
             &config.neo4j_uri,
@@ -459,10 +470,14 @@ impl AppState {
         // Create challenge outcome approval service (P3.3) - must be created before resolution service
         // Wire LLM port for suggestion generation, settings service for branch count,
         // and persistent queue for challenge outcomes
+        //
+        // The service uses an event channel instead of WorldConnectionPort for hexagonal compliance.
+        // Events are published by ChallengeApprovalEventPublisher (started in server.rs).
         let llm_for_suggestions = Arc::new(llm_client.clone());
+        let (challenge_approval_tx, challenge_approval_rx) = tokio::sync::mpsc::unbounded_channel();
         let challenge_outcome_approval_service = Arc::new(
             ChallengeOutcomeApprovalService::new(
-                world_connection_port_adapter.clone(),
+                challenge_approval_tx,
                 outcome_trigger_service.clone(),
                 player_character_repo_for_triggers.clone(),
                 item_repo.clone(),
@@ -481,9 +496,7 @@ impl AppState {
                 Arc::new(challenge_service_impl.clone()),
                 Arc::new(skill_service_impl.clone()),
                 Arc::new(player_character_service_impl.clone()),
-                event_bus.clone(),
                 dm_approval_queue_service.clone(),
-                outcome_trigger_service,
                 challenge_outcome_approval_service.clone(),
             ),
         );
@@ -687,8 +700,10 @@ impl AppState {
             challenge_resolution_for_use_cases,
             challenge_outcome_approval_for_use_cases,
             dm_approval_queue_for_use_cases,
+            // Narrative event dependencies
+            game.narrative_event_approval_service.clone(),
         );
-        tracing::info!("Initialized use cases container with all 8 use cases");
+        tracing::info!("Initialized use cases container with all 9 use cases");
 
         Ok((Self {
             config: config.clone(),
@@ -710,6 +725,6 @@ impl AppState {
             request_handler,
             directorial_context_repo,
             use_cases,
-        }, generation_event_rx))
+        }, generation_event_rx, challenge_approval_rx))
     }
 }

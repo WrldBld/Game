@@ -260,10 +260,10 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     outcome_triggers: outcome_triggers
                         .iter()
                         .map(|t| ProposedToolInfo {
-                            id: uuid::Uuid::new_v4().to_string(),
-                            name: t.trigger_type.clone(),
+                            id: t.id.clone(),
+                            name: t.name.clone(),
                             description: t.description.clone(),
-                            arguments: serde_json::Value::Null,
+                            arguments: t.arguments.clone(),
                         })
                         .collect(),
                     roll_breakdown: roll_breakdown.clone(),
@@ -357,11 +357,104 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
 
             GameEvent::ChallengeBranchesReady {
                 resolution_id: _,
+                outcome_type: _,
                 branches: _,
             } => {
                 // Branches are sent directly to DM via the approval service
                 // This event is for logging/metrics only
                 tracing::debug!("ChallengeBranchesReady event - already handled by approval service");
+            }
+
+            // =====================================================================
+            // Narrative Events
+            // =====================================================================
+            GameEvent::NarrativeEventTriggered {
+                ref event_id,
+                ref event_name,
+                ref outcome_description,
+                ref scene_direction,
+            } => {
+                // Broadcast to all players in the world
+                let message = ServerMessage::NarrativeEventTriggered {
+                    event_id: event_id.clone(),
+                    event_name: event_name.clone(),
+                    outcome_description: outcome_description.clone(),
+                    scene_direction: scene_direction.clone().unwrap_or_default(),
+                };
+                self.connection_manager
+                    .broadcast_to_world(*world_uuid, message)
+                    .await;
+            }
+
+            // =====================================================================
+            // Challenge Approval Events (from ChallengeApprovalEventPublisher)
+            // =====================================================================
+            GameEvent::ChallengeOutcomePending {
+                world_id: _,
+                ref resolution_id,
+                ref challenge_id,
+                ref challenge_name,
+                ref character_id,
+                ref character_name,
+                roll,
+                modifier,
+                total,
+                ref outcome_type,
+                ref outcome_description,
+                ref outcome_triggers,
+                ref roll_breakdown,
+            } => {
+                // Send pending outcome to DM for approval
+                let message = ServerMessage::ChallengeOutcomePending {
+                    resolution_id: resolution_id.clone(),
+                    challenge_id: challenge_id.clone(),
+                    challenge_name: challenge_name.clone(),
+                    character_id: character_id.clone(),
+                    character_name: character_name.clone(),
+                    roll,
+                    modifier,
+                    total,
+                    outcome_type: outcome_type.clone(),
+                    outcome_description: outcome_description.clone(),
+                    outcome_triggers: outcome_triggers
+                        .iter()
+                        .map(|t| ProposedToolInfo {
+                            id: t.id.clone(),
+                            name: t.name.clone(),
+                            description: t.description.clone(),
+                            arguments: t.arguments.clone(),
+                        })
+                        .collect(),
+                    roll_breakdown: roll_breakdown.clone(),
+                };
+                self.connection_manager
+                    .broadcast_to_dms(*world_uuid, message)
+                    .await;
+            }
+
+            GameEvent::CharacterStatUpdated {
+                world_id: _,
+                ref character_id,
+                ref character_name,
+                ref stat_name,
+                old_value,
+                new_value,
+                delta,
+                ref source,
+            } => {
+                // Broadcast stat update to all players
+                let message = ServerMessage::CharacterStatUpdated {
+                    character_id: character_id.clone(),
+                    character_name: character_name.clone(),
+                    stat_name: stat_name.clone(),
+                    old_value,
+                    new_value,
+                    delta,
+                    source: source.clone(),
+                };
+                self.connection_manager
+                    .broadcast_to_world(*world_uuid, message)
+                    .await;
             }
         }
     }

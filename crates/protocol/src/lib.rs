@@ -14,6 +14,7 @@
 //! 4. **No domain IDs** - use raw `uuid::Uuid` in DTOs
 
 pub mod app_events;
+pub mod dto;
 pub mod messages;
 pub mod requests;
 pub mod responses;
@@ -110,6 +111,11 @@ pub use types::{
     // Participant roles
     ParticipantRole,
 };
+
+// =============================================================================
+// DTOs
+// =============================================================================
+pub use dto::NpcDispositionStateDto;
 
 // =============================================================================
 // Request Types (WebSocket Request/Response Pattern)

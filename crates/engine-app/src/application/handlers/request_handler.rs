@@ -2219,7 +2219,7 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.disposition_service.get_all_relationships(id).await {
                     Ok(dispositions) => {
-                        let dtos: Vec<wrldbldr_domain::value_objects::NpcDispositionStateDto> = dispositions
+                        let dtos: Vec<wrldbldr_protocol::NpcDispositionStateDto> = dispositions
                             .iter()
                             .map(|d| d.into())
                             .collect();
@@ -2242,7 +2242,7 @@ impl RequestHandler for AppRequestHandler {
                 let disposition_level = parse_disposition_level(&disposition);
                 match self.disposition_service.set_disposition(nid, pid, disposition_level, reason).await {
                     Ok(state) => {
-                        let dto: wrldbldr_domain::value_objects::NpcDispositionStateDto = (&state).into();
+                        let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2262,7 +2262,7 @@ impl RequestHandler for AppRequestHandler {
                 let rel_level = parse_relationship_level(&relationship);
                 match self.disposition_service.set_relationship(nid, pid, rel_level).await {
                     Ok(state) => {
-                        let dto: wrldbldr_domain::value_objects::NpcDispositionStateDto = (&state).into();
+                        let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),

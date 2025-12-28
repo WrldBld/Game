@@ -42,7 +42,7 @@ pub use llm_context::{
     SocialRelationEntry, SocialStanceContext,
 };
 pub use disposition::{
-    ChallengeSignificance, DispositionLevel, InteractionOutcome, NpcDispositionState, NpcDispositionStateDto, RelationshipLevel,
+    ChallengeSignificance, DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
 pub use region::{RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
 pub use relationship::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};

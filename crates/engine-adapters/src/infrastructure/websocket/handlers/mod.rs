@@ -2,6 +2,8 @@
 //!
 //! Each submodule contains handlers for related ClientMessage variants.
 
+pub mod common;
+
 pub mod challenge;
 pub mod connection;
 pub mod inventory;
