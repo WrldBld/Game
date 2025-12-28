@@ -7,7 +7,7 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | 🟡 Partial | BroadcastAdapter done, handler refactoring pending |
+| 4 | Adapter Implementation | 🟡 Partial | MovementUseCase + StagingApprovalUseCase wired, handler refactoring pending |
 | 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
 | 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
 | 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
@@ -21,15 +21,25 @@
 - [x] `WebSocketBroadcastAdapter` - converts GameEvent to ServerMessage
 - [x] `UseCases` container struct in AppState
 - [x] BroadcastSink already removed (done in previous session)
+- [x] `StagingStateAdapter` - implements StagingStatePort wrapping WorldStateManager
+- [x] `StagingServiceAdapter` - implements StagingServicePort wrapping StagingService
+- [x] `ConnectionManagerAdapter` - implements ConnectionManagerPort (not yet wired)
+- [x] `MovementUseCase` wired into UseCases container with adapters
+- [x] `StagingApprovalUseCase` wired into UseCases container with adapters
 
 **Remaining:**
-- [ ] Create adapters for use case ports (StagingStatePort, StagingServicePort, etc.)
+- [ ] Fix and wire remaining adapters (challenge, scene, observation, player_action)
+- [ ] Wire remaining use cases (InventoryUseCase, ChallengeUseCase, etc.)
 - [ ] Refactor handlers to use use cases
 - [ ] Target: reduce handler files from ~4,693 lines to ~840 lines
 
-**Files Created This Session:**
+**Files Created/Modified:**
 - `crates/engine-adapters/src/infrastructure/websocket/broadcast_adapter.rs` (~475 lines)
-- `crates/engine-adapters/src/infrastructure/state/use_cases.rs` (~90 lines)
+- `crates/engine-adapters/src/infrastructure/state/use_cases.rs` (~155 lines)
+- `crates/engine-adapters/src/infrastructure/state/mod.rs` (updated UseCases::new() call)
+- `crates/engine-adapters/src/infrastructure/ports/staging_state_adapter.rs` (~200 lines)
+- `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs` (~240 lines)
+- `crates/engine-adapters/src/infrastructure/ports/connection_manager_adapter.rs` (~190 lines)
 
 ---
 

@@ -295,6 +295,7 @@ impl AppState {
         
         let player_character_repo_for_triggers = player_character_repo.clone();
         let player_character_repo_for_actantial = player_character_repo.clone();
+        let player_character_repo_for_handler = player_character_repo.clone();
         
         let player_character_service: Arc<dyn wrldbldr_engine_app::application::services::PlayerCharacterService> = 
             Arc::new(PlayerCharacterServiceImpl::new(
@@ -619,8 +620,9 @@ impl AppState {
 
         // Create request handler for WebSocket-first architecture
         // Services are already Arc<dyn Trait>, so just clone them
-        // Clone character_repo for the handler
+        // Clone character_repo for the handler and use cases
         let character_repo_for_handler = character_repo.clone();
+        let character_repo_for_use_cases = character_repo.clone();
 
         let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
             core.world_service.clone(),
@@ -647,9 +649,17 @@ impl AppState {
          .with_generation_queue(generation_queue_projection_for_handler, generation_read_state_for_handler));
         tracing::info!("Initialized request handler for WebSocket-first architecture");
 
-        // Create use cases container with broadcast adapter
-        let use_cases = UseCases::new(world_connection_manager.clone());
-        tracing::info!("Initialized use cases container with broadcast adapter");
+        // Create use cases container with all dependencies
+        let use_cases = UseCases::new(
+            world_connection_manager.clone(),
+            world_state.clone(),
+            player_character_repo_for_handler.clone(),
+            region_repo.clone(),
+            location_repo.clone(),
+            character_repo_for_use_cases,
+            staging_service.clone(),
+        );
+        tracing::info!("Initialized use cases container with MovementUseCase and StagingApprovalUseCase");
 
         Ok((Self {
             config: config.clone(),
