@@ -10,8 +10,9 @@
 
 ## Validation Notes (2025-12-28)
 
-This plan was validated by a peer review agent. Key corrections applied:
+This plan was validated by two peer review agents. Key corrections applied:
 
+### First Review
 1. **Phase 1.3 REMOVED** - The `staging_service.rs:535` unwrap is inside `#[cfg(test)]` (test code), not production
 2. **God trait method counts corrected**:
    - CharacterRepositoryPort: ~35 → **42 methods** (verified)
@@ -20,6 +21,19 @@ This plan was validated by a peer review agent. Key corrections applied:
 3. **Swallowed error count verified** - 43 instances confirmed in `services/` directory
 4. **Phase 3.5 warning added** - Splitting god traits will break test compilation until Phase 7
 5. **HTTP timeout/client claims verified** - Confirmed no timeouts, 11 instances of per-request client creation
+
+### Second Review - Additional Issues Found
+6. **File I/O in application layer** - 5 instances of `tokio::fs` in engine-app (architecture violation)
+7. **Environment access in application layer** - 2 instances of `std::env` in prompt_template_service.rs
+8. **Shadow variable bug** - `completed_count` in generation_service.rs is not unused, it has a shadow bug
+9. **Protocol forward compatibility** - No `#[serde(other)]` on any enum (breaks client on new variants)
+10. **Test compilation root cause** - Specific: staging_service_adapter.rs stubs return wrong error types
+
+### Known Limitations (Not in Scope)
+- **Authentication**: X-User-Id header is spoofable - intentional for MVP, production auth is separate work
+- **Rate limiting**: RateLimitExceeded defined but unused - feature work, not remediation
+- **Reconnection logic**: Reconnecting state unused - feature work, not remediation
+- **Protocol versioning**: No version field - would be breaking change, separate effort
 
 ---
 
@@ -31,9 +45,9 @@ Two comprehensive code reviews identified issues across the WrldBldr codebase. T
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Critical | 1 | Production panic risk (motivations_tab.rs) |
-| High | ~60 | Swallowed errors (43), god traits (3), architecture gaps |
-| Medium | ~80 | Dead code, missing derives, config issues (hardcoded IPs) |
+| Critical | 2 | Production panic risk, protocol forward compatibility |
+| High | ~65 | Swallowed errors (43), god traits (3), I/O in app layer (7), architecture gaps |
+| Medium | ~80 | Dead code, missing derives, config issues (hardcoded IPs), shadow bugs |
 | Low | ~100+ | Unused variables, documentation, naming |
 
 ### Progress Tracking
@@ -123,7 +137,46 @@ comfyui_base_url: env::var("COMFYUI_BASE_URL")
 
 ---
 
-### ~~1.3 Fix Production unwrap() in Staging Service~~ REMOVED
+### 1.3 Add Protocol Forward Compatibility
+
+**Priority**: CRITICAL - Without this, adding any new enum variant breaks all existing clients.
+
+**Issue**: No protocol enums have `#[serde(other)]` catch-all variants. When we add a new variant to any enum (e.g., `ServerMessage`), older clients that don't know about it will fail to deserialize the entire message.
+
+**Files to update**:
+- `crates/protocol/src/messages.rs` - ClientMessage, ServerMessage
+- `crates/protocol/src/requests.rs` - RequestPayload
+- `crates/protocol/src/responses.rs` - ResponseResult
+- Other enums as needed (~15 total)
+
+**Pattern to apply**:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ServerMessage {
+    // ... existing variants ...
+    
+    /// Unknown message type for forward compatibility
+    /// Older clients will deserialize unknown variants as this
+    #[serde(other)]
+    Unknown,
+}
+```
+
+**Note**: This requires adding a catch-all variant to each enum. Consider whether `Unknown` should carry the raw JSON for debugging.
+
+| Task | Status |
+|------|--------|
+| [ ] Add #[serde(other)] Unknown to ServerMessage | Pending |
+| [ ] Add #[serde(other)] Unknown to ClientMessage | Pending |
+| [ ] Add #[serde(other)] Unknown to RequestPayload | Pending |
+| [ ] Add #[serde(other)] Unknown to ResponseResult | Pending |
+| [ ] Audit remaining protocol enums | Pending |
+| [ ] Add handling for Unknown variants in message processors | Pending |
+
+---
+
+### ~~1.4 Fix Production unwrap() in Staging Service~~ REMOVED
 
 **Status**: ~~INVALID~~ - This item was removed after validation.
 
@@ -226,9 +279,57 @@ static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
 
 ---
 
-## Phase 3: Architecture Completion (6-8 hours)
+## Phase 3: Architecture Completion (8-10 hours)
 
 **Priority**: HIGH - Complete hexagonal architecture gaps
+
+### 3.0 Move I/O Operations Out of Application Layer
+
+**Issue**: Application layer has direct file system and environment variable access, violating hexagonal architecture.
+
+#### 3.0.1 File System I/O Violations
+
+**Files with `tokio::fs` in application layer**:
+
+| File | Lines | Operations |
+|------|-------|------------|
+| `generation_service.rs` | 353, 365, 403 | create_dir_all, write, read_to_string |
+| `asset_generation_queue_service.rs` | 231, 245 | create_dir_all, write |
+
+**Fix**: Create `FileStoragePort` in engine-ports:
+```rust
+#[async_trait]
+pub trait FileStoragePort: Send + Sync {
+    async fn create_dir_all(&self, path: &Path) -> Result<()>;
+    async fn write(&self, path: &Path, data: &[u8]) -> Result<()>;
+    async fn read_to_string(&self, path: &Path) -> Result<String>;
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create FileStoragePort trait in engine-ports | Pending |
+| [ ] Create TokioFileStorageAdapter in engine-adapters | Pending |
+| [ ] Update generation_service.rs to use FileStoragePort | Pending |
+| [ ] Update asset_generation_queue_service.rs to use FileStoragePort | Pending |
+| [ ] Wire up in runner | Pending |
+
+#### 3.0.2 Environment Variable Access Violations
+
+**Files with `std::env` in application layer**:
+
+| File | Lines | Usage |
+|------|-------|-------|
+| `prompt_template_service.rs` | 222, 268 | Reading template overrides from env |
+
+**Fix**: Inject configuration through constructor or config port.
+
+| Task | Status |
+|------|--------|
+| [ ] Add template override config to PromptTemplateService constructor | Pending |
+| [ ] Move env::var calls to adapter/runner layer | Pending |
+
+---
 
 ### 3.1 Add Missing Challenge DTOs
 
@@ -437,7 +538,6 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 | File | Field | Action |
 |------|-------|--------|
 | `actantial_context_service.rs:198` | `item_repo` | DELETE (injected but unused) |
-| `generation_service.rs:116` | `completed_count` | DELETE |
 | `scene_resolution_service.rs:59` | `character_repository` | DELETE |
 | `trigger_evaluation_service.rs:200` | `challenge_repo` | DELETE |
 | `trigger_evaluation_service.rs:201` | `character_repo` | DELETE |
@@ -454,15 +554,51 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 | Task | Status |
 |------|--------|
 | [ ] Delete item_repo from actantial_context_service.rs | Pending |
-| [ ] Delete completed_count from generation_service.rs | Pending |
 | [ ] Delete character_repository from scene_resolution_service.rs | Pending |
 | [ ] Delete challenge_repo, character_repo from trigger_evaluation_service.rs | Pending |
+
+---
+
+### 4.3 Fix Shadow Variable Bug in generation_service.rs
+
+**Issue**: The `completed_count` field in `BatchTracker` struct is never used because a local variable with the same name shadows it.
+
+**Location**: `crates/engine-app/src/application/services/generation_service.rs`
+
+**Lines**:
+- Line 116: `completed_count: u8` - field in BatchTracker struct
+- Line 251: `let mut completed_count = 0u8;` - local variable shadows the field
+
+**Current Code**:
+```rust
+struct BatchTracker {
+    batch: GenerationBatch,
+    prompt_ids: Vec<String>,
+    completed_count: u8,  // Never used - shadowed by local variable
+}
+
+// Later in check_batch_progress():
+let mut completed_count = 0u8;  // Shadows the field!
+for prompt_id in &prompt_ids {
+    // ...
+    completed_count += 1;  // Increments local, not field
+}
+```
+
+**Fix Options**:
+1. Use the field: Replace local with `tracker.completed_count` 
+2. Remove the field: If batch-level tracking isn't needed
+
+| Task | Status |
+|------|--------|
+| [ ] Determine if batch-level completed_count tracking is needed | Pending |
+| [ ] Either use the field or remove it | Pending |
 | [ ] Decide on broadcast fields (implement or delete) | Pending |
 | [ ] Implement or delete broadcast fields based on decision | Pending |
 
 ---
 
-### 4.3 Remove Unused Constants and Imports
+### 4.4 Remove Unused Constants and Imports
 
 | File | Item | Action |
 |------|------|--------|
@@ -479,7 +615,7 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 ---
 
-### 4.4 Address #[allow(dead_code)] Suppressions
+### 4.5 Address #[allow(dead_code)] Suppressions
 
 **Suspicious suppressions to audit**:
 
@@ -502,7 +638,7 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 ---
 
-### 4.5 Fix Unused Variables in UI Layer
+### 4.6 Fix Unused Variables in UI Layer
 
 | File | Variable | Fix |
 |------|----------|-----|
@@ -701,14 +837,31 @@ pub enum RequestError {
 
 ### 7.1 Fix Test Compilation
 
-**Issue**: Test suite fails to compile due to trait mismatches.
+**Issue**: Test suite fails to compile with ~36 errors. Root cause identified.
+
+**Root Cause**: `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs:244-335`
+
+The stub implementations return wrong error types:
+- Stubs return `Result<(), String>` 
+- Traits expect `Result<(), anyhow::Error>`
+
+**Specific errors**:
+- Missing trait methods: `is_valid`, `get_staged_npcs`
+- Type mismatches: `Result<(), String>` vs `Result<(), anyhow::Error>`
+- Missing `futures` crate import
+
+**Additional issues**:
+- Duplicated mocks: `MockPromptTemplateRepository` in 3 files, `MockLlm` in 2 files
+- Empty tests: `disposition_service.rs:283`, `actantial_context_service.rs:652` have `assert!(true)`
 
 | Task | Status |
 |------|--------|
-| [ ] Run `cargo test --workspace` and collect errors | Pending |
-| [ ] Fix trait method mismatches | Pending |
-| [ ] Fix missing type imports | Pending |
-| [ ] Fix stale mock implementations | Pending |
+| [ ] Fix staging_service_adapter.rs stub error types (root cause) | Pending |
+| [ ] Add missing trait methods to stubs | Pending |
+| [ ] Add futures import | Pending |
+| [ ] Run `cargo test --workspace` and fix remaining errors | Pending |
+| [ ] Consolidate duplicated mock implementations | Pending |
+| [ ] Fix or remove empty tests | Pending |
 | [ ] Verify all tests compile | Pending |
 
 ---
@@ -917,14 +1070,17 @@ cargo test --workspace
 
 | Metric | Before | Target |
 |--------|--------|--------|
-| Critical issues | 1 | 0 |
+| Critical issues | 2 | 0 |
 | Compiler warnings | 51 | 0 |
 | Swallowed errors | 43 | 0 (logged) |
 | God traits (35+ methods) | 3 (107 methods total) | 0 |
+| I/O in application layer | 7 | 0 |
 | Protocol imports in services | 14 | 0 |
 | Unused structs | 4 | 0 |
-| Unused fields | 12 | 0 |
-| Test compilation | FAIL | PASS |
+| Unused fields | 11 | 0 |
+| Shadow variable bugs | 1 | 0 |
+| Protocol forward compatibility | None | All enums have #[serde(other)] |
+| Test compilation | FAIL (36 errors) | PASS |
 | Protocol test coverage | 0% | 100% |
 | arch-check | PASS | PASS |
 
