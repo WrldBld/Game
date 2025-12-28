@@ -16,6 +16,25 @@
 //! - **Use cases**: Complex workflows with side-effects (broadcasts, state changes)
 //! - **AppRequestHandler**: Simple CRUD operations that return a single response
 //!
+//! # Port Ownership in engine-app
+//!
+//! Some ports are defined here rather than in `engine-ports` because they depend on
+//! DTOs defined within this crate. This is valid hexagonal architecture - use-case
+//! specific ports can live in the application layer.
+//!
+//! **Use-case ports** (valid in engine-app):
+//! - `WorldStatePort` - Depends on `DirectorialContextData`
+//! - `ConnectionManagerPort` - Depends on `ConnectionInfo`, `UserJoinedEvent`, etc.
+//! - `StagingStatePort` - Depends on staging-specific DTOs
+//! - `DmNotificationPort`, `WorldMessagePort` - Use-case specific notification semantics
+//! - `ChallengeResolutionPort`, `SceneServicePort`, etc. - Service facade ports
+//!
+//! **Infrastructure ports** (should be in engine-ports):
+//! - Repository traits (`CharacterRepositoryPort`, `LocationRepositoryPort`, etc.)
+//! - External service traits (`LlmPort`, `ComfyUIPort`, `BroadcastPort`)
+//!
+//! See: `docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md` Appendix B
+//!
 //! # Architecture Rules
 //!
 //! 1. Use cases must NOT import `wrldbldr_protocol::ServerMessage`
@@ -95,7 +114,7 @@ pub use connection::{
     ConnectedUser, ConnectionInfo, ConnectionManagerPort, ConnectionUseCase,
     DirectorialContextPort, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
     PlayerCharacterServicePort, SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent,
-    UserLeftEvent, WorldRole, WorldServicePort, WorldStatePort as ConnectionWorldStatePort,
+    UserLeftEvent, WorldRole, WorldServicePort,
 };
 
 pub use inventory::*;
@@ -111,7 +130,7 @@ pub use scene::{
     InteractionData as SceneInteractionData, InteractionEntity, InteractionServicePort,
     InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput, SceneChangeResult,
     SceneData, SceneEntity, SceneServicePort, SceneUseCase, SceneWithRelations,
-    TimeContext, UpdateDirectorialInput, WorldStatePort as SceneWorldStatePort,
+    TimeContext, UpdateDirectorialInput, WorldStatePort,
 };
 
 pub use staging::{

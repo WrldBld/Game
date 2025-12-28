@@ -26,7 +26,6 @@
 //!     ├── WorldServiceAdapter ─────────► WorldService
 //!     ├── PlayerCharacterServiceAdapter ► PlayerCharacterService
 //!     ├── DirectorialContextAdapter ───► DirectorialContextRepositoryPort
-//!     ├── ObservationRepositoryAdapter ► ObservationRepositoryPort (engine-ports)
 //!     └── WorldMessageAdapter ──────────► WorldConnectionManager
 //! ```
 //!

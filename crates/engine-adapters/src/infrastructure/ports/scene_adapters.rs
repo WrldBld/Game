@@ -18,7 +18,7 @@ use wrldbldr_engine_app::application::use_cases::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
     InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity,
     SceneEntity, SceneServicePort, SceneWithRelations as UseCaseSceneWithRelations, TimeContext,
-    SceneDmActionQueuePort, SceneWorldStatePort,
+    SceneDmActionQueuePort, WorldStatePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
 
@@ -136,7 +136,7 @@ impl SceneWorldStateAdapter {
     }
 }
 
-impl SceneWorldStatePort for SceneWorldStateAdapter {
+impl WorldStatePort for SceneWorldStateAdapter {
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
         self.state.set_current_scene(world_id, scene_id);
     }

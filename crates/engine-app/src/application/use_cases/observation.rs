@@ -22,7 +22,7 @@ use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterRepositoryPort, PlayerCharacterRepositoryPort,
+    BroadcastPort, CharacterRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
 };
 
 use super::errors::ObservationError;
@@ -89,17 +89,6 @@ pub struct TriggerApproachResult {
 pub struct TriggerLocationEventResult {
     /// Event was broadcast
     pub event_broadcast: bool,
-}
-
-// =============================================================================
-// Observation Repository Port
-// =============================================================================
-
-/// Port for observation persistence
-#[async_trait::async_trait]
-pub trait ObservationRepositoryPort: Send + Sync {
-    /// Upsert an NPC observation
-    async fn upsert(&self, observation: &NpcObservation) -> Result<(), String>;
 }
 
 // =============================================================================
@@ -205,7 +194,7 @@ impl ObservationUseCase {
         self.observation_repo
             .upsert(&observation)
             .await
-            .map_err(|e| ObservationError::Database(e))?;
+            .map_err(|e| ObservationError::Database(e.to_string()))?;
 
         info!(
             pc_id = %input.pc_id,

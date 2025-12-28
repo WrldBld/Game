@@ -9,7 +9,7 @@
 //! - WorldServicePort
 //! - PlayerCharacterServicePort
 //! - DirectorialContextPort
-//! - ConnectionWorldStatePort (same as SceneWorldStatePort but with different trait)
+//! - WorldStatePort (consolidated from ConnectionWorldStatePort and SceneWorldStatePort)
 
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, Paci
 use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
 use wrldbldr_engine_app::application::use_cases::{
     DirectorialContextData, DirectorialContextPort, NpcMotivation, PcData,
-    PlayerCharacterServicePort, ConnectionWorldStatePort, WorldServicePort,
+    PlayerCharacterServicePort, WorldStatePort, WorldServicePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
 
@@ -141,7 +141,10 @@ impl DirectorialContextPort for ConnectionDirectorialContextAdapter {
     }
 }
 
-/// Adapter for WorldStateManager implementing ConnectionWorldStatePort
+/// Adapter for WorldStateManager implementing WorldStatePort
+///
+/// This adapter implements the consolidated WorldStatePort (formerly split between
+/// ConnectionWorldStatePort and SceneWorldStatePort).
 pub struct ConnectionWorldStateAdapter {
     state: Arc<WorldStateManager>,
 }
@@ -152,7 +155,11 @@ impl ConnectionWorldStateAdapter {
     }
 }
 
-impl ConnectionWorldStatePort for ConnectionWorldStateAdapter {
+impl WorldStatePort for ConnectionWorldStateAdapter {
+    fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
+        self.state.set_current_scene(world_id, scene_id);
+    }
+
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
         // Convert use case DirectorialContextData to domain DirectorialNotes
         let npc_motivations = context

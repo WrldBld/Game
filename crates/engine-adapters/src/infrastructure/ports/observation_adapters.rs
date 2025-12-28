@@ -1,36 +1,18 @@
 //! Observation Use Case Adapters
 //!
 //! Implements observation-related ports by wrapping existing infrastructure.
+//!
+//! Note: ObservationRepositoryAdapter was removed as ObservationUseCase now
+//! directly uses the ObservationRepositoryPort from engine-ports.
 
-use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_engine_app::application::use_cases::{
-    ApproachEventData, LocationEventData, ObservationRepositoryPort, WorldMessagePort,
+    ApproachEventData, LocationEventData, WorldMessagePort,
 };
-use wrldbldr_engine_ports::outbound::ObservationRepositoryPort as PortObservationRepositoryPort;
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
-
-/// Adapter for ObservationRepositoryPort
-pub struct ObservationRepositoryAdapter {
-    repo: Arc<dyn PortObservationRepositoryPort>,
-}
-
-impl ObservationRepositoryAdapter {
-    pub fn new(repo: Arc<dyn PortObservationRepositoryPort>) -> Self {
-        Self { repo }
-    }
-}
-
-#[async_trait::async_trait]
-impl ObservationRepositoryPort for ObservationRepositoryAdapter {
-    async fn upsert(&self, observation: &NpcObservation) -> Result<(), String> {
-        self.repo.upsert(observation).await.map_err(|e| e.to_string())
-    }
-}
 
 /// Adapter for WorldMessagePort
 pub struct WorldMessageAdapter {

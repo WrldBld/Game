@@ -53,7 +53,7 @@ use crate::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
     ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
     DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
-    InteractionServiceAdapter, ObservationRepositoryAdapter, PlayerActionQueueAdapter,
+    InteractionServiceAdapter, PlayerActionQueueAdapter,
     PlayerCharacterServiceAdapter, SceneServiceAdapter, SceneWorldStateAdapter,
     StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter, WorldServiceAdapter,
 };
@@ -216,14 +216,15 @@ impl UseCases {
         ));
 
         // Create observation adapters
-        let observation_repo_adapter = Arc::new(ObservationRepositoryAdapter::new(observation_repo));
+        // Note: observation_repo now directly implements the same ObservationRepositoryPort
+        // used by ObservationUseCase (consolidated from engine-ports)
         let world_message_adapter = Arc::new(WorldMessageAdapter::new(connection_manager.clone()));
 
         // Create observation use case
         let observation = Arc::new(ObservationUseCase::new(
             pc_repo.clone(),
             character_repo,
-            observation_repo_adapter,
+            observation_repo,
             world_message_adapter,
             broadcast.clone(),
         ));

@@ -207,15 +207,8 @@ pub trait DirectorialContextPort: Send + Sync {
     ) -> Result<Option<super::scene::DirectorialContextData>, String>;
 }
 
-/// Port for world state
-pub trait WorldStatePort: Send + Sync {
-    /// Set directorial context
-    fn set_directorial_context(
-        &self,
-        world_id: &WorldId,
-        context: super::scene::DirectorialContextData,
-    );
-}
+// WorldStatePort is defined in scene.rs and re-exported here for convenience
+pub use super::scene::WorldStatePort;
 
 // =============================================================================
 // Connection Use Case
