@@ -10,13 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 use wrldbldr_protocol::messages::{CreateGoalData, CreateWantData, UpdateGoalData, UpdateWantData};
-use wrldbldr_protocol::RequestPayload;
-
-// Re-export protocol types for convenience
-pub use wrldbldr_protocol::{
-    ActantialActorData, ActantialRoleData, ActantialViewData, ActorTypeData, GoalData,
-    NpcActantialContextData, SocialRelationData, SocialViewsData, WantData, WantTargetData,
-    WantTargetTypeData, WantVisibilityData,
+use wrldbldr_protocol::{
+    RequestPayload, WantVisibilityData,
 };
 
 /// Request to create a new want
