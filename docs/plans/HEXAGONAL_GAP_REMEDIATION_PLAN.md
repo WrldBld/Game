@@ -2,9 +2,9 @@
 
 **Status**: FINAL - Ready for Implementation  
 **Created**: 2025-12-28  
-**Updated**: 2025-12-28 (Final validation with deep codebase analysis)  
+**Updated**: 2025-12-28 (Final validation with deep codebase analysis, actantial complexity revised)  
 **Priority**: High - Clean architecture finalization  
-**Estimated Total Effort**: 13-16 hours
+**Estimated Total Effort**: 15-19 hours
 
 ## Executive Summary
 
@@ -52,7 +52,7 @@ This plan finalizes the hexagonal architecture refactor for WrldBldr. After exte
 
 ---
 
-## Phase 0: Baseline Verification
+## Phase 0: Baseline Verification ✅ COMPLETE
 
 **Estimated Time**: 30 minutes  
 **Purpose**: Document current state before changes
@@ -71,10 +71,10 @@ grep -r "AppEventRepositoryPort" crates/ | wc -l
 grep -l "use wrldbldr_protocol::" crates/player-app/src/application/services/*.rs | wc -l
 ```
 
-### Expected Results
+### Actual Results (2025-12-28)
 
-- arch-check: PASS (with documented exemptions)
-- AppEventRepositoryPort usages: ~6 files
+- arch-check: PASS ✅
+- AppEventRepositoryPort usages: 16 occurrences
 - Player-app services with protocol imports: 14 files
 
 ---
@@ -195,7 +195,7 @@ This service has **deeper protocol coupling** than others and requires extra wor
 - Embeds 5 protocol enums in its DTOs (`WantVisibilityData`, `WantTargetTypeData`, `ActorTypeData`, `ActantialRoleData`)
 - Requires creating app-layer versions of nested types
 
-**Additional effort**: +1-2 hours on top of standard service updates
+**Additional effort**: +3-4 hours on top of standard service updates (deep analysis revealed 10 types needed: 4 enums + 6 structs, with 20 From impls)
 
 ### 2.1 Create player-app/dto/requests.rs
 
@@ -399,13 +399,13 @@ After all phases complete:
 |-------|-------------|--------|--------------|
 | 0 | Baseline verification | 30 min | None |
 | 1 | Foundation + G2 + G7 | 2-3 hrs | None |
-| 2 | Player-app DTOs (G3) | 6-8 hrs | Phase 1 |
+| 2 | Player-app DTOs (G3) | 8-10 hrs | Phase 1 |
 | 2a | Standard services (10 files) | 4-5 hrs | - |
-| 2b | actantial_service.rs (special) | 2-3 hrs | - |
+| 2b | actantial_service.rs (special) | 3-4 hrs | - |
 | 3 | Engine port consolidation (G9) | 3-4 hrs | Phase 1 |
 | 4 | Polish (G4, G5, G8) | 1-2 hrs | Phases 2, 3 |
 
-**Total**: 13-16 hours
+**Total**: 15-19 hours
 
 Phases 2 and 3 can be done in parallel after Phase 1.
 
@@ -551,9 +551,12 @@ This service has the deepest protocol coupling in player-app and requires specia
 
 ### Estimated New Code
 
-- ~150-200 lines of new DTO definitions
-- ~80-100 lines of `From` trait implementations
+- 10 new types: 4 enums (`AppWantVisibility`, `AppWantTargetType`, `AppActorType`, `AppActantialRole`) + 6 structs (`AppWantTarget`, `AppNpcActantialContext`, `AppWantData`, `AppActantialActor`, `AppSocialViews`, `AppSocialRelation`)
+- 20 `From` trait implementations (bidirectional conversions)
+- ~200-250 lines of new DTO definitions
+- ~100-150 lines of `From` trait implementations
 - All existing method signatures can remain (except `get_actantial_context` return type)
+- **Estimated effort**: 3-4 hours due to deep nesting complexity
 
 ---
 
