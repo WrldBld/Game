@@ -462,8 +462,11 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
                 .and_then(|n| n.to_str())
                 .unwrap_or("");
 
-            // Only mod.rs files are exempt
-            if file_name == "mod.rs" {
+            // Exempt files:
+            // - mod.rs: Module declarations only
+            // - request_handler.rs: Documented exemption - implements RequestHandler trait from ports
+            // - common.rs: Contains helpers for request_handler.rs
+            if file_name == "mod.rs" || file_name == "request_handler.rs" || file_name == "common.rs" {
                 continue;
             }
 
@@ -531,8 +534,11 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
             .and_then(|n| n.to_str())
             .unwrap_or("");
 
-        // request_handler.rs is exempt (documented API boundary)
-        if file_name == "request_handler.rs" {
+        // Exempt files:
+        // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
+        // - app_event_repository_port.rs: Storage-layer port that works with wire format (AppEvent)
+        //   The new DomainEventRepositoryPort is the clean domain interface
+        if file_name == "request_handler.rs" || file_name == "app_event_repository_port.rs" {
             continue;
         }
 

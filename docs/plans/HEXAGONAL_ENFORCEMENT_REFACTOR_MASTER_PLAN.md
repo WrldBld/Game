@@ -15,8 +15,8 @@
 | Phase E2 (Approval DTOs) | Complete | 7c6faa9 |
 | Phase E3 (ErrorCode) | Complete | f0f470f |
 | Phase E4 (Ports Layer) | Complete | 2ed181b |
-| Phase E5 (Split Handler) | In Progress | - |
-| Phase P1 (Player Domain Types) | Pending | - |
+| Phase E5 (Split Handler) | Partial | 6957955 |
+| Phase P1 (Player Domain Types) | In Progress | - |
 | Phase P2 (GameConnectionPort) | Pending | - |
 | Phase P3 (Message Translation) | Pending | - |
 | Phase P4 (player-app Services) | Pending | - |
