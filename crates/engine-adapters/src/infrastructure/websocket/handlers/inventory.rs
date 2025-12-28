@@ -1,11 +1,21 @@
-//! Inventory action handlers for WebSocket messages.
+//! Inventory handlers
 //!
-//! Handles equipping, unequipping, dropping, and picking up items
-//! with proper validation and rollback on errors.
+//! Thin handlers for item equip/unequip/drop/pickup operations.
+//! All business logic is delegated to InventoryUseCase.
+
+use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use wrldbldr_engine_ports::outbound::{PlayerCharacterRepositoryPort, RegionRepositoryPort};
+use wrldbldr_domain::{ItemId, PlayerCharacterId, WorldId};
+use wrldbldr_engine_app::application::use_cases::{
+    DropInput, EquipInput, ErrorCode, InventoryError, InventoryUseCase, PickupInput, UnequipInput,
+};
+use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
+
+// =============================================================================
+// Equip Item Handler
+// =============================================================================
 
 /// Handle equipping an item from a player character's inventory.
 pub async fn handle_equip_item(
@@ -15,72 +25,31 @@ pub async fn handle_equip_item(
 ) -> Option<ServerMessage> {
     tracing::info!(pc_id = %pc_id, item_id = %item_id, "Equip item request");
 
-    let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-        Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_PC_ID".to_string(),
-                message: "Invalid PC ID format".to_string(),
-            });
-        }
+    // Extract context (use a minimal context for inventory - world_id is obtained from PC)
+    let ctx = extract_inventory_context(state, &pc_id).await?;
+
+    // Parse IDs
+    let pc_uuid = parse_pc_id(&pc_id)?;
+    let item_uuid = parse_item_id(&item_id)?;
+
+    let input = EquipInput {
+        pc_id: pc_uuid,
+        item_id: item_uuid,
     };
 
-    let item_uuid = match uuid::Uuid::parse_str(&item_id) {
-        Ok(uuid) => wrldbldr_domain::ItemId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_ITEM_ID".to_string(),
-                message: "Invalid item ID format".to_string(),
-            });
-        }
-    };
-
-    // Get the item to find its name and verify ownership
-    let item = match state
-        .repository
-        .player_characters()
-        .get_inventory_item(pc_uuid, item_uuid)
-        .await
-    {
-        Ok(Some(item)) => item,
-        Ok(None) => {
-            return Some(ServerMessage::Error {
-                code: "ITEM_NOT_FOUND".to_string(),
-                message: "Item not found in inventory".to_string(),
-            });
-        }
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch item: {}", e),
-            });
-        }
-    };
-
-    // Update the item to be equipped
-    if let Err(e) = state
-        .repository
-        .player_characters()
-        .update_inventory_item(
-            pc_uuid,
-            item_uuid,
-            item.quantity, // keep quantity unchanged
-            true,          // is_equipped = true
-        )
-        .await
-    {
-        return Some(ServerMessage::Error {
-            code: "UPDATE_ERROR".to_string(),
-            message: format!("Failed to equip item: {}", e),
-        });
+    match state.use_cases.inventory.equip(ctx, input).await {
+        Ok(result) => Some(ServerMessage::ItemEquipped {
+            pc_id,
+            item_id,
+            item_name: result.item_name,
+        }),
+        Err(e) => Some(e.into_server_error()),
     }
-
-    Some(ServerMessage::ItemEquipped {
-        pc_id,
-        item_id,
-        item_name: item.item.name,
-    })
 }
+
+// =============================================================================
+// Unequip Item Handler
+// =============================================================================
 
 /// Handle unequipping an item from a player character.
 pub async fn handle_unequip_item(
@@ -90,72 +59,31 @@ pub async fn handle_unequip_item(
 ) -> Option<ServerMessage> {
     tracing::info!(pc_id = %pc_id, item_id = %item_id, "Unequip item request");
 
-    let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-        Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_PC_ID".to_string(),
-                message: "Invalid PC ID format".to_string(),
-            });
-        }
+    // Extract context
+    let ctx = extract_inventory_context(state, &pc_id).await?;
+
+    // Parse IDs
+    let pc_uuid = parse_pc_id(&pc_id)?;
+    let item_uuid = parse_item_id(&item_id)?;
+
+    let input = UnequipInput {
+        pc_id: pc_uuid,
+        item_id: item_uuid,
     };
 
-    let item_uuid = match uuid::Uuid::parse_str(&item_id) {
-        Ok(uuid) => wrldbldr_domain::ItemId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_ITEM_ID".to_string(),
-                message: "Invalid item ID format".to_string(),
-            });
-        }
-    };
-
-    // Get the item to find its name
-    let item = match state
-        .repository
-        .player_characters()
-        .get_inventory_item(pc_uuid, item_uuid)
-        .await
-    {
-        Ok(Some(item)) => item,
-        Ok(None) => {
-            return Some(ServerMessage::Error {
-                code: "ITEM_NOT_FOUND".to_string(),
-                message: "Item not found in inventory".to_string(),
-            });
-        }
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch item: {}", e),
-            });
-        }
-    };
-
-    // Update the item to be unequipped
-    if let Err(e) = state
-        .repository
-        .player_characters()
-        .update_inventory_item(
-            pc_uuid,
-            item_uuid,
-            item.quantity, // keep quantity unchanged
-            false,         // is_equipped = false
-        )
-        .await
-    {
-        return Some(ServerMessage::Error {
-            code: "UPDATE_ERROR".to_string(),
-            message: format!("Failed to unequip item: {}", e),
-        });
+    match state.use_cases.inventory.unequip(ctx, input).await {
+        Ok(result) => Some(ServerMessage::ItemUnequipped {
+            pc_id,
+            item_id,
+            item_name: result.item_name,
+        }),
+        Err(e) => Some(e.into_server_error()),
     }
-
-    Some(ServerMessage::ItemUnequipped {
-        pc_id,
-        item_id,
-        item_name: item.item.name,
-    })
 }
+
+// =============================================================================
+// Drop Item Handler
+// =============================================================================
 
 /// Handle dropping an item from a player character's inventory into the current region.
 pub async fn handle_drop_item(
@@ -166,154 +94,33 @@ pub async fn handle_drop_item(
 ) -> Option<ServerMessage> {
     tracing::info!(pc_id = %pc_id, item_id = %item_id, quantity = quantity, "Drop item request");
 
-    let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-        Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_PC_ID".to_string(),
-                message: "Invalid PC ID format".to_string(),
-            });
-        }
+    // Extract context
+    let ctx = extract_inventory_context(state, &pc_id).await?;
+
+    // Parse IDs
+    let pc_uuid = parse_pc_id(&pc_id)?;
+    let item_uuid = parse_item_id(&item_id)?;
+
+    let input = DropInput {
+        pc_id: pc_uuid,
+        item_id: item_uuid,
+        quantity,
     };
 
-    let item_uuid = match uuid::Uuid::parse_str(&item_id) {
-        Ok(uuid) => wrldbldr_domain::ItemId::from_uuid(uuid),
-        Err(_) => {
-            return Some(ServerMessage::Error {
-                code: "INVALID_ITEM_ID".to_string(),
-                message: "Invalid item ID format".to_string(),
-            });
-        }
-    };
-
-    // Get the item to find its name and current quantity
-    let item = match state
-        .repository
-        .player_characters()
-        .get_inventory_item(pc_uuid, item_uuid)
-        .await
-    {
-        Ok(Some(item)) => item,
-        Ok(None) => {
-            return Some(ServerMessage::Error {
-                code: "ITEM_NOT_FOUND".to_string(),
-                message: "Item not found in inventory".to_string(),
-            });
-        }
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch item: {}", e),
-            });
-        }
-    };
-
-    let item_name = item.item.name.clone();
-    let dropped_quantity = quantity.min(item.quantity);
-
-    // Get PC's current region to place the dropped item
-    let pc = match state.repository.player_characters().get(pc_uuid).await {
-        Ok(Some(pc)) => pc,
-        Ok(None) => {
-            return Some(ServerMessage::Error {
-                code: "PC_NOT_FOUND".to_string(),
-                message: "Player character not found".to_string(),
-            });
-        }
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch PC: {}", e),
-            });
-        }
-    };
-
-    let current_region_id = match pc.current_region_id {
-        Some(region_id) => region_id,
-        None => {
-            return Some(ServerMessage::Error {
-                code: "NO_REGION".to_string(),
-                message: "PC is not in a region, cannot drop item".to_string(),
-            });
-        }
-    };
-
-    // Place the item in the region
-    if let Err(e) = state
-        .repository
-        .regions()
-        .add_item_to_region(current_region_id, item_uuid)
-        .await
-    {
-        return Some(ServerMessage::Error {
-            code: "DROP_ERROR".to_string(),
-            message: format!("Failed to place item in region: {}", e),
-        });
+    match InventoryUseCase::drop(&*state.use_cases.inventory, ctx, input).await {
+        Ok(result) => Some(ServerMessage::ItemDropped {
+            pc_id,
+            item_id,
+            item_name: result.item_name,
+            quantity: result.quantity,
+        }),
+        Err(e) => Some(e.into_server_error()),
     }
-
-    // Remove from PC inventory (or reduce quantity)
-    if dropped_quantity >= item.quantity {
-        // Remove the item entirely from inventory
-        if let Err(e) = state
-            .repository
-            .player_characters()
-            .remove_inventory_item(pc_uuid, item_uuid)
-            .await
-        {
-            // Try to undo the region placement
-            let _ = state
-                .repository
-                .regions()
-                .remove_item_from_region(current_region_id, item_uuid)
-                .await;
-            return Some(ServerMessage::Error {
-                code: "DELETE_ERROR".to_string(),
-                message: format!("Failed to drop item: {}", e),
-            });
-        }
-    } else {
-        // Reduce quantity in inventory
-        let new_quantity = item.quantity - dropped_quantity;
-        if let Err(e) = state
-            .repository
-            .player_characters()
-            .update_inventory_item(
-                pc_uuid,
-                item_uuid,
-                new_quantity,
-                item.equipped, // keep equipped status unchanged
-            )
-            .await
-        {
-            // Try to undo the region placement
-            let _ = state
-                .repository
-                .regions()
-                .remove_item_from_region(current_region_id, item_uuid)
-                .await;
-            return Some(ServerMessage::Error {
-                code: "UPDATE_ERROR".to_string(),
-                message: format!("Failed to update item quantity: {}", e),
-            });
-        }
-    }
-
-    tracing::info!(
-        pc_id = %pc_id,
-        item_id = %item_id,
-        item_name = %item_name,
-        region_id = %current_region_id,
-        quantity = dropped_quantity,
-        "Item dropped in region"
-    );
-
-    Some(ServerMessage::ItemDropped {
-        pc_id,
-        item_id,
-        item_name,
-        quantity: dropped_quantity,
-    })
 }
+
+// =============================================================================
+// Pickup Item Handler
+// =============================================================================
 
 /// Handle picking up an item from the current region into a player character's inventory.
 pub async fn handle_pickup_item(
@@ -326,192 +133,84 @@ pub async fn handle_pickup_item(
     // Validate input parameters
     if pc_id.trim().is_empty() {
         tracing::warn!("Empty PC ID provided for pickup request");
-        return Some(ServerMessage::Error {
-            code: "INVALID_PC_ID".to_string(),
-            message: "PC ID cannot be empty".to_string(),
-        });
+        return Some(error_msg("INVALID_PC_ID", "PC ID cannot be empty"));
     }
 
     if item_id.trim().is_empty() {
         tracing::warn!("Empty item ID provided for pickup request");
-        return Some(ServerMessage::Error {
-            code: "INVALID_ITEM_ID".to_string(),
-            message: "Item ID cannot be empty".to_string(),
-        });
+        return Some(error_msg("INVALID_ITEM_ID", "Item ID cannot be empty"));
     }
 
-    // Parse UUIDs
-    let pc_uuid = match uuid::Uuid::parse_str(&pc_id) {
-        Ok(uuid) => wrldbldr_domain::PlayerCharacterId::from_uuid(uuid),
-        Err(e) => {
-            tracing::warn!(pc_id = %pc_id, error = %e, "Invalid PC ID format for pickup");
-            return Some(ServerMessage::Error {
-                code: "INVALID_PC_ID".to_string(),
-                message: "Invalid PC ID format".to_string(),
-            });
-        }
+    // Extract context
+    let ctx = extract_inventory_context(state, &pc_id).await?;
+
+    // Parse IDs
+    let pc_uuid = parse_pc_id(&pc_id)?;
+    let item_uuid = parse_item_id(&item_id)?;
+
+    let input = PickupInput {
+        pc_id: pc_uuid,
+        item_id: item_uuid,
     };
 
-    let item_uuid = match uuid::Uuid::parse_str(&item_id) {
-        Ok(uuid) => wrldbldr_domain::ItemId::from_uuid(uuid),
-        Err(e) => {
-            tracing::warn!(item_id = %item_id, error = %e, "Invalid item ID format for pickup");
-            return Some(ServerMessage::Error {
-                code: "INVALID_ITEM_ID".to_string(),
-                message: "Invalid item ID format".to_string(),
-            });
-        }
-    };
+    match state.use_cases.inventory.pickup(ctx, input).await {
+        Ok(result) => Some(ServerMessage::ItemPickedUp {
+            pc_id,
+            item_id,
+            item_name: result.item_name,
+        }),
+        Err(e) => Some(e.into_server_error()),
+    }
+}
 
-    // Get PC's current region
-    let pc = match state.repository.player_characters().get(pc_uuid).await {
-        Ok(Some(pc)) => pc,
-        Ok(None) => {
-            return Some(ServerMessage::Error {
-                code: "PC_NOT_FOUND".to_string(),
-                message: "Player character not found".to_string(),
-            });
-        }
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch PC: {}", e),
-            });
-        }
-    };
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
-    let current_region_id = match pc.current_region_id {
-        Some(region_id) => region_id,
-        None => {
-            return Some(ServerMessage::Error {
-                code: "NO_REGION".to_string(),
-                message: "PC is not in a region, cannot pick up items".to_string(),
-            });
-        }
-    };
+/// Extract UseCaseContext for inventory operations
+///
+/// For inventory operations, we get the world_id from the PC's location.
+async fn extract_inventory_context(state: &AppState, pc_id: &str) -> Option<UseCaseContext> {
+    use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 
-    // Get region items to verify item is present and get item details
-    let region_items = match state
-        .repository
-        .regions()
-        .get_region_items(current_region_id)
-        .await
-    {
-        Ok(items) => items,
-        Err(e) => {
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to fetch region items: {}", e),
-            });
-        }
-    };
-
-    let item = match region_items.iter().find(|i| i.id == item_uuid) {
-        Some(item) => item.clone(),
-        None => {
-            tracing::warn!(
-                pc_id = %pc_id,
-                item_id = %item_id,
-                region_id = %current_region_id,
-                available_items = region_items.len(),
-                "Attempted to pick up item not in region"
-            );
-            return Some(ServerMessage::Error {
-                code: "ITEM_NOT_IN_REGION".to_string(),
-                message: "Item is not in this region".to_string(),
-            });
-        }
-    };
-
-    // Additional validation: Check if PC already has this specific item
-    // This prevents edge cases where client and server state are out of sync
-    match state
+    let pc_uuid = Uuid::parse_str(pc_id).ok()?;
+    let pc = state
         .repository
         .player_characters()
-        .get_inventory_item(pc_uuid, item_uuid)
+        .get(PlayerCharacterId::from_uuid(pc_uuid))
         .await
-    {
-        Ok(Some(_existing_item)) => {
-            tracing::warn!(
-                pc_id = %pc_id,
-                item_id = %item_id,
-                item_name = %item.name,
-                "PC already has this item in inventory, refusing pickup"
-            );
-            return Some(ServerMessage::Error {
-                code: "ITEM_ALREADY_OWNED".to_string(),
-                message: "You already have this item in your inventory".to_string(),
-            });
-        }
-        Ok(None) => {
-            // Good, PC doesn't have this item
-            tracing::debug!(pc_id = %pc_id, item_id = %item_id, "Validated PC doesn't already have item");
-        }
-        Err(e) => {
-            tracing::error!(pc_id = %pc_id, item_id = %item_id, error = %e, "Failed to check PC inventory for duplicate item");
-            return Some(ServerMessage::Error {
-                code: "DATABASE_ERROR".to_string(),
-                message: format!("Failed to validate inventory state: {}", e),
-            });
-        }
-    }
+        .ok()??;
 
-    // Remove from region first (atomic operation)
-    if let Err(e) = state
+    // Get the world_id from the location
+    use wrldbldr_engine_ports::outbound::LocationRepositoryPort;
+    let location = state
         .repository
-        .regions()
-        .remove_item_from_region(current_region_id, item_uuid)
+        .locations()
+        .get(pc.current_location_id)
         .await
-    {
-        return Some(ServerMessage::Error {
-            code: "PICKUP_ERROR".to_string(),
-            message: format!("Failed to remove item from region: {}", e),
-        });
-    }
+        .ok()??;
 
-    // Add to PC inventory
-    if let Err(e) = state
-        .repository
-        .player_characters()
-        .add_inventory_item(
-            pc_uuid,
-            item_uuid,
-            1,     // quantity - items in regions are single instances
-            false, // not equipped by default
-            Some(wrldbldr_domain::entities::AcquisitionMethod::Found),
-        )
-        .await
-    {
-        // Rollback: put item back in region
-        let rollback_result = state
-            .repository
-            .regions()
-            .add_item_to_region(current_region_id, item_uuid)
-            .await;
-        if let Err(rollback_error) = rollback_result {
-            tracing::error!(
-                original_error = %e,
-                rollback_error = %rollback_error,
-                "Failed to rollback region placement after inventory error"
-            );
-        }
-        return Some(ServerMessage::Error {
-            code: "INVENTORY_ERROR".to_string(),
-            message: format!("Failed to add item to inventory: {}", e),
-        });
-    }
-
-    tracing::info!(
-        pc_id = %pc_id,
-        item_id = %item_id,
-        item_name = %item.name,
-        region_id = %current_region_id,
-        "Item picked up from region"
-    );
-
-    Some(ServerMessage::ItemPickedUp {
-        pc_id,
-        item_id,
-        item_name: item.name,
+    Some(UseCaseContext {
+        world_id: location.world_id,
+        user_id: String::new(), // Inventory ops don't strictly need user_id
+        is_dm: false,
+        pc_id: Some(PlayerCharacterId::from_uuid(pc_uuid)),
     })
+}
+
+fn parse_pc_id(id: &str) -> Option<PlayerCharacterId> {
+    Uuid::parse_str(id)
+        .ok()
+        .map(PlayerCharacterId::from_uuid)
+}
+
+fn parse_item_id(id: &str) -> Option<ItemId> {
+    Uuid::parse_str(id).ok().map(ItemId::from_uuid)
+}
+
+fn error_msg(code: &str, message: &str) -> ServerMessage {
+    ServerMessage::Error {
+        code: code.to_string(),
+        message: message.to_string(),
+    }
 }

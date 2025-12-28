@@ -120,3 +120,89 @@ pub async fn fetch_region_items(
 pub fn to_protocol_game_time(game_time: &wrldbldr_domain::GameTime) -> wrldbldr_protocol::GameTime {
     wrldbldr_protocol::GameTime::from_domain(game_time)
 }
+
+// =============================================================================
+// Movement Result Conversion (Use Case -> Protocol)
+// =============================================================================
+
+use wrldbldr_engine_app::application::use_cases::{MovementResult, SelectCharacterResult};
+use wrldbldr_engine_ports::outbound::SceneChangedEvent;
+
+/// Convert a MovementResult to a ServerMessage
+pub fn movement_result_to_message(result: MovementResult, pc_id: &str) -> ServerMessage {
+    match result {
+        MovementResult::SceneChanged(event) => scene_changed_event_to_message(event),
+        MovementResult::StagingPending { region_id, region_name } => {
+            ServerMessage::StagingPending {
+                region_id: region_id.to_string(),
+                region_name,
+            }
+        }
+        MovementResult::Blocked { reason } => {
+            ServerMessage::MovementBlocked {
+                pc_id: pc_id.to_string(),
+                reason,
+            }
+        }
+    }
+}
+
+/// Convert a SelectCharacterResult to a ServerMessage
+pub fn select_character_result_to_message(result: SelectCharacterResult) -> ServerMessage {
+    ServerMessage::PcSelected {
+        pc_id: result.pc_id.to_string(),
+        pc_name: result.pc_name,
+        location_id: result.location_id.to_string(),
+        region_id: result.region_id.map(|r| r.to_string()),
+    }
+}
+
+/// Convert a SceneChangedEvent to a ServerMessage::SceneChanged
+pub fn scene_changed_event_to_message(event: SceneChangedEvent) -> ServerMessage {
+    ServerMessage::SceneChanged {
+        pc_id: event.pc_id.to_string(),
+        region: wrldbldr_protocol::RegionData {
+            id: event.region.id.to_string(),
+            name: event.region.name,
+            location_id: event.region.location_id.to_string(),
+            location_name: event.region.location_name,
+            backdrop_asset: event.region.backdrop_asset,
+            atmosphere: event.region.atmosphere,
+            map_asset: event.region.map_asset,
+        },
+        npcs_present: event.npcs_present.into_iter().map(|n| {
+            wrldbldr_protocol::NpcPresenceData {
+                character_id: n.character_id.to_string(),
+                name: n.name,
+                sprite_asset: n.sprite_asset,
+                portrait_asset: n.portrait_asset,
+            }
+        }).collect(),
+        navigation: wrldbldr_protocol::NavigationData {
+            connected_regions: event.navigation.connected_regions.into_iter().map(|r| {
+                wrldbldr_protocol::NavigationTarget {
+                    region_id: r.region_id.to_string(),
+                    name: r.name,
+                    is_locked: r.is_locked,
+                    lock_description: r.lock_description,
+                }
+            }).collect(),
+            exits: event.navigation.exits.into_iter().map(|e| {
+                wrldbldr_protocol::NavigationExit {
+                    location_id: e.location_id.to_string(),
+                    location_name: e.location_name,
+                    arrival_region_id: e.arrival_region_id.to_string(),
+                    description: e.description,
+                }
+            }).collect(),
+        },
+        region_items: event.region_items.into_iter().map(|i| {
+            wrldbldr_protocol::RegionItemData {
+                id: i.item_id.to_string(),
+                name: i.name,
+                description: i.description,
+                item_type: None, // Port type doesn't have item_type
+            }
+        }).collect(),
+    }
+}
