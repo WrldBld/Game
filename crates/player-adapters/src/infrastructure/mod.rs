@@ -3,6 +3,7 @@
 pub mod api;
 pub mod connection_factory;
 pub mod http_client;
+pub mod message_translator;
 pub mod platform;
 pub mod session_type_converters;
 pub mod storage;
@@ -21,6 +22,9 @@ pub use session_type_converters::{
     directorial_context_to_proto,
     participant_role_to_proto,
 };
+
+// Re-export message translator for ServerMessage → PlayerEvent conversion
+pub use message_translator::translate as translate_server_message;
 
 // Test-only infrastructure fakes (ports/adapters).
 // Available for integration testing from other crates as well

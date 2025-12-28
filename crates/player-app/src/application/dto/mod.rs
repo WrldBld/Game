@@ -7,6 +7,7 @@
 //! TODO (Phase 16.3): replace infra re-exports with real application DTOs + conversions.
 
 pub mod player_action;
+pub mod player_events;
 pub mod session_dto;
 pub mod session_types;
 pub mod world_snapshot;
@@ -14,6 +15,9 @@ pub mod settings;
 
 // Re-export action DTOs
 pub use player_action::{PlayerAction, PlayerActionType};
+
+// Re-export player events (domain-friendly server message representation)
+pub use player_events::PlayerEvent;
 
 // Re-export session DTOs
 pub use session_dto::AppConnectionStatus;
