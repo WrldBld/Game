@@ -943,7 +943,7 @@ cargo check -p wrldbldr-engine-adapters
 **Priority**: High  
 **Effort**: 2 hours  
 **Risk**: Low  
-**Status**: [ ] Not Started
+**Status**: [x] Complete
 
 ### Rationale
 
@@ -1104,7 +1104,7 @@ cargo check -p wrldbldr-engine-app
 **Priority**: High  
 **Effort**: 1-2 hours  
 **Risk**: Low  
-**Status**: [ ] Not Started
+**Status**: [x] Complete
 
 ### Rationale
 

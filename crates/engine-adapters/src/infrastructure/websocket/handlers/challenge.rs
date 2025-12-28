@@ -1,27 +1,41 @@
 //! Challenge system handlers for WebSocket connections.
 //!
-//! Thin routing layer for challenge operations. Business logic is delegated
-//! to ChallengeUseCase where adapters are wired, or to services directly
-//! where the ChallengeResolutionPort placeholder is still in use.
+//! Thin routing layer for challenge operations. All business logic is delegated
+//! to ChallengeUseCase which orchestrates the domain services and broadcasts
+//! events via BroadcastPort.
 //!
-//! ## Use Case Delegation
-//! - `outcome_decision`, `request_branches`, `select_branch` - fully via use case
-//! - `discard_challenge`, `regenerate_outcome` - via use case
+//! ## Handler Pattern
 //!
-//! ## Service Fallback (TODO: migrate when ChallengeResolutionPort is implemented)
-//! - `handle_challenge_roll`, `handle_challenge_roll_input` - direct service call
-//! - `handle_trigger_challenge`, `handle_challenge_suggestion_decision` - direct service call
-//! - `handle_create_adhoc_challenge` - direct service call
+//! All handlers return `Option<ServerMessage>`:
+//! - `None` on success: Use case broadcasts events to appropriate recipients
+//! - `Some(error)` on failure: Returns error message to the requesting client
+//!
+//! ## Operations
+//!
+//! ### Player Operations
+//! - `handle_challenge_roll` - Submit a numeric roll result
+//! - `handle_challenge_roll_input` - Submit dice formula or manual roll
+//!
+//! ### DM Operations
+//! - `handle_trigger_challenge` - Trigger a challenge against a target
+//! - `handle_challenge_suggestion_decision` - Accept/reject AI challenge suggestion
+//! - `handle_create_adhoc_challenge` - Create ad-hoc challenge on the fly
+//! - `handle_challenge_outcome_decision` - Accept/edit/suggest outcome
+//! - `handle_request_outcome_suggestion` - Request AI outcome suggestions
+//! - `handle_request_outcome_branches` - Request branching outcome options
+//! - `handle_select_outcome_branch` - Select a specific outcome branch
+//! - `handle_discard_challenge` - Discard a pending challenge
+//! - `handle_regenerate_outcome` - Request outcome text regeneration
 
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::infrastructure::websocket::converters::{to_adhoc_outcomes_dto, to_service_dice_input};
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::services::ChallengeResolutionError;
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ChallengeOutcomeDecision, DiscardChallengeInput, ErrorCode, OutcomeDecisionInput,
-    RegenerateOutcomeInput, RequestBranchesInput, SelectBranchInput,
+    AdHocOutcomes, ChallengeOutcomeDecision, CreateAdHocInput, DiceInputType,
+    DiscardChallengeInput, ErrorCode, OutcomeDecisionInput, RegenerateOutcomeInput,
+    RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
+    SuggestionDecisionInput, TriggerChallengeInput,
 };
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
@@ -88,32 +102,13 @@ fn error_msg(code: &str, message: &str) -> ServerMessage {
     }
 }
 
-/// Convert ChallengeResolutionError to ServerMessage
-fn resolution_error_to_msg(e: ChallengeResolutionError) -> ServerMessage {
-    let (code, message) = match &e {
-        ChallengeResolutionError::InvalidChallengeId(_) => ("INVALID_CHALLENGE_ID", e.to_string()),
-        ChallengeResolutionError::ChallengeNotFound(_) => ("CHALLENGE_NOT_FOUND", e.to_string()),
-        ChallengeResolutionError::ChallengeLoadFailed(_) => ("CHALLENGE_LOAD_ERROR", e.to_string()),
-        ChallengeResolutionError::PlayerCharacterNotFound => ("PLAYER_CHARACTER_NOT_FOUND", e.to_string()),
-        ChallengeResolutionError::PlayerCharacterLoadFailed(_) => ("PLAYER_CHARACTER_LOAD_ERROR", e.to_string()),
-        ChallengeResolutionError::InvalidDiceFormula(_) => ("INVALID_DICE_FORMULA", e.to_string()),
-        ChallengeResolutionError::ApprovalQueueFailed(_) => ("APPROVAL_QUEUE_ERROR", e.to_string()),
-        ChallengeResolutionError::ApprovalLookupError(_) => ("APPROVAL_LOOKUP_ERROR", e.to_string()),
-        ChallengeResolutionError::ChallengeSuggestionNotFound(_) => ("NO_CHALLENGE_SUGGESTION", e.to_string()),
-    };
-    ServerMessage::Error {
-        code: code.to_string(),
-        message,
-    }
-}
-
 // =============================================================================
-// Player Operations (Service Fallback - TODO: migrate to use case)
+// Player Operations (Use Case - Properly Wired)
 // =============================================================================
 
 /// Handles a player submitting a dice roll result for an active challenge.
 ///
-/// Returns None on success - the approval service broadcasts to DM and players.
+/// Returns None on success - the use case broadcasts to DM and players.
 pub async fn handle_challenge_roll(
     state: &AppState,
     client_id: Uuid,
@@ -125,21 +120,24 @@ pub async fn handle_challenge_roll(
         Err(e) => return Some(e),
     };
 
-    // Service queues for DM approval and broadcasts to DM + player
-    match state
-        .game
-        .challenge_resolution_service
-        .handle_roll(&world_id, &pc_id, challenge_id, roll)
-        .await
-    {
-        Ok(_) => None, // Approval service handles broadcasting
-        Err(e) => Some(resolution_error_to_msg(e)),
+    let ctx = UseCaseContext {
+        world_id,
+        user_id: client_id.to_string(),
+        is_dm: false,
+        pc_id: Some(pc_id),
+    };
+
+    let input = SubmitRollInput { challenge_id, roll };
+
+    match state.use_cases.challenge.submit_roll(ctx, input).await {
+        Ok(_) => None, // Use case broadcasts to DM + players
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
 /// Handles a player submitting dice input (formula or manual) for a challenge.
 ///
-/// Returns None on success - the approval service broadcasts to DM and players.
+/// Returns None on success - the use case broadcasts to DM and players.
 pub async fn handle_challenge_roll_input(
     state: &AppState,
     client_id: Uuid,
@@ -151,25 +149,31 @@ pub async fn handle_challenge_roll_input(
         Err(e) => return Some(e),
     };
 
-    // Service queues for DM approval and broadcasts to DM + player
-    match state
-        .game
-        .challenge_resolution_service
-        .handle_roll_input(&world_id, &pc_id, challenge_id, to_service_dice_input(input_type))
-        .await
-    {
-        Ok(_) => None, // Approval service handles broadcasting
-        Err(e) => Some(resolution_error_to_msg(e)),
+    let ctx = UseCaseContext {
+        world_id,
+        user_id: client_id.to_string(),
+        is_dm: false,
+        pc_id: Some(pc_id),
+    };
+
+    let input = SubmitDiceInputInput {
+        challenge_id,
+        input_type: to_use_case_dice_input(input_type),
+    };
+
+    match state.use_cases.challenge.submit_dice_input(ctx, input).await {
+        Ok(_) => None, // Use case broadcasts to DM + players
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
 // =============================================================================
-// DM Operations (Service Fallback - TODO: migrate to use case)
+// DM Operations (Use Case - Properly Wired)
 // =============================================================================
 
 /// Handles a DM triggering a challenge against a target character.
 ///
-/// Returns the ChallengePrompt message for broadcasting to the world.
+/// Returns None on success - the use case broadcasts ChallengePrompt to world.
 pub async fn handle_trigger_challenge(
     state: &AppState,
     client_id: Uuid,
@@ -181,36 +185,26 @@ pub async fn handle_trigger_challenge(
         Err(e) => return Some(e),
     };
 
-    // Service returns trigger result, we convert to ServerMessage and broadcast
-    match state
-        .game
-        .challenge_resolution_service
-        .handle_trigger(&ctx.world_id, challenge_id, target_character_id)
-        .await
-    {
-        Ok(result) => {
-            // Convert result to ServerMessage and broadcast to world
-            let message = ServerMessage::ChallengePrompt {
-                challenge_id: result.challenge_id,
-                challenge_name: result.challenge_name,
-                skill_name: result.skill_name,
-                difficulty_display: result.difficulty_display,
-                description: result.description,
-                character_modifier: result.character_modifier,
-                suggested_dice: Some(result.suggested_dice),
-                rule_system_hint: Some(result.rule_system_hint),
-            };
-            let world_uuid: Uuid = ctx.world_id.into();
-            state.world_connection_manager.broadcast_to_world(world_uuid, message).await;
-            None
-        }
-        Err(e) => Some(resolution_error_to_msg(e)),
+    // Parse target_character_id to CharacterId
+    let target_id = match uuid::Uuid::parse_str(&target_character_id) {
+        Ok(uuid) => CharacterId::from_uuid(uuid),
+        Err(_) => return Some(error_msg("INVALID_CHARACTER_ID", "Invalid target character ID")),
+    };
+
+    let input = TriggerChallengeInput {
+        challenge_id,
+        target_character_id: target_id,
+    };
+
+    match state.use_cases.challenge.trigger_challenge(ctx, input).await {
+        Ok(_) => None, // Use case broadcasts ChallengePrompt to world
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
 /// Handles a DM's decision on an AI-suggested challenge.
 ///
-/// If approved, broadcasts the ChallengePrompt to the world.
+/// If approved, the use case broadcasts the ChallengePrompt to the world.
 pub async fn handle_challenge_suggestion_decision(
     state: &AppState,
     client_id: Uuid,
@@ -223,37 +217,21 @@ pub async fn handle_challenge_suggestion_decision(
         Err(e) => return Some(e),
     };
 
-    // Service returns optional trigger result (None if rejected)
-    match state
-        .game
-        .challenge_resolution_service
-        .handle_suggestion_decision(&ctx.world_id, request_id, approved, modified_difficulty)
-        .await
-    {
-        Ok(Some(result)) => {
-            // Approved - broadcast challenge prompt to world
-            let message = ServerMessage::ChallengePrompt {
-                challenge_id: result.challenge_id,
-                challenge_name: result.challenge_name,
-                skill_name: result.skill_name,
-                difficulty_display: result.difficulty_display,
-                description: result.description,
-                character_modifier: result.character_modifier,
-                suggested_dice: Some(result.suggested_dice),
-                rule_system_hint: Some(result.rule_system_hint),
-            };
-            let world_uuid: Uuid = ctx.world_id.into();
-            state.world_connection_manager.broadcast_to_world(world_uuid, message).await;
-            None
-        }
-        Ok(None) => None, // Rejected - nothing to broadcast
-        Err(e) => Some(resolution_error_to_msg(e)),
+    let input = SuggestionDecisionInput {
+        request_id,
+        approved,
+        modified_difficulty,
+    };
+
+    match state.use_cases.challenge.suggestion_decision(ctx, input).await {
+        Ok(()) => None, // Use case handles broadcasting if approved
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
 /// Handles a DM creating an ad-hoc challenge on the fly.
 ///
-/// Broadcasts ChallengePrompt to world and returns AdHocChallengeCreated to DM.
+/// Returns AdHocChallengeCreated to DM. The use case broadcasts ChallengePrompt to world.
 pub async fn handle_create_adhoc_challenge(
     state: &AppState,
     client_id: Uuid,
@@ -268,43 +246,31 @@ pub async fn handle_create_adhoc_challenge(
         Err(e) => return Some(e),
     };
 
-    // Service returns both adhoc result and trigger result
-    match state
-        .game
-        .challenge_resolution_service
-        .handle_adhoc_challenge(
-            &ctx.world_id,
-            challenge_name,
-            skill_name,
-            difficulty,
-            target_pc_id,
-            to_adhoc_outcomes_dto(outcomes),
-        )
-        .await
-    {
-        Ok((adhoc_result, trigger_result)) => {
-            // Broadcast challenge prompt to world (target player will see it)
-            let prompt_message = ServerMessage::ChallengePrompt {
-                challenge_id: trigger_result.challenge_id,
-                challenge_name: trigger_result.challenge_name,
-                skill_name: trigger_result.skill_name,
-                difficulty_display: trigger_result.difficulty_display,
-                description: trigger_result.description,
-                character_modifier: trigger_result.character_modifier,
-                suggested_dice: Some(trigger_result.suggested_dice),
-                rule_system_hint: Some(trigger_result.rule_system_hint),
-            };
-            let world_uuid: Uuid = ctx.world_id.into();
-            state.world_connection_manager.broadcast_to_world(world_uuid, prompt_message).await;
+    // Parse target_pc_id to PlayerCharacterId
+    let pc_id = match uuid::Uuid::parse_str(&target_pc_id) {
+        Ok(uuid) => PlayerCharacterId::from_uuid(uuid),
+        Err(_) => return Some(error_msg("INVALID_PC_ID", "Invalid target player character ID")),
+    };
 
+    let input = CreateAdHocInput {
+        challenge_name: challenge_name.clone(),
+        skill_name,
+        difficulty,
+        target_pc_id: pc_id,
+        outcomes: to_use_case_adhoc_outcomes(outcomes),
+    };
+
+    match state.use_cases.challenge.create_adhoc(ctx, input).await {
+        Ok(result) => {
+            // Use case broadcasts ChallengePrompt to world
             // Return AdHocChallengeCreated to DM for confirmation
             Some(ServerMessage::AdHocChallengeCreated {
-                challenge_id: adhoc_result.challenge_id,
-                challenge_name: adhoc_result.challenge_name,
-                target_pc_id: adhoc_result.target_pc_id,
+                challenge_id: result.challenge_id,
+                challenge_name,
+                target_pc_id,
             })
         }
-        Err(e) => Some(resolution_error_to_msg(e)),
+        Err(e) => Some(e.into_server_error()),
     }
 }
 
@@ -461,5 +427,21 @@ fn to_use_case_decision(decision: wrldbldr_protocol::ChallengeOutcomeDecisionDat
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }
+    }
+}
+
+fn to_use_case_dice_input(input: wrldbldr_protocol::DiceInputType) -> DiceInputType {
+    match input {
+        wrldbldr_protocol::DiceInputType::Formula(formula) => DiceInputType::Formula(formula),
+        wrldbldr_protocol::DiceInputType::Manual(value) => DiceInputType::Manual(value),
+    }
+}
+
+fn to_use_case_adhoc_outcomes(outcomes: wrldbldr_protocol::AdHocOutcomes) -> AdHocOutcomes {
+    AdHocOutcomes {
+        critical_success: outcomes.critical_success,
+        success: Some(outcomes.success),
+        failure: Some(outcomes.failure),
+        critical_failure: outcomes.critical_failure,
     }
 }
