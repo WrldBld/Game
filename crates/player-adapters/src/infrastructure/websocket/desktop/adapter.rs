@@ -16,6 +16,7 @@ use wrldbldr_protocol::{
 };
 
 use super::client::EngineClient;
+use crate::infrastructure::websocket::message_builder::ClientMessageBuilder;
 use crate::infrastructure::websocket::protocol::{map_state, state_to_u8, u8_to_state};
 
 /// Desktop game connection adapter
@@ -31,6 +32,16 @@ impl DesktopGameConnection {
             client,
             state: Arc::new(AtomicU8::new(state_to_u8(PortConnectionState::Disconnected))),
         }
+    }
+
+    /// Helper to spawn an async send operation with error logging
+    fn spawn_send(&self, msg: ClientMessage, operation: &'static str) {
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            if let Err(e) = client.send(msg).await {
+                tracing::error!("Failed to {}: {}", operation, e);
+            }
+        });
     }
 }
 
@@ -64,12 +75,7 @@ impl GameConnectionPort for DesktopGameConnection {
         });
     }
 
-    fn join_world(
-        &self,
-        world_id: &str,
-        user_id: &str,
-        role: ParticipantRole,
-    ) -> Result<()> {
+    fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole) -> Result<()> {
         let client = self.client.clone();
         let world_id = world_id.to_string();
         let user_id = user_id.to_string();
@@ -95,134 +101,52 @@ impl GameConnectionPort for DesktopGameConnection {
     }
 
     fn request_scene_change(&self, scene_id: &str) -> Result<()> {
-        let msg = ClientMessage::RequestSceneChange { scene_id: scene_id.to_string() };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to request scene change: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::request_scene_change(scene_id), "request scene change");
         Ok(())
     }
 
     fn send_directorial_update(&self, context: DirectorialContext) -> Result<()> {
-        let msg = ClientMessage::DirectorialUpdate { context };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send directorial update: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::directorial_update(context), "send directorial update");
         Ok(())
     }
 
     fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> Result<()> {
-        let msg = ClientMessage::ApprovalDecision {
-            request_id: request_id.to_string(),
-            decision,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send approval decision: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::approval_decision(request_id, decision), "send approval decision");
         Ok(())
     }
 
     fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecisionData) -> Result<()> {
-        let msg = ClientMessage::ChallengeOutcomeDecision {
-            resolution_id: resolution_id.to_string(),
-            decision,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send challenge outcome decision: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, decision), "send challenge outcome decision");
         Ok(())
     }
 
     fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
-        let msg = ClientMessage::TriggerChallenge {
-            challenge_id: challenge_id.to_string(),
-            target_character_id: target_character_id.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to trigger challenge: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::trigger_challenge(challenge_id, target_character_id), "trigger challenge");
         Ok(())
     }
 
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
-        let msg = ClientMessage::ChallengeRoll {
-            challenge_id: challenge_id.to_string(),
-            roll,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to submit challenge roll: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::challenge_roll(challenge_id, roll), "submit challenge roll");
         Ok(())
     }
 
     fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInputType) -> Result<()> {
-        let msg = ClientMessage::ChallengeRollInput {
-            challenge_id: challenge_id.to_string(),
-            input_type: input,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to submit challenge roll input: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::challenge_roll_input(challenge_id, input), "submit challenge roll input");
         Ok(())
     }
 
     fn heartbeat(&self) -> Result<()> {
-        let msg = ClientMessage::Heartbeat;
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send heartbeat: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::heartbeat(), "send heartbeat");
         Ok(())
     }
 
     fn move_to_region(&self, pc_id: &str, region_id: &str) -> Result<()> {
-        let msg = ClientMessage::MoveToRegion {
-            pc_id: pc_id.to_string(),
-            region_id: region_id.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send move to region: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::move_to_region(pc_id, region_id), "move to region");
         Ok(())
     }
 
     fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> Result<()> {
-        let msg = ClientMessage::ExitToLocation {
-            pc_id: pc_id.to_string(),
-            location_id: location_id.to_string(),
-            arrival_region_id: arrival_region_id.map(|s| s.to_string()),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send exit to location: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::exit_to_location(pc_id, location_id, arrival_region_id), "exit to location");
         Ok(())
     }
 
@@ -233,52 +157,20 @@ impl GameConnectionPort for DesktopGameConnection {
         ttl_hours: i32,
         source: &str,
     ) -> Result<()> {
-        let msg = ClientMessage::StagingApprovalResponse {
-            request_id: request_id.to_string(),
-            approved_npcs,
-            ttl_hours,
-            source: source.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send staging approval: {}", e);
-            }
-        });
+        self.spawn_send(
+            ClientMessageBuilder::staging_approval_response(request_id, approved_npcs, ttl_hours, source),
+            "send staging approval",
+        );
         Ok(())
     }
 
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> Result<()> {
-        let msg = ClientMessage::StagingRegenerateRequest {
-            request_id: request_id.to_string(),
-            guidance: guidance.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send staging regenerate request: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::staging_regenerate_request(request_id, guidance), "request staging regenerate");
         Ok(())
     }
 
-    fn pre_stage_region(
-        &self,
-        region_id: &str,
-        npcs: Vec<ApprovedNpcInfo>,
-        ttl_hours: i32,
-    ) -> Result<()> {
-        let msg = ClientMessage::PreStageRegion {
-            region_id: region_id.to_string(),
-            npcs,
-            ttl_hours,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to send pre-stage region: {}", e);
-            }
-        });
+    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
+        self.spawn_send(ClientMessageBuilder::pre_stage_region(region_id, npcs, ttl_hours), "pre-stage region");
         Ok(())
     }
 
@@ -290,140 +182,50 @@ impl GameConnectionPort for DesktopGameConnection {
         target_pc_id: &str,
         outcomes: AdHocOutcomes,
     ) -> Result<()> {
-        let msg = ClientMessage::CreateAdHocChallenge {
-            challenge_name: challenge_name.to_string(),
-            skill_name: skill_name.to_string(),
-            difficulty: difficulty.to_string(),
-            target_pc_id: target_pc_id.to_string(),
-            outcomes,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to create ad-hoc challenge: {}", e);
-            }
-        });
+        self.spawn_send(
+            ClientMessageBuilder::create_adhoc_challenge(challenge_name, skill_name, difficulty, target_pc_id, outcomes),
+            "create ad-hoc challenge",
+        );
         Ok(())
     }
 
     fn equip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        let msg = ClientMessage::EquipItem {
-            pc_id: pc_id.to_string(),
-            item_id: item_id.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to equip item: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::equip_item(pc_id, item_id), "equip item");
         Ok(())
     }
 
     fn unequip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        let msg = ClientMessage::UnequipItem {
-            pc_id: pc_id.to_string(),
-            item_id: item_id.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to unequip item: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::unequip_item(pc_id, item_id), "unequip item");
         Ok(())
     }
 
     fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> Result<()> {
-        let msg = ClientMessage::DropItem {
-            pc_id: pc_id.to_string(),
-            item_id: item_id.to_string(),
-            quantity,
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to drop item: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::drop_item(pc_id, item_id, quantity), "drop item");
         Ok(())
     }
 
     fn pickup_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        let msg = ClientMessage::PickupItem {
-            pc_id: pc_id.to_string(),
-            item_id: item_id.to_string(),
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to pick up item: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::pickup_item(pc_id, item_id), "pick up item");
         Ok(())
     }
 
     fn check_comfyui_health(&self) -> Result<()> {
-        let msg = ClientMessage::CheckComfyUIHealth;
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to check ComfyUI health: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::check_comfyui_health(), "check ComfyUI health");
         Ok(())
     }
 
     fn set_npc_disposition(&self, npc_id: &str, pc_id: &str, disposition: &str, reason: Option<&str>) -> Result<()> {
-        let msg = ClientMessage::Request {
-            request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::SetNpcDisposition {
-                npc_id: npc_id.to_string(),
-                pc_id: pc_id.to_string(),
-                disposition: disposition.to_string(),
-                reason: reason.map(|s| s.to_string()),
-            },
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to set NPC disposition: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::set_npc_disposition(npc_id, pc_id, disposition, reason), "set NPC disposition");
         Ok(())
     }
 
     fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> Result<()> {
-        let msg = ClientMessage::Request {
-            request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::SetNpcRelationship {
-                npc_id: npc_id.to_string(),
-                pc_id: pc_id.to_string(),
-                relationship: relationship.to_string(),
-            },
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to set NPC relationship: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::set_npc_relationship(npc_id, pc_id, relationship), "set NPC relationship");
         Ok(())
     }
 
     fn get_npc_dispositions(&self, pc_id: &str) -> Result<()> {
-        let msg = ClientMessage::Request {
-            request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::GetNpcDispositions {
-                pc_id: pc_id.to_string(),
-            },
-        };
-        let client = self.client.clone();
-        tokio::spawn(async move {
-            if let Err(e) = client.send(msg).await {
-                tracing::error!("Failed to get NPC dispositions: {}", e);
-            }
-        });
+        self.spawn_send(ClientMessageBuilder::get_npc_dispositions(pc_id), "get NPC dispositions");
         Ok(())
     }
 
@@ -475,10 +277,8 @@ impl GameConnectionPort for DesktopGameConnection {
         payload: RequestPayload,
     ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
         let client = self.client.clone();
-        
-        Box::pin(async move {
-            client.request(payload).await
-        })
+
+        Box::pin(async move { client.request(payload).await })
     }
 
     fn request_with_timeout(
@@ -487,9 +287,7 @@ impl GameConnectionPort for DesktopGameConnection {
         timeout_ms: u64,
     ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
         let client = self.client.clone();
-        
-        Box::pin(async move {
-            client.request_with_timeout(payload, timeout_ms).await
-        })
+
+        Box::pin(async move { client.request_with_timeout(payload, timeout_ms).await })
     }
 }

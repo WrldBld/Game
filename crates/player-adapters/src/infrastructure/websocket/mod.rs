@@ -3,7 +3,9 @@
 //! Platform-specific implementations are in submodules:
 //! - `desktop`: tokio-tungstenite based client
 //! - `wasm`: web-sys WebSocket based client
+//! - `message_builder`: shared ClientMessage construction logic
 
+mod message_builder;
 mod protocol;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -12,7 +14,8 @@ mod desktop;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-// Re-export shared protocol types
+// Re-export shared types
+pub use message_builder::ClientMessageBuilder;
 pub use protocol::ConnectionState;
 
 // Re-export platform-specific types with unified names
