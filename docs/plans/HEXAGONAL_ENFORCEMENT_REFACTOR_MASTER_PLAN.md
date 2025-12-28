@@ -21,7 +21,7 @@
 | Phase P6 (Player arch-check) | Complete | f1c2298 |
 | Phase P1 (Player Domain Types) | Partial | f1c2298 |
 | Phase P2 (GameConnectionPort) | Complete | 3ce1f2d |
-| Phase P3 (Message Translation) | Pending | - |
+| Phase P3 (Message Translation) | Complete | 077fd63 |
 | Phase P4 (player-app Services) | Pending | - |
 | Phase P5 (player-ui Components) | Pending | - |  
 

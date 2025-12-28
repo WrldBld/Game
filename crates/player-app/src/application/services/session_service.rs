@@ -5,10 +5,18 @@
 //! - Sending JoinSession messages
 //! - Processing server messages and updating application state
 //!
-//! NOTE: This service currently has some architecture violations that will be
-//! addressed in Phase 16. Specifically:
-//! - Uses infrastructure types (WorldSnapshot, ServerMessage)
-//! - This service publishes raw JSON; presentation parses into message DTOs
+//! # Protocol Dependencies
+//!
+//! This service uses `ServerMessage` from the protocol crate. This is intentional
+//! and follows the same pattern as `RequestPayload`/`ResponseResult`:
+//!
+//! - `ServerMessage` is the wire format for server-to-client communication
+//! - It's analogous to `RequestPayload` for client-to-server communication
+//! - The translation to app-layer `PlayerEvent` happens in the adapters layer
+//!   via `player-adapters::infrastructure::message_translator`
+//!
+//! The presentation layer (player-ui) can use the translator when processing
+//! these events if it needs domain-friendly types.
 
 use std::sync::Arc;
 
@@ -39,7 +47,10 @@ pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnect
 pub enum SessionEvent {
     /// Connection state changed (uses port type)
     StateChanged(PortConnectionState),
-    /// Parsed server message payload
+    /// Server message received (wire format)
+    ///
+    /// NOTE: This contains protocol ServerMessage, which should be translated
+    /// to PlayerEvent by the presentation layer using player-adapters' translator.
     MessageReceived(ServerMessage),
 }
 
