@@ -7,31 +7,22 @@
 //! The challenge services are heavily generic due to dependency injection.
 //! These adapters wrap the concrete service types used in AppState and
 //! implement the port traits defined in the ChallengeUseCase.
-//!
-//! # Implementation Note
-//!
-//! The ChallengeResolutionService has complex generic bounds and its methods
-//! return `Option<serde_json::Value>` rather than proper Result types. This
-//! makes direct adaptation challenging.
-//!
-//! Until the service signatures are refactored, handlers should continue to
-//! call the services directly rather than going through the use case layer.
-//!
-//! These adapters are provided as scaffolding for future implementation.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::dto::ApprovalItem;
+use wrldbldr_engine_app::application::dto::{ApprovalItem, AdHocOutcomesDto};
 use wrldbldr_engine_app::application::services::{
-    ChallengeOutcomeApprovalService, DMApprovalQueueService, ItemService,
+    ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
+    DMApprovalQueueService, ItemService, PlayerCharacterService, SkillService,
 };
 use wrldbldr_engine_app::application::use_cases::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeOutcomeApprovalPort,
     ChallengeOutcomeDecision, ChallengeDmApprovalQueuePort, ChallengeResolutionPort, DiceInputType,
     RollResult, TriggerResult,
 };
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, EventBusPort, LlmPort};
+use wrldbldr_protocol::AppEvent;
 
 // =============================================================================
 // ChallengeOutcomeApprovalAdapter
@@ -155,67 +146,165 @@ where
 }
 
 // =============================================================================
-// ChallengeResolutionPort Placeholder Implementation
+// ChallengeResolutionAdapter
 // =============================================================================
 
-/// Placeholder adapter for ChallengeResolutionPort.
+/// Adapter that wraps ChallengeResolutionService to implement ChallengeResolutionPort.
 ///
-/// The actual ChallengeResolutionService has complex generic bounds and
-/// returns `Option<serde_json::Value>` rather than proper Result types.
-/// This placeholder returns errors indicating handlers should call services directly.
-pub struct ChallengeResolutionPlaceholder;
+/// This adapter converts between the service's typed results and the use case's
+/// simplified result types.
+pub struct ChallengeResolutionAdapter<S, K, Q, P, L, I>
+where
+    S: ChallengeService + Send + Sync + 'static,
+    K: SkillService + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    P: PlayerCharacterService + Send + Sync + 'static,
+    L: LlmPort + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
+    service: Arc<ChallengeResolutionService<S, K, Q, P, L, I>>,
+}
+
+impl<S, K, Q, P, L, I> ChallengeResolutionAdapter<S, K, Q, P, L, I>
+where
+    S: ChallengeService + Send + Sync + 'static,
+    K: SkillService + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    P: PlayerCharacterService + Send + Sync + 'static,
+    L: LlmPort + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
+    pub fn new(service: Arc<ChallengeResolutionService<S, K, Q, P, L, I>>) -> Self {
+        Self { service }
+    }
+}
 
 #[async_trait::async_trait]
-impl ChallengeResolutionPort for ChallengeResolutionPlaceholder {
+impl<S, K, Q, P, L, I> ChallengeResolutionPort for ChallengeResolutionAdapter<S, K, Q, P, L, I>
+where
+    S: ChallengeService + Send + Sync + 'static,
+    K: SkillService + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    P: PlayerCharacterService + Send + Sync + 'static,
+    L: LlmPort + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
     async fn handle_roll(
         &self,
-        _world_id: &WorldId,
-        _pc_id: PlayerCharacterId,
-        _challenge_id: String,
-        _roll: i32,
+        world_id: &WorldId,
+        pc_id: PlayerCharacterId,
+        challenge_id: String,
+        roll: i32,
     ) -> Result<RollResult, String> {
-        Err("ChallengeResolutionPort: Use handler directly until service refactoring".to_string())
+        let result = self
+            .service
+            .handle_roll(world_id, &pc_id, challenge_id, roll)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Convert RollSubmissionResult to use case RollResult
+        Ok(RollResult {
+            roll: result.total,
+            outcome: result.outcome_type,
+            pending_approval: true, // All challenges now go through approval
+        })
     }
 
     async fn handle_roll_input(
         &self,
-        _world_id: &WorldId,
-        _pc_id: PlayerCharacterId,
-        _challenge_id: String,
-        _input_type: DiceInputType,
+        world_id: &WorldId,
+        pc_id: PlayerCharacterId,
+        challenge_id: String,
+        input_type: DiceInputType,
     ) -> Result<RollResult, String> {
-        Err("ChallengeResolutionPort: Use handler directly until service refactoring".to_string())
+        // Convert use case DiceInputType to service DiceInputType
+        use wrldbldr_engine_app::application::services::challenge_resolution_service::DiceInputType as ServiceDiceInput;
+
+        let service_input = match input_type {
+            DiceInputType::Formula(formula) => ServiceDiceInput::Formula(formula),
+            DiceInputType::Manual(value) => ServiceDiceInput::Manual(value),
+        };
+
+        let result = self
+            .service
+            .handle_roll_input(world_id, &pc_id, challenge_id, service_input)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(RollResult {
+            roll: result.total,
+            outcome: result.outcome_type,
+            pending_approval: true,
+        })
     }
 
     async fn trigger_challenge(
         &self,
-        _world_id: &WorldId,
-        _challenge_id: String,
-        _target_character_id: CharacterId,
+        world_id: &WorldId,
+        challenge_id: String,
+        target_character_id: CharacterId,
     ) -> Result<TriggerResult, String> {
-        Err("ChallengeResolutionPort: Use handler directly until service refactoring".to_string())
+        let result = self
+            .service
+            .handle_trigger(world_id, challenge_id, target_character_id.to_string())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(TriggerResult {
+            challenge_id: result.challenge_id,
+            target_name: result.challenge_name, // Use challenge name as placeholder
+        })
     }
 
     async fn handle_suggestion_decision(
         &self,
-        _world_id: &WorldId,
-        _request_id: String,
-        _approved: bool,
-        _modified_difficulty: Option<String>,
+        world_id: &WorldId,
+        request_id: String,
+        approved: bool,
+        modified_difficulty: Option<String>,
     ) -> Result<(), String> {
-        Err("ChallengeResolutionPort: Use handler directly until service refactoring".to_string())
+        self.service
+            .handle_suggestion_decision(world_id, request_id, approved, modified_difficulty)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(())
     }
 
     async fn create_adhoc_challenge(
         &self,
-        _world_id: &WorldId,
-        _challenge_name: String,
-        _skill_name: String,
-        _difficulty: String,
-        _target_pc_id: PlayerCharacterId,
-        _outcomes: AdHocOutcomes,
+        world_id: &WorldId,
+        challenge_name: String,
+        skill_name: String,
+        difficulty: String,
+        target_pc_id: PlayerCharacterId,
+        outcomes: AdHocOutcomes,
     ) -> Result<AdHocResult, String> {
-        Err("ChallengeResolutionPort: Use handler directly until service refactoring".to_string())
+        // Convert use case AdHocOutcomes to DTO
+        // DTO requires success/failure as non-optional, use empty string as fallback
+        let dto_outcomes = AdHocOutcomesDto {
+            success: outcomes.success.unwrap_or_default(),
+            failure: outcomes.failure.unwrap_or_default(),
+            critical_success: outcomes.critical_success,
+            critical_failure: outcomes.critical_failure,
+        };
+
+        let (adhoc_result, _trigger_result) = self
+            .service
+            .handle_adhoc_challenge(
+                world_id,
+                challenge_name,
+                skill_name,
+                difficulty,
+                target_pc_id.to_string(),
+                dto_outcomes,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(AdHocResult {
+            challenge_id: adhoc_result.challenge_id,
+        })
     }
 }
 

@@ -36,7 +36,7 @@ This plan addresses critical architectural violations in the challenge/approval 
 | `has_dm()` check with fallback immediate resolution | `challenge_resolution_service.rs` | 298, 363-416 | [x] |
 | Direct `ServerMessage` construction in services | Multiple services | Various | [ ] |
 | 5 handlers call service directly instead of use case | `handlers/challenge.rs` | 97-214 | [ ] |
-| `ChallengeResolutionPort` trait defined but not implemented | `use_cases/challenge.rs` | 218-264 | [ ] |
+| `ChallengeResolutionPort` trait defined but not implemented | `use_cases/challenge.rs` | 218-264 | [x] |
 | `NarrativeEventApprovalService` constructs `ServerMessage` | `narrative_event_approval_service.rs` | 197 | [ ] |
 
 ---
@@ -623,7 +623,7 @@ cargo check -p wrldbldr-engine-app
 **Priority**: High  
 **Effort**: 1-2 hours  
 **Risk**: Low  
-**Status**: [ ] Not Started
+**Status**: [x] Complete
 
 ### Rationale
 

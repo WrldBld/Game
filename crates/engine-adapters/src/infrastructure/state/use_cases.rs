@@ -32,8 +32,9 @@ use std::sync::Arc;
 use wrldbldr_engine_app::application::dto::{ApprovalItem, LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
 use wrldbldr_engine_app::application::services::{
-    ChallengeOutcomeApprovalService, DMApprovalQueueService, InteractionService, ItemService,
-    PlayerActionQueueService, PlayerCharacterService, SceneService, WorldService,
+    ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
+    DMApprovalQueueService, InteractionService, ItemService, PlayerActionQueueService,
+    PlayerCharacterService, SceneService, SkillService, WorldService,
 };
 use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, ObservationUseCase,
@@ -48,13 +49,14 @@ use wrldbldr_engine_ports::outbound::{
 };
 
 use crate::infrastructure::ports::{
-    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionPlaceholder,
+    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
     ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
     DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
     InteractionServiceAdapter, ObservationRepositoryAdapter, PlayerActionQueueAdapter,
     PlayerCharacterServiceAdapter, SceneServiceAdapter, SceneWorldStateAdapter,
     StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter, WorldServiceAdapter,
 };
+use crate::infrastructure::queues::QueueBackendEnum;
 use crate::infrastructure::websocket::WebSocketBroadcastAdapter;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use crate::infrastructure::WorldStateManager;
@@ -111,10 +113,11 @@ impl UseCases {
     /// * `directorial_context_repo` - Repository for directorial context persistence
     /// * `world_service` - World service for world snapshots
     /// * `pc_service` - Player character service for PC data
+    /// * `challenge_resolution_service` - Service for challenge resolution (generic over dependencies)
     /// * `challenge_outcome_approval_service` - Service for challenge outcome approval (generic over LLM)
     /// * `dm_approval_queue_service` - Service for DM approval queue (generic over queue and item service)
     #[allow(clippy::too_many_arguments)]
-    pub fn new<L, R, N, S, PAQ, LQ, COAL, AQ, IS>(
+    pub fn new<L, R, N, S, PAQ, LQ, COAL, IS, CS, KS, PCS>(
         connection_manager: SharedWorldConnectionManager,
         world_state: Arc<WorldStateManager>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
@@ -131,8 +134,9 @@ impl UseCases {
         world_service: Arc<dyn WorldService>,
         pc_service: Arc<dyn PlayerCharacterService>,
         // Challenge dependencies
+        challenge_resolution_service: Arc<ChallengeResolutionService<CS, KS, QueueBackendEnum<ApprovalItem>, PCS, COAL, IS>>,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<COAL>>,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<AQ, IS>>,
+        dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalItem>, IS>>,
     ) -> Self
     where
         L: LlmPort + Send + Sync + 'static,
@@ -142,8 +146,10 @@ impl UseCases {
         PAQ: QueuePort<PlayerActionItem> + Send + Sync + 'static,
         LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
         COAL: LlmPort + Send + Sync + 'static,
-        AQ: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
         IS: ItemService + Send + Sync + 'static,
+        CS: ChallengeService + Send + Sync + 'static,
+        KS: SkillService + Send + Sync + 'static,
+        PCS: PlayerCharacterService + Send + Sync + 'static,
     {
         // Create broadcast adapter
         let broadcast: Arc<dyn BroadcastPort> =
@@ -219,16 +225,16 @@ impl UseCases {
         // =========================================================================
         // Challenge Use Case
         // =========================================================================
-        // Uses placeholder for resolution port (handlers call services directly)
-        // and adapters for outcome approval and DM approval queue
-        let challenge_resolution_placeholder = Arc::new(ChallengeResolutionPlaceholder);
+        // Adapter wraps the ChallengeResolutionService to implement ChallengeResolutionPort
+        let challenge_resolution_adapter =
+            Arc::new(ChallengeResolutionAdapter::new(challenge_resolution_service));
         let challenge_outcome_adapter =
             Arc::new(ChallengeOutcomeApprovalAdapter::new(challenge_outcome_approval_service));
         let challenge_dm_queue_adapter =
             Arc::new(ChallengeDmApprovalQueueAdapter::new(dm_approval_queue_service));
 
         let challenge = Arc::new(ChallengeUseCase::new(
-            challenge_resolution_placeholder,
+            challenge_resolution_adapter,
             challenge_outcome_adapter,
             challenge_dm_queue_adapter,
             broadcast.clone(),

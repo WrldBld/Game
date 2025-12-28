@@ -571,6 +571,7 @@ impl AppState {
         let player_action_queue_for_use_cases = player_action_queue_service.clone();
         let dm_approval_queue_for_use_cases = dm_approval_queue_service.clone();
         let challenge_outcome_approval_for_use_cases = challenge_outcome_approval_service.clone();
+        let challenge_resolution_for_use_cases = challenge_resolution_service.clone();
 
         let game = GameServices::new(
             story_event_service,
@@ -683,6 +684,7 @@ impl AppState {
             world_service_for_use_cases,
             pc_service_for_use_cases,
             // Challenge dependencies
+            challenge_resolution_for_use_cases,
             challenge_outcome_approval_for_use_cases,
             dm_approval_queue_for_use_cases,
         );
