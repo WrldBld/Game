@@ -44,7 +44,7 @@ mod connection_manager_adapter;
 // mod challenge_adapters;
 // mod scene_adapters;
 // mod observation_adapters;
-// mod player_action_adapters;
+mod player_action_adapters;
 
 pub use staging_state_adapter::*;
 pub use staging_service_adapter::*;
@@ -53,4 +53,4 @@ pub use connection_manager_adapter::*;
 // pub use challenge_adapters::*;
 // pub use scene_adapters::*;
 // pub use observation_adapters::*;
-// pub use player_action_adapters::*;
+pub use player_action_adapters::*;

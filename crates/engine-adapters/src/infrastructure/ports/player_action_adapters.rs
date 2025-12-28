@@ -5,25 +5,41 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
+use wrldbldr_engine_app::application::dto::{LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::PlayerActionQueueService;
 use wrldbldr_engine_app::application::use_cases::{DmNotificationPort, PlayerActionQueuePort};
+use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueuePort};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
 /// Adapter for PlayerActionQueueService
-pub struct PlayerActionQueueAdapter {
-    service: Arc<PlayerActionQueueService>,
+///
+/// Generic over the queue backend types used by PlayerActionQueueService.
+pub struct PlayerActionQueueAdapter<Q, LQ>
+where
+    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+{
+    service: Arc<PlayerActionQueueService<Q, LQ>>,
 }
 
-impl PlayerActionQueueAdapter {
-    pub fn new(service: Arc<PlayerActionQueueService>) -> Self {
+impl<Q, LQ> PlayerActionQueueAdapter<Q, LQ>
+where
+    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+{
+    pub fn new(service: Arc<PlayerActionQueueService<Q, LQ>>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl PlayerActionQueuePort for PlayerActionQueueAdapter {
+impl<Q, LQ> PlayerActionQueuePort for PlayerActionQueueAdapter<Q, LQ>
+where
+    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+{
     async fn enqueue_action(
         &self,
         world_id: &WorldId,
@@ -34,15 +50,9 @@ impl PlayerActionQueuePort for PlayerActionQueueAdapter {
         dialogue: Option<String>,
     ) -> Result<ActionId, String> {
         self.service
-            .enqueue(
-                world_id,
-                &player_id,
-                pc_id,
-                &action_type,
-                target.as_deref(),
-                dialogue.as_deref(),
-            )
+            .enqueue_action(world_id, player_id, pc_id, action_type, target, dialogue)
             .await
+            .map(|id| ActionId::from_uuid(id.into()))
             .map_err(|e| e.to_string())
     }
 
@@ -76,7 +86,7 @@ impl DmNotificationPort for DmNotificationAdapter {
             action_id,
             player_name,
             action_type,
-            queue_depth: queue_depth as u32,
+            queue_depth,
         };
 
         self.manager
@@ -87,11 +97,5 @@ impl DmNotificationPort for DmNotificationAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_adapter_creation() {
-        // Just verify types compile
-        // Full tests would require mock services
-    }
+    // Tests would require mock services
 }

@@ -577,6 +577,10 @@ impl AppState {
             actantial_context_service.clone() as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
         );
 
+        // Clone player_action_queue_service before moving it to QueueServices
+        // (use cases also need a reference to it)
+        let player_action_queue_for_use_cases = player_action_queue_service.clone();
+
         let queues = QueueServices::new(
             player_action_queue_service,
             dm_action_queue_service,
@@ -658,8 +662,9 @@ impl AppState {
             location_repo.clone(),
             character_repo_for_use_cases,
             staging_service.clone(),
+            player_action_queue_for_use_cases,
         );
-        tracing::info!("Initialized use cases container with MovementUseCase and StagingApprovalUseCase");
+        tracing::info!("Initialized use cases container with MovementUseCase, StagingApprovalUseCase, InventoryUseCase, PlayerActionUseCase");
 
         Ok((Self {
             config: config.clone(),
