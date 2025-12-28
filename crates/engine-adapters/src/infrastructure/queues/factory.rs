@@ -10,7 +10,8 @@ use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
 use wrldbldr_engine_app::application::dto::{
-    ApprovalItem, AssetGenerationItem, DMActionItem, LLMRequestItem, PlayerActionItem,
+    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem,
+    DMActionItem, LLMRequestItem, PlayerActionItem,
 };
 use crate::infrastructure::config::QueueConfig;
 use crate::infrastructure::queues::{InMemoryQueue, InProcessNotifier, SqliteQueue};
@@ -177,6 +178,7 @@ pub struct QueueFactory {
     llm_notifier: InProcessNotifier,
     asset_generation_notifier: InProcessNotifier,
     approval_notifier: InProcessNotifier,
+    challenge_outcome_notifier: InProcessNotifier,
 }
 
 impl QueueFactory {
@@ -206,6 +208,7 @@ impl QueueFactory {
             llm_notifier: InProcessNotifier::new("llm_requests"),
             asset_generation_notifier: InProcessNotifier::new("asset_generation"),
             approval_notifier: InProcessNotifier::new("approvals"),
+            challenge_outcome_notifier: InProcessNotifier::new("challenge_outcomes"),
         })
     }
 
@@ -232,6 +235,11 @@ impl QueueFactory {
     /// Get the approval notifier
     pub fn approval_notifier(&self) -> InProcessNotifier {
         self.approval_notifier.clone()
+    }
+
+    /// Get the challenge outcome notifier
+    pub fn challenge_outcome_notifier(&self) -> InProcessNotifier {
+        self.challenge_outcome_notifier.clone()
     }
 
     /// Create a player action queue
@@ -330,6 +338,34 @@ impl QueueFactory {
                     .as_ref()
                     .context("SQLite pool not initialized")?;
                 let queue = SqliteQueue::new(pool.clone(), "approvals", 1, self.approval_notifier.clone()).await?;
+                Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
+            }
+            backend => anyhow::bail!("Unsupported queue backend: {}", backend),
+        }
+    }
+
+    /// Create a challenge outcome approval queue
+    ///
+    /// This queue stores pending challenge outcomes awaiting DM approval.
+    /// Uses the same SQLite backend as other queues for persistence.
+    pub async fn create_challenge_outcome_queue(
+        &self,
+    ) -> Result<Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>> {
+        match self.config.backend.as_str() {
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(
+                InMemoryQueue::new("challenge_outcomes", self.challenge_outcome_notifier.clone())
+            ))),
+            "sqlite" => {
+                let pool = self
+                    .sqlite_pool
+                    .as_ref()
+                    .context("SQLite pool not initialized")?;
+                let queue = SqliteQueue::new(
+                    pool.clone(),
+                    "challenge_outcomes",
+                    1,
+                    self.challenge_outcome_notifier.clone(),
+                ).await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),

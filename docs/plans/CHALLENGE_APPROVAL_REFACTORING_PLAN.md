@@ -102,7 +102,7 @@ cargo check -p wrldbldr-engine-adapters
 **Priority**: High  
 **Effort**: 2-3 hours  
 **Risk**: Low  
-**Status**: [ ] Not Started
+**Status**: [x] Complete (factory method only - AppState wiring deferred to Phase 2)
 
 ### Rationale
 
