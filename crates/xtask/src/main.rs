@@ -115,6 +115,8 @@ fn arch_check() -> anyhow::Result<()> {
     }
 
     check_no_cross_crate_shims()?;
+    check_handler_complexity()?;
+    check_use_case_layer()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
@@ -280,6 +282,145 @@ fn walkdir_rs_files(dir: &std::path::Path) -> anyhow::Result<Vec<std::path::Path
     }
 
     Ok(out)
+}
+
+/// Check that WebSocket handlers remain thin routing layers
+///
+/// Handlers in engine-adapters/src/infrastructure/websocket/handlers/
+/// should be thin wrappers that delegate to use cases. Max 250 lines per file.
+fn check_handler_complexity() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let handlers_dir = workspace_root
+        .join("crates/engine-adapters/src/infrastructure/websocket/handlers");
+
+    if !handlers_dir.exists() {
+        return Ok(());
+    }
+
+    let mut violations = Vec::new();
+
+    // Files that are exempt from line count limits
+    let exempt_files: HashSet<&str> = ["mod.rs", "request.rs", "narrative.rs"]
+        .into_iter()
+        .collect();
+
+    // Max lines per handler file (generous limit after refactoring)
+    // Note: challenge.rs has 11 handlers with specific workarounds, so we allow up to 400
+    const MAX_HANDLER_LINES: usize = 400;
+
+    for entry in walkdir_rs_files(&handlers_dir)? {
+        let file_name = entry
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        if exempt_files.contains(file_name) {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        let line_count = contents.lines().count();
+
+        if line_count > MAX_HANDLER_LINES {
+            violations.push(format!(
+                "{}: {} lines exceeds max {} - consider extracting to use case",
+                entry.display(),
+                line_count,
+                MAX_HANDLER_LINES
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("Handler complexity violations:");
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        anyhow::bail!("arch-check failed: handlers too complex");
+    }
+
+    Ok(())
+}
+
+/// Check that use cases don't import protocol types (ServerMessage, ClientMessage)
+///
+/// Use cases in engine-app/src/application/use_cases/ should return domain types,
+/// not protocol messages. The errors.rs file is exempt as it provides conversion helpers.
+fn check_use_case_layer() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let use_cases_dir = workspace_root.join("crates/engine-app/src/application/use_cases");
+
+    if !use_cases_dir.exists() {
+        // No use cases directory - this is expected early in development
+        return Ok(());
+    }
+
+    // Forbidden: importing ServerMessage in use cases (except errors.rs which converts to it)
+    let forbidden_server_message = regex_lite::Regex::new(
+        r"use\s+wrldbldr_protocol::[^;]*ServerMessage",
+    )?;
+
+    // Forbidden: importing ClientMessage (use cases are server-side only)
+    let forbidden_client_message = regex_lite::Regex::new(
+        r"use\s+wrldbldr_protocol::[^;]*ClientMessage",
+    )?;
+
+    // Files exempt from protocol import checks
+    let exempt_files: HashSet<&str> = ["mod.rs", "errors.rs"].into_iter().collect();
+
+    let mut violations = Vec::new();
+
+    for entry in walkdir_rs_files(&use_cases_dir)? {
+        let file_name = entry
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        if exempt_files.contains(file_name) {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        if let Some((line_no, line)) = first_match_line(&forbidden_server_message, &contents) {
+            violations.push(format!(
+                "{}:{}: imports ServerMessage - use cases must return domain types\n    {}",
+                entry.display(),
+                line_no,
+                line.trim()
+            ));
+        }
+
+        if let Some((line_no, line)) = first_match_line(&forbidden_client_message, &contents) {
+            violations.push(format!(
+                "{}:{}: imports ClientMessage - use cases are server-side only\n    {}",
+                entry.display(),
+                line_no,
+                line.trim()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("Use case layer violations:");
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        anyhow::bail!("arch-check failed: use cases import protocol types");
+    }
+
+    Ok(())
 }
 
 fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {

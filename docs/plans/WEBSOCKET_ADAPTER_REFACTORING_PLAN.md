@@ -7,81 +7,85 @@
 | 1 | Infrastructure Helpers | ✅ Complete | HandlerContext, Auth middleware |
 | 2 | Ports & Domain Events | ✅ Complete | BroadcastPort, GameEvent, UseCaseContext |
 | 3 | Use Cases | ✅ Complete | All 8 use cases created with tests |
-| 4 | Adapter Implementation | ✅ Complete | All 8 use cases wired into UseCases container |
-| 5 | Player Adapter Deduplication | ⏳ Not Started | Independent stream |
-| 6 | Testing | ✅ Complete | 65 tests pass in engine-app |
-| 7 | Arch-Check Enhancements | ⏳ Not Started | Independent stream |
-| 8 | Documentation & Cleanup | ⏳ Not Started | Depends on handler refactoring |
+| 4 | Adapter Implementation | ✅ Complete | All 8 use cases wired, handlers refactored (66% reduction) |
+| 5 | Player Adapter Deduplication | ✅ Complete | ClientMessageBuilder created, adapters simplified |
+| 6 | Testing | ✅ Complete | 65 tests pass in engine-app + 6 message builder tests |
+| 7 | Arch-Check Enhancements | ✅ Complete | Handler complexity + use case layer checks |
+| 8 | Documentation & Cleanup | ⏳ In Progress | Final phase |
 
-**Last Updated:** Dec 28, 2024 (Session 3)
+**Last Updated:** Dec 28, 2024 (Session 4)
 
-### Phase 4 Details (Current)
+### Phase 7 Summary (Complete)
 
-**Completed:**
-- [x] `WebSocketBroadcastAdapter` - converts GameEvent to ServerMessage
-- [x] `UseCases` container struct in AppState
-- [x] BroadcastSink already removed (done in previous session)
-- [x] `StagingStateAdapter` - implements StagingStatePort wrapping WorldStateManager
-- [x] `StagingServiceAdapter` - implements StagingServicePort wrapping StagingService
-- [x] `ConnectionManagerAdapter` - implements ConnectionManagerPort (not yet wired)
-- [x] `MovementUseCase` wired into UseCases container with adapters
-- [x] `StagingApprovalUseCase` wired into UseCases container with adapters
-- [x] `InventoryUseCase` wired into UseCases container (uses existing ports)
-- [x] `PlayerActionQueueAdapter` - implements PlayerActionQueuePort wrapping PlayerActionQueueService
-- [x] `DmNotificationAdapter` - implements DmNotificationPort wrapping WorldConnectionManager
-- [x] `PlayerActionUseCase` wired into UseCases container with adapters
-- [x] `ObservationRepositoryAdapter` - implements ObservationRepositoryPort wrapping Neo4jObservationRepository
-- [x] `WorldMessageAdapter` - implements WorldMessagePort wrapping WorldConnectionManager
-- [x] `ObservationUseCase` wired into UseCases container with adapters
-- [x] `ChallengeResolutionAdapter` - implements ChallengeResolutionPort (adapters created, not yet wired)
-- [x] `ChallengeOutcomeApprovalAdapter` - implements ChallengeOutcomeApprovalPort (adapters created, not yet wired)
-- [x] `DmApprovalQueueAdapter` - implements DmApprovalQueuePort (adapters created, not yet wired)
-- [x] Updated ChallengeResolutionPort to include WorldId in method signatures
-- [x] `SceneServiceAdapter` - implements SceneServicePort wrapping SceneService
-- [x] `InteractionServiceAdapter` - implements InteractionServicePort wrapping InteractionService
-- [x] `SceneWorldStateAdapter` - implements SceneWorldStatePort wrapping WorldStateManager
-- [x] `DirectorialContextAdapter` - implements DirectorialContextRepositoryPort wrapping PortDirectorialContextRepositoryPort
-- [x] `DmActionQueuePlaceholder` - placeholder for DmActionQueuePort (type mismatch with DTO DMAction)
-- [x] `WorldServiceAdapter` - implements WorldServicePort wrapping WorldService
-- [x] `PlayerCharacterServiceAdapter` - implements PlayerCharacterServicePort wrapping PlayerCharacterService
-- [x] `ConnectionDirectorialContextAdapter` - implements DirectorialContextPort for ConnectionUseCase
-- [x] `ConnectionWorldStateAdapter` - implements ConnectionWorldStatePort wrapping WorldStateManager
+**New arch-check rules added to xtask:**
 
-**All Use Cases Wired:**
+1. **Handler Complexity Check** (`check_handler_complexity`)
+   - Enforces max 400 lines per handler file
+   - Exempts mod.rs, request.rs, narrative.rs (already thin or special purpose)
+   - Warns if handlers grow too large, suggesting extraction to use cases
 
-| Use Case | Required Port Adapters | Status |
-|----------|----------------------|--------|
-| MovementUseCase | StagingServiceAdapter, StagingStateAdapter, SceneBuilder | ✅ Wired |
-| StagingApprovalUseCase | StagingServiceAdapter, StagingStateAdapter, SceneBuilder | ✅ Wired |
-| InventoryUseCase | (uses existing ports directly) | ✅ Wired |
-| PlayerActionUseCase | PlayerActionQueueAdapter, DmNotificationAdapter, MovementUseCase | ✅ Wired |
-| ObservationUseCase | ObservationRepositoryAdapter, WorldMessageAdapter | ✅ Wired |
-| ChallengeUseCase | ChallengeResolutionPlaceholder, ChallengeOutcomeApprovalAdapter, ChallengeDmApprovalQueueAdapter | ✅ Wired |
-| SceneUseCase | SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder | ✅ Wired |
-| ConnectionUseCase | ConnectionManagerAdapter, WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter | ✅ Wired |
+2. **Use Case Layer Check** (`check_use_case_layer`)
+   - Forbids importing `ServerMessage` in use case files (except errors.rs)
+   - Forbids importing `ClientMessage` in use case files
+   - Ensures use cases return domain types, not protocol types
 
-**Next Steps (Phase 4.3):**
-- [ ] Refactor handlers to use use cases
-- [ ] Target: reduce handler files from ~4,693 lines to ~840 lines
+### Phase 5 Summary (Complete)
+
+**ClientMessageBuilder deduplication results:**
+
+| File | Before | After | Change |
+|------|--------|-------|--------|
+| wasm/adapter.rs | 354 | 252 | -102 lines (29%) |
+| desktop/adapter.rs | 496 | 293 | -203 lines (41%) |
+| message_builder.rs | - | 358 | +358 lines (new) |
+| **Net** | 850 | 903 | +53 lines |
+
+**Key improvements:**
+- Single source of truth for ClientMessage construction (21 builder methods)
+- `spawn_send` helper in desktop adapter for cleaner async dispatch
+- 6 unit tests for message builder
+- Better maintainability - message format changes only need one update
+
+### Phase 4 Summary (Complete)
+
+**Phase 4.3 Handler Refactoring Results:**
+
+| Handler File | Before | After | Reduction |
+|--------------|--------|-------|-----------|
+| challenge.rs | 816 | 370 | 55% |
+| connection.rs | 313 | 135 | 57% |
+| inventory.rs | 517 | 216 | 58% |
+| misc.rs | 464 | 148 | 68% |
+| movement.rs | 963 | 195 | 80% |
+| player_action.rs | 447 | 109 | 76% |
+| scene.rs | 372 | 115 | 69% |
+| staging.rs | 628 | 233 | 63% |
+| **Total** | **4520** | **1521** | **66%** |
+
+All handlers now follow the thin wrapper pattern:
+```rust
+pub async fn handle_xyz(state: &AppState, client_id: Uuid, ...) -> Option<ServerMessage> {
+    let ctx = extract_context(state, client_id).await?;
+    let input = XyzInput { ... };
+    match state.use_cases.xyz.method(ctx, input).await {
+        Ok(result) => Some(convert_result(result)),
+        Err(e) => Some(e.into_server_error()),
+    }
+}
+```
+
+**Port Adapters Created:**
+- `StagingStateAdapter`, `StagingServiceAdapter` - staging system
+- `ConnectionManagerAdapter` - connection management
+- `PlayerActionQueueAdapter`, `DmNotificationAdapter` - player actions
+- `ObservationRepositoryAdapter`, `WorldMessageAdapter` - observations
+- `ChallengeResolutionPlaceholder`, `ChallengeOutcomeApprovalAdapter`, `ChallengeDmApprovalQueueAdapter` - challenges
+- `SceneServiceAdapter`, `InteractionServiceAdapter`, `SceneWorldStateAdapter`, `DirectorialContextAdapter`, `DmActionQueuePlaceholder` - scenes
+- `WorldServiceAdapter`, `PlayerCharacterServiceAdapter`, `ConnectionDirectorialContextAdapter`, `ConnectionWorldStateAdapter` - connections
 
 **Note on Placeholder Adapters:**
-- `ChallengeResolutionPlaceholder` - Returns errors; handlers should call ChallengeResolutionService directly until service refactoring is complete
-- `DmActionQueuePlaceholder` - Returns errors; scene approval uses a different approval flow
-
-**Files Created/Modified:**
-- `crates/engine-adapters/src/infrastructure/websocket/broadcast_adapter.rs` (~475 lines)
-- `crates/engine-adapters/src/infrastructure/state/use_cases.rs` (~200 lines)
-- `crates/engine-adapters/src/infrastructure/state/mod.rs` (updated UseCases::new() call)
-- `crates/engine-adapters/src/infrastructure/ports/staging_state_adapter.rs` (~200 lines)
-- `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs` (~240 lines)
-- `crates/engine-adapters/src/infrastructure/ports/connection_manager_adapter.rs` (~190 lines)
-- `crates/engine-adapters/src/infrastructure/ports/player_action_adapters.rs` (~98 lines)
-- `crates/engine-adapters/src/infrastructure/ports/observation_adapters.rs` (~98 lines)
-- `crates/engine-adapters/src/infrastructure/ports/challenge_adapters.rs` (~300 lines)
-- `crates/engine-adapters/src/infrastructure/ports/scene_adapters.rs` (~235 lines) - NEW
-- `crates/engine-adapters/src/infrastructure/ports/connection_adapters.rs` (~175 lines) - NEW
-- `crates/engine-adapters/src/infrastructure/ports/mod.rs` (~60 lines)
-- `crates/engine-app/src/application/use_cases/challenge.rs` (updated port signatures with WorldId)
+- `ChallengeResolutionPlaceholder` - Returns errors; handlers call ChallengeResolutionService directly
+- `DmActionQueuePlaceholder` - Returns errors; scene approval uses different flow
 
 ---
 
