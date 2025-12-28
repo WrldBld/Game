@@ -18,12 +18,12 @@
 | Phase E5 (Split Handler) | Partial | 6957955 |
 | arch-check exemptions | Complete | c0ffe75 |
 | Build fix (actantial) | Complete | ee8e313 |
-| Phase P1 (Player Domain Types) | Pending | - |
+| Phase P6 (Player arch-check) | Complete | - |
+| Phase P1 (Player Domain Types) | In Progress | - |
 | Phase P2 (GameConnectionPort) | Pending | - |
 | Phase P3 (Message Translation) | Pending | - |
 | Phase P4 (player-app Services) | Pending | - |
-| Phase P5 (player-ui Components) | Pending | - |
-| Phase P6 (Player arch-check) | Pending | - |  
+| Phase P5 (player-ui Components) | Pending | - |  
 
 ## Executive Summary
 

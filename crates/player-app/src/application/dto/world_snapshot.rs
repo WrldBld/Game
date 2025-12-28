@@ -7,9 +7,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Re-export rule system types from protocol (which re-exports from domain)
-// These have serde derives and are the canonical source of truth
-pub use wrldbldr_protocol::{
+// Import rule system types from domain (canonical source)
+// These have serde derives and are re-exported for player-app consumers
+pub use wrldbldr_domain::value_objects::{
     DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
     SuccessComparison,
 };

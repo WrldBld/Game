@@ -119,6 +119,8 @@ fn arch_check() -> anyhow::Result<()> {
     check_use_case_layer()?;
     check_engine_app_protocol_isolation()?;
     check_engine_ports_protocol_isolation()?;
+    check_player_app_protocol_isolation()?;
+    check_player_ports_protocol_isolation()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
@@ -572,6 +574,205 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
             eprintln!("  - {v}");
         }
         anyhow::bail!("arch-check failed: engine-ports imports protocol types");
+    }
+
+    Ok(())
+}
+
+/// Check that player-app application layer doesn't import wrldbldr_protocol directly.
+///
+/// The application layer (services, dto) should work with domain types or app-local DTOs,
+/// not protocol types.
+///
+/// Current exemptions (documented in HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md):
+/// - error.rs: Request/response error handling uses protocol error types
+/// - Services using RequestPayload: Player services construct requests to send to engine
+///
+/// Unlike engine-app (which receives requests), player-app constructs requests.
+/// Full protocol isolation requires Phase P2-P4 completion.
+fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    // Directories to check within player-app/src/application/
+    let check_dirs = ["services", "dto"];
+
+    // Patterns that indicate protocol usage
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+
+    // Files exempt from protocol import checks (with justification)
+    let exempt_files: HashSet<&str> = [
+        "mod.rs",           // Module declarations only
+        "error.rs",         // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
+        // Services are temporarily exempt as they construct RequestPayload
+        // This will be addressed when we refactor to use a request abstraction layer
+        "skill_service.rs",
+        "narrative_event_service.rs",
+        "player_character_service.rs",
+        "actantial_service.rs",
+        "generation_service.rs",
+        "challenge_service.rs",
+        "event_chain_service.rs",
+        "observation_service.rs",
+        "location_service.rs",
+        "world_service.rs",
+        "story_event_service.rs",
+        "session_command_service.rs",  // Uses GameConnectionPort which uses protocol types
+        "character_service.rs",
+        "suggestion_service.rs",
+        "session_service.rs",
+    ].into_iter().collect();
+
+    let mut violations = Vec::new();
+
+    for dir_name in check_dirs {
+        let dir = workspace_root.join(format!("crates/player-app/src/application/{}", dir_name));
+
+        if !dir.exists() {
+            continue;
+        }
+
+        for entry in walkdir_rs_files(&dir)? {
+            let file_name = entry
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+
+            if exempt_files.contains(file_name) {
+                continue;
+            }
+
+            let contents = std::fs::read_to_string(&entry)
+                .with_context(|| format!("reading {}", entry.display()))?;
+
+            // Check each line, skipping comments
+            for (line_idx, line) in contents.lines().enumerate() {
+                let trimmed = line.trim();
+
+                // Skip comment lines
+                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                    continue;
+                }
+
+                if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
+                    violations.push(format!(
+                        "{}:{}: uses wrldbldr_protocol - application layer should use domain types\n    {}",
+                        entry.display(),
+                        line_idx + 1,
+                        trimmed
+                    ));
+                    break; // One violation per file is enough
+                }
+            }
+        }
+    }
+
+    // Also check error.rs at application root (already in exempt list but handle explicitly)
+    let error_file = workspace_root.join("crates/player-app/src/application/error.rs");
+    if error_file.exists() && !exempt_files.contains("error.rs") {
+        let contents = std::fs::read_to_string(&error_file)
+            .with_context(|| format!("reading {}", error_file.display()))?;
+
+        for (line_idx, line) in contents.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                continue;
+            }
+
+            if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
+                violations.push(format!(
+                    "{}:{}: uses wrldbldr_protocol - application layer should use domain types\n    {}",
+                    error_file.display(),
+                    line_idx + 1,
+                    trimmed
+                ));
+                break;
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("Player-app protocol isolation violations ({} files):", violations.len());
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        anyhow::bail!("arch-check failed: player-app imports protocol types in non-exempt files");
+    }
+
+    Ok(())
+}
+
+/// Check that player-ports doesn't import wrldbldr_protocol directly.
+///
+/// The ports layer defines interfaces and should use domain types, not protocol types.
+/// GameConnectionPort is currently exempt as it's being refactored (Phase P2).
+fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let ports_dir = workspace_root.join("crates/player-ports/src");
+
+    if !ports_dir.exists() {
+        return Ok(());
+    }
+
+    // Patterns that indicate protocol usage
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+
+    let mut violations = Vec::new();
+
+    for entry in walkdir_rs_files(&ports_dir)? {
+        let file_name = entry
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        // Exempt files:
+        // - game_connection_port.rs: Critical exemption - WebSocket port uses protocol types
+        //   This will be addressed in Phase P2 (refactor GameConnectionPort)
+        // - mock_game_connection.rs: Testing infrastructure that mirrors the port
+        if file_name == "game_connection_port.rs" || file_name == "mock_game_connection.rs" {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        // Check each line, skipping comments
+        for (line_idx, line) in contents.lines().enumerate() {
+            let trimmed = line.trim();
+
+            // Skip comment lines
+            if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                continue;
+            }
+
+            if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
+                violations.push(format!(
+                    "{}:{}: uses wrldbldr_protocol - ports layer should use domain types\n    {}",
+                    entry.display(),
+                    line_idx + 1,
+                    trimmed
+                ));
+                break; // One violation per file is enough
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        // For now, just report violations without failing the build
+        eprintln!("Player-ports protocol isolation violations ({} files):", violations.len());
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        eprintln!("\nNote: GameConnectionPort refactoring is tracked as Phase P2.");
+        // Uncomment to enforce: anyhow::bail!("arch-check failed: player-ports imports protocol types");
     }
 
     Ok(())
