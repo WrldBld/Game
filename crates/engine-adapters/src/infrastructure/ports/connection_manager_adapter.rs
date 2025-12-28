@@ -4,13 +4,12 @@
 //! This adapter bridges the use case layer's abstract port interface with the
 //! infrastructure's connection management.
 
-use std::sync::Arc;
 use uuid::Uuid;
 
 use tokio::sync::broadcast;
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_app::application::use_cases::{
-    ConnectedUser, ConnectionInfo, ConnectionManagerPort, PcData, UserJoinedEvent, UserLeftEvent,
+    ConnectedUser, ConnectionInfo, ConnectionManagerPort, UserJoinedEvent, UserLeftEvent,
     WorldRole as UseCaseWorldRole,
 };
 use wrldbldr_protocol::{ServerMessage, WorldRole as ProtocolWorldRole};

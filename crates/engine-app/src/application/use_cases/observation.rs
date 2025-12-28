@@ -22,7 +22,7 @@ use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterRepositoryPort, GameEvent, PlayerCharacterRepositoryPort,
+    BroadcastPort, CharacterRepositoryPort, PlayerCharacterRepositoryPort,
 };
 
 use super::errors::ObservationError;

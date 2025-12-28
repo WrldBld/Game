@@ -9,7 +9,7 @@ use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
 use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
-use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item, PlayerCharacter, CharacterSheetData};
+use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, PlayerCharacter, CharacterSheetData};
 use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
 
 /// Repository for PlayerCharacter operations

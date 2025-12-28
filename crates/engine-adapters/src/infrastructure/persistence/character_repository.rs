@@ -19,7 +19,7 @@ use super::converters::{row_to_item, row_to_want};
 use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
-    ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, Item, StatBlock, Want, WantVisibility,
+    ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, StatBlock, Want, WantVisibility,
 };
 use wrldbldr_domain::value_objects::{
     ActantialTarget, ArchetypeChange, CampbellArchetype, DispositionLevel, NpcDispositionState, RegionFrequency,

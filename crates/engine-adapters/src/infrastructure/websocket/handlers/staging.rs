@@ -9,7 +9,7 @@ use crate::infrastructure::state::AppState;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
     ApproveInput, ApprovedNpc, ErrorCode, PreStageInput, RegenerateInput,
-    StagingApprovalSource, StagingError,
+    StagingApprovalSource,
 };
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::{ApprovedNpcInfo, ServerMessage, StagedNpcInfo};

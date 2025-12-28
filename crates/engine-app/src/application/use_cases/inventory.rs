@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionRepositoryPort,

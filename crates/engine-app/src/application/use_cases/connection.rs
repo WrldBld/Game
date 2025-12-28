@@ -18,7 +18,6 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ConnectionError;

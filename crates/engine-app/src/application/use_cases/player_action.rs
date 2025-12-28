@@ -16,7 +16,7 @@
 //! movement logic.
 
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;

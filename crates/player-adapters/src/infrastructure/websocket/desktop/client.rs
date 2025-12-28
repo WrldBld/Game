@@ -185,7 +185,7 @@ impl EngineClient {
     pub async fn join_world(
         &self,
         world_id: &str,
-        user_id: &str,
+        _user_id: &str,
         role: ParticipantRole,
     ) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;

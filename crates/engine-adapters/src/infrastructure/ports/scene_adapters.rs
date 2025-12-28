@@ -15,7 +15,7 @@ use wrldbldr_domain::{InteractionTarget as DomainInteractionTarget, SceneId, Tim
 use wrldbldr_engine_app::application::services::{InteractionService, SceneService};
 use wrldbldr_engine_app::application::use_cases::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
-    InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity, NpcMotivation,
+    InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity,
     SceneEntity, SceneServicePort, SceneWithRelations as UseCaseSceneWithRelations, TimeContext,
     SceneDmActionQueuePort, SceneWorldStatePort,
 };

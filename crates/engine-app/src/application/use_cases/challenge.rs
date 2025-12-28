@@ -22,7 +22,7 @@
 //! - Broadcasting via BroadcastPort
 
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
