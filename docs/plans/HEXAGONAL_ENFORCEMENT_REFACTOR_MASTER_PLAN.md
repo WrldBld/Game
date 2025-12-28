@@ -9,8 +9,8 @@
 
 | Phase | Status | Commit |
 |-------|--------|--------|
-| Pre-Implementation Cleanup | In Progress | - |
-| Phase E6 (arch-check) | Pending | - |
+| Pre-Implementation Cleanup | Complete | 6e51a1d |
+| Phase E6 (arch-check) | In Progress | - |
 | Phase E1 (DomainEvent) | Pending | - |
 | Phase E2 (Approval DTOs) | Pending | - |
 | Phase E3 (ErrorCode) | Pending | - |

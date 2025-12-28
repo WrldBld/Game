@@ -117,6 +117,8 @@ fn arch_check() -> anyhow::Result<()> {
     check_no_cross_crate_shims()?;
     check_handler_complexity()?;
     check_use_case_layer()?;
+    check_engine_app_protocol_isolation()?;
+    check_engine_ports_protocol_isolation()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
@@ -418,6 +420,152 @@ fn check_use_case_layer() -> anyhow::Result<()> {
             eprintln!("  - {v}");
         }
         anyhow::bail!("arch-check failed: use cases import protocol types");
+    }
+
+    Ok(())
+}
+
+/// Check that engine-app application layer doesn't import wrldbldr_protocol directly.
+///
+/// The application layer (use_cases, services, dto, handlers) should work with domain types,
+/// not protocol types. Only mod.rs files are exempt.
+fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    // Directories to check within engine-app/src/application/
+    let check_dirs = [
+        "use_cases",
+        "services",
+        "dto",
+        "handlers",
+    ];
+
+    // Patterns that indicate protocol usage
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+
+    let mut violations = Vec::new();
+
+    for dir_name in check_dirs {
+        let dir = workspace_root.join(format!("crates/engine-app/src/application/{}", dir_name));
+
+        if !dir.exists() {
+            continue;
+        }
+
+        for entry in walkdir_rs_files(&dir)? {
+            let file_name = entry
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+
+            // Only mod.rs files are exempt
+            if file_name == "mod.rs" {
+                continue;
+            }
+
+            let contents = std::fs::read_to_string(&entry)
+                .with_context(|| format!("reading {}", entry.display()))?;
+
+            // Check each line, skipping comments
+            for (line_idx, line) in contents.lines().enumerate() {
+                let trimmed = line.trim();
+
+                // Skip comment lines
+                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                    continue;
+                }
+
+                if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
+                    violations.push(format!(
+                        "{}:{}: uses wrldbldr_protocol - application layer must use domain types\n    {}",
+                        entry.display(),
+                        line_idx + 1,
+                        trimmed
+                    ));
+                    break; // One violation per file is enough
+                }
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("Engine-app protocol isolation violations:");
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        anyhow::bail!("arch-check failed: engine-app application layer imports protocol types");
+    }
+
+    Ok(())
+}
+
+/// Check that engine-ports doesn't import wrldbldr_protocol directly (except request_handler.rs).
+///
+/// The ports layer defines interfaces and should not depend on protocol types.
+/// The request_handler.rs is exempt as it's the documented API boundary.
+fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let ports_dir = workspace_root.join("crates/engine-ports/src");
+
+    if !ports_dir.exists() {
+        return Ok(());
+    }
+
+    // Patterns that indicate protocol usage
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+
+    let mut violations = Vec::new();
+
+    for entry in walkdir_rs_files(&ports_dir)? {
+        let file_name = entry
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        // request_handler.rs is exempt (documented API boundary)
+        if file_name == "request_handler.rs" {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        // Check each line, skipping comments
+        for (line_idx, line) in contents.lines().enumerate() {
+            let trimmed = line.trim();
+
+            // Skip comment lines
+            if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                continue;
+            }
+
+            if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
+                violations.push(format!(
+                    "{}:{}: uses wrldbldr_protocol - ports layer must use domain types\n    {}",
+                    entry.display(),
+                    line_idx + 1,
+                    trimmed
+                ));
+                break; // One violation per file is enough
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("Engine-ports protocol isolation violations:");
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        anyhow::bail!("arch-check failed: engine-ports imports protocol types");
     }
 
     Ok(())
