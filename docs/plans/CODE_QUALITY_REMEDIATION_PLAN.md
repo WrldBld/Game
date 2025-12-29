@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.7 complete - composition root moved to runner, 26 imports remaining)  
+**Last Updated**: 2025-12-29 (Phase 3.0.2 FileStoragePort complete, Phase 3.0.7 complete)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -975,11 +975,11 @@ pub trait FileStoragePort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Create FileStoragePort trait in engine-ports | Pending |
-| [ ] Create TokioFileStorageAdapter in engine-adapters | Pending |
-| [ ] Update generation_service.rs to use FileStoragePort | Pending |
-| [ ] Update asset_generation_queue_service.rs | Pending |
-| [ ] Move env::var calls to adapter/runner layer | Pending |
+| [x] Create FileStoragePort trait in engine-ports | **DONE** |
+| [x] Create TokioFileStorageAdapter in engine-adapters | **DONE** |
+| [x] Update generation_service.rs to use FileStoragePort | **DONE** |
+| [x] Update asset_generation_queue_service.rs | **DONE** |
+| [ ] Move env::var calls to adapter/runner layer | Low priority - 2 calls in prompt_template_service.rs |
 
 #### 3.0.2.1 Create ClockPort for Time Abstraction (NEW - Seventh Review)
 
