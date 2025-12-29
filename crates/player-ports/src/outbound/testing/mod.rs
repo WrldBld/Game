@@ -1,10 +1,11 @@
 //! Test utilities for outbound ports
 //!
-//! Provides mock implementations for unit testing services that depend on outbound ports.
-//! These mocks are only available on non-WASM targets since tests run on desktop.
+//! NOTE: Mock implementations have been moved to player-adapters/infrastructure/testing
+//! where they belong (adapters layer). This module is kept for backwards compatibility
+//! and re-exports from the correct location.
+//!
+//! For new code, import mocks from:
+//! `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;`
 
-#[cfg(not(target_arch = "wasm32"))]
-mod mock_game_connection;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub use mock_game_connection::MockGameConnectionPort;
+// This module is now empty - mocks are in player-adapters
+// The re-export in outbound/mod.rs has been removed

@@ -1,9 +1,16 @@
+//! Mock implementation of GameConnectionPort for testing
+//!
+//! This mock belongs in the adapters layer (not ports) because:
+//! 1. It's a concrete implementation of a port trait
+//! 2. Mocks are infrastructure concerns, not interface definitions
+//! 3. Test utilities should be close to the implementations they mock
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use crate::outbound::{ConnectionState, GameConnectionPort};
-use crate::session_types::{
+use wrldbldr_player_ports::outbound::{ConnectionState, GameConnectionPort};
+use wrldbldr_player_ports::session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
     DirectorialContext, ParticipantRole,
 };

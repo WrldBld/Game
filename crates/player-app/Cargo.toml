@@ -23,6 +23,7 @@ futures-channel = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
+wrldbldr-player-adapters = { workspace = true }  # For MockGameConnectionPort in tests
 
 [lints]
 workspace = true

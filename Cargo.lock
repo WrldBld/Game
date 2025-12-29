@@ -7476,6 +7476,7 @@ dependencies = [
  "tracing",
  "uuid",
  "wrldbldr-domain",
+ "wrldbldr-player-adapters",
  "wrldbldr-player-ports",
  "wrldbldr-protocol",
 ]

@@ -3,6 +3,10 @@
 //! These ports define the contracts that infrastructure adapters must implement,
 //! allowing application services to interact with external systems without
 //! depending on concrete implementations.
+//!
+//! NOTE: Mock implementations have been moved to player-adapters/infrastructure/testing
+//! where they belong. Import mocks from there:
+//! `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;`
 
 pub mod api_port;
 pub mod game_connection_port;
@@ -17,7 +21,3 @@ pub use platform::{
     RandomProvider, SleepProvider, StorageProvider, TimeProvider,
 };
 pub use raw_api_port::RawApiPort;
-
-// Re-export mock for convenience (desktop-only)
-#[cfg(not(target_arch = "wasm32"))]
-pub use testing::MockGameConnectionPort;
