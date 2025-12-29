@@ -182,7 +182,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.4 | Fix Player-Side Hexagonal Architecture | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
-| Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
+| Phase 3.0.7 | Reduce engine-adapters→engine-app deps | **IN PROGRESS** | 40% |
 | Phase 3.1 | Challenge DTOs | **DONE** | 60% |
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
@@ -1500,13 +1500,28 @@ The `ports/*_adapters.rs` files should wrap services using port traits, not conc
 
 | Task | Status |
 |------|--------|
-| [ ] Move `SheetTemplateStorageDto` to engine-dto | Pending |
-| [ ] Move `parse_archetype` to domain as `CampbellArchetype::from_str()` | Pending |
-| [ ] Move `StagingProposal` to domain | Pending |
-| [ ] Move `GenerationQueueSnapshot` to protocol | Pending |
+| [x] Move `SheetTemplateStorageDto` to engine-dto | **DONE** (already existed, fixed import) |
+| [x] Inline `parse_archetype` in adapters | **DONE** (s.parse().unwrap_or(CampbellArchetype::Ally)) |
+| [x] Move `StagingProposal`, `StagedNpcProposal` to engine-dto | **DONE** |
+| [x] Remove duplicate `ApprovedNpcData` from engine-app | **DONE** (use ports version) |
+| [ ] Move `GenerationQueueSnapshot` to engine-dto | Pending |
 | [ ] Create `SuggestionEnqueuePort` in engine-ports | Pending |
-| [ ] Update adapters to import from new locations | Pending |
+| [ ] Update remaining adapters to import from new locations | In Progress |
 | [ ] Verify clean architecture | Pending |
+
+##### Progress Notes (December 2024)
+
+Reduced `engine-adapters → engine-app` imports from **29 to 24** through:
+1. Fixed `SheetTemplateStorageDto` import (already in engine-dto)
+2. Inlined `parse_archetype` function (trivial helper)
+3. Created `engine-dto/src/staging.rs` with `StagingProposal`, `StagedNpcProposal`
+4. Removed duplicate `ApprovedNpcData` from engine-app (ports version is canonical)
+5. Simplified `StagingServiceAdapter` by removing unnecessary type conversion
+
+Remaining 24 imports are primarily:
+- **Services** (legitimate: adapters need to compose services)
+- **Use cases** (legitimate: adapters need to wire use cases)
+- **GenerationQueueSnapshot** (movable to engine-dto)
 
 ##### Notes
 

@@ -7370,6 +7370,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrldbldr-engine-composition"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "wrldbldr-domain",
+ "wrldbldr-engine-ports",
+ "wrldbldr-protocol",
+]
+
+[[package]]
 name = "wrldbldr-engine-dto"
 version = "0.1.0"
 dependencies = [

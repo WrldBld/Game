@@ -10,6 +10,7 @@ mod actantial_context_service_port;
 mod asset_generation_queue_service_port;
 mod asset_service_port;
 mod broadcast_port;
+mod challenge_outcome_approval_service_port;
 mod challenge_resolution_service_port;
 mod challenge_service_port;
 mod character_service_port;
@@ -22,8 +23,12 @@ mod dm_action_queue_service_port;
 mod dm_approval_queue_service_port;
 mod domain_event_repository_port;
 mod event_bus_port;
+mod event_chain_service_port;
+mod event_effect_executor_port;
+mod event_notifier_port;
 mod file_storage_port;
 mod game_events;
+mod generation_queue_projection_service_port;
 mod generation_read_state_port;
 mod generation_service_port;
 mod interaction_service_port;
@@ -31,6 +36,7 @@ mod item_service_port;
 mod llm_port;
 mod llm_queue_service_port;
 mod location_service_port;
+mod narrative_event_approval_service_port;
 mod narrative_event_service_port;
 mod player_action_queue_service_port;
 mod player_character_service_port;
@@ -40,8 +46,11 @@ mod prompt_template_service_port;
 mod queue_notification_port;
 mod queue_port;
 mod region_service_port;
+mod relationship_service_port;
 mod repository_port;
+mod scene_resolution_service_port;
 mod scene_service_port;
+mod sheet_template_service_port;
 mod settings_port;
 mod settings_service_port;
 mod skill_service_port;
@@ -49,8 +58,10 @@ mod staging_repository_port;
 mod staging_service_port;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
+mod trigger_evaluation_service_port;
 mod use_case_types;
 mod workflow_service_port;
+mod world_connection_manager_port;
 mod world_exporter_port;
 mod world_service_port;
 mod world_state_port;
@@ -83,8 +94,25 @@ pub use comfyui_port::{
 
 pub use event_bus_port::{EventBusError, EventBusPort};
 
+// Event chain service port - interface for event chain (story arc) operations
+pub use event_chain_service_port::EventChainServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use event_chain_service_port::MockEventChainServicePort;
+
+// Event notifier port - interface for in-process event notification
+pub use event_notifier_port::EventNotifierPort;
+#[cfg(any(test, feature = "testing"))]
+pub use event_notifier_port::MockEventNotifierPort;
+
 // File storage port - interface for file system operations
 pub use file_storage_port::FileStoragePort;
+
+pub use generation_queue_projection_service_port::{
+    GenerationBatchSnapshot, GenerationQueueProjectionServicePort, GenerationQueueSnapshot,
+    SuggestionTaskSnapshot,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use generation_queue_projection_service_port::MockGenerationQueueProjectionServicePort;
 
 pub use generation_read_state_port::{GenerationReadKind, GenerationReadStatePort};
 
@@ -172,6 +200,21 @@ pub use location_service_port::MockLocationServicePort;
 pub use region_service_port::MockRegionServicePort;
 pub use region_service_port::RegionServicePort;
 
+// Relationship service port - interface for relationship operations
+pub use relationship_service_port::RelationshipServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use relationship_service_port::MockRelationshipServicePort;
+
+// Scene resolution service port - interface for scene resolution operations
+pub use scene_resolution_service_port::{SceneResolutionResult, SceneResolutionServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use scene_resolution_service_port::MockSceneResolutionServicePort;
+
+// Sheet template service port - interface for character sheet template operations
+pub use sheet_template_service_port::SheetTemplateServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use sheet_template_service_port::MockSheetTemplateServicePort;
+
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
     GameEvent, ItemInfo, LocationGroup, NavigationExit, NavigationInfo, NavigationTarget,
@@ -179,6 +222,13 @@ pub use game_events::{
     RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent, StagedNpcData,
     StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, StateChangeInfo, WaitingPcData,
 };
+pub use world_connection_manager_port::{
+    ConnectedUserInfo, ConnectionManagerError, ConnectionStats, DmInfo,
+    WorldConnectionManagerPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use world_connection_manager_port::MockWorldConnectionManagerPort;
+
 pub use world_state_port::WorldStatePort;
 
 // Item service port - interface for item operations
@@ -392,6 +442,36 @@ pub use use_case_types::{
     UserLeftEvent,
     WorldRole,
 };
+
+// Challenge outcome approval service port - interface for DM approval of challenge resolutions
+pub use challenge_outcome_approval_service_port::{
+    ChallengeApprovalResult, ChallengeOutcomeApprovalServicePort, OutcomeBranchInfo as ApprovalOutcomeBranchInfo,
+    ResolvedOutcome, StateChangeInfo as ApprovalStateChangeInfo,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_outcome_approval_service_port::MockChallengeOutcomeApprovalServicePort;
+
+// Narrative event approval service port - interface for DM approval of narrative events
+pub use narrative_event_approval_service_port::{
+    NarrativeEventApprovalServicePort, NarrativeEventTriggerResult,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_approval_service_port::MockNarrativeEventApprovalServicePort;
+
+// Trigger evaluation service port - interface for evaluating narrative event triggers
+pub use trigger_evaluation_service_port::{
+    CompletedChallenge, CompletedNarrativeEvent, GameStateSnapshot, ImmediateContext,
+    TriggerEvaluationResult, TriggerEvaluationServicePort, TriggerSource, TriggeredEventCandidate,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
+
+// Event effect executor port - interface for executing narrative event outcome effects
+pub use event_effect_executor_port::{
+    EffectExecutionResult, EventEffectExecutorPort, OutcomeExecutionResult,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use event_effect_executor_port::MockEventEffectExecutorPort;
 
 // Re-export mocks for test builds
 #[cfg(any(test, feature = "testing"))]
