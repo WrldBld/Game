@@ -697,6 +697,13 @@ pub enum RequestPayload {
         region_id: String,
         data: CreateItemData,
     },
+
+    /// Unknown request type for forward compatibility
+    ///
+    /// When deserializing an unknown variant, this variant is used instead of
+    /// failing. Allows older servers to gracefully handle new request types.
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================

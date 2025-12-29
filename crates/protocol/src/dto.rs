@@ -7,6 +7,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
+// Uses domain ID types for DTO conversion methods only.
+// Wire format uses raw Uuid; these imports enable to_domain() conversion.
 use wrldbldr_domain::value_objects::{DispositionLevel, NpcDispositionState, RelationshipLevel};
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 

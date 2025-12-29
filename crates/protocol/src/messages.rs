@@ -3,6 +3,13 @@
 //! This module contains all message types exchanged over the WebSocket connection.
 //! These types are used by both Engine (sending ServerMessage, receiving ClientMessage)
 //! and Player (sending ClientMessage, receiving ServerMessage).
+//!
+//! ## Versioning Policy
+//!
+//! - New variants can be added at the end (forward compatible)
+//! - Removing variants requires major version bump
+//! - Renaming variants is a breaking change
+//! - Unknown enum variants deserialize to `Unknown` variant for forward compatibility
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -265,6 +272,13 @@ pub enum ClientMessage {
         /// PC to spectate
         pc_id: Uuid,
     },
+
+    /// Unknown message type for forward compatibility
+    ///
+    /// When deserializing an unknown variant, this variant is used instead of
+    /// failing. Allows older clients to gracefully handle new message types.
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================
@@ -814,6 +828,13 @@ pub enum ServerMessage {
         /// PC's name
         pc_name: String,
     },
+
+    /// Unknown message type for forward compatibility
+    ///
+    /// When deserializing an unknown variant, this variant is used instead of
+    /// failing. Allows older clients to gracefully handle new message types.
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================

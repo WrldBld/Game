@@ -138,7 +138,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 4 | Dead Code Cleanup | In Progress | 70% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 5 | Domain Layer Polish | In Progress | 50% |
-| Phase 6 | Protocol Layer Polish | Pending | 0% |
+| Phase 6 | Protocol Layer Polish | In Progress | 40% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
 | Phase 8 | Documentation | Pending | 0% |
 
@@ -1339,7 +1339,7 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 | Task | Status |
 |------|--------|
-| [ ] Add exception comment to dto.rs | Pending |
+| [x] Add exception comment to dto.rs | **DONE** |
 
 ---
 
@@ -1386,7 +1386,7 @@ pub enum RequestError {
 
 | Task | Status |
 |------|--------|
-| [ ] Add versioning documentation to messages.rs | Pending |
+| [x] Add versioning documentation to messages.rs | **DONE** |
 | [ ] Add versioning documentation to requests.rs | Pending |
 
 ---
@@ -1450,10 +1450,10 @@ pub enum ServerMessage {
 
 | Task | Status |
 |------|--------|
-| [ ] Add #[serde(other)] Unknown to ClientMessage | Pending |
-| [ ] Add #[serde(other)] Unknown to ServerMessage | Pending |
-| [ ] Add #[serde(other)] Unknown to RequestPayload | Pending |
-| [ ] Add #[serde(other)] Unknown to ResponseResult | Pending |
+| [x] Add #[serde(other)] Unknown to ClientMessage | **DONE** |
+| [x] Add #[serde(other)] Unknown to ServerMessage | **DONE** |
+| [x] Add #[serde(other)] Unknown to RequestPayload | **DONE** |
+| [x] Add #[serde(other)] Unknown to ResponseResult | **DONE** |
 | [ ] Add #[serde(other)] Unknown to remaining 16 enums | Pending |
 | [ ] Add handling for Unknown variants in message processors | Pending |
 

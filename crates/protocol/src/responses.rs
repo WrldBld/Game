@@ -29,6 +29,12 @@ pub enum ResponseResult {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         details: Option<serde_json::Value>,
     },
+    /// Unknown response type for forward compatibility
+    ///
+    /// When deserializing an unknown variant, this variant is used instead of
+    /// failing. Allows older clients to gracefully handle new response types.
+    #[serde(other)]
+    Unknown,
 }
 
 impl ResponseResult {
