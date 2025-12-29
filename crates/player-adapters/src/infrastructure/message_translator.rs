@@ -755,7 +755,9 @@ fn translate_character_position(p: wrldbldr_protocol::CharacterPosition) -> Char
         wrldbldr_protocol::CharacterPosition::Left => CharacterPosition::Left,
         wrldbldr_protocol::CharacterPosition::Center => CharacterPosition::Center,
         wrldbldr_protocol::CharacterPosition::Right => CharacterPosition::Right,
-        wrldbldr_protocol::CharacterPosition::OffScreen => CharacterPosition::OffScreen,
+        wrldbldr_protocol::CharacterPosition::OffScreen | wrldbldr_protocol::CharacterPosition::Unknown => {
+            CharacterPosition::OffScreen
+        }
     }
 }
 
