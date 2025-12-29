@@ -21,7 +21,7 @@ use wrldbldr_engine_ports::outbound::{
 use wrldbldr_engine_adapters::infrastructure;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::http;
-use wrldbldr_engine_adapters::infrastructure::queue_workers::{
+use super::queue_workers::{
     approval_notification_worker, challenge_outcome_notification_worker, dm_action_worker,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket_helpers::build_prompt_from_action;

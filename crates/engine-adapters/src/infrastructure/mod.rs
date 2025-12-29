@@ -25,7 +25,6 @@ pub mod http;
 pub mod ollama;
 pub mod persistence;
 pub mod ports;
-pub mod queue_workers;
 pub mod queues;
 pub mod repositories;
 pub mod settings_loader;

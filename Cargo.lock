@@ -7419,6 +7419,7 @@ dependencies = [
  "wrldbldr-engine-adapters",
  "wrldbldr-engine-app",
  "wrldbldr-engine-ports",
+ "wrldbldr-protocol",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ wrldbldr-domain = { workspace = true }
 wrldbldr-engine-app = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-engine-adapters = { workspace = true }
+wrldbldr-protocol = { workspace = true }
 
 # Web framework
 axum = { workspace = true }

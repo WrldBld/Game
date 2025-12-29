@@ -6,15 +6,15 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::infrastructure::queues::QueueBackendEnum;
-use crate::infrastructure::websocket::{
-    domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
-    domain_tools_to_proto,
-};
-use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use tokio_util::sync::CancellationToken;
 use wrldbldr_domain::value_objects::{ApprovalRequestData, ChallengeOutcomeData, DmActionData, DmActionType};
 use wrldbldr_domain::{NarrativeEventId, WorldId};
+use wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum;
+use wrldbldr_engine_adapters::infrastructure::websocket::{
+    domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
+    domain_tools_to_proto,
+};
+use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_app::application::services::{
     ApprovalOutcome, DMApprovalQueueService, DmActionQueueService, InteractionService,
     ItemServiceImpl, NarrativeEventService, SceneService,
@@ -28,7 +28,7 @@ use wrldbldr_protocol::{
 pub async fn approval_notification_worker(
     approval_queue_service: Arc<
         DMApprovalQueueService<
-            crate::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
+            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
             ItemServiceImpl,
         >,
     >,
@@ -124,11 +124,11 @@ pub async fn approval_notification_worker(
 /// Worker that processes DM action queue items
 pub async fn dm_action_worker(
     dm_action_queue_service: Arc<
-        DmActionQueueService<crate::infrastructure::queues::QueueBackendEnum<DmActionData>>,
+        DmActionQueueService<wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<DmActionData>>,
     >,
     approval_queue_service: Arc<
         DMApprovalQueueService<
-            crate::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
+            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
             ItemServiceImpl,
         >,
     >,
@@ -199,7 +199,7 @@ async fn process_dm_action(
     world_connection_manager: &SharedWorldConnectionManager,
     approval_queue_service: &Arc<
         DMApprovalQueueService<
-            crate::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
+            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
             ItemServiceImpl,
         >,
     >,
