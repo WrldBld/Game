@@ -1,4 +1,6 @@
 [application]
+name = "wrldbldr-player"
+default_platform = "web"
 
 # Web `build` & `serve` dist path
 out_dir = "dist"
@@ -7,13 +9,17 @@ out_dir = "dist"
 asset_dir = "assets"
 
 [web.wasm_opt]
-# The level wasm-opt should target. z is the smallest. 4 is the fastest.
-level = "4"
+# The level wasm-opt should target. z is the smallest (best for production). 4 is the fastest.
+level = "z"
 
 [web.app]
 
 # HTML title tag content
 title = "WrldBldr Player"
+
+[web.resource]
+dev = "/assets"
+style = ["/assets/tailwind.css"]
 
 [web.watcher]
 
@@ -29,14 +35,14 @@ watch_path = [
 
 [bundle]
 # Bundle identifier
-identifier = "io.github.wrldbldr-player"
+identifier = "io.wrldbldr.player"
 
 # Bundle publisher
-publisher = "wrldbldr-player"
+publisher = "WrldBldr"
 
 # Bundle icon
-# TODO: add icons under crates/player-runner/assets and update this.
-icon = []
+# Icon will be added when assets are created
+# icon = ["assets/icons/icon.png"]
 
 # Bundle resources
 resources = []
@@ -45,12 +51,13 @@ resources = []
 copyright = ""
 
 # Bundle category
-category = "Utility"
+category = "Game"
 
+[bundle.metadata]
 # Bundle short description
-short_description = "An amazing dioxus application."
+short_description = "WrldBldr Player - AI-powered TTRPG client"
 
 # Bundle long description
 long_description = """
-An amazing dioxus application.
+WrldBldr Player is the client application for WrldBldr, an AI-powered tabletop role-playing game engine. Connect to game sessions, control characters, and experience dynamic storytelling.
 """
