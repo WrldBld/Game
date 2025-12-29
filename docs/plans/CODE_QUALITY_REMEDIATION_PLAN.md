@@ -165,8 +165,9 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 70% |
+| Phase 3 | Architecture Completion | In Progress | 85% |
 | Phase 3.0.1 | Remove Adapters→App Dependencies | **DONE** | 100% |
+| Phase 3.0.2 | Move I/O Out of Application Layer | **DONE** | 100% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
@@ -3309,20 +3310,20 @@ cargo test --workspace
 
 | Metric | Before | Current | Target | Notes |
 |--------|--------|---------|--------|-------|
-| Critical issues | **10** | ~3 | 0 | Panic risks DONE, forward compat partial, adapters→app pending, **shutdown DONE** |
+| Critical issues | **10** | ~1 | 0 | Panic risks DONE, forward compat DONE, **adapters→app DONE**, shutdown DONE |
 | Compiler warnings | **37** | ~25 | 0 | Verified eighth review |
 | Swallowed errors (engine-app/services) | **43** | **0** | 0 (logged) | **DONE** - All logged |
-| God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort |
-| I/O in application layer | **12-13** + **14 time calls** | 12-13 | 0 | Time calls DONE, file I/O pending |
+| God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort (ISP, not strict hexagonal) |
+| I/O in application layer | **12-13** + **14 time calls** | **0** | 0 | **DONE** - EnvironmentPort + FileStoragePort + ClockPort |
 | I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | 28 + **0** | 0 | **Utc::now() DONE** (Phase 5.6) |
 | Direct time calls (no ClockPort) | ~~14+~~ **0** | **0** | 0 | **DONE** - ClockPort in engine-app |
 | Domain Utc::now() calls | **51** | **0** (entities) | 0 | **DONE** - Entities accept timestamp param |
-| Protocol imports in services | 14 | 14 | 0 | Pending |
-| Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 3 | 0-1 | ~830 lines pending |
+| Protocol imports in services | 14 | **0** | 0 | **DONE** - AdHocOutcomes moved to domain |
+| Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | **1** | 0-1 | **MockClockPort moved to adapters, Tailwind logic to UI** |
 | Business logic in adapters | **4** files (~1,570 lines) | 4 | 0 | Pending |
-| Composition root in adapters | **~1,045** lines | ~1,045 | 0 | Pending - move to runner |
+| Composition root in adapters | **~1,045** lines | **0** | 0 | **DONE** - Moved to engine-runner |
 | Glob re-exports (pub use *) | ~~27~~ **0** | **0** | 0 | **DONE** |
-| Adapters→App dependencies | **2 crates** (73 imports) | 2 | **0** | CRITICAL - pending |
+| Adapters→App dependencies | **2 crates** (73 imports) | **0** | **0** | **DONE** - Zero engine-app imports in engine-adapters |
 | Unbounded channels | **3** | **0** | 0 | **DONE** (Phase 2.4.2) |
 | tokio::spawn without tracking | **27** | **0** | 0 | **DONE** - CancellationToken added (Phase 2.4.3) |
 | WebSocket reconnection | **MISSING** | **IMPLEMENTED** | Implemented | **DONE** - Phase 2.5 |

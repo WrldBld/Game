@@ -414,14 +414,9 @@ pub struct AdHocResult {
     pub challenge_id: String,
 }
 
-/// Custom outcomes for ad-hoc challenges
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdHocOutcomes {
-    pub critical_success: Option<String>,
-    pub success: Option<String>,
-    pub failure: Option<String>,
-    pub critical_failure: Option<String>,
-}
+// Re-export AdHocOutcomes from domain layer
+// The domain type has required success/failure fields, which is the correct semantic.
+pub use wrldbldr_domain::value_objects::AdHocOutcomes;
 
 /// Type of dice input for challenge resolution
 #[derive(Debug, Clone, Serialize, Deserialize)]

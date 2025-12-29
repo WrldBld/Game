@@ -22,6 +22,9 @@
 
 pub mod adapter_state;
 pub mod clock;
+
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 pub mod comfyui;
 pub mod config;
 pub mod context_budget;

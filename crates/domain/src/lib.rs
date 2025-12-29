@@ -66,6 +66,7 @@ pub use value_objects::{
     ActiveEventContext,
     ActiveNarrativeEventContext,
     ActorType,
+    AdHocOutcomes,
     AppSettings,
     // Queue data value objects
     ApprovalDecisionType,

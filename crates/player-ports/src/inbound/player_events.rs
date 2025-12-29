@@ -57,17 +57,7 @@ pub enum CharacterPosition {
     OffScreen,
 }
 
-impl CharacterPosition {
-    /// Get Tailwind CSS classes for positioning
-    pub fn as_tailwind_classes(&self) -> &'static str {
-        match self {
-            CharacterPosition::Left => "left-[10%]",
-            CharacterPosition::Center => "left-1/2 -translate-x-1/2",
-            CharacterPosition::Right => "right-[10%]",
-            CharacterPosition::OffScreen => "hidden",
-        }
-    }
-}
+
 
 /// Available interaction
 #[derive(Debug, Clone, PartialEq)]

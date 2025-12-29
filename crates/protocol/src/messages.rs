@@ -872,17 +872,7 @@ pub enum CharacterPosition {
     Unknown,
 }
 
-impl CharacterPosition {
-    /// Get Tailwind CSS classes for positioning
-    pub fn as_tailwind_classes(&self) -> &'static str {
-        match self {
-            CharacterPosition::Left => "left-[10%]",
-            CharacterPosition::Center => "left-1/2 -translate-x-1/2",
-            CharacterPosition::Right => "right-[10%]",
-            CharacterPosition::OffScreen | CharacterPosition::Unknown => "hidden",
-        }
-    }
-}
+
 
 /// Available interaction
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -982,7 +972,10 @@ pub enum DiceInputType {
     Unknown,
 }
 
-/// Ad-hoc challenge outcomes for DM-created challenges
+/// Ad-hoc challenge outcomes for DM-created challenges (wire format)
+///
+/// This is the protocol/wire format. For domain operations, use
+/// `wrldbldr_domain::value_objects::AdHocOutcomes`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdHocOutcomes {
     pub success: String,
@@ -991,6 +984,28 @@ pub struct AdHocOutcomes {
     pub critical_success: Option<String>,
     #[serde(default)]
     pub critical_failure: Option<String>,
+}
+
+impl From<AdHocOutcomes> for wrldbldr_domain::value_objects::AdHocOutcomes {
+    fn from(proto: AdHocOutcomes) -> Self {
+        wrldbldr_domain::value_objects::AdHocOutcomes::new(
+            proto.success,
+            proto.failure,
+            proto.critical_success,
+            proto.critical_failure,
+        )
+    }
+}
+
+impl From<wrldbldr_domain::value_objects::AdHocOutcomes> for AdHocOutcomes {
+    fn from(domain: wrldbldr_domain::value_objects::AdHocOutcomes) -> Self {
+        Self {
+            success: domain.success,
+            failure: domain.failure,
+            critical_success: domain.critical_success,
+            critical_failure: domain.critical_failure,
+        }
+    }
 }
 
 /// Outcome detail data for regenerated outcomes

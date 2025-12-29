@@ -79,8 +79,6 @@ pub use challenge_service_port::MockChallengeServicePort;
 
 // Clock port - time abstraction for deterministic testing
 pub use clock_port::ClockPort;
-#[cfg(any(test, feature = "testing"))]
-pub use clock_port::MockClockPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};

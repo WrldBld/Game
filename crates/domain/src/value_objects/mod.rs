@@ -1,6 +1,7 @@
 //! Value objects - Immutable objects defined by their attributes
 
 mod actantial_context;
+mod ad_hoc_outcomes;
 mod archetype;
 mod comfyui_config;
 mod context_budget;
@@ -19,6 +20,9 @@ mod rule_system;
 mod settings;
 mod staging_context;
 mod world_state;
+
+// Ad-hoc challenge outcomes
+pub use ad_hoc_outcomes::AdHocOutcomes;
 
 // Actantial model context for LLM consumption
 pub use actantial_context::{

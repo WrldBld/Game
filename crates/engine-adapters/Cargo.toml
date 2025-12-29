@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 description = "WrldBldr Engine Adapters - Infrastructure adapters"
 
+[features]
+default = []
+testing = []
+
 [dependencies]
 # Hexagonal architecture: adapters depend on ports, NOT app layer
 # The engine-app dependency has been removed to enforce proper hexagonal boundaries

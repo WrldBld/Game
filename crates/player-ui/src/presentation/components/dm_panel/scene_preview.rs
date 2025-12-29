@@ -5,6 +5,8 @@
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::CharacterData as SceneCharacterState;
 
+use crate::presentation::utils::CharacterPositionStyle;
+
 /// Scene preview state for UI display (view model)
 #[derive(Clone, PartialEq)]
 pub struct ScenePreviewState {

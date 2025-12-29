@@ -21,14 +21,12 @@ use crate::application::services::{
 };
 use tracing::{debug, info};
 use wrldbldr_domain::entities::OutcomeType;
-use wrldbldr_domain::value_objects::ApprovalRequestData;
-use wrldbldr_domain::value_objects::DiceRollInput;
+use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRollInput};
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceRoll as PortDiceRoll,
     PendingResolution as PortPendingResolution, RollResult as PortRollResult,
 };
-use wrldbldr_protocol::AdHocOutcomes;
 
 // ============================================================================
 // Error Types
