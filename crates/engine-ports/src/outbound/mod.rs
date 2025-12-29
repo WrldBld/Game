@@ -38,6 +38,7 @@ mod llm_port;
 mod llm_queue_service_port;
 mod location_service_port;
 mod narrative_event_approval_service_port;
+mod narrative_event_repository;
 mod narrative_event_service_port;
 mod player_action_queue_service_port;
 mod player_character_service_port;
@@ -128,12 +129,20 @@ pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 pub use repository_port::{
     AssetRepositoryPort, ChallengeRepositoryPort, CharacterNode, CharacterRepositoryPort,
     EventChainRepositoryPort, FlagRepositoryPort, GoalRepositoryPort, InteractionRepositoryPort,
-    ItemRepositoryPort, LocationRepositoryPort, NarrativeEventRepositoryPort,
-    ObservationRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
-    RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
+    ItemRepositoryPort, LocationRepositoryPort, ObservationRepositoryPort,
+    PlayerCharacterRepositoryPort, RegionRepositoryPort, RelationshipEdge,
+    RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
     SkillRepositoryPort, SocialNetwork, StoryEventRepositoryPort, WantRepositoryPort,
     WorkflowRepositoryPort, WorldRepositoryPort,
 };
+
+// NarrativeEvent repository ports - split for Interface Segregation Principle
+pub use narrative_event_repository::{
+    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort,
+    NarrativeEventRepositoryPort, NarrativeEventTiePort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_repository::MockNarrativeEventRepository;
 
 pub use prompt_template_port::{
     PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,

@@ -11,12 +11,11 @@ use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::entities::{
     AcquisitionMethod, Act, ActantialRole, ActantialView, ChainStatus, Challenge,
     ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability, Character,
-    CharacterSheetTemplate, CharacterWant, EventChain, EventChainMembership, FeaturedNpc,
-    FrequencyLevel, GalleryAsset, GenerationBatch, Goal, InteractionRequirement,
-    InteractionTargetType, InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location,
-    LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, RegionConnection,
-    RegionExit, Scene, SceneCharacter, SheetTemplateId, Skill, StoryEvent, Want,
-    WorkflowConfiguration, World,
+    CharacterSheetTemplate, CharacterWant, EventChain, FrequencyLevel, GalleryAsset,
+    GenerationBatch, Goal, InteractionRequirement, InteractionTargetType, InteractionTemplate,
+    InventoryItem, InvolvedCharacter, Item, Location, LocationConnection, NpcObservation,
+    PlayerCharacter, Region, RegionConnection, RegionExit, Scene, SceneCharacter, SheetTemplateId,
+    Skill, StoryEvent, Want, WorkflowConfiguration, World,
 };
 use wrldbldr_domain::value_objects::{
     ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship,
@@ -1347,150 +1346,17 @@ pub trait StoryEventRepositoryPort: Send + Sync {
 }
 
 // =============================================================================
-// NarrativeEvent Repository Port
+// NarrativeEvent Repository Port - MOVED to narrative_event_repository module
 // =============================================================================
-
-/// Repository port for NarrativeEvent operations
-#[async_trait]
-pub trait NarrativeEventRepositoryPort: Send + Sync {
-    /// Create a new narrative event
-    async fn create(&self, event: &NarrativeEvent) -> Result<()>;
-
-    /// Get a narrative event by ID
-    async fn get(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>>;
-
-    /// Update a narrative event
-    async fn update(&self, event: &NarrativeEvent) -> Result<bool>;
-
-    /// List all narrative events for a world
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List active narrative events for a world
-    async fn list_active(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List favorite narrative events for a world
-    async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List untriggered active events (for LLM context)
-    async fn list_pending(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>>;
-
-    /// Toggle favorite status
-    async fn toggle_favorite(&self, id: NarrativeEventId) -> Result<bool>;
-
-    /// Set active status
-    async fn set_active(&self, id: NarrativeEventId, is_active: bool) -> Result<bool>;
-
-    /// Mark event as triggered
-    async fn mark_triggered(
-        &self,
-        id: NarrativeEventId,
-        outcome_name: Option<String>,
-    ) -> Result<bool>;
-
-    /// Reset triggered status (for repeatable events)
-    async fn reset_triggered(&self, id: NarrativeEventId) -> Result<bool>;
-
-    /// Delete a narrative event
-    async fn delete(&self, id: NarrativeEventId) -> Result<bool>;
-
-    // =========================================================================
-    // TIED_TO_SCENE Edge Methods
-    // =========================================================================
-
-    /// Tie event to a scene (creates TIED_TO_SCENE edge)
-    async fn tie_to_scene(&self, event_id: NarrativeEventId, scene_id: SceneId) -> Result<bool>;
-
-    /// Get the scene this event is tied to (if any)
-    async fn get_tied_scene(&self, event_id: NarrativeEventId) -> Result<Option<SceneId>>;
-
-    /// Remove scene tie (deletes TIED_TO_SCENE edge)
-    async fn untie_from_scene(&self, event_id: NarrativeEventId) -> Result<bool>;
-
-    // =========================================================================
-    // TIED_TO_LOCATION Edge Methods
-    // =========================================================================
-
-    /// Tie event to a location (creates TIED_TO_LOCATION edge)
-    async fn tie_to_location(
-        &self,
-        event_id: NarrativeEventId,
-        location_id: LocationId,
-    ) -> Result<bool>;
-
-    /// Get the location this event is tied to (if any)
-    async fn get_tied_location(&self, event_id: NarrativeEventId) -> Result<Option<LocationId>>;
-
-    /// Remove location tie (deletes TIED_TO_LOCATION edge)
-    async fn untie_from_location(&self, event_id: NarrativeEventId) -> Result<bool>;
-
-    // =========================================================================
-    // BELONGS_TO_ACT Edge Methods
-    // =========================================================================
-
-    /// Assign event to an act (creates BELONGS_TO_ACT edge)
-    async fn assign_to_act(&self, event_id: NarrativeEventId, act_id: ActId) -> Result<bool>;
-
-    /// Get the act this event belongs to (if any)
-    async fn get_act(&self, event_id: NarrativeEventId) -> Result<Option<ActId>>;
-
-    /// Remove act assignment (deletes BELONGS_TO_ACT edge)
-    async fn unassign_from_act(&self, event_id: NarrativeEventId) -> Result<bool>;
-
-    // =========================================================================
-    // FEATURES_NPC Edge Methods
-    // =========================================================================
-
-    /// Add a featured NPC to the event (creates FEATURES_NPC edge)
-    async fn add_featured_npc(
-        &self,
-        event_id: NarrativeEventId,
-        featured_npc: FeaturedNpc,
-    ) -> Result<bool>;
-
-    /// Get all featured NPCs for an event
-    async fn get_featured_npcs(&self, event_id: NarrativeEventId) -> Result<Vec<FeaturedNpc>>;
-
-    /// Remove a featured NPC from the event (deletes FEATURES_NPC edge)
-    async fn remove_featured_npc(
-        &self,
-        event_id: NarrativeEventId,
-        character_id: CharacterId,
-    ) -> Result<bool>;
-
-    /// Update featured NPC role
-    async fn update_featured_npc_role(
-        &self,
-        event_id: NarrativeEventId,
-        character_id: CharacterId,
-        role: Option<String>,
-    ) -> Result<bool>;
-
-    // =========================================================================
-    // Chain Membership Query Methods (CONTAINS_EVENT edge is on EventChain side)
-    // =========================================================================
-
-    /// Get chain membership info for an event (queries CONTAINS_EVENT edges pointing to this event)
-    async fn get_chain_memberships(
-        &self,
-        event_id: NarrativeEventId,
-    ) -> Result<Vec<EventChainMembership>>;
-
-    // =========================================================================
-    // Query Methods for Events by Edge Relationships
-    // =========================================================================
-
-    /// List events tied to a specific scene
-    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List events tied to a specific location
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List events belonging to a specific act
-    async fn list_by_act(&self, act_id: ActId) -> Result<Vec<NarrativeEvent>>;
-
-    /// List events featuring a specific NPC
-    async fn list_by_featured_npc(&self, character_id: CharacterId) -> Result<Vec<NarrativeEvent>>;
-}
+// 
+// NarrativeEventRepositoryPort has been split into 4 focused traits following ISP:
+// - NarrativeEventCrudPort (12 methods) - Core CRUD + state management  
+// - NarrativeEventTiePort (9 methods) - Scene/Location/Act relationships
+// - NarrativeEventNpcPort (5 methods) - Featured NPC management
+// - NarrativeEventQueryPort (4 methods) - Query by relationships
+//
+// The super-trait NarrativeEventRepositoryPort is retained for backward compatibility.
+// See: crate::outbound::narrative_event_repository
 
 // =============================================================================
 // EventChain Repository Port

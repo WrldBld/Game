@@ -16,7 +16,9 @@ use wrldbldr_domain::entities::{
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId,
 };
-use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
+};
 
 // ============================================================================
 // Storage DTOs for NarrativeTrigger and EventOutcome
@@ -1829,11 +1831,21 @@ fn row_to_narrative_event(row: Row) -> Result<NarrativeEvent> {
 }
 
 // =============================================================================
-// Trait Implementation
+// Trait Implementations - Split for Interface Segregation Principle
+// =============================================================================
+// 
+// NarrativeEventRepositoryPort (30 methods) has been split into 4 focused traits:
+// - NarrativeEventCrudPort (12 methods) - Core CRUD + state management
+// - NarrativeEventTiePort (9 methods) - Scene/Location/Act relationships
+// - NarrativeEventNpcPort (5 methods) - Featured NPC management
+// - NarrativeEventQueryPort (4 methods) - Query by relationships
+//
+// The super-trait NarrativeEventRepositoryPort is automatically satisfied via
+// blanket impl when all 4 traits are implemented.
 // =============================================================================
 
 #[async_trait]
-impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
+impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
     async fn create(&self, event: &NarrativeEvent) -> Result<()> {
         self.create(event).await
     }
@@ -1885,11 +1897,10 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
     async fn delete(&self, id: NarrativeEventId) -> Result<bool> {
         self.delete(id).await
     }
+}
 
-    // =========================================================================
-    // TIED_TO_SCENE Edge Methods
-    // =========================================================================
-
+#[async_trait]
+impl NarrativeEventTiePort for Neo4jNarrativeEventRepository {
     async fn tie_to_scene(&self, event_id: NarrativeEventId, scene_id: SceneId) -> Result<bool> {
         self.tie_to_scene(event_id, scene_id).await
     }
@@ -1901,10 +1912,6 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
     async fn untie_from_scene(&self, event_id: NarrativeEventId) -> Result<bool> {
         self.untie_from_scene(event_id).await
     }
-
-    // =========================================================================
-    // TIED_TO_LOCATION Edge Methods
-    // =========================================================================
 
     async fn tie_to_location(
         &self,
@@ -1922,10 +1929,6 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
         self.untie_from_location(event_id).await
     }
 
-    // =========================================================================
-    // BELONGS_TO_ACT Edge Methods
-    // =========================================================================
-
     async fn assign_to_act(&self, event_id: NarrativeEventId, act_id: ActId) -> Result<bool> {
         self.assign_to_act(event_id, act_id).await
     }
@@ -1937,11 +1940,10 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
     async fn unassign_from_act(&self, event_id: NarrativeEventId) -> Result<bool> {
         self.unassign_from_act(event_id).await
     }
+}
 
-    // =========================================================================
-    // FEATURES_NPC Edge Methods
-    // =========================================================================
-
+#[async_trait]
+impl NarrativeEventNpcPort for Neo4jNarrativeEventRepository {
     async fn add_featured_npc(
         &self,
         event_id: NarrativeEventId,
@@ -1972,21 +1974,16 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
             .await
     }
 
-    // =========================================================================
-    // Chain Membership Query Methods
-    // =========================================================================
-
     async fn get_chain_memberships(
         &self,
         event_id: NarrativeEventId,
     ) -> Result<Vec<EventChainMembership>> {
         self.get_chain_memberships(event_id).await
     }
+}
 
-    // =========================================================================
-    // Query Methods for Events by Edge Relationships
-    // =========================================================================
-
+#[async_trait]
+impl NarrativeEventQueryPort for Neo4jNarrativeEventRepository {
     async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<NarrativeEvent>> {
         self.list_by_scene(scene_id).await
     }
@@ -2003,3 +2000,6 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
         self.list_by_featured_npc(character_id).await
     }
 }
+
+// NarrativeEventRepositoryPort is automatically satisfied via blanket impl
+// in engine-ports since we implement all 4 sub-traits above.
