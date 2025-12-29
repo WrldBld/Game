@@ -1,7 +1,7 @@
 //! WASM WebSocket client using web-sys
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -9,12 +9,19 @@ use futures_channel::oneshot;
 use futures_util::future::{select, Either};
 use gloo_timers::future::TimeoutFuture;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{MessageEvent, WebSocket};
 
 use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
+
+// Reconnection constants
+const INITIAL_RETRY_DELAY_MS: u32 = 1000;
+const MAX_RETRY_DELAY_MS: u32 = 30000;
+const MAX_RETRY_ATTEMPTS: u32 = 10;
+const BACKOFF_MULTIPLIER: f64 = 2.0;
 
 /// Storage for WebSocket event closures to prevent leaks on reconnect
 struct WasmClosures {
@@ -38,6 +45,14 @@ pub struct EngineClient {
     pending_requests: Rc<RefCell<HashMap<String, Box<dyn FnOnce(ResponseResult)>>>>,
     /// Stored closures for cleanup on disconnect/reconnect
     closures: Rc<RefCell<Option<WasmClosures>>>,
+    /// Flag to track if disconnect was intentional (vs unexpected close)
+    intentional_disconnect: Rc<RefCell<bool>>,
+    /// Message buffer for messages sent during reconnection
+    message_buffer: Rc<RefCell<VecDeque<ClientMessage>>>,
+    /// Current reconnection attempt count
+    reconnect_attempts: Rc<RefCell<u32>>,
+    /// Current backoff delay
+    reconnect_delay: Rc<RefCell<u32>>,
 }
 
 impl EngineClient {
@@ -50,6 +65,10 @@ impl EngineClient {
             on_state_change: Rc::new(RefCell::new(None)),
             pending_requests: Rc::new(RefCell::new(HashMap::new())),
             closures: Rc::new(RefCell::new(None)),
+            intentional_disconnect: Rc::new(RefCell::new(false)),
+            message_buffer: Rc::new(RefCell::new(VecDeque::new())),
+            reconnect_attempts: Rc::new(RefCell::new(0)),
+            reconnect_delay: Rc::new(RefCell::new(INITIAL_RETRY_DELAY_MS)),
         }
     }
 
@@ -156,7 +175,8 @@ impl EngineClient {
         }
     }
 
-    pub fn connect(&self) -> Result<()> {
+    /// Internal connection logic - used by both connect() and reconnection
+    fn connect_internal(&self) -> Result<()> {
         // Drop existing closures before creating new ones to prevent leaks
         *self.closures.borrow_mut() = None;
 
@@ -204,27 +224,67 @@ impl EngineClient {
         });
         ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
 
-        // Set up open handler
+        // Set up open handler - flush buffered messages on successful connection
         let state = Rc::clone(&self.state);
         let on_state_change = Rc::clone(&self.on_state_change);
+        let message_buffer = Rc::clone(&self.message_buffer);
+        let ws_for_open = Rc::clone(&self.ws);
+        let reconnect_attempts = Rc::clone(&self.reconnect_attempts);
+        let reconnect_delay = Rc::clone(&self.reconnect_delay);
         let onopen_callback = Closure::<dyn FnMut()>::new(move || {
             *state.borrow_mut() = ConnectionState::Connected;
+            
+            // Reset reconnection state on successful connection
+            *reconnect_attempts.borrow_mut() = 0;
+            *reconnect_delay.borrow_mut() = INITIAL_RETRY_DELAY_MS;
+            
             if let Some(ref mut cb) = *on_state_change.borrow_mut() {
                 cb(ConnectionState::Connected);
             }
             web_sys::console::log_1(&"WebSocket connected".into());
+            
+            // Flush buffered messages
+            let mut buffer = message_buffer.borrow_mut();
+            if !buffer.is_empty() {
+                web_sys::console::log_1(&format!("Flushing {} buffered messages", buffer.len()).into());
+                if let Some(ref ws) = *ws_for_open.borrow() {
+                    while let Some(msg) = buffer.pop_front() {
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            if let Err(e) = ws.send_with_str(&json) {
+                                web_sys::console::warn_1(&format!("Failed to send buffered message: {:?}", e).into());
+                                // Re-add failed message to front of buffer
+                                buffer.push_front(msg);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         });
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
 
-        // Set up close handler
+        // Set up close handler - trigger reconnection on unexpected close
         let state = Rc::clone(&self.state);
         let on_state_change = Rc::clone(&self.on_state_change);
+        let intentional_disconnect = Rc::clone(&self.intentional_disconnect);
+        let client_clone = self.clone();
         let onclose_callback = Closure::<dyn FnMut()>::new(move || {
-            *state.borrow_mut() = ConnectionState::Disconnected;
-            if let Some(ref mut cb) = *on_state_change.borrow_mut() {
-                cb(ConnectionState::Disconnected);
+            let intentional = *intentional_disconnect.borrow();
+            
+            if intentional {
+                *state.borrow_mut() = ConnectionState::Disconnected;
+                if let Some(ref mut cb) = *on_state_change.borrow_mut() {
+                    cb(ConnectionState::Disconnected);
+                }
+                web_sys::console::log_1(&"WebSocket closed (intentional)".into());
+            } else {
+                web_sys::console::log_1(&"WebSocket closed unexpectedly, attempting reconnection".into());
+                // Trigger reconnection
+                let client = client_clone.clone();
+                spawn_local(async move {
+                    client.reconnect_with_backoff().await;
+                });
             }
-            web_sys::console::log_1(&"WebSocket closed".into());
         });
         ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
 
@@ -232,9 +292,14 @@ impl EngineClient {
         let state = Rc::clone(&self.state);
         let on_state_change = Rc::clone(&self.on_state_change);
         let onerror_callback = Closure::<dyn FnMut()>::new(move || {
-            *state.borrow_mut() = ConnectionState::Failed;
-            if let Some(ref mut cb) = *on_state_change.borrow_mut() {
-                cb(ConnectionState::Failed);
+            // Don't immediately fail - the close handler will trigger reconnection
+            // Only set to Failed if we're not already reconnecting
+            let current_state = *state.borrow();
+            if current_state != ConnectionState::Reconnecting {
+                *state.borrow_mut() = ConnectionState::Failed;
+                if let Some(ref mut cb) = *on_state_change.borrow_mut() {
+                    cb(ConnectionState::Failed);
+                }
             }
             web_sys::console::error_1(&"WebSocket error".into());
         });
@@ -253,7 +318,77 @@ impl EngineClient {
         Ok(())
     }
 
+    /// Attempt to reconnect with exponential backoff
+    async fn reconnect_with_backoff(&self) {
+        // Check if we should attempt reconnection
+        if *self.intentional_disconnect.borrow() {
+            web_sys::console::log_1(&"Reconnection cancelled - intentional disconnect".into());
+            return;
+        }
+
+        let attempts = *self.reconnect_attempts.borrow();
+        let delay = *self.reconnect_delay.borrow();
+
+        if attempts >= MAX_RETRY_ATTEMPTS {
+            web_sys::console::error_1(&"Max reconnection attempts reached, giving up".into());
+            self.set_state(ConnectionState::Failed);
+            return;
+        }
+
+        self.set_state(ConnectionState::Reconnecting);
+        web_sys::console::log_1(
+            &format!(
+                "Reconnection attempt {} of {}, waiting {}ms",
+                attempts + 1,
+                MAX_RETRY_ATTEMPTS,
+                delay
+            )
+            .into(),
+        );
+
+        // Wait with exponential backoff using gloo-timers
+        TimeoutFuture::new(delay).await;
+
+        // Check again if disconnect was requested during the wait
+        if *self.intentional_disconnect.borrow() {
+            web_sys::console::log_1(&"Reconnection cancelled during wait - intentional disconnect".into());
+            self.set_state(ConnectionState::Disconnected);
+            return;
+        }
+
+        // Update reconnection state for next attempt
+        *self.reconnect_attempts.borrow_mut() = attempts + 1;
+        *self.reconnect_delay.borrow_mut() =
+            ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u32;
+
+        // Attempt to reconnect
+        if let Err(e) = self.connect_internal() {
+            web_sys::console::warn_1(&format!("Reconnection attempt failed: {:?}", e).into());
+            // The close handler will trigger another reconnection attempt
+        }
+        // If connect_internal succeeds, the onopen handler will reset the reconnection state
+    }
+
+    pub fn connect(&self) -> Result<()> {
+        // Reset intentional disconnect flag
+        *self.intentional_disconnect.borrow_mut() = false;
+        // Reset reconnection state
+        *self.reconnect_attempts.borrow_mut() = 0;
+        *self.reconnect_delay.borrow_mut() = INITIAL_RETRY_DELAY_MS;
+        
+        self.connect_internal()
+    }
+
     pub fn send(&self, message: ClientMessage) -> Result<()> {
+        let current_state = self.state();
+        
+        // Buffer messages during reconnection
+        if current_state == ConnectionState::Reconnecting {
+            self.message_buffer.borrow_mut().push_back(message);
+            web_sys::console::log_1(&"Message buffered during reconnection".into());
+            return Ok(());
+        }
+        
         if let Some(ref ws) = *self.ws.borrow() {
             let json = serde_json::to_string(&message)?;
             ws.send_with_str(&json)
@@ -299,13 +434,26 @@ impl EngineClient {
     }
 
     pub fn disconnect(&self) {
+        // Mark this as intentional to prevent reconnection attempts
+        *self.intentional_disconnect.borrow_mut() = true;
+        
         // Clear pending requests - dropping callbacks causes Cancelled errors for waiters
         {
             let mut pending = self.pending_requests.borrow_mut();
             let count = pending.len();
             pending.clear();
             if count > 0 {
-                tracing::debug!("Cleared {} pending requests on disconnect", count);
+                web_sys::console::log_1(&format!("Cleared {} pending requests on disconnect", count).into());
+            }
+        }
+        
+        // Clear message buffer
+        {
+            let mut buffer = self.message_buffer.borrow_mut();
+            let count = buffer.len();
+            buffer.clear();
+            if count > 0 {
+                web_sys::console::log_1(&format!("Cleared {} buffered messages on disconnect", count).into());
             }
         }
 
@@ -330,6 +478,10 @@ impl Clone for EngineClient {
             on_state_change: Rc::clone(&self.on_state_change),
             pending_requests: Rc::clone(&self.pending_requests),
             closures: Rc::clone(&self.closures),
+            intentional_disconnect: Rc::clone(&self.intentional_disconnect),
+            message_buffer: Rc::clone(&self.message_buffer),
+            reconnect_attempts: Rc::clone(&self.reconnect_attempts),
+            reconnect_delay: Rc::clone(&self.reconnect_delay),
         }
     }
 }

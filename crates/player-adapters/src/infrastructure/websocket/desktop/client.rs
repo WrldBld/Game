@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
@@ -13,6 +14,12 @@ use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPay
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
 
+// Reconnection constants
+const INITIAL_RETRY_DELAY_MS: u64 = 1000;
+const MAX_RETRY_DELAY_MS: u64 = 30000;
+const MAX_RETRY_ATTEMPTS: u32 = 10;
+const BACKOFF_MULTIPLIER: f64 = 2.0;
+
 /// WebSocket client for communicating with the Engine (Desktop)
 pub struct EngineClient {
     url: String,
@@ -21,6 +28,8 @@ pub struct EngineClient {
     on_message: Arc<Mutex<Option<Box<dyn Fn(ServerMessage) + Send + Sync>>>>,
     on_state_change: Arc<Mutex<Option<Box<dyn Fn(ConnectionState) + Send + Sync>>>>,
     pending_requests: Arc<Mutex<HashMap<String, oneshot::Sender<ResponseResult>>>>,
+    /// Flag to track if disconnect was intentional (vs unexpected close)
+    intentional_disconnect: Arc<RwLock<bool>>,
 }
 
 impl EngineClient {
@@ -32,6 +41,7 @@ impl EngineClient {
             on_message: Arc::new(Mutex::new(None)),
             on_state_change: Arc::new(Mutex::new(None)),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
+            intentional_disconnect: Arc::new(RwLock::new(false)),
         }
     }
 
@@ -72,7 +82,8 @@ impl EngineClient {
         }
     }
 
-    pub async fn connect(&self) -> Result<()> {
+    /// Internal connect logic - returns whether connection closed unexpectedly
+    async fn connect_internal(&self) -> Result<bool> {
         self.set_state(ConnectionState::Connecting).await;
 
         match connect_async(&self.url).await {
@@ -90,9 +101,12 @@ impl EngineClient {
 
                 let on_message = Arc::clone(&self.on_message);
                 let state = Arc::clone(&self.state);
+                let on_state_change = Arc::clone(&self.on_state_change);
                 let pending_requests_clone = Arc::clone(&self.pending_requests);
+                let intentional_disconnect = Arc::clone(&self.intentional_disconnect);
 
                 let read_handle = tokio::spawn(async move {
+                    let mut unexpected_close = false;
                     while let Some(msg) = read.next().await {
                         match msg {
                             Ok(Message::Text(text)) => {
@@ -119,19 +133,36 @@ impl EngineClient {
                             }
                             Ok(Message::Close(_)) => {
                                 tracing::info!("Server closed connection");
+                                // Check if this was intentional
+                                let intentional = *intentional_disconnect.read().await;
+                                unexpected_close = !intentional;
                                 break;
                             }
                             Ok(Message::Ping(_data)) => {}
                             Err(e) => {
                                 tracing::error!("WebSocket error: {}", e);
+                                // Connection errors are always unexpected
+                                unexpected_close = true;
                                 break;
                             }
                             _ => {}
                         }
                     }
 
-                    let mut s = state.write().await;
-                    *s = ConnectionState::Disconnected;
+                    // Update state
+                    {
+                        let mut s = state.write().await;
+                        *s = ConnectionState::Disconnected;
+                    }
+                    // Notify state change
+                    {
+                        let callback = on_state_change.lock().await;
+                        if let Some(ref cb) = *callback {
+                            cb(ConnectionState::Disconnected);
+                        }
+                    }
+                    
+                    unexpected_close
                 });
 
                 let write_handle = tokio::spawn(async move {
@@ -150,22 +181,98 @@ impl EngineClient {
                     }
                 });
 
-                tokio::select! {
-                    _ = read_handle => {
+                let unexpected_close = tokio::select! {
+                    result = read_handle => {
                         tracing::info!("Read task completed");
+                        result.unwrap_or(false)
                     }
                     _ = write_handle => {
                         tracing::info!("Write task completed");
+                        // Write task ended first - likely a disconnect
+                        true
                     }
-                }
+                };
 
-                Ok(())
+                Ok(unexpected_close)
             }
             Err(e) => {
                 tracing::error!("Failed to connect to Engine: {}", e);
                 self.set_state(ConnectionState::Failed).await;
                 Err(e.into())
             }
+        }
+    }
+
+    /// Attempt to reconnect with exponential backoff
+    async fn reconnect_with_backoff(&self) {
+        let mut delay = INITIAL_RETRY_DELAY_MS;
+        let mut attempts = 0;
+
+        loop {
+            self.set_state(ConnectionState::Reconnecting).await;
+            tracing::info!(
+                "Reconnection attempt {} of {}, waiting {}ms",
+                attempts + 1,
+                MAX_RETRY_ATTEMPTS,
+                delay
+            );
+            
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+
+            // Check if disconnect was requested during the wait
+            if *self.intentional_disconnect.read().await {
+                tracing::info!("Reconnection cancelled - intentional disconnect");
+                self.set_state(ConnectionState::Disconnected).await;
+                return;
+            }
+
+            match self.connect_internal().await {
+                Ok(unexpected_close) => {
+                    if unexpected_close && !*self.intentional_disconnect.read().await {
+                        // Connection was established but closed unexpectedly, retry
+                        attempts += 1;
+                        if attempts >= MAX_RETRY_ATTEMPTS {
+                            tracing::error!("Max reconnection attempts reached, giving up");
+                            self.set_state(ConnectionState::Failed).await;
+                            return;
+                        }
+                        delay = ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
+                        continue;
+                    }
+                    // Either clean disconnect or intentional - stop reconnecting
+                    return;
+                }
+                Err(e) => {
+                    attempts += 1;
+                    if attempts >= MAX_RETRY_ATTEMPTS {
+                        tracing::error!("Max reconnection attempts reached after error: {}", e);
+                        self.set_state(ConnectionState::Failed).await;
+                        return;
+                    }
+                    tracing::warn!("Reconnection attempt {} failed: {}", attempts, e);
+                    delay = ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
+                }
+            }
+        }
+    }
+
+    pub async fn connect(&self) -> Result<()> {
+        // Reset intentional disconnect flag
+        {
+            let mut flag = self.intentional_disconnect.write().await;
+            *flag = false;
+        }
+
+        match self.connect_internal().await {
+            Ok(unexpected_close) => {
+                if unexpected_close && !*self.intentional_disconnect.read().await {
+                    // Connection closed unexpectedly, attempt reconnection
+                    tracing::info!("Connection closed unexpectedly, initiating reconnection");
+                    self.reconnect_with_backoff().await;
+                }
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
     }
 
@@ -251,6 +358,11 @@ impl EngineClient {
     }
 
     pub async fn disconnect(&self) {
+        // Mark this as intentional to prevent reconnection attempts
+        {
+            let mut flag = self.intentional_disconnect.write().await;
+            *flag = true;
+        }
         // Clear pending requests - dropping senders causes Cancelled errors for waiters
         {
             let mut pending = self.pending_requests.lock().await;
@@ -277,6 +389,7 @@ impl Clone for EngineClient {
             on_message: Arc::clone(&self.on_message),
             on_state_change: Arc::clone(&self.on_state_change),
             pending_requests: Arc::clone(&self.pending_requests),
+            intentional_disconnect: Arc::clone(&self.intentional_disconnect),
         }
     }
 }

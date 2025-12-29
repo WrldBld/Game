@@ -269,7 +269,7 @@ pub fn create_platform() -> Platform {
         DesktopTimeProvider,
         DesktopSleepProvider,
         DesktopRandomProvider,
-        DesktopStorageProvider,
+        DesktopStorageProvider::new(),
         DesktopLogProvider,
         DesktopDocumentProvider,
         DesktopEngineConfigProvider,
