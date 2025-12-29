@@ -16,7 +16,7 @@ use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort};
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort};
 
 /// Events emitted by the generation service
 #[derive(Debug, Clone)]
@@ -97,6 +97,8 @@ pub struct GenerationService {
     repository: Arc<dyn AssetRepositoryPort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
+    /// File storage for abstracting file system operations
+    file_storage: Arc<dyn FileStoragePort>,
     /// Directory to save generated assets
     output_dir: PathBuf,
     /// Active batches being processed
@@ -119,10 +121,12 @@ impl GenerationService {
     /// # Arguments
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
+    /// * `file_storage` - File storage port for abstracting file system operations.
     pub fn new(
         comfyui_client: Arc<dyn ComfyUIPort>,
         repository: Arc<dyn AssetRepositoryPort>,
         clock: Arc<dyn ClockPort>,
+        file_storage: Arc<dyn FileStoragePort>,
         output_dir: PathBuf,
         workflow_dir: PathBuf,
         event_sender: mpsc::Sender<GenerationEvent>,
@@ -131,6 +135,7 @@ impl GenerationService {
             comfyui_client,
             repository,
             clock,
+            file_storage,
             output_dir,
             active_batches: RwLock::new(HashMap::new()),
             event_sender,
@@ -360,7 +365,7 @@ impl GenerationService {
             .join(batch.entity_type.as_str())
             .join(&batch.entity_id)
             .join(batch.asset_type.as_str());
-        tokio::fs::create_dir_all(&entity_dir).await?;
+        self.file_storage.create_dir_all(&entity_dir).await?;
 
         // Generate unique filename
         let asset_id = AssetId::new();
@@ -372,7 +377,7 @@ impl GenerationService {
         let output_path = entity_dir.join(&output_filename);
 
         // Save the file
-        tokio::fs::write(&output_path, &image_data).await?;
+        self.file_storage.write(&output_path, &image_data).await?;
 
         // Create generation metadata
         let mut metadata = GenerationMetadata::new(
@@ -410,8 +415,8 @@ impl GenerationService {
     async fn load_workflow_template(&self, workflow_name: &str) -> Result<serde_json::Value> {
         let path = self.workflow_dir.join(format!("{}.json", workflow_name));
 
-        if path.exists() {
-            let content = tokio::fs::read_to_string(&path).await?;
+        if self.file_storage.exists(&path).await? {
+            let content = self.file_storage.read_to_string(&path).await?;
             let workflow: serde_json::Value = serde_json::from_str(&content)?;
             Ok(workflow)
         } else {

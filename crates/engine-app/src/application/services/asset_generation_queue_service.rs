@@ -15,8 +15,8 @@ use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationM
 use wrldbldr_domain::value_objects::AssetGenerationData;
 use wrldbldr_domain::AssetId;
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ClockPort, ComfyUIPort, ProcessingQueuePort, QueueError, QueueItemId,
-    QueueNotificationPort,
+    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, ProcessingQueuePort, QueueError,
+    QueueItemId, QueueNotificationPort,
 };
 
 /// Priority constants for queue operations
@@ -33,6 +33,10 @@ pub struct AssetGenerationQueueService<
     asset_repository: Arc<dyn AssetRepositoryPort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
+    /// File storage for saving generated assets
+    file_storage: Arc<dyn FileStoragePort>,
+    /// Output directory for generated assets
+    output_dir: PathBuf,
     semaphore: Arc<Semaphore>,
     notifier: N,
 }
@@ -55,6 +59,8 @@ impl<
     /// * `comfyui_client` - The ComfyUI client for processing requests
     /// * `asset_repository` - The asset repository for persisting results
     /// * `clock` - Clock for time operations
+    /// * `file_storage` - File storage port for saving generated assets
+    /// * `output_dir` - Directory path for storing generated assets
     /// * `batch_size` - Maximum concurrent ComfyUI requests (typically 1)
     /// * `notifier` - The notifier for waking workers
     pub fn new(
@@ -62,6 +68,8 @@ impl<
         comfyui_client: Arc<C>,
         asset_repository: Arc<dyn AssetRepositoryPort>,
         clock: Arc<dyn ClockPort>,
+        file_storage: Arc<dyn FileStoragePort>,
+        output_dir: PathBuf,
         batch_size: usize,
         notifier: N,
     ) -> Self {
@@ -70,6 +78,8 @@ impl<
             comfyui_client,
             asset_repository,
             clock,
+            file_storage,
+            output_dir,
             semaphore: Arc::new(Semaphore::new(batch_size.max(1))),
             notifier,
         }
@@ -130,6 +140,8 @@ impl<
             let client = self.comfyui_client.clone();
             let asset_repo = self.asset_repository.clone();
             let clock = self.clock.clone();
+            let file_storage = self.file_storage.clone();
+            let output_dir = self.output_dir.clone();
             let queue_clone = self.queue.clone();
             let request = item.payload.clone();
             let item_id = item.id;
@@ -280,8 +292,8 @@ impl<
                 };
 
                 // Create assets directory if needed
-                let assets_dir = PathBuf::from("data/generated_assets");
-                if let Err(e) = tokio::fs::create_dir_all(&assets_dir).await {
+                let assets_dir = output_dir;
+                if let Err(e) = file_storage.create_dir_all(&assets_dir).await {
                     tracing::error!("Failed to create assets directory: {}", e);
                     if let Err(e2) = queue_clone
                         .fail(
@@ -303,7 +315,7 @@ impl<
                     let file_path = assets_dir.join(&file_name);
 
                     // Save image to disk
-                    if let Err(e) = tokio::fs::write(&file_path, &bytes).await {
+                    if let Err(e) = file_storage.write(&file_path, &bytes).await {
                         tracing::error!("Failed to save image to disk: {}", e);
                         continue;
                     }

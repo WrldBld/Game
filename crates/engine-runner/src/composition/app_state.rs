@@ -11,6 +11,7 @@ use anyhow::Result;
 use wrldbldr_engine_adapters::infrastructure::clock::SystemClock;
 use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
+use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
 use wrldbldr_engine_adapters::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
 use wrldbldr_engine_adapters::infrastructure::export::Neo4jWorldExporter;
 use wrldbldr_engine_adapters::infrastructure::ollama::OllamaClient;
@@ -432,11 +433,15 @@ pub async fn new_app_state(
     ));
 
     let asset_repo_for_queue = asset_repo.clone();
+    let file_storage_for_asset_queue: Arc<dyn wrldbldr_engine_ports::outbound::FileStoragePort> =
+        Arc::new(TokioFileStorageAdapter::new());
     let asset_generation_queue_service = Arc::new(AssetGenerationQueueService::new(
         asset_generation_queue.clone(),
         Arc::new(comfyui_client.clone()),
         asset_repo_for_queue,
         clock.clone(),
+        file_storage_for_asset_queue,
+        std::path::PathBuf::from("./data/generated_assets"),
         queue_factory.config().asset_batch_size,
         queue_factory.asset_generation_notifier(),
     ));
@@ -448,12 +453,17 @@ pub async fn new_app_state(
         clock.clone(),
     ));
 
+    // Create file storage adapter for generation service
+    let file_storage: Arc<dyn wrldbldr_engine_ports::outbound::FileStoragePort> =
+        Arc::new(TokioFileStorageAdapter::new());
+
     // Create generation service (generation_event_tx already created above)
     let generation_service = Arc::new(GenerationService::new(
         Arc::new(comfyui_client.clone())
             as Arc<dyn wrldbldr_engine_ports::outbound::ComfyUIPort>,
         asset_repo.clone(),
         clock.clone(),
+        file_storage,
         std::path::PathBuf::from("./data/assets"),
         std::path::PathBuf::from("./workflows"),
         generation_event_tx,

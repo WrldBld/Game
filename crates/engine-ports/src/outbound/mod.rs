@@ -22,6 +22,7 @@ mod dm_action_queue_service_port;
 mod dm_approval_queue_service_port;
 mod domain_event_repository_port;
 mod event_bus_port;
+mod file_storage_port;
 mod game_events;
 mod generation_read_state_port;
 mod generation_service_port;
@@ -81,6 +82,9 @@ pub use comfyui_port::{
 };
 
 pub use event_bus_port::{EventBusError, EventBusPort};
+
+// File storage port - interface for file system operations
+pub use file_storage_port::FileStoragePort;
 
 pub use generation_read_state_port::{GenerationReadKind, GenerationReadStatePort};
 

@@ -21,6 +21,7 @@ pub mod config;
 pub mod context_budget;
 pub mod event_bus;
 pub mod export;
+pub mod file_storage;
 pub mod http;
 pub mod ollama;
 pub mod persistence;
@@ -39,6 +40,9 @@ pub mod world_state_manager;
 
 // Re-export clock adapter
 pub use clock::SystemClock;
+
+// Re-export file storage adapter
+pub use file_storage::TokioFileStorageAdapter;
 
 // Re-export world state manager types
 pub use world_state_manager::{
