@@ -104,7 +104,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                 self.queue.fail(item.id, "Cancelled by user").await?;
                 
                 // Emit cancellation event
-                let _ = self.generation_event_tx.send(GenerationEvent::SuggestionFailed {
+                if let Err(e) = self.generation_event_tx.send(GenerationEvent::SuggestionFailed {
                     request_id: request_id.to_string(),
                     field_type: match &item.payload.request_type {
                         LLMRequestType::Suggestion { field_type, .. } => field_type.clone(),
@@ -112,7 +112,9 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                     },
                     error: "Cancelled by user".to_string(),
                     world_id: Some(WorldId::from_uuid(item.payload.world_id)),
-                });
+                }) {
+                    tracing::warn!("Failed to send cancellation event: {}", e);
+                }
                 
                 return Ok(true);
             }
@@ -136,7 +138,8 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                 Ok(Some(item)) => item,
                 Ok(None) => {
                     // Queue empty - wait for notification or recovery timeout
-                    let _ = self.notifier.wait_for_work(recovery_interval).await;
+                    // Timeout is expected behavior, so we don't log it
+                    let _timeout = self.notifier.wait_for_work(recovery_interval).await;
                     continue;
                 }
                 Err(e) => {
@@ -177,7 +180,9 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         let Some(prompt) = request.prompt.as_ref() else {
                             let error = "Missing prompt for NPC response".to_string();
                             tracing::error!("{}", error);
-                            let _ = queue_clone.fail(item_id, &error).await;
+                            if let Err(e) = queue_clone.fail(item_id, &error).await {
+                                tracing::error!("Failed to mark queue item as failed: {}", e);
+                            }
                             return;
                         };
                         match llm_service_clone.generate_npc_response(prompt.clone()).await {
@@ -401,17 +406,23 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                             approval.world_id
                                         );
 
-                                        let _ = queue_clone.complete(item_id).await;
+                                        if let Err(e) = queue_clone.complete(item_id).await {
+                                            tracing::error!("Failed to mark queue item as complete: {}", e);
+                                        }
                                     }
                                     Err(e) => {
                                         tracing::error!("Failed to enqueue approval: {}", e);
-                                        let _ = queue_clone.fail(item_id, &e.to_string()).await;
+                                        if let Err(e2) = queue_clone.fail(item_id, &e.to_string()).await {
+                                            tracing::error!("Failed to mark queue item as failed: {}", e2);
+                                        }
                                     }
                                 }
                             }
                             Err(e) => {
                                 tracing::error!("LLM generation failed: {}", e);
-                                let _ = queue_clone.fail(item_id, &e.to_string()).await;
+                                if let Err(e2) = queue_clone.fail(item_id, &e.to_string()).await {
+                                    tracing::error!("Failed to mark queue item as failed: {}", e2);
+                                }
                             }
                         }
                     }
@@ -420,7 +431,9 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         let Some(context) = request.suggestion_context.as_ref() else {
                             let error = "Missing suggestion context".to_string();
                             tracing::error!("{}", error);
-                            let _ = queue_clone.fail(item_id, &error).await;
+                            if let Err(e) = queue_clone.fail(item_id, &error).await {
+                                tracing::error!("Failed to mark queue item as failed: {}", e);
+                            }
                             return;
                         };
                         
@@ -430,12 +443,14 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         let world_id_clone = request.world_id.clone();
                         
                         // Emit queued event
-                        let _ = generation_event_tx_clone.send(GenerationEvent::SuggestionQueued {
+                        if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionQueued {
                             request_id: request_id.clone(),
                             field_type: field_type_clone.clone(),
                             entity_id: entity_id_clone.clone(),
                             world_id: Some(WorldId::from_uuid(world_id_clone)),
-                        });
+                        }) {
+                            tracing::warn!("Failed to send SuggestionQueued event: {}", e);
+                        }
                         
                         // Create suggestion service
                         use crate::application::services::SuggestionService;
@@ -461,13 +476,17 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             _ => {
                                 let error = format!("Unknown suggestion field type: {}", field_type);
                                 tracing::error!("{}", error);
-                                let _ = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
+                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
                                     world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                });
-                                let _ = queue_clone.fail(item_id, &error).await;
+                                }) {
+                                    tracing::warn!("Failed to send SuggestionFailed event: {}", e);
+                                }
+                                if let Err(e) = queue_clone.fail(item_id, &error).await {
+                                    tracing::error!("Failed to mark queue item as failed: {}", e);
+                                }
                                 return;
                             }
                         };
@@ -475,24 +494,32 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         match result {
                             Ok(suggestions) => {
                                 tracing::info!("Suggestion request {} completed with {} suggestions", request_id, suggestions.len());
-                                let _ = generation_event_tx_clone.send(GenerationEvent::SuggestionComplete {
+                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionComplete {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     suggestions,
                                     world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                });
-                                let _ = queue_clone.complete(item_id).await;
+                                }) {
+                                    tracing::warn!("Failed to send SuggestionComplete event: {}", e);
+                                }
+                                if let Err(e) = queue_clone.complete(item_id).await {
+                                    tracing::error!("Failed to mark queue item as complete: {}", e);
+                                }
                             }
                             Err(e) => {
                                 let error = e.to_string();
                                 tracing::error!("Suggestion request {} failed: {}", request_id, error);
-                                let _ = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
+                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
                                     world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                });
-                                let _ = queue_clone.fail(item_id, &error).await;
+                                }) {
+                                    tracing::warn!("Failed to send SuggestionFailed event: {}", e);
+                                }
+                                if let Err(e) = queue_clone.fail(item_id, &error).await {
+                                    tracing::error!("Failed to mark queue item as failed: {}", e);
+                                }
                             }
                         }
                     }

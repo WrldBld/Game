@@ -26,6 +26,24 @@ use serde::{de::DeserializeOwned, Serialize};
 use super::api::get_engine_url;
 use wrldbldr_player_ports::outbound::ApiError;
 
+// Desktop: Use a shared static client for connection reuse and proper timeouts
+#[cfg(not(target_arch = "wasm32"))]
+mod desktop_client {
+    use once_cell::sync::Lazy;
+    use std::time::Duration;
+    
+    /// Shared HTTP client with 30 second timeout for connection reuse
+    pub static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+use desktop_client::CLIENT;
+
 /// Unified HTTP client for Engine API
 ///
 /// All methods take a path (e.g., "/api/worlds") and automatically
@@ -79,8 +97,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .get(&url)
                 .send()
                 .await
@@ -137,8 +154,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .post(&url)
                 .json(body)
                 .send()
@@ -193,8 +209,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .post(&url)
                 .json(body)
                 .send()
@@ -241,8 +256,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client.post(&url).send()
+            let response = CLIENT.post(&url).send()
                 .await
                 .map_err(|e| ApiError::RequestFailed(e.to_string()))?;
 
@@ -295,8 +309,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .json(body)
                 .send()
@@ -352,8 +365,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .json(body)
                 .send()
@@ -401,8 +413,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .send()
                 .await
@@ -452,8 +463,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .send()
                 .await
@@ -513,8 +523,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .patch(&url)
                 .header("Content-Type", "application/json")
                 .body(json_body)
@@ -569,8 +578,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .delete(&url)
                 .send()
                 .await
@@ -625,8 +633,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .get(&url)
                 .send()
                 .await

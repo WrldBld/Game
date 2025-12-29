@@ -86,7 +86,8 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 Ok(Some(item)) => item,
                 Ok(None) => {
                     // Queue empty - wait for notification or recovery timeout
-                    let _ = self.notifier.wait_for_work(recovery_interval).await;
+                    // Timeout is expected behavior, so we don't log it
+                    let _timeout = self.notifier.wait_for_work(recovery_interval).await;
                     continue;
                 }
                 Err(e) => {
@@ -141,7 +142,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                     }
                     Err(e) => {
                         tracing::error!("Failed to queue ComfyUI prompt: {}", e);
-                        let _ = queue_clone.fail(item_id, &format!("ComfyUI queue error: {}", e)).await;
+                        if let Err(e2) = queue_clone.fail(item_id, &format!("ComfyUI queue error: {}", e)).await {
+                            tracing::error!("Failed to mark queue item as failed: {}", e2);
+                        }
                         return;
                     }
                 };
@@ -155,7 +158,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 let history_result = loop {
                     if start_time.elapsed() > max_wait {
                         tracing::error!("ComfyUI generation timed out for prompt {}", prompt_id);
-                        let _ = queue_clone.fail(item_id, "Generation timed out after 5 minutes").await;
+                        if let Err(e) = queue_clone.fail(item_id, "Generation timed out after 5 minutes").await {
+                            tracing::error!("Failed to mark queue item as failed: {}", e);
+                        }
                         return;
                     }
 
@@ -201,7 +206,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
 
                 if downloaded_images.is_empty() {
                     tracing::error!("No images were generated for prompt {}", prompt_id);
-                    let _ = queue_clone.fail(item_id, "No images generated").await;
+                    if let Err(e) = queue_clone.fail(item_id, "No images generated").await {
+                        tracing::error!("Failed to mark queue item as failed: {}", e);
+                    }
                     return;
                 }
 
@@ -230,7 +237,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 let assets_dir = PathBuf::from("data/generated_assets");
                 if let Err(e) = tokio::fs::create_dir_all(&assets_dir).await {
                     tracing::error!("Failed to create assets directory: {}", e);
-                    let _ = queue_clone.fail(item_id, &format!("Failed to create assets directory: {}", e)).await;
+                    if let Err(e2) = queue_clone.fail(item_id, &format!("Failed to create assets directory: {}", e)).await {
+                        tracing::error!("Failed to mark queue item as failed: {}", e2);
+                    }
                     return;
                 }
 
@@ -289,7 +298,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                         );
                     }
                 } else {
-                    let _ = queue_clone.fail(item_id, "Failed to create any asset records").await;
+                    if let Err(e) = queue_clone.fail(item_id, "Failed to create any asset records").await {
+                        tracing::error!("Failed to mark queue item as failed: {}", e);
+                    }
                 }
             });
         }

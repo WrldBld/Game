@@ -167,13 +167,15 @@ impl GenerationService {
         drop(active_batches);
 
         // Send queued event
-        let _ = self.event_sender.send(GenerationEvent::BatchQueued {
+        if let Err(e) = self.event_sender.send(GenerationEvent::BatchQueued {
             batch_id,
             entity_type: batch.entity_type,
             entity_id: batch.entity_id.clone(),
             asset_type: batch.asset_type,
             position,
-        });
+        }) {
+            tracing::warn!("Failed to send BatchQueued event: {}", e);
+        }
 
         // Start processing (this would normally be done by a background worker)
         self.start_batch_processing(batch).await?;
@@ -297,9 +299,12 @@ impl GenerationService {
         };
 
         // Update progress
-        let _ = self
+        if let Err(e) = self
             .event_sender
-            .send(GenerationEvent::BatchProgress { batch_id, progress });
+            .send(GenerationEvent::BatchProgress { batch_id, progress })
+        {
+            tracing::warn!("Failed to send BatchProgress event: {}", e);
+        }
 
         // Check if all completed
         if completed_count as usize >= prompt_ids.len() {
@@ -313,13 +318,15 @@ impl GenerationService {
                 .update_batch_assets(batch_id, &asset_ids)
                 .await?;
 
-            let _ = self.event_sender.send(GenerationEvent::BatchComplete {
+            if let Err(e) = self.event_sender.send(GenerationEvent::BatchComplete {
                 batch_id,
                 entity_type: batch.entity_type,
                 entity_id: batch.entity_id.clone(),
                 asset_type: batch.asset_type,
                 asset_count: generated_assets.len() as u32,
-            });
+            }) {
+                tracing::warn!("Failed to send BatchComplete event: {}", e);
+            }
 
             // Remove from active batches
             self.active_batches.write().await.remove(&batch_id);

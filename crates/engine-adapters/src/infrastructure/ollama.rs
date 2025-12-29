@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use wrldbldr_engine_ports::outbound::{
     FinishReason, LlmPort, LlmRequest, LlmResponse, MessageRole, TokenUsage, ToolCall,
@@ -19,8 +20,14 @@ pub struct OllamaClient {
 
 impl OllamaClient {
     pub fn new(base_url: &str, model: &str) -> Self {
+        // Use 120 second timeout for LLM requests (they can be slow)
+        let client = Client::builder()
+            .timeout(Duration::from_secs(120))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+        
         Self {
-            client: Client::new(),
+            client,
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
         }

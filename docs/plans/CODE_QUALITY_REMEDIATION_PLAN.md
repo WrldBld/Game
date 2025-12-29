@@ -250,9 +250,9 @@ if let Err(e) = self.generation_event_tx.send(event) {
 
 | Task | Status |
 |------|--------|
-| [ ] Fix llm_queue_service.rs (**14** instances) | Pending |
-| [ ] Fix asset_generation_queue_service.rs (**6** instances) | Pending |
-| [ ] Fix generation_service.rs (3 instances) | Pending |
+| [x] Fix llm_queue_service.rs (**14** instances) | **DONE** |
+| [x] Fix asset_generation_queue_service.rs (**6** instances) | **DONE** |
+| [x] Fix generation_service.rs (3 instances) | **DONE** |
 | [ ] Audit remaining `let _ =` patterns for intentionality | Pending |
 | [ ] Add comments to intentional `let _ =` patterns | Pending |
 
@@ -286,8 +286,8 @@ let client = reqwest::Client::builder()
 
 | Task | Status |
 |------|--------|
-| [ ] Add 30s timeout to http_client.rs | Pending |
-| [ ] Add 120s timeout to ollama.rs | Pending |
+| [x] Add 30s timeout to http_client.rs | **DONE** |
+| [x] Add 120s timeout to ollama.rs | **DONE** |
 | [ ] Add timeout to comfyui.rs if missing | Pending |
 
 ---
@@ -312,7 +312,7 @@ static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
 
 | Task | Status |
 |------|--------|
-| [ ] Implement shared client in http_client.rs | Pending |
+| [x] Implement shared client in http_client.rs | **DONE** (static Lazy<Client> with 30s timeout) |
 
 ---
 
