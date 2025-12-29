@@ -2,15 +2,15 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28 (Sixth comprehensive review - cross-validation)  
+**Last Updated**: 2025-12-28 (Seventh comprehensive review - 10 sub-agents)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
-**Estimated Total Effort**: 50-70 hours (implementation) + contingency = 70-95 hours total
+**Estimated Total Effort**: 55-75 hours (implementation) + contingency = 75-100 hours total
 
 ---
 
 ## Validation Notes (2025-12-28)
 
-This plan was validated by six rounds of review. Key corrections applied:
+This plan was validated by seven rounds of review. Key corrections applied:
 
 ### First Review
 1. **Phase 1.3 REMOVED** - The `staging_service.rs:535` unwrap is inside `#[cfg(test)]` (test code), not production
@@ -78,6 +78,32 @@ The sixth review cross-validated findings between two independent agents and res
 #### Corrections Applied:
 - Domain env vars count: ~20 → **28**
 - Business logic in adapters: 3 files (~1,000 lines) → **4 files (~1,570 lines)**
+
+### Seventh Review (10 Sub-Agents - Architecture Deep Dive)
+
+The seventh review deployed 10 specialized sub-agents to check for inconsistencies and missing tech debt:
+
+#### Confirmed Accurate:
+- **player-runner**: Already correct (127 lines of proper composition) - only engine-runner needs fix ✓
+- **engine-dto**: Properly positioned and used ✓
+- **No circular dependencies**: DAG is valid ✓
+- **No app→adapters violations**: Clean hexagonal boundaries ✓
+- **Protocol→domain imports**: All 6 documented ✓
+- **Domain deps** (rand, anyhow, env vars): All confirmed ✓
+
+#### NEW Issues Discovered:
+
+| # | Issue | Severity | Location |
+|---|-------|----------|----------|
+| 1 | **ClockPort missing** | HIGH | 10 services, 14+ `Utc::now()` calls |
+| 2 | **Unused tokio dep** | LOW | engine-ports/Cargo.toml (declared, never used) |
+| 3 | **Unused domain dep** | LOW | player-ui/Cargo.toml (declared, no imports) |
+| 4 | **Direct ServerMessage in UI** | MEDIUM | player-ui session_message_handler.rs |
+| 5 | **Mock panic not guarded** | LOW | player-adapters/platform/mock.rs:297 |
+
+#### Critical Finding: Missing ClockPort
+
+**14+ direct `Utc::now()` calls across 10 services** - prevents deterministic testing. Added as Phase 3.0.2.1.
 
 ### Known Limitations (Not in Scope)
 - **Authentication**: X-User-Id header is spoofable - intentional for MVP
@@ -445,6 +471,57 @@ pub trait FileStoragePort: Send + Sync {
 | [ ] Update asset_generation_queue_service.rs | Pending |
 | [ ] Move env::var calls to adapter/runner layer | Pending |
 
+#### 3.0.2.1 Create ClockPort for Time Abstraction (NEW - Seventh Review)
+
+**Issue**: **14+ direct `Utc::now()` calls across 10 engine-app services** prevent deterministic testing and time simulation.
+
+**Note**: The **player-side already has this solved** with `TimeProvider` trait in `player-ports/src/outbound/platform.rs`:
+- `WasmTimeProvider` (browser)
+- `DesktopTimeProvider` (native)
+- `MockTimeProvider` (testing)
+
+The engine-side needs an equivalent pattern.
+
+**Services with direct time calls**:
+
+| Service | Lines | Usage |
+|---------|-------|-------|
+| `challenge_outcome_approval_service.rs` | 226 | `Utc::now()` |
+| `dm_approval_queue_service.rs` | 122, 389 | `Utc::now()` for delay calculations |
+| `challenge_resolution_service.rs` | 394 | `chrono::Utc::now().to_rfc3339()` |
+| `dm_action_queue_service.rs` | 41 | `chrono::Utc::now()` |
+| `player_action_queue_service.rs` | 49 | `chrono::Utc::now()` |
+| `actantial_context_service.rs` | 426 | `chrono::Utc::now()` |
+| `world_service.rs` | 230, 351 | `chrono::Utc::now()` |
+| `asset_generation_queue_service.rs` | 153, 269 | `std::time::Instant::now()`, `Utc::now()` |
+| `workflow_service.rs` | 315 | `chrono::Utc::now().to_rfc3339()` |
+| `generation_service.rs` | 157 | `Utc::now()` |
+
+**Fix**: Create `ClockPort` in engine-ports (modeled after player-side `TimeProvider`):
+```rust
+/// Time operations abstraction for engine-side services
+pub trait ClockPort: Send + Sync {
+    /// Get current time as DateTime<Utc>
+    fn now(&self) -> DateTime<Utc>;
+    
+    /// Get current time as Unix timestamp in seconds  
+    fn now_unix_secs(&self) -> u64;
+    
+    /// Get monotonic instant for duration measurements
+    fn instant_now(&self) -> std::time::Instant;
+}
+```
+
+**Impact**: Enables deterministic testing, time travel for queue delays, reproducible scenarios.
+
+| Task | Status |
+|------|--------|
+| [ ] Create ClockPort trait in engine-ports | Pending |
+| [ ] Create SystemClockAdapter in engine-adapters | Pending |
+| [ ] Create MockClockAdapter for testing | Pending |
+| [ ] Update 10 services to use ClockPort (14+ call sites) | Pending |
+| [ ] Inject ClockPort at composition root | Pending |
+
 #### 3.0.3 Move Business Logic Out of Adapters
 
 **Files with business logic in adapters** (4 files, ~1,570 lines):
@@ -501,6 +578,8 @@ pub trait FileStoragePort: Send + Sync {
 #### 3.0.5 Remove Tokio from Ports Layer
 
 **Issue**: `engine-ports/Cargo.toml:19` has tokio dependency but ports should only need `async-trait`.
+
+**Seventh Review Finding**: The tokio dependency is **declared but NEVER USED** in any source file. It's a phantom dependency that can simply be deleted.
 
 | Task | Status |
 |------|--------|
@@ -853,11 +932,18 @@ These traits are borderline and may benefit from splitting in a future iteration
 | `state/use_cases.rs:45` | `ApprovalQueuePort` | DELETE |
 | `export_routes.rs:13` | `WorldService` | DELETE |
 
+**Unused Cargo.toml dependencies** (NEW - Seventh Review):
+
+| File | Dependency | Action |
+|------|------------|--------|
+| `player-ui/Cargo.toml` | `wrldbldr-domain` | DELETE (declared, no imports found) |
+
 | Task | Status |
 |------|--------|
 | [ ] Run `cargo fix --workspace --allow-dirty` | Pending |
 | [ ] Manually fix remaining unused imports | Pending |
 | [ ] Delete PRIORITY_HIGH constant | Pending |
+| [ ] Remove unused domain dep from player-ui/Cargo.toml | Pending |
 
 ---
 
@@ -1049,6 +1135,15 @@ pub struct $name(Uuid);
 
 **Issue**: `rand::thread_rng()` accesses system entropy, which is I/O.
 
+**Note**: The **player-side already has this solved** with `RandomProvider` trait in `player-ports/src/outbound/platform.rs`:
+```rust
+pub trait RandomProvider: Clone + 'static {
+    fn random_f64(&self) -> f64;
+    fn random_range(&self, min: i32, max: i32) -> i32;
+}
+```
+With implementations: `WasmRandomProvider`, `DesktopRandomProvider`, `MockRandomProvider`.
+
 **Current Code**:
 ```rust
 use rand::Rng;
@@ -1061,14 +1156,14 @@ impl DiceFormula {
 }
 ```
 
-**Fix**: Create `RandomSource` trait and inject:
+**Fix**: Model after player-side `RandomProvider`:
 ```rust
-pub trait RandomSource {
-    fn gen_range(&mut self, range: std::ops::RangeInclusive<i32>) -> i32;
+pub trait RandomSource: Send + Sync {
+    fn random_range(&self, min: i32, max: i32) -> i32;
 }
 
 impl DiceFormula {
-    pub fn roll(&self, rng: &mut impl RandomSource) -> DiceRollResult {
+    pub fn roll(&self, rng: &impl RandomSource) -> DiceRollResult {
         // Use injected rng
     }
 }
@@ -1076,7 +1171,7 @@ impl DiceFormula {
 
 | Task | Status |
 |------|--------|
-| [ ] Create RandomSource trait in engine-ports (or domain) | Pending |
+| [ ] Create RandomSource trait in engine-ports (model after player RandomProvider) | Pending |
 | [ ] Update DiceFormula::roll() to accept RandomSource | Pending |
 | [ ] Create ThreadRngAdapter in engine-adapters | Pending |
 | [ ] Remove rand from domain Cargo.toml | Pending |
@@ -1593,8 +1688,9 @@ cargo test --workspace
 | Swallowed errors (engine-app/services) | **43** | 0 (logged) | 14+6+3+others |
 | Swallowed errors (total codebase) | **89** | 0 (logged or documented) | |
 | God traits (30+ methods) | 5 (**169** methods total) | 0 | Was 3/107, found 2 more |
-| I/O in application layer | **12-13** | 0 | tokio::fs, std::env |
+| I/O in application layer | **12-13** + **14 time calls** | 0 | tokio::fs, std::env, Utc::now() |
 | I/O in domain layer | **28** (env calls) + rand | 0 | AppSettings::from_env() (verified sixth review) |
+| Direct time calls (no ClockPort) | **14+** (10 services) | 0 | Create ClockPort (seventh review) |
 | Protocol imports in services | 14 | 0 | |
 | Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 0-1 | ~830 lines total |
 | Business logic in adapters | **4** files (~1,570 lines) | 0 | +world_state_manager.rs (484 lines, sixth review) |
@@ -1605,6 +1701,7 @@ cargo test --workspace
 | tokio::spawn without tracking | **27** | 0 | Add CancellationToken |
 | Unused structs | 4 | 0 | |
 | Unused fields | 12 | 0 | |
+| Unused Cargo.toml deps | **2** | 0 | player-ui→domain, engine-ports→tokio (seventh review) |
 | Redundant DTO duplicates | **13** (5 engine-app + 8 player-ports) | 0 | player-app dups intentional |
 | Protocol enums without #[serde(other)] | **20** | 0 | Forward compatibility |
 | Domain error types | **1** (DiceParseError only) | Unified DomainError | |
@@ -1838,3 +1935,58 @@ The sixth review cross-validated findings between two independent review agents 
 5. **Phase 3.0.7** (4-6h): Move composition root to runner (1,045 lines)
 6. **Phase 4.6** (1-2h): Replace glob re-exports (30 patterns)
 7. Remaining phases as prioritized
+
+---
+
+## Appendix G: Seventh Review Summary (10 Sub-Agents)
+
+The seventh review deployed 10 specialized sub-agents for architecture deep-dive:
+
+| Agent | Focus | Key Findings |
+|-------|-------|--------------|
+| player-runner composition | Check if same problem as engine-runner | **CLEAN** - player-runner already correct (127 lines) |
+| engine-dto usage | Analyze DTO crate role | Properly positioned, correctly used |
+| Domain external deps | Audit domain purity | Confirmed: rand, anyhow, 29 env calls |
+| Protocol→domain imports | Check all imports | All 6 documented, Phase 6.1 pending |
+| Circular dependencies | Dependency graph | **CLEAN** - valid DAG, no cycles |
+| Tokio in ports | Runtime deps in ports | tokio in engine-ports is **unused** (phantom dep) |
+| expect()/panic!() | Panic risks | Only motivations_tab.rs + mock.rs (test infra) |
+| Service→adapter leakage | Reverse dependencies | **CLEAN** - no app→adapters violations |
+| UI→domain coupling | UI layer deps | Minor: direct ServerMessage in UI |
+| Missing port traits | Direct infra usage | **14+ Utc::now() calls** need ClockPort |
+
+### Critical Finding: Missing ClockPort
+
+The most significant discovery was **14+ direct `Utc::now()` calls across 10 engine-app services**.
+
+**Contrast with player-side**: The player crates already have proper abstractions:
+- `TimeProvider` trait with `WasmTimeProvider`, `DesktopTimeProvider`, `MockTimeProvider`
+- `RandomProvider` trait with platform-specific implementations
+- `SleepProvider`, `StorageProvider`, `LogProvider`
+
+The engine-side lacks these abstractions, making services hard to test deterministically.
+
+### Pattern to Follow
+
+The player-side `Platform` abstraction in `player-ports/src/outbound/platform.rs` is the reference implementation for how engine-side should handle time, randomness, and other I/O:
+
+```rust
+// Already exists in player-ports:
+pub trait TimeProvider: Clone + 'static {
+    fn now_unix_secs(&self) -> u64;
+    fn now_millis(&self) -> u64;
+}
+
+pub trait RandomProvider: Clone + 'static {
+    fn random_f64(&self) -> f64;
+    fn random_range(&self, min: i32, max: i32) -> i32;
+}
+```
+
+### Plan Updates Applied
+
+1. **Phase 3.0.2.1**: NEW - Create ClockPort for engine-side (14+ call sites in 10 services)
+2. **Phase 3.0.5**: Updated - tokio dep is unused (phantom), simple delete
+3. **Phase 4.3**: Added unused Cargo.toml deps (player-ui→domain)
+4. **Phase 5.4.1**: Updated - reference player-side RandomProvider as model
+5. **Success Criteria**: Added ClockPort metric, unused deps metric
