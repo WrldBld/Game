@@ -8,14 +8,13 @@ use std::sync::Arc;
 
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_app::application::services::staging_service::{
-    ApprovedNpcData as ServiceApprovedNpcData, StagedNpcProposal, StagingService,
-};
+use wrldbldr_engine_app::application::services::staging_service::StagingService;
+use wrldbldr_engine_dto::StagedNpcProposal;
 use wrldbldr_engine_ports::inbound::{
-    ApprovedNpcData, RegeneratedNpc, StagingProposalData, StagingServiceExtPort, StagingServicePort,
+    RegeneratedNpc, StagingProposalData, StagingServiceExtPort, StagingServicePort,
 };
 use wrldbldr_engine_ports::outbound::{
-    LlmPort, NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcData,
+    ApprovedNpcData, LlmPort, NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcData,
     StagingRepositoryPort,
 };
 
@@ -71,19 +70,6 @@ where
             is_present: proposal.is_present,
             is_hidden_from_players: proposal.is_hidden_from_players,
             reasoning: proposal.reasoning.clone(),
-        }
-    }
-
-    /// Convert use case ApprovedNpcData to service ApprovedNpcData
-    fn convert_approved_npc(npc: &ApprovedNpcData) -> ServiceApprovedNpcData {
-        ServiceApprovedNpcData {
-            character_id: npc.character_id,
-            name: npc.name.clone(),
-            sprite_asset: npc.sprite_asset.clone(),
-            portrait_asset: npc.portrait_asset.clone(),
-            is_present: npc.is_present,
-            is_hidden_from_players: npc.is_hidden_from_players,
-            reasoning: npc.reasoning.clone(),
         }
     }
 }
@@ -171,11 +157,6 @@ where
         source: StagingSource,
         approved_by: &str,
     ) -> Result<Vec<StagedNpc>, String> {
-        let service_npcs: Vec<ServiceApprovedNpcData> = approved_npcs
-            .iter()
-            .map(Self::convert_approved_npc)
-            .collect();
-
         let staging = self
             .staging_service
             .approve_staging(
@@ -183,7 +164,7 @@ where
                 location_id,
                 world_id,
                 game_time,
-                service_npcs,
+                approved_npcs,
                 ttl_hours,
                 source,
                 approved_by,
@@ -225,9 +206,6 @@ where
         ttl_hours: i32,
         dm_user_id: &str,
     ) -> Result<Vec<StagedNpc>, String> {
-        let service_npcs: Vec<ServiceApprovedNpcData> =
-            npcs.iter().map(Self::convert_approved_npc).collect();
-
         let staging = self
             .staging_service
             .pre_stage_region(
@@ -235,7 +213,7 @@ where
                 location_id,
                 world_id,
                 game_time,
-                service_npcs,
+                npcs,
                 ttl_hours,
                 dm_user_id,
             )

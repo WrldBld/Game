@@ -5,7 +5,7 @@ use wrldbldr_domain::value_objects::{
     ConversationEntry, DirectorialNotes, PendingApprovalItem,
 };
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_app::application::services::staging_service::StagingProposal;
+use wrldbldr_engine_dto::StagingProposal;
 use wrldbldr_engine_ports::outbound::WorldStatePort;
 
 /// In-memory implementation of [`WorldStatePort`].

@@ -15,8 +15,10 @@ pub mod llm;
 pub mod persistence;
 pub mod queue;
 pub mod request_context;
+pub mod staging;
 
 pub use llm::*;
 pub use persistence::*;
 pub use queue::*;
 pub use request_context::*;
+pub use staging::*;

@@ -9,9 +9,7 @@ use uuid::Uuid;
 
 use wrldbldr_domain::value_objects::StagingContext;
 use wrldbldr_domain::{GameTime, RegionId, WorldId};
-use wrldbldr_engine_app::application::services::staging_service::{
-    StagedNpcProposal, StagingProposal,
-};
+use wrldbldr_engine_dto::{StagedNpcProposal, StagingProposal};
 use wrldbldr_engine_ports::inbound::{
     PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc, StagingStateExtPort,
     StagingStatePort, WaitingPcInfo,
