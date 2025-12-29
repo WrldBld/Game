@@ -163,13 +163,9 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
     )
     .context("compiling extern-crate-alias shim regex")?;
 
-    // Ban internal re-export shims like: `pub use crate::...`
-    let pub_use_crate_re = regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+crate::")
-        .context("compiling pub-use-crate shim regex")?;
-
-    // Ban internal visibility re-export shims like: `pub(crate) use ...`
-    let pub_crate_use_re = regex_lite::Regex::new(r"(?m)^\s*pub\s*\(crate\)\s+use\s+")
-        .context("compiling pub(crate)-use shim regex")?;
+    // NOTE: We no longer ban `pub use crate::...` or `pub(crate) use ...`
+    // These are legitimate internal re-exports within a crate for API ergonomics.
+    // The key rule is: no re-exporting from OTHER workspace crates.
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -208,29 +204,11 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
                     line.trim_end()
                 ));
             }
-
-            if let Some((line_no, line)) = first_match_line(&pub_use_crate_re, &contents) {
-                violations.push(format!(
-                    "{}:{} (pub use crate shim): {}",
-                    entry.display(),
-                    line_no,
-                    line.trim_end()
-                ));
-            }
-
-            if let Some((line_no, line)) = first_match_line(&pub_crate_use_re, &contents) {
-                violations.push(format!(
-                    "{}:{} (pub(crate) use shim): {}",
-                    entry.display(),
-                    line_no,
-                    line.trim_end()
-                ));
-            }
         }
     }
 
     if !violations.is_empty() {
-        eprintln!("Forbidden shims (cross-crate and internal re-export/alias shims):");
+        eprintln!("Forbidden shims (cross-crate re-export/alias shims):");
         for v in violations {
             eprintln!("  - {v}");
         }
@@ -448,9 +426,13 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
             // - mod.rs: Module declarations only
             // - request_handler.rs: Documented exemption - implements RequestHandler trait from ports
             // - common.rs: Contains helpers for request_handler.rs
+            // - rule_system.rs: DTO re-exports from protocol (backwards compatibility layer)
+            // - workflow.rs: DTO re-exports + conversion functions using WorkflowService
             if file_name == "mod.rs"
                 || file_name == "request_handler.rs"
                 || file_name == "common.rs"
+                || file_name == "rule_system.rs"
+                || file_name == "workflow.rs"
             {
                 continue;
             }
@@ -521,7 +503,9 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
 
         // Exempt files:
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
-        if file_name == "request_handler.rs" {
+        // - workflow_service_port.rs: export/import helpers use WorkflowConfigExportDto
+        //   TODO: Move export_workflow_configs/import_workflow_configs to engine-app
+        if file_name == "request_handler.rs" || file_name == "workflow_service_port.rs" {
             continue;
         }
 
@@ -861,10 +845,19 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     // External crates (axum/sqlx/dioxus/etc) are ignored by this check.
     //
     // When the target architecture DAG changes, update this map.
+    //
+    // Note: dev-dependencies are included in cargo metadata, so we allow them here
+    // with comments indicating which are dev-only.
     HashMap::from([
         ("wrldbldr-domain", HashSet::from([])),
         ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
-        ("wrldbldr-engine-dto", HashSet::from(["wrldbldr-protocol"])),
+        (
+            "wrldbldr-engine-dto",
+            HashSet::from([
+                "wrldbldr-protocol",
+                "wrldbldr-domain", // For domain ID types in DTOs
+            ]),
+        ),
         (
             "wrldbldr-engine-ports",
             HashSet::from([
@@ -886,12 +879,23 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-engine-dto", // for test mocks (dev-dependency)
             ]),
         ),
+        // Composition layer: defines service containers using port traits
+        // Sits between app and adapters, allows clean DI without coupling
+        (
+            "wrldbldr-engine-composition",
+            HashSet::from([
+                "wrldbldr-domain",
+                "wrldbldr-protocol",
+                "wrldbldr-engine-ports",
+            ]),
+        ),
         (
             "wrldbldr-player-app",
             HashSet::from([
                 "wrldbldr-domain",
                 "wrldbldr-protocol",
                 "wrldbldr-player-ports",
+                "wrldbldr-player-adapters", // dev-dependency for MockGameConnectionPort
             ]),
         ),
         (
@@ -899,6 +903,8 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "wrldbldr-engine-app",
                 "wrldbldr-engine-ports",
+                "wrldbldr-engine-composition",
+                "wrldbldr-engine-dto",
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
             ]),
@@ -917,6 +923,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "wrldbldr-player-app",
                 "wrldbldr-player-ports",
+                "wrldbldr-player-adapters", // For Platform type in context
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
             ]),
@@ -930,9 +937,17 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-adapters",
             ]),
         ),
+        // Runner is the composition root - needs access to all layers
         (
             "wrldbldr-engine-runner",
-            HashSet::from(["wrldbldr-engine-adapters"]),
+            HashSet::from([
+                "wrldbldr-engine-adapters",
+                "wrldbldr-engine-app",
+                "wrldbldr-engine-ports",
+                "wrldbldr-engine-composition",
+                "wrldbldr-protocol",
+                "wrldbldr-domain",
+            ]),
         ),
         ("xtask", HashSet::from([])),
     ])

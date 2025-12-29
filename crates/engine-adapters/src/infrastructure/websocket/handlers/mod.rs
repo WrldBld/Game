@@ -5,6 +5,7 @@
 pub mod common;
 
 pub mod challenge;
+mod challenge_converters;
 pub mod connection;
 pub mod inventory;
 pub mod misc;

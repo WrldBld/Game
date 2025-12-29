@@ -3,36 +3,13 @@
 //! Thin routing layer for challenge operations. All business logic is delegated
 //! to ChallengeUseCase which orchestrates the domain services and broadcasts
 //! events via BroadcastPort.
-//!
-//! ## Handler Pattern
-//!
-//! All handlers return `Option<ServerMessage>`:
-//! - `None` on success: Use case broadcasts events to appropriate recipients
-//! - `Some(error)` on failure: Returns error message to the requesting client
-//!
-//! ## Operations
-//!
-//! ### Player Operations
-//! - `handle_challenge_roll` - Submit a numeric roll result
-//! - `handle_challenge_roll_input` - Submit dice formula or manual roll
-//!
-//! ### DM Operations
-//! - `handle_trigger_challenge` - Trigger a challenge against a target
-//! - `handle_challenge_suggestion_decision` - Accept/reject AI challenge suggestion
-//! - `handle_create_adhoc_challenge` - Create ad-hoc challenge on the fly
-//! - `handle_challenge_outcome_decision` - Accept/edit/suggest outcome
-//! - `handle_request_outcome_suggestion` - Request AI outcome suggestions
-//! - `handle_request_outcome_branches` - Request branching outcome options
-//! - `handle_select_outcome_branch` - Select a specific outcome branch
-//! - `handle_discard_challenge` - Discard a pending challenge
-//! - `handle_regenerate_outcome` - Request outcome text regeneration
 
 use uuid::Uuid;
 
 use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType, UseCaseContext};
+use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     ChallengeSuggestionDecisionInput as SuggestionDecisionInput, CreateAdHocInput,
     DiscardChallengeInput, OutcomeDecision, OutcomeDecisionInput, RegenerateOutcomeInput,
@@ -41,15 +18,14 @@ use wrldbldr_engine_ports::outbound::{
 };
 use wrldbldr_protocol::ServerMessage;
 
+use super::challenge_converters::{
+    to_use_case_adhoc_outcomes, to_use_case_decision, to_use_case_dice_input,
+};
 use super::common::{error_msg, extract_dm_context, extract_player_context};
 
-// =============================================================================
-// Player Operations (Use Case - Properly Wired)
-// =============================================================================
+// --- Player Operations ---
 
-/// Handles a player submitting a dice roll result for an active challenge.
-///
-/// Returns None on success - the use case broadcasts to DM and players.
+/// Submit dice roll for active challenge. Returns None on success (use case broadcasts).
 pub async fn handle_challenge_roll(
     state: &AdapterState,
     client_id: Uuid,
@@ -76,9 +52,7 @@ pub async fn handle_challenge_roll(
     }
 }
 
-/// Handles a player submitting dice input (formula or manual) for a challenge.
-///
-/// Returns None on success - the use case broadcasts to DM and players.
+/// Submit dice input (formula or manual). Returns None on success (use case broadcasts).
 pub async fn handle_challenge_roll_input(
     state: &AdapterState,
     client_id: Uuid,
@@ -114,13 +88,9 @@ pub async fn handle_challenge_roll_input(
     }
 }
 
-// =============================================================================
-// DM Operations (Use Case - Properly Wired)
-// =============================================================================
+// --- DM Operations ---
 
-/// Handles a DM triggering a challenge against a target character.
-///
-/// Returns None on success - the use case broadcasts ChallengePrompt to world.
+/// Trigger challenge against target. Returns None on success (use case broadcasts).
 pub async fn handle_trigger_challenge(
     state: &AdapterState,
     client_id: Uuid,
@@ -160,9 +130,7 @@ pub async fn handle_trigger_challenge(
     }
 }
 
-/// Handles a DM's decision on an AI-suggested challenge.
-///
-/// If approved, the use case broadcasts the ChallengePrompt to the world.
+/// DM decision on AI-suggested challenge. Broadcasts ChallengePrompt if approved.
 pub async fn handle_challenge_suggestion_decision(
     state: &AdapterState,
     client_id: Uuid,
@@ -193,9 +161,7 @@ pub async fn handle_challenge_suggestion_decision(
     }
 }
 
-/// Handles a DM creating an ad-hoc challenge on the fly.
-///
-/// Returns AdHocChallengeCreated to DM. The use case broadcasts ChallengePrompt to world.
+/// Create ad-hoc challenge. Returns AdHocChallengeCreated, broadcasts ChallengePrompt.
 pub async fn handle_create_adhoc_challenge(
     state: &AdapterState,
     client_id: Uuid,
@@ -243,11 +209,7 @@ pub async fn handle_create_adhoc_challenge(
     }
 }
 
-// =============================================================================
-// DM Operations (Use Case - Properly Wired)
-// =============================================================================
-
-/// Handles a DM's decision on a challenge outcome.
+/// DM decision on challenge outcome.
 pub async fn handle_challenge_outcome_decision(
     state: &AdapterState,
     client_id: Uuid,
@@ -276,7 +238,7 @@ pub async fn handle_challenge_outcome_decision(
     }
 }
 
-/// Handles a DM requesting AI-generated outcome suggestions.
+/// Request AI-generated outcome suggestions.
 pub async fn handle_request_outcome_suggestion(
     state: &AdapterState,
     client_id: Uuid,
@@ -305,7 +267,7 @@ pub async fn handle_request_outcome_suggestion(
     }
 }
 
-/// Handles a DM requesting branching outcome options.
+/// Request branching outcome options.
 pub async fn handle_request_outcome_branches(
     state: &AdapterState,
     client_id: Uuid,
@@ -334,7 +296,7 @@ pub async fn handle_request_outcome_branches(
     }
 }
 
-/// Handles a DM selecting a specific outcome branch.
+/// Select specific outcome branch.
 pub async fn handle_select_outcome_branch(
     state: &AdapterState,
     client_id: Uuid,
@@ -365,7 +327,7 @@ pub async fn handle_select_outcome_branch(
     }
 }
 
-/// Handles a DM discarding a challenge from the approval queue.
+/// Discard challenge from approval queue.
 pub async fn handle_discard_challenge(
     state: &AdapterState,
     client_id: Uuid,
@@ -394,7 +356,7 @@ pub async fn handle_discard_challenge(
     }
 }
 
-/// Handles a DM request to regenerate challenge outcome text.
+/// Regenerate challenge outcome text.
 pub async fn handle_regenerate_outcome(
     state: &AdapterState,
     client_id: Uuid,
@@ -431,41 +393,4 @@ pub async fn handle_regenerate_outcome(
         }),
         Err(e) => Some(e.into_server_error()),
     }
-}
-
-// =============================================================================
-// Conversion Helpers
-// =============================================================================
-
-fn to_use_case_decision(
-    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
-) -> OutcomeDecision {
-    match decision {
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => OutcomeDecision::Accept,
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit {
-            modified_description,
-        } => OutcomeDecision::Edit {
-            modified_text: modified_description,
-        },
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
-            OutcomeDecision::Suggest { guidance }
-        }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
-            OutcomeDecision::Accept // Default unknown to Accept
-        }
-    }
-}
-
-fn to_use_case_dice_input(input: wrldbldr_protocol::DiceInputType) -> DiceInputType {
-    match input {
-        wrldbldr_protocol::DiceInputType::Formula(formula) => DiceInputType::Formula(formula),
-        wrldbldr_protocol::DiceInputType::Manual(value) => DiceInputType::Manual(value),
-        wrldbldr_protocol::DiceInputType::Unknown => DiceInputType::Manual(0), // Default unknown to Manual(0)
-    }
-}
-
-fn to_use_case_adhoc_outcomes(outcomes: wrldbldr_protocol::AdHocOutcomes) -> AdHocOutcomes {
-    // Convert protocol type to domain type
-    // Protocol has success/failure as required String fields, matching domain
-    outcomes.into()
 }

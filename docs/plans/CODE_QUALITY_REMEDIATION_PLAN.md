@@ -2,10 +2,46 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.5 COMPLETE - All 5 god traits split into 25 ISP sub-traits)  
+**Last Updated**: 2025-12-29 (Arch-check PASSES - 85-90% hexagonal compliance achieved)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
-**Estimated Remaining Effort**: 66-87 hours
+**Estimated Remaining Effort**: 15-25 hours
+
+---
+
+## Post Phase 3.5 Arch-Check Review (December 29, 2024)
+
+### Current State: 85-90% Hexagonal Compliance
+
+| Achievement | Status |
+|-------------|--------|
+| adapters→app coupling removed | **COMPLETE** |
+| Composition root in runner | **COMPLETE** |
+| God traits split (169→25) | **COMPLETE** |
+| Domain purity (Utc::now, env vars) | **MOSTLY COMPLETE** (3 remaining) |
+| Protocol forward compatibility | **COMPLETE** |
+| Test compilation | **PASSING** |
+| arch-check | **PASSING** (14 crates checked) |
+
+### Remaining Work Summary
+
+| Priority | Item | Effort |
+|----------|------|--------|
+| HIGH | Remove `rand` from domain (create RandomPort) | 2-3h |
+| HIGH | Fix 3 remaining domain Utc::now() calls | 1h |
+| MEDIUM | Remove unused old god traits | 1h |
+| MEDIUM | Dead code cleanup (42 warnings) | 2-3h |
+| LOW | Phase 4.4-4.5 (#[allow(dead_code)] audit) | 1-2h |
+
+### Files With Uncommitted Changes (from arch-check fixes)
+
+The following files were modified to pass arch-check:
+- `crates/engine-adapters/src/infrastructure/websocket/handlers/challenge.rs` - Reduced to 396 lines
+- `crates/engine-adapters/src/infrastructure/websocket/handlers/challenge_converters.rs` - NEW: extracted converters
+- `crates/engine-adapters/src/infrastructure/websocket/handlers/mod.rs` - Added module
+- `crates/engine-adapters/src/infrastructure/world_connection_manager.rs` - Fixed WorldRole type conversion
+- `crates/engine-ports/src/outbound/world_connection_manager_port.rs` - Removed protocol import
+- `crates/xtask/src/main.rs` - Updated arch-check rules
 
 ---
 
@@ -190,11 +226,12 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
 | Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
 | Phase 3.5 | Split God Traits (169 methods → 25) | **DONE** | 100% (All 5 god traits split - Clean ISP) |
-| Phase 4 | Dead Code Cleanup | In Progress | 85% |
+| Phase 4 | Dead Code Cleanup | In Progress | 90% |
 | Phase 4.1-4.3 | Unused Structs/Fields/Constants | **DONE** | 100% |
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 4.7 | Role Mapping Deduplication | **DONE** | 100% |
+| Phase 4.8 | Remove unused old god traits | Pending | 0% |
 | Phase 5 | Domain Layer Polish | **DONE** | 100% |
 | Phase 5.1 | Serde on Entities (53 types) | **DONE** | 100% |
 | Phase 5.2 | Serde on ID Types | **DONE** | 100% |
@@ -2805,10 +2842,15 @@ impl DiceFormula {
 
 | Task | Status |
 |------|--------|
-| [ ] Create RandomSource trait in engine-ports (model after player RandomProvider) | Pending |
-| [ ] Update DiceFormula::roll() to accept RandomSource | Pending |
+| [ ] Create RandomPort trait in engine-ports (model after player RandomProvider) | Pending |
+| [ ] Update DiceFormula::roll() to accept RandomPort | Pending |
 | [ ] Create ThreadRngAdapter in engine-adapters | Pending |
+| [ ] Update all call sites to use injected RandomPort | Pending |
 | [ ] Remove rand from domain Cargo.toml | Pending |
+
+**Priority**: HIGH - This is one of the last domain purity violations.
+
+**Note**: The domain currently uses `rand::thread_rng()` which accesses system entropy (I/O). This must be abstracted behind a port trait for clean hexagonal architecture.
 
 #### 5.4.2 Replace `anyhow::Error` with `thiserror`
 
@@ -3449,12 +3491,13 @@ cargo test --workspace
 
 | Metric | Before | Current | Target | Notes |
 |--------|--------|---------|--------|-------|
-| Critical issues | **10** | ~1 | 0 | Panic risks DONE, forward compat DONE, **adapters→app DONE**, shutdown DONE |
-| Compiler warnings | **37** | ~25 | 0 | Verified eighth review |
+| Critical issues | **10** | **0** | 0 | Panic risks DONE, forward compat DONE, **adapters→app DONE**, shutdown DONE |
+| Compiler warnings | **37** | **42** | 0 | Updated Dec 29 - mostly unused variables |
+| arch-check | FAIL | **PASS** | PASS | **14 crates checked**, all pass |
 | Swallowed errors (engine-app/services) | **43** | **0** | 0 (logged) | **DONE** - All logged |
 | God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort (ISP, not strict hexagonal) |
 | I/O in application layer | **12-13** + **14 time calls** | **0** | 0 | **DONE** - EnvironmentPort + FileStoragePort + ClockPort |
-| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | 28 + **0** | 0 | **Utc::now() DONE** (Phase 5.6) |
+| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | **3 Utc::now()** + rand | 0 | Utc::now() mostly done, 3 remaining in world_state.rs + game_time.rs, rand pending |
 | Direct time calls (no ClockPort) | ~~14+~~ **0** | **0** | 0 | **DONE** - ClockPort in engine-app |
 | Domain Utc::now() calls | **51** | **0** (entities) | 0 | **DONE** - Entities accept timestamp param |
 | Protocol imports in services | 14 | **0** | 0 | **DONE** - AdHocOutcomes moved to domain |

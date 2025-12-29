@@ -42,7 +42,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use wrldbldr_domain::WorldId;
-use wrldbldr_protocol::WorldRole;
+
+use super::use_case_types::WorldRole;
 
 /// Error types for world connection manager operations
 #[derive(Debug, thiserror::Error)]

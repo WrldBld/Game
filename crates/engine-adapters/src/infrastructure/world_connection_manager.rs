@@ -28,9 +28,19 @@ use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
     ConnectedUserInfo as PortConnectedUserInfo, ConnectionStats as PortConnectionStats,
-    DmInfo as PortDmInfo, WorldConnectionManagerPort,
+    DmInfo as PortDmInfo, WorldConnectionManagerPort, WorldRole as PortWorldRole,
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
+
+/// Convert protocol WorldRole to port WorldRole
+fn to_port_role(role: WorldRole) -> PortWorldRole {
+    match role {
+        WorldRole::Dm => PortWorldRole::DM,
+        WorldRole::Player => PortWorldRole::Player,
+        WorldRole::Spectator => PortWorldRole::Spectator,
+        WorldRole::Unknown => PortWorldRole::Spectator, // Default unknown to spectator (read-only)
+    }
+}
 
 // =============================================================================
 // Error Types
@@ -950,15 +960,17 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
             .map(|u| PortConnectedUserInfo {
                 user_id: u.user_id,
                 username: u.username,
-                role: u.role,
+                role: to_port_role(u.role),
                 pc_id: u.pc_id.and_then(|s| s.parse().ok()),
                 connection_count: u.connection_count,
             })
             .collect()
     }
 
-    async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<WorldRole> {
-        self.get_user_role(&world_id.to_uuid(), user_id).await
+    async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<PortWorldRole> {
+        self.get_user_role(&world_id.to_uuid(), user_id)
+            .await
+            .map(to_port_role)
     }
 
     async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &Uuid) -> Option<String> {
