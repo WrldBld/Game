@@ -7404,8 +7404,20 @@ name = "wrldbldr-engine-runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
+ "chrono",
+ "dotenvy",
+ "futures-util",
+ "sqlx",
  "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+ "uuid",
+ "wrldbldr-domain",
  "wrldbldr-engine-adapters",
+ "wrldbldr-engine-app",
+ "wrldbldr-engine-ports",
 ]
 
 [[package]]
