@@ -20,10 +20,9 @@ use async_trait::async_trait;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::{InteractionTarget, TimeContext};
+use wrldbldr_domain::value_objects::{DmActionData, DmActionType, DmApprovalDecision};
 use wrldbldr_domain::{CharacterId, NarrativeEventId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{DmActionProcessorPort, DmActionResult, QueueError};
-
-use crate::application::dto::{DMAction, DMActionItem, DmApprovalDecision};
 use crate::application::services::{
     ApprovalOutcome, InteractionService, NarrativeEventService, SceneService,
 };
@@ -80,24 +79,24 @@ impl DmActionProcessorService {
     /// This is the main entry point for processing DM actions.
     /// Returns a `DmActionResult` that the infrastructure layer
     /// should use to broadcast messages to clients.
-    pub async fn process_action_item(&self, action: &DMActionItem) -> Result<DmActionResult> {
-        let world_id = WorldId::from(action.world_id);
+    pub async fn process_action_item(&self, action: &DmActionData) -> Result<DmActionResult> {
+        let world_id = action.world_id;
 
         match &action.action {
-            DMAction::ApprovalDecision {
+            DmActionType::ApprovalDecision {
                 request_id,
                 decision,
             } => {
                 self.process_approval_decision(world_id, request_id, decision.clone())
                     .await
             }
-            DMAction::DirectNPCControl { npc_id, dialogue } => {
+            DmActionType::DirectNpcControl { npc_id, dialogue } => {
                 self.process_direct_npc_control(npc_id, dialogue).await
             }
-            DMAction::TriggerEvent { event_id } => {
+            DmActionType::TriggerEvent { event_id } => {
                 self.process_trigger_event(world_id, event_id).await
             }
-            DMAction::TransitionScene { scene_id } => {
+            DmActionType::TransitionScene { scene_id } => {
                 self.process_transition_scene(world_id, *scene_id).await
             }
         }
@@ -177,26 +176,17 @@ impl DmActionProcessorService {
     /// Process direct NPC control (DM override)
     async fn process_direct_npc_control(
         &self,
-        npc_id: &str,
+        npc_id: &CharacterId,
         dialogue: &str,
     ) -> Result<DmActionResult> {
-        // Parse NPC ID - may be UUID or name
-        let character_id = if let Ok(uuid) = uuid::Uuid::parse_str(npc_id) {
-            CharacterId::from_uuid(uuid)
-        } else {
-            // If not a UUID, we still proceed with the dialogue
-            // The NPC name will be used for display
-            CharacterId::new()
-        };
-
-        // For now, we use a simple NPC name
+        // For now, we use the character ID as the name
         // In a more complete implementation, we'd look up the character
         let npc_name = npc_id.to_string();
 
         info!("DM directly controlling NPC '{}': {}", npc_name, dialogue);
 
         Ok(DmActionResult::DialogueGenerated {
-            npc_id: character_id,
+            npc_id: *npc_id,
             npc_name,
             dialogue: dialogue.to_string(),
         })
@@ -243,9 +233,9 @@ impl DmActionProcessorService {
     async fn process_transition_scene(
         &self,
         world_id: WorldId,
-        scene_id: uuid::Uuid,
+        scene_id: SceneId,
     ) -> Result<DmActionResult> {
-        let scene_id_typed = SceneId::from_uuid(scene_id);
+        let scene_id_typed = scene_id;
 
         // Load scene with relations
         let scene_with_relations = self
@@ -359,12 +349,12 @@ impl DmActionProcessorPort for DmActionProcessorService {
         dm_user_id: &str,
     ) -> Result<DmActionResult> {
         // Parse the action from JSON
-        let action: DMAction = serde_json::from_value(action_data.clone())
+        let action: DmActionType = serde_json::from_value(action_data.clone())
             .context("Failed to parse DM action data")?;
 
-        // Create a DMActionItem for processing
-        let action_item = DMActionItem {
-            world_id: world_id.into(),
+        // Create a DmActionData for processing
+        let action_item = DmActionData {
+            world_id,
             dm_id: dm_user_id.to_string(),
             action,
             timestamp: chrono::Utc::now(),

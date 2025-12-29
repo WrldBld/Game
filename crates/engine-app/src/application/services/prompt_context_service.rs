@@ -44,7 +44,7 @@ use super::{
     ActantialContextService, ChallengeService, DispositionService, NarrativeEventService,
     SkillService, WorldService,
 };
-use crate::application::dto::PlayerActionItem;
+use wrldbldr_domain::value_objects::PlayerActionData;
 
 /// Prompt context service trait for building LLM prompts
 #[async_trait]
@@ -57,7 +57,7 @@ pub trait PromptContextService: Send + Sync {
     async fn build_prompt_from_action(
         &self,
         world_id: WorldId,
-        action: &PlayerActionItem,
+        action: &PlayerActionData,
     ) -> Result<GamePromptRequest, QueueError>;
 }
 
@@ -110,7 +110,7 @@ impl PromptContextService for PromptContextServiceImpl {
     async fn build_prompt_from_action(
         &self,
         world_id: WorldId,
-        action: &PlayerActionItem,
+        action: &PlayerActionData,
     ) -> Result<GamePromptRequest, QueueError> {
         // 1. Get world snapshot for scene and character data
         let snapshot = self
@@ -126,12 +126,11 @@ impl PromptContextService for PromptContextServiceImpl {
             .or_else(|| snapshot.current_scene.as_ref().map(|s| s.id.clone()));
 
         // 3. Get PC's current region for item context
-        let region_id = if let Some(pc_uuid) = action.pc_id {
-            let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
+        let region_id = if let Some(pc_id) = action.pc_id {
             match self.pc_repo.get(pc_id).await {
                 Ok(Some(pc)) => pc.current_region_id,
                 Ok(None) => {
-                    tracing::debug!("PC {} not found for region item context", pc_uuid);
+                    tracing::debug!("PC {} not found for region item context", pc_id);
                     None
                 }
                 Err(e) => {
@@ -220,7 +219,7 @@ impl PromptContextService for PromptContextServiceImpl {
 
         // 9. Find responding character (NPC being addressed) with mood and actantial context
         let responding_character = self
-            .find_responding_character(&action.target, &snapshot.characters, action.pc_id)
+            .find_responding_character(&action.target, &snapshot.characters, action.pc_id.map(|id| id.to_uuid()))
             .await;
 
         // 10. Get active challenges for the current scene

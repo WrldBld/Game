@@ -5,6 +5,7 @@ use wrldbldr_domain::entities::{
     Challenge, ChallengeOutcomes, ChallengeType, Difficulty, DifficultyDescriptor, Outcome,
     OutcomeTrigger, TriggerCondition, TriggerType,
 };
+use wrldbldr_domain::value_objects::ProposedTool;
 use wrldbldr_domain::{ChallengeId, SceneId};
 
 // ============================================================================
@@ -768,7 +769,7 @@ pub struct ChallengeOutcomePendingNotification {
     pub total: i32,
     pub outcome_type: String,
     pub outcome_description: String,
-    pub outcome_triggers: Vec<super::ProposedToolInfo>,
+    pub outcome_triggers: Vec<ProposedTool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roll_breakdown: Option<String>,
 }
@@ -786,7 +787,7 @@ impl ChallengeOutcomePendingNotification {
         total: i32,
         outcome_type: String,
         outcome_description: String,
-        outcome_triggers: Vec<super::ProposedToolInfo>,
+        outcome_triggers: Vec<ProposedTool>,
         roll_breakdown: Option<String>,
     ) -> Self {
         Self {

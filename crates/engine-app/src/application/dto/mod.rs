@@ -4,7 +4,8 @@
 //! They provide a stable API that is decoupled from domain entities.
 
 // NOTE: App events moved to `wrldbldr-protocol`.
-mod approval;
+// NOTE: approval module removed - types moved to domain layer
+// mod approval;
 mod asset;
 mod challenge;
 mod character;
@@ -16,7 +17,8 @@ mod item;
 mod location;
 mod narrative_event;
 mod player_character;
-mod queue_items;
+// NOTE: queue_items module removed - types moved to domain layer
+// mod queue_items;
 mod rule_system;
 mod scene;
 mod session_info;
@@ -33,18 +35,11 @@ mod world_snapshot;
 //
 // (The old `application::dto::AppEvent` has been removed.)
 
-// Approval DTOs (app-layer versions of protocol approval types)
-pub use approval::{
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalDecision,
-    NarrativeEventSuggestionInfo, ProposedToolInfo,
-};
+// NOTE: Approval DTOs moved to wrldbldr_domain::value_objects::queue_data
+// (ChallengeSuggestion, DmApprovalDecision, NarrativeEventSuggestion, ProposedTool, etc.)
 
-// Queue items (used by queue services)
-pub use queue_items::{
-    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem, DMAction, DMActionItem,
-    DecisionType, DecisionUrgency, EnhancedChallengeSuggestion, EnhancedOutcomes, LLMRequestItem,
-    LLMRequestType, OutcomeDetail, PlayerActionItem,
-};
+// NOTE: Queue item types have been moved to wrldbldr_domain::value_objects::queue_data
+// See Phase 3.0.1.7 - Queue Architecture Remediation
 
 // Asset DTOs
 pub use asset::{

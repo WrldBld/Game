@@ -39,12 +39,16 @@ mod messages;
 pub use error_conversion::IntoServerError;
 
 pub use approval_converters::{
-    app_challenge_suggestion_to_proto, app_challenge_to_proto, app_decision_to_proto,
-    app_narrative_suggestion_to_proto, app_narrative_to_proto, app_outcomes_to_proto,
-    app_tool_to_proto, app_tools_to_proto, domain_tool_to_proto, domain_tools_to_proto,
-    domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
-    proto_challenge_to_app, proto_decision_to_app,
-    proto_narrative_to_app, proto_outcomes_to_app, proto_tool_to_app,
+    // Domain to Protocol converters
+    domain_tool_to_proto, domain_tools_to_proto,
+    domain_challenge_to_proto, domain_challenge_suggestion_to_proto,
+    domain_narrative_to_proto, domain_narrative_suggestion_to_proto,
+    domain_outcomes_to_proto, domain_decision_to_proto,
+    // Protocol to Domain converters
+    proto_tool_to_domain, proto_tools_to_domain,
+    proto_challenge_to_domain, proto_challenge_suggestion_to_domain,
+    proto_narrative_to_domain, proto_narrative_suggestion_to_domain,
+    proto_outcomes_to_domain, proto_decision_to_domain,
 };
 
 pub use broadcast_adapter::WebSocketBroadcastAdapter;
