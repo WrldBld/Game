@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28 (Ninth review - agent verification of new findings)  
+**Last Updated**: 2025-12-29 (Phase 3.0.1.7.4 completed - queue architecture cleanup)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -857,10 +857,12 @@ engine-adapters/ → implements ports, converts domain ↔ DTO
 | 3.0.1.7.1 | Define domain queue item value objects | **DONE** - queue_data.rs (15+ types) |
 | 3.0.1.7.2 | Update QueuePort traits to use domain types | **DONE** - removed serde bounds |
 | 3.0.1.7.3 | Refactor queue services to use domain types | **DONE** - 6 services refactored |
-| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | **IN PROGRESS** |
+| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | **DONE** - Commit 3f322b7 |
 | 3.0.1.7.5 | Update adapters to convert domain ↔ DTO | **DONE** - 16 From impls |
 
-**Commit**: 713ea4f - 363 files changed, 13117 insertions(+), 6559 deletions(-)
+**Commits**: 
+- 713ea4f - 363 files changed, 13117 insertions(+), 6559 deletions(-) (main refactor)
+- 3f322b7 - cleanup: delete old DTOs, rename approval converters to use domain types
 
 **Domain Queue Types to Create** (in `domain/value_objects/queue_data.rs`):
 - `PlayerActionData` - player action request
