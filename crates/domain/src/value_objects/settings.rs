@@ -153,52 +153,13 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
-    /// Load from environment variables, using defaults for missing values
-    pub fn from_env() -> Self {
-        let defaults = Self::default();
-        let context_budget_defaults = ContextBudgetConfig::default();
-        
-        Self {
-            world_id: None, // Global settings from env
-            max_conversation_turns: env_or("WRLDBLDR_MAX_CONVERSATION_TURNS", defaults.max_conversation_turns),
-            conversation_history_turns: env_or("WRLDBLDR_CONVERSATION_HISTORY_TURNS", defaults.conversation_history_turns),
-            circuit_breaker_failure_threshold: env_or("WRLDBLDR_CIRCUIT_BREAKER_FAILURES", defaults.circuit_breaker_failure_threshold),
-            circuit_breaker_open_duration_secs: env_or("WRLDBLDR_CIRCUIT_BREAKER_OPEN_SECS", defaults.circuit_breaker_open_duration_secs),
-            health_check_cache_ttl_secs: env_or("WRLDBLDR_HEALTH_CHECK_CACHE_TTL", defaults.health_check_cache_ttl_secs),
-            max_name_length: env_or("WRLDBLDR_MAX_NAME_LENGTH", defaults.max_name_length),
-            max_description_length: env_or("WRLDBLDR_MAX_DESCRIPTION_LENGTH", defaults.max_description_length),
-            typewriter_sentence_delay_ms: env_or("WRLDBLDR_TYPEWRITER_SENTENCE_DELAY", defaults.typewriter_sentence_delay_ms),
-            typewriter_pause_delay_ms: env_or("WRLDBLDR_TYPEWRITER_PAUSE_DELAY", defaults.typewriter_pause_delay_ms),
-            typewriter_char_delay_ms: env_or("WRLDBLDR_TYPEWRITER_CHAR_DELAY", defaults.typewriter_char_delay_ms),
-            default_max_stat_value: env_or("WRLDBLDR_DEFAULT_MAX_STAT", defaults.default_max_stat_value),
-            default_presence_cache_ttl_hours: env_or("WRLDBLDR_DEFAULT_PRESENCE_CACHE_TTL_HOURS", defaults.default_presence_cache_ttl_hours),
-            default_use_llm_presence: env_or("WRLDBLDR_DEFAULT_USE_LLM_PRESENCE", defaults.default_use_llm_presence),
-            outcome_branch_count: env_or("WRLDBLDR_OUTCOME_BRANCH_COUNT", defaults.outcome_branch_count),
-            outcome_branch_min: env_or("WRLDBLDR_OUTCOME_BRANCH_MIN", defaults.outcome_branch_min),
-            outcome_branch_max: env_or("WRLDBLDR_OUTCOME_BRANCH_MAX", defaults.outcome_branch_max),
-            suggestion_tokens_per_branch: env_or("WRLDBLDR_SUGGESTION_TOKENS_PER_BRANCH", defaults.suggestion_tokens_per_branch),
-            // Load context budget from environment variables
-            context_budget: ContextBudgetConfig {
-                total_budget_tokens: env_or("WRLDBLDR_LLM_TOTAL_BUDGET_TOKENS", context_budget_defaults.total_budget_tokens),
-                scene_tokens: env_or("WRLDBLDR_LLM_SCENE_TOKENS", context_budget_defaults.scene_tokens),
-                character_tokens: env_or("WRLDBLDR_LLM_CHARACTER_TOKENS", context_budget_defaults.character_tokens),
-                conversation_history_tokens: env_or("WRLDBLDR_LLM_CONVERSATION_HISTORY_TOKENS", context_budget_defaults.conversation_history_tokens),
-                challenges_tokens: env_or("WRLDBLDR_LLM_CHALLENGES_TOKENS", context_budget_defaults.challenges_tokens),
-                narrative_events_tokens: env_or("WRLDBLDR_LLM_NARRATIVE_EVENTS_TOKENS", context_budget_defaults.narrative_events_tokens),
-                directorial_notes_tokens: env_or("WRLDBLDR_LLM_DIRECTORIAL_NOTES_TOKENS", context_budget_defaults.directorial_notes_tokens),
-                location_context_tokens: env_or("WRLDBLDR_LLM_LOCATION_CONTEXT_TOKENS", context_budget_defaults.location_context_tokens),
-                player_context_tokens: env_or("WRLDBLDR_LLM_PLAYER_CONTEXT_TOKENS", context_budget_defaults.player_context_tokens),
-                enable_summarization: env_or("WRLDBLDR_LLM_ENABLE_SUMMARIZATION", context_budget_defaults.enable_summarization),
-                summarization_model: std::env::var("WRLDBLDR_LLM_SUMMARIZATION_MODEL").ok(),
-            },
-            // Style reference is not loaded from env - only stored per-world
-            style_reference_asset_id: None,
-        }
-    }
-
-    /// Create settings for a specific world, starting from global defaults
-    pub fn for_world(world_id: WorldId) -> Self {
-        let mut settings = Self::from_env();
+    /// Create settings for a specific world from base settings
+    ///
+    /// # Note
+    /// To load from environment variables, use `load_settings_from_env()`
+    /// from `wrldbldr_engine_adapters::infrastructure::settings_loader`.
+    pub fn for_world(base: AppSettings, world_id: WorldId) -> Self {
+        let mut settings = base;
         settings.world_id = Some(world_id.into());
         settings
     }
@@ -216,10 +177,6 @@ impl AppSettings {
         // In the future, we could make this more granular with Option<T> fields
         self.clone()
     }
-}
-
-fn env_or<T: std::str::FromStr>(key: &str, default: T) -> T {
-    std::env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
 }
 
 /// Settings field metadata for UI rendering

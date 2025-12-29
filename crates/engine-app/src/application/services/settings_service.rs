@@ -5,8 +5,14 @@ use wrldbldr_engine_ports::outbound::{SettingsRepositoryPort, SettingsError};
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
 
+/// Callback type for loading settings from environment.
+/// This allows the service to remain decoupled from the adapters layer.
+pub type SettingsLoaderFn = Arc<dyn Fn() -> AppSettings + Send + Sync>;
+
 pub struct SettingsService {
     repository: Arc<dyn SettingsRepositoryPort>,
+    /// Callback to load settings from environment (injected from adapters layer)
+    settings_loader: SettingsLoaderFn,
     /// Cache for global settings
     global_cache: RwLock<Option<AppSettings>>,
     /// Cache for per-world settings
@@ -14,9 +20,15 @@ pub struct SettingsService {
 }
 
 impl SettingsService {
-    pub fn new(repository: Arc<dyn SettingsRepositoryPort>) -> Self {
+    /// Create a new SettingsService with the given repository and settings loader.
+    ///
+    /// The `settings_loader` should be `load_settings_from_env` from the adapters layer,
+    /// wrapped in an Arc. This keeps environment I/O in the adapters layer while allowing
+    /// the application service to fall back to environment-based defaults when needed.
+    pub fn new(repository: Arc<dyn SettingsRepositoryPort>, settings_loader: SettingsLoaderFn) -> Self {
         Self {
             repository,
+            settings_loader,
             global_cache: RwLock::new(None),
             world_cache: RwLock::new(HashMap::new()),
         }
@@ -36,7 +48,7 @@ impl SettingsService {
                 *self.global_cache.write().await = Some(settings.clone());
                 settings
             }
-            Err(_) => AppSettings::from_env(),
+            Err(_) => (self.settings_loader)(),
         }
     }
 

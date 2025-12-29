@@ -46,6 +46,7 @@ use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
 use crate::infrastructure::export::Neo4jWorldExporter;
 use crate::infrastructure::ollama::OllamaClient;
+use crate::infrastructure::settings_loader::load_settings_from_env;
 use crate::infrastructure::persistence::{
     Neo4jNarrativeEventRepository, Neo4jRegionRepository, Neo4jRepository, 
     Neo4jStagingRepository, SqliteDirectorialContextRepository, SqlitePromptTemplateRepository,
@@ -182,7 +183,10 @@ impl AppState {
             .map_err(|e| anyhow::anyhow!("Failed to initialize settings repository: {}", e))?;
         let settings_repository: Arc<dyn wrldbldr_engine_ports::outbound::SettingsRepositoryPort> =
             Arc::new(settings_repository);
-        let settings_service = Arc::new(SettingsService::new(settings_repository));
+        // Inject the settings loader function (from adapters layer) into the service
+        let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn = 
+            Arc::new(load_settings_from_env);
+        let settings_service = Arc::new(SettingsService::new(settings_repository, settings_loader));
 
         // Initialize prompt template service (uses same pool as settings - they share the DB file)
         let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool.clone())

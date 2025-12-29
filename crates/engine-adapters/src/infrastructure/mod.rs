@@ -28,6 +28,7 @@ pub mod ports;
 pub mod queue_workers;
 pub mod queues;
 pub mod repositories;
+pub mod settings_loader;
 pub mod state;
 pub mod suggestion_enqueue_adapter;
 pub mod state_broadcast;
@@ -51,3 +52,6 @@ pub use world_state_manager::{
 pub use world_connection_manager::{
     BroadcastError, DmInfo, WorldConnectionManager,
 };
+
+// Re-export settings loader
+pub use settings_loader::load_settings_from_env;

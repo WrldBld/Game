@@ -5,6 +5,8 @@ use wrldbldr_engine_ports::outbound::{SettingsError, SettingsRepositoryPort};
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
 
+use crate::infrastructure::settings_loader::load_settings_from_env;
+
 pub struct SqliteSettingsRepository {
     pool: SqlitePool,
 }
@@ -138,7 +140,7 @@ impl SqliteSettingsRepository {
 #[async_trait]
 impl SettingsRepositoryPort for SqliteSettingsRepository {
     async fn get(&self) -> Result<AppSettings, SettingsError> {
-        let mut settings = AppSettings::from_env(); // Start with env defaults
+        let mut settings = load_settings_from_env(); // Start with env defaults
 
         // Override with DB values
         let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM settings")
@@ -171,7 +173,7 @@ impl SettingsRepositoryPort for SqliteSettingsRepository {
             .await
             .map_err(|e| SettingsError::Database(e.to_string()))?;
 
-        Ok(AppSettings::from_env())
+        Ok(load_settings_from_env())
     }
 
     async fn get_for_world(&self, world_id: WorldId) -> Result<AppSettings, SettingsError> {

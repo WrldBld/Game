@@ -139,7 +139,7 @@ pub use asset_service::{AssetService, AssetServiceImpl, CreateAssetRequest};
 pub use sheet_template_service::SheetTemplateService;
 
 // Re-export settings service types
-pub use settings_service::SettingsService;
+pub use settings_service::{SettingsLoaderFn, SettingsService};
 
 // Re-export prompt template service types
 pub use prompt_template_service::PromptTemplateService;
