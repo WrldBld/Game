@@ -450,18 +450,8 @@ pub enum DmApprovalDecision {
 // Outcome Trigger Types (needed by ChallengeOutcomeApprovalItem)
 // ============================================================================
 
-/// Outcome trigger request DTO
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum OutcomeTriggerRequestDto {
-    RevealInformation { info: String, persist: bool },
-    EnableChallenge { challenge_id: String },
-    DisableChallenge { challenge_id: String },
-    ModifyCharacterStat { stat: String, modifier: i32 },
-    TriggerScene { scene_id: String },
-    GiveItem { item_name: String, item_description: Option<String> },
-    Custom { description: String },
-}
+// Re-export from persistence module for queue payload compatibility
+pub use crate::persistence::OutcomeTriggerRequestDto;
 
 // ============================================================================
 // Context Types (needed by LLMRequestItem)

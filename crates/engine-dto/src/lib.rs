@@ -12,9 +12,11 @@
 //! 3. **Domain types allowed** - Can depend on domain value objects for queue payloads
 
 pub mod llm;
+pub mod persistence;
 pub mod queue;
 pub mod request_context;
 
 pub use llm::*;
+pub use persistence::*;
 pub use queue::*;
 pub use request_context::*;

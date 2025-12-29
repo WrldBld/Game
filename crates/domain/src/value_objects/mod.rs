@@ -17,6 +17,7 @@ mod settings;
 mod prompt_templates;
 mod staging_context;
 mod context_budget_enforcement;
+mod world_state;
 
 
 // Actantial model context for LLM consumption
@@ -62,6 +63,7 @@ pub use staging_context::{
 pub use context_budget_enforcement::{
     ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
 };
+pub use world_state::{ApprovalType, ConversationEntry, PendingApprovalItem, Speaker};
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)
 // ActantTarget is no longer used - targets are now Neo4j edges

@@ -80,4 +80,5 @@ pub use value_objects::{
     PromptTemplateCategory, PromptTemplateMetadata, prompt_template_keys,
     prompt_defaults, get_prompt_default, key_to_env_var, prompt_keys, prompt_template_metadata,
     ActiveEventContext, NpcDialogueContext, RollResult, RuleBasedSuggestion, StagingContext,
+    ApprovalType, ConversationEntry, PendingApprovalItem, Speaker,
 };

@@ -23,6 +23,7 @@ mod settings_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
 mod world_exporter_port;
+mod world_state_port;
 
 // Clock port - time abstraction for deterministic testing
 pub use clock_port::ClockPort;
@@ -89,9 +90,12 @@ pub use game_events::{
     RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent, StagedNpcData,
     StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, StateChangeInfo, WaitingPcData,
 };
+pub use world_state_port::WorldStatePort;
 
 // Re-export mocks for test builds
 #[cfg(any(test, feature = "testing"))]
 pub use broadcast_port::MockBroadcastPort;
 #[cfg(any(test, feature = "testing"))]
 pub use repository_port::MockChallengeRepositoryPort;
+#[cfg(any(test, feature = "testing"))]
+pub use world_state_port::MockWorldStatePort;
