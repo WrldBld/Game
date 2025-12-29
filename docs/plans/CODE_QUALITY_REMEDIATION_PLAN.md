@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.1.7.4 completed - queue architecture cleanup)  
+**Last Updated**: 2025-12-29 (Phase 3.0.1.8 - port traits and use case types to engine-ports)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -166,12 +166,14 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 75% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 80% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
 | Phase 3.0.1.4 | Service port traits (26/26) | **DONE** | 100% |
 | Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
+| Phase 3.0.1.8 | Port traits + use case types to engine-ports | **DONE** | 100% |
+| Phase 3.0.1.9 | Update engine-app to re-export from engine-ports | **IN PROGRESS** | 30% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
@@ -878,6 +880,32 @@ engine-adapters/ → implements ports, converts domain ↔ DTO
 - ExportQueryDto → protocol (1 file)
 
 **Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
+
+#### 3.0.1.8 Move Port Traits and Use Case Types to engine-ports (NEW - 2025-12-29)
+
+**Problem**: Port traits and use case input/output types were defined in engine-app/use_cases/*.rs. 
+This is a hexagonal violation - these are contracts that adapters need, so they belong in the ports layer.
+
+**Completed**:
+1. Created `engine-ports/src/inbound/use_case_ports.rs` with 19 port trait definitions
+2. Added ~40 use case input/output types to `engine-ports/src/outbound/use_case_types.rs`
+3. Moved workflow and rule_system DTOs to `protocol/src/dto.rs`
+4. Added From impls for domain <-> DTO conversions in protocol
+
+**Commits**:
+- cadc440 - refactor: Phase 3.0.1 - Move use case types, port traits, and DTOs to proper layers
+- 55d6e52 - docs: Add architecture notes to adapter files
+
+**Remaining Work (Phase 3.0.1.9)**:
+engine-app still defines duplicate versions of these types. The use_cases/*.rs files need to:
+1. Import port traits from `wrldbldr_engine_ports::inbound` instead of defining them
+2. Import use case types from `wrldbldr_engine_ports::outbound` instead of defining them
+3. Re-export for backward compatibility
+
+Once engine-app re-exports from engine-ports, the adapters can import from either location
+and the trait implementations will match.
+
+**Current import count**: 56 (down from 72)
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
