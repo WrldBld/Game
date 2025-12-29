@@ -126,3 +126,55 @@ impl From<SuggestionContext> for wrldbldr_protocol::SuggestionContextData {
         }
     }
 }
+
+// ============================================================================
+// Challenge Requests
+// ============================================================================
+
+/// Application-layer DTO for creating a challenge
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CreateChallengeRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub skill_id: String,
+    pub difficulty: String,
+    pub success_outcome: Option<String>,
+    pub failure_outcome: Option<String>,
+}
+
+impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
+    fn from(req: CreateChallengeRequest) -> Self {
+        Self {
+            name: req.name,
+            description: req.description,
+            skill_id: req.skill_id,
+            difficulty: req.difficulty,
+            success_outcome: req.success_outcome,
+            failure_outcome: req.failure_outcome,
+        }
+    }
+}
+
+/// Application-layer DTO for updating a challenge
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct UpdateChallengeRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub skill_id: Option<String>,
+    pub difficulty: Option<String>,
+    pub success_outcome: Option<String>,
+    pub failure_outcome: Option<String>,
+}
+
+impl From<UpdateChallengeRequest> for wrldbldr_protocol::UpdateChallengeData {
+    fn from(req: UpdateChallengeRequest) -> Self {
+        Self {
+            name: req.name,
+            description: req.description,
+            skill_id: req.skill_id,
+            difficulty: req.difficulty,
+            success_outcome: req.success_outcome,
+            failure_outcome: req.failure_outcome,
+        }
+    }
+}

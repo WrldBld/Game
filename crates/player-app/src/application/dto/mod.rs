@@ -49,6 +49,13 @@ pub use world_snapshot::{
 // Re-export settings DTOs
 pub use settings::{AppSettings, ContextBudgetConfig, SettingsFieldMetadata, SettingsMetadataResponse};
 
+// Re-export request DTOs
+pub use requests::{
+    CreateWorldRequest, CreateCharacterRequest, UpdateCharacterRequest,
+    ChangeArchetypeRequest, SuggestionContext,
+    CreateChallengeRequest, UpdateChallengeRequest,
+};
+
 // Re-export session types (application-owned DTOs for GameConnectionPort)
 pub use session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
