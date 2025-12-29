@@ -8,8 +8,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset};
-use wrldbldr_domain::AssetId;
+use wrldbldr_domain::entities::{AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch};
+use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Request to create a new asset
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +25,8 @@ pub struct CreateAssetRequest {
 /// Port for asset service operations
 ///
 /// This trait defines the application use cases for asset gallery management,
-/// including listing, creating, and retrieving assets.
+/// including listing, creating, and retrieving assets, as well as generation
+/// batch management.
 #[cfg_attr(any(test, feature = "testing"), mockall::automock)]
 #[async_trait]
 pub trait AssetServicePort: Send + Sync {
@@ -41,4 +42,35 @@ pub trait AssetServicePort: Send + Sync {
 
     /// Create a new asset
     async fn create_asset(&self, request: CreateAssetRequest) -> Result<GalleryAsset>;
+
+    /// Update an asset's label
+    async fn update_asset_label(&self, asset_id: AssetId, label: Option<String>) -> Result<()>;
+
+    /// Delete an asset
+    async fn delete_asset(&self, asset_id: AssetId) -> Result<()>;
+
+    /// Activate an asset (set as current for its entity/type slot)
+    async fn activate_asset(&self, asset_id: AssetId) -> Result<()>;
+
+    /// Create a generation batch
+    async fn create_batch(&self, batch: GenerationBatch) -> Result<GenerationBatch>;
+
+    /// Get a batch by ID
+    async fn get_batch(&self, batch_id: BatchId) -> Result<Option<GenerationBatch>>;
+
+    /// List all active batches (queued or generating) for a specific world
+    async fn list_active_batches_by_world(&self, world_id: WorldId)
+        -> Result<Vec<GenerationBatch>>;
+
+    /// List batches ready for selection
+    async fn list_ready_batches(&self) -> Result<Vec<GenerationBatch>>;
+
+    /// Update batch status
+    async fn update_batch_status(&self, batch_id: BatchId, status: BatchStatus) -> Result<()>;
+
+    /// Update batch assets
+    async fn update_batch_assets(&self, batch_id: BatchId, assets: Vec<AssetId>) -> Result<()>;
+
+    /// Delete a batch
+    async fn delete_batch(&self, batch_id: BatchId) -> Result<()>;
 }

@@ -5,7 +5,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, RegionId};
 use wrldbldr_engine_ports::outbound::{
@@ -26,7 +26,7 @@ use super::common::{error_msg, extract_dm_context_opt};
 /// 2. Persists the approved staging
 /// 3. Notifies all waiting PCs with SceneChanged
 pub async fn handle_staging_approval_response(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     approved_npcs: Vec<ApprovedNpcInfo>,
@@ -73,7 +73,7 @@ pub async fn handle_staging_approval_response(
         source: staging_source,
     };
 
-    match state.use_cases.staging.approve(ctx, input).await {
+    match state.app.use_cases.staging.approve(ctx, input).await {
         Ok(_) => None, // No direct response to DM
         Err(e) => Some(e.into_server_error()),
     }
@@ -90,7 +90,7 @@ pub async fn handle_staging_approval_response(
 /// 2. Regenerates LLM suggestions with guidance
 /// 3. Returns new suggestions
 pub async fn handle_staging_regenerate_request(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     guidance: String,
@@ -109,7 +109,7 @@ pub async fn handle_staging_regenerate_request(
         guidance,
     };
 
-    match state.use_cases.staging.regenerate(ctx, input).await {
+    match state.app.use_cases.staging.regenerate(ctx, input).await {
         Ok(result) => {
             let llm_based_npcs: Vec<StagedNpcInfo> = result
                 .llm_based_npcs
@@ -145,7 +145,7 @@ pub async fn handle_staging_regenerate_request(
 /// 2. Pre-stages the region with provided NPCs
 /// 3. Broadcasts StagingReady to DMs
 pub async fn handle_pre_stage_region(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     region_id: String,
     npcs: Vec<ApprovedNpcInfo>,
@@ -190,7 +190,7 @@ pub async fn handle_pre_stage_region(
         ttl_hours,
     };
 
-    match state.use_cases.staging.pre_stage(ctx, input).await {
+    match state.app.use_cases.staging.pre_stage(ctx, input).await {
         Ok(_) => None, // Success, no response needed
         Err(e) => Some(e.into_server_error()),
     }

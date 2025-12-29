@@ -1,12 +1,55 @@
 //! Inbound ports - Interfaces that the application exposes to the outside world
 
+pub mod challenge_use_case_port;
+pub mod connection_use_case_port;
+pub mod inventory_use_case_port;
+pub mod movement_use_case_port;
+pub mod narrative_event_use_case_port;
+pub mod observation_use_case_port;
+pub mod player_action_use_case_port;
 pub mod request_handler;
+pub mod scene_use_case_port;
+pub mod staging_use_case_port;
 pub mod use_case_context;
+pub mod use_case_errors;
 pub mod use_case_ports;
 pub mod use_cases;
 
+pub use challenge_use_case_port::ChallengeUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_use_case_port::MockChallengeUseCasePort;
+pub use connection_use_case_port::ConnectionUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use connection_use_case_port::MockConnectionUseCasePort;
+pub use inventory_use_case_port::InventoryUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use inventory_use_case_port::MockInventoryUseCasePort;
+pub use movement_use_case_port::MovementUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use movement_use_case_port::MockMovementUseCasePort;
+pub use narrative_event_use_case_port::NarrativeEventUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_use_case_port::MockNarrativeEventUseCasePort;
+pub use observation_use_case_port::ObservationUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use observation_use_case_port::MockObservationUseCasePort;
+pub use player_action_use_case_port::PlayerActionUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use player_action_use_case_port::MockPlayerActionUseCasePort;
 pub use request_handler::{RequestContext, RequestHandler};
+pub use scene_use_case_port::SceneUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use scene_use_case_port::MockSceneUseCasePort;
+pub use staging_use_case_port::StagingUseCasePort;
+#[cfg(any(test, feature = "testing"))]
+pub use staging_use_case_port::MockStagingUseCasePort;
 pub use use_case_context::UseCaseContext;
+
+// Re-export all use case error types
+pub use use_case_errors::{
+    ActionError, ChallengeError, InventoryError, MovementError, NarrativeEventError,
+    ObservationError, SceneError, StagingError,
+};
 
 // Re-export all use case port traits
 pub use use_case_ports::{

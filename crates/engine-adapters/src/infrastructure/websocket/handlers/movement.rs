@@ -5,7 +5,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::converters::{
     movement_result_to_message, select_character_result_to_message,
 };
@@ -27,7 +27,7 @@ use wrldbldr_protocol::ServerMessage;
 /// 1. Validates the PC exists
 /// 2. Returns the PC's current position information
 pub async fn handle_select_player_character(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     pc_id: String,
 ) -> Option<ServerMessage> {
@@ -41,7 +41,7 @@ pub async fn handle_select_player_character(
 
     let input = SelectCharacterInput { pc_id: pc_uuid };
 
-    match state.use_cases.movement.select_character(ctx, input).await {
+    match state.app.use_cases.movement.select_character(ctx, input).await {
         Ok(result) => {
             tracing::info!(
                 client_id = %client_id,
@@ -67,7 +67,7 @@ pub async fn handle_select_player_character(
 /// 3. Updates PC position in the database
 /// 4. Handles the staging system workflow
 pub async fn handle_move_to_region(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     pc_id: String,
     region_id: String,
@@ -91,7 +91,7 @@ pub async fn handle_move_to_region(
         target_region_id: region_uuid,
     };
 
-    match state.use_cases.movement.move_to_region(ctx, input).await {
+    match state.app.use_cases.movement.move_to_region(ctx, input).await {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
         Err(e) => Some(e.into_server_error()),
     }
@@ -109,7 +109,7 @@ pub async fn handle_move_to_region(
 /// 3. Updates PC position (location and region)
 /// 4. Handles the staging system workflow
 pub async fn handle_exit_to_location(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     pc_id: String,
     location_id: String,
@@ -139,7 +139,7 @@ pub async fn handle_exit_to_location(
         arrival_region_id: arrival_uuid,
     };
 
-    match state.use_cases.movement.exit_to_location(ctx, input).await {
+    match state.app.use_cases.movement.exit_to_location(ctx, input).await {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
         Err(e) => Some(e.into_server_error()),
     }
@@ -150,9 +150,9 @@ pub async fn handle_exit_to_location(
 // =============================================================================
 
 /// Extract UseCaseContext from connection state
-async fn extract_context(state: &AppState, client_id: Uuid) -> Option<UseCaseContext> {
+async fn extract_context(state: &AdapterState, client_id: Uuid) -> Option<UseCaseContext> {
     let conn = state
-        .world_connection_manager
+        .connection_manager
         .get_connection_by_client_id(&client_id.to_string())
         .await?;
 

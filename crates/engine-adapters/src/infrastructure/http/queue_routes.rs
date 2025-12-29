@@ -10,13 +10,13 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::services::GenerationQueueSnapshot;
 use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueueItemStatus, QueuePort};
 
 /// Create queue-related routes
-pub fn create_queue_routes() -> Router<Arc<AppState>> {
+pub fn create_queue_routes() -> Router<Arc<AdapterState>> {
     Router::new()
         .route("/health/queues", get(queue_health_check))
         .route("/generation/queue", get(get_generation_queue))
@@ -27,10 +27,11 @@ pub fn create_queue_routes() -> Router<Arc<AppState>> {
 }
 
 /// Health check endpoint for queue status
-async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serde_json::Value> {
     use std::collections::HashMap;
 
     let player_action_depth = state
+        .app
         .queues
         .player_action_queue_service
         .depth()
@@ -38,6 +39,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .unwrap_or(0);
 
     let llm_pending = state
+        .app
         .queues
         .llm_queue_service
         .queue()
@@ -46,6 +48,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .unwrap_or(0);
 
     let llm_processing = state
+        .app
         .queues
         .llm_queue_service
         .queue()
@@ -54,6 +57,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .unwrap_or(0);
 
     let approvals_pending = state
+        .app
         .queues
         .dm_approval_queue_service
         .queue()
@@ -62,6 +66,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .unwrap_or(0);
 
     let asset_pending = state
+        .app
         .queues
         .asset_generation_queue_service
         .queue()
@@ -70,6 +75,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
         .unwrap_or(0);
 
     let asset_processing = state
+        .app
         .queues
         .asset_generation_queue_service
         .queue()
@@ -82,6 +88,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
     // critical-path queue processing.
     let mut player_actions_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
+        .app
         .queues
         .player_action_queue_service
         .queue()
@@ -96,6 +103,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
 
     let mut llm_requests_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
+        .app
         .queues
         .llm_queue_service
         .queue()
@@ -110,6 +118,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
 
     let mut asset_generation_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
+        .app
         .queues
         .asset_generation_queue_service
         .queue()
@@ -167,7 +176,7 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
 ///
 /// Requires `world_id` query parameter to scope batches to a specific world.
 pub async fn get_generation_queue(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     headers: HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<GenerationQueueSnapshot>, (StatusCode, String)> {
@@ -193,6 +202,7 @@ pub async fn get_generation_queue(
 
     // Delegate to the application-layer projection service for reconstruction.
     let snapshot = state
+        .app
         .assets
         .generation_queue_projection_service
         .project_queue(user_id.as_deref(), world_id)
@@ -227,7 +237,7 @@ pub struct GenerationReadStateUpdate {
 
 /// Persist read/unread state for generation queue items
 pub async fn update_generation_read_state(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     headers: HeaderMap,
     Json(body): Json<GenerationReadStateUpdate>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -260,6 +270,7 @@ pub async fn update_generation_read_state(
 
     for batch_id in &body.read_batches {
         if let Err(e) = state
+            .app
             .events
             .generation_read_state_repository
             .mark_read(&user_id, &world_key, batch_id, GenerationReadKind::Batch)
@@ -274,6 +285,7 @@ pub async fn update_generation_read_state(
 
     for req_id in &body.read_suggestions {
         if let Err(e) = state
+            .app
             .events
             .generation_read_state_repository
             .mark_read(&user_id, &world_key, req_id, GenerationReadKind::Suggestion)

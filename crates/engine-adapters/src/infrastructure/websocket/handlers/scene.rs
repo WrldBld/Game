@@ -2,7 +2,7 @@
 //!
 //! Thin routing layer for scene management. Business logic is in SceneUseCase.
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use uuid::Uuid;
 use wrldbldr_domain::SceneId;
@@ -17,7 +17,7 @@ use super::common::{error_msg, extract_context_opt, extract_dm_context_opt};
 
 /// Handles a request to change the current scene.
 pub async fn handle_request_scene_change(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     scene_id: String,
 ) -> Option<ServerMessage> {
@@ -29,7 +29,7 @@ pub async fn handle_request_scene_change(
     let input = RequestSceneChangeInput {
         scene_id: scene_uuid,
     };
-    match state.use_cases.scene.request_scene_change(ctx, input).await {
+    match state.app.use_cases.scene.request_scene_change(ctx, input).await {
         Ok(result) => convert_scene_result(result),
         Err(e) => Some(e.into_server_error()),
     }
@@ -37,7 +37,7 @@ pub async fn handle_request_scene_change(
 
 /// Handles a directorial update from the DM.
 pub async fn handle_directorial_update(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     context: DirectorialContext,
 ) -> Option<ServerMessage> {
@@ -65,6 +65,7 @@ pub async fn handle_directorial_update(
         dm_notes: Some(context.scene_notes),
     };
     match state
+        .app
         .use_cases
         .scene
         .update_directorial_context(ctx, input)
@@ -77,7 +78,7 @@ pub async fn handle_directorial_update(
 
 /// Handles an approval decision from the DM.
 pub async fn handle_approval_decision(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     decision: wrldbldr_protocol::ApprovalDecision,
@@ -96,6 +97,7 @@ pub async fn handle_approval_decision(
         decision: convert_decision(decision),
     };
     match state
+        .app
         .use_cases
         .scene
         .handle_approval_decision(ctx, input)

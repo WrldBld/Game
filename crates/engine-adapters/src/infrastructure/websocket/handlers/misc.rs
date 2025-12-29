@@ -6,7 +6,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::outbound::{
@@ -20,9 +20,9 @@ use super::common::extract_dm_context_opt;
 ///
 /// Spawns an async task to perform the health check and broadcast
 /// the result to all connected clients as a `ComfyUIStateChanged` message.
-pub async fn handle_check_comfyui_health(state: &AppState) -> Option<ServerMessage> {
+pub async fn handle_check_comfyui_health(state: &AdapterState) -> Option<ServerMessage> {
     let comfyui_client = state.comfyui_client.clone();
-    let world_connection_manager = state.world_connection_manager.clone();
+    let connection_manager = state.connection_manager.clone();
 
     tokio::spawn(async move {
         let (state_str, message) = match comfyui_client.health_check().await {
@@ -42,8 +42,8 @@ pub async fn handle_check_comfyui_health(state: &AppState) -> Option<ServerMessa
             message,
             retry_in_seconds: None,
         };
-        for world_id in world_connection_manager.get_all_world_ids().await {
-            world_connection_manager
+        for world_id in connection_manager.get_all_world_ids().await {
+            connection_manager
                 .broadcast_to_world(world_id, msg.clone())
                 .await;
         }
@@ -54,7 +54,7 @@ pub async fn handle_check_comfyui_health(state: &AppState) -> Option<ServerMessa
 
 /// Handles sharing an NPC's location with a player character.
 pub async fn handle_share_npc_location(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     pc_id: String,
     npc_id: String,
@@ -73,6 +73,7 @@ pub async fn handle_share_npc_location(
     };
 
     match state
+        .app
         .use_cases
         .observation
         .share_npc_location(ctx, input)
@@ -85,7 +86,7 @@ pub async fn handle_share_npc_location(
 
 /// Handles triggering an NPC approach event.
 pub async fn handle_trigger_approach_event(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     npc_id: String,
     target_pc_id: String,
@@ -102,6 +103,7 @@ pub async fn handle_trigger_approach_event(
     };
 
     match state
+        .app
         .use_cases
         .observation
         .trigger_approach_event(ctx, input)
@@ -114,7 +116,7 @@ pub async fn handle_trigger_approach_event(
 
 /// Handles triggering a location-wide event.
 pub async fn handle_trigger_location_event(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     region_id: String,
     description: String,
@@ -127,6 +129,7 @@ pub async fn handle_trigger_location_event(
     };
 
     match state
+        .app
         .use_cases
         .observation
         .trigger_location_event(ctx, input)

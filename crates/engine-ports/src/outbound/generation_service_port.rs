@@ -49,4 +49,11 @@ pub trait GenerationServicePort: Send + Sync {
         batch_id: BatchId,
         asset_index: usize,
     ) -> Result<GalleryAsset>;
+
+    /// Start processing a generation batch
+    ///
+    /// This initiates the actual asset generation workflow for a batch,
+    /// sending requests to ComfyUI and tracking progress. Used when
+    /// retrying failed batches or manually triggering batch processing.
+    async fn start_batch_processing(&self, batch: GenerationBatch) -> Result<()>;
 }

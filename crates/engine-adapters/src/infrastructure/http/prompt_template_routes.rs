@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_domain::value_objects::PromptTemplateCategory;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::PromptTemplateSource;
 
 /// Create the prompt template routes
-pub fn prompt_template_routes() -> Router<Arc<AppState>> {
+pub fn prompt_template_routes() -> Router<Arc<AdapterState>> {
     Router::new()
         // Global prompt templates
         .route("/api/prompt-templates", get(get_prompt_templates))
@@ -137,8 +137,8 @@ pub struct PromptTemplateMetadataDto {
 // =============================================================================
 
 /// Get all prompt templates (global context)
-async fn get_prompt_templates(State(state): State<Arc<AppState>>) -> Json<PromptTemplatesResponse> {
-    let resolved = state.prompt_template_service.get_all().await;
+async fn get_prompt_templates(State(state): State<Arc<AdapterState>>) -> Json<PromptTemplatesResponse> {
+    let resolved = state.app.prompt_template_service.get_all().await;
 
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
@@ -156,13 +156,14 @@ async fn get_prompt_templates(State(state): State<Arc<AppState>>) -> Json<Prompt
 
 /// Update prompt templates (global)
 async fn update_prompt_templates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Json(request): Json<UpdatePromptTemplatesRequest>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
     for update in &request.templates {
         match &update.value {
             Some(value) => {
                 state
+                    .app
                     .prompt_template_service
                     .set_global(&update.key, value)
                     .await
@@ -171,6 +172,7 @@ async fn update_prompt_templates(
             None => {
                 // Delete the override
                 state
+                    .app
                     .prompt_template_service
                     .delete_global(&update.key)
                     .await
@@ -180,7 +182,7 @@ async fn update_prompt_templates(
     }
 
     // Return updated templates
-    let resolved = state.prompt_template_service.get_all().await;
+    let resolved = state.app.prompt_template_service.get_all().await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -197,16 +199,17 @@ async fn update_prompt_templates(
 
 /// Reset all global prompt template overrides
 async fn reset_prompt_templates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
     state
+        .app
         .prompt_template_service
         .reset_global()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return templates (now all defaults/env)
-    let resolved = state.prompt_template_service.get_all().await;
+    let resolved = state.app.prompt_template_service.get_all().await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -223,10 +226,11 @@ async fn reset_prompt_templates(
 
 /// Get a single prompt template (global context)
 async fn get_prompt_template(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path(key): Path<String>,
 ) -> Json<PromptTemplateDto> {
     let resolved = state
+        .app
         .prompt_template_service
         .resolve_with_source(&key)
         .await;
@@ -242,10 +246,11 @@ async fn get_prompt_template(
 
 /// Delete a single global prompt template override
 async fn delete_prompt_template(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path(key): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     state
+        .app
         .prompt_template_service
         .delete_global(&key)
         .await
@@ -260,9 +265,9 @@ async fn delete_prompt_template(
 
 /// Get template metadata for UI rendering
 async fn get_prompt_template_metadata(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
 ) -> Json<PromptTemplateMetadataResponse> {
-    let metadata = state.prompt_template_service.get_metadata();
+    let metadata = state.app.prompt_template_service.get_metadata();
 
     // Group by category
     let mut categories: std::collections::HashMap<
@@ -312,7 +317,7 @@ async fn get_prompt_template_metadata(
 
 /// Get all prompt templates for a specific world
 async fn get_world_prompt_templates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -324,6 +329,7 @@ async fn get_world_prompt_templates(
     let world_id = WorldId::from_uuid(world_uuid);
 
     let resolved = state
+        .app
         .prompt_template_service
         .get_all_for_world(world_id)
         .await;
@@ -344,7 +350,7 @@ async fn get_world_prompt_templates(
 
 /// Update prompt templates for a specific world
 async fn update_world_prompt_templates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path(world_id): Path<String>,
     Json(request): Json<UpdatePromptTemplatesRequest>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
@@ -360,6 +366,7 @@ async fn update_world_prompt_templates(
         match &update.value {
             Some(value) => {
                 state
+                    .app
                     .prompt_template_service
                     .set_for_world(world_id, &update.key, value)
                     .await
@@ -367,6 +374,7 @@ async fn update_world_prompt_templates(
             }
             None => {
                 state
+                    .app
                     .prompt_template_service
                     .delete_for_world(world_id, &update.key)
                     .await
@@ -377,6 +385,7 @@ async fn update_world_prompt_templates(
 
     // Return updated templates
     let resolved = state
+        .app
         .prompt_template_service
         .get_all_for_world(world_id)
         .await;
@@ -396,7 +405,7 @@ async fn update_world_prompt_templates(
 
 /// Reset all world-specific prompt template overrides
 async fn reset_world_prompt_templates(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -408,6 +417,7 @@ async fn reset_world_prompt_templates(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
+        .app
         .prompt_template_service
         .reset_for_world(world_id)
         .await
@@ -415,6 +425,7 @@ async fn reset_world_prompt_templates(
 
     // Return templates (now global/env/defaults)
     let resolved = state
+        .app
         .prompt_template_service
         .get_all_for_world(world_id)
         .await;
@@ -434,7 +445,7 @@ async fn reset_world_prompt_templates(
 
 /// Get a single prompt template for a specific world
 async fn get_world_prompt_template(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path((world_id, key)): Path<(String, String)>,
 ) -> Result<Json<PromptTemplateDto>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -446,6 +457,7 @@ async fn get_world_prompt_template(
     let world_id = WorldId::from_uuid(world_uuid);
 
     let resolved = state
+        .app
         .prompt_template_service
         .resolve_for_world_with_source(world_id, &key)
         .await;
@@ -461,7 +473,7 @@ async fn get_world_prompt_template(
 
 /// Delete a world-specific prompt template override
 async fn delete_world_prompt_template(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdapterState>>,
     Path((world_id, key)): Path<(String, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -473,6 +485,7 @@ async fn delete_world_prompt_template(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
+        .app
         .prompt_template_service
         .delete_for_world(world_id, &key)
         .await

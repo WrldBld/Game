@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28 (Ninth review - agent verification of new findings)  
+**Last Updated**: 2025-12-29 (Use Case Port Traits implementation plan added)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -73,7 +73,7 @@ The sixth review cross-validated findings between two independent agents and res
 
 #### NEW Issues Added:
 1. **Phase 3.0.3**: Add `world_state_manager.rs` (484 lines of business logic in adapters)
-2. **Phase 3.0.7**: Move composition root to runner (~1,045 lines in wrong layer)
+2. **Phase 3.0.7**: Hybrid Architecture - `AppState` (composition, pure ports) + `AdapterState` (infrastructure extension)
 3. **Phase 4.6**: Replace 30 glob re-exports + architecture rule against them
 
 #### Corrections Applied:
@@ -182,7 +182,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.4 | Fix Player-Side Hexagonal Architecture | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
-| Phase 3.0.7 | Reduce engine-adapters→engine-app deps | **IN PROGRESS** | 40% |
+| Phase 3.0.7 | Hybrid Architecture (AppState + AdapterState) | **IN PROGRESS** | 65% (AdapterState created, handlers updated, use case ports pending) |
 | Phase 3.1 | Challenge DTOs | **DONE** | 60% |
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
@@ -1523,14 +1523,325 @@ Remaining 24 imports are primarily:
 - **Use cases** (legitimate: adapters need to wire use cases)
 - **GenerationQueueSnapshot** (movable to engine-dto)
 
-##### Notes
+##### engine-composition Crate Progress (December 29, 2024)
 
-The engine-side architecture is more complex than player-side due to:
-1. More concrete adapter types (Neo4j, Ollama, ComfyUI vs just WebSocket)
-2. Complex generic type parameters in service containers
-3. Tighter coupling between services and their implementations
+**CREATED**: `crates/engine-composition/` with fully abstracted AppState using `Arc<dyn Trait>`.
 
-A full "Platform-style" refactor (all trait objects) would require significant changes to how services are parameterized. This is deferred to a future iteration.
+The crate contains:
+- `AppState` struct with all services as `Arc<dyn Port>` (no concrete types like `OllamaClient`)
+- `AppConfig` for configuration values
+- Service container structs: `CoreServices`, `GameServices`, `QueueServices`, `AssetServices`, `PlayerServices`, `EventInfra`, `UseCases`
+- 11 new port traits created in engine-ports for services that lacked them
+
+**CHALLENGE DISCOVERED**: Port traits are incomplete compared to app-layer service traits.
+
+When attempting to switch `engine-adapters` to use `engine-composition::AppState`:
+- **197 compilation errors** due to missing methods on port traits
+- WebSocket handlers (adapter layer) legitimately need methods not exposed via ports
+- Examples of missing methods:
+  - `WorldConnectionManagerPort`: `get_connection_by_client_id`, `unregister_connection`
+  - `AssetServicePort`: `list_assets`, `update_asset_label`, `delete_asset`, etc. (only had 3 methods)
+  - `GenerationServicePort`: `start_batch_processing`
+  - `WorldServicePort`: `export_world_snapshot`
+
+**ROOT CAUSE**: Port traits were designed for app-layer use cases, not adapter-layer infrastructure needs.
+
+##### SOLUTION: Hybrid Architecture with AdapterState (December 29, 2024)
+
+**DECISION**: Implement **Option A - Composition + Extension Pattern**.
+
+This is a clean hexagonal architecture that separates concerns:
+- `AppState` (in engine-composition): Pure ports, used by app-layer use cases
+- `AdapterState` (in engine-adapters): Extends AppState with infrastructure types, used by handlers
+
+**Architecture Diagram**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                           engine-runner                                     │
+│  Creates both AppState (composition) and AdapterState (infrastructure)      │
+└────────────────────────────────────────────────┬───────────────────────────┘
+                                                 │
+         ┌───────────────────────────────────────┼───────────────────────────┐
+         │                                       │                           │
+         ▼                                       ▼                           ▼
+┌─────────────────────┐            ┌──────────────────────┐       ┌─────────────────┐
+│   AdapterState      │            │      AppState        │       │   engine-app    │
+│  (infrastructure)   │───────────►│   (composition)      │◄──────│   (use cases)   │
+│                     │  contains  │   Arc<dyn Port>      │ uses  │                 │
+│ - connection_manager│            │   for all services   │       │                 │
+│ - comfyui_client    │            └──────────────────────┘       └─────────────────┘
+│ - region_repo       │
+└─────────────────────┘
+```
+
+**Why This Works**:
+1. **No hexagonal violations** - Outer layers (adapters) are allowed to know about infrastructure
+2. **Type-level enforcement** - Use cases receive `&AppState` (only ports), handlers receive `&AdapterState`
+3. **Clean separation** - App layer code cannot accidentally access infrastructure types
+4. **Future-proof** - Can expand ports and shrink AdapterState incrementally
+
+**Files Structure**:
+
+| File | Purpose |
+|------|---------|
+| `engine-composition/src/app_state.rs` | Pure `AppState` with `Arc<dyn Port>` for all services |
+| `engine-adapters/src/infrastructure/adapter_state.rs` | `AdapterState` that composes `AppState` + infrastructure |
+| `engine-runner/src/composition/` | Constructs both `AppState` and `AdapterState` |
+
+**AdapterState Definition**:
+
+```rust
+// In engine-adapters/src/infrastructure/adapter_state.rs
+pub struct AdapterState {
+    /// App-layer state with all services as port traits
+    pub app: AppState,
+    
+    /// Infrastructure: WebSocket connection manager
+    pub connection_manager: SharedWorldConnectionManager,
+    
+    /// Infrastructure: ComfyUI HTTP client (for health checks)
+    pub comfyui_client: ComfyUIClient,
+    
+    /// Infrastructure: Region repository (for converters)
+    pub region_repo: Arc<dyn RegionRepositoryPort>,
+}
+```
+
+**Usage Pattern**:
+
+```rust
+// WebSocket handlers (adapter layer) - use AdapterState
+async fn handle_join_world(state: &AdapterState, client_id: Uuid) {
+    // Infrastructure access - direct
+    let conn = state.connection_manager.get_connection_by_client_id(&client_id.to_string()).await;
+    
+    // App-layer access - via ports
+    let result = state.app.use_cases.connection.join_world(world_id, role).await;
+}
+
+// Use cases (app layer) - receive &AppState
+impl ConnectionUseCase {
+    async fn join_world(&self, app: &AppState, world_id: WorldId) -> Result<...> {
+        // Only port access available - clean hexagonal
+        let world = app.core.world_service.get_world(world_id).await?;
+    }
+}
+```
+
+##### Implementation Tasks - Completed
+
+| Task | Status | Notes |
+|------|--------|-------|
+| [x] Create `engine-composition` crate with pure `AppState` | **DONE** | ~1,900 lines |
+| [x] Create 11 new port traits for missing services | **DONE** | In engine-ports |
+| [x] Create `AdapterState` in engine-adapters | **DONE** | Composes AppState |
+| [x] Update WebSocket handlers to use `AdapterState` | **DONE** | 15 files updated |
+| [x] Update HTTP handlers to use `AdapterState` | **DONE** | 7 files updated |
+| [x] Expand service port traits (Asset, Settings, Prompt, Workflow, Generation, World) | **DONE** | ~40 methods added |
+
+##### Implementation Tasks - Remaining (Use Case Port Traits)
+
+**Status**: PLANNED - Ready for implementation
+
+The key remaining work is creating **inbound port traits for use cases**. This is the correct hexagonal architecture pattern - use cases ARE inbound ports (what the outside world can ask the application to do).
+
+**Work Summary**:
+- 9 use case port traits to create
+- 32 methods total across all use cases
+- 4 queue service ports need `list_by_status()` method
+
+###### Phase A: Create Use Case Inbound Port Traits (~2-3 hours) - **DONE**
+
+Created traits in `engine-ports/src/inbound/`:
+
+| Port Trait | Methods | Status |
+|------------|---------|--------|
+| `MovementUseCasePort` | 3 | **DONE** |
+| `ChallengeUseCasePort` | 11 | **DONE** |
+| `ConnectionUseCasePort` | 3 | **DONE** |
+| `SceneUseCasePort` | 3 | **DONE** |
+| `StagingUseCasePort` | 3 | **DONE** |
+| `InventoryUseCasePort` | 4 | **DONE** |
+| `PlayerActionUseCasePort` | 1 | **DONE** |
+| `ObservationUseCasePort` | 3 | **DONE** |
+| `NarrativeEventUseCasePort` | 1 | **DONE** |
+| **Total** | **32** | **DONE** |
+
+**Files created:**
+- `engine-ports/src/inbound/use_case_errors.rs` - Moved error types from engine-app
+- `engine-ports/src/inbound/movement_use_case_port.rs`
+- `engine-ports/src/inbound/challenge_use_case_port.rs`
+- `engine-ports/src/inbound/connection_use_case_port.rs`
+- `engine-ports/src/inbound/scene_use_case_port.rs`
+- `engine-ports/src/inbound/staging_use_case_port.rs`
+- `engine-ports/src/inbound/inventory_use_case_port.rs`
+- `engine-ports/src/inbound/player_action_use_case_port.rs`
+- `engine-ports/src/inbound/observation_use_case_port.rs`
+- `engine-ports/src/inbound/narrative_event_use_case_port.rs`
+
+Each trait has:
+- Method signatures matching the concrete use case
+- `#[async_trait]` attribute
+- `#[cfg_attr(any(test, feature = "testing"), mockall::automock)]` attribute
+- Proper parameter types (UseCaseContext, input structs, domain IDs)
+- Comprehensive documentation
+
+###### Phase B: Implement Traits for Concrete Use Cases (~1-2 hours)
+
+For each use case in `engine-app/src/application/use_cases/`:
+- Add `impl UseCasePort for ConcreteUseCase`
+- Delegate to existing methods (mostly 1:1 mapping)
+
+###### Phase C: Fix Queue Service Ports (~1 hour)
+
+**Decision**: Add `list_by_status()` directly to service ports (cleanest approach per investigation).
+
+| Port | Method to Add |
+|------|---------------|
+| `PlayerActionQueueServicePort` | `list_by_status(status) -> Vec<PlayerActionQueueItem>` |
+| `LlmQueueServicePort` | `list_by_status(status) -> Vec<LlmQueueItem>` |
+| `AssetGenerationQueueServicePort` | `list_by_status(status) -> Vec<AssetGenerationQueueItem>` |
+| `DmApprovalQueueServicePort` | `depth()`, `list_by_status(status)` |
+
+**Why this approach**: 
+- Service ports define exactly what operations they support
+- No leaky abstractions (handlers don't access underlying `QueuePort<T>`)
+- Already the established pattern (e.g., `LlmQueueServicePort` already has `depth()`)
+
+###### Phase D: Update engine-composition UseCases (~30 min)
+
+Update `engine-composition/src/use_cases.rs`:
+- Change from `Arc<dyn UseCasePlaceholder>` to `Arc<dyn UseCasePort>` for each use case
+- Update constructor to accept port trait objects
+- Remove `UseCasePlaceholder` trait
+
+###### Phase E: Update engine-runner Composition (~1 hour)
+
+Update `engine-runner/src/composition/`:
+- Construct concrete use cases
+- Cast to port traits: `Arc::new(concrete) as Arc<dyn UseCasePort>`
+- Wire into `AppState` and `AdapterState`
+
+###### Phase F: Final Integration (~1-2 hours)
+
+- Update remaining handler imports
+- Fix any type mismatches
+- Remove old `state/` module from engine-adapters
+- Verify full workspace compilation
+- Run tests
+
+##### Estimated Total Effort
+
+| Phase | Time | Parallelizable |
+|-------|------|----------------|
+| Phase A: Create port traits | 2-3h | Yes (9 traits) |
+| Phase B: Implement traits | 1-2h | Yes (9 impls) |
+| Phase C: Fix queue ports | 1h | Yes (4 ports) |
+| Phase D: Update composition | 30min | No |
+| Phase E: Update runner | 1h | No |
+| Phase F: Integration | 1-2h | No |
+| **Total (serial)** | **6-9h** | |
+| **Total (with sub-agents)** | **3-4h** | |
+
+##### Infrastructure Dependencies Analysis
+
+From comprehensive code analysis, the following infrastructure types MUST stay in AdapterState:
+
+**WebSocket Infrastructure**:
+- `connection_manager: SharedWorldConnectionManager`
+  - Used in: mod.rs, context.rs, handlers/*.rs, broadcast_adapter.rs
+  - Methods: `get_connection_by_client_id()`, `unregister_connection()`, `broadcast_to_world()`, `broadcast_to_dms()`
+
+**External Service Clients**:
+- `comfyui_client: ComfyUIClient`
+  - Used in: handlers/misc.rs (health_check), workflow_routes.rs (test_workflow)
+
+**Repository Access**:
+- `region_repo: Arc<dyn RegionRepositoryPort>`
+  - Used in: converters.rs (get_region_items for scene conversion)
+
+##### Service Access via AppState Ports
+
+All other services accessed via `state.app.*`:
+
+| Container | Services | Methods Needed |
+|-----------|----------|----------------|
+| `app.core` | world, character, location, scene, skill, interaction, relationship, item | Standard CRUD + specialized queries |
+| `app.game` | story_event, challenge, narrative_event, disposition, actantial_context | Game mechanics operations |
+| `app.queues` | player_action, dm_action, llm, asset_generation, dm_approval | Queue operations |
+| `app.assets` | asset, workflow, generation, projection | Asset management |
+| `app.player` | sheet_template, player_character, scene_resolution | Player-facing operations |
+| `app.events` | event_bus, notifier, domain_event_repo | Event infrastructure |
+| `app.use_cases` | connection, movement, challenge, scene, etc. | High-level operations |
+
+##### Port Traits to Expand
+
+The following port traits need additional methods:
+
+| Port Trait | Missing Methods | Used In |
+|------------|-----------------|---------|
+| `AssetServicePort` | `list_by_entity`, `update_asset_label`, `delete_asset`, `activate_asset`, batch methods | asset_routes.rs |
+| `WorldServicePort` | `export_world_snapshot` | export_routes.rs |
+| `GenerationServicePort` | `start_batch_processing` | asset_routes.rs |
+| `SettingsServicePort` | `get_for_world`, `update_for_world`, `reset_for_world`, `delete_for_world` | settings_routes.rs |
+| `PromptTemplateServicePort` | 10+ methods for global/world templates | prompt_template_routes.rs |
+| `WorkflowServicePort` | `get_by_slot`, `save`, `list_all`, `delete_by_slot` | workflow_routes.rs |
+| Queue service ports | `queue()` accessor, `depth()`, `processing_count()` | queue_routes.rs |
+
+##### Files Created (engine-composition)
+
+- `crates/engine-composition/Cargo.toml`
+- `crates/engine-composition/src/lib.rs`
+- `crates/engine-composition/src/app_state.rs` (600 lines)
+- `crates/engine-composition/src/core_services.rs` (210 lines)
+- `crates/engine-composition/src/game_services.rs` (207 lines)
+- `crates/engine-composition/src/queue_services.rs` (152 lines)
+- `crates/engine-composition/src/asset_services.rs` (141 lines)
+- `crates/engine-composition/src/player_services.rs` (128 lines)
+- `crates/engine-composition/src/event_infra.rs` (144 lines)
+- `crates/engine-composition/src/use_cases.rs` (334 lines)
+
+##### Architecture Notes
+
+The hybrid approach is architecturally clean because:
+1. Hexagonal architecture allows outer layers to know about inner layers
+2. The adapter layer IS the outer layer - it's supposed to handle infrastructure
+3. Type separation (`AdapterState` vs `AppState`) prevents accidental coupling
+4. Use cases only receive `&AppState`, enforcing port-only access at compile time
+
+##### Queue Port Design Decision (December 29, 2024)
+
+**Investigation Result**: Add methods directly to service ports (Option B).
+
+**Rationale**:
+1. Already the established pattern (e.g., `LlmQueueServicePort` has `depth()`, `processing_count()`)
+2. Service ports define exactly what operations they support - no leaky abstractions
+3. Handlers don't need to know about underlying `QueuePort<T>` implementation
+4. Type-safe: each service port works with its own DTO types
+
+**Rejected Alternatives**:
+- Option A (add `queue()` accessor): Leaky abstraction, complex generic types
+- Option C (separate observability trait): Over-engineering for the use case
+
+##### Use Case Port Architecture (December 29, 2024)
+
+**Key Insight**: Use cases ARE inbound ports in hexagonal architecture.
+
+The correct pattern is:
+```
+engine-ports/src/inbound/
+├── use_cases/
+│   ├── movement_use_case_port.rs
+│   ├── challenge_use_case_port.rs
+│   └── ...
+```
+
+This enables:
+- Full testability with mocks (via `mockall::automock`)
+- Clean dependency inversion
+- Handlers depend on abstractions, not concretions
+- Use cases can be swapped without changing handler code
 
 ---
 

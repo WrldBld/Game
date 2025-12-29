@@ -6,7 +6,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_engine_ports::inbound::RequestContext;
 use wrldbldr_protocol::{RequestPayload, ServerMessage};
 
@@ -35,7 +35,7 @@ use wrldbldr_protocol::{RequestPayload, ServerMessage};
 /// Always returns `Some(ServerMessage::Response { ... })` with the request_id
 /// and result from the AppRequestHandler.
 pub async fn handle_request(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     payload: RequestPayload,
@@ -53,7 +53,7 @@ pub async fn handle_request(
 
     // Get connection context
     let conn_info = state
-        .world_connection_manager
+        .connection_manager
         .get_connection(connection_id)
         .await;
 
@@ -74,7 +74,7 @@ pub async fn handle_request(
     };
 
     // Delegate to the AppRequestHandler for all operations
-    let result = state.request_handler.handle(payload, ctx).await;
+    let result = state.app.request_handler.handle(payload, ctx).await;
 
     Some(ServerMessage::Response { request_id, result })
 }

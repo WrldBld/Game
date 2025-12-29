@@ -5,7 +5,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::WorldRole as UseCaseWorldRole;
@@ -21,7 +21,7 @@ pub fn handle_heartbeat() -> Option<ServerMessage> {
 
 /// Handles JoinWorld requests by delegating to ConnectionUseCase.
 pub async fn handle_join_world(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     world_id: Uuid,
     role: WorldRole,
@@ -38,6 +38,7 @@ pub async fn handle_join_world(
     };
 
     match state
+        .app
         .use_cases
         .connection
         .join_world(client_id, user_id, input)
@@ -86,14 +87,14 @@ pub async fn handle_join_world(
 }
 
 /// Handles LeaveWorld requests by delegating to ConnectionUseCase.
-pub async fn handle_leave_world(state: &AppState, client_id: Uuid) -> Option<ServerMessage> {
-    let _ = state.use_cases.connection.leave_world(client_id).await;
+pub async fn handle_leave_world(state: &AdapterState, client_id: Uuid) -> Option<ServerMessage> {
+    let _ = state.app.use_cases.connection.leave_world(client_id).await;
     None // No response needed
 }
 
 /// Handles SetSpectateTarget requests by delegating to ConnectionUseCase.
 pub async fn handle_set_spectate_target(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     pc_id: Uuid,
 ) -> Option<ServerMessage> {
@@ -102,6 +103,7 @@ pub async fn handle_set_spectate_target(
     };
 
     match state
+        .app
         .use_cases
         .connection
         .set_spectate_target(client_id, input)

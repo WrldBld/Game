@@ -7,14 +7,15 @@
 //! - Ollama: LLM integration for AI-powered responses
 //! - ComfyUI: Asset generation integration
 //! - Config: Application configuration
-//! - State: Shared application state
-//! - State: Shared application state (world connection manager replaces sessions)
+//! - State: Shared application state (legacy - being replaced by adapter_state)
+//! - Adapter State: New hexagonal-compliant state (AppState + infrastructure)
 //! - Event Bus: Event publishing and subscription infrastructure
 //! - Repositories: Additional persistence implementations
 //! - Context Budget: Token budget enforcement for LLM prompts
 //! - State Broadcast: Utilities for broadcasting state changes to WebSocket clients
 //! - Clock: System time abstraction for testability
 
+pub mod adapter_state;
 pub mod clock;
 pub mod comfyui;
 pub mod config;
@@ -57,3 +58,6 @@ pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManage
 
 // Re-export settings loader
 pub use settings_loader::load_settings_from_env;
+
+// Re-export adapter state for hexagonal architecture
+pub use adapter_state::AdapterState;

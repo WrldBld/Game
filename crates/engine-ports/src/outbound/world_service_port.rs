@@ -15,6 +15,8 @@ use async_trait::async_trait;
 use wrldbldr_domain::entities::{Location, World};
 use wrldbldr_domain::WorldId;
 
+use super::PlayerWorldSnapshot;
+
 /// Port for world service operations used by infrastructure adapters.
 ///
 /// This trait provides read-only access to world data for use in
@@ -44,6 +46,12 @@ pub trait WorldServicePort: Send + Sync {
     ///
     /// Returns `Ok(None)` if no current location is set.
     async fn get_current_location(&self, world_id: WorldId) -> Result<Option<Location>>;
+
+    /// Export a world snapshot for Player clients.
+    ///
+    /// Returns a complete snapshot of the world state including all entities,
+    /// characters, locations, and other data needed by the player client.
+    async fn export_world_snapshot(&self, world_id: WorldId) -> Result<PlayerWorldSnapshot>;
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -56,5 +64,6 @@ mockall::mock! {
         async fn get_world(&self, id: WorldId) -> Result<Option<World>>;
         async fn list_worlds(&self) -> Result<Vec<World>>;
         async fn get_current_location(&self, world_id: WorldId) -> Result<Option<Location>>;
+        async fn export_world_snapshot(&self, world_id: WorldId) -> Result<PlayerWorldSnapshot>;
     }
 }

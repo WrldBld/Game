@@ -254,9 +254,7 @@ pub use settings_service_port::{LlmConfig, SettingsServicePort};
 // Prompt template service port - interface for prompt template operations
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_template_service_port::MockPromptTemplateServicePort;
-pub use prompt_template_service_port::{
-    PromptTemplate, PromptTemplateServicePort, PromptTemplateSource as ServicePromptTemplateSource,
-};
+pub use prompt_template_service_port::PromptTemplateServicePort;
 
 // Prompt context service port - interface for building LLM prompt context
 #[cfg(any(test, feature = "testing"))]

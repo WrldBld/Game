@@ -29,7 +29,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType, UseCaseContext};
@@ -51,7 +51,7 @@ use super::common::{error_msg, extract_dm_context, extract_player_context};
 ///
 /// Returns None on success - the use case broadcasts to DM and players.
 pub async fn handle_challenge_roll(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     challenge_id: String,
     roll: i32,
@@ -70,7 +70,7 @@ pub async fn handle_challenge_roll(
 
     let input = SubmitRollInput { challenge_id, roll };
 
-    match state.use_cases.challenge.submit_roll(ctx, input).await {
+    match state.app.use_cases.challenge.submit_roll(ctx, input).await {
         Ok(_) => None, // Use case broadcasts to DM + players
         Err(e) => Some(e.into_server_error()),
     }
@@ -80,7 +80,7 @@ pub async fn handle_challenge_roll(
 ///
 /// Returns None on success - the use case broadcasts to DM and players.
 pub async fn handle_challenge_roll_input(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     challenge_id: String,
     input_type: wrldbldr_protocol::DiceInputType,
@@ -103,6 +103,7 @@ pub async fn handle_challenge_roll_input(
     };
 
     match state
+        .app
         .use_cases
         .challenge
         .submit_dice_input(ctx, input)
@@ -121,7 +122,7 @@ pub async fn handle_challenge_roll_input(
 ///
 /// Returns None on success - the use case broadcasts ChallengePrompt to world.
 pub async fn handle_trigger_challenge(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     challenge_id: String,
     target_character_id: String,
@@ -148,6 +149,7 @@ pub async fn handle_trigger_challenge(
     };
 
     match state
+        .app
         .use_cases
         .challenge
         .trigger_challenge(ctx, input)
@@ -162,7 +164,7 @@ pub async fn handle_trigger_challenge(
 ///
 /// If approved, the use case broadcasts the ChallengePrompt to the world.
 pub async fn handle_challenge_suggestion_decision(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     approved: bool,
@@ -180,6 +182,7 @@ pub async fn handle_challenge_suggestion_decision(
     };
 
     match state
+        .app
         .use_cases
         .challenge
         .suggestion_decision(ctx, input)
@@ -194,7 +197,7 @@ pub async fn handle_challenge_suggestion_decision(
 ///
 /// Returns AdHocChallengeCreated to DM. The use case broadcasts ChallengePrompt to world.
 pub async fn handle_create_adhoc_challenge(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     challenge_name: String,
     skill_name: String,
@@ -226,7 +229,7 @@ pub async fn handle_create_adhoc_challenge(
         outcomes: to_use_case_adhoc_outcomes(outcomes),
     };
 
-    match state.use_cases.challenge.create_adhoc(ctx, input).await {
+    match state.app.use_cases.challenge.create_adhoc(ctx, input).await {
         Ok(result) => {
             // Use case broadcasts ChallengePrompt to world
             // Return AdHocChallengeCreated to DM for confirmation
@@ -246,7 +249,7 @@ pub async fn handle_create_adhoc_challenge(
 
 /// Handles a DM's decision on a challenge outcome.
 pub async fn handle_challenge_outcome_decision(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     resolution_id: String,
     decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
@@ -261,7 +264,7 @@ pub async fn handle_challenge_outcome_decision(
         decision: to_use_case_decision(decision),
     };
 
-    match state.use_cases.challenge.outcome_decision(ctx, input).await {
+    match state.app.use_cases.challenge.outcome_decision(ctx, input).await {
         Ok(_) => None, // Resolution broadcast handled by service
         Err(e) => Some(e.into_server_error()),
     }
@@ -269,7 +272,7 @@ pub async fn handle_challenge_outcome_decision(
 
 /// Handles a DM requesting AI-generated outcome suggestions.
 pub async fn handle_request_outcome_suggestion(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     resolution_id: String,
     guidance: Option<String>,
@@ -284,7 +287,7 @@ pub async fn handle_request_outcome_suggestion(
         decision: OutcomeDecision::Suggest { guidance },
     };
 
-    match state.use_cases.challenge.outcome_decision(ctx, input).await {
+    match state.app.use_cases.challenge.outcome_decision(ctx, input).await {
         Ok(_) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -292,7 +295,7 @@ pub async fn handle_request_outcome_suggestion(
 
 /// Handles a DM requesting branching outcome options.
 pub async fn handle_request_outcome_branches(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     resolution_id: String,
     guidance: Option<String>,
@@ -307,7 +310,7 @@ pub async fn handle_request_outcome_branches(
         guidance,
     };
 
-    match state.use_cases.challenge.request_branches(ctx, input).await {
+    match state.app.use_cases.challenge.request_branches(ctx, input).await {
         Ok(()) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -315,7 +318,7 @@ pub async fn handle_request_outcome_branches(
 
 /// Handles a DM selecting a specific outcome branch.
 pub async fn handle_select_outcome_branch(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     resolution_id: String,
     branch_id: String,
@@ -332,7 +335,7 @@ pub async fn handle_select_outcome_branch(
         modified_description,
     };
 
-    match state.use_cases.challenge.select_branch(ctx, input).await {
+    match state.app.use_cases.challenge.select_branch(ctx, input).await {
         Ok(()) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -340,7 +343,7 @@ pub async fn handle_select_outcome_branch(
 
 /// Handles a DM discarding a challenge from the approval queue.
 pub async fn handle_discard_challenge(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     feedback: Option<String>,
@@ -356,6 +359,7 @@ pub async fn handle_discard_challenge(
     };
 
     match state
+        .app
         .use_cases
         .challenge
         .discard_challenge(ctx, input)
@@ -368,7 +372,7 @@ pub async fn handle_discard_challenge(
 
 /// Handles a DM request to regenerate challenge outcome text.
 pub async fn handle_regenerate_outcome(
-    state: &AppState,
+    state: &AdapterState,
     client_id: Uuid,
     request_id: String,
     outcome_type: Option<String>,
@@ -386,6 +390,7 @@ pub async fn handle_regenerate_outcome(
     };
 
     match state
+        .app
         .use_cases
         .challenge
         .regenerate_outcome(ctx, input)

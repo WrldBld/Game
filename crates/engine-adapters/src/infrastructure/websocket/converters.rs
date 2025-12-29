@@ -91,12 +91,10 @@ pub fn to_domain_role(r: ActantialRoleData) -> wrldbldr_domain::entities::Actant
 
 /// Fetch region items and convert to protocol format
 pub async fn fetch_region_items(
-    state: &crate::infrastructure::state::AppState,
+    state: &crate::infrastructure::adapter_state::AdapterState,
     region_id: wrldbldr_domain::RegionId,
 ) -> Vec<wrldbldr_protocol::RegionItemData> {
-    use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
-
-    match state.repository.regions().get_region_items(region_id).await {
+    match state.region_repo.get_region_items(region_id).await {
         Ok(items) => items
             .into_iter()
             .map(|item| wrldbldr_protocol::RegionItemData {
