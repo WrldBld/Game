@@ -1231,33 +1231,159 @@ pub trait WorldStatePort: Send + Sync {
 
 | File | Lines | Description |
 |------|-------|-------------|
-| `engine-adapters/src/infrastructure/state/mod.rs` | **727** | `AppState::new()` - wires all dependencies |
-| `engine-adapters/src/run/server.rs` | **318** | `run()` - server setup and worker spawning |
-| **Total** | **~1,045** | Lines in wrong layer |
+| `engine-adapters/src/infrastructure/state/mod.rs` | **753** | `AppState::new()` - wires all dependencies |
+| `engine-adapters/src/run/server.rs` | **406** | `run()` - server setup and worker spawning |
+| **Total** | **~1,159** | Lines in wrong layer |
 
 **Current state**: `engine-runner/src/main.rs` is only **9 lines** - an empty shell that delegates everything to adapters.
 
-**What should be in runner**:
-- `AppState` construction (dependency injection)
-- Server binding and listening
-- Worker task spawning
-- Signal handling (graceful shutdown)
-- Configuration loading
+##### AppState::new() Analysis (state/mod.rs)
 
-**Fix approach**:
-1. Create `engine-runner/src/composition.rs` - move `AppState::new()` logic
-2. Create `engine-runner/src/server.rs` - move server setup
-3. Keep only adapter implementations in engine-adapters
-4. Runner should import adapters and wire them together
+**Dependencies Created (Arc<dyn Port>) - 31 total**:
+- `clock: Arc<dyn ClockPort>` (SystemClock)
+- 20+ repository ports: `world_repo`, `character_repo`, `location_repo`, `scene_repo`, `relationship_repo`, `skill_repo`, `interaction_repo`, `story_event_repo`, `challenge_repo`, `asset_repo`, `workflow_repo`, `sheet_template_repo`, `narrative_event_repo`, `event_chain_repo`, `player_character_repo`, `item_repo`, `goal_repo`, `want_repo`, `region_repo`, `flag_repo`, `observation_repo`
+- Infrastructure ports: `world_exporter`, `settings_repository`, `prompt_template_repository`, `directorial_context_repo`, `domain_event_repository`, `generation_read_state_repository`, `event_bus`, `suggestion_enqueue_adapter`, `request_handler`
+
+**Adapters Instantiated**:
+- `Neo4jRepository` (creates sub-repositories via `.worlds()`, `.characters()`, etc.)
+- `OllamaClient` (LLM adapter)
+- `ComfyUIClient` (image generation)
+- `SqliteSettingsRepository`, `SqlitePromptTemplateRepository`, `SqliteDirectorialContextRepository`
+- `SqliteDomainEventRepository`, `SqliteGenerationReadStateRepository`
+- `Neo4jWorldExporter`, `Neo4jRegionRepository`, `Neo4jNarrativeEventRepository`, `Neo4jStagingRepository`
+- `SystemClock`, `InProcessEventNotifier`, `SqliteEventBus`
+- `QueueFactory` → creates 6 queue adapters
+- `SuggestionEnqueueAdapter`, `WorldStateManager`, `SharedWorldConnectionManager`
+
+**Services Created (35+ application layer services)**:
+- Core: `SettingsService`, `PromptTemplateService`, `WorldServiceImpl`, `CharacterServiceImpl`, `LocationServiceImpl`, `RelationshipServiceImpl`, `SceneServiceImpl`, `SkillServiceImpl`, `InteractionServiceImpl`
+- Events: `StoryEventServiceImpl`, `NarrativeEventServiceImpl`, `EventChainServiceImpl`, `TriggerEvaluationService`, `EventEffectExecutor`
+- Challenges: `ChallengeServiceImpl`, `ChallengeResolutionService`, `ChallengeOutcomeApprovalService`
+- Generation: `AssetServiceImpl`, `WorkflowConfigService`, `GenerationService`, `GenerationQueueProjectionService`
+- Queue: `PlayerActionQueueService`, `DMActionQueueService`, `LLMQueueService`, `AssetGenerationQueueService`, `DMApprovalQueueService`
+- Other: `SheetTemplateService`, `ItemServiceImpl`, `PlayerCharacterServiceImpl`, `SceneResolutionServiceImpl`, `OutcomeTriggerService`, `StagingService`, `DispositionServiceImpl`, `RegionServiceImpl`, `ActantialContextServiceImpl`
+- Handler: `AppRequestHandler`
+
+**Grouped Service Containers**:
+- `CoreServices` (8 services), `GameServices` (11 services)
+- `QueueServices` (6 services), `AssetServices` (4 services)
+- `PlayerServices` (3 services), `EventInfrastructure` (4 items)
+- `UseCases` (9 use cases)
+
+**Configuration Loaded**:
+- `AppConfig` passed in from environment
+- SQLite paths derived: `{sqlite_path}_settings.db`, `{sqlite_path}_events.db`
+- Hardcoded paths: `./data/assets`, `./workflows`
+
+**Event Channels**: `generation_event_tx/rx`, `challenge_approval_tx/rx` (tokio mpsc, buffer 256)
+
+##### server.rs run() Analysis (~406 lines)
+
+**Server Setup**:
+- `dotenvy::dotenv()` - load .env file
+- `tracing_subscriber` initialization with EnvFilter
+- `AppConfig::from_env()` - load configuration
+- `AppState::new(config)` - create application state
+- Axum Router: root route, `http::create_routes()`, WebSocket handler
+- Middleware: `TraceLayer`, `CorsLayer`
+- `axum::serve()` with graceful shutdown
+
+**Workers Spawned (9 total)**:
+1. `llm_worker` - LLM queue processing
+2. `asset_worker` - Asset generation queue
+3. `player_action_worker` - Player action queue (includes prompt building)
+4. `approval_notification_worker_task` - DM approval notifications
+5. `dm_action_worker_task` - DM action processing
+6. `challenge_outcome_worker_task` - Challenge outcome notifications
+7. `cleanup_worker` - Queue cleanup (retention, expiration)
+8. `generation_event_worker` - GenerationEventPublisher
+9. `challenge_approval_worker` - ChallengeApprovalEventPublisher
+
+**Signal Handling**:
+- `CancellationToken` pattern
+- `setup_shutdown_signal()` - watches SIGINT, SIGTERM
+- Graceful shutdown with 10-second timeout
+
+##### Migration Plan
+
+**Step 1**: Create `engine-runner/src/composition.rs`
+```rust
+// Composition root - dependency injection container
+pub struct AppState { ... }
+
+impl AppState {
+    pub async fn new(config: AppConfig) -> anyhow::Result<Self> {
+        // Move ALL adapter instantiation here
+        // Move ALL service creation here
+        // Move grouped containers (CoreServices, etc.)
+        // Move event channel creation
+    }
+}
+```
+
+**Step 2**: Create `engine-runner/src/server.rs`
+```rust
+pub async fn run() -> anyhow::Result<()> {
+    // Load .env
+    // Initialize tracing
+    // Load AppConfig
+    // Create AppState
+    // Build Axum router
+    // Spawn workers
+    // Handle signals
+    // Run server with graceful shutdown
+}
+
+fn setup_shutdown_signal() -> CancellationToken { ... }
+```
+
+**Step 3**: Update `engine-adapters` exports
+- Export only adapter implementations (no composition)
+- Remove `run` module entirely
+- Export config types: `AppConfig`, `QueueConfig`, `SessionConfig`
+
+**Step 4**: Update `engine-runner/src/main.rs`
+```rust
+mod composition;
+mod server;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    server::run().await
+}
+```
+
+**Step 5**: Update `engine-runner/Cargo.toml`
+Add dependencies needed for composition:
+- `axum` (Router building)
+- `tower-http` (CorsLayer, TraceLayer)
+- `tracing-subscriber` (logging setup)
+- `tokio-util` (CancellationToken)
+- `dotenvy` (.env loading)
+- `sqlx` (pool creation)
+
+##### Additional Considerations
+
+1. **Hardcoded paths**: `./data/assets`, `./workflows` should become config options
+2. **Database path derivation**: SQLite paths derived by string manipulation - make explicit in config
+3. **Complex generics**: `UseCases::new()` has 12 generic type parameters - consider simplifying
+4. **Worker coupling**: `player_action_worker` tightly coupled to `build_prompt_from_action` (see 3.0.3.2)
+5. **Config location**: `AppConfig` could stay in adapters or move to runner (composition concern)
 
 | Task | Status |
 |------|--------|
 | [ ] Create engine-runner/src/composition.rs | Pending |
-| [ ] Move AppState::new() logic (~727 lines) to runner | Pending |
+| [ ] Move AppState struct definition | Pending |
+| [ ] Move AppState::new() logic (~753 lines) | Pending |
+| [ ] Move grouped service containers | Pending |
 | [ ] Create engine-runner/src/server.rs | Pending |
-| [ ] Move server.rs run() logic (~318 lines) to runner | Pending |
-| [ ] Update engine-adapters to export only adapter types | Pending |
-| [ ] Update main.rs to use new composition module | Pending |
+| [ ] Move run() function body | Pending |
+| [ ] Move setup_shutdown_signal() | Pending |
+| [ ] Move worker spawn logic (9 workers) | Pending |
+| [ ] Update engine-adapters to export only adapters | Pending |
+| [ ] Remove `run` module from engine-adapters | Pending |
+| [ ] Update engine-runner/Cargo.toml with dependencies | Pending |
+| [ ] Update main.rs to use new modules | Pending |
 
 ---
 
