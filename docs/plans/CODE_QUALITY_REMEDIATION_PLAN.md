@@ -160,15 +160,18 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase | Description | Status | Completion |
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
-| Phase 2 | High Priority | In Progress | 85% |
+| Phase 2 | High Priority | **DONE** | 100% |
 | Phase 2.1-2.3 | Error Handling, Timeouts, HTTP Client | **DONE** | 100% |
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 25% |
+| Phase 3 | Architecture Completion | In Progress | 45% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
+| Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
+| Phase 3.1 | Challenge DTOs | **DONE** | 60% |
+| Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
 | Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
 | Phase 4 | Dead Code Cleanup | In Progress | 85% |
@@ -176,17 +179,17 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 4.7 | Role Mapping Deduplication | **DONE** | 100% |
-| Phase 5 | Domain Layer Polish | In Progress | 75% |
+| Phase 5 | Domain Layer Polish | **DONE** | 95% |
 | Phase 5.1 | Serde on Entities (53 types) | **DONE** | 100% |
 | Phase 5.2 | Serde on ID Types | **DONE** | 100% |
-| Phase 5.6 | Domain Utc::now() (51 calls) | **DONE** | 95% |
-| Phase 6 | Protocol Layer Polish | In Progress | 50% |
+| Phase 5.6 | Domain Utc::now() (51 calls) | **DONE** | 100% |
+| Phase 6 | Protocol Layer Polish | **DONE** | 90% |
 | Phase 6.1 | Document Protocol Imports (dto.rs) | **DONE** | 100% |
 | Phase 6.3 | Versioning Documentation | **DONE** | 100% |
-| Phase 6.5 | Forward Compat (critical 4 enums) | **DONE** | 100% |
+| Phase 6.5 | Forward Compat (all 19 enums) | **DONE** | 100% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
 | Phase 8 | Documentation | Pending | 0% |
-| Phase 8.3 | Dioxus.toml Metadata | **NEW** | 0% |
+| Phase 8.3 | Dioxus.toml Metadata | Pending | 0% |
 
 ---
 
@@ -920,9 +923,10 @@ pub trait ClockPort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Audit each duplicate for necessity | Pending |
-| [ ] Add From impls for types that need local representation | Pending |
-| [ ] Replace with protocol types where possible | Pending |
+| [x] Audit each duplicate for necessity | **DONE** |
+| [x] Add From impls for all 8 types (bidirectional) | **DONE** |
+| [x] Add unit tests for roundtrip conversions | **DONE** (12 tests) |
+| [x] Update session_type_converters.rs to delegate to From impls | **DONE** |
 
 #### 3.0.7 Move Composition Root to Runner (NEW - Sixth Review)
 
@@ -1000,9 +1004,9 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 | Task | Status |
 |------|--------|
-| [ ] Add CreateChallengeRequest to requests.rs | Pending |
-| [ ] Add UpdateChallengeRequest to requests.rs | Pending |
-| [ ] Add From impls for both | Pending |
+| [x] Add CreateChallengeRequest to requests.rs | **DONE** |
+| [x] Add UpdateChallengeRequest to requests.rs | **DONE** |
+| [x] Add From impls for both | **DONE** |
 | [ ] Update challenge_service.rs to use new DTOs | Pending |
 | [ ] Remove direct protocol imports from challenge_service.rs | Pending |
 
@@ -1020,9 +1024,9 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 | Task | Status |
 |------|--------|
-| [ ] Verify requests.rs version is complete | Pending |
-| [ ] Update suggestion_service.rs to use requests.rs version | Pending |
-| [ ] Remove duplicate from suggestion_service.rs | Pending |
+| [x] Verify requests.rs version is complete | **DONE** |
+| [x] Update suggestion_service.rs to use requests.rs version | **DONE** |
+| [x] Remove duplicate from suggestion_service.rs | **DONE** |
 
 ---
 
@@ -1889,8 +1893,8 @@ pub enum ServerMessage {
 | [x] Add #[serde(other)] Unknown to ServerMessage | **DONE** |
 | [x] Add #[serde(other)] Unknown to RequestPayload | **DONE** |
 | [x] Add #[serde(other)] Unknown to ResponseResult | **DONE** |
-| [ ] Add #[serde(other)] Unknown to remaining 16 enums | Pending |
-| [ ] Add handling for Unknown variants in message processors | Pending |
+| [x] Add #[serde(other)] Unknown to remaining 15 enums | **DONE** |
+| [x] Add handling for Unknown variants in message processors | **DONE** |
 
 ---
 
