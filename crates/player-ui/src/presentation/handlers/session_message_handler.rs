@@ -1264,7 +1264,8 @@ pub fn handle_server_message(
             let role_str = match role {
                 wrldbldr_protocol::responses::WorldRole::Dm => "dm",
                 wrldbldr_protocol::responses::WorldRole::Player => "player",
-                wrldbldr_protocol::responses::WorldRole::Spectator => "spectator",
+                wrldbldr_protocol::responses::WorldRole::Spectator
+                | wrldbldr_protocol::responses::WorldRole::Unknown => "spectator",
             };
             
             // Add to connected users list

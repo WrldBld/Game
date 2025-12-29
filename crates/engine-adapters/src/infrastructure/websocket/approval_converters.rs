@@ -177,6 +177,12 @@ pub fn proto_decision_to_app(proto: proto::ApprovalDecision) -> app::DmApprovalD
         proto::ApprovalDecision::TakeOver { dm_response } => {
             app::DmApprovalDecision::TakeOver { dm_response }
         }
+        proto::ApprovalDecision::Unknown => {
+            // Default unknown to Reject with explanation
+            app::DmApprovalDecision::Reject {
+                feedback: "Unknown approval decision received".to_string(),
+            }
+        }
     }
 }
 

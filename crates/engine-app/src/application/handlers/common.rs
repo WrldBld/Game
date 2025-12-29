@@ -205,14 +205,14 @@ pub fn parse_relationship_level(s: &str) -> RelationshipLevel {
 pub fn convert_actor_type(data: ActorTypeData) -> ActorTargetType {
     match data {
         ActorTypeData::Npc => ActorTargetType::Npc,
-        ActorTypeData::Pc => ActorTargetType::Pc,
+        ActorTypeData::Pc | ActorTypeData::Unknown => ActorTargetType::Pc, // Default unknown to PC
     }
 }
 
 /// Convert ActantialRoleData to ActantialRole
 pub fn convert_actantial_role(data: ActantialRoleData) -> ActantialRole {
     match data {
-        ActantialRoleData::Helper => ActantialRole::Helper,
+        ActantialRoleData::Helper | ActantialRoleData::Unknown => ActantialRole::Helper, // Default unknown to Helper
         ActantialRoleData::Opponent => ActantialRole::Opponent,
         ActantialRoleData::Sender => ActantialRole::Sender,
         ActantialRoleData::Receiver => ActantialRole::Receiver,
@@ -222,7 +222,7 @@ pub fn convert_actantial_role(data: ActantialRoleData) -> ActantialRole {
 /// Convert WantTargetTypeData to target type string
 pub fn convert_want_target_type(data: WantTargetTypeData) -> &'static str {
     match data {
-        WantTargetTypeData::Character => "Character",
+        WantTargetTypeData::Character | WantTargetTypeData::Unknown => "Character", // Default unknown to Character
         WantTargetTypeData::Item => "Item",
         WantTargetTypeData::Goal => "Goal",
     }
@@ -233,6 +233,6 @@ pub fn convert_want_visibility(data: WantVisibilityData) -> WantVisibility {
     match data {
         WantVisibilityData::Known => WantVisibility::Known,
         WantVisibilityData::Suspected => WantVisibility::Suspected,
-        WantVisibilityData::Hidden => WantVisibility::Hidden,
+        WantVisibilityData::Hidden | WantVisibilityData::Unknown => WantVisibility::Hidden, // Default unknown to Hidden
     }
 }

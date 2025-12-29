@@ -161,6 +161,8 @@ pub fn domain_event_to_app_event(event: DomainEvent) -> AppEvent {
 pub enum DomainEventConversionError {
     #[error("Failed to parse UUID '{0}': {1}")]
     UuidParseError(String, uuid::Error),
+    #[error("Unknown event type cannot be converted to domain event")]
+    UnknownEventType,
 }
 
 /// Try to convert an AppEvent back to a DomainEvent
@@ -307,6 +309,8 @@ pub fn app_event_to_domain_event(event: AppEvent) -> Result<DomainEvent, DomainE
                 error,
                 world_id: world_id.map(|id| parse_id::<WorldId>(&id)).transpose()?,
             }),
+            // Unknown events cannot be converted to domain events
+            AppEvent::Unknown => Err(DomainEventConversionError::UnknownEventType),
         }
 }
 

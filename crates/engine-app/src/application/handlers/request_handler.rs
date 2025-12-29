@@ -2773,7 +2773,8 @@ impl RequestHandler for AppRequestHandler {
                 // hints: Target of the actantial relationship
                 // additional_context: The actantial role (e.g., "a helper", "an opponent")
                 let role_str = match role {
-                    wrldbldr_protocol::ActantialRoleData::Helper => "a helper",
+                    wrldbldr_protocol::ActantialRoleData::Helper
+                    | wrldbldr_protocol::ActantialRoleData::Unknown => "a helper", // Default unknown to helper
                     wrldbldr_protocol::ActantialRoleData::Opponent => "an opponent",
                     wrldbldr_protocol::ActantialRoleData::Sender => "a sender",
                     wrldbldr_protocol::ActantialRoleData::Receiver => "a receiver",

@@ -215,7 +215,8 @@ impl WorldConnectionState {
             WorldRole::Player => {
                 self.player_connections.remove(&connection_id);
             }
-            WorldRole::Spectator => {
+            WorldRole::Spectator | WorldRole::Unknown => {
+                // Unknown role is treated as Spectator for removal
                 self.spectator_connections.remove(&connection_id);
             }
         }

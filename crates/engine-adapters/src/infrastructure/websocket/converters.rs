@@ -11,6 +11,7 @@ pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::Di
     match input {
         wrldbldr_protocol::DiceInputType::Formula(f) => crs::DiceInputType::Formula(f),
         wrldbldr_protocol::DiceInputType::Manual(v) => crs::DiceInputType::Manual(v),
+        wrldbldr_protocol::DiceInputType::Unknown => crs::DiceInputType::Manual(0), // Default unknown to Manual(0)
     }
 }
 
@@ -43,6 +44,7 @@ pub fn to_challenge_outcome_decision(
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => ChallengeOutcomeDecision::Accept, // Default unknown to Accept
     }
 }
 
@@ -59,7 +61,9 @@ pub fn to_domain_visibility(v: WantVisibilityData) -> wrldbldr_domain::entities:
     match v {
         WantVisibilityData::Known => wrldbldr_domain::entities::WantVisibility::Known,
         WantVisibilityData::Suspected => wrldbldr_domain::entities::WantVisibility::Suspected,
-        WantVisibilityData::Hidden => wrldbldr_domain::entities::WantVisibility::Hidden,
+        WantVisibilityData::Hidden | WantVisibilityData::Unknown => {
+            wrldbldr_domain::entities::WantVisibility::Hidden // Default unknown to Hidden
+        }
     }
 }
 
@@ -77,7 +81,9 @@ pub fn from_domain_visibility(v: wrldbldr_domain::entities::WantVisibility) -> W
 #[allow(dead_code)]
 pub fn to_domain_role(r: ActantialRoleData) -> wrldbldr_domain::entities::ActantialRole {
     match r {
-        ActantialRoleData::Helper => wrldbldr_domain::entities::ActantialRole::Helper,
+        ActantialRoleData::Helper | ActantialRoleData::Unknown => {
+            wrldbldr_domain::entities::ActantialRole::Helper // Default unknown to Helper
+        }
         ActantialRoleData::Opponent => wrldbldr_domain::entities::ActantialRole::Opponent,
         ActantialRoleData::Sender => wrldbldr_domain::entities::ActantialRole::Sender,
         ActantialRoleData::Receiver => wrldbldr_domain::entities::ActantialRole::Receiver,

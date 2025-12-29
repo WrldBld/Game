@@ -367,6 +367,9 @@ fn to_use_case_decision(decision: wrldbldr_protocol::ChallengeOutcomeDecisionDat
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
+            ChallengeOutcomeDecision::Accept // Default unknown to Accept
+        }
     }
 }
 
@@ -374,6 +377,7 @@ fn to_use_case_dice_input(input: wrldbldr_protocol::DiceInputType) -> DiceInputT
     match input {
         wrldbldr_protocol::DiceInputType::Formula(formula) => DiceInputType::Formula(formula),
         wrldbldr_protocol::DiceInputType::Manual(value) => DiceInputType::Manual(value),
+        wrldbldr_protocol::DiceInputType::Unknown => DiceInputType::Manual(0), // Default unknown to Manual(0)
     }
 }
 

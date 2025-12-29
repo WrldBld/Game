@@ -43,7 +43,9 @@ impl ConnectionManagerAdapter {
         match role {
             ProtocolWorldRole::Dm => UseCaseWorldRole::DM,
             ProtocolWorldRole::Player => UseCaseWorldRole::Player,
-            ProtocolWorldRole::Spectator => UseCaseWorldRole::Spectator,
+            ProtocolWorldRole::Spectator | ProtocolWorldRole::Unknown => {
+                UseCaseWorldRole::Spectator // Default unknown to Spectator (least privileged)
+            }
         }
     }
 

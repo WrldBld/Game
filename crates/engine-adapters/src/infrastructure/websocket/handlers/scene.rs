@@ -96,5 +96,6 @@ fn convert_decision(d: wrldbldr_protocol::ApprovalDecision) -> SceneApprovalDeci
             SceneApprovalDecision::ApproveWithEdits { modified_text: modified_dialogue },
         Reject { feedback } => SceneApprovalDecision::Reject { reason: feedback },
         TakeOver { dm_response } => SceneApprovalDecision::ApproveWithEdits { modified_text: dm_response },
+        Unknown => SceneApprovalDecision::Reject { reason: "Unknown approval decision".to_string() },
     }
 }

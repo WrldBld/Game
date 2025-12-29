@@ -113,7 +113,9 @@ fn protocol_to_use_case_role(role: WorldRole) -> UseCaseWorldRole {
     match role {
         WorldRole::Dm => UseCaseWorldRole::DM,
         WorldRole::Player => UseCaseWorldRole::Player,
-        WorldRole::Spectator => UseCaseWorldRole::Spectator,
+        WorldRole::Spectator | WorldRole::Unknown => {
+            UseCaseWorldRole::Spectator // Default unknown to Spectator (least privileged)
+        }
     }
 }
 

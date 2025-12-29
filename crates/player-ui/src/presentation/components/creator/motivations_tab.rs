@@ -330,7 +330,7 @@ fn WantCard(props: WantCardProps) -> Element {
     let visibility_badge = match want.visibility {
         WantVisibilityData::Known => ("Known", "bg-green-600"),
         WantVisibilityData::Suspected => ("Suspected", "bg-yellow-600"),
-        WantVisibilityData::Hidden => ("Hidden", "bg-red-600"),
+        WantVisibilityData::Hidden | WantVisibilityData::Unknown => ("Hidden", "bg-red-600"),
     };
     
     let intensity_percent = (want.intensity * 100.0) as i32;
@@ -989,7 +989,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
             .map(|t| {
                 let type_str = match t.target_type {
                     WantTargetTypeData::Goal => "goal",
-                    WantTargetTypeData::Character => "character",
+                    WantTargetTypeData::Character | WantTargetTypeData::Unknown => "character",
                     WantTargetTypeData::Item => "item",
                 };
                 format!("{}:{}", type_str, t.id)
@@ -1199,7 +1199,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                             value: match *visibility.read() {
                                 WantVisibilityData::Known => "known",
                                 WantVisibilityData::Suspected => "suspected",
-                                WantVisibilityData::Hidden => "hidden",
+                                WantVisibilityData::Hidden | WantVisibilityData::Unknown => "hidden",
                             },
                             onchange: move |e| {
                                 visibility.set(match e.value().as_str() {
