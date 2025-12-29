@@ -34,8 +34,8 @@ use wrldbldr_engine_app::application::services::staging_service::StagingService;
 use wrldbldr_engine_app::application::services::NarrativeEventServiceImpl;
 use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
-    DMApprovalQueueService, InteractionService, ItemService, NarrativeEventApprovalService,
-    PlayerActionQueueService, PlayerCharacterService, SceneService, SkillService, WorldService,
+    DMApprovalQueueService, ItemService, NarrativeEventApprovalService, PlayerActionQueueService,
+    PlayerCharacterService, SkillService,
 };
 use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
@@ -43,10 +43,12 @@ use wrldbldr_engine_app::application::use_cases::{
 };
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, ClockPort,
-    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, LlmPort,
-    LocationRepositoryPort, NarrativeEventRepositoryPort, ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort, ProcessingQueuePort, QueuePort, RegionRepositoryPort,
-    StagingRepositoryPort,
+    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
+    InteractionServicePort as OutboundInteractionServicePort, LlmPort, LocationRepositoryPort,
+    NarrativeEventRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
+    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort, ProcessingQueuePort,
+    QueuePort, RegionRepositoryPort, SceneServicePort as OutboundSceneServicePort,
+    StagingRepositoryPort, WorldServicePort as OutboundWorldServicePort,
 };
 
 use crate::infrastructure::ports::{
@@ -131,12 +133,12 @@ impl UseCases {
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         staging_service: Arc<StagingService<L, R, N, S>>,
         player_action_queue_service: Arc<PlayerActionQueueService<PAQ, LQ>>,
-        // Scene and Connection dependencies
-        scene_service: Arc<dyn SceneService>,
-        interaction_service: Arc<dyn InteractionService>,
+        // Scene and Connection dependencies (use port traits, not app-layer traits)
+        scene_service: Arc<dyn OutboundSceneServicePort>,
+        interaction_service: Arc<dyn OutboundInteractionServicePort>,
         directorial_context_repo: Arc<dyn PortDirectorialContextRepositoryPort>,
-        world_service: Arc<dyn WorldService>,
-        pc_service: Arc<dyn PlayerCharacterService>,
+        world_service: Arc<dyn OutboundWorldServicePort>,
+        pc_service: Arc<dyn OutboundPlayerCharacterServicePort>,
         // Challenge dependencies
         challenge_resolution_service: Arc<
             ChallengeResolutionService<

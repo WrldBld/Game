@@ -15,37 +15,38 @@ use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
 use wrldbldr_engine_ports::inbound::{
     DirectorialContextData,
     DirectorialContextPort,
     NpcMotivation,
     PcData,
-    PlayerCharacterServicePort,
-    WorldServicePort,
+    PlayerCharacterServicePort as InboundPlayerCharacterServicePort,
+    WorldServicePort as InboundWorldServicePort,
     WorldStatePort as InboundWorldStatePort, // Use case port (set_current_scene, set_directorial_context)
 };
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
+    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
+    WorldServicePort as OutboundWorldServicePort,
     WorldStatePort as OutboundWorldStatePort, // Trait to call methods on WorldStateManager
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
-/// Adapter for WorldService implementing WorldServicePort
+/// Adapter for WorldServicePort (outbound) implementing WorldServicePort (inbound)
 pub struct WorldServiceAdapter {
-    service: Arc<dyn WorldService>,
+    service: Arc<dyn OutboundWorldServicePort>,
 }
 
 impl WorldServiceAdapter {
-    pub fn new(service: Arc<dyn WorldService>) -> Self {
+    pub fn new(service: Arc<dyn OutboundWorldServicePort>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl WorldServicePort for WorldServiceAdapter {
+impl InboundWorldServicePort for WorldServiceAdapter {
     async fn export_world_snapshot(&self, world_id: WorldId) -> Result<serde_json::Value, String> {
         match self.service.export_world_snapshot(world_id).await {
             Ok(snapshot) => {
@@ -57,21 +58,21 @@ impl WorldServicePort for WorldServiceAdapter {
     }
 }
 
-/// Adapter for PlayerCharacterService implementing PlayerCharacterServicePort
+/// Adapter for PlayerCharacterServicePort (outbound) implementing PlayerCharacterServicePort (inbound)
 pub struct PlayerCharacterServiceAdapter {
-    service: Arc<dyn PlayerCharacterService>,
+    service: Arc<dyn OutboundPlayerCharacterServicePort>,
 }
 
 impl PlayerCharacterServiceAdapter {
-    pub fn new(service: Arc<dyn PlayerCharacterService>) -> Self {
+    pub fn new(service: Arc<dyn OutboundPlayerCharacterServicePort>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl PlayerCharacterServicePort for PlayerCharacterServiceAdapter {
+impl InboundPlayerCharacterServicePort for PlayerCharacterServiceAdapter {
     async fn get_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<PcData>, String> {
-        match self.service.get_pc(pc_id).await {
+        match self.service.get_player_character(pc_id).await {
             Ok(Some(pc)) => Ok(Some(PcData {
                 id: pc.id.to_string(),
                 name: pc.name,

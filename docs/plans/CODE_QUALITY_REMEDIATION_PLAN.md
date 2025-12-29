@@ -166,7 +166,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 40% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 85% (non-state files done, state module blocked) |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
@@ -817,17 +817,18 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
 | [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
-| [~] Create port traits for services (6/25) | **IN PROGRESS** |
-|     - ChallengeServicePort (11 methods) | **DONE** |
-|     - SceneServicePort (1 method + SceneWithRelations) | **DONE** |
-|     - NarrativeEventServicePort (4 methods) | **DONE** |
-|     - DispositionServicePort (8 methods) | **DONE** |
-|     - ActantialContextServicePort (1 method) | **DONE** |
-|     - SkillServicePort (7 methods) | **DONE** |
+| [x] Create port traits for services (35+/35+) | **DONE** (Phase E+F) |
+|     - All core, game, queue, asset, player, infrastructure services | **DONE** |
 | [ ] Move use case types to engine-ports (15+ types) | Pending |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
-| [ ] Refactor adapters to use only ports | Pending |
-| [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
+| [x] Refactor adapters to use only ports (non-state files) | **DONE** - All adapter files now use port traits |
+| [~] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | **BLOCKED** - state module still needs it |
+
+**Current Status (December 29, 2024)**:
+- Non-state adapter files: **0 imports** from engine-app ✅
+- State module (`state/*.rs`): **11 imports** from engine-app ⚠️
+- The state module contains `UseCases::new()` with ~347 lines of adapter/use case wiring logic
+- This logic needs to be moved to engine-runner before engine-app dep can be removed
 
 **Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
 

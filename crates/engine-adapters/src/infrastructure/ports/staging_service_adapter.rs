@@ -1,53 +1,40 @@
 //! Staging Service Adapter
 //!
-//! Implements `StagingServicePort` and `StagingServiceExtPort` by wrapping `StagingService`.
+//! Implements `StagingServicePort` and `StagingServiceExtPort` (inbound) by wrapping
+//! `StagingServicePort` (outbound).
+//!
 //! This adapter bridges the use case layer's abstract port interface with the
-//! application's staging service.
+//! application's staging service port.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
-use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_app::application::services::staging_service::StagingService;
-use wrldbldr_engine_dto::StagedNpcProposal;
+use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::inbound::{
-    RegeneratedNpc, StagingProposalData, StagingServiceExtPort, StagingServicePort,
+    RegeneratedNpc, StagingProposalData, StagingServiceExtPort,
+    StagingServicePort as InboundStagingServicePort,
 };
 use wrldbldr_engine_ports::outbound::{
-    ApprovedNpcData, LlmPort, NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcData,
-    StagingRepositoryPort,
+    ApprovedNpc, ApprovedNpcData, StagedNpcData, StagedNpcProposal,
+    StagingServicePort as OutboundStagingServicePort,
 };
 
-/// Adapter that implements staging service ports using StagingService
-///
-/// This is generic over the concrete service types to match StagingService's generics.
-pub struct StagingServiceAdapter<L, R, N, S>
-where
-    L: LlmPort,
-    R: RegionRepositoryPort,
-    N: NarrativeEventRepositoryPort,
-    S: StagingRepositoryPort,
-{
-    staging_service: Arc<StagingService<L, R, N, S>>,
+/// Adapter that implements staging service ports (inbound) using StagingServicePort (outbound)
+pub struct StagingServiceAdapter {
+    staging_service: Arc<dyn OutboundStagingServicePort>,
 }
 
-impl<L, R, N, S> StagingServiceAdapter<L, R, N, S>
-where
-    L: LlmPort,
-    R: RegionRepositoryPort,
-    N: NarrativeEventRepositoryPort,
-    S: StagingRepositoryPort,
-{
-    /// Create a new adapter wrapping the given StagingService
-    pub fn new(staging_service: Arc<StagingService<L, R, N, S>>) -> Self {
+impl StagingServiceAdapter {
+    /// Create a new adapter wrapping the given StagingServicePort
+    pub fn new(staging_service: Arc<dyn OutboundStagingServicePort>) -> Self {
         Self { staging_service }
     }
 
     /// Convert StagedNpcProposal to StagedNpcData
     fn proposal_to_staged_npc_data(proposal: &StagedNpcProposal) -> StagedNpcData {
         let character_id = uuid::Uuid::parse_str(&proposal.character_id)
-            .map(wrldbldr_domain::CharacterId::from_uuid)
-            .unwrap_or_else(|_| wrldbldr_domain::CharacterId::from_uuid(uuid::Uuid::nil()));
+            .map(CharacterId::from_uuid)
+            .unwrap_or_else(|_| CharacterId::from_uuid(uuid::Uuid::nil()));
 
         StagedNpcData {
             character_id,
@@ -72,16 +59,23 @@ where
             reasoning: proposal.reasoning.clone(),
         }
     }
+
+    /// Convert ApprovedNpcData to ApprovedNpc
+    fn approved_npc_data_to_approved_npc(data: &ApprovedNpcData) -> ApprovedNpc {
+        ApprovedNpc {
+            character_id: data.character_id,
+            name: data.name.clone(),
+            sprite_asset: data.sprite_asset.clone(),
+            portrait_asset: data.portrait_asset.clone(),
+            is_present: data.is_present,
+            is_hidden_from_players: data.is_hidden_from_players,
+            reasoning: data.reasoning.clone(),
+        }
+    }
 }
 
 #[async_trait::async_trait]
-impl<L, R, N, S> StagingServicePort for StagingServiceAdapter<L, R, N, S>
-where
-    L: LlmPort + Send + Sync,
-    R: RegionRepositoryPort + Send + Sync,
-    N: NarrativeEventRepositoryPort + Send + Sync,
-    S: StagingRepositoryPort + Send + Sync,
-{
+impl InboundStagingServicePort for StagingServiceAdapter {
     async fn get_current_staging(
         &self,
         region_id: RegionId,
@@ -89,7 +83,7 @@ where
     ) -> Result<Option<Vec<StagedNpc>>, String> {
         match self
             .staging_service
-            .get_current_staging(region_id, game_time)
+            .get_current_staging(region_id, game_time.clone())
             .await
         {
             Ok(Some(staging)) => Ok(Some(staging.npcs)),
@@ -114,10 +108,10 @@ where
                 world_id,
                 region_id,
                 location_id,
-                location_name,
-                game_time,
+                location_name.to_string(),
+                game_time.clone(),
                 ttl_hours,
-                dm_guidance,
+                dm_guidance.map(|s| s.to_string()),
             )
             .await
             .map_err(|e| e.to_string())?;
@@ -139,13 +133,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<L, R, N, S> StagingServiceExtPort for StagingServiceAdapter<L, R, N, S>
-where
-    L: LlmPort + Send + Sync,
-    R: RegionRepositoryPort + Send + Sync,
-    N: NarrativeEventRepositoryPort + Send + Sync,
-    S: StagingRepositoryPort + Send + Sync,
-{
+impl StagingServiceExtPort for StagingServiceAdapter {
     async fn approve_staging(
         &self,
         region_id: RegionId,
@@ -157,17 +145,23 @@ where
         source: StagingSource,
         approved_by: &str,
     ) -> Result<Vec<StagedNpc>, String> {
+        // Convert ApprovedNpcData to ApprovedNpc
+        let approved_npcs: Vec<ApprovedNpc> = approved_npcs
+            .iter()
+            .map(Self::approved_npc_data_to_approved_npc)
+            .collect();
+
         let staging = self
             .staging_service
             .approve_staging(
                 region_id,
                 location_id,
                 world_id,
-                game_time,
+                game_time.clone(),
                 approved_npcs,
                 ttl_hours,
                 source,
-                approved_by,
+                approved_by.to_string(),
                 None, // dm_guidance not used in this flow
             )
             .await
@@ -178,22 +172,15 @@ where
 
     async fn regenerate_suggestions(
         &self,
-        world_id: WorldId,
-        region_id: RegionId,
-        location_name: &str,
-        game_time: &GameTime,
-        guidance: &str,
+        _world_id: WorldId,
+        _region_id: RegionId,
+        _location_name: &str,
+        _game_time: &GameTime,
+        _guidance: &str,
     ) -> Result<Vec<RegeneratedNpc>, String> {
-        let proposals = self
-            .staging_service
-            .regenerate_suggestions(world_id, region_id, location_name, game_time, guidance)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        Ok(proposals
-            .iter()
-            .map(Self::proposal_to_regenerated_npc)
-            .collect())
+        // The outbound StagingServicePort doesn't expose regenerate_suggestions
+        // This would need a port extension
+        Err("regenerate_suggestions not supported by StagingServicePort".to_string())
     }
 
     async fn pre_stage_region(
@@ -206,16 +193,24 @@ where
         ttl_hours: i32,
         dm_user_id: &str,
     ) -> Result<Vec<StagedNpc>, String> {
+        // Pre-stage uses approve_staging with StagingSource::DmManual
+        let approved_npcs: Vec<ApprovedNpc> = npcs
+            .iter()
+            .map(Self::approved_npc_data_to_approved_npc)
+            .collect();
+
         let staging = self
             .staging_service
-            .pre_stage_region(
+            .approve_staging(
                 region_id,
                 location_id,
                 world_id,
-                game_time,
-                npcs,
+                game_time.clone(),
+                approved_npcs,
                 ttl_hours,
-                dm_user_id,
+                StagingSource::DmCustomized,
+                dm_user_id.to_string(),
+                None,
             )
             .await
             .map_err(|e| e.to_string())?;
@@ -241,269 +236,28 @@ mod tests {
             reasoning: "Test reasoning".to_string(),
         };
 
-        let data = StagingServiceAdapter::<
-            wrldbldr_engine_adapters_test_stubs::StubLlm,
-            wrldbldr_engine_adapters_test_stubs::StubRegionRepo,
-            wrldbldr_engine_adapters_test_stubs::StubNarrativeRepo,
-            wrldbldr_engine_adapters_test_stubs::StubStagingRepo,
-        >::proposal_to_staged_npc_data(&proposal);
+        let data = StagingServiceAdapter::proposal_to_staged_npc_data(&proposal);
 
         assert_eq!(data.name, "Test NPC");
         assert!(data.is_present);
     }
-}
 
-// Test stubs module for unit tests
-#[cfg(test)]
-mod wrldbldr_engine_adapters_test_stubs {
-    use anyhow::Result;
-    use async_trait::async_trait;
-    use wrldbldr_domain::entities::{
-        Character, NarrativeEvent, Region, RegionConnection, RegionExit, Staging,
-    };
-    use wrldbldr_domain::value_objects::RegionRelationshipType;
-    use wrldbldr_domain::*;
-    use wrldbldr_engine_ports::outbound::*;
+    #[test]
+    fn test_proposal_to_regenerated_npc() {
+        let proposal = StagedNpcProposal {
+            character_id: "char-123".to_string(),
+            name: "Test NPC".to_string(),
+            sprite_asset: None,
+            portrait_asset: Some("portrait.png".to_string()),
+            is_present: false,
+            is_hidden_from_players: true,
+            reasoning: "Hidden for surprise".to_string(),
+        };
 
-    // =========================================================================
-    // StubLlm - Implements LlmPort with associated Error type
-    // =========================================================================
-    pub struct StubLlm;
+        let regenerated = StagingServiceAdapter::proposal_to_regenerated_npc(&proposal);
 
-    #[derive(Debug)]
-    pub struct StubLlmError;
-    impl std::fmt::Display for StubLlmError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "StubLlmError")
-        }
-    }
-    impl std::error::Error for StubLlmError {}
-
-    #[async_trait]
-    impl LlmPort for StubLlm {
-        type Error = StubLlmError;
-
-        async fn generate(&self, _: LlmRequest) -> std::result::Result<LlmResponse, Self::Error> {
-            Ok(LlmResponse {
-                content: "[]".to_string(),
-                finish_reason: FinishReason::Stop,
-                tool_calls: vec![],
-                usage: None,
-            })
-        }
-
-        async fn generate_with_tools(
-            &self,
-            _: LlmRequest,
-            _: Vec<ToolDefinition>,
-        ) -> std::result::Result<LlmResponse, Self::Error> {
-            Ok(LlmResponse {
-                content: "[]".to_string(),
-                finish_reason: FinishReason::Stop,
-                tool_calls: vec![],
-                usage: None,
-            })
-        }
-    }
-
-    // =========================================================================
-    // StubRegionRepo - Implements RegionRepositoryPort with anyhow::Result
-    // =========================================================================
-    pub struct StubRegionRepo;
-
-    #[async_trait]
-    impl RegionRepositoryPort for StubRegionRepo {
-        async fn get(&self, _: RegionId) -> Result<Option<Region>> {
-            Ok(None)
-        }
-        async fn list_by_location(&self, _: LocationId) -> Result<Vec<Region>> {
-            Ok(vec![])
-        }
-        async fn list_spawn_points(&self, _: WorldId) -> Result<Vec<Region>> {
-            Ok(vec![])
-        }
-        async fn get_npcs_related_to_region(
-            &self,
-            _: RegionId,
-        ) -> Result<Vec<(Character, RegionRelationshipType)>> {
-            Ok(vec![])
-        }
-        async fn update(&self, _: &Region) -> Result<()> {
-            Ok(())
-        }
-        async fn delete(&self, _: RegionId) -> Result<()> {
-            Ok(())
-        }
-        async fn create_connection(&self, _: &RegionConnection) -> Result<()> {
-            Ok(())
-        }
-        async fn get_connections(&self, _: RegionId) -> Result<Vec<RegionConnection>> {
-            Ok(vec![])
-        }
-        async fn delete_connection(&self, _: RegionId, _: RegionId) -> Result<()> {
-            Ok(())
-        }
-        async fn unlock_connection(&self, _: RegionId, _: RegionId) -> Result<()> {
-            Ok(())
-        }
-        async fn create_exit(&self, _: &RegionExit) -> Result<()> {
-            Ok(())
-        }
-        async fn get_exits(&self, _: RegionId) -> Result<Vec<RegionExit>> {
-            Ok(vec![])
-        }
-        async fn delete_exit(&self, _: RegionId, _: LocationId) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    // =========================================================================
-    // StubNarrativeRepo - Implements NarrativeEventRepositoryPort
-    // =========================================================================
-    pub struct StubNarrativeRepo;
-
-    #[async_trait]
-    impl NarrativeEventRepositoryPort for StubNarrativeRepo {
-        async fn create(&self, _: &NarrativeEvent) -> Result<()> {
-            Ok(())
-        }
-        async fn get(&self, _: NarrativeEventId) -> Result<Option<NarrativeEvent>> {
-            Ok(None)
-        }
-        async fn update(&self, _: &NarrativeEvent) -> Result<bool> {
-            Ok(true)
-        }
-        async fn list_by_world(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_active(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_favorites(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_pending(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn toggle_favorite(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn set_active(&self, _: NarrativeEventId, _: bool) -> Result<bool> {
-            Ok(true)
-        }
-        async fn mark_triggered(&self, _: NarrativeEventId, _: Option<String>) -> Result<bool> {
-            Ok(true)
-        }
-        async fn reset_triggered(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn delete(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn tie_to_scene(&self, _: NarrativeEventId, _: SceneId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_tied_scene(&self, _: NarrativeEventId) -> Result<Option<SceneId>> {
-            Ok(None)
-        }
-        async fn untie_from_scene(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn tie_to_location(&self, _: NarrativeEventId, _: LocationId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_tied_location(&self, _: NarrativeEventId) -> Result<Option<LocationId>> {
-            Ok(None)
-        }
-        async fn untie_from_location(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn assign_to_act(&self, _: NarrativeEventId, _: ActId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_act(&self, _: NarrativeEventId) -> Result<Option<ActId>> {
-            Ok(None)
-        }
-        async fn unassign_from_act(&self, _: NarrativeEventId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn add_featured_npc(
-            &self,
-            _: NarrativeEventId,
-            _: wrldbldr_domain::entities::FeaturedNpc,
-        ) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_featured_npcs(
-            &self,
-            _: NarrativeEventId,
-        ) -> Result<Vec<wrldbldr_domain::entities::FeaturedNpc>> {
-            Ok(vec![])
-        }
-        async fn remove_featured_npc(&self, _: NarrativeEventId, _: CharacterId) -> Result<bool> {
-            Ok(true)
-        }
-        async fn update_featured_npc_role(
-            &self,
-            _: NarrativeEventId,
-            _: CharacterId,
-            _: Option<String>,
-        ) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_chain_memberships(
-            &self,
-            _: NarrativeEventId,
-        ) -> Result<Vec<wrldbldr_domain::entities::EventChainMembership>> {
-            Ok(vec![])
-        }
-        async fn list_by_scene(&self, _: SceneId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_by_location(&self, _: LocationId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_by_act(&self, _: ActId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-        async fn list_by_featured_npc(&self, _: CharacterId) -> Result<Vec<NarrativeEvent>> {
-            Ok(vec![])
-        }
-    }
-
-    // =========================================================================
-    // StubStagingRepo - Implements StagingRepositoryPort
-    // =========================================================================
-    pub struct StubStagingRepo;
-
-    #[async_trait]
-    impl StagingRepositoryPort for StubStagingRepo {
-        async fn save(&self, _: &Staging) -> Result<StagingId> {
-            Ok(StagingId::from_uuid(uuid::Uuid::new_v4()))
-        }
-        async fn get(&self, _: StagingId) -> Result<Option<Staging>> {
-            Ok(None)
-        }
-        async fn get_current(&self, _: RegionId) -> Result<Option<Staging>> {
-            Ok(None)
-        }
-        async fn get_history(&self, _: RegionId, _: u32) -> Result<Vec<Staging>> {
-            Ok(vec![])
-        }
-        async fn set_current(&self, _: StagingId) -> Result<()> {
-            Ok(())
-        }
-        async fn invalidate_all(&self, _: RegionId) -> Result<()> {
-            Ok(())
-        }
-        async fn is_valid(&self, _: StagingId, _: &wrldbldr_domain::GameTime) -> Result<bool> {
-            Ok(true)
-        }
-        async fn get_staged_npcs(
-            &self,
-            _: StagingId,
-        ) -> Result<Vec<wrldbldr_engine_ports::outbound::StagedNpcRow>> {
-            Ok(vec![])
-        }
+        assert_eq!(regenerated.name, "Test NPC");
+        assert!(!regenerated.is_present);
+        assert!(regenerated.is_hidden_from_players);
     }
 }

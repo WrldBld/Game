@@ -4,42 +4,27 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::{LlmRequestData, PlayerActionData};
+use chrono::Utc;
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::services::PlayerActionQueueService;
 use wrldbldr_engine_ports::inbound::{DmNotificationPort, PlayerActionQueuePort};
-use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueuePort};
+use wrldbldr_engine_ports::outbound::{PlayerAction, PlayerActionQueueServicePort};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
-/// Adapter for PlayerActionQueueService
-///
-/// Generic over the queue backend types used by PlayerActionQueueService.
-pub struct PlayerActionQueueAdapter<Q, LQ>
-where
-    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
-{
-    service: Arc<PlayerActionQueueService<Q, LQ>>,
+/// Adapter for PlayerActionQueueServicePort (outbound) implementing PlayerActionQueuePort (inbound)
+pub struct PlayerActionQueueAdapter {
+    service: Arc<dyn PlayerActionQueueServicePort>,
 }
 
-impl<Q, LQ> PlayerActionQueueAdapter<Q, LQ>
-where
-    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
-{
-    pub fn new(service: Arc<PlayerActionQueueService<Q, LQ>>) -> Self {
+impl PlayerActionQueueAdapter {
+    pub fn new(service: Arc<dyn PlayerActionQueueServicePort>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl<Q, LQ> PlayerActionQueuePort for PlayerActionQueueAdapter<Q, LQ>
-where
-    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
-{
+impl PlayerActionQueuePort for PlayerActionQueueAdapter {
     async fn enqueue_action(
         &self,
         world_id: &WorldId,
@@ -49,10 +34,20 @@ where
         target: Option<String>,
         dialogue: Option<String>,
     ) -> Result<ActionId, String> {
+        let action = PlayerAction {
+            world_id: *world_id.as_uuid(),
+            player_id,
+            pc_id: pc_id.map(|id| *id.as_uuid()),
+            action_type,
+            target,
+            dialogue,
+            timestamp: Utc::now(),
+        };
+
         self.service
-            .enqueue_action(world_id, player_id, pc_id, action_type, target, dialogue)
+            .enqueue(action)
             .await
-            .map(|id| ActionId::from_uuid(id.into()))
+            .map(|id| ActionId::from_uuid(id))
             .map_err(|e| e.to_string())
     }
 

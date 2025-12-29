@@ -121,6 +121,9 @@ pub use dto::{
     parse_variant,
     // Workflow parsing
     parse_workflow_slot,
+    // Workflow DTO conversion functions
+    workflow_config_to_full_response_dto,
+    workflow_config_to_response_dto,
     // Workflow DTOs
     AnalyzeWorkflowRequestDto,
     CreateWorkflowConfigRequestDto,
@@ -151,6 +154,7 @@ pub use dto::{
     UploadAssetRequestDto,
     WorkflowAnalysisDto,
     WorkflowAnalysisResponseDto,
+    WorkflowConfigExportDto,
     WorkflowConfigFullResponseDto,
     WorkflowConfigResponseDto,
     WorkflowInputDto,

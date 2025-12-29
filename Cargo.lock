@@ -7403,6 +7403,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "mockall",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -7558,6 +7559,7 @@ dependencies = [
 name = "wrldbldr-protocol"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "serde",
  "serde_json",

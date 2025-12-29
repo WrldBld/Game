@@ -142,7 +142,7 @@ pub fn create_routes() -> Router<Arc<AdapterState>> {
         )
         .route(
             "/api/workflows/analyze",
-            post(workflow_routes::analyze_workflow),
+            post(workflow_routes::analyze_workflow_handler),
         )
         .route(
             "/api/workflows/export",

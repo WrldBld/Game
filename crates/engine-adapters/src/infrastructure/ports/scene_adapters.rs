@@ -16,45 +16,46 @@ use wrldbldr_domain::{
     InteractionTarget as DomainInteractionTarget, SceneId, TimeContext as DomainTimeContext,
     WorldId,
 };
-use wrldbldr_engine_app::application::services::{InteractionService, SceneService};
 use wrldbldr_engine_ports::inbound::{
     CharacterEntity,
     DirectorialContextData,
     DirectorialContextRepositoryPort,
     DmAction,
     InteractionEntity,
-    InteractionServicePort,
+    InteractionServicePort as InboundInteractionServicePort,
     InteractionTarget,
     LocationEntity,
     NpcMotivation,
     SceneDmActionQueuePort,
     SceneEntity,
-    SceneServicePort,
+    SceneServicePort as InboundSceneServicePort,
     SceneWithRelations as UseCaseSceneWithRelations,
     TimeContext,
     WorldStatePort as InboundWorldStatePort, // Use case port
 };
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
+    InteractionServicePort as OutboundInteractionServicePort,
+    SceneServicePort as OutboundSceneServicePort,
     WorldStatePort as OutboundWorldStatePort, // Trait to call methods on WorldStateManager
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
-/// Adapter for SceneService
+/// Adapter for SceneServicePort (outbound) implementing SceneServicePort (inbound)
 pub struct SceneServiceAdapter {
-    service: Arc<dyn SceneService>,
+    service: Arc<dyn OutboundSceneServicePort>,
 }
 
 impl SceneServiceAdapter {
-    pub fn new(service: Arc<dyn SceneService>) -> Self {
+    pub fn new(service: Arc<dyn OutboundSceneServicePort>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl SceneServicePort for SceneServiceAdapter {
+impl InboundSceneServicePort for SceneServiceAdapter {
     async fn get_scene_with_relations(
         &self,
         scene_id: SceneId,
@@ -101,21 +102,21 @@ impl SceneServicePort for SceneServiceAdapter {
     }
 }
 
-/// Adapter for InteractionService
+/// Adapter for InteractionServicePort (outbound) implementing InteractionServicePort (inbound)
 pub struct InteractionServiceAdapter {
-    service: Arc<dyn InteractionService>,
+    service: Arc<dyn OutboundInteractionServicePort>,
 }
 
 impl InteractionServiceAdapter {
-    pub fn new(service: Arc<dyn InteractionService>) -> Self {
+    pub fn new(service: Arc<dyn OutboundInteractionServicePort>) -> Self {
         Self { service }
     }
 }
 
 #[async_trait::async_trait]
-impl InteractionServicePort for InteractionServiceAdapter {
+impl InboundInteractionServicePort for InteractionServiceAdapter {
     async fn list_interactions(&self, scene_id: SceneId) -> Result<Vec<InteractionEntity>, String> {
-        match self.service.list_interactions(scene_id).await {
+        match self.service.list_by_scene(scene_id).await {
             Ok(interactions) => Ok(interactions
                 .into_iter()
                 .map(|i| {

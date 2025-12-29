@@ -871,10 +871,13 @@ pub async fn new_app_state(
 
     // Create suggestion enqueue adapter for AI suggestions
     // Pass world_repo for auto-enrichment of suggestion context
+    // Cast LLMQueueService to LlmQueueServicePort for hexagonal architecture compliance
+    let llm_queue_service_port: Arc<dyn wrldbldr_engine_ports::outbound::LlmQueueServicePort> =
+        old_queues.llm_queue_service.clone();
     let suggestion_enqueue_adapter: Arc<
         dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort,
     > = Arc::new(SuggestionEnqueueAdapter::new(
-        old_queues.llm_queue_service.clone(),
+        llm_queue_service_port,
         world_repo.clone(),
     ));
     tracing::info!("Initialized suggestion enqueue adapter with world auto-enrichment");
@@ -886,11 +889,11 @@ pub async fn new_app_state(
     let character_repo_for_use_cases = character_repo.clone();
     let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
-    // Clone services needed for use cases
-    let scene_service_for_use_cases = old_core.scene_service.clone();
-    let interaction_service_for_use_cases = old_core.interaction_service.clone();
-    let world_service_for_use_cases = old_core.world_service.clone();
-    let pc_service_for_use_cases = old_player.player_character_service.clone();
+    // Clone port-typed services for use cases (UseCases::new expects port traits)
+    let scene_service_for_use_cases = scene_service_port.clone();
+    let interaction_service_for_use_cases = interaction_service_port.clone();
+    let world_service_for_use_cases = world_service_port.clone();
+    let pc_service_for_use_cases = player_character_service_port.clone();
 
     let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
         old_core.world_service.clone(),
