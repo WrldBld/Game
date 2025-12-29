@@ -15,7 +15,6 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionRepositoryPort,
@@ -23,64 +22,11 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::errors::InventoryError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for equipping an item
-#[derive(Debug, Clone)]
-pub struct EquipInput {
-    pub pc_id: PlayerCharacterId,
-    pub item_id: ItemId,
-}
-
-/// Input for unequipping an item
-#[derive(Debug, Clone)]
-pub struct UnequipInput {
-    pub pc_id: PlayerCharacterId,
-    pub item_id: ItemId,
-}
-
-/// Input for dropping an item
-#[derive(Debug, Clone)]
-pub struct DropInput {
-    pub pc_id: PlayerCharacterId,
-    pub item_id: ItemId,
-    pub quantity: u32,
-}
-
-/// Input for picking up an item
-#[derive(Debug, Clone)]
-pub struct PickupInput {
-    pub pc_id: PlayerCharacterId,
-    pub item_id: ItemId,
-}
-
-/// Result of equipping an item
-#[derive(Debug, Clone)]
-pub struct EquipResult {
-    pub item_name: String,
-}
-
-/// Result of unequipping an item
-#[derive(Debug, Clone)]
-pub struct UnequipResult {
-    pub item_name: String,
-}
-
-/// Result of dropping an item
-#[derive(Debug, Clone)]
-pub struct DropResult {
-    pub item_name: String,
-    pub quantity: u32,
-    pub region_id: RegionId,
-}
-
-/// Result of picking up an item
-#[derive(Debug, Clone)]
-pub struct PickupResult {
-    pub item_name: String,
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    DropInput, DropResult, EquipInput, EquipResult, PickupInput, PickupResult, UnequipInput,
+    UnequipResult,
+};
 
 // =============================================================================
 // Inventory Use Case

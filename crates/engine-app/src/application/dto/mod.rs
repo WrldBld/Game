@@ -68,12 +68,12 @@ pub use rule_system::{
 
 // Workflow DTOs
 pub use workflow::{
-    parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
-    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, InputDefaultDto, PromptMappingDto,
-    TestWorkflowRequestDto, TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto,
-    WorkflowAnalysisResponseDto, WorkflowConfigExportDto, WorkflowConfigFullResponseDto,
-    WorkflowConfigResponseDto, WorkflowSlotCategoryDto, WorkflowSlotStatusDto,
-    WorkflowSlotsResponseDto,
+    parse_workflow_slot, workflow_config_to_full_response_dto, workflow_config_to_response_dto,
+    AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto, ImportWorkflowsRequestDto,
+    ImportWorkflowsResponseDto, InputDefaultDto, PromptMappingDto, TestWorkflowRequestDto,
+    TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
+    WorkflowConfigExportDto, WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
+    WorkflowSlotCategoryDto, WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
 };
 
 // Scene DTOs

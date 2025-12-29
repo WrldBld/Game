@@ -25,7 +25,7 @@ use wrldbldr_domain::{
     CharacterId, GameTime, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
 };
 
-use super::{SceneChangedEvent, StagedNpcData, WaitingPcData};
+use super::{NpcPresenceData, SceneChangedEvent, StagedNpcData, WaitingPcData};
 
 // =============================================================================
 // Movement Types
@@ -514,6 +514,619 @@ pub struct OutcomeDetail {
 pub struct ApprovalItem {
     pub request_id: String,
     pub proposed_dialogue: String,
+}
+
+// =============================================================================
+// Challenge Input Types
+// =============================================================================
+
+/// Input for submitting a dice roll
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitRollInput {
+    pub challenge_id: String,
+    pub roll: i32,
+}
+
+/// Input for submitting dice input (formula or manual)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitDiceInputInput {
+    pub challenge_id: String,
+    pub input_type: DiceInputType,
+}
+
+/// Input for triggering a challenge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerChallengeInput {
+    pub challenge_id: String,
+    pub target_character_id: CharacterId,
+}
+
+/// Input for a challenge suggestion decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeSuggestionDecisionInput {
+    pub request_id: String,
+    pub approved: bool,
+    pub modified_difficulty: Option<String>,
+}
+
+/// Input for regenerating outcome text
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegenerateOutcomeInput {
+    pub request_id: String,
+    pub outcome_type: Option<String>,
+    pub guidance: Option<String>,
+}
+
+/// Input for discarding a challenge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscardChallengeInput {
+    pub request_id: String,
+    pub feedback: Option<String>,
+}
+
+/// Input for creating an ad-hoc challenge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAdHocInput {
+    pub challenge_name: String,
+    pub skill_name: String,
+    pub difficulty: String,
+    pub target_pc_id: PlayerCharacterId,
+    pub outcomes: AdHocOutcomes,
+}
+
+/// Input for challenge outcome decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutcomeDecisionInput {
+    pub resolution_id: String,
+    pub decision: OutcomeDecision,
+}
+
+/// Input for requesting outcome suggestions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestSuggestionInput {
+    pub resolution_id: String,
+    pub guidance: Option<String>,
+}
+
+/// Input for requesting outcome branches
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestBranchesInput {
+    pub resolution_id: String,
+    pub guidance: Option<String>,
+}
+
+/// Input for selecting an outcome branch
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SelectBranchInput {
+    pub resolution_id: String,
+    pub branch_id: String,
+    pub modified_description: Option<String>,
+}
+
+// =============================================================================
+// Staging Types
+// =============================================================================
+
+/// Input for approving a staging proposal
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApproveInput {
+    /// Request ID of the pending staging
+    pub request_id: String,
+    /// Approved NPCs with presence decisions
+    pub approved_npcs: Vec<ApprovedNpcInput>,
+    /// TTL in hours for the staging
+    pub ttl_hours: i32,
+    /// How this staging was finalized: rule, llm, or custom
+    pub source: StagingApprovalSource,
+}
+
+/// An approved NPC with presence decision (input type)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovedNpcInput {
+    pub character_id: CharacterId,
+    pub is_present: bool,
+    pub is_hidden_from_players: bool,
+    pub reasoning: Option<String>,
+}
+
+/// Source of staging decision
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum StagingApprovalSource {
+    RuleBased,
+    LlmBased,
+    DmCustomized,
+}
+
+impl From<StagingApprovalSource> for wrldbldr_domain::entities::StagingSource {
+    fn from(source: StagingApprovalSource) -> Self {
+        match source {
+            StagingApprovalSource::RuleBased => wrldbldr_domain::entities::StagingSource::RuleBased,
+            StagingApprovalSource::LlmBased => wrldbldr_domain::entities::StagingSource::LlmBased,
+            StagingApprovalSource::DmCustomized => {
+                wrldbldr_domain::entities::StagingSource::DmCustomized
+            }
+        }
+    }
+}
+
+/// Result of approving staging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApproveResult {
+    /// NPCs now present in the region
+    pub npcs_present: Vec<NpcPresenceData>,
+    /// Number of waiting PCs that were notified
+    pub notified_pc_count: usize,
+}
+
+/// Input for regenerating staging suggestions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegenerateInput {
+    /// Request ID of the pending staging
+    pub request_id: String,
+    /// DM guidance for the LLM
+    pub guidance: String,
+}
+
+/// Regenerated NPC suggestion
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegeneratedNpc {
+    pub character_id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub is_hidden_from_players: bool,
+    pub reasoning: String,
+}
+
+/// Result of regenerating suggestions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StagingRegenerateResult {
+    /// New LLM-based suggestions
+    pub llm_based_npcs: Vec<RegeneratedNpc>,
+}
+
+/// Input for pre-staging a region
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreStageInput {
+    /// Region to pre-stage
+    pub region_id: RegionId,
+    /// NPCs to stage
+    pub npcs: Vec<ApprovedNpcInput>,
+    /// TTL in hours
+    pub ttl_hours: i32,
+}
+
+/// Result of pre-staging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreStageResult {
+    /// NPCs now present in the region
+    pub npcs_present: Vec<NpcPresenceData>,
+}
+
+/// Information about a pending staging
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingStagingInfo {
+    pub request_id: String,
+    pub world_id: WorldId,
+    pub region_id: RegionId,
+    pub location_id: LocationId,
+    pub region_name: String,
+    pub location_name: String,
+    pub waiting_pcs: Vec<WaitingPcInfo>,
+    pub rule_based_npcs: Vec<ProposedNpc>,
+    pub llm_based_npcs: Vec<ProposedNpc>,
+}
+
+/// A waiting PC info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaitingPcInfo {
+    pub pc_id: PlayerCharacterId,
+    pub pc_name: String,
+    pub user_id: String,
+}
+
+/// A proposed NPC from the staging proposal
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProposedNpc {
+    pub character_id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub is_hidden_from_players: bool,
+    pub reasoning: String,
+}
+
+/// Approved NPC data for the service
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovedNpcData {
+    pub character_id: CharacterId,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub is_hidden_from_players: bool,
+    pub reasoning: String,
+}
+
+// =============================================================================
+// Scene Input/Output Types
+// =============================================================================
+
+/// Input for requesting a scene change
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestSceneChangeInput {
+    /// Scene ID to change to
+    pub scene_id: SceneId,
+}
+
+/// Input for updating directorial context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateDirectorialInput {
+    /// NPC motivations for the scene
+    pub npc_motivations: Vec<NpcMotivation>,
+    /// Overall scene mood
+    pub scene_mood: Option<String>,
+    /// Pacing hints
+    pub pacing: Option<String>,
+    /// Additional DM notes
+    pub dm_notes: Option<String>,
+}
+
+/// Input for scene approval decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneApprovalDecisionInput {
+    /// Request ID being decided
+    pub request_id: String,
+    /// The decision
+    pub decision: ApprovalDecision,
+}
+
+/// Scene data for responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneData {
+    pub id: String,
+    pub name: String,
+    pub location_id: String,
+    pub location_name: String,
+    pub backdrop_asset: Option<String>,
+    pub time_context: String,
+    pub directorial_notes: Option<String>,
+}
+
+/// Character data for scene
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneCharacterData {
+    pub id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub position: String,
+    pub is_speaking: bool,
+    pub emotion: Option<String>,
+}
+
+/// Interaction data for scene
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneInteractionData {
+    pub id: String,
+    pub name: String,
+    pub interaction_type: String,
+    pub target_name: Option<String>,
+    pub is_available: bool,
+}
+
+/// Result of requesting a scene change
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneChangeResult {
+    /// Scene was changed and broadcast
+    pub scene_changed: bool,
+    /// Scene data for the new scene
+    pub scene: Option<SceneData>,
+    /// Characters in the scene
+    pub characters: Vec<SceneCharacterData>,
+    /// Interactions available
+    pub interactions: Vec<SceneInteractionData>,
+}
+
+/// Result of updating directorial context
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectorialUpdateResult {
+    /// Context was updated
+    pub updated: bool,
+}
+
+/// Result of scene approval decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneApprovalDecisionResult {
+    /// Decision was processed
+    pub processed: bool,
+}
+
+/// Scene with all related entities
+#[derive(Debug, Clone)]
+pub struct SceneWithRelations {
+    pub scene: SceneEntity,
+    pub location: LocationEntity,
+    pub featured_characters: Vec<CharacterEntity>,
+}
+
+// =============================================================================
+// Player Action Types
+// =============================================================================
+
+/// Input for a player action
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerActionInput {
+    /// Type of action (e.g., "travel", "interact", "speak")
+    pub action_type: String,
+    /// Target of the action (e.g., location ID, character ID)
+    pub target: Option<String>,
+    /// Dialogue for speech actions
+    pub dialogue: Option<String>,
+}
+
+/// Result of a player action
+#[derive(Debug, Clone)]
+pub enum ActionResult {
+    /// Travel completed, scene changed (not queued)
+    TravelCompleted {
+        action_id: String,
+        scene: SceneChangedEvent,
+    },
+    /// Travel pending staging approval
+    TravelPending {
+        action_id: String,
+        region_id: RegionId,
+        region_name: String,
+    },
+    /// Action was queued for processing
+    Queued {
+        action_id: String,
+        queue_depth: usize,
+    },
+}
+
+// =============================================================================
+// Observation Types
+// =============================================================================
+
+/// Input for sharing NPC location with a PC
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShareNpcLocationInput {
+    /// PC to share the information with
+    pub pc_id: PlayerCharacterId,
+    /// NPC whose location is being shared
+    pub npc_id: CharacterId,
+    /// Location where NPC was observed
+    pub location_id: LocationId,
+    /// Region within the location
+    pub region_id: RegionId,
+    /// Optional notes about how PC learned this
+    pub notes: Option<String>,
+}
+
+/// Input for triggering an approach event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerApproachInput {
+    /// NPC who is approaching
+    pub npc_id: CharacterId,
+    /// PC being approached
+    pub target_pc_id: PlayerCharacterId,
+    /// Description of the approach
+    pub description: String,
+    /// Whether to reveal the NPC's identity
+    pub reveal: bool,
+}
+
+/// Input for triggering a location event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerLocationEventInput {
+    /// Region where the event occurs
+    pub region_id: RegionId,
+    /// Description of the event
+    pub description: String,
+}
+
+/// Result of sharing NPC location
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShareNpcLocationResult {
+    /// Observation was created
+    pub observation_created: bool,
+}
+
+/// Result of triggering an approach event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerApproachResult {
+    /// NPC who approached
+    pub npc_name: String,
+    /// PC who was approached
+    pub target_pc_name: String,
+}
+
+/// Result of triggering a location event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerLocationEventResult {
+    /// Event was broadcast
+    pub event_broadcast: bool,
+}
+
+/// Data for approach event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApproachEventData {
+    pub npc_id: String,
+    pub npc_name: String,
+    pub npc_sprite: Option<String>,
+    pub description: String,
+    pub reveal: bool,
+}
+
+/// Data for location event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationEventData {
+    pub region_id: String,
+    pub description: String,
+}
+
+// =============================================================================
+// Inventory Types
+// =============================================================================
+
+/// Input for equipping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EquipInput {
+    pub pc_id: PlayerCharacterId,
+    pub item_id: ItemId,
+}
+
+/// Input for unequipping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnequipInput {
+    pub pc_id: PlayerCharacterId,
+    pub item_id: ItemId,
+}
+
+/// Input for dropping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropInput {
+    pub pc_id: PlayerCharacterId,
+    pub item_id: ItemId,
+    pub quantity: u32,
+}
+
+/// Input for picking up an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PickupInput {
+    pub pc_id: PlayerCharacterId,
+    pub item_id: ItemId,
+}
+
+/// Result of equipping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EquipResult {
+    pub item_name: String,
+}
+
+/// Result of unequipping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnequipResult {
+    pub item_name: String,
+}
+
+/// Result of dropping an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropResult {
+    pub item_name: String,
+    pub quantity: u32,
+    pub region_id: RegionId,
+}
+
+/// Result of picking up an item
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PickupResult {
+    pub item_name: String,
+}
+
+// =============================================================================
+// Narrative Event Types
+// =============================================================================
+
+/// Input for narrative event suggestion decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NarrativeEventSuggestionDecisionInput {
+    pub request_id: String,
+    pub event_id: String,
+    pub approved: bool,
+    pub selected_outcome: Option<String>,
+}
+
+/// Result of a narrative event decision
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NarrativeEventDecisionResult {
+    /// Whether the event was triggered
+    pub triggered: bool,
+}
+
+// =============================================================================
+// Error Types
+// =============================================================================
+
+/// Trait for extracting error codes from use case errors
+///
+/// Implemented by all use case error types to provide standardized
+/// error code strings. The adapters layer uses this to convert
+/// errors to protocol messages.
+pub trait ErrorCode: std::fmt::Display {
+    /// Get the error code string (e.g., "PC_NOT_FOUND")
+    fn code(&self) -> &'static str;
+}
+
+/// Errors that can occur during connection operations
+#[derive(Debug, Error)]
+pub enum ConnectionError {
+    /// World not found
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
+
+    /// Player character not found
+    #[error("Player character not found: {0}")]
+    PcNotFound(PlayerCharacterId),
+
+    /// Already connected to a world
+    #[error("Already connected to a world")]
+    AlreadyConnected,
+
+    /// Not connected to any world
+    #[error("Not connected to any world")]
+    NotConnected,
+
+    /// Character already claimed by another player
+    #[error("Character already claimed by another player")]
+    CharacterClaimed,
+
+    /// Invalid spectate target
+    #[error("Invalid spectate target: {0}")]
+    InvalidSpectateTarget(String),
+
+    /// Connection failed
+    #[error("Connection failed: {0}")]
+    ConnectionFailed(String),
+
+    /// Database operation failed
+    #[error("Database error: {0}")]
+    Database(String),
+}
+
+impl ErrorCode for ConnectionError {
+    fn code(&self) -> &'static str {
+        match self {
+            Self::WorldNotFound(_) => "WORLD_NOT_FOUND",
+            Self::PcNotFound(_) => "PC_NOT_FOUND",
+            Self::AlreadyConnected => "ALREADY_CONNECTED",
+            Self::NotConnected => "NOT_CONNECTED",
+            Self::CharacterClaimed => "CHARACTER_CLAIMED",
+            Self::InvalidSpectateTarget(_) => "INVALID_SPECTATE_TARGET",
+            Self::ConnectionFailed(_) => "CONNECTION_FAILED",
+            Self::Database(_) => "DATABASE_ERROR",
+        }
+    }
+}
+
+impl ErrorCode for MovementError {
+    fn code(&self) -> &'static str {
+        match self {
+            Self::PcNotFound(_) => "PC_NOT_FOUND",
+            Self::RegionNotFound(_) => "REGION_NOT_FOUND",
+            Self::LocationNotFound(_) => "LOCATION_NOT_FOUND",
+            Self::ConnectionLocked(_) => "CONNECTION_LOCKED",
+            Self::NoArrivalRegion => "NO_ARRIVAL_REGION",
+            Self::RegionLocationMismatch => "REGION_MISMATCH",
+            Self::NotConnected => "NOT_CONNECTED",
+            Self::Database(_) => "DATABASE_ERROR",
+            Self::Staging(_) => "STAGING_ERROR",
+        }
+    }
 }
 
 // =============================================================================

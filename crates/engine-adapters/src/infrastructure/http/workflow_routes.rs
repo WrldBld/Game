@@ -11,14 +11,16 @@ use std::sync::Arc;
 use crate::infrastructure::state::AppState;
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_engine_app::application::dto::{
+    workflow_config_to_full_response_dto, workflow_config_to_response_dto,
+};
+use wrldbldr_engine_app::application::services::WorkflowService;
+use wrldbldr_protocol::{
     parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
     ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, TestWorkflowRequestDto,
     TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
     WorkflowConfigFullResponseDto, WorkflowConfigResponseDto, WorkflowSlotCategoryDto,
     WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
 };
-use wrldbldr_engine_app::application::services::WorkflowService;
-// NOTE: workflow request/response DTOs live in `application/dto/workflow.rs`.
 
 // ============================================================================
 // Route Handlers
@@ -61,7 +63,7 @@ pub async fn list_workflow_slots(
             default_width: width,
             default_height: height,
             configured: config.is_some(),
-            config: config.map(WorkflowConfigResponseDto::from),
+            config: config.map(|c| workflow_config_to_response_dto(c)),
         };
 
         // Find the category and add the slot
@@ -93,7 +95,7 @@ pub async fn get_workflow_config(
             )
         })?;
 
-    Ok(Json(WorkflowConfigFullResponseDto::from(&config)))
+    Ok(Json(workflow_config_to_full_response_dto(&config)))
 }
 
 /// Create or update a workflow configuration
@@ -162,7 +164,7 @@ pub async fn save_workflow_config(
         StatusCode::CREATED
     };
 
-    Ok((status, Json(WorkflowConfigFullResponseDto::from(&config))))
+    Ok((status, Json(workflow_config_to_full_response_dto(&config))))
 }
 
 /// Delete a workflow configuration
@@ -229,7 +231,7 @@ pub async fn update_workflow_defaults(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(WorkflowConfigFullResponseDto::from(&config)))
+    Ok(Json(workflow_config_to_full_response_dto(&config)))
 }
 
 /// Analyze a workflow JSON without saving

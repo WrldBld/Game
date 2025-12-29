@@ -5,7 +5,7 @@
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
 
 use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
-use wrldbldr_engine_app::application::dto::{
+use wrldbldr_protocol::{
     parse_system_type, parse_variant, RuleSystemPresetDetailsDto, RuleSystemPresetSummaryDto,
     RuleSystemSummaryDto, RuleSystemTypeDetailsDto,
 };

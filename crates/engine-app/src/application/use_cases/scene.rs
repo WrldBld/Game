@@ -23,121 +23,17 @@ use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::SceneError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for requesting a scene change
-#[derive(Debug, Clone)]
-pub struct RequestSceneChangeInput {
-    /// Scene ID to change to
-    pub scene_id: SceneId,
-}
-
-/// Input for updating directorial context
-#[derive(Debug, Clone)]
-pub struct UpdateDirectorialInput {
-    /// NPC motivations for the scene
-    pub npc_motivations: Vec<NpcMotivation>,
-    /// Overall scene mood
-    pub scene_mood: Option<String>,
-    /// Pacing hints
-    pub pacing: Option<String>,
-    /// Additional DM notes
-    pub dm_notes: Option<String>,
-}
-
-/// NPC motivation data
-#[derive(Debug, Clone)]
-pub struct NpcMotivation {
-    /// NPC character ID
-    pub character_id: String,
-    /// Current motivation
-    pub motivation: String,
-    /// Emotional state
-    pub emotional_state: Option<String>,
-}
-
-/// Input for approval decision
-#[derive(Debug, Clone)]
-pub struct ApprovalDecisionInput {
-    /// Request ID being decided
-    pub request_id: String,
-    /// The decision
-    pub decision: ApprovalDecision,
-}
-
-/// Approval decision types
-#[derive(Debug, Clone)]
-pub enum ApprovalDecision {
-    /// Approve as-is
-    Approve,
-    /// Reject the request
-    Reject { reason: String },
-    /// Approve with modifications
-    ApproveWithEdits { modified_text: String },
-}
-
-/// Scene data for responses
-#[derive(Debug, Clone)]
-pub struct SceneData {
-    pub id: String,
-    pub name: String,
-    pub location_id: String,
-    pub location_name: String,
-    pub backdrop_asset: Option<String>,
-    pub time_context: String,
-    pub directorial_notes: Option<String>,
-}
-
-/// Character data for scene
-#[derive(Debug, Clone)]
-pub struct CharacterData {
-    pub id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub position: String,
-    pub is_speaking: bool,
-    pub emotion: Option<String>,
-}
-
-/// Interaction data for scene
-#[derive(Debug, Clone)]
-pub struct InteractionData {
-    pub id: String,
-    pub name: String,
-    pub interaction_type: String,
-    pub target_name: Option<String>,
-    pub is_available: bool,
-}
-
-/// Result of requesting a scene change
-#[derive(Debug, Clone)]
-pub struct SceneChangeResult {
-    /// Scene was changed and broadcast
-    pub scene_changed: bool,
-    /// Scene data for the new scene
-    pub scene: Option<SceneData>,
-    /// Characters in the scene
-    pub characters: Vec<CharacterData>,
-    /// Interactions available
-    pub interactions: Vec<InteractionData>,
-}
-
-/// Result of updating directorial context
-#[derive(Debug, Clone)]
-pub struct DirectorialUpdateResult {
-    /// Context was updated
-    pub updated: bool,
-}
-
-/// Result of approval decision
-#[derive(Debug, Clone)]
-pub struct ApprovalDecisionResult {
-    /// Decision was processed
-    pub processed: bool,
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    CharacterEntity, DirectorialContextData, DirectorialUpdateResult, InteractionEntity,
+    InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput, SceneChangeResult,
+    SceneApprovalDecision as ApprovalDecision,
+    SceneApprovalDecisionInput as ApprovalDecisionInput,
+    SceneApprovalDecisionResult as ApprovalDecisionResult,
+    SceneCharacterData as CharacterData, SceneDmAction as DmAction, SceneEntity,
+    SceneInteractionData as InteractionData, TimeContext, UpdateDirectorialInput,
+    UseCaseSceneData as SceneData, UseCaseSceneWithRelations as SceneWithRelations,
+};
 
 // =============================================================================
 // Scene Service Port
@@ -153,74 +49,11 @@ pub trait SceneServicePort: Send + Sync {
     ) -> Result<Option<SceneWithRelations>, String>;
 }
 
-/// Scene with all related entities
-#[derive(Debug, Clone)]
-pub struct SceneWithRelations {
-    pub scene: SceneEntity,
-    pub location: LocationEntity,
-    pub featured_characters: Vec<CharacterEntity>,
-}
-
-/// Scene entity
-#[derive(Debug, Clone)]
-pub struct SceneEntity {
-    pub id: SceneId,
-    pub name: String,
-    pub location_id: wrldbldr_domain::LocationId,
-    pub backdrop_override: Option<String>,
-    pub time_context: TimeContext,
-    pub directorial_notes: Option<String>,
-}
-
-/// Time context for scenes
-#[derive(Debug, Clone)]
-pub enum TimeContext {
-    Unspecified,
-    TimeOfDay(String),
-    During(String),
-    Custom(String),
-}
-
-/// Location entity (simplified)
-#[derive(Debug, Clone)]
-pub struct LocationEntity {
-    pub name: String,
-    pub backdrop_asset: Option<String>,
-}
-
-/// Character entity (simplified)
-#[derive(Debug, Clone)]
-pub struct CharacterEntity {
-    pub id: wrldbldr_domain::CharacterId,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-}
-
 /// Port for interaction service
 #[async_trait::async_trait]
 pub trait InteractionServicePort: Send + Sync {
     /// List interactions for a scene
     async fn list_interactions(&self, scene_id: SceneId) -> Result<Vec<InteractionEntity>, String>;
-}
-
-/// Interaction entity
-#[derive(Debug, Clone)]
-pub struct InteractionEntity {
-    pub id: wrldbldr_domain::InteractionId,
-    pub name: String,
-    pub interaction_type: String,
-    pub target: InteractionTarget,
-    pub is_available: bool,
-}
-
-/// Interaction target
-#[derive(Debug, Clone)]
-pub enum InteractionTarget {
-    Character(wrldbldr_domain::CharacterId),
-    Item(wrldbldr_domain::ItemId),
-    Environment(String),
-    None,
 }
 
 /// Port for world state management
@@ -239,15 +72,6 @@ pub trait WorldStatePort: Send + Sync {
         world_id: &wrldbldr_domain::WorldId,
         context: DirectorialContextData,
     );
-}
-
-/// Directorial context data
-#[derive(Debug, Clone)]
-pub struct DirectorialContextData {
-    pub npc_motivations: Vec<NpcMotivation>,
-    pub scene_mood: Option<String>,
-    pub pacing: Option<String>,
-    pub dm_notes: Option<String>,
 }
 
 /// Port for directorial context persistence
@@ -271,15 +95,6 @@ pub trait DmActionQueuePort: Send + Sync {
         dm_id: String,
         action: DmAction,
     ) -> Result<(), String>;
-}
-
-/// DM action types
-#[derive(Debug, Clone)]
-pub enum DmAction {
-    ApprovalDecision {
-        request_id: String,
-        decision: ApprovalDecision,
-    },
 }
 
 // =============================================================================

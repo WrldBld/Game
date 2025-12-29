@@ -125,12 +125,38 @@ pub use dto::{
     // NPC Disposition
     NpcDispositionStateDto,
     // Workflow DTOs
+    AnalyzeWorkflowRequestDto,
+    CreateWorkflowConfigRequestDto,
+    ImportWorkflowsRequestDto,
+    ImportWorkflowsResponseDto,
+    InputDefaultDto,
+    InputTypeDto,
     PromptMappingDto,
     PromptMappingTypeDto,
     SelectFromBatchRequestDto,
+    TestWorkflowRequestDto,
+    TestWorkflowResponseDto,
     UpdateAssetLabelRequestDto,
+    UpdateWorkflowDefaultsRequestDto,
     UploadAssetRequestDto,
+    WorkflowAnalysisDto,
+    WorkflowAnalysisResponseDto,
+    WorkflowConfigFullResponseDto,
     WorkflowConfigResponseDto,
+    WorkflowInputDto,
+    WorkflowSlotCategoryDto,
+    WorkflowSlotStatusDto,
+    WorkflowSlotsResponseDto,
+    // Workflow parsing
+    parse_workflow_slot,
+    // Rule System DTOs
+    RuleSystemPresetDetailsDto,
+    RuleSystemPresetSummaryDto,
+    RuleSystemSummaryDto,
+    RuleSystemTypeDetailsDto,
+    // Rule System parsing
+    parse_system_type,
+    parse_variant,
 };
 
 // =============================================================================

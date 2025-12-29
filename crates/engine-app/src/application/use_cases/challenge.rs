@@ -32,121 +32,15 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::errors::ChallengeError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for submitting a dice roll
-#[derive(Debug, Clone)]
-pub struct SubmitRollInput {
-    pub challenge_id: String,
-    pub roll: i32,
-}
-
-/// Input for submitting dice input (formula or manual)
-#[derive(Debug, Clone)]
-pub struct SubmitDiceInputInput {
-    pub challenge_id: String,
-    pub input_type: DiceInputType,
-}
-
-/// Type of dice input
-#[derive(Debug, Clone)]
-pub enum DiceInputType {
-    /// A dice formula like "1d20+5"
-    Formula(String),
-    /// A manually entered roll value
-    Manual(i32),
-}
-
-/// Input for triggering a challenge
-#[derive(Debug, Clone)]
-pub struct TriggerChallengeInput {
-    pub challenge_id: String,
-    pub target_character_id: CharacterId,
-}
-
-/// Input for a challenge suggestion decision
-#[derive(Debug, Clone)]
-pub struct SuggestionDecisionInput {
-    pub request_id: String,
-    pub approved: bool,
-    pub modified_difficulty: Option<String>,
-}
-
-/// Input for regenerating outcome text
-#[derive(Debug, Clone)]
-pub struct RegenerateOutcomeInput {
-    pub request_id: String,
-    pub outcome_type: Option<String>,
-    pub guidance: Option<String>,
-}
-
-/// Input for discarding a challenge
-#[derive(Debug, Clone)]
-pub struct DiscardChallengeInput {
-    pub request_id: String,
-    pub feedback: Option<String>,
-}
-
-/// Input for creating an ad-hoc challenge
-#[derive(Debug, Clone)]
-pub struct CreateAdHocInput {
-    pub challenge_name: String,
-    pub skill_name: String,
-    pub difficulty: String,
-    pub target_pc_id: PlayerCharacterId,
-    pub outcomes: AdHocOutcomes,
-}
-
-/// Custom outcomes for ad-hoc challenges
-#[derive(Debug, Clone)]
-pub struct AdHocOutcomes {
-    pub critical_success: Option<String>,
-    pub success: Option<String>,
-    pub failure: Option<String>,
-    pub critical_failure: Option<String>,
-}
-
-/// Input for challenge outcome decision
-#[derive(Debug, Clone)]
-pub struct OutcomeDecisionInput {
-    pub resolution_id: String,
-    pub decision: OutcomeDecision,
-}
-
-/// DM's decision on a challenge outcome
-#[derive(Debug, Clone)]
-pub enum OutcomeDecision {
-    /// Accept the outcome as-is
-    Accept,
-    /// Edit the outcome description
-    Edit { modified_text: String },
-    /// Request AI suggestions
-    Suggest { guidance: Option<String> },
-}
-
-/// Input for requesting outcome suggestions
-#[derive(Debug, Clone)]
-pub struct RequestSuggestionInput {
-    pub resolution_id: String,
-    pub guidance: Option<String>,
-}
-
-/// Input for requesting outcome branches
-#[derive(Debug, Clone)]
-pub struct RequestBranchesInput {
-    pub resolution_id: String,
-    pub guidance: Option<String>,
-}
-
-/// Input for selecting an outcome branch
-#[derive(Debug, Clone)]
-pub struct SelectBranchInput {
-    pub resolution_id: String,
-    pub branch_id: String,
-    pub modified_description: Option<String>,
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    AdHocOutcomes, AdHocResult, ApprovalItem,
+    ChallengeSuggestionDecisionInput as SuggestionDecisionInput, CreateAdHocInput, DiceInputType,
+    DiscardChallengeInput, DiscardResult, OutcomeDecision, OutcomeDecisionInput,
+    OutcomeDecisionResult, OutcomeDetail, RegenerateOutcomeInput, RegenerateResult,
+    RequestBranchesInput, RequestSuggestionInput, SelectBranchInput, SubmitDiceInputInput,
+    SubmitRollInput, TriggerChallengeInput, TriggerInfo, TriggerResult,
+};
 
 /// Result of submitting a roll
 #[derive(Debug, Clone)]
@@ -179,74 +73,6 @@ pub struct RollResult {
     pub triggers: Vec<TriggerInfo>,
     /// Whether outcome requires DM approval
     pub pending_approval: bool,
-}
-
-/// Trigger information for roll results
-#[derive(Debug, Clone)]
-pub struct TriggerInfo {
-    pub trigger_type: String,
-    pub description: String,
-}
-
-/// Result of triggering a challenge
-#[derive(Debug, Clone)]
-pub struct TriggerResult {
-    /// Challenge ID
-    pub challenge_id: String,
-    /// Challenge name
-    pub challenge_name: String,
-    /// Skill name required
-    pub skill_name: String,
-    /// Difficulty display string
-    pub difficulty_display: String,
-    /// Challenge description
-    pub description: String,
-    /// Target character's modifier for this skill
-    pub character_modifier: i32,
-    /// Suggested dice formula
-    pub suggested_dice: String,
-    /// Rule system hint
-    pub rule_system_hint: String,
-}
-
-/// Result of an outcome decision
-#[derive(Debug, Clone)]
-pub struct OutcomeDecisionResult {
-    /// The finalized outcome text
-    pub outcome_text: Option<String>,
-    /// Whether suggestions are pending
-    pub suggestions_pending: bool,
-}
-
-/// Result of creating an ad-hoc challenge
-#[derive(Debug, Clone)]
-pub struct AdHocResult {
-    /// Created challenge ID
-    pub challenge_id: String,
-}
-
-/// Result of discarding a challenge
-#[derive(Debug, Clone)]
-pub struct DiscardResult {
-    /// Discarded request ID
-    pub request_id: String,
-}
-
-/// Result of regenerating outcome
-#[derive(Debug, Clone)]
-pub struct RegenerateResult {
-    /// The outcome type that was regenerated
-    pub outcome_type: String,
-    /// New outcome text
-    pub new_outcome: OutcomeDetail,
-}
-
-/// Outcome detail
-#[derive(Debug, Clone)]
-pub struct OutcomeDetail {
-    pub flavor_text: String,
-    pub scene_direction: String,
-    pub proposed_tools: Vec<String>,
 }
 
 // =============================================================================
@@ -343,13 +169,6 @@ pub trait DmApprovalQueuePort: Send + Sync {
 
     /// Discard a challenge from the queue
     async fn discard_challenge(&self, dm_id: &str, request_id: &str);
-}
-
-/// An item from the approval queue
-#[derive(Debug, Clone)]
-pub struct ApprovalItem {
-    pub request_id: String,
-    pub proposed_dialogue: String,
 }
 
 // =============================================================================

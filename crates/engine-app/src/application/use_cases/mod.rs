@@ -16,20 +16,21 @@
 //! - **Use cases**: Complex workflows with side-effects (broadcasts, state changes)
 //! - **AppRequestHandler**: Simple CRUD operations that return a single response
 //!
-//! # Port Ownership in engine-app
+//! # Port Ownership
 //!
-//! Some ports are defined here rather than in `engine-ports` because they depend on
-//! DTOs defined within this crate. This is valid hexagonal architecture - use-case
-//! specific ports can live in the application layer.
+//! Port traits are defined in `engine-ports::inbound::use_case_ports` following
+//! proper hexagonal architecture. This includes:
 //!
-//! **Use-case ports** (valid in engine-app):
-//! - `WorldStatePort` - Depends on `DirectorialContextData`
-//! - `ConnectionManagerPort` - Depends on `ConnectionInfo`, `UserJoinedEvent`, etc.
-//! - `StagingStatePort` - Depends on staging-specific DTOs
-//! - `DmNotificationPort`, `WorldMessagePort` - Use-case specific notification semantics
-//! - `ChallengeResolutionPort`, `SceneServicePort`, etc. - Service facade ports
+//! - `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, `ChallengeDmApprovalQueuePort`
+//! - `ConnectionManagerPort`, `DirectorialContextPort`, `PlayerCharacterServicePort`, `WorldServicePort`
+//! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextRepositoryPort`, `SceneDmActionQueuePort`
+//! - `PlayerActionQueuePort`, `DmNotificationPort`
+//! - `StagingStatePort`, `StagingServicePort`, `StagingStateExtPort`, `StagingServiceExtPort`
+//! - `WorldMessagePort`
 //!
-//! **Infrastructure ports** (should be in engine-ports):
+//! Types used by these ports are defined in `engine-ports::outbound::use_case_types`.
+//!
+//! **Infrastructure ports** (in engine-ports::outbound):
 //! - Repository traits (`CharacterRepositoryPort`, `LocationRepositoryPort`, etc.)
 //! - External service traits (`LlmPort`, `ComfyUIPort`, `BroadcastPort`)
 //!

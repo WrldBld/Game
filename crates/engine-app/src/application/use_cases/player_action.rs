@@ -20,46 +20,13 @@ use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
-use wrldbldr_engine_ports::outbound::{BroadcastPort, SceneChangedEvent};
+use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ActionError;
 use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for a player action
-#[derive(Debug, Clone)]
-pub struct PlayerActionInput {
-    /// Type of action (e.g., "travel", "interact", "speak")
-    pub action_type: String,
-    /// Target of the action (e.g., location ID, character ID)
-    pub target: Option<String>,
-    /// Dialogue for speech actions
-    pub dialogue: Option<String>,
-}
-
-/// Result of a player action
-#[derive(Debug, Clone)]
-pub enum ActionResult {
-    /// Travel completed, scene changed (not queued)
-    TravelCompleted {
-        action_id: String,
-        scene: SceneChangedEvent,
-    },
-    /// Travel pending staging approval
-    TravelPending {
-        action_id: String,
-        region_id: RegionId,
-        region_name: String,
-    },
-    /// Action was queued for processing
-    Queued {
-        action_id: String,
-        queue_depth: usize,
-    },
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
 
 // =============================================================================
 // Player Action Queue Port

@@ -18,35 +18,11 @@
 //! - Be specific (CONNECTION_LOCKED vs generic ERROR)
 //! - Match existing protocol error codes where possible
 
-use std::fmt::Display;
 use thiserror::Error;
-use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId};
 
-// =============================================================================
-// ErrorCode Trait
-// =============================================================================
-
-/// Trait for extracting error codes from use case errors
-///
-/// Implemented by all use case error types to provide standardized
-/// error code strings. The adapters layer uses the `IntoServerError`
-/// extension trait to convert errors to protocol messages.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// // In handler (adapters layer):
-/// use crate::infrastructure::websocket::IntoServerError;
-///
-/// match use_case.do_thing(ctx, input).await {
-///     Ok(result) => convert_to_message(result),
-///     Err(e) => e.into_server_error(), // Uses IntoServerError from adapters
-/// }
-/// ```
-pub trait ErrorCode: Display {
-    /// Get the error code string (e.g., "PC_NOT_FOUND")
-    fn code(&self) -> &'static str;
-}
+// Re-export ErrorCode and ConnectionError from engine-ports
+pub use wrldbldr_engine_ports::outbound::{ConnectionError, ErrorCode};
 
 // =============================================================================
 // Movement Errors
@@ -383,61 +359,6 @@ impl ErrorCode for SceneError {
             Self::InvalidContext(_) => "INVALID_CONTEXT",
             Self::NotAuthorized => "NOT_AUTHORIZED",
             Self::ResolutionFailed(_) => "RESOLUTION_FAILED",
-            Self::Database(_) => "DATABASE_ERROR",
-        }
-    }
-}
-
-// =============================================================================
-// Connection Errors
-// =============================================================================
-
-/// Errors that can occur during connection operations
-#[derive(Debug, Error)]
-pub enum ConnectionError {
-    /// World not found
-    #[error("World not found: {0}")]
-    WorldNotFound(WorldId),
-
-    /// Player character not found
-    #[error("Player character not found: {0}")]
-    PcNotFound(PlayerCharacterId),
-
-    /// Already connected to a world
-    #[error("Already connected to a world")]
-    AlreadyConnected,
-
-    /// Not connected to any world
-    #[error("Not connected to any world")]
-    NotConnected,
-
-    /// Character already claimed by another player
-    #[error("Character already claimed by another player")]
-    CharacterClaimed,
-
-    /// Invalid spectate target
-    #[error("Invalid spectate target: {0}")]
-    InvalidSpectateTarget(String),
-
-    /// Connection failed
-    #[error("Connection failed: {0}")]
-    ConnectionFailed(String),
-
-    /// Database operation failed
-    #[error("Database error: {0}")]
-    Database(String),
-}
-
-impl ErrorCode for ConnectionError {
-    fn code(&self) -> &'static str {
-        match self {
-            Self::WorldNotFound(_) => "WORLD_NOT_FOUND",
-            Self::PcNotFound(_) => "PC_NOT_FOUND",
-            Self::AlreadyConnected => "ALREADY_CONNECTED",
-            Self::NotConnected => "NOT_CONNECTED",
-            Self::CharacterClaimed => "CHARACTER_CLAIMED",
-            Self::InvalidSpectateTarget(_) => "INVALID_SPECTATE_TARGET",
-            Self::ConnectionFailed(_) => "CONNECTION_FAILED",
             Self::Database(_) => "DATABASE_ERROR",
         }
     }

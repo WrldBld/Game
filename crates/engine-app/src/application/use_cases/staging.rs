@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
-use wrldbldr_domain::{CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
@@ -26,104 +26,15 @@ use super::builders::SceneBuilder;
 use super::errors::StagingError;
 use super::movement::{StagingServicePort, StagingStatePort};
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    ApprovedNpcData, ApprovedNpcInput as ApprovedNpc, ApproveInput, ApproveResult,
+    PendingStagingInfo, PreStageInput, PreStageResult, ProposedNpc, RegenerateInput,
+    RegeneratedNpc, StagingApprovalSource, StagingRegenerateResult as RegenerateResult,
+    WaitingPcInfo,
+};
 
-/// Input for approving a staging proposal
-#[derive(Debug, Clone)]
-pub struct ApproveInput {
-    /// Request ID of the pending staging
-    pub request_id: String,
-    /// Approved NPCs with presence decisions
-    pub approved_npcs: Vec<ApprovedNpc>,
-    /// TTL in hours for the staging
-    pub ttl_hours: i32,
-    /// How this staging was finalized: rule, llm, or custom
-    pub source: StagingApprovalSource,
-}
-
-/// An approved NPC with presence decision
-#[derive(Debug, Clone)]
-pub struct ApprovedNpc {
-    pub character_id: CharacterId,
-    pub is_present: bool,
-    pub is_hidden_from_players: bool,
-    pub reasoning: Option<String>,
-}
-
-/// Source of staging decision
-#[derive(Debug, Clone, Copy)]
-pub enum StagingApprovalSource {
-    RuleBased,
-    LlmBased,
-    DmCustomized,
-}
-
-impl From<StagingApprovalSource> for StagingSource {
-    fn from(source: StagingApprovalSource) -> Self {
-        match source {
-            StagingApprovalSource::RuleBased => StagingSource::RuleBased,
-            StagingApprovalSource::LlmBased => StagingSource::LlmBased,
-            StagingApprovalSource::DmCustomized => StagingSource::DmCustomized,
-        }
-    }
-}
-
-/// Result of approving staging
-#[derive(Debug, Clone)]
-pub struct ApproveResult {
-    /// NPCs now present in the region
-    pub npcs_present: Vec<NpcPresenceData>,
-    /// Number of waiting PCs that were notified
-    pub notified_pc_count: usize,
-}
-
-/// Input for regenerating staging suggestions
-#[derive(Debug, Clone)]
-pub struct RegenerateInput {
-    /// Request ID of the pending staging
-    pub request_id: String,
-    /// DM guidance for the LLM
-    pub guidance: String,
-}
-
-/// Regenerated NPC suggestion
-#[derive(Debug, Clone)]
-pub struct RegeneratedNpc {
-    pub character_id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub is_present: bool,
-    pub is_hidden_from_players: bool,
-    pub reasoning: String,
-}
-
-/// Result of regenerating suggestions
-#[derive(Debug, Clone)]
-pub struct RegenerateResult {
-    /// New LLM-based suggestions
-    pub llm_based_npcs: Vec<RegeneratedNpc>,
-}
-
-/// Input for pre-staging a region
-#[derive(Debug, Clone)]
-pub struct PreStageInput {
-    /// Region to pre-stage
-    pub region_id: RegionId,
-    /// NPCs to stage
-    pub npcs: Vec<ApprovedNpc>,
-    /// TTL in hours
-    pub ttl_hours: i32,
-}
-
-/// Result of pre-staging
-#[derive(Debug, Clone)]
-pub struct PreStageResult {
-    /// NPCs now present in the region
-    pub npcs_present: Vec<NpcPresenceData>,
-}
+// Note: From<StagingApprovalSource> for StagingSource is implemented in engine-ports
 
 // =============================================================================
 // Pending Staging Port Extension
@@ -155,40 +66,6 @@ pub trait StagingStateExtPort: StagingStatePort {
         request_id: &str,
         npcs: Vec<RegeneratedNpc>,
     );
-}
-
-/// Information about a pending staging
-#[derive(Debug, Clone)]
-pub struct PendingStagingInfo {
-    pub request_id: String,
-    pub world_id: WorldId,
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-    pub region_name: String,
-    pub location_name: String,
-    pub waiting_pcs: Vec<WaitingPcInfo>,
-    pub rule_based_npcs: Vec<ProposedNpc>,
-    pub llm_based_npcs: Vec<ProposedNpc>,
-}
-
-/// A waiting PC
-#[derive(Debug, Clone)]
-pub struct WaitingPcInfo {
-    pub pc_id: PlayerCharacterId,
-    pub pc_name: String,
-    pub user_id: String,
-}
-
-/// A proposed NPC from the staging proposal
-#[derive(Debug, Clone)]
-pub struct ProposedNpc {
-    pub character_id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub is_present: bool,
-    pub is_hidden_from_players: bool,
-    pub reasoning: String,
 }
 
 // =============================================================================
@@ -232,18 +109,6 @@ pub trait StagingServiceExtPort: StagingServicePort {
         ttl_hours: i32,
         dm_user_id: &str,
     ) -> Result<Vec<StagedNpc>, String>;
-}
-
-/// Approved NPC data for the service
-#[derive(Debug, Clone)]
-pub struct ApprovedNpcData {
-    pub character_id: CharacterId,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub is_present: bool,
-    pub is_hidden_from_players: bool,
-    pub reasoning: String,
 }
 
 // =============================================================================

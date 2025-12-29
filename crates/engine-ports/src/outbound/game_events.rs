@@ -345,7 +345,7 @@ pub struct StagingPendingEvent {
 }
 
 /// Scene changed for a player
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SceneChangedEvent {
     /// PC whose scene changed
     pub pc_id: PlayerCharacterId,
@@ -412,7 +412,7 @@ pub struct PreviousStagingData {
 }
 
 /// NPC presence in scene
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NpcPresenceData {
     /// Character ID
     pub character_id: CharacterId,
@@ -425,7 +425,7 @@ pub struct NpcPresenceData {
 }
 
 /// Region information for scene
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RegionInfo {
     /// Region ID
     pub id: RegionId,
@@ -444,7 +444,7 @@ pub struct RegionInfo {
 }
 
 /// Navigation information from region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NavigationInfo {
     /// Connected regions within same location
     pub connected_regions: Vec<NavigationTarget>,
@@ -453,7 +453,7 @@ pub struct NavigationInfo {
 }
 
 /// Navigation target within location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NavigationTarget {
     /// Target region ID
     pub region_id: RegionId,
@@ -466,7 +466,7 @@ pub struct NavigationTarget {
 }
 
 /// Exit to another location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NavigationExit {
     /// Target location ID
     pub location_id: LocationId,
@@ -479,7 +479,7 @@ pub struct NavigationExit {
 }
 
 /// Item in a region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RegionItemData {
     /// Item ID
     pub item_id: ItemId,

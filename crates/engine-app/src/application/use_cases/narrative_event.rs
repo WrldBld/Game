@@ -21,25 +21,11 @@ use crate::application::services::{NarrativeEventApprovalService, NarrativeEvent
 
 use super::errors::NarrativeEventError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for narrative event suggestion decision
-#[derive(Debug, Clone)]
-pub struct SuggestionDecisionInput {
-    pub request_id: String,
-    pub event_id: String,
-    pub approved: bool,
-    pub selected_outcome: Option<String>,
-}
-
-/// Result of a narrative event decision
-#[derive(Debug, Clone)]
-pub struct DecisionResult {
-    /// Whether the event was triggered
-    pub triggered: bool,
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    NarrativeEventDecisionResult as DecisionResult,
+    NarrativeEventSuggestionDecisionInput as SuggestionDecisionInput,
+};
 
 // =============================================================================
 // Use Case

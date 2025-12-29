@@ -19,7 +19,6 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::NpcObservation;
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, ClockPort, ObservationRepositoryPort,
@@ -28,69 +27,12 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::errors::ObservationError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
-
-/// Input for sharing NPC location with a PC
-#[derive(Debug, Clone)]
-pub struct ShareNpcLocationInput {
-    /// PC to share the information with
-    pub pc_id: PlayerCharacterId,
-    /// NPC whose location is being shared
-    pub npc_id: CharacterId,
-    /// Location where NPC was observed
-    pub location_id: LocationId,
-    /// Region within the location
-    pub region_id: RegionId,
-    /// Optional notes about how PC learned this
-    pub notes: Option<String>,
-}
-
-/// Input for triggering an approach event
-#[derive(Debug, Clone)]
-pub struct TriggerApproachInput {
-    /// NPC who is approaching
-    pub npc_id: CharacterId,
-    /// PC being approached
-    pub target_pc_id: PlayerCharacterId,
-    /// Description of the approach
-    pub description: String,
-    /// Whether to reveal the NPC's identity
-    pub reveal: bool,
-}
-
-/// Input for triggering a location event
-#[derive(Debug, Clone)]
-pub struct TriggerLocationEventInput {
-    /// Region where the event occurs
-    pub region_id: RegionId,
-    /// Description of the event
-    pub description: String,
-}
-
-/// Result of sharing NPC location
-#[derive(Debug, Clone)]
-pub struct ShareNpcLocationResult {
-    /// Observation was created
-    pub observation_created: bool,
-}
-
-/// Result of triggering an approach event
-#[derive(Debug, Clone)]
-pub struct TriggerApproachResult {
-    /// NPC who approached
-    pub npc_name: String,
-    /// PC who was approached
-    pub target_pc_name: String,
-}
-
-/// Result of triggering a location event
-#[derive(Debug, Clone)]
-pub struct TriggerLocationEventResult {
-    /// Event was broadcast
-    pub event_broadcast: bool,
-}
+// Re-export types from engine-ports for backwards compatibility
+pub use wrldbldr_engine_ports::outbound::{
+    ApproachEventData, LocationEventData, ShareNpcLocationInput, ShareNpcLocationResult,
+    TriggerApproachInput, TriggerApproachResult, TriggerLocationEventInput,
+    TriggerLocationEventResult,
+};
 
 // =============================================================================
 // World Connection Port (for broadcasting)
@@ -104,23 +46,6 @@ pub trait WorldMessagePort: Send + Sync {
 
     /// Broadcast to all in a world
     async fn broadcast_to_world(&self, world_id: uuid::Uuid, event: LocationEventData);
-}
-
-/// Data for approach event
-#[derive(Debug, Clone)]
-pub struct ApproachEventData {
-    pub npc_id: String,
-    pub npc_name: String,
-    pub npc_sprite: Option<String>,
-    pub description: String,
-    pub reveal: bool,
-}
-
-/// Data for location event
-#[derive(Debug, Clone)]
-pub struct LocationEventData {
-    pub region_id: String,
-    pub description: String,
 }
 
 // =============================================================================
