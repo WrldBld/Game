@@ -36,7 +36,7 @@ use crate::infrastructure::world_connection_manager::SharedWorldConnectionManage
 use crate::infrastructure::WorldStateManager;
 
 use wrldbldr_engine_app::application::services::{
-    staging_service::StagingService, PromptTemplateService, SettingsService,
+    staging_service::StagingService, PromptContextService, PromptTemplateService, SettingsService,
 };
 use wrldbldr_engine_ports::inbound::RequestHandler;
 
@@ -110,4 +110,11 @@ pub struct AppState {
     /// Note: This is a partial implementation (Phase 4.1). Full wiring of all
     /// use cases requires creating adapters for port traits defined in each use case.
     pub use_cases: UseCases,
+
+    /// Prompt context service for building LLM prompts
+    ///
+    /// Orchestrates gathering context from world snapshot, conversation history,
+    /// challenges, narrative events, etc. to build complete GamePromptRequest
+    /// objects for the LLM. Used by queue workers to process player actions.
+    pub prompt_context_service: Arc<dyn PromptContextService>,
 }

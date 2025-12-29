@@ -34,7 +34,6 @@ pub mod state_broadcast;
 pub mod suggestion_enqueue_adapter;
 pub mod websocket;
 pub mod websocket_event_subscriber;
-pub mod websocket_helpers;
 pub mod world_connection_manager;
 pub mod world_state_manager;
 

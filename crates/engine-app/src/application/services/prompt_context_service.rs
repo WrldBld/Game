@@ -198,9 +198,12 @@ impl PromptContextService for PromptContextServiceImpl {
             .get_game_time(&world_id)
             .map(|gt| gt.display_date());
 
-        // 6. Get directorial context - currently not available through WorldStatePort
-        // The directorial_notes will be empty for now until we add this to the port
-        let directorial_notes = String::new();
+        // 6. Get directorial context - use the domain type's built-in to_prompt() method
+        let directorial_notes = self
+            .world_state
+            .get_directorial_context(&world_id)
+            .map(|dc| dc.to_prompt())
+            .unwrap_or_default();
 
         // 7. Convert conversation history
         let conversation_history: Vec<ConversationTurn> = self

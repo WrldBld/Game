@@ -44,10 +44,10 @@ use wrldbldr_engine_app::application::services::{
     EventChainServiceImpl, EventEffectExecutor, GenerationQueueProjectionService,
     InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
     NarrativeEventApprovalService, NarrativeEventServiceImpl, OutcomeTriggerService,
-    PlayerActionQueueService, PlayerCharacterServiceImpl, PromptTemplateService,
-    RegionServiceImpl, RelationshipServiceImpl, SceneResolutionServiceImpl, SceneServiceImpl,
-    SettingsService, SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl,
-    TriggerEvaluationService, WorkflowConfigService, WorldServiceImpl,
+    PlayerActionQueueService, PlayerCharacterServiceImpl, PromptContextServiceImpl,
+    PromptTemplateService, RegionServiceImpl, RelationshipServiceImpl, SceneResolutionServiceImpl,
+    SceneServiceImpl, SettingsService, SheetTemplateService, SkillServiceImpl,
+    StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService, WorldServiceImpl,
 };
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
@@ -564,11 +564,27 @@ pub async fn new_app_state(
     // Create actantial context service (P1.5)
     let actantial_context_service = Arc::new(ActantialContextServiceImpl::new(
         character_repo.clone(),
-        player_character_repo_for_actantial,
+        player_character_repo_for_actantial.clone(),
         goal_repo,
         want_repo,
         clock.clone(),
     ));
+
+    // Create prompt context service for building LLM prompts from player actions
+    let prompt_context_service: Arc<dyn wrldbldr_engine_app::application::services::PromptContextService> =
+        Arc::new(PromptContextServiceImpl::new(
+            world_service.clone(),
+            world_state.clone() as Arc<dyn wrldbldr_engine_ports::outbound::WorldStatePort>,
+            challenge_service.clone(),
+            skill_service.clone(),
+            narrative_event_service.clone(),
+            character_repo.clone(),
+            player_character_repo_for_actantial,
+            region_repo.clone(),
+            disposition_service.clone(),
+            actantial_context_service.clone()
+                as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
+        ));
 
     // Build grouped services
     // Services are already Arc<dyn Trait>, so we clone them for shared ownership
@@ -739,6 +755,7 @@ pub async fn new_app_state(
             request_handler,
             directorial_context_repo,
             use_cases,
+            prompt_context_service,
         },
         generation_event_rx,
         challenge_approval_rx,

@@ -13,10 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wrldbldr_engine_app::application::services::{
     ChallengeApprovalEventPublisher, GenerationEventPublisher,
 };
-use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort,
-    QueueNotificationPort, QueuePort, RegionRepositoryPort,
-};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, QueueNotificationPort, QueuePort};
 
 use wrldbldr_engine_adapters::infrastructure;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
@@ -24,7 +21,6 @@ use wrldbldr_engine_adapters::infrastructure::http;
 use super::queue_workers::{
     approval_notification_worker, challenge_outcome_notification_worker, dm_action_worker,
 };
-use wrldbldr_engine_adapters::infrastructure::websocket_helpers::build_prompt_from_action;
 
 use crate::composition::new_app_state;
 
@@ -121,19 +117,7 @@ pub async fn run() -> Result<()> {
     // Player action queue worker (processes actions and routes to LLM queue)
     let player_action_worker = {
         let service = state.queues.player_action_queue_service.clone();
-        let world_service = state.core.world_service.clone();
-        let world_state = state.world_state.clone();
-        let challenge_service = state.game.challenge_service.clone();
-        let skill_service = state.core.skill_service.clone();
-        let narrative_event_service = state.game.narrative_event_service.clone();
-        let character_repo: Arc<dyn CharacterRepositoryPort> =
-            Arc::new(state.repository.characters());
-        let pc_repo: Arc<dyn PlayerCharacterRepositoryPort> =
-            Arc::new(state.repository.player_characters());
-        let region_repo: Arc<dyn RegionRepositoryPort> = Arc::new(state.repository.regions());
-        let settings_service = state.settings_service.clone();
-        let disposition_service = state.game.disposition_service.clone();
-        let actantial_service = state.game.actantial_context_service.clone();
+        let prompt_context_service = state.prompt_context_service.clone();
         let notifier = service.queue().notifier();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
@@ -146,48 +130,15 @@ pub async fn run() -> Result<()> {
                     break;
                 }
 
-                let world_service_clone = world_service.clone();
-                let world_state_clone = world_state.clone();
-                let challenge_service_clone = challenge_service.clone();
-                let skill_service_clone = skill_service.clone();
-                let narrative_event_service_clone = narrative_event_service.clone();
-                let character_repo_clone = character_repo.clone();
-                let pc_repo_clone = pc_repo.clone();
-                let region_repo_clone = region_repo.clone();
-                let settings_service_clone = settings_service.clone();
-                let disposition_service_clone = disposition_service.clone();
-                let actantial_service_clone = actantial_service.clone();
+                let prompt_service = prompt_context_service.clone();
                 match service
                     .process_next(|action| {
-                        let world_service = world_service_clone.clone();
-                        let world_state = world_state_clone.clone();
-                        let challenge_service = challenge_service_clone.clone();
-                        let skill_service = skill_service_clone.clone();
-                        let narrative_event_service = narrative_event_service_clone.clone();
-                        let character_repo = character_repo_clone.clone();
-                        let pc_repo = pc_repo_clone.clone();
-                        let region_repo = region_repo_clone.clone();
-                        let settings_service = settings_service_clone.clone();
-                        let disposition_service = disposition_service_clone.clone();
-                        let actantial_service = actantial_service_clone.clone();
+                        let prompt_service = prompt_service.clone();
                         async move {
                             let world_id = action.world_id;
-                            build_prompt_from_action(
-                                world_id,
-                                &world_service,
-                                &world_state,
-                                &challenge_service,
-                                &skill_service,
-                                &narrative_event_service,
-                                &character_repo,
-                                &pc_repo,
-                                &region_repo,
-                                &settings_service,
-                                &disposition_service,
-                                &actantial_service,
-                                &action,
-                            )
-                            .await
+                            prompt_service
+                                .build_prompt_from_action(world_id, &action)
+                                .await
                         }
                     })
                     .await

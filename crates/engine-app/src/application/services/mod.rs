@@ -204,7 +204,7 @@ pub use actantial_context_service::{
 // Re-export region service
 pub use region_service::{RegionService, RegionServiceImpl};
 
-// Re-export prompt context service (hexagonal refactor - moved from websocket_helpers)
+// Re-export prompt context service for building LLM prompts from player actions
 pub use prompt_context_service::{PromptContextService, PromptContextServiceImpl};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

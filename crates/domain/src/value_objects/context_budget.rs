@@ -17,7 +17,7 @@
 //! - **Budget enforcement**: ⏳ NOT YET IMPLEMENTED
 //!
 //! The settings can be configured per-world, but actual token counting and
-//! budget enforcement is not yet wired into `websocket_helpers::build_prompt_from_action()`.
+//! budget enforcement is not yet wired into `PromptContextService::build_prompt_from_action()`.
 //!
 //! # Future Work
 //!

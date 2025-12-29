@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.3.4 WorldStatePort complete)  
+**Last Updated**: 2025-12-28 (Ninth review - agent verification of new findings)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -166,27 +166,21 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 95% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 40% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
-| Phase 3.0.1.4 | Service port traits (26/26) | **DONE** | 100% |
+| Phase 3.0.1.4 | Service port traits (6/25) | **IN PROGRESS** | 24% |
 | Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
-| Phase 3.0.1.8 | Port traits + use case types to engine-ports | **DONE** | 100% |
-| Phase 3.0.1.9 | Update engine-app to re-export from engine-ports | **DONE** | 100% |
-| Phase 3.0.1.10 | Update adapters to import from engine-ports | **DONE** | 100% |
-| Phase 3.0.1.11 | Fix ApprovalDecision naming collision | **DONE** | 100% |
-| Phase 3.0.1.12 | Remove duplicate DTOs (AdHocOutcomesDto, etc.) | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
-| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 75% |
+| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
 | Phase 3.0.3.1 | context_budget.rs to domain | **DONE** | 100% |
-| Phase 3.0.3.2 | websocket_helpers.rs to PromptContextService | Pending | 0% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
-| Phase 3.0.3.4 | WorldStatePort + domain types + impl | **DONE** | 100% |
+| Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
-| Phase 3.0.7 | Move Composition Root to Runner | **DONE** | 100% |
+| Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
 | Phase 3.1 | Challenge DTOs | **DONE** | 60% |
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
@@ -821,136 +815,19 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
 | [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
-| [x] Create port traits for services (26/26) | **DONE** |
+| [~] Create port traits for services (6/25) | **IN PROGRESS** |
 |     - ChallengeServicePort (11 methods) | **DONE** |
 |     - SceneServicePort (1 method + SceneWithRelations) | **DONE** |
 |     - NarrativeEventServicePort (4 methods) | **DONE** |
 |     - DispositionServicePort (8 methods) | **DONE** |
 |     - ActantialContextServicePort (1 method) | **DONE** |
 |     - SkillServicePort (7 methods) | **DONE** |
-| [x] Move use case types to engine-ports (50+ types) | **DONE** - use_case_types.rs |
+| [ ] Move use case types to engine-ports (15+ types) | Pending |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
-| [~] Refactor adapters to use only ports | **IN PROGRESS** - 6/72 done, blocked |
+| [ ] Refactor adapters to use only ports | Pending |
 | [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
 
-#### 3.0.1.7 Queue Architecture Remediation (NEW - 2025-12-29)
-
-**Problem Identified**:
-Queue item types (`PlayerActionItem`, `LLMRequestItem`, `ApprovalItem`, etc.) are serialization 
-DTOs currently defined in engine-app. This is an architecture violation - serialization concerns
-belong in the adapters layer, not application layer.
-
-**Current State (Wrong)**:
-```
-engine-app/dto/queue_items.rs → defines PlayerActionItem, LLMRequestItem, etc.
-engine-app/services/*_queue_service.rs → uses these DTOs directly
-engine-dto/queue.rs → duplicate definitions (created but unused)
-```
-
-**Target State (Correct Hexagonal)**:
-```
-domain/value_objects/ → QueueItemData types (pure domain, no serde)
-engine-ports/outbound/ → QueuePort<T> traits with domain types
-engine-app/services/ → queue services use domain types via ports
-engine-dto/queue.rs → serialization DTOs (serde)
-engine-adapters/ → implements ports, converts domain ↔ DTO
-```
-
-**Remediation Tasks**:
-
-| Task | Description | Status |
-|------|-------------|--------|
-| 3.0.1.7.1 | Define domain queue item value objects | **DONE** - queue_data.rs (15+ types) |
-| 3.0.1.7.2 | Update QueuePort traits to use domain types | **DONE** - removed serde bounds |
-| 3.0.1.7.3 | Refactor queue services to use domain types | **DONE** - 6 services refactored |
-| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | **DONE** - Commit 3f322b7 |
-| 3.0.1.7.5 | Update adapters to convert domain ↔ DTO | **DONE** - 16 From impls |
-
-**Commits**: 
-- 713ea4f - 363 files changed, 13117 insertions(+), 6559 deletions(-) (main refactor)
-- 3f322b7 - cleanup: delete old DTOs, rename approval converters to use domain types
-
-**Domain Queue Types to Create** (in `domain/value_objects/queue_data.rs`):
-- `PlayerActionData` - player action request
-- `DmActionData` - DM action request  
-- `LlmRequestData` - LLM processing request
-- `ApprovalRequestData` - pending approval data
-- `ChallengeOutcomeData` - challenge resolution data
-- `AssetGenerationData` - asset generation request
-
-**Completed import fixes (72 → 66)**:
-- Persistence DTOs → engine-dto (3 files)
-- parse_archetype → FromStr (2 files)
-- ExportQueryDto → protocol (1 file)
-
 **Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
-
-#### 3.0.1.8 Move Port Traits and Use Case Types to engine-ports (NEW - 2025-12-29)
-
-**Problem**: Port traits and use case input/output types were defined in engine-app/use_cases/*.rs. 
-This is a hexagonal violation - these are contracts that adapters need, so they belong in the ports layer.
-
-**Completed**:
-1. Created `engine-ports/src/inbound/use_case_ports.rs` with 19 port trait definitions
-2. Added ~40 use case input/output types to `engine-ports/src/outbound/use_case_types.rs`
-3. Moved workflow and rule_system DTOs to `protocol/src/dto.rs`
-4. Added From impls for domain <-> DTO conversions in protocol
-
-**Commits**:
-- cadc440 - refactor: Phase 3.0.1 - Move use case types, port traits, and DTOs to proper layers
-- 55d6e52 - docs: Add architecture notes to adapter files
-
-**Phase 3.0.1.9 Completed**: engine-app now imports from engine-ports instead of duplicating.
-- Removed 666 lines of duplicate type/trait definitions
-- challenge.rs, connection.rs, scene.rs, etc. now re-export from engine-ports
-
-**Phase 3.0.1.10 Completed**: Updated adapters to import from engine-ports.
-- WebSocket handlers, port adapters now use `wrldbldr_engine_ports::inbound` for traits
-- Input/output types from `wrldbldr_engine_ports::outbound`
-
-**Current import count**: 31 (down from 72)
-
-**Phase 3.0.1.11 Completed**: Fixed ApprovalDecision naming collision
-- Renamed `use_case_types.rs::ApprovalDecision` → `SceneApprovalDecision`
-- Renamed `dm_approval_queue_service_port.rs::ApprovalDecision` → `DmApprovalDecision`
-
-**Phase 3.0.1.12 Completed**: Removed duplicate DTOs
-- Deleted `AdHocOutcomesDto` → use `wrldbldr_protocol::AdHocOutcomes`
-- Deleted `ChallengeOutcomeDecision` → use `wrldbldr_engine_ports::OutcomeDecision`
-- Updated converters, challenge_adapters, services to use protocol/ports types
-
-**Remaining 31 imports (final state before Phase 3.0.7)**:
-- 27 service imports (composition root - Phase 3.0.7 will move to runner)
-- 4 correct imports:
-  - UseCase structs (InventoryUseCase, ChallengeUseCase, etc.) - must stay in engine-app
-  - AppRequestHandler - must stay in engine-app
-  - workflow conversion functions - need WorkflowService
-
-**Success Criteria Met**: All type/DTO imports removed. Only service and UseCase imports remain, which is correct hexagonal architecture (adapters use application layer orchestration).
-
-#### 3.0.7 Move Composition Root to Runner (COMPLETED 2025-12-29)
-
-**Problem**: The composition root (AppState::new, server.rs, queue_workers.rs) was in engine-adapters.
-In hexagonal architecture, the runner/main should own composition and dependency wiring.
-
-**Files moved to engine-runner**:
-- `run/server.rs` (~414 lines) - Server startup, worker spawning
-- `run/queue_workers.rs` (~549 lines) - Background worker functions
-- `composition/app_state.rs` (~741 lines) - new_app_state() constructor
-
-**Changes**:
-- AppState struct stays in engine-adapters (just the shape, fields public)
-- `AppState::new()` replaced by `new_app_state()` function in runner
-- main.rs now calls local `run::run()` 
-- Services still reference engine-app for service traits (correct)
-
-**Architecture after**:
-- engine-runner: Composition root, dependency wiring, server startup
-- engine-adapters: Pure adapter implementations (ports, persistence, http, websocket)
-- engine-app: Application services and use cases
-
-**Final import count**: 26 (down from 72)
-- Remaining imports are services used by adapter implementations (correct hexagonal usage)
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
@@ -976,11 +853,11 @@ pub trait FileStoragePort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [x] Create FileStoragePort trait in engine-ports | **DONE** |
-| [x] Create TokioFileStorageAdapter in engine-adapters | **DONE** |
-| [x] Update generation_service.rs to use FileStoragePort | **DONE** |
-| [x] Update asset_generation_queue_service.rs | **DONE** |
-| [ ] Move env::var calls to adapter/runner layer | Low priority - 2 calls in prompt_template_service.rs |
+| [ ] Create FileStoragePort trait in engine-ports | Pending |
+| [ ] Create TokioFileStorageAdapter in engine-adapters | Pending |
+| [ ] Update generation_service.rs to use FileStoragePort | Pending |
+| [ ] Update asset_generation_queue_service.rs | Pending |
+| [ ] Move env::var calls to adapter/runner layer | Pending |
 
 #### 3.0.2.1 Create ClockPort for Time Abstraction (NEW - Seventh Review)
 
@@ -1281,12 +1158,11 @@ pub trait WorldStatePort: Send + Sync {
 | [x] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | **DONE** |
 | [x] Move `PendingApprovalItem` to domain | **DONE** |
 | [x] Create `WorldStatePort` trait in engine-ports | **DONE** |
-| [x] Add DirectorialNotes methods to WorldStatePort | **DONE** |
-| [x] Implement `WorldStatePort` for WorldStateManager | **DONE** |
-| [x] Update consumers to use port trait | **DONE** (adapters import trait for method resolution) |
-| [~] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Deferred (cosmetic, no arch impact) |
-| [~] Remove engine-app import (`StagingProposal`) | Deferred (staging methods kept adapter-specific) |
-| Note: Staging approval methods kept as adapter-specific (not in port) because they depend on StagingProposal from engine-app. |
+| [ ] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Pending |
+| [ ] Implement `WorldStatePort` for adapter | Pending |
+| [ ] Update consumers to use `Arc<dyn WorldStatePort>` | Pending |
+| [ ] Remove engine-app import (`StagingProposal`) | Pending |
+| Note: `WaitingPc` deferred (depends on StagingProposal from engine-app) | |
 
 ##### Summary
 
