@@ -6,6 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio_util::sync::CancellationToken;
 use wrldbldr_engine_app::application::dto::{
     ChallengeOutcomeApprovalItem, DMAction, DMActionItem,
 };
@@ -29,10 +30,17 @@ pub async fn approval_notification_worker(
     approval_queue_service: Arc<DMApprovalQueueService<crate::infrastructure::queues::QueueBackendEnum<wrldbldr_engine_app::application::dto::ApprovalItem>, ItemServiceImpl>>,
     world_connection_manager: SharedWorldConnectionManager,
     recovery_interval: Duration,
+    cancel_token: CancellationToken,
 ) {
     tracing::info!("Starting approval notification worker");
     let notifier = approval_queue_service.queue().notifier();
     loop {
+        // Check for cancellation
+        if cancel_token.is_cancelled() {
+            tracing::info!("Approval notification worker shutting down");
+            break;
+        }
+
         // Get all pending approvals from the queue
         // We need to check each active world for pending approvals
         let world_ids = world_connection_manager.get_all_world_ids().await;
@@ -83,7 +91,13 @@ pub async fn approval_notification_worker(
 
         // Wait for notification if no work, otherwise check again immediately
         if !has_work {
-            let _ = notifier.wait_for_work(recovery_interval).await;
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("Approval notification worker shutting down");
+                    break;
+                }
+                _ = notifier.wait_for_work(recovery_interval) => {}
+            }
         }
     }
 }
@@ -97,10 +111,17 @@ pub async fn dm_action_worker(
     interaction_service: Arc<dyn InteractionService>,
     world_connection_manager: SharedWorldConnectionManager,
     recovery_interval: Duration,
+    cancel_token: CancellationToken,
 ) {
     tracing::info!("Starting DM action queue worker");
     let notifier = dm_action_queue_service.queue().notifier();
     loop {
+        // Check for cancellation
+        if cancel_token.is_cancelled() {
+            tracing::info!("DM action queue worker shutting down");
+            break;
+        }
+
         let world_connection_manager_clone = world_connection_manager.clone();
         let approval_queue_service_clone = approval_queue_service.clone();
         let narrative_event_service_clone = narrative_event_service.clone();
@@ -132,7 +153,13 @@ pub async fn dm_action_worker(
             }
             Ok(None) => {
                 // Queue empty - wait for notification or recovery timeout
-                let _ = notifier.wait_for_work(recovery_interval).await;
+                tokio::select! {
+                    _ = cancel_token.cancelled() => {
+                        tracing::info!("DM action queue worker shutting down");
+                        break;
+                    }
+                    _ = notifier.wait_for_work(recovery_interval) => {}
+                }
             }
             Err(e) => {
                 tracing::error!("Error processing DM action: {}", e);
@@ -387,6 +414,7 @@ pub async fn challenge_outcome_notification_worker(
     challenge_queue: Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>,
     world_connection_manager: SharedWorldConnectionManager,
     recovery_interval: Duration,
+    cancel_token: CancellationToken,
 ) {
     use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
 
@@ -394,6 +422,12 @@ pub async fn challenge_outcome_notification_worker(
     let notifier = challenge_queue.notifier();
 
     loop {
+        // Check for cancellation
+        if cancel_token.is_cancelled() {
+            tracing::info!("Challenge outcome notification worker shutting down");
+            break;
+        }
+
         let world_ids = world_connection_manager.get_all_world_ids().await;
         let mut has_work = false;
 
@@ -455,7 +489,13 @@ pub async fn challenge_outcome_notification_worker(
 
         // Wait for notification if no work, otherwise check again immediately
         if !has_work {
-            let _ = notifier.wait_for_work(recovery_interval).await;
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("Challenge outcome notification worker shutting down");
+                    break;
+                }
+                _ = notifier.wait_for_work(recovery_interval) => {}
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::Semaphore;
+use tokio_util::sync::CancellationToken;
 
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeRepositoryPort, LlmPort, NarrativeEventRepositoryPort,
@@ -130,16 +131,30 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     ///
     /// # Arguments
     /// * `recovery_interval` - Fallback poll interval for crash recovery
-    pub async fn run_worker(self: Arc<Self>, recovery_interval: Duration) {
+    /// * `cancel_token` - Token to signal graceful shutdown
+    pub async fn run_worker(self: Arc<Self>, recovery_interval: Duration, cancel_token: CancellationToken) {
         loop {
+            // Check for cancellation
+            if cancel_token.is_cancelled() {
+                tracing::info!("LLM queue worker shutting down");
+                break;
+            }
+
             // Try to get next item
             let item = match self.queue.dequeue().await {
                 Ok(Some(item)) => item,
                 Ok(None) => {
                     // Queue empty - wait for notification or recovery timeout
-                    // Timeout is expected behavior, so we don't log it
-                    let _timeout = self.notifier.wait_for_work(recovery_interval).await;
-                    continue;
+                    // Use select to also check for cancellation during wait
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            tracing::info!("LLM queue worker shutting down");
+                            break;
+                        }
+                        _ = self.notifier.wait_for_work(recovery_interval) => {
+                            continue;
+                        }
+                    }
                 }
                 Err(e) => {
                     tracing::error!("Failed to dequeue LLM request: {}", e);

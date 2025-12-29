@@ -4,7 +4,8 @@
 //! corresponding DomainEvents through the event bus.
 
 use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::Receiver;
+use tokio_util::sync::CancellationToken;
 
 use wrldbldr_domain::DomainEvent;
 use wrldbldr_engine_ports::outbound::EventBusPort;
@@ -24,16 +25,35 @@ impl GenerationEventPublisher {
     /// Run the publisher, consuming generation events and publishing domain events
     ///
     /// This should be spawned as a background task
-    pub async fn run(self, mut generation_event_rx: UnboundedReceiver<GenerationEvent>) {
-        while let Some(event) = generation_event_rx.recv().await {
-            let domain_event = self.map_to_domain_event(event);
-            if let Some(domain_event) = domain_event {
-                if let Err(e) = self.event_bus.publish(domain_event).await {
-                    tracing::error!("Failed to publish generation domain event: {}", e);
+    ///
+    /// # Arguments
+    /// * `generation_event_rx` - Channel receiver for generation events
+    /// * `cancel_token` - Token to signal graceful shutdown
+    pub async fn run(self, mut generation_event_rx: Receiver<GenerationEvent>, cancel_token: CancellationToken) {
+        loop {
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("Generation event publisher shutting down (cancelled)");
+                    break;
+                }
+                event = generation_event_rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            let domain_event = self.map_to_domain_event(event);
+                            if let Some(domain_event) = domain_event {
+                                if let Err(e) = self.event_bus.publish(domain_event).await {
+                                    tracing::error!("Failed to publish generation domain event: {}", e);
+                                }
+                            }
+                        }
+                        None => {
+                            tracing::info!("Generation event publisher shutting down (channel closed)");
+                            break;
+                        }
+                    }
                 }
             }
         }
-        tracing::info!("Generation event publisher shutting down");
     }
 
     /// Map a GenerationEvent to a DomainEvent.

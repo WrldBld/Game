@@ -13,6 +13,7 @@ wrldbldr-engine-ports = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 
 async-trait = { workspace = true }
 thiserror = { workspace = true }

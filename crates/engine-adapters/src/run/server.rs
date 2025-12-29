@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{routing::get, Router};
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
     trace::TraceLayer,
@@ -24,6 +25,39 @@ use crate::infrastructure::queue_workers::{
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket_helpers::build_prompt_from_action;
 
+/// Creates a cancellation token and spawns a task that cancels it on SIGTERM/SIGINT
+fn setup_shutdown_signal(cancel_token: CancellationToken) {
+    tokio::spawn(async move {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("failed to install signal handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {
+                tracing::info!("Received Ctrl+C, initiating graceful shutdown...");
+            }
+            _ = terminate => {
+                tracing::info!("Received SIGTERM, initiating graceful shutdown...");
+            }
+        }
+
+        cancel_token.cancel();
+    });
+}
+
 pub async fn run() -> Result<()> {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
@@ -38,6 +72,10 @@ pub async fn run() -> Result<()> {
         .init();
 
     tracing::info!("Starting WrldBldr Engine");
+
+    // Create cancellation token for graceful shutdown
+    let cancel_token = CancellationToken::new();
+    setup_shutdown_signal(cancel_token.clone());
 
     // Load configuration
     let config = AppConfig::from_env()?;
@@ -60,18 +98,20 @@ pub async fn run() -> Result<()> {
     let llm_worker = {
         let service = state.queues.llm_queue_service.clone();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting LLM queue worker");
-            service.run_worker(recovery_interval_clone).await;
+            service.run_worker(recovery_interval_clone, cancel).await;
         })
     };
 
     let asset_worker = {
         let service = state.queues.asset_generation_queue_service.clone();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting asset generation queue worker");
-            service.run_worker(recovery_interval_clone).await;
+            service.run_worker(recovery_interval_clone, cancel).await;
         })
     };
 
@@ -94,9 +134,16 @@ pub async fn run() -> Result<()> {
         let actantial_service = state.game.actantial_context_service.clone();
         let notifier = service.queue().notifier();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting player action queue worker");
             loop {
+                // Check for cancellation
+                if cancel.is_cancelled() {
+                    tracing::info!("Player action queue worker shutting down");
+                    break;
+                }
+
                 let world_service_clone = world_service.clone();
                 let world_state_clone = world_state.clone();
                 let challenge_service_clone = challenge_service.clone();
@@ -148,7 +195,14 @@ pub async fn run() -> Result<()> {
                     }
                     Ok(None) => {
                         // Queue empty - wait for notification or recovery timeout
-                        let _ = notifier.wait_for_work(recovery_interval_clone).await;
+                        // Use select to also check for cancellation during wait
+                        tokio::select! {
+                            _ = cancel.cancelled() => {
+                                tracing::info!("Player action queue worker shutting down");
+                                break;
+                            }
+                            _ = notifier.wait_for_work(recovery_interval_clone) => {}
+                        }
                     }
                     Err(e) => {
                         tracing::error!("Error processing player action: {}", e);
@@ -164,8 +218,9 @@ pub async fn run() -> Result<()> {
         let service = state.queues.dm_approval_queue_service.clone();
         let world_connection_manager = state.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
-            approval_notification_worker(service, world_connection_manager, recovery_interval_clone).await;
+            approval_notification_worker(service, world_connection_manager, recovery_interval_clone, cancel).await;
         })
     };
 
@@ -178,6 +233,7 @@ pub async fn run() -> Result<()> {
         let interaction_service = state.core.interaction_service.clone();
         let world_connection_manager = state.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             dm_action_worker(
                 service,
@@ -187,6 +243,7 @@ pub async fn run() -> Result<()> {
                 interaction_service,
                 world_connection_manager,
                 recovery_interval_clone,
+                cancel,
             )
             .await;
         })
@@ -197,11 +254,13 @@ pub async fn run() -> Result<()> {
         let challenge_queue = state.queues.challenge_outcome_queue.clone();
         let world_connection_manager = state.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             challenge_outcome_notification_worker(
                 challenge_queue,
                 world_connection_manager,
                 recovery_interval_clone,
+                cancel,
             )
             .await;
         })
@@ -214,9 +273,16 @@ pub async fn run() -> Result<()> {
         let approval_service = state.queues.dm_approval_queue_service.clone();
         let asset_service = state.queues.asset_generation_queue_service.clone();
         let queue_config_clone = queue_config.clone();
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting queue cleanup worker");
             loop {
+                // Check for cancellation
+                if cancel.is_cancelled() {
+                    tracing::info!("Cleanup worker shutting down");
+                    break;
+                }
+
                 let retention = std::time::Duration::from_secs(
                     queue_config_clone.history_retention_hours * 3600,
                 );
@@ -233,11 +299,17 @@ pub async fn run() -> Result<()> {
                 );
                 let _ = approval_service.queue().expire_old(approval_timeout).await;
 
-                // Run cleanup using configured interval
-                tokio::time::sleep(std::time::Duration::from_secs(
+                // Run cleanup using configured interval, but check for cancellation
+                let sleep_duration = std::time::Duration::from_secs(
                     queue_config_clone.cleanup_interval_seconds,
-                ))
-                .await;
+                );
+                tokio::select! {
+                    _ = cancel.cancelled() => {
+                        tracing::info!("Cleanup worker shutting down");
+                        break;
+                    }
+                    _ = tokio::time::sleep(sleep_duration) => {}
+                }
             }
         })
     };
@@ -246,9 +318,10 @@ pub async fn run() -> Result<()> {
     let generation_event_worker = {
         let event_bus = state.events.event_bus.clone();
         let publisher = GenerationEventPublisher::new(event_bus);
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting generation event publisher");
-            publisher.run(generation_event_rx).await;
+            publisher.run(generation_event_rx, cancel).await;
         })
     };
 
@@ -256,9 +329,10 @@ pub async fn run() -> Result<()> {
     let challenge_approval_worker = {
         let broadcast_port = state.use_cases.broadcast.clone();
         let publisher = ChallengeApprovalEventPublisher::new(broadcast_port);
+        let cancel = cancel_token.clone();
         tokio::spawn(async move {
             tracing::info!("Starting challenge approval event publisher");
-            publisher.run(challenge_approval_rx).await;
+            publisher.run(challenge_approval_rx, cancel).await;
         })
     };
 
@@ -296,22 +370,36 @@ pub async fn run() -> Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], state.config.server_port));
     tracing::info!("Listening on {}", addr);
 
-    let server = axum::serve(tokio::net::TcpListener::bind(addr).await?, app);
+    let server = axum::serve(tokio::net::TcpListener::bind(addr).await?, app)
+        .with_graceful_shutdown(async move {
+            cancel_token.cancelled().await;
+            tracing::info!("HTTP server received shutdown signal");
+        });
 
-    tokio::select! {
-        result = server => {
-            result?;
-        }
-        _ = llm_worker => {}
-        _ = asset_worker => {}
-        _ = player_action_worker => {}
-        _ = approval_notification_worker_task => {}
-        _ = dm_action_worker_task => {}
-        _ = challenge_outcome_worker_task => {}
-        _ = cleanup_worker => {}
-        _ = generation_event_worker => {}
-        _ = challenge_approval_worker => {}
+    // Run server until shutdown, then wait for workers to finish
+    if let Err(e) = server.await {
+        tracing::error!("Server error: {}", e);
     }
 
+    tracing::info!("Waiting for workers to complete...");
+    
+    // Give workers a chance to finish gracefully
+    // JoinHandles will complete when workers check cancellation token
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        async {
+            let _ = llm_worker.await;
+            let _ = asset_worker.await;
+            let _ = player_action_worker.await;
+            let _ = approval_notification_worker_task.await;
+            let _ = dm_action_worker_task.await;
+            let _ = challenge_outcome_worker_task.await;
+            let _ = cleanup_worker.await;
+            let _ = generation_event_worker.await;
+            let _ = challenge_approval_worker.await;
+        }
+    ).await;
+
+    tracing::info!("WrldBldr Engine shutdown complete");
     Ok(())
 }

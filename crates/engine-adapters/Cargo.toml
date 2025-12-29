@@ -46,6 +46,7 @@ validator = { workspace = true }
 # Async utilities
 futures-util = { workspace = true }
 futures-channel = { workspace = true }
+tokio-util = { workspace = true }
 
 # Concurrent collections
 dashmap = { workspace = true }

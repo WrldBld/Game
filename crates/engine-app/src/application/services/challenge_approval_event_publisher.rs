@@ -7,13 +7,14 @@
 //!
 //! ```rust,ignore
 //! // Create channel
-//! let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+//! let (tx, rx) = tokio::sync::mpsc::channel(256);
 //!
 //! // Create publisher with broadcast port
 //! let publisher = ChallengeApprovalEventPublisher::new(broadcast_port);
 //!
-//! // Spawn publisher as background task
-//! tokio::spawn(publisher.run(rx));
+//! // Spawn publisher as background task with cancellation token
+//! let cancel = CancellationToken::new();
+//! tokio::spawn(publisher.run(rx, cancel));
 //!
 //! // Pass tx to ChallengeOutcomeApprovalService
 //! let service = ChallengeOutcomeApprovalService::new(...).with_event_sender(tx);
@@ -21,7 +22,8 @@
 
 use std::sync::Arc;
 
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::Receiver;
+use tokio_util::sync::CancellationToken;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, OutcomeBranchInfo, OutcomeTriggerInfo,
 };
@@ -42,17 +44,35 @@ impl ChallengeApprovalEventPublisher {
     /// Run the publisher, consuming events from the channel
     ///
     /// This should be spawned as a background task. It runs until the
-    /// channel sender is dropped.
-    pub async fn run(self, mut rx: UnboundedReceiver<ChallengeApprovalEvent>) {
+    /// channel sender is dropped or cancellation is signalled.
+    ///
+    /// # Arguments
+    /// * `rx` - Channel receiver for challenge approval events
+    /// * `cancel_token` - Token to signal graceful shutdown
+    pub async fn run(self, mut rx: Receiver<ChallengeApprovalEvent>, cancel_token: CancellationToken) {
         tracing::info!("ChallengeApprovalEventPublisher started");
 
-        while let Some(event) = rx.recv().await {
-            let world_id = self.extract_world_id(&event);
-            let game_event = self.map_to_game_event(event);
-            self.broadcast_port.broadcast(world_id, game_event).await;
+        loop {
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("ChallengeApprovalEventPublisher stopped (cancelled)");
+                    break;
+                }
+                event = rx.recv() => {
+                    match event {
+                        Some(event) => {
+                            let world_id = self.extract_world_id(&event);
+                            let game_event = self.map_to_game_event(event);
+                            self.broadcast_port.broadcast(world_id, game_event).await;
+                        }
+                        None => {
+                            tracing::info!("ChallengeApprovalEventPublisher stopped (channel closed)");
+                            break;
+                        }
+                    }
+                }
+            }
         }
-
-        tracing::info!("ChallengeApprovalEventPublisher stopped");
     }
 
     /// Extract world_id from an event
