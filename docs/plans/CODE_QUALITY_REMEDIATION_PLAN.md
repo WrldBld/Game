@@ -599,8 +599,8 @@ pub trait ClockPort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Remove tokio from engine-ports/Cargo.toml | Pending |
-| [ ] Verify compilation still works | Pending |
+| [x] Remove tokio from engine-ports/Cargo.toml | **DONE** |
+| [ ] Verify compilation still works | Pending (deferred to end) |
 
 #### 3.0.6 Fix player-ports Session Types Duplicates (NEW)
 
@@ -952,7 +952,7 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | File | Dependency | Action |
 |------|------------|--------|
-| `player-ui/Cargo.toml` | `wrldbldr-domain` | DELETE (declared, no imports found) |
+| `player-ui/Cargo.toml` | `wrldbldr-domain` | ~~DELETE~~ **DONE** |
 
 | Task | Status |
 |------|--------|
@@ -1717,7 +1717,7 @@ cargo test --workspace
 | tokio::spawn without tracking | **27** | 0 | Add CancellationToken |
 | Unused structs | 4 | 0 | |
 | Unused fields | 12 | 0 | |
-| Unused Cargo.toml deps | **2** | 0 | player-ui→domain, engine-ports→tokio (seventh review) |
+| Unused Cargo.toml deps | ~~2~~ **0** | 0 | **DONE** - Removed player-ui→domain, engine-ports→tokio |
 | Redundant DTO duplicates | **13** (5 engine-app + 8 player-ports) | 0 | player-app dups intentional |
 | Protocol enums without #[serde(other)] | **20** | 0 | Forward compatibility |
 | Domain error types | **1** (DiceParseError only) | Unified DomainError | |

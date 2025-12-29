@@ -10,7 +10,7 @@ description = "WrldBldr Player UI - Presentation and routing"
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
-wrldbldr-domain = { workspace = true }
+# Note: wrldbldr-domain not needed - UI uses protocol types, not domain types
 
 # Dioxus
 dioxus = { workspace = true }
