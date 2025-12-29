@@ -165,11 +165,19 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 40% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **PLANNED** | 0% |
+| Phase 3 | Architecture Completion | In Progress | 55% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 40% |
+| Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
+| Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
+| Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
+| Phase 3.0.1.4 | Service port traits (6/25) | **IN PROGRESS** | 24% |
+| Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
-| Phase 3.0.3 | Move Business Logic from Adapters | **PLANNED** | 0% |
+| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
+| Phase 3.0.3.1 | context_budget.rs to domain | **DONE** | 100% |
+| Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
+| Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
 | Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
@@ -807,7 +815,13 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
 | [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
-| [ ] Create port traits for services (25 traits) | Pending |
+| [~] Create port traits for services (6/25) | **IN PROGRESS** |
+|     - ChallengeServicePort (11 methods) | **DONE** |
+|     - SceneServicePort (1 method + SceneWithRelations) | **DONE** |
+|     - NarrativeEventServicePort (4 methods) | **DONE** |
+|     - DispositionServicePort (8 methods) | **DONE** |
+|     - ActantialContextServicePort (1 method) | **DONE** |
+|     - SkillServicePort (7 methods) | **DONE** |
 | [ ] Move use case types to engine-ports (15+ types) | Pending |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
 | [ ] Refactor adapters to use only ports | Pending |
