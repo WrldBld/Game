@@ -3,7 +3,7 @@
 //! This port abstracts in-memory per-world state management, allowing different
 //! implementations (e.g., in-memory, Redis-backed, etc.).
 
-use wrldbldr_domain::value_objects::{ConversationEntry, PendingApprovalItem};
+use wrldbldr_domain::value_objects::{ConversationEntry, DirectorialNotes, PendingApprovalItem};
 use wrldbldr_domain::{GameTime, WorldId};
 
 /// Port for managing per-world runtime state.
@@ -79,6 +79,17 @@ pub trait WorldStatePort: Send + Sync {
     /// Set the current scene for a world.
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>);
 
+    // === Directorial Context ===
+
+    /// Get the DM's directorial context (runtime NPC guidance) for a world.
+    fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes>;
+
+    /// Set the directorial context for a world.
+    fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes);
+
+    /// Clear the directorial context for a world.
+    fn clear_directorial_context(&self, world_id: &WorldId);
+
     // === Lifecycle ===
 
     /// Initialize state for a new world with the given starting time.
@@ -111,6 +122,9 @@ mockall::mock! {
         fn get_pending_approvals(&self, world_id: &WorldId) -> Vec<PendingApprovalItem>;
         fn get_current_scene(&self, world_id: &WorldId) -> Option<String>;
         fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>);
+        fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes>;
+        fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes);
+        fn clear_directorial_context(&self, world_id: &WorldId);
         fn initialize_world(&self, world_id: &WorldId, initial_time: GameTime);
         fn cleanup_world(&self, world_id: &WorldId);
         fn is_world_initialized(&self, world_id: &WorldId) -> bool;

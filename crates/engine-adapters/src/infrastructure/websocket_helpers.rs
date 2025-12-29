@@ -19,9 +19,11 @@ use wrldbldr_engine_app::application::services::{
 };
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError, RegionRepositoryPort,
+    WorldStatePort,
 };
 
-use crate::infrastructure::world_state_manager::{ConversationEntry, Speaker, WorldStateManager};
+use crate::infrastructure::world_state_manager::WorldStateManager;
+use wrldbldr_domain::value_objects::{ConversationEntry, Speaker};
 
 /// Build a GamePromptRequest from a PlayerActionData
 ///
@@ -133,9 +135,9 @@ pub async fn build_prompt_from_action(
         .map(|dc| dc.to_prompt())
         .unwrap_or_default();
 
-    // 7. Convert conversation history
+    // 7. Convert conversation history (get all entries, no limit)
     let conversation_history: Vec<ConversationTurn> = world_state
-        .get_conversation_history(&world_id)
+        .get_conversation_history(&world_id, None)
         .into_iter()
         .map(conversation_entry_to_turn)
         .collect();

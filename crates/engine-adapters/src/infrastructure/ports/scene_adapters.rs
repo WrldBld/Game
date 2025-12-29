@@ -21,9 +21,13 @@ use wrldbldr_engine_ports::inbound::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
     InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity, NpcMotivation,
     SceneDmActionQueuePort, SceneEntity, SceneServicePort,
-    SceneWithRelations as UseCaseSceneWithRelations, TimeContext, WorldStatePort,
+    SceneWithRelations as UseCaseSceneWithRelations, TimeContext,
+    WorldStatePort as InboundWorldStatePort, // Use case port
 };
-use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
+    WorldStatePort as OutboundWorldStatePort, // Trait to call methods on WorldStateManager
+};
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
@@ -139,9 +143,9 @@ impl SceneWorldStateAdapter {
     }
 }
 
-impl WorldStatePort for SceneWorldStateAdapter {
+impl InboundWorldStatePort for SceneWorldStateAdapter {
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
-        self.state.set_current_scene(world_id, scene_id);
+        OutboundWorldStatePort::set_current_scene(self.state.as_ref(), world_id, scene_id);
     }
 
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
@@ -176,7 +180,7 @@ impl WorldStatePort for SceneWorldStateAdapter {
                 .unwrap_or(PacingGuidance::Natural),
         };
 
-        self.state.set_directorial_context(world_id, notes);
+        OutboundWorldStatePort::set_directorial_context(self.state.as_ref(), world_id, notes);
     }
 }
 

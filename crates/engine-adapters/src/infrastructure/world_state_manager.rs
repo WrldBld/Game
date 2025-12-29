@@ -1,11 +1,23 @@
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use uuid::Uuid;
-use wrldbldr_domain::value_objects::DirectorialNotes;
+use wrldbldr_domain::value_objects::{
+    ConversationEntry, DirectorialNotes, PendingApprovalItem,
+};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_app::application::services::staging_service::StagingProposal;
+use wrldbldr_engine_ports::outbound::WorldStatePort;
 
-/// Manages per-world state (game time, conversation, approvals)
+/// In-memory implementation of [`WorldStatePort`].
+///
+/// Manages per-world state (game time, conversation, approvals) using DashMap
+/// for thread-safe concurrent access.
+///
+/// # Architecture Note
+///
+/// This adapter also contains staging approval methods that are NOT part of
+/// `WorldStatePort` because they depend on `StagingProposal` from engine-app.
+/// These methods are accessed directly by handlers that need staging functionality.
 pub struct WorldStateManager {
     states: DashMap<WorldId, WorldState>,
 }
@@ -28,39 +40,6 @@ struct WorldState {
 
     /// DM's directorial context (runtime guidance for NPCs)
     directorial_context: Option<DirectorialNotes>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ConversationEntry {
-    pub timestamp: DateTime<Utc>,
-    pub speaker: Speaker,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Speaker {
-    Player { pc_id: String, pc_name: String },
-    Npc { npc_id: String, npc_name: String },
-    System,
-    Dm,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PendingApprovalItem {
-    pub approval_id: String,
-    pub approval_type: ApprovalType,
-    pub created_at: DateTime<Utc>,
-    pub data: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ApprovalType {
-    Dialogue,
-    Challenge,
-    NarrativeEvent,
-    ChallengeOutcome,
 }
 
 /// Pending staging approval with full data for handler access
@@ -167,138 +146,11 @@ impl WorldStateManager {
         }
     }
 
-    // === Lifecycle ===
-
-    /// Initialize state for a new world
-    pub fn initialize_world(&self, world_id: WorldId, initial_time: GameTime) {
-        let state = WorldState {
-            game_time: initial_time,
-            conversation_history: Vec::new(),
-            pending_approvals: Vec::new(),
-            pending_staging_approvals: Vec::new(),
-            current_scene_id: None,
-            directorial_context: None,
-        };
-        self.states.insert(world_id, state);
-    }
-
-    /// Clean up when world connection is closed
-    pub fn cleanup_world(&self, world_id: &WorldId) {
-        self.states.remove(world_id);
-    }
-
-    // === Game Time ===
-
-    pub fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime> {
-        self.states
-            .get(world_id)
-            .map(|state| state.game_time.clone())
-    }
-
-    pub fn set_game_time(&self, world_id: &WorldId, time: GameTime) {
-        self.states
-            .entry(world_id.clone())
-            .and_modify(|state| state.game_time = time.clone())
-            .or_insert_with(|| WorldState {
-                game_time: time,
-                conversation_history: Vec::new(),
-                pending_approvals: Vec::new(),
-                pending_staging_approvals: Vec::new(),
-                current_scene_id: None,
-                directorial_context: None,
-            });
-    }
-
-    /// Advance the game time for a world by the specified hours and minutes
-    pub fn advance_game_time(
-        &self,
-        world_id: &WorldId,
-        hours: i64,
-        minutes: i64,
-    ) -> Option<GameTime> {
-        let mut state = self.states.get_mut(world_id)?;
-        let duration = chrono::Duration::hours(hours) + chrono::Duration::minutes(minutes);
-        state.game_time.advance(duration);
-        Some(state.game_time.clone())
-    }
-
-    // === Conversation History ===
-
-    pub fn get_conversation_history(&self, world_id: &WorldId) -> Vec<ConversationEntry> {
-        self.states
-            .get(world_id)
-            .map(|state| state.conversation_history.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn add_conversation(&self, world_id: &WorldId, entry: ConversationEntry) {
-        self.states
-            .entry(world_id.clone())
-            .and_modify(|state| {
-                state.conversation_history.push(entry.clone());
-                // Keep only last 30 entries
-                if state.conversation_history.len() > 30 {
-                    state
-                        .conversation_history
-                        .drain(0..(state.conversation_history.len() - 30));
-                }
-            })
-            .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
-                conversation_history: vec![entry],
-                pending_approvals: Vec::new(),
-                pending_staging_approvals: Vec::new(),
-                current_scene_id: None,
-                directorial_context: None,
-            });
-    }
-
-    pub fn clear_conversation_history(&self, world_id: &WorldId) {
-        if let Some(mut state) = self.states.get_mut(world_id) {
-            state.conversation_history.clear();
-        }
-    }
-
-    // === Pending Approvals ===
-
-    pub fn get_pending_approvals(&self, world_id: &WorldId) -> Vec<PendingApprovalItem> {
-        self.states
-            .get(world_id)
-            .map(|state| state.pending_approvals.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn add_pending_approval(&self, world_id: &WorldId, item: PendingApprovalItem) {
-        self.states
-            .entry(world_id.clone())
-            .and_modify(|state| {
-                state.pending_approvals.push(item.clone());
-            })
-            .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
-                conversation_history: Vec::new(),
-                pending_approvals: vec![item],
-                pending_staging_approvals: Vec::new(),
-                current_scene_id: None,
-                directorial_context: None,
-            });
-    }
-
-    pub fn remove_pending_approval(
-        &self,
-        world_id: &WorldId,
-        approval_id: &str,
-    ) -> Option<PendingApprovalItem> {
-        self.states.get_mut(world_id).and_then(|mut state| {
-            state
-                .pending_approvals
-                .iter()
-                .position(|item| item.approval_id == approval_id)
-                .map(|index| state.pending_approvals.remove(index))
-        })
-    }
-
     // === Pending Staging Approvals ===
+    //
+    // NOTE: These methods are NOT part of WorldStatePort because they depend on
+    // StagingProposal from engine-app. They are adapter-specific methods accessed
+    // directly by handlers that need staging functionality.
 
     /// Get all pending staging approvals for a world
     pub fn get_all_pending_staging(&self, world_id: &WorldId) -> Vec<WorldPendingStagingApproval> {
@@ -445,16 +297,141 @@ impl WorldStateManager {
                 .map(f)
         })
     }
+}
+
+impl Default for WorldStateManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// === WorldStatePort Implementation ===
+
+impl WorldStatePort for WorldStateManager {
+    // === Game Time ===
+
+    fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime> {
+        self.states
+            .get(world_id)
+            .map(|state| state.game_time.clone())
+    }
+
+    fn set_game_time(&self, world_id: &WorldId, time: GameTime) {
+        self.states
+            .entry(world_id.clone())
+            .and_modify(|state| state.game_time = time.clone())
+            .or_insert_with(|| WorldState {
+                game_time: time,
+                conversation_history: Vec::new(),
+                pending_approvals: Vec::new(),
+                pending_staging_approvals: Vec::new(),
+                current_scene_id: None,
+                directorial_context: None,
+            });
+    }
+
+    fn advance_game_time(&self, world_id: &WorldId, hours: i64, minutes: i64) -> Option<GameTime> {
+        let mut state = self.states.get_mut(world_id)?;
+        let duration = chrono::Duration::hours(hours) + chrono::Duration::minutes(minutes);
+        state.game_time.advance(duration);
+        Some(state.game_time.clone())
+    }
+
+    // === Conversation History ===
+
+    fn add_conversation(&self, world_id: &WorldId, entry: ConversationEntry) {
+        self.states
+            .entry(world_id.clone())
+            .and_modify(|state| {
+                state.conversation_history.push(entry.clone());
+                // Keep only last 30 entries
+                if state.conversation_history.len() > 30 {
+                    state
+                        .conversation_history
+                        .drain(0..(state.conversation_history.len() - 30));
+                }
+            })
+            .or_insert_with(|| WorldState {
+                game_time: GameTime::default(),
+                conversation_history: vec![entry],
+                pending_approvals: Vec::new(),
+                pending_staging_approvals: Vec::new(),
+                current_scene_id: None,
+                directorial_context: None,
+            });
+    }
+
+    fn get_conversation_history(
+        &self,
+        world_id: &WorldId,
+        limit: Option<usize>,
+    ) -> Vec<ConversationEntry> {
+        self.states
+            .get(world_id)
+            .map(|state| {
+                let history = &state.conversation_history;
+                match limit {
+                    Some(n) if n < history.len() => history[history.len() - n..].to_vec(),
+                    _ => history.clone(),
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    fn clear_conversation_history(&self, world_id: &WorldId) {
+        if let Some(mut state) = self.states.get_mut(world_id) {
+            state.conversation_history.clear();
+        }
+    }
+
+    // === Pending Approvals ===
+
+    fn add_pending_approval(&self, world_id: &WorldId, item: PendingApprovalItem) {
+        self.states
+            .entry(world_id.clone())
+            .and_modify(|state| {
+                state.pending_approvals.push(item.clone());
+            })
+            .or_insert_with(|| WorldState {
+                game_time: GameTime::default(),
+                conversation_history: Vec::new(),
+                pending_approvals: vec![item],
+                pending_staging_approvals: Vec::new(),
+                current_scene_id: None,
+                directorial_context: None,
+            });
+    }
+
+    fn remove_pending_approval(
+        &self,
+        world_id: &WorldId,
+        approval_id: &str,
+    ) -> Option<PendingApprovalItem> {
+        self.states.get_mut(world_id).and_then(|mut state| {
+            state
+                .pending_approvals
+                .iter()
+                .position(|item| item.approval_id == approval_id)
+                .map(|index| state.pending_approvals.remove(index))
+        })
+    }
+
+    fn get_pending_approvals(&self, world_id: &WorldId) -> Vec<PendingApprovalItem> {
+        self.states
+            .get(world_id)
+            .map(|state| state.pending_approvals.clone())
+            .unwrap_or_default()
+    }
 
     // === Current Scene ===
 
-    pub fn get_current_scene(&self, world_id: &WorldId) -> Option<String> {
+    fn get_current_scene(&self, world_id: &WorldId) -> Option<String> {
         self.states
             .get(world_id)
             .and_then(|state| state.current_scene_id.clone())
     }
 
-    pub fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
+    fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
         self.states
             .entry(world_id.clone())
             .and_modify(|state| {
@@ -472,15 +449,13 @@ impl WorldStateManager {
 
     // === Directorial Context ===
 
-    /// Get the current directorial context for a world
-    pub fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes> {
+    fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes> {
         self.states
             .get(world_id)
             .and_then(|state| state.directorial_context.clone())
     }
 
-    /// Set the directorial context for a world
-    pub fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes) {
+    fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes) {
         self.states
             .entry(world_id.clone())
             .and_modify(|state| {
@@ -496,16 +471,31 @@ impl WorldStateManager {
             });
     }
 
-    /// Clear the directorial context for a world
-    pub fn clear_directorial_context(&self, world_id: &WorldId) {
+    fn clear_directorial_context(&self, world_id: &WorldId) {
         if let Some(mut state) = self.states.get_mut(world_id) {
             state.directorial_context = None;
         }
     }
-}
 
-impl Default for WorldStateManager {
-    fn default() -> Self {
-        Self::new()
+    // === Lifecycle ===
+
+    fn initialize_world(&self, world_id: &WorldId, initial_time: GameTime) {
+        let state = WorldState {
+            game_time: initial_time,
+            conversation_history: Vec::new(),
+            pending_approvals: Vec::new(),
+            pending_staging_approvals: Vec::new(),
+            current_scene_id: None,
+            directorial_context: None,
+        };
+        self.states.insert(world_id.clone(), state);
+    }
+
+    fn cleanup_world(&self, world_id: &WorldId) {
+        self.states.remove(world_id);
+    }
+
+    fn is_world_initialized(&self, world_id: &WorldId) -> bool {
+        self.states.contains_key(world_id)
     }
 }

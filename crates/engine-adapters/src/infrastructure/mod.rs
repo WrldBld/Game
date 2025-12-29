@@ -45,10 +45,13 @@ pub use clock::SystemClock;
 pub use file_storage::TokioFileStorageAdapter;
 
 // Re-export world state manager types
-pub use world_state_manager::{
-    ApprovalType, ConversationEntry, PendingApprovalItem, Speaker, WaitingPc,
-    WorldPendingStagingApproval, WorldStateManager,
+pub use world_state_manager::{WaitingPc, WorldPendingStagingApproval, WorldStateManager};
+// Re-export domain types used by world state
+pub use wrldbldr_domain::value_objects::{
+    ApprovalType, ConversationEntry, DirectorialNotes, PendingApprovalItem, Speaker,
 };
+// Re-export the port trait so callers can use trait methods on Arc<WorldStateManager>
+pub use wrldbldr_engine_ports::outbound::WorldStatePort;
 
 // Re-export world connection manager types
 pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManager};
