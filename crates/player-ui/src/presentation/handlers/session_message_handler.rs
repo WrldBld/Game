@@ -1340,6 +1340,11 @@ pub fn handle_server_message(
             );
             // The spectate target change should trigger scene updates via SceneChanged messages
         }
+
+        // Unknown message types for forward compatibility - ignore silently
+        ServerMessage::Unknown => {
+            tracing::warn!("Received unknown server message type");
+        }
     }
 }
 

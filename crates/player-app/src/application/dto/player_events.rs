@@ -1411,6 +1411,13 @@ impl From<wrldbldr_protocol::responses::ResponseResult> for ResponseResult {
                 error_message: Some(message),
                 error_details: details,
             },
+            wrldbldr_protocol::responses::ResponseResult::Unknown => ResponseResult {
+                success: false,
+                data: None,
+                error_code: Some("UNKNOWN".to_string()),
+                error_message: Some("Unknown response type".to_string()),
+                error_details: None,
+            },
         }
     }
 }

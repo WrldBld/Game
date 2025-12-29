@@ -4,6 +4,7 @@
 //! Also supports manual result input for physical dice rolls.
 
 use rand::Rng;
+use std::fmt;
 use thiserror::Error;
 
 use super::DiceSystem;

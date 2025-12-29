@@ -301,5 +301,11 @@ pub async fn handle_message(
         ClientMessage::Request { request_id, payload } => {
             request::handle_request(state, client_id, request_id, payload).await
         }
+
+        // Unknown message types for forward compatibility - log and ignore
+        ClientMessage::Unknown => {
+            tracing::warn!(client_id = %client_id, "Received unknown client message type");
+            None
+        }
     }
 }

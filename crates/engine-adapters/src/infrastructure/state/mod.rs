@@ -338,7 +338,6 @@ impl AppState {
             Arc::new(SceneResolutionServiceImpl::new(
                 player_character_repo,
                 scene_repo_for_resolution,
-                character_repo.clone(),
                 flag_repo,
                 observation_repo,
             ));
@@ -516,8 +515,6 @@ impl AppState {
         // Create trigger evaluation service (Phase 2)
         let trigger_evaluation_service = Arc::new(TriggerEvaluationService::new(
             narrative_event_repo_for_triggers,
-            challenge_repo_for_triggers,
-            character_repo_for_triggers,
             player_character_repo_for_triggers,
             story_event_repo_for_triggers,
         ));
@@ -566,7 +563,6 @@ impl AppState {
             character_repo.clone(),
             player_character_repo_for_actantial,
             goal_repo,
-            item_repo.clone(),
             want_repo,
             clock.clone(),
         ));

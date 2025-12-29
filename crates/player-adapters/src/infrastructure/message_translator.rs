@@ -703,6 +703,12 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         // Error Events
         // =====================================================================
         ServerMessage::Error { code, message } => PlayerEvent::Error { code, message },
+
+        // Unknown message types for forward compatibility - ignore silently
+        ServerMessage::Unknown => PlayerEvent::Error {
+            code: "UNKNOWN_MESSAGE".to_string(),
+            message: "Unknown server message type".to_string(),
+        },
     }
 }
 
@@ -1011,6 +1017,13 @@ fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) ->
             error_code: Some(format!("{:?}", code)),
             error_message: Some(message),
             error_details: details,
+        },
+        wrldbldr_protocol::responses::ResponseResult::Unknown => ResponseResult {
+            success: false,
+            data: None,
+            error_code: Some("UNKNOWN".to_string()),
+            error_message: Some("Unknown response type".to_string()),
+            error_details: None,
         },
     }
 }

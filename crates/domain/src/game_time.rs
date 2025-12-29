@@ -1,6 +1,8 @@
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TimeOfDay {
     Morning,
     Afternoon,

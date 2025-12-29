@@ -92,6 +92,12 @@ impl ParseResponse for ResponseResult {
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
             }
+            ResponseResult::Unknown => {
+                Err(ServiceError::ServerError {
+                    code: ErrorCode::InternalError,
+                    message: "Unknown response type".to_string(),
+                })
+            }
         }
     }
     
@@ -100,6 +106,12 @@ impl ParseResponse for ResponseResult {
             ResponseResult::Success { .. } => Ok(()),
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
+            }
+            ResponseResult::Unknown => {
+                Err(ServiceError::ServerError {
+                    code: ErrorCode::InternalError,
+                    message: "Unknown response type".to_string(),
+                })
             }
         }
     }
@@ -115,6 +127,12 @@ impl ParseResponse for ResponseResult {
             ResponseResult::Error { code: ErrorCode::NotFound, .. } => Ok(None),
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
+            }
+            ResponseResult::Unknown => {
+                Err(ServiceError::ServerError {
+                    code: ErrorCode::InternalError,
+                    message: "Unknown response type".to_string(),
+                })
             }
         }
     }

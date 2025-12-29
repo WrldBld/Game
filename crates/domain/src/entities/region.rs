@@ -12,6 +12,7 @@
 //! - `(Character)-[:HOME_REGION]->(Region)` - NPC lives here
 //! - `(Character)-[:AVOIDS_REGION]->(Region)` - NPC avoids this place
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId};
 
 /// A region within a location - represents a distinct "screen" or area
@@ -99,7 +100,8 @@ impl Region {
 }
 
 /// Bounds defining a rectangular area on a map image
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MapBounds {
     /// X coordinate of the region's top-left corner
     pub x: u32,

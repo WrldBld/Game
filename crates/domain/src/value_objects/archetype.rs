@@ -147,7 +147,8 @@ impl std::str::FromStr for CampbellArchetype {
 }
 
 /// Record of an archetype change for a character
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ArchetypeChange {
     pub from: CampbellArchetype,
     pub to: CampbellArchetype,
