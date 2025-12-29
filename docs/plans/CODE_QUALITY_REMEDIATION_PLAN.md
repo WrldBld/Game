@@ -165,7 +165,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 45% |
+| Phase 3 | Architecture Completion | In Progress | 50% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
@@ -179,17 +179,19 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 4.7 | Role Mapping Deduplication | **DONE** | 100% |
-| Phase 5 | Domain Layer Polish | **DONE** | 95% |
+| Phase 5 | Domain Layer Polish | **DONE** | 100% |
 | Phase 5.1 | Serde on Entities (53 types) | **DONE** | 100% |
 | Phase 5.2 | Serde on ID Types | **DONE** | 100% |
+| Phase 5.3 | Move Env I/O Out of Domain | **DONE** | 100% |
+| Phase 5.5 | Unified DomainError Type | **DONE** | 100% |
 | Phase 5.6 | Domain Utc::now() (51 calls) | **DONE** | 100% |
-| Phase 6 | Protocol Layer Polish | **DONE** | 90% |
+| Phase 6 | Protocol Layer Polish | **DONE** | 100% |
 | Phase 6.1 | Document Protocol Imports (dto.rs) | **DONE** | 100% |
 | Phase 6.3 | Versioning Documentation | **DONE** | 100% |
 | Phase 6.5 | Forward Compat (all 19 enums) | **DONE** | 100% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
-| Phase 8 | Documentation | Pending | 0% |
-| Phase 8.3 | Dioxus.toml Metadata | Pending | 0% |
+| Phase 8 | Documentation | In Progress | 40% |
+| Phase 8.3 | Dioxus.toml Metadata | **DONE** | 80% |
 
 ---
 
@@ -1531,10 +1533,10 @@ pub struct $name(Uuid);
 
 | Task | Status |
 |------|--------|
-| [ ] Create settings adapter in engine-adapters | Pending |
-| [ ] Move from_env() to adapter | Pending |
-| [ ] Update domain to only define AppSettings struct | Pending |
-| [ ] Update all callers to use adapter | Pending |
+| [x] Create settings_loader.rs in engine-adapters | **DONE** |
+| [x] Move from_env() to load_settings_from_env() | **DONE** |
+| [x] Update domain to only define AppSettings struct | **DONE** |
+| [x] Update all callers via SettingsLoaderFn callback | **DONE** |
 
 ---
 
@@ -1670,10 +1672,12 @@ pub enum DomainError {
 
 | Task | Status |
 |------|--------|
-| [ ] Create error.rs in domain | Pending |
-| [ ] Define DomainError enum with variants | Pending |
-| [ ] Update entities to use DomainError | Pending |
-| [ ] Export from domain lib.rs | Pending |
+| [x] Create error.rs in domain | **DONE** |
+| [x] Define DomainError enum with 6 variants | **DONE** |
+| [x] Add convenience constructors | **DONE** |
+| [x] Add From<DiceParseError> impl | **DONE** |
+| [x] Export from domain lib.rs | **DONE** |
+| [ ] Update entities to use DomainError | Pending (future) |
 
 ---
 
@@ -2189,12 +2193,13 @@ level = "z"  # Maximum size optimization for production
 
 | Task | Status |
 |------|--------|
-| [ ] Create app icons and add to assets | Pending |
-| [ ] Configure bundle.icon with icon paths | Pending |
-| [ ] Write proper short_description | Pending |
-| [ ] Write proper long_description | Pending |
-| [ ] Change identifier to io.github.wrldbldr.player | Pending |
-| [ ] Consider wasm_opt.level = "z" for release builds | Pending |
+| [ ] Create app icons and add to assets | Pending (design work) |
+| [ ] Configure bundle.icon with icon paths | Pending (needs icons) |
+| [x] Write proper short_description | **DONE** |
+| [x] Write proper long_description | **DONE** |
+| [x] Change identifier to io.wrldbldr.player | **DONE** |
+| [x] Set wasm_opt.level = "z" for release builds | **DONE** |
+| [x] Update publisher and category | **DONE** |
 
 ---
 
