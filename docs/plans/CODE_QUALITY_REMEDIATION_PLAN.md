@@ -179,7 +179,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.3.2 | PromptContextService + delete websocket_helpers.rs | **DONE** | 100% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
 | Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
-| Phase 3.0.4 | Fix Player-Side Hexagonal Architecture | **DONE** | 90% |
+| Phase 3.0.4 | Fix Player-Side Hexagonal Architecture | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
 | Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
@@ -1230,8 +1230,37 @@ pub trait WorldStatePort: Send + Sync {
 | [x] Add `wrldbldr-player-adapters` dependency to `player-ui/Cargo.toml` | **DONE** |
 | [x] Update all Platform imports across codebase (24 files) | **DONE** |
 | [x] Verify compilation | **DONE** (commit 3858f61) |
-| [ ] Move MockGameConnectionPort to player-adapters/infrastructure/testing | Pending |
-| [ ] Remove `wrldbldr-player-app` dependency from player-adapters/Cargo.toml | Pending |
+| [x] Move MockGameConnectionPort to player-adapters/infrastructure/testing | **DONE** (commit ccc901e) |
+| [x] Remove `wrldbldr-player-app` dependency from player-adapters/Cargo.toml | **DONE** (commit 29d01ff) |
+
+##### 3.0.4.2 Remove player-adapters → player-app Dependency
+
+**Status**: **DONE** (commit 29d01ff)
+
+**Issue**: `player-adapters/src/infrastructure/message_translator.rs` imports `PlayerEvent` and related types from `player-app/dto/player_events.rs` (1369 lines, 95 usages).
+
+**Analysis**: This violates hexagonal architecture - adapters should not depend on app layer. The `PlayerEvent` enum represents **inbound events** that the application receives from the server.
+
+**Proper location**: `player-ports/src/inbound/player_events.rs` - these are part of the inbound port contract.
+
+**Scope**:
+- 971 lines of types + From impls in new `player-ports/src/inbound/player_events.rs`
+- `message_translator.rs` imports from ports now
+- `player-app/dto/player_events.rs` now just re-exports from ports
+
+**Implementation**:
+| Task | Status |
+|------|--------|
+| [x] Create `player-ports/src/inbound/player_events.rs` with all types | **DONE** |
+| [x] Add From impls to ports (they own the target types) | **DONE** |
+| [x] Update `player-ports/src/lib.rs` to export inbound module | **DONE** |
+| [x] Update `player-ports/src/inbound/mod.rs` to export types | **DONE** |
+| [x] Update `player-adapters/message_translator.rs` imports | **DONE** |
+| [x] Update `player-app/dto/player_events.rs` to re-export from ports | **DONE** |
+| [x] Remove `wrldbldr-player-app` from player-adapters/Cargo.toml | **DONE** |
+| [x] Verify compilation | **DONE** |
+
+**Note**: From implementations moved to ports layer since they own the target types. The orphan rule prevents defining `From<A> for B` when neither trait nor types are local.
 
 ##### Dioxus Context Handling
 
