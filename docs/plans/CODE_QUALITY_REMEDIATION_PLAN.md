@@ -3320,7 +3320,7 @@ cargo test --workspace
 | Domain Utc::now() calls | **51** | **0** (entities) | 0 | **DONE** - Entities accept timestamp param |
 | Protocol imports in services | 14 | **0** | 0 | **DONE** - AdHocOutcomes moved to domain |
 | Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | **1** | 0-1 | **MockClockPort moved to adapters, Tailwind logic to UI** |
-| Business logic in adapters | **4** files (~1,570 lines) | 4 | 0 | Pending |
+| Business logic in adapters | **4** files (~1,570 lines) | 2 | 0 | Partially done - WorldConnectionManager & WorldStateManager remain |
 | Composition root in adapters | **~1,045** lines | **0** | 0 | **DONE** - Moved to engine-runner |
 | Glob re-exports (pub use *) | ~~27~~ **0** | **0** | 0 | **DONE** |
 | Adapters→App dependencies | **2 crates** (73 imports) | **0** | **0** | **DONE** - Zero engine-app imports in engine-adapters |
