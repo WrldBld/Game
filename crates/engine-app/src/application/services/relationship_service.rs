@@ -10,7 +10,9 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
-use wrldbldr_engine_ports::outbound::{RelationshipRepositoryPort, SocialNetwork};
+use wrldbldr_engine_ports::outbound::{
+    RelationshipRepositoryPort, RelationshipServicePort, SocialNetwork,
+};
 
 /// Relationship service trait defining the application use cases
 #[async_trait]
@@ -38,6 +40,7 @@ pub trait RelationshipService: Send + Sync {
 }
 
 /// Default implementation of RelationshipService using port abstractions
+#[derive(Clone)]
 pub struct RelationshipServiceImpl {
     repository: Arc<dyn RelationshipRepositoryPort>,
 }
@@ -122,5 +125,39 @@ impl RelationshipService for RelationshipServiceImpl {
             .get_social_network(world_id)
             .await
             .context("Failed to get social network from repository")
+    }
+}
+
+// =============================================================================
+// RelationshipServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl RelationshipServicePort for RelationshipServiceImpl {
+    async fn get_relationships(&self, character_id: CharacterId) -> Result<Vec<Relationship>> {
+        RelationshipService::get_relationships(self, character_id).await
+    }
+
+    async fn create_relationship(&self, relationship: &Relationship) -> Result<()> {
+        RelationshipService::create_relationship(self, relationship).await
+    }
+
+    async fn update_relationship(&self, relationship: &Relationship) -> Result<()> {
+        RelationshipService::update_relationship(self, relationship).await
+    }
+
+    async fn delete_relationship(&self, relationship_id: RelationshipId) -> Result<()> {
+        RelationshipService::delete_relationship(self, relationship_id).await
+    }
+
+    async fn get_relationship(
+        &self,
+        relationship_id: RelationshipId,
+    ) -> Result<Option<Relationship>> {
+        RelationshipService::get_relationship(self, relationship_id).await
+    }
+
+    async fn get_social_network(&self, world_id: WorldId) -> Result<SocialNetwork> {
+        RelationshipService::get_social_network(self, world_id).await
     }
 }

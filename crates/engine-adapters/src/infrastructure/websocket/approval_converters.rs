@@ -52,7 +52,9 @@ pub fn proto_tools_to_domain(tools: Vec<proto::ProposedToolInfo>) -> Vec<Propose
 // =============================================================================
 
 /// Convert domain ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
-pub fn domain_outcomes_to_proto(domain: &ChallengeSuggestionOutcomes) -> proto::ChallengeSuggestionOutcomes {
+pub fn domain_outcomes_to_proto(
+    domain: &ChallengeSuggestionOutcomes,
+) -> proto::ChallengeSuggestionOutcomes {
     proto::ChallengeSuggestionOutcomes {
         success: domain.success.clone(),
         failure: domain.failure.clone(),
@@ -62,7 +64,9 @@ pub fn domain_outcomes_to_proto(domain: &ChallengeSuggestionOutcomes) -> proto::
 }
 
 /// Convert protocol ChallengeSuggestionOutcomes to domain ChallengeSuggestionOutcomes
-pub fn proto_outcomes_to_domain(proto: proto::ChallengeSuggestionOutcomes) -> ChallengeSuggestionOutcomes {
+pub fn proto_outcomes_to_domain(
+    proto: proto::ChallengeSuggestionOutcomes,
+) -> ChallengeSuggestionOutcomes {
     ChallengeSuggestionOutcomes {
         success: proto.success,
         failure: proto.failure,
@@ -125,7 +129,9 @@ pub fn proto_challenge_suggestion_to_domain(
 // =============================================================================
 
 /// Convert domain NarrativeEventSuggestion to protocol NarrativeEventSuggestionInfo
-pub fn domain_narrative_to_proto(domain: &NarrativeEventSuggestion) -> proto::NarrativeEventSuggestionInfo {
+pub fn domain_narrative_to_proto(
+    domain: &NarrativeEventSuggestion,
+) -> proto::NarrativeEventSuggestionInfo {
     proto::NarrativeEventSuggestionInfo {
         event_id: domain.event_id.clone(),
         event_name: domain.event_name.clone(),
@@ -139,7 +145,9 @@ pub fn domain_narrative_to_proto(domain: &NarrativeEventSuggestion) -> proto::Na
 }
 
 /// Convert protocol NarrativeEventSuggestionInfo to domain NarrativeEventSuggestion
-pub fn proto_narrative_to_domain(proto: proto::NarrativeEventSuggestionInfo) -> NarrativeEventSuggestion {
+pub fn proto_narrative_to_domain(
+    proto: proto::NarrativeEventSuggestionInfo,
+) -> NarrativeEventSuggestion {
     NarrativeEventSuggestion {
         event_id: proto.event_id,
         event_name: proto.event_name,

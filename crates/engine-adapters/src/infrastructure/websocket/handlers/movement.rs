@@ -41,7 +41,13 @@ pub async fn handle_select_player_character(
 
     let input = SelectCharacterInput { pc_id: pc_uuid };
 
-    match state.app.use_cases.movement.select_character(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .movement
+        .select_character(ctx, input)
+        .await
+    {
         Ok(result) => {
             tracing::info!(
                 client_id = %client_id,
@@ -91,7 +97,13 @@ pub async fn handle_move_to_region(
         target_region_id: region_uuid,
     };
 
-    match state.app.use_cases.movement.move_to_region(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .movement
+        .move_to_region(ctx, input)
+        .await
+    {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
         Err(e) => Some(e.into_server_error()),
     }
@@ -139,7 +151,13 @@ pub async fn handle_exit_to_location(
         arrival_region_id: arrival_uuid,
     };
 
-    match state.app.use_cases.movement.exit_to_location(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .movement
+        .exit_to_location(ctx, input)
+        .await
+    {
         Ok(result) => Some(movement_result_to_message(result, &pc_id)),
         Err(e) => Some(e.into_server_error()),
     }

@@ -24,11 +24,16 @@ use std::sync::Arc;
 
 use tracing::{debug, info, instrument, warn};
 
+use async_trait::async_trait;
 use wrldbldr_domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
 use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ChallengeRepositoryPort, CharacterRepositoryPort, NarrativeEventRepositoryPort,
-    PlayerCharacterRepositoryPort, StoryEventRepositoryPort,
+    ChallengeRepositoryPort, CharacterRepositoryPort, CompletedChallenge as PortCompletedChallenge,
+    CompletedNarrativeEvent as PortCompletedNarrativeEvent,
+    GameStateSnapshot as PortGameStateSnapshot, ImmediateContext as PortImmediateContext,
+    NarrativeEventRepositoryPort, PlayerCharacterRepositoryPort, StoryEventRepositoryPort,
+    TriggerEvaluationResult as PortTriggerEvaluationResult, TriggerEvaluationServicePort,
+    TriggerSource as PortTriggerSource, TriggeredEventCandidate as PortTriggeredEventCandidate,
 };
 
 // =============================================================================
@@ -534,6 +539,215 @@ pub struct ImmediateContext {
 
     /// Current turn count
     pub turn_count: u32,
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `TriggerEvaluationServicePort` for `TriggerEvaluationService`.
+///
+/// This exposes trigger evaluation methods to infrastructure adapters.
+#[async_trait]
+impl TriggerEvaluationServicePort for TriggerEvaluationService {
+    async fn evaluate_triggers(
+        &self,
+        world_id: WorldId,
+        game_state: &PortGameStateSnapshot,
+    ) -> anyhow::Result<PortTriggerEvaluationResult> {
+        // Convert port type to internal type
+        let internal_state = GameStateSnapshot {
+            current_location_id: game_state.current_location_id,
+            talking_to_character_id: game_state.talking_to_character_id,
+            just_completed_challenge: game_state.just_completed_challenge.as_ref().map(|c| {
+                CompletedChallenge {
+                    challenge_id: c.challenge_id,
+                    was_successful: c.was_successful,
+                }
+            }),
+            just_completed_event: game_state.just_completed_event.as_ref().map(|e| {
+                CompletedNarrativeEvent {
+                    event_id: e.event_id,
+                    outcome_name: e.outcome_name.clone(),
+                }
+            }),
+            flags: game_state.flags.clone(),
+            inventory: game_state.inventory.clone(),
+            completed_event_ids: game_state.completed_event_ids.clone(),
+            event_outcomes: game_state.event_outcomes.clone(),
+            completed_challenge_ids: game_state.completed_challenge_ids.clone(),
+            challenge_successes: game_state.challenge_successes.clone(),
+            turns_since_event: game_state.turns_since_event.clone(),
+            turn_count: game_state.turn_count,
+            recent_dialogue_topics: game_state.recent_dialogue_topics.clone(),
+        };
+
+        let result = TriggerEvaluationService::evaluate_triggers(self, world_id, &internal_state)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // Convert internal result to port result
+        Ok(PortTriggerEvaluationResult {
+            ready_to_trigger: result
+                .ready_to_trigger
+                .into_iter()
+                .map(|c| PortTriggeredEventCandidate {
+                    event: c.event,
+                    evaluation: c.evaluation,
+                    source: match c.source {
+                        TriggerSource::Engine => PortTriggerSource::Engine,
+                        TriggerSource::Llm => PortTriggerSource::Llm,
+                        TriggerSource::DmManual => PortTriggerSource::DmManual,
+                    },
+                    reason: c.reason,
+                })
+                .collect(),
+            partially_satisfied: result
+                .partially_satisfied
+                .into_iter()
+                .map(|c| PortTriggeredEventCandidate {
+                    event: c.event,
+                    evaluation: c.evaluation,
+                    source: match c.source {
+                        TriggerSource::Engine => PortTriggerSource::Engine,
+                        TriggerSource::Llm => PortTriggerSource::Llm,
+                        TriggerSource::DmManual => PortTriggerSource::DmManual,
+                    },
+                    reason: c.reason,
+                })
+                .collect(),
+            total_evaluated: result.total_evaluated,
+        })
+    }
+
+    async fn check_event_triggers(
+        &self,
+        event_id: NarrativeEventId,
+        game_state: &PortGameStateSnapshot,
+    ) -> anyhow::Result<Option<PortTriggeredEventCandidate>> {
+        // Convert port type to internal type
+        let internal_state = GameStateSnapshot {
+            current_location_id: game_state.current_location_id,
+            talking_to_character_id: game_state.talking_to_character_id,
+            just_completed_challenge: game_state.just_completed_challenge.as_ref().map(|c| {
+                CompletedChallenge {
+                    challenge_id: c.challenge_id,
+                    was_successful: c.was_successful,
+                }
+            }),
+            just_completed_event: game_state.just_completed_event.as_ref().map(|e| {
+                CompletedNarrativeEvent {
+                    event_id: e.event_id,
+                    outcome_name: e.outcome_name.clone(),
+                }
+            }),
+            flags: game_state.flags.clone(),
+            inventory: game_state.inventory.clone(),
+            completed_event_ids: game_state.completed_event_ids.clone(),
+            event_outcomes: game_state.event_outcomes.clone(),
+            completed_challenge_ids: game_state.completed_challenge_ids.clone(),
+            challenge_successes: game_state.challenge_successes.clone(),
+            turns_since_event: game_state.turns_since_event.clone(),
+            turn_count: game_state.turn_count,
+            recent_dialogue_topics: game_state.recent_dialogue_topics.clone(),
+        };
+
+        let result =
+            TriggerEvaluationService::check_event_triggers(self, event_id, &internal_state)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(result.map(|c| PortTriggeredEventCandidate {
+            event: c.event,
+            evaluation: c.evaluation,
+            source: match c.source {
+                TriggerSource::Engine => PortTriggerSource::Engine,
+                TriggerSource::Llm => PortTriggerSource::Llm,
+                TriggerSource::DmManual => PortTriggerSource::DmManual,
+            },
+            reason: c.reason,
+        }))
+    }
+
+    async fn build_game_state_snapshot(
+        &self,
+        world_id: WorldId,
+        player_character_id: Option<wrldbldr_domain::PlayerCharacterId>,
+        immediate_context: Option<PortImmediateContext>,
+    ) -> anyhow::Result<PortGameStateSnapshot> {
+        // Convert port type to internal type
+        let internal_context = immediate_context.map(|ctx| ImmediateContext {
+            just_completed_challenge: ctx.just_completed_challenge.map(|c| CompletedChallenge {
+                challenge_id: c.challenge_id,
+                was_successful: c.was_successful,
+            }),
+            just_completed_event: ctx.just_completed_event.map(|e| CompletedNarrativeEvent {
+                event_id: e.event_id,
+                outcome_name: e.outcome_name,
+            }),
+            talking_to_character_id: ctx.talking_to_character_id,
+            recent_dialogue_topics: ctx.recent_dialogue_topics,
+            game_flags: ctx.game_flags,
+            turn_count: ctx.turn_count,
+        });
+
+        let result = TriggerEvaluationService::build_game_state_snapshot(
+            self,
+            world_id,
+            player_character_id,
+            internal_context,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // Convert internal result to port result
+        Ok(PortGameStateSnapshot {
+            current_location_id: result.current_location_id,
+            talking_to_character_id: result.talking_to_character_id,
+            just_completed_challenge: result.just_completed_challenge.map(|c| {
+                PortCompletedChallenge {
+                    challenge_id: c.challenge_id,
+                    was_successful: c.was_successful,
+                }
+            }),
+            just_completed_event: result.just_completed_event.map(|e| {
+                PortCompletedNarrativeEvent {
+                    event_id: e.event_id,
+                    outcome_name: e.outcome_name,
+                }
+            }),
+            flags: result.flags,
+            inventory: result.inventory,
+            completed_event_ids: result.completed_event_ids,
+            event_outcomes: result.event_outcomes,
+            completed_challenge_ids: result.completed_challenge_ids,
+            challenge_successes: result.challenge_successes,
+            turns_since_event: result.turns_since_event,
+            turn_count: result.turn_count,
+            recent_dialogue_topics: result.recent_dialogue_topics,
+        })
+    }
+
+    async fn create_llm_suggestion(
+        &self,
+        event_id: NarrativeEventId,
+        reason: String,
+    ) -> anyhow::Result<Option<PortTriggeredEventCandidate>> {
+        let result = TriggerEvaluationService::create_llm_suggestion(self, event_id, reason)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(result.map(|c| PortTriggeredEventCandidate {
+            event: c.event,
+            evaluation: c.evaluation,
+            source: match c.source {
+                TriggerSource::Engine => PortTriggerSource::Engine,
+                TriggerSource::Llm => PortTriggerSource::Llm,
+                TriggerSource::DmManual => PortTriggerSource::DmManual,
+            },
+            reason: c.reason,
+        }))
+    }
 }
 
 #[cfg(test)]

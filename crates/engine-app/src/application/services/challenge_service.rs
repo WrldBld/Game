@@ -19,7 +19,7 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
 use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ChallengeRepositoryPort, ChallengeServicePort};
 
 /// Challenge service trait defining the application use cases
 #[async_trait]
@@ -479,6 +479,67 @@ impl ChallengeService for ChallengeServiceImpl {
             .remove_unlock_location(challenge_id, location_id)
             .await
             .context("Failed to remove unlock location")
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `ChallengeServicePort` for `ChallengeServiceImpl`.
+///
+/// This exposes a read-only subset of the service methods to infrastructure adapters
+/// (e.g., WebSocket helpers, prompt builders) without giving them access to mutation methods.
+#[async_trait]
+impl ChallengeServicePort for ChallengeServiceImpl {
+    async fn get_challenge(&self, id: ChallengeId) -> Result<Option<Challenge>> {
+        ChallengeService::get_challenge(self, id).await
+    }
+
+    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>> {
+        ChallengeService::list_by_scene(self, scene_id).await
+    }
+
+    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Challenge>> {
+        ChallengeService::list_by_location(self, location_id).await
+    }
+
+    async fn list_challenges(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
+        ChallengeService::list_challenges(self, world_id).await
+    }
+
+    async fn list_active(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
+        ChallengeService::list_active(self, world_id).await
+    }
+
+    async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
+        ChallengeService::list_favorites(self, world_id).await
+    }
+
+    async fn get_required_skill(&self, challenge_id: ChallengeId) -> Result<Option<SkillId>> {
+        ChallengeService::get_required_skill(self, challenge_id).await
+    }
+
+    async fn get_tied_scene(&self, challenge_id: ChallengeId) -> Result<Option<SceneId>> {
+        ChallengeService::get_tied_scene(self, challenge_id).await
+    }
+
+    async fn get_prerequisites(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengePrerequisite>> {
+        ChallengeService::get_prerequisites(self, challenge_id).await
+    }
+
+    async fn get_location_availabilities(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengeLocationAvailability>> {
+        ChallengeService::get_location_availabilities(self, challenge_id).await
+    }
+
+    async fn get_unlock_locations(&self, challenge_id: ChallengeId) -> Result<Vec<LocationId>> {
+        ChallengeService::get_unlock_locations(self, challenge_id).await
     }
 }
 

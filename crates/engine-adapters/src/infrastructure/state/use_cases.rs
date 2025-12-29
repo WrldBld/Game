@@ -139,10 +139,19 @@ impl UseCases {
         pc_service: Arc<dyn PlayerCharacterService>,
         // Challenge dependencies
         challenge_resolution_service: Arc<
-            ChallengeResolutionService<CS, KS, QueueBackendEnum<ApprovalRequestData>, PCS, COAL, IS>,
+            ChallengeResolutionService<
+                CS,
+                KS,
+                QueueBackendEnum<ApprovalRequestData>,
+                PCS,
+                COAL,
+                IS,
+            >,
         >,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<COAL>>,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, IS>>,
+        dm_approval_queue_service: Arc<
+            DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, IS>,
+        >,
         // Narrative event dependencies
         narrative_event_approval_service: Arc<
             NarrativeEventApprovalService<NarrativeEventServiceImpl>,

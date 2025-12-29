@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_app::application::services::GenerationQueueSnapshot;
-use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueueItemStatus, QueuePort};
+use wrldbldr_engine_ports::outbound::GenerationQueueSnapshot;
+use wrldbldr_engine_ports::outbound::QueueItemStatus;
 
 /// Create queue-related routes
 pub fn create_queue_routes() -> Router<Arc<AdapterState>> {
@@ -42,7 +42,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .llm_queue_service
-        .queue()
         .depth()
         .await
         .unwrap_or(0);
@@ -51,7 +50,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .llm_queue_service
-        .queue()
         .processing_count()
         .await
         .unwrap_or(0);
@@ -60,7 +58,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .dm_approval_queue_service
-        .queue()
         .depth()
         .await
         .unwrap_or(0);
@@ -69,7 +66,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .asset_generation_queue_service
-        .queue()
         .depth()
         .await
         .unwrap_or(0);
@@ -78,7 +74,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .asset_generation_queue_service
-        .queue()
         .processing_count()
         .await
         .unwrap_or(0);
@@ -91,7 +86,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .player_action_queue_service
-        .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -106,7 +100,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .llm_queue_service
-        .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -121,7 +114,6 @@ async fn queue_health_check(State(state): State<Arc<AdapterState>>) -> Json<serd
         .app
         .queues
         .asset_generation_queue_service
-        .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -205,7 +197,7 @@ pub async fn get_generation_queue(
         .app
         .assets
         .generation_queue_projection_service
-        .project_queue(user_id.as_deref(), world_id)
+        .project_queue(user_id.map(|s| s.to_string()), world_id)
         .await
         .unwrap_or_else(|e| {
             tracing::error!("Failed to project generation queue: {}", e);

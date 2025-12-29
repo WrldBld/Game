@@ -12,7 +12,8 @@ use wrldbldr_domain::entities::CharacterSheetData;
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, LocationRepositoryPort, PlayerCharacterRepositoryPort, WorldRepositoryPort,
+    ClockPort, LocationRepositoryPort, PlayerCharacterRepositoryPort, PlayerCharacterServicePort,
+    WorldRepositoryPort,
 };
 
 /// Request to create a new player character
@@ -329,5 +330,25 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         // Default to 0 if no sheet data or skill not found
         debug!(pc_id = %id, skill_id = %skill_id, "No skill modifier found, defaulting to 0");
         Ok(0)
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl PlayerCharacterServicePort for PlayerCharacterServiceImpl {
+    async fn get_player_character(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
+        PlayerCharacterService::get_pc(self, id).await
+    }
+
+    async fn get_by_world_and_user(
+        &self,
+        world_id: WorldId,
+        user_id: &str,
+    ) -> Result<Option<PlayerCharacter>> {
+        PlayerCharacterService::get_pc_by_user_and_world(self, user_id, &world_id).await
+    }
+
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterService::get_pcs_by_world(self, &world_id).await
     }
 }

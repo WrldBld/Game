@@ -8,6 +8,7 @@
 //! - Managing staging history
 
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -18,8 +19,9 @@ use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventRepositoryPort,
-    RegionRepositoryPort, StagingRepositoryPort,
+    ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
+    NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcProposal as PortStagedNpcProposal,
+    StagingProposal as PortStagingProposal, StagingRepositoryPort, StagingServicePort,
 };
 
 // Re-export staging DTOs from engine-dto for backwards compatibility
@@ -470,6 +472,126 @@ fn extract_json_array(text: &str) -> Option<String> {
         Some(text[start..=end].to_string())
     } else {
         None
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl<L, R, N, S> StagingServicePort for StagingService<L, R, N, S>
+where
+    L: LlmPort + Send + Sync + 'static,
+    R: RegionRepositoryPort + Send + Sync + 'static,
+    N: NarrativeEventRepositoryPort + Send + Sync + 'static,
+    S: StagingRepositoryPort + Send + Sync + 'static,
+{
+    async fn get_current_staging(
+        &self,
+        region_id: RegionId,
+        game_time: GameTime,
+    ) -> Result<Option<Staging>> {
+        self.get_current_staging(region_id, &game_time).await
+    }
+
+    async fn generate_proposal(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+        location_id: LocationId,
+        location_name: String,
+        game_time: GameTime,
+        ttl_hours: i32,
+        dm_guidance: Option<String>,
+    ) -> Result<PortStagingProposal> {
+        let proposal = self
+            .generate_proposal(
+                world_id,
+                region_id,
+                location_id,
+                &location_name,
+                &game_time,
+                ttl_hours,
+                dm_guidance.as_deref(),
+            )
+            .await?;
+
+        // Convert StagingProposal (engine-dto) to PortStagingProposal (port)
+        Ok(PortStagingProposal {
+            request_id: proposal.request_id,
+            region_id: proposal.region_id,
+            location_id: proposal.location_id,
+            world_id: proposal.world_id,
+            rule_based_npcs: proposal
+                .rule_based_npcs
+                .into_iter()
+                .map(|n| PortStagedNpcProposal {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    is_hidden_from_players: n.is_hidden_from_players,
+                    reasoning: n.reasoning,
+                })
+                .collect(),
+            llm_based_npcs: proposal
+                .llm_based_npcs
+                .into_iter()
+                .map(|n| PortStagedNpcProposal {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    is_hidden_from_players: n.is_hidden_from_players,
+                    reasoning: n.reasoning,
+                })
+                .collect(),
+            default_ttl_hours: proposal.default_ttl_hours,
+            context: proposal.context,
+        })
+    }
+
+    async fn approve_staging(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        game_time: GameTime,
+        approved_npcs: Vec<PortApprovedNpc>,
+        ttl_hours: i32,
+        source: StagingSource,
+        approved_by: String,
+        dm_guidance: Option<String>,
+    ) -> Result<Staging> {
+        // Convert PortApprovedNpc to ApprovedNpcData
+        let approved_npc_data: Vec<ApprovedNpcData> = approved_npcs
+            .into_iter()
+            .map(|n| ApprovedNpcData {
+                character_id: n.character_id,
+                name: n.name,
+                sprite_asset: n.sprite_asset,
+                portrait_asset: n.portrait_asset,
+                is_present: n.is_present,
+                is_hidden_from_players: n.is_hidden_from_players,
+                reasoning: n.reasoning,
+            })
+            .collect();
+
+        self.approve_staging(
+            region_id,
+            location_id,
+            world_id,
+            &game_time,
+            approved_npc_data,
+            ttl_hours,
+            source,
+            &approved_by,
+            dm_guidance,
+        )
+        .await
     }
 }
 

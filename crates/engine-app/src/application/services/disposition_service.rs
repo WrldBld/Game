@@ -24,7 +24,7 @@ use wrldbldr_domain::value_objects::{
     DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, ClockPort};
+use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, ClockPort, DispositionServicePort};
 
 /// Disposition service trait defining the application use cases
 #[async_trait]
@@ -149,7 +149,7 @@ impl DispositionService for DispositionServiceImpl {
         debug!(npc_id = %npc_id, pc_id = %pc_id, disposition = ?disposition, "Setting NPC disposition");
 
         // Get or create the disposition state
-        let mut disposition_state = self.get_disposition(npc_id, pc_id).await?;
+        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
 
         // Update the disposition
         disposition_state.set_disposition(disposition, reason, self.clock.now());
@@ -171,7 +171,7 @@ impl DispositionService for DispositionServiceImpl {
     ) -> Result<NpcDispositionState> {
         debug!(npc_id = %npc_id, pc_id = %pc_id, outcome = ?outcome, "Applying interaction outcome");
 
-        let mut disposition_state = self.get_disposition(npc_id, pc_id).await?;
+        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
 
         let now = self.clock.now();
         match outcome {
@@ -295,7 +295,7 @@ impl DispositionService for DispositionServiceImpl {
     ) -> Result<NpcDispositionState> {
         debug!(npc_id = %npc_id, pc_id = %pc_id, relationship = ?relationship, "Setting NPC relationship");
 
-        let mut disposition_state = self.get_disposition(npc_id, pc_id).await?;
+        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
         disposition_state.relationship = relationship;
 
         // Adjust relationship_points to match the new level
@@ -314,6 +314,79 @@ impl DispositionService for DispositionServiceImpl {
             .await?;
 
         Ok(disposition_state)
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `DispositionServicePort` for `DispositionServiceImpl`.
+///
+/// This exposes the disposition service methods to infrastructure adapters.
+#[async_trait]
+impl DispositionServicePort for DispositionServiceImpl {
+    async fn get_disposition(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<NpcDispositionState> {
+        DispositionService::get_disposition(self, npc_id, pc_id).await
+    }
+
+    async fn set_disposition(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+        disposition: DispositionLevel,
+        reason: Option<String>,
+    ) -> Result<NpcDispositionState> {
+        DispositionService::set_disposition(self, npc_id, pc_id, disposition, reason).await
+    }
+
+    async fn apply_interaction(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+        outcome: InteractionOutcome,
+    ) -> Result<NpcDispositionState> {
+        DispositionService::apply_interaction(self, npc_id, pc_id, outcome).await
+    }
+
+    async fn get_scene_dispositions(
+        &self,
+        npc_ids: &[CharacterId],
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>> {
+        DispositionService::get_scene_dispositions(self, npc_ids, pc_id).await
+    }
+
+    async fn get_all_relationships(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>> {
+        DispositionService::get_all_relationships(self, pc_id).await
+    }
+
+    async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel> {
+        DispositionService::get_default_disposition(self, npc_id).await
+    }
+
+    async fn set_default_disposition(
+        &self,
+        npc_id: CharacterId,
+        disposition: DispositionLevel,
+    ) -> Result<()> {
+        DispositionService::set_default_disposition(self, npc_id, disposition).await
+    }
+
+    async fn set_relationship(
+        &self,
+        npc_id: CharacterId,
+        pc_id: PlayerCharacterId,
+        relationship: RelationshipLevel,
+    ) -> Result<NpcDispositionState> {
+        DispositionService::set_relationship(self, npc_id, pc_id, relationship).await
     }
 }
 

@@ -21,7 +21,8 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, LocationRepositoryPort, SceneRepositoryPort,
+    CharacterRepositoryPort, LocationRepositoryPort, SceneRepositoryPort, SceneServicePort,
+    SceneWithRelations as PortSceneWithRelations,
 };
 
 /// Request to create a new scene
@@ -538,6 +539,27 @@ impl SceneService for SceneServiceImpl {
 
         debug!(scene_id = %scene_id, "Added entry condition to scene");
         Ok(scene)
+    }
+}
+
+// =============================================================================
+// SceneServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl SceneServicePort for SceneServiceImpl {
+    async fn get_scene_with_relations(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Option<PortSceneWithRelations>> {
+        // Delegate to the service method and convert the result
+        let result = SceneService::get_scene_with_relations(self, scene_id).await?;
+
+        Ok(result.map(|swr| PortSceneWithRelations {
+            scene: swr.scene,
+            location: swr.location,
+            featured_characters: swr.featured_characters,
+        }))
     }
 }
 

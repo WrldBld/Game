@@ -13,16 +13,16 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wrldbldr_engine_app::application::services::{
     ChallengeApprovalEventPublisher, GenerationEventPublisher,
 };
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, QueueNotificationPort, QueuePort};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, QueueNotificationPort};
 
-use wrldbldr_engine_adapters::infrastructure;
-use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
-use wrldbldr_engine_adapters::infrastructure::http;
 use super::queue_workers::{
     approval_notification_worker, challenge_outcome_notification_worker, dm_action_worker,
 };
+use wrldbldr_engine_adapters::infrastructure;
+use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
+use wrldbldr_engine_adapters::infrastructure::http;
 
-use crate::composition::new_app_state;
+use crate::composition::{new_adapter_state, AdapterState};
 
 /// Creates a cancellation token and spawns a task that cancels it on SIGTERM/SIGINT
 fn setup_shutdown_signal(cancel_token: CancellationToken) {
@@ -83,19 +83,22 @@ pub async fn run() -> Result<()> {
     tracing::info!("  Ollama: {}", config.ollama_base_url);
     tracing::info!("  ComfyUI: {}", config.comfyui_base_url);
 
-    // Initialize application state
-    let (state, generation_event_rx, challenge_approval_rx) = new_app_state(config).await?;
-    let state = Arc::new(state);
+    // Initialize application state (adapter state wraps app state with infrastructure types)
+    // Also returns worker services with concrete queue types for background workers
+    let (state, worker_services, generation_event_rx, challenge_approval_rx) =
+        new_adapter_state(config.clone()).await?;
+    let state: Arc<AdapterState> = Arc::new(state);
     tracing::info!("Application state initialized");
 
-    // Clone queue config for workers
-    let queue_config = state.config.queue.clone();
+    // Clone queue config for workers (from adapter-layer config, not composition AppConfig)
+    let queue_config = config.queue.clone();
     let recovery_interval =
         std::time::Duration::from_secs(queue_config.recovery_poll_interval_seconds);
 
     // Start background queue workers
+    // These use concrete service types from WorkerServices, not port traits
     let llm_worker = {
-        let service = state.queues.llm_queue_service.clone();
+        let service = worker_services.llm_queue_service.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -105,7 +108,7 @@ pub async fn run() -> Result<()> {
     };
 
     let asset_worker = {
-        let service = state.queues.asset_generation_queue_service.clone();
+        let service = worker_services.asset_generation_queue_service.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -116,8 +119,9 @@ pub async fn run() -> Result<()> {
 
     // Player action queue worker (processes actions and routes to LLM queue)
     let player_action_worker = {
-        let service = state.queues.player_action_queue_service.clone();
-        let prompt_context_service = state.prompt_context_service.clone();
+        let service = worker_services.player_action_queue_service.clone();
+        // Use the app-layer prompt context service (not port trait) which has the right method signature
+        let prompt_context_service = worker_services.prompt_context_service.clone();
         let notifier = service.queue().notifier();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
@@ -168,8 +172,8 @@ pub async fn run() -> Result<()> {
 
     // Approval notification worker (sends ApprovalRequired messages to DM)
     let approval_notification_worker_task = {
-        let service = state.queues.dm_approval_queue_service.clone();
-        let world_connection_manager = state.world_connection_manager.clone();
+        let service = worker_services.dm_approval_queue_service.clone();
+        let world_connection_manager = state.connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -185,12 +189,12 @@ pub async fn run() -> Result<()> {
 
     // DM action queue worker (processes approval decisions and other DM actions)
     let dm_action_worker_task = {
-        let service = state.queues.dm_action_queue_service.clone();
-        let approval_service = state.queues.dm_approval_queue_service.clone();
-        let narrative_event_service = state.game.narrative_event_service.clone();
-        let scene_service = state.core.scene_service.clone();
-        let interaction_service = state.core.interaction_service.clone();
-        let world_connection_manager = state.world_connection_manager.clone();
+        let service = worker_services.dm_action_queue_service.clone();
+        let approval_service = worker_services.dm_approval_queue_service.clone();
+        let narrative_event_service = state.app.game.narrative_event_service.clone();
+        let scene_service = state.app.core.scene_service.clone();
+        let interaction_service = state.app.core.interaction_service.clone();
+        let world_connection_manager = state.connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -210,8 +214,8 @@ pub async fn run() -> Result<()> {
 
     // Challenge outcome notification worker (sends pending challenge outcomes to DM)
     let challenge_outcome_worker_task = {
-        let challenge_queue = state.queues.challenge_outcome_queue.clone();
-        let world_connection_manager = state.world_connection_manager.clone();
+        let challenge_queue = worker_services.challenge_outcome_queue.clone();
+        let world_connection_manager = state.connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -226,11 +230,12 @@ pub async fn run() -> Result<()> {
     };
 
     // Cleanup worker (removes old completed/failed queue items)
+    // Uses concrete services from WorkerServices for queue() accessor
     let cleanup_worker = {
-        let player_action_service = state.queues.player_action_queue_service.clone();
-        let llm_service = state.queues.llm_queue_service.clone();
-        let approval_service = state.queues.dm_approval_queue_service.clone();
-        let asset_service = state.queues.asset_generation_queue_service.clone();
+        let player_action_service = worker_services.player_action_queue_service.clone();
+        let llm_service = worker_services.llm_queue_service.clone();
+        let approval_service = worker_services.dm_approval_queue_service.clone();
+        let asset_service = worker_services.asset_generation_queue_service.clone();
         let queue_config_clone = queue_config.clone();
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -246,13 +251,13 @@ pub async fn run() -> Result<()> {
                     queue_config_clone.history_retention_hours * 3600,
                 );
 
-                // Cleanup all queues
-                let _ = player_action_service.queue().cleanup(retention).await;
-                let _ = llm_service.queue().cleanup(retention).await;
-                let _ = approval_service.queue().cleanup(retention).await;
-                let _ = asset_service.queue().cleanup(retention).await;
+                // Cleanup all queues using the port trait cleanup methods
+                let _ = player_action_service.cleanup(retention).await;
+                let _ = llm_service.cleanup(retention).await;
+                let _ = approval_service.cleanup(retention).await;
+                let _ = asset_service.cleanup(retention).await;
 
-                // Expire old approvals
+                // Expire old approvals using the concrete service's queue() accessor
                 let approval_timeout = std::time::Duration::from_secs(
                     queue_config_clone.approval_timeout_minutes * 60,
                 );
@@ -274,7 +279,7 @@ pub async fn run() -> Result<()> {
 
     // Generation event publisher (converts GenerationEvents to AppEvents and publishes to event bus)
     let generation_event_worker = {
-        let event_bus = state.events.event_bus.clone();
+        let event_bus = state.app.events.event_bus.clone();
         let publisher = GenerationEventPublisher::new(event_bus);
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -285,7 +290,7 @@ pub async fn run() -> Result<()> {
 
     // Challenge approval event publisher (converts ChallengeApprovalEvents to GameEvents and broadcasts via BroadcastPort)
     let challenge_approval_worker = {
-        let broadcast_port = state.use_cases.broadcast.clone();
+        let broadcast_port = state.app.use_cases.broadcast.clone();
         let publisher = ChallengeApprovalEventPublisher::new(broadcast_port);
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -294,9 +299,9 @@ pub async fn run() -> Result<()> {
         })
     };
 
-    // Build CORS layer based on configuration
-    let cors_layer = if state.config.cors_allowed_origins.len() == 1
-        && state.config.cors_allowed_origins[0] == "*"
+    // Build CORS layer based on configuration (from adapter-layer config)
+    let cors_layer = if config.cors_allowed_origins.len() == 1
+        && config.cors_allowed_origins[0] == "*"
     {
         tracing::warn!("CORS configured to allow ANY origin - this is insecure for production!");
         CorsLayer::new()
@@ -304,15 +309,14 @@ pub async fn run() -> Result<()> {
             .allow_methods(Any)
             .allow_headers(Any)
     } else {
-        let origins: Vec<_> = state
-            .config
+        let origins: Vec<_> = config
             .cors_allowed_origins
             .iter()
             .filter_map(|origin| origin.parse().ok())
             .collect();
         tracing::info!(
             "CORS configured for origins: {:?}",
-            state.config.cors_allowed_origins
+            config.cors_allowed_origins
         );
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(origins))
@@ -329,8 +333,8 @@ pub async fn run() -> Result<()> {
         .layer(cors_layer)
         .with_state(state.clone());
 
-    // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], state.config.server_port));
+    // Start server (use adapter-layer config for server_port)
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
 
     let server = axum::serve(tokio::net::TcpListener::bind(addr).await?, app)

@@ -91,7 +91,9 @@ async fn get_world_settings(
     })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    Ok(Json(state.app.settings_service.get_for_world(world_id).await))
+    Ok(Json(
+        state.app.settings_service.get_for_world(world_id).await,
+    ))
 }
 
 async fn update_world_settings(
@@ -115,7 +117,9 @@ async fn update_world_settings(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return the updated settings with world_id set
-    Ok(Json(state.app.settings_service.get_for_world(world_id).await))
+    Ok(Json(
+        state.app.settings_service.get_for_world(world_id).await,
+    ))
 }
 
 async fn reset_world_settings(

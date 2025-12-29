@@ -17,8 +17,12 @@ use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, Paci
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
 use wrldbldr_engine_ports::inbound::{
-    DirectorialContextData, DirectorialContextPort, NpcMotivation, PcData,
-    PlayerCharacterServicePort, WorldServicePort,
+    DirectorialContextData,
+    DirectorialContextPort,
+    NpcMotivation,
+    PcData,
+    PlayerCharacterServicePort,
+    WorldServicePort,
     WorldStatePort as InboundWorldStatePort, // Use case port (set_current_scene, set_directorial_context)
 };
 use wrldbldr_engine_ports::outbound::{

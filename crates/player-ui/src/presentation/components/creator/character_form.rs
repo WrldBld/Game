@@ -9,10 +9,10 @@ use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};
-use wrldbldr_player_adapters::Platform;
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[

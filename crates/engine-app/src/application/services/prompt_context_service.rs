@@ -222,7 +222,11 @@ impl PromptContextService for PromptContextServiceImpl {
 
         // 9. Find responding character (NPC being addressed) with mood and actantial context
         let responding_character = self
-            .find_responding_character(&action.target, &snapshot.characters, action.pc_id.map(|id| id.to_uuid()))
+            .find_responding_character(
+                &action.target,
+                &snapshot.characters,
+                action.pc_id.map(|id| id.to_uuid()),
+            )
             .await;
 
         // 10. Get active challenges for the current scene

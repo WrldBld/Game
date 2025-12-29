@@ -118,7 +118,10 @@ pub async fn extract_context_opt(state: &AdapterState, client_id: Uuid) -> Optio
 /// Extract DM context (Option-based).
 ///
 /// Returns None if connection not found, not in world, or not a DM.
-pub async fn extract_dm_context_opt(state: &AdapterState, client_id: Uuid) -> Option<UseCaseContext> {
+pub async fn extract_dm_context_opt(
+    state: &AdapterState,
+    client_id: Uuid,
+) -> Option<UseCaseContext> {
     extract_context_opt(state, client_id)
         .await
         .filter(|c| c.is_dm)

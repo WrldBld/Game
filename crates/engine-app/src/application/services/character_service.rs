@@ -18,9 +18,10 @@ use tracing::{debug, info, instrument};
 use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
 use wrldbldr_domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
-use wrldbldr_domain::{CharacterId, WantId, WorldId};
+use wrldbldr_domain::{CharacterId, SceneId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, RelationshipRepositoryPort, WorldRepositoryPort,
+    CharacterRepositoryPort, CharacterServicePort, ClockPort, RelationshipRepositoryPort,
+    WorldRepositoryPort,
 };
 
 /// Request to create a new character
@@ -144,6 +145,7 @@ pub trait CharacterService: Send + Sync {
 }
 
 /// Default implementation of CharacterService using port abstractions
+#[derive(Clone)]
 pub struct CharacterServiceImpl {
     world_repository: Arc<dyn WorldRepositoryPort>,
     character_repository: Arc<dyn CharacterRepositoryPort>,
@@ -638,6 +640,28 @@ impl CharacterService for CharacterServiceImpl {
             character.name
         );
         Ok(character)
+    }
+}
+
+// =============================================================================
+// CharacterServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl CharacterServicePort for CharacterServiceImpl {
+    async fn get_character(&self, id: CharacterId) -> Result<Option<Character>> {
+        CharacterService::get_character(self, id).await
+    }
+
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Character>> {
+        CharacterService::list_characters(self, world_id).await
+    }
+
+    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<Character>> {
+        self.character_repository
+            .get_by_scene(scene_id)
+            .await
+            .context("Failed to list characters by scene")
     }
 }
 

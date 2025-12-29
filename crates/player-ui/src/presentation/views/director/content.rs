@@ -20,11 +20,11 @@ use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
 };
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
 use wrldbldr_player_app::application::services::SessionCommandService;
-use wrldbldr_player_adapters::Platform;
 
 /// The original Director mode content (directing gameplay)
 #[component]

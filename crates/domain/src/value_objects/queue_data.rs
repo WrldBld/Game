@@ -297,7 +297,9 @@ pub enum ApprovalDecisionType {
 ///
 /// Higher urgency items should be prioritized by the DM
 /// to avoid blocking game flow.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum ApprovalUrgency {
     /// Normal priority - can wait
     Normal,

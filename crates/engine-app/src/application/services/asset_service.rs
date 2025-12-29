@@ -10,7 +10,9 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
+use wrldbldr_engine_ports::outbound::{
+    AssetRepositoryPort, AssetServicePort, ClockPort, CreateAssetRequest as PortCreateAssetRequest,
+};
 
 /// Request to create a new asset
 #[derive(Debug, Clone)]
@@ -319,6 +321,76 @@ impl AssetService for AssetServiceImpl {
 
         info!(batch_id = %batch_id, "Deleted batch");
         Ok(())
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl AssetServicePort for AssetServiceImpl {
+    async fn get_asset(&self, asset_id: AssetId) -> Result<Option<GalleryAsset>> {
+        AssetService::get_asset(self, asset_id).await
+    }
+
+    async fn list_assets(
+        &self,
+        entity_type: EntityType,
+        entity_id: &str,
+    ) -> Result<Vec<GalleryAsset>> {
+        AssetService::list_assets(self, entity_type, entity_id).await
+    }
+
+    async fn create_asset(&self, request: PortCreateAssetRequest) -> Result<GalleryAsset> {
+        let internal_request = CreateAssetRequest {
+            entity_type: request.entity_type,
+            entity_id: request.entity_id,
+            asset_type: request.asset_type,
+            file_path: request.file_path,
+            label: request.label,
+        };
+        AssetService::create_asset(self, internal_request).await
+    }
+
+    async fn update_asset_label(&self, asset_id: AssetId, label: Option<String>) -> Result<()> {
+        AssetService::update_asset_label(self, asset_id, label).await
+    }
+
+    async fn delete_asset(&self, asset_id: AssetId) -> Result<()> {
+        AssetService::delete_asset(self, asset_id).await
+    }
+
+    async fn activate_asset(&self, asset_id: AssetId) -> Result<()> {
+        AssetService::activate_asset(self, asset_id).await
+    }
+
+    async fn create_batch(&self, batch: GenerationBatch) -> Result<GenerationBatch> {
+        AssetService::create_batch(self, batch).await
+    }
+
+    async fn get_batch(&self, batch_id: BatchId) -> Result<Option<GenerationBatch>> {
+        AssetService::get_batch(self, batch_id).await
+    }
+
+    async fn list_active_batches_by_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<GenerationBatch>> {
+        AssetService::list_active_batches_by_world(self, world_id).await
+    }
+
+    async fn list_ready_batches(&self) -> Result<Vec<GenerationBatch>> {
+        AssetService::list_ready_batches(self).await
+    }
+
+    async fn update_batch_status(&self, batch_id: BatchId, status: BatchStatus) -> Result<()> {
+        AssetService::update_batch_status(self, batch_id, status).await
+    }
+
+    async fn update_batch_assets(&self, batch_id: BatchId, assets: Vec<AssetId>) -> Result<()> {
+        AssetService::update_batch_assets(self, batch_id, assets).await
+    }
+
+    async fn delete_batch(&self, batch_id: BatchId) -> Result<()> {
+        AssetService::delete_batch(self, batch_id).await
     }
 }
 

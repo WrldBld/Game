@@ -9,12 +9,12 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_world_service;
 use crate::presentation::state::GameState;
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::WorldSummary;
-use wrldbldr_player_adapters::Platform;
 
 /// Props for WorldSelectView
 #[derive(Props, Clone, PartialEq)]

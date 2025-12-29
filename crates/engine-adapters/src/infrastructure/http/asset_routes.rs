@@ -17,7 +17,7 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::WorldId;
 use wrldbldr_domain::{AssetId, BatchId};
-use wrldbldr_engine_app::application::services::{AssetService, CreateAssetRequest};
+use wrldbldr_engine_ports::outbound::CreateAssetRequest;
 use wrldbldr_protocol::{
     GalleryAssetResponseDto, GenerateAssetRequestDto, GenerationBatchResponseDto,
     SelectFromBatchRequestDto, UpdateAssetLabelRequestDto, UploadAssetRequestDto,
@@ -52,8 +52,8 @@ pub async fn upload_character_asset(
     Path(character_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type = AssetType::from_str(&req.asset_type)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let asset_type =
+        AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Character,
@@ -175,8 +175,8 @@ pub async fn upload_location_asset(
     Path(location_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type = AssetType::from_str(&req.asset_type)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let asset_type =
+        AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Location,
@@ -278,8 +278,8 @@ pub async fn upload_item_asset(
     Path(item_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type = AssetType::from_str(&req.asset_type)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let asset_type =
+        AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Item,
@@ -363,11 +363,11 @@ pub async fn queue_generation(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    let entity_type = EntityType::from_str(&req.entity_type)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let entity_type =
+        EntityType::from_str(&req.entity_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    let asset_type = AssetType::from_str(&req.asset_type)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    let asset_type =
+        AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let mut batch = GenerationBatch::new(
         world_id,
@@ -404,13 +404,15 @@ pub async fn queue_generation(
 
     // Queue generation jobs for each image in the batch
     for i in 0..batch.count {
-        let generation_item = wrldbldr_domain::value_objects::AssetGenerationData {
+        let generation_item = wrldbldr_engine_ports::outbound::AssetGenerationRequest {
             world_id: None, // Generation requests don't require world context
             entity_type: format!("{:?}", batch.entity_type),
             entity_id: batch.entity_id.clone(),
             workflow_id: batch.workflow.clone(),
             prompt: batch.prompt.clone(),
             count: 1, // Each item generates one image
+            negative_prompt: None,
+            style_reference_id: None,
         };
 
         match state

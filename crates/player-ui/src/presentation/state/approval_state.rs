@@ -5,11 +5,11 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
 
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeBranchData,
     ProposedToolInfo,
 };
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// A pending approval request from the LLM that the DM needs to review

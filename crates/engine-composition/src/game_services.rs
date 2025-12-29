@@ -43,10 +43,10 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    ChallengeServicePort, DispositionServicePort, EventChainServicePort, EventEffectExecutorPort,
-    NarrativeEventApprovalServicePort, NarrativeEventServicePort, StoryEventServicePort,
-    TriggerEvaluationServicePort,
+    ActantialContextServicePort, ChallengeOutcomeApprovalServicePort,
+    ChallengeResolutionServicePort, ChallengeServicePort, DispositionServicePort,
+    EventChainServicePort, EventEffectExecutorPort, NarrativeEventApprovalServicePort,
+    NarrativeEventServicePort, StoryEventServicePort, TriggerEvaluationServicePort,
 };
 
 /// Container for game mechanics and narrative services.

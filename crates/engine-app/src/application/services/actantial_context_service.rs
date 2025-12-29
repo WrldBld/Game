@@ -22,8 +22,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort,
-    WantRepositoryPort,
+    ActantialContextServicePort, CharacterRepositoryPort, ClockPort, GoalRepositoryPort,
+    PlayerCharacterRepositoryPort, WantRepositoryPort,
 };
 
 // =============================================================================
@@ -360,7 +360,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
 
     #[instrument(skip(self))]
     async fn get_llm_context(&self, character_id: CharacterId) -> Result<ActantialLLMContext> {
-        let context = self.get_context(character_id).await?;
+        let context = ActantialContextService::get_context(self, character_id).await?;
         Ok(ActantialLLMContext::from_context(&context))
     }
 
@@ -370,7 +370,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
         character_id: CharacterId,
         include_secrets: bool,
     ) -> Result<String> {
-        let context = self.get_context(character_id).await?;
+        let context = ActantialContextService::get_context(self, character_id).await?;
         Ok(context.to_llm_string(include_secrets))
     }
 
@@ -647,6 +647,20 @@ impl ActantialContextService for ActantialContextServiceImpl {
         let want = self.want_repo.get(want_id).await?;
         debug!(want_id = %want_id, found = want.is_some(), "Got want");
         Ok(want)
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `ActantialContextServicePort` for `ActantialContextServiceImpl`.
+///
+/// This exposes the read-only context retrieval method to infrastructure adapters.
+#[async_trait]
+impl ActantialContextServicePort for ActantialContextServiceImpl {
+    async fn get_context(&self, character_id: CharacterId) -> Result<ActantialContext> {
+        ActantialContextService::get_context(self, character_id).await
     }
 }
 

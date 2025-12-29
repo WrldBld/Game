@@ -179,4 +179,7 @@ pub trait LlmQueueServicePort: Send + Sync {
 
     /// Get all items with a given status
     async fn list_by_status(&self, status: QueueItemStatus) -> anyhow::Result<Vec<LlmQueueItem>>;
+
+    /// Clean up old completed/failed items beyond retention period
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64>;
 }

@@ -13,27 +13,55 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::StagedNpc;
-use wrldbldr_domain::{ActionId, GameTime, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId, CharacterId};
+use wrldbldr_domain::{
+    ActionId, CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
+};
 
 // Re-export types from outbound for use in trait definitions
 pub use crate::outbound::{
     // Challenge types
-    AdHocOutcomes, AdHocResult, ApprovalItem, DiceInputType, OutcomeDecision, RollResultData,
-    TriggerInfo, TriggerResult,
-    // Connection types
-    ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent, WorldRole,
+    AdHocOutcomes,
+    AdHocResult,
+    // Observation types
+    ApproachEventData,
+    ApprovalItem,
+    // Staging types
+    ApprovedNpcData,
     // Scene types
-    CharacterEntity, DirectorialContextData, InteractionEntity,
-    InteractionTarget, LocationEntity, NpcMotivation, SceneApprovalDecision, SceneEntity, TimeContext,
+    CharacterEntity,
+    // Connection types
+    ConnectedUser,
+    ConnectionInfo,
+    DiceInputType,
+    DirectorialContextData,
+    InteractionEntity,
+    InteractionTarget,
+    LocationEntity,
+    LocationEventData,
+    NpcMotivation,
+    OutcomeDecision,
+    PcData,
+    PendingStagingData,
+    PendingStagingInfo,
+    ProposedNpc,
+    RegeneratedNpc,
+    RollResultData,
+    SceneApprovalDecision,
     // Note: Use SceneDmAction for the use-case version (enum, not service struct)
     SceneDmAction as DmAction,
+    SceneEntity,
+    StagedNpcData,
+    StagingProposalData,
+    TimeContext,
+    TriggerInfo,
+    TriggerResult,
     // Note: Use UseCaseSceneWithRelations for the use-case version with SceneEntity
     UseCaseSceneWithRelations as SceneWithRelations,
-    // Staging types
-    ApprovedNpcData, PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc,
-    StagedNpcData, StagingProposalData, WaitingPcData, WaitingPcInfo,
-    // Observation types
-    ApproachEventData, LocationEventData,
+    UserJoinedEvent,
+    UserLeftEvent,
+    WaitingPcData,
+    WaitingPcInfo,
+    WorldRole,
 };
 
 // =============================================================================

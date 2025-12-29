@@ -9,11 +9,13 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use crate::application::services::SettingsService;
+use wrldbldr_domain::entities::Location;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 use wrldbldr_domain::{GameTime, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
+    WorldServicePort,
 };
 
 /// Request to create a new world
@@ -378,6 +380,32 @@ impl WorldService for WorldServiceImpl {
 
         info!(world_id = %world_id, hours = hours, "Advanced game time");
         Ok(world.game_time)
+    }
+}
+
+// =============================================================================
+// WorldServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl WorldServicePort for WorldServiceImpl {
+    async fn get_world(&self, id: WorldId) -> Result<Option<World>> {
+        WorldService::get_world(self, id).await
+    }
+
+    async fn list_worlds(&self) -> Result<Vec<World>> {
+        WorldService::list_worlds(self).await
+    }
+
+    async fn get_current_location(&self, _world_id: WorldId) -> Result<Option<Location>> {
+        // Note: Current location is tracked per-PlayerCharacter, not per-World.
+        // This method may need to be redesigned or removed from the port.
+        // For now, return None as there's no world-level "current location" concept.
+        Ok(None)
+    }
+
+    async fn export_world_snapshot(&self, world_id: WorldId) -> Result<PlayerWorldSnapshot> {
+        WorldService::export_world_snapshot(self, world_id).await
     }
 }
 

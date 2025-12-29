@@ -22,7 +22,10 @@ use mockall::automock;
 
 use super::use_case_errors::InventoryError;
 use super::UseCaseContext;
-use crate::outbound::{DropInput, DropResult, EquipInput, EquipResult, PickupInput, PickupResult, UnequipInput, UnequipResult};
+use crate::outbound::{
+    DropInput, DropResult, EquipInput, EquipResult, PickupInput, PickupResult, UnequipInput,
+    UnequipResult,
+};
 
 // =============================================================================
 // Inventory Use Case Port

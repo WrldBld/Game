@@ -27,10 +27,12 @@ use std::sync::Arc;
 
 use tracing::{debug, info, instrument, warn};
 
+use async_trait::async_trait;
 use wrldbldr_domain::entities::EventEffect;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ChallengeRepositoryPort, NarrativeEventRepositoryPort, RelationshipRepositoryPort,
+    ChallengeRepositoryPort, EventEffectExecutorPort, NarrativeEventRepositoryPort,
+    OutcomeExecutionResult as PortOutcomeExecutionResult, RelationshipRepositoryPort,
 };
 
 // =============================================================================
@@ -663,6 +665,40 @@ impl EventEffectExecutor {
             } else {
                 None
             },
+        }
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `EventEffectExecutorPort` for `EventEffectExecutor`.
+///
+/// This exposes event effect execution methods to infrastructure adapters.
+#[async_trait]
+impl EventEffectExecutorPort for EventEffectExecutor {
+    async fn execute_effects(
+        &self,
+        effects: &[EventEffect],
+        world_id: WorldId,
+    ) -> PortOutcomeExecutionResult {
+        let result = EventEffectExecutor::execute_effects(self, effects, world_id).await;
+
+        // Convert internal result to port result
+        PortOutcomeExecutionResult {
+            effects: result
+                .effects
+                .into_iter()
+                .map(|e| wrldbldr_engine_ports::outbound::EffectExecutionResult {
+                    description: e.description,
+                    was_executed: e.was_executed,
+                    note: e.note,
+                })
+                .collect(),
+            total: result.total,
+            executed_count: result.executed_count,
+            logged_count: result.logged_count,
         }
     }
 }

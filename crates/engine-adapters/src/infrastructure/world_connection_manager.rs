@@ -19,11 +19,17 @@
 //! 5. Other users in the world receive `UserJoined`
 //! 6. On disconnect, other users receive `UserLeft`
 
+use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
+use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{
+    ConnectedUserInfo as PortConnectedUserInfo, ConnectionStats as PortConnectionStats,
+    DmInfo as PortDmInfo, WorldConnectionManagerPort,
+};
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 
 // =============================================================================
@@ -927,6 +933,79 @@ pub type SharedWorldConnectionManager = Arc<WorldConnectionManager>;
 /// Create a new shared connection manager
 pub fn new_shared_manager() -> SharedWorldConnectionManager {
     Arc::new(WorldConnectionManager::new())
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl WorldConnectionManagerPort for WorldConnectionManager {
+    async fn has_dm(&self, world_id: &WorldId) -> bool {
+        self.has_dm(&world_id.to_uuid()).await
+    }
+
+    async fn get_dm_info(&self, world_id: &WorldId) -> Option<PortDmInfo> {
+        let info = self.get_dm_info(&world_id.to_uuid()).await?;
+        Some(PortDmInfo {
+            user_id: info.user_id,
+            username: info.username,
+            connection_count: info.connection_count,
+        })
+    }
+
+    async fn get_connected_users(&self, world_id: WorldId) -> Vec<PortConnectedUserInfo> {
+        let users = self.get_connected_users(world_id.to_uuid()).await;
+        users
+            .into_iter()
+            .map(|u| PortConnectedUserInfo {
+                user_id: u.user_id,
+                username: u.username,
+                role: u.role,
+                pc_id: u.pc_id.and_then(|s| s.parse().ok()),
+                connection_count: u.connection_count,
+            })
+            .collect()
+    }
+
+    async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<WorldRole> {
+        self.get_user_role(&world_id.to_uuid(), user_id).await
+    }
+
+    async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &Uuid) -> Option<String> {
+        self.find_player_for_pc(&world_id.to_uuid(), pc_id).await
+    }
+
+    async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(Uuid, String)> {
+        self.get_world_pcs(&world_id.to_uuid()).await
+    }
+
+    async fn get_all_world_ids(&self) -> Vec<Uuid> {
+        self.get_all_world_ids().await
+    }
+
+    async fn stats(&self) -> PortConnectionStats {
+        let stats = self.stats().await;
+        PortConnectionStats {
+            total_connections: stats.total_connections,
+            total_worlds: stats.total_worlds,
+            dm_connections: stats.dm_connections,
+            player_connections: stats.player_connections,
+            spectator_connections: stats.spectator_connections,
+        }
+    }
+
+    async fn get_user_id_by_client_id(&self, client_id: &str) -> Option<String> {
+        self.get_user_id_by_client_id(client_id).await
+    }
+
+    async fn is_dm_by_client_id(&self, client_id: &str) -> bool {
+        self.is_dm_by_client_id(client_id).await
+    }
+
+    async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
+        self.get_world_id_by_client_id(client_id).await
+    }
 }
 
 #[cfg(test)]

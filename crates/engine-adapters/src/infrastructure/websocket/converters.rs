@@ -40,9 +40,7 @@ pub fn to_challenge_outcome_decision(decision: ChallengeOutcomeDecisionData) -> 
         } => OutcomeDecision::Edit {
             modified_text: modified_description,
         },
-        ChallengeOutcomeDecisionData::Suggest { guidance } => {
-            OutcomeDecision::Suggest { guidance }
-        }
+        ChallengeOutcomeDecisionData::Suggest { guidance } => OutcomeDecision::Suggest { guidance },
         ChallengeOutcomeDecisionData::Unknown => OutcomeDecision::Accept, // Default unknown to Accept
     }
 }

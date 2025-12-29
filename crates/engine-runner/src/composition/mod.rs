@@ -12,7 +12,7 @@
 pub mod app_state;
 pub mod services;
 
-pub use app_state::new_app_state;
-// Re-export AppState for external consumers (this crate uses engine-adapters' AppState directly)
+pub use app_state::{new_adapter_state, AdapterState, WorkerServices};
+// Re-export composition-layer AppState for external consumers
 #[allow(unused_imports)]
-pub use app_state::AppState;
+pub use wrldbldr_engine_composition::AppState;

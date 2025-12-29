@@ -9,11 +9,16 @@
 
 use std::collections::{HashMap, HashSet};
 
+use async_trait::async_trait;
+
 use crate::application::dto::GenerationBatchResponseDto;
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
 use wrldbldr_domain::{DomainEvent, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    DomainEventRepositoryPort, GenerationReadKind, GenerationReadStatePort,
+    DomainEventRepositoryPort, GenerationBatchSnapshot as PortGenerationBatchSnapshot,
+    GenerationQueueProjectionServicePort, GenerationQueueSnapshot as PortGenerationQueueSnapshot,
+    GenerationReadKind, GenerationReadStatePort,
+    SuggestionTaskSnapshot as PortSuggestionTaskSnapshot,
 };
 
 /// Snapshot DTO for suggestion tasks, mirrored from `infrastructure::http::queue_routes`.
@@ -208,6 +213,64 @@ impl GenerationQueueProjectionService {
         }
 
         Ok(GenerationQueueSnapshot {
+            batches,
+            suggestions,
+        })
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl GenerationQueueProjectionServicePort for GenerationQueueProjectionService {
+    async fn project_queue(
+        &self,
+        user_id: Option<String>,
+        world_id: WorldId,
+    ) -> anyhow::Result<PortGenerationQueueSnapshot> {
+        // Delegate to the internal method
+        let snapshot = self.project_queue(user_id.as_deref(), world_id).await?;
+
+        // Convert internal types to port types
+        // The DTO has: id, world_id, entity_type, entity_id, asset_type, workflow, prompt,
+        //              count, status, progress, asset_count, requested_at, completed_at
+        // The port expects: id, world_id, entity_type, entity_id, status, item_count, completed_count, is_read
+        let batches = snapshot
+            .batches
+            .into_iter()
+            .map(|b| {
+                // Calculate completed_count from progress (0-100%)
+                let item_count = b.batch.count as usize;
+                let completed_count = b.batch.progress.map_or(0, |p| {
+                    ((p as usize) * item_count / 100).min(item_count)
+                });
+                PortGenerationBatchSnapshot {
+                    id: b.batch.id,
+                    world_id: b.batch.world_id,
+                    entity_type: b.batch.entity_type,
+                    entity_id: Some(b.batch.entity_id),
+                    status: b.batch.status,
+                    item_count,
+                    completed_count,
+                    is_read: b.is_read,
+                }
+            })
+            .collect();
+
+        let suggestions = snapshot
+            .suggestions
+            .into_iter()
+            .map(|s| PortSuggestionTaskSnapshot {
+                request_id: s.request_id,
+                field_type: s.field_type,
+                entity_id: s.entity_id,
+                status: s.status,
+                suggestions: s.suggestions,
+                error: s.error,
+                is_read: s.is_read,
+            })
+            .collect();
+
+        Ok(PortGenerationQueueSnapshot {
             batches,
             suggestions,
         })

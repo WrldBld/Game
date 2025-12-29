@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use wrldbldr_domain::WorldId;
 use wrldbldr_domain::value_objects::{LlmRequestData, LlmRequestType};
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::services::{LLMQueueService, SuggestionContext};
 use wrldbldr_engine_ports::outbound::{
     LlmPort, ProcessingQueuePort, QueueError, QueueNotificationPort, SuggestionEnqueuePort,

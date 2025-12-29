@@ -18,7 +18,6 @@ use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, RwLock};
 
 use crate::application::dto::{OutcomeSuggestionRequest, PendingChallengeResolutionDto};
-use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use crate::application::services::challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
 };
@@ -26,10 +25,13 @@ use crate::application::services::tool_execution_service::StateChange;
 use crate::application::services::{
     OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService,
 };
+use async_trait::async_trait;
 use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
+use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort,
+    ChallengeOutcomeApprovalServicePort, ClockPort, ItemRepositoryPort, LlmPort,
+    OutcomeDecision as PortOutcomeDecision, PlayerCharacterRepositoryPort, QueuePort,
 };
 
 /// Result of challenge approval operations
@@ -1001,5 +1003,140 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         }
 
         Ok(())
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `ChallengeOutcomeApprovalServicePort` for `ChallengeOutcomeApprovalService`.
+///
+/// This exposes challenge outcome approval methods to infrastructure adapters.
+#[async_trait]
+impl<L: LlmPort + 'static> ChallengeOutcomeApprovalServicePort
+    for ChallengeOutcomeApprovalService<L>
+{
+    async fn queue_for_approval(
+        &self,
+        world_id: WorldId,
+        resolution: ChallengeOutcomeData,
+    ) -> anyhow::Result<String> {
+        let resolution_id = resolution.resolution_id.clone();
+
+        // Create DTO from domain type
+        let dto = PendingChallengeResolutionDto {
+            resolution_id: resolution.resolution_id,
+            challenge_id: resolution.challenge_id,
+            challenge_name: resolution.challenge_name,
+            challenge_description: resolution.challenge_description,
+            skill_name: resolution.skill_name,
+            character_id: resolution.character_id.to_string(),
+            character_name: resolution.character_name,
+            roll: resolution.roll,
+            modifier: resolution.modifier,
+            total: resolution.total,
+            outcome_type: resolution.outcome_type,
+            outcome_description: resolution.outcome_description,
+            outcome_triggers: resolution
+                .outcome_triggers
+                .iter()
+                .filter_map(|t| {
+                    // Convert ProposedTool to OutcomeTriggerRequestDto based on tool name
+                    let name_lower = t.name.to_lowercase();
+                    if name_lower.contains("reveal_information") || name_lower.contains("revealinformation") {
+                        let info = t.arguments.get("info").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let persist = t.arguments.get("persist").and_then(|v| v.as_bool()).unwrap_or(false);
+                        Some(crate::application::dto::OutcomeTriggerRequestDto::RevealInformation { info, persist })
+                    } else if name_lower.contains("enable_challenge") || name_lower.contains("enablechallenge") {
+                        let challenge_id = t.arguments.get("challenge_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        Some(crate::application::dto::OutcomeTriggerRequestDto::EnableChallenge { challenge_id })
+                    } else if name_lower.contains("disable_challenge") || name_lower.contains("disablechallenge") {
+                        let challenge_id = t.arguments.get("challenge_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        Some(crate::application::dto::OutcomeTriggerRequestDto::DisableChallenge { challenge_id })
+                    } else if name_lower.contains("custom") {
+                        let description = t.arguments.get("description").and_then(|v| v.as_str()).unwrap_or(&t.description).to_string();
+                        Some(crate::application::dto::OutcomeTriggerRequestDto::Custom { description })
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            roll_breakdown: resolution.roll_breakdown,
+            individual_rolls: None,
+            timestamp: resolution.timestamp.to_rfc3339(),
+        };
+
+        self.queue_for_approval(&world_id, dto)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(resolution_id)
+    }
+
+    async fn process_decision(
+        &self,
+        world_id: WorldId,
+        resolution_id: &str,
+        decision: PortOutcomeDecision,
+    ) -> anyhow::Result<()> {
+        // Convert port OutcomeDecision to internal OutcomeDecision
+        let internal_decision = match decision {
+            PortOutcomeDecision::Accept => OutcomeDecision::Accept,
+            PortOutcomeDecision::Edit { modified_text } => OutcomeDecision::Edit { modified_text },
+            PortOutcomeDecision::Suggest { guidance } => OutcomeDecision::Suggest { guidance },
+        };
+
+        ChallengeOutcomeApprovalService::process_decision(
+            self,
+            &world_id,
+            resolution_id,
+            internal_decision,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn update_suggestions(
+        &self,
+        resolution_id: &str,
+        suggestions: Vec<String>,
+    ) -> anyhow::Result<()> {
+        ChallengeOutcomeApprovalService::update_suggestions(self, resolution_id, suggestions)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn get_pending_for_world(&self, world_id: WorldId) -> Vec<ChallengeOutcomeData> {
+        ChallengeOutcomeApprovalService::get_pending_for_world(self, &world_id).await
+    }
+
+    async fn request_branches(
+        &self,
+        world_id: WorldId,
+        resolution_id: &str,
+        guidance: Option<String>,
+    ) -> anyhow::Result<()> {
+        ChallengeOutcomeApprovalService::request_branches(self, &world_id, resolution_id, guidance)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn select_branch(
+        &self,
+        world_id: WorldId,
+        resolution_id: &str,
+        branch_id: &str,
+        modified_description: Option<String>,
+    ) -> anyhow::Result<()> {
+        ChallengeOutcomeApprovalService::select_branch(
+            self,
+            &world_id,
+            resolution_id,
+            branch_id,
+            modified_description,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }

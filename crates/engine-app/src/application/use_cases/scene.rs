@@ -31,11 +31,9 @@ pub use wrldbldr_engine_ports::inbound::{
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
     CharacterEntity, DirectorialContextData, DirectorialUpdateResult, InteractionEntity,
-    InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput, SceneChangeResult,
-    SceneApprovalDecision,
-    SceneApprovalDecisionInput,
-    SceneApprovalDecisionResult,
-    SceneCharacterData as CharacterData, SceneDmAction as DmAction, SceneEntity,
+    InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput,
+    SceneApprovalDecision, SceneApprovalDecisionInput, SceneApprovalDecisionResult,
+    SceneChangeResult, SceneCharacterData as CharacterData, SceneDmAction as DmAction, SceneEntity,
     SceneInteractionData as InteractionData, TimeContext, UpdateDirectorialInput,
     UseCaseSceneData as SceneData, UseCaseSceneWithRelations as SceneWithRelations,
 };
@@ -308,7 +306,10 @@ mod tests {
 
         assert!(matches!(approve, SceneApprovalDecision::Approve));
         assert!(matches!(reject, SceneApprovalDecision::Reject { .. }));
-        assert!(matches!(edit, SceneApprovalDecision::ApproveWithEdits { .. }));
+        assert!(matches!(
+            edit,
+            SceneApprovalDecision::ApproveWithEdits { .. }
+        ));
     }
 
     #[test]

@@ -24,25 +24,25 @@ pub use connection_use_case_port::MockConnectionUseCasePort;
 pub use inventory_use_case_port::InventoryUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use inventory_use_case_port::MockInventoryUseCasePort;
-pub use movement_use_case_port::MovementUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use movement_use_case_port::MockMovementUseCasePort;
-pub use narrative_event_use_case_port::NarrativeEventUseCasePort;
+pub use movement_use_case_port::MovementUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use narrative_event_use_case_port::MockNarrativeEventUseCasePort;
-pub use observation_use_case_port::ObservationUseCasePort;
+pub use narrative_event_use_case_port::NarrativeEventUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use observation_use_case_port::MockObservationUseCasePort;
-pub use player_action_use_case_port::PlayerActionUseCasePort;
+pub use observation_use_case_port::ObservationUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use player_action_use_case_port::MockPlayerActionUseCasePort;
+pub use player_action_use_case_port::PlayerActionUseCasePort;
 pub use request_handler::{RequestContext, RequestHandler};
-pub use scene_use_case_port::SceneUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use scene_use_case_port::MockSceneUseCasePort;
-pub use staging_use_case_port::StagingUseCasePort;
+pub use scene_use_case_port::SceneUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use staging_use_case_port::MockStagingUseCasePort;
+pub use staging_use_case_port::StagingUseCasePort;
 pub use use_case_context::UseCaseContext;
 
 // Re-export all use case error types
@@ -54,34 +54,73 @@ pub use use_case_errors::{
 // Re-export all use case port traits
 pub use use_case_ports::{
     // Challenge port traits
-    ChallengeDmApprovalQueuePort, ChallengeOutcomeApprovalPort, ChallengeResolutionPort,
+    ChallengeDmApprovalQueuePort,
+    ChallengeOutcomeApprovalPort,
+    ChallengeResolutionPort,
     // Connection port traits
-    ConnectionManagerPort, DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
+    ConnectionManagerPort,
+    DirectorialContextPort,
     // Scene port traits
-    DirectorialContextRepositoryPort, InteractionServicePort, SceneDmActionQueuePort,
-    SceneServicePort, WorldStatePort,
+    DirectorialContextRepositoryPort,
     // Player action port traits
-    DmNotificationPort, PlayerActionQueuePort,
+    DmNotificationPort,
+    InteractionServicePort,
+    PlayerActionQueuePort,
+    PlayerCharacterServicePort,
+    SceneDmActionQueuePort,
+    SceneServicePort,
     // Staging port traits
-    StagingServiceExtPort, StagingServicePort, StagingStateExtPort, StagingStatePort,
+    StagingServiceExtPort,
+    StagingServicePort,
+    StagingStateExtPort,
+    StagingStatePort,
     // Observation port traits
     WorldMessagePort,
+    WorldServicePort,
+    WorldStatePort,
 };
 
 // Re-export types from use_case_ports (which re-exports from outbound)
 pub use use_case_ports::{
     // Challenge types
-    AdHocOutcomes, AdHocResult, ApprovalItem, DiceInputType, OutcomeDecision, RollResultData,
-    TriggerInfo, TriggerResult,
-    // Connection types
-    ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent, WorldRole,
-    // Scene types (DmAction, SceneWithRelations come through aliased from use_case_ports)
-    CharacterEntity, DirectorialContextData, DmAction, InteractionEntity,
-    InteractionTarget, LocationEntity, NpcMotivation, SceneApprovalDecision, SceneEntity,
-    SceneWithRelations, TimeContext,
-    // Staging types
-    ApprovedNpcData, PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc,
-    StagedNpcData, StagingProposalData, WaitingPcData, WaitingPcInfo,
+    AdHocOutcomes,
+    AdHocResult,
     // Observation types
-    ApproachEventData, LocationEventData,
+    ApproachEventData,
+    ApprovalItem,
+    // Staging types
+    ApprovedNpcData,
+    // Scene types (DmAction, SceneWithRelations come through aliased from use_case_ports)
+    CharacterEntity,
+    // Connection types
+    ConnectedUser,
+    ConnectionInfo,
+    DiceInputType,
+    DirectorialContextData,
+    DmAction,
+    InteractionEntity,
+    InteractionTarget,
+    LocationEntity,
+    LocationEventData,
+    NpcMotivation,
+    OutcomeDecision,
+    PcData,
+    PendingStagingData,
+    PendingStagingInfo,
+    ProposedNpc,
+    RegeneratedNpc,
+    RollResultData,
+    SceneApprovalDecision,
+    SceneEntity,
+    SceneWithRelations,
+    StagedNpcData,
+    StagingProposalData,
+    TimeContext,
+    TriggerInfo,
+    TriggerResult,
+    UserJoinedEvent,
+    UserLeftEvent,
+    WaitingPcData,
+    WaitingPcInfo,
+    WorldRole,
 };

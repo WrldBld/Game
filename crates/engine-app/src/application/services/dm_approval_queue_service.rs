@@ -10,6 +10,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use crate::application::services::item_service::ItemService;
@@ -20,9 +21,14 @@ use wrldbldr_domain::entities::AcquisitionMethod;
 use wrldbldr_domain::value_objects::{
     ApprovalRequestData, DmApprovalDecision, GameTool, ProposedTool,
 };
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ClockPort, QueueError, QueueItem, QueueItemId,
+    ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
+    ApprovalQueuePort, ApprovalRequest, ApprovalUrgency as PortApprovalUrgency,
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, ClockPort,
+    DmApprovalDecision as PortDmApprovalDecision, DmApprovalQueueServicePort,
+    NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError, QueueItem, QueueItemId,
+    QueueItemStatus,
 };
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
@@ -417,9 +423,26 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
         self.queue.get_history_by_world(world_id, limit).await
     }
 
-    /// Expire old pending approvals
-    pub async fn expire_old(&self, older_than: Duration) -> Result<usize, QueueError> {
-        self.queue.expire_old(older_than).await
+    /// Clean up old completed/failed items beyond retention period
+    ///
+    /// Delegates to the underlying queue's cleanup method.
+    pub async fn cleanup(&self, retention: Duration) -> anyhow::Result<u64> {
+        self.queue
+            .cleanup(retention)
+            .await
+            .map(|count| count as u64)
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    /// Expire approval items older than the specified timeout
+    ///
+    /// Delegates to the underlying queue's expire_old method.
+    pub async fn expire_old(&self, timeout: Duration) -> anyhow::Result<u64> {
+        self.queue
+            .expire_old(timeout)
+            .await
+            .map(|count| count as u64)
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     /// Discard a challenge suggestion from an approval item
@@ -652,4 +675,413 @@ pub enum ApprovalOutcome {
     },
     /// Maximum retries exceeded
     MaxRetriesExceeded { feedback: String },
+}
+
+// ============================================================================
+// Port Implementation Helper Functions
+// ============================================================================
+
+/// Convert domain ApprovalDecisionType to port ApprovalDecisionType
+fn convert_domain_decision_type(
+    decision_type: wrldbldr_domain::value_objects::ApprovalDecisionType,
+) -> PortApprovalDecisionType {
+    match decision_type {
+        wrldbldr_domain::value_objects::ApprovalDecisionType::NpcResponse => {
+            PortApprovalDecisionType::NpcResponse
+        }
+        wrldbldr_domain::value_objects::ApprovalDecisionType::ToolUsage => {
+            PortApprovalDecisionType::ToolUsage
+        }
+        wrldbldr_domain::value_objects::ApprovalDecisionType::ChallengeSuggestion => {
+            PortApprovalDecisionType::ChallengeSuggestion
+        }
+        wrldbldr_domain::value_objects::ApprovalDecisionType::SceneTransition => {
+            PortApprovalDecisionType::SceneTransition
+        }
+        wrldbldr_domain::value_objects::ApprovalDecisionType::ChallengeOutcome => {
+            PortApprovalDecisionType::ChallengeOutcome
+        }
+    }
+}
+
+/// Convert domain ApprovalUrgency to port ApprovalUrgency
+fn convert_domain_urgency(
+    urgency: wrldbldr_domain::value_objects::ApprovalUrgency,
+) -> PortApprovalUrgency {
+    match urgency {
+        wrldbldr_domain::value_objects::ApprovalUrgency::Normal => PortApprovalUrgency::Normal,
+        wrldbldr_domain::value_objects::ApprovalUrgency::AwaitingPlayer => {
+            PortApprovalUrgency::AwaitingPlayer
+        }
+        wrldbldr_domain::value_objects::ApprovalUrgency::SceneCritical => {
+            PortApprovalUrgency::SceneCritical
+        }
+    }
+}
+
+/// Convert port ApprovalDecisionType to domain ApprovalDecisionType
+fn convert_port_decision_type(
+    decision_type: PortApprovalDecisionType,
+) -> wrldbldr_domain::value_objects::ApprovalDecisionType {
+    match decision_type {
+        PortApprovalDecisionType::NpcResponse => {
+            wrldbldr_domain::value_objects::ApprovalDecisionType::NpcResponse
+        }
+        PortApprovalDecisionType::ToolUsage => {
+            wrldbldr_domain::value_objects::ApprovalDecisionType::ToolUsage
+        }
+        PortApprovalDecisionType::ChallengeSuggestion => {
+            wrldbldr_domain::value_objects::ApprovalDecisionType::ChallengeSuggestion
+        }
+        PortApprovalDecisionType::SceneTransition => {
+            wrldbldr_domain::value_objects::ApprovalDecisionType::SceneTransition
+        }
+        PortApprovalDecisionType::ChallengeOutcome => {
+            wrldbldr_domain::value_objects::ApprovalDecisionType::ChallengeOutcome
+        }
+    }
+}
+
+/// Convert port ApprovalUrgency to domain ApprovalUrgency
+fn convert_port_urgency(
+    urgency: PortApprovalUrgency,
+) -> wrldbldr_domain::value_objects::ApprovalUrgency {
+    match urgency {
+        PortApprovalUrgency::Normal => wrldbldr_domain::value_objects::ApprovalUrgency::Normal,
+        PortApprovalUrgency::AwaitingPlayer => {
+            wrldbldr_domain::value_objects::ApprovalUrgency::AwaitingPlayer
+        }
+        PortApprovalUrgency::SceneCritical => {
+            wrldbldr_domain::value_objects::ApprovalUrgency::SceneCritical
+        }
+    }
+}
+
+/// Convert domain ApprovalRequestData to port ApprovalRequest
+fn convert_domain_to_port_approval(
+    data: &ApprovalRequestData,
+    id: uuid::Uuid,
+    priority: u8,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+) -> PortApprovalQueueItem {
+    PortApprovalQueueItem {
+        id,
+        payload: ApprovalRequest {
+            world_id: data.world_id.to_uuid(),
+            source_action_id: data.source_action_id,
+            decision_type: convert_domain_decision_type(data.decision_type.clone()),
+            urgency: convert_domain_urgency(data.urgency),
+            pc_id: data.pc_id.map(|id| id.to_uuid()),
+            npc_id: data.npc_id.map(|id| id.to_string()),
+            npc_name: data.npc_name.clone(),
+            proposed_dialogue: data.proposed_dialogue.clone(),
+            internal_reasoning: data.internal_reasoning.clone(),
+            proposed_tools: data
+                .proposed_tools
+                .iter()
+                .map(|t| ProposedToolInfo {
+                    id: t.id.clone(),
+                    name: t.name.clone(),
+                    description: t.description.clone(),
+                    arguments: t.arguments.clone(),
+                })
+                .collect(),
+            retry_count: data.retry_count,
+            challenge_suggestion: data.challenge_suggestion.as_ref().map(|cs| {
+                ChallengeSuggestionInfo {
+                    challenge_id: cs.challenge_id.clone(),
+                    challenge_name: cs.challenge_name.clone(),
+                    skill_name: cs.skill_name.clone(),
+                    difficulty_display: cs.difficulty_display.clone(),
+                    confidence: cs.confidence.clone(),
+                    reasoning: cs.reasoning.clone(),
+                    target_pc_id: cs.target_pc_id.map(|id| id.to_string()),
+                    outcomes: cs.outcomes.as_ref().map(|o| ChallengeSuggestionOutcomes {
+                        success: o.success.clone(),
+                        failure: o.failure.clone(),
+                        critical_success: o.critical_success.clone(),
+                        critical_failure: o.critical_failure.clone(),
+                    }),
+                }
+            }),
+            narrative_event_suggestion: data.narrative_event_suggestion.as_ref().map(|nes| {
+                NarrativeEventSuggestionInfo {
+                    event_id: nes.event_id.clone(),
+                    event_name: nes.event_name.clone(),
+                    description: nes.description.clone(),
+                    scene_direction: nes.scene_direction.clone(),
+                    confidence: nes.confidence.clone(),
+                    reasoning: nes.reasoning.clone(),
+                    matched_triggers: nes.matched_triggers.clone(),
+                    suggested_outcome: nes.suggested_outcome.clone(),
+                }
+            }),
+            player_dialogue: data.player_dialogue.clone(),
+            scene_id: data.scene_id.map(|id| id.to_string()),
+            location_id: data.location_id.map(|id| id.to_string()),
+            game_time: data.game_time.clone(),
+            topics: data.topics.clone(),
+        },
+        priority,
+        enqueued_at: created_at,
+        updated_at,
+    }
+}
+
+/// Convert port ApprovalRequest to domain ApprovalRequestData
+fn convert_port_to_domain_approval(request: &ApprovalRequest) -> ApprovalRequestData {
+    ApprovalRequestData {
+        world_id: WorldId::from_uuid(request.world_id),
+        source_action_id: request.source_action_id,
+        decision_type: convert_port_decision_type(request.decision_type.clone()),
+        urgency: convert_port_urgency(request.urgency),
+        pc_id: request.pc_id.map(PlayerCharacterId::from_uuid),
+        npc_id: request.npc_id.as_ref().and_then(|s| {
+            uuid::Uuid::parse_str(s)
+                .ok()
+                .map(CharacterId::from_uuid)
+        }),
+        npc_name: request.npc_name.clone(),
+        proposed_dialogue: request.proposed_dialogue.clone(),
+        internal_reasoning: request.internal_reasoning.clone(),
+        proposed_tools: request
+            .proposed_tools
+            .iter()
+            .map(|t| ProposedTool {
+                id: t.id.clone(),
+                name: t.name.clone(),
+                description: t.description.clone(),
+                arguments: t.arguments.clone(),
+            })
+            .collect(),
+        retry_count: request.retry_count,
+        challenge_suggestion: request.challenge_suggestion.as_ref().map(|cs| {
+            wrldbldr_domain::value_objects::ChallengeSuggestion {
+                challenge_id: cs.challenge_id.clone(),
+                challenge_name: cs.challenge_name.clone(),
+                skill_name: cs.skill_name.clone(),
+                difficulty_display: cs.difficulty_display.clone(),
+                confidence: cs.confidence.clone(),
+                reasoning: cs.reasoning.clone(),
+                target_pc_id: cs.target_pc_id.as_ref().and_then(|s| {
+                    uuid::Uuid::parse_str(s)
+                        .ok()
+                        .map(PlayerCharacterId::from_uuid)
+                }),
+                outcomes: cs.outcomes.as_ref().map(|o| {
+                    wrldbldr_domain::value_objects::ChallengeSuggestionOutcomes {
+                        success: o.success.clone(),
+                        failure: o.failure.clone(),
+                        critical_success: o.critical_success.clone(),
+                        critical_failure: o.critical_failure.clone(),
+                    }
+                }),
+            }
+        }),
+        narrative_event_suggestion: request.narrative_event_suggestion.as_ref().map(|nes| {
+            wrldbldr_domain::value_objects::NarrativeEventSuggestion {
+                event_id: nes.event_id.clone(),
+                event_name: nes.event_name.clone(),
+                description: nes.description.clone(),
+                scene_direction: nes.scene_direction.clone(),
+                confidence: nes.confidence.clone(),
+                reasoning: nes.reasoning.clone(),
+                matched_triggers: nes.matched_triggers.clone(),
+                suggested_outcome: nes.suggested_outcome.clone(),
+            }
+        }),
+        player_dialogue: request.player_dialogue.clone(),
+        scene_id: request.scene_id.as_ref().and_then(|s| {
+            uuid::Uuid::parse_str(s).ok().map(SceneId::from_uuid)
+        }),
+        location_id: request.location_id.as_ref().and_then(|s| {
+            uuid::Uuid::parse_str(s).ok().map(LocationId::from_uuid)
+        }),
+        game_time: request.game_time.clone(),
+        topics: request.topics.clone(),
+    }
+}
+
+/// Convert port DmApprovalDecision to domain DmApprovalDecision
+fn convert_port_decision(decision: PortDmApprovalDecision) -> DmApprovalDecision {
+    match decision {
+        PortDmApprovalDecision::Accept => DmApprovalDecision::Accept,
+        PortDmApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            DmApprovalDecision::AcceptWithRecipients { item_recipients }
+        }
+        PortDmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        } => DmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        },
+        PortDmApprovalDecision::Reject { feedback } => DmApprovalDecision::Reject { feedback },
+        PortDmApprovalDecision::TakeOver { dm_response } => {
+            DmApprovalDecision::TakeOver { dm_response }
+        }
+    }
+}
+
+// ============================================================================
+// Port Implementation
+// ============================================================================
+
+#[async_trait]
+impl<Q, I> DmApprovalQueueServicePort for DMApprovalQueueService<Q, I>
+where
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
+    async fn enqueue(&self, approval: ApprovalRequest) -> anyhow::Result<uuid::Uuid> {
+        let data = convert_port_to_domain_approval(&approval);
+        let priority = approval.urgency as u8;
+
+        self.queue
+            .enqueue(data, priority)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn dequeue(&self) -> anyhow::Result<Option<PortApprovalQueueItem>> {
+        let item = self
+            .queue
+            .dequeue()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| {
+            convert_domain_to_port_approval(&i.payload, i.id, i.priority, i.created_at, i.updated_at)
+        }))
+    }
+
+    async fn complete(&self, id: uuid::Uuid, decision: PortDmApprovalDecision) -> anyhow::Result<()> {
+        // Get the item first to extract world_id
+        let item = self
+            .queue
+            .get(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?
+            .ok_or_else(|| anyhow::anyhow!("Approval item not found: {}", id))?;
+
+        let domain_decision = convert_port_decision(decision);
+
+        // Process the decision (this handles accept/reject/takeover logic)
+        self.process_decision(item.payload.world_id, id, domain_decision)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(())
+    }
+
+    async fn get_pending(&self, world_id: WorldId) -> anyhow::Result<Vec<PortApprovalQueueItem>> {
+        let items = self
+            .queue
+            .list_by_world(world_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(items
+            .into_iter()
+            .map(|i| {
+                convert_domain_to_port_approval(
+                    &i.payload,
+                    i.id,
+                    i.priority,
+                    i.created_at,
+                    i.updated_at,
+                )
+            })
+            .collect())
+    }
+
+    async fn get(&self, id: uuid::Uuid) -> anyhow::Result<Option<PortApprovalQueueItem>> {
+        let item = self
+            .queue
+            .get(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| {
+            convert_domain_to_port_approval(&i.payload, i.id, i.priority, i.created_at, i.updated_at)
+        }))
+    }
+
+    async fn get_history(
+        &self,
+        world_id: WorldId,
+        limit: usize,
+    ) -> anyhow::Result<Vec<PortApprovalQueueItem>> {
+        let items = self
+            .queue
+            .get_history_by_world(world_id, limit)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(items
+            .into_iter()
+            .map(|i| {
+                convert_domain_to_port_approval(
+                    &i.payload,
+                    i.id,
+                    i.priority,
+                    i.created_at,
+                    i.updated_at,
+                )
+            })
+            .collect())
+    }
+
+    async fn delay(&self, id: uuid::Uuid, until: DateTime<Utc>) -> anyhow::Result<()> {
+        self.queue
+            .delay(id, until)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn discard_challenge(&self, request_id: &str) -> anyhow::Result<()> {
+        self.discard_challenge("", request_id).await;
+        Ok(())
+    }
+
+    async fn depth(&self) -> anyhow::Result<usize> {
+        self.queue.depth().await.map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> anyhow::Result<Vec<PortApprovalQueueItem>> {
+        let items = self
+            .queue
+            .list_by_status(status)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(items
+            .into_iter()
+            .map(|i| {
+                convert_domain_to_port_approval(
+                    &i.payload,
+                    i.id,
+                    i.priority,
+                    i.created_at,
+                    i.updated_at,
+                )
+            })
+            .collect())
+    }
+
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64> {
+        self.cleanup(retention).await
+    }
+
+    async fn expire_old(&self, timeout: std::time::Duration) -> anyhow::Result<u64> {
+        self.expire_old(timeout).await
+    }
 }

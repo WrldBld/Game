@@ -50,9 +50,9 @@ mod relationship_service_port;
 mod repository_port;
 mod scene_resolution_service_port;
 mod scene_service_port;
-mod sheet_template_service_port;
 mod settings_port;
 mod settings_service_port;
+mod sheet_template_service_port;
 mod skill_service_port;
 mod staging_repository_port;
 mod staging_service_port;
@@ -107,12 +107,12 @@ pub use event_notifier_port::MockEventNotifierPort;
 // File storage port - interface for file system operations
 pub use file_storage_port::FileStoragePort;
 
+#[cfg(any(test, feature = "testing"))]
+pub use generation_queue_projection_service_port::MockGenerationQueueProjectionServicePort;
 pub use generation_queue_projection_service_port::{
     GenerationBatchSnapshot, GenerationQueueProjectionServicePort, GenerationQueueSnapshot,
     SuggestionTaskSnapshot,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use generation_queue_projection_service_port::MockGenerationQueueProjectionServicePort;
 
 pub use generation_read_state_port::{GenerationReadKind, GenerationReadStatePort};
 
@@ -201,19 +201,19 @@ pub use region_service_port::MockRegionServicePort;
 pub use region_service_port::RegionServicePort;
 
 // Relationship service port - interface for relationship operations
-pub use relationship_service_port::RelationshipServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use relationship_service_port::MockRelationshipServicePort;
+pub use relationship_service_port::RelationshipServicePort;
 
 // Scene resolution service port - interface for scene resolution operations
-pub use scene_resolution_service_port::{SceneResolutionResult, SceneResolutionServicePort};
 #[cfg(any(test, feature = "testing"))]
 pub use scene_resolution_service_port::MockSceneResolutionServicePort;
+pub use scene_resolution_service_port::{SceneResolutionResult, SceneResolutionServicePort};
 
 // Sheet template service port - interface for character sheet template operations
-pub use sheet_template_service_port::SheetTemplateServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use sheet_template_service_port::MockSheetTemplateServicePort;
+pub use sheet_template_service_port::SheetTemplateServicePort;
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
@@ -222,12 +222,11 @@ pub use game_events::{
     RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent, StagedNpcData,
     StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, StateChangeInfo, WaitingPcData,
 };
-pub use world_connection_manager_port::{
-    ConnectedUserInfo, ConnectionManagerError, ConnectionStats, DmInfo,
-    WorldConnectionManagerPort,
-};
 #[cfg(any(test, feature = "testing"))]
 pub use world_connection_manager_port::MockWorldConnectionManagerPort;
+pub use world_connection_manager_port::{
+    ConnectedUserInfo, ConnectionManagerError, ConnectionStats, DmInfo, WorldConnectionManagerPort,
+};
 
 pub use world_state_port::WorldStatePort;
 
@@ -332,55 +331,78 @@ pub use asset_generation_queue_service_port::{
 
 // Use case types - input/output types for use case operations
 pub use use_case_types::{
+    // Player action types
+    ActionResult,
     // Challenge types
     AdHocOutcomes,
     AdHocResult,
+    // Observation types
+    ApproachEventData,
     ApprovalItem,
-    ChallengeSuggestionDecisionInput,
-    CreateAdHocInput,
-    DiceInputType,
-    DiscardChallengeInput,
-    DiscardResult,
-    OutcomeDecision,
-    OutcomeDecisionInput,
-    OutcomeDecisionResult,
-    OutcomeDetail,
-    RegenerateOutcomeInput,
-    RegenerateResult,
-    RequestBranchesInput,
-    RequestSuggestionInput,
-    RollResultData,
-    SelectBranchInput,
-    SubmitDiceInputInput,
-    SubmitRollInput,
-    TriggerChallengeInput,
-    TriggerInfo,
-    TriggerResult,
     // Staging types
     ApproveInput,
     ApproveResult,
     ApprovedNpcData,
     ApprovedNpcInput,
+    ChallengeSuggestionDecisionInput,
+    CharacterEntity,
+    // Connection types
+    ConnectedUser,
+    // Error types
+    ConnectionError,
+    ConnectionInfo,
+    CreateAdHocInput,
+    DiceInputType,
+    DirectorialContextData,
+    DirectorialUpdateResult,
+    DiscardChallengeInput,
+    DiscardResult,
+    DmAction as SceneDmAction,
+    // Inventory types
+    DropInput,
+    DropResult,
+    EquipInput,
+    EquipResult,
+    ErrorCode,
+    // Movement types
+    ExitToLocationInput,
+    InteractionEntity,
+    InteractionTarget,
+    JoinWorldInput,
+    JoinWorldResult,
+    LeaveWorldResult,
+    LocationEntity,
+    LocationEventData,
+    MoveToRegionInput,
+    MovementError,
+    MovementResult,
+    // Narrative event types
+    NarrativeEventDecisionResult,
+    NarrativeEventSuggestionDecisionInput,
+    NpcMotivation,
+    OutcomeDecision,
+    OutcomeDecisionInput,
+    OutcomeDecisionResult,
+    OutcomeDetail,
+    PcData,
+    PendingStagingData,
     PendingStagingInfo,
+    PickupInput,
+    PickupResult,
+    PlayerActionInput,
     PreStageInput,
     PreStageResult,
     ProposedNpc,
     RegenerateInput,
+    RegenerateOutcomeInput,
+    RegenerateResult,
     RegeneratedNpc,
-    StagingApprovalSource,
-    StagingRegenerateResult,
-    WaitingPcInfo,
+    RequestBranchesInput,
+    RequestSceneChangeInput,
+    RequestSuggestionInput,
+    RollResultData,
     // Scene types
     SceneApprovalDecision,
-    CharacterEntity,
-    DirectorialContextData,
-    DirectorialUpdateResult,
-    DmAction as SceneDmAction,
-    InteractionEntity,
-    InteractionTarget,
-    LocationEntity,
-    NpcMotivation,
-    RequestSceneChangeInput,
     SceneApprovalDecisionInput,
     SceneApprovalDecisionResult,
     SceneChangeResult,
@@ -389,87 +411,65 @@ pub use use_case_types::{
     SceneEntity,
     SceneInteractionData,
     SceneWithRelations as UseCaseSceneWithRelations,
-    TimeContext,
-    UpdateDirectorialInput,
-    // Player action types
-    ActionResult,
-    PlayerActionInput,
-    // Observation types
-    ApproachEventData,
-    LocationEventData,
-    ShareNpcLocationInput,
-    ShareNpcLocationResult,
-    TriggerApproachInput,
-    TriggerApproachResult,
-    TriggerLocationEventInput,
-    TriggerLocationEventResult,
-    // Inventory types
-    DropInput,
-    DropResult,
-    EquipInput,
-    EquipResult,
-    PickupInput,
-    PickupResult,
-    UnequipInput,
-    UnequipResult,
-    // Narrative event types
-    NarrativeEventDecisionResult,
-    NarrativeEventSuggestionDecisionInput,
-    // Error types
-    ConnectionError,
-    ErrorCode,
-    // Movement types
-    ExitToLocationInput,
-    MoveToRegionInput,
-    MovementError,
-    MovementResult,
-    PendingStagingData,
+    SelectBranchInput,
     SelectCharacterInput,
     SelectCharacterResult,
-    StagingProposalData,
-    // Connection types
-    ConnectedUser,
-    ConnectionInfo,
-    JoinWorldInput,
-    JoinWorldResult,
-    LeaveWorldResult,
-    PcData,
     SetSpectateTargetInput,
+    ShareNpcLocationInput,
+    ShareNpcLocationResult,
     SpectateTargetResult,
+    StagingApprovalSource,
+    StagingProposalData,
+    StagingRegenerateResult,
+    SubmitDiceInputInput,
+    SubmitRollInput,
+    TimeContext,
+    TriggerApproachInput,
+    TriggerApproachResult,
+    TriggerChallengeInput,
+    TriggerInfo,
+    TriggerLocationEventInput,
+    TriggerLocationEventResult,
+    TriggerResult,
+    UnequipInput,
+    UnequipResult,
+    UpdateDirectorialInput,
     UserJoinedEvent,
     UserLeftEvent,
+    WaitingPcInfo,
     WorldRole,
 };
 
 // Challenge outcome approval service port - interface for DM approval of challenge resolutions
-pub use challenge_outcome_approval_service_port::{
-    ChallengeApprovalResult, ChallengeOutcomeApprovalServicePort, OutcomeBranchInfo as ApprovalOutcomeBranchInfo,
-    ResolvedOutcome, StateChangeInfo as ApprovalStateChangeInfo,
-};
 #[cfg(any(test, feature = "testing"))]
 pub use challenge_outcome_approval_service_port::MockChallengeOutcomeApprovalServicePort;
+pub use challenge_outcome_approval_service_port::{
+    ChallengeApprovalResult, ChallengeOutcomeApprovalServicePort,
+    OutcomeBranchInfo as ApprovalOutcomeBranchInfo, ResolvedOutcome,
+    StateChangeInfo as ApprovalStateChangeInfo,
+};
 
 // Narrative event approval service port - interface for DM approval of narrative events
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_approval_service_port::MockNarrativeEventApprovalServicePort;
 pub use narrative_event_approval_service_port::{
     NarrativeEventApprovalServicePort, NarrativeEventTriggerResult,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use narrative_event_approval_service_port::MockNarrativeEventApprovalServicePort;
 
 // Trigger evaluation service port - interface for evaluating narrative event triggers
+#[cfg(any(test, feature = "testing"))]
+pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
 pub use trigger_evaluation_service_port::{
     CompletedChallenge, CompletedNarrativeEvent, GameStateSnapshot, ImmediateContext,
     TriggerEvaluationResult, TriggerEvaluationServicePort, TriggerSource, TriggeredEventCandidate,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
 
 // Event effect executor port - interface for executing narrative event outcome effects
+#[cfg(any(test, feature = "testing"))]
+pub use event_effect_executor_port::MockEventEffectExecutorPort;
 pub use event_effect_executor_port::{
     EffectExecutionResult, EventEffectExecutorPort, OutcomeExecutionResult,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use event_effect_executor_port::MockEventEffectExecutorPort;
 
 // Re-export mocks for test builds
 #[cfg(any(test, feature = "testing"))]

@@ -29,7 +29,13 @@ pub async fn handle_request_scene_change(
     let input = RequestSceneChangeInput {
         scene_id: scene_uuid,
     };
-    match state.app.use_cases.scene.request_scene_change(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .scene
+        .request_scene_change(ctx, input)
+        .await
+    {
         Ok(result) => convert_scene_result(result),
         Err(e) => Some(e.into_server_error()),
     }

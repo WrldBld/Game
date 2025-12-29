@@ -2,8 +2,8 @@
 
 use super::Route;
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::services::DEFAULT_ENGINE_URL;
 use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_app::application::services::DEFAULT_ENGINE_URL;
 use wrldbldr_player_ports::outbound::storage_keys;
 
 /// Main menu route - automatically redirects to role selection

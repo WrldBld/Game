@@ -7,7 +7,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use wrldbldr_domain::value_objects::{ApprovalRequestData, ChallengeOutcomeData, DmActionData, DmActionType};
+use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, ChallengeOutcomeData, DmActionData, DmActionType,
+};
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 use wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum;
 use wrldbldr_engine_adapters::infrastructure::websocket::{
@@ -16,9 +18,9 @@ use wrldbldr_engine_adapters::infrastructure::websocket::{
 };
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_app::application::services::{
-    ApprovalOutcome, DMApprovalQueueService, DmActionQueueService, InteractionService,
-    ItemServiceImpl, NarrativeEventService, SceneService,
+    ApprovalOutcome, DMApprovalQueueService, DmActionQueueService, ItemServiceImpl,
 };
+use wrldbldr_engine_ports::outbound::{InteractionServicePort, NarrativeEventServicePort, SceneServicePort};
 use wrldbldr_engine_ports::outbound::QueueNotificationPort;
 use wrldbldr_protocol::{
     CharacterData, CharacterPosition, InteractionData, ProposedToolInfo, SceneData, ServerMessage,
@@ -76,8 +78,9 @@ pub async fn approval_notification_worker(
                 // Convert domain types to protocol types for wire transmission
                 let proposed_tools: Vec<ProposedToolInfo> =
                     domain_tools_to_proto(&item.payload.proposed_tools);
-                let challenge_suggestion =
-                    domain_challenge_suggestion_to_proto(item.payload.challenge_suggestion.as_ref());
+                let challenge_suggestion = domain_challenge_suggestion_to_proto(
+                    item.payload.challenge_suggestion.as_ref(),
+                );
                 let narrative_event_suggestion = domain_narrative_suggestion_to_proto(
                     item.payload.narrative_event_suggestion.as_ref(),
                 );
@@ -124,7 +127,9 @@ pub async fn approval_notification_worker(
 /// Worker that processes DM action queue items
 pub async fn dm_action_worker(
     dm_action_queue_service: Arc<
-        DmActionQueueService<wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<DmActionData>>,
+        DmActionQueueService<
+            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<DmActionData>,
+        >,
     >,
     approval_queue_service: Arc<
         DMApprovalQueueService<
@@ -132,9 +137,9 @@ pub async fn dm_action_worker(
             ItemServiceImpl,
         >,
     >,
-    narrative_event_service: Arc<dyn NarrativeEventService>,
-    scene_service: Arc<dyn SceneService>,
-    interaction_service: Arc<dyn InteractionService>,
+    narrative_event_service: Arc<dyn NarrativeEventServicePort>,
+    scene_service: Arc<dyn SceneServicePort>,
+    interaction_service: Arc<dyn InteractionServicePort>,
     world_connection_manager: SharedWorldConnectionManager,
     recovery_interval: Duration,
     cancel_token: CancellationToken,
@@ -203,9 +208,9 @@ async fn process_dm_action(
             ItemServiceImpl,
         >,
     >,
-    narrative_event_service: &dyn NarrativeEventService,
-    scene_service: &dyn SceneService,
-    interaction_service: &dyn InteractionService,
+    narrative_event_service: &dyn NarrativeEventServicePort,
+    scene_service: &dyn SceneServicePort,
+    interaction_service: &dyn InteractionServicePort,
     action: &DmActionData,
 ) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
     match &action.action {
@@ -363,7 +368,7 @@ async fn process_dm_action(
             };
 
             // Load interactions for the scene
-            let interactions = match interaction_service.list_interactions(*scene_id).await {
+            let interactions = match interaction_service.list_by_scene(*scene_id).await {
                 Ok(interactions) => interactions
                     .into_iter()
                     .map(|i| {

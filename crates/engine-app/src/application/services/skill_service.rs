@@ -11,7 +11,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{default_skills_for_variant, Skill, SkillCategory};
 use wrldbldr_domain::{SkillId, WorldId};
-use wrldbldr_engine_ports::outbound::{SkillRepositoryPort, WorldRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    CreateSkillRequest as PortCreateSkillRequest, SkillRepositoryPort, SkillServicePort,
+    UpdateSkillRequest as PortUpdateSkillRequest, WorldRepositoryPort,
+};
 
 /// Request to create a new skill
 #[derive(Debug, Clone)]
@@ -287,6 +290,65 @@ impl SkillService for SkillServiceImpl {
             skills.len()
         );
         Ok(skills)
+    }
+}
+
+// =============================================================================
+// SkillServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl SkillServicePort for SkillServiceImpl {
+    async fn list_skills(&self, world_id: WorldId) -> Result<Vec<Skill>> {
+        SkillService::list_skills(self, world_id).await
+    }
+
+    async fn get_skill(&self, skill_id: SkillId) -> Result<Option<Skill>> {
+        SkillService::get_skill(self, skill_id).await
+    }
+
+    async fn create_skill(
+        &self,
+        world_id: WorldId,
+        request: PortCreateSkillRequest,
+    ) -> Result<Skill> {
+        // Convert port request to service request
+        let service_request = CreateSkillRequest {
+            name: request.name,
+            description: request.description,
+            category: request.category,
+            base_attribute: request.base_attribute,
+        };
+        SkillService::create_skill(self, world_id, service_request).await
+    }
+
+    async fn update_skill(
+        &self,
+        skill_id: SkillId,
+        request: PortUpdateSkillRequest,
+    ) -> Result<Skill> {
+        // Convert port request to service request
+        let service_request = UpdateSkillRequest {
+            name: request.name,
+            description: request.description,
+            category: request.category,
+            base_attribute: request.base_attribute,
+            is_hidden: request.is_hidden,
+            order: request.order,
+        };
+        SkillService::update_skill(self, skill_id, service_request).await
+    }
+
+    async fn update_visibility(&self, skill_id: SkillId, is_hidden: bool) -> Result<Skill> {
+        SkillService::update_visibility(self, skill_id, is_hidden).await
+    }
+
+    async fn delete_skill(&self, skill_id: SkillId) -> Result<()> {
+        SkillService::delete_skill(self, skill_id).await
+    }
+
+    async fn initialize_defaults(&self, world_id: WorldId) -> Result<Vec<Skill>> {
+        SkillService::initialize_defaults(self, world_id).await
     }
 }
 

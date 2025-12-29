@@ -232,4 +232,10 @@ pub trait DmApprovalQueueServicePort: Send + Sync {
         &self,
         status: QueueItemStatus,
     ) -> anyhow::Result<Vec<ApprovalQueueItem>>;
+
+    /// Clean up old completed/failed items beyond retention period
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64>;
+
+    /// Expire approval items older than the specified timeout
+    async fn expire_old(&self, timeout: std::time::Duration) -> anyhow::Result<u64>;
 }

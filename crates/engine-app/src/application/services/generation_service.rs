@@ -10,13 +10,17 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
+use async_trait::async_trait;
 use tokio::sync::{mpsc, RwLock};
 
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort};
+use wrldbldr_engine_ports::outbound::{
+    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort,
+    GenerationRequest as PortGenerationRequest, GenerationServicePort,
+};
 
 /// Events emitted by the generation service
 #[derive(Debug, Clone)]
@@ -668,5 +672,80 @@ impl GenerationService {
     pub async fn cancel_batch(&self, batch_id: BatchId) -> Result<()> {
         self.active_batches.write().await.remove(&batch_id);
         self.repository.delete_batch(batch_id).await
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl GenerationServicePort for GenerationService {
+    async fn generate_asset(&self, request: PortGenerationRequest) -> Result<GenerationBatch> {
+        // Convert port request to internal request
+        let internal_request = GenerationRequest {
+            world_id: request.world_id,
+            entity_type: request.entity_type,
+            entity_id: request.entity_id,
+            asset_type: request.asset_type,
+            prompt: request.prompt,
+            negative_prompt: request.negative_prompt,
+            count: request.count,
+            style_reference_id: request.style_reference_id,
+        };
+
+        // Queue and return the batch
+        let batch_id = self.queue_generation(internal_request).await?;
+        self.get_batch_status(batch_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created batch"))
+    }
+
+    async fn get_batch(&self, id: BatchId) -> Result<Option<GenerationBatch>> {
+        self.get_batch_status(id).await
+    }
+
+    async fn select_from_batch(
+        &self,
+        batch_id: BatchId,
+        asset_index: usize,
+    ) -> Result<GalleryAsset> {
+        // Get the batch to access its assets
+        let batch = self
+            .get_batch_status(batch_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Batch not found: {}", batch_id))?;
+
+        // Validate the batch is ready for selection
+        if !matches!(batch.status, BatchStatus::ReadyForSelection) {
+            anyhow::bail!("Batch is not ready for selection");
+        }
+
+        // Validate the asset index
+        if asset_index >= batch.assets.len() {
+            anyhow::bail!(
+                "Asset index {} out of bounds (batch has {} assets)",
+                asset_index,
+                batch.assets.len()
+            );
+        }
+
+        let asset_id = batch.assets[asset_index];
+
+        // Get the asset
+        let asset = self
+            .repository
+            .get(asset_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Asset not found: {}", asset_id))?;
+
+        // Mark the batch as completed
+        self.complete_batch(batch_id).await?;
+
+        // Activate the selected asset
+        self.repository.activate(asset_id).await?;
+
+        Ok(asset)
+    }
+
+    async fn start_batch_processing(&self, batch: GenerationBatch) -> Result<()> {
+        GenerationService::start_batch_processing(self, batch).await
     }
 }

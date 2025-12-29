@@ -114,7 +114,10 @@ impl PlayerServices {
 impl std::fmt::Debug for PlayerServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PlayerServices")
-            .field("sheet_template_service", &"Arc<dyn SheetTemplateServicePort>")
+            .field(
+                "sheet_template_service",
+                &"Arc<dyn SheetTemplateServicePort>",
+            )
             .field(
                 "player_character_service",
                 &"Arc<dyn PlayerCharacterServicePort>",

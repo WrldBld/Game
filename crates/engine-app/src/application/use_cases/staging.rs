@@ -30,7 +30,7 @@ pub use wrldbldr_engine_ports::inbound::{StagingServiceExtPort, StagingStateExtP
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
-    ApprovedNpcData, ApprovedNpcInput as ApprovedNpc, ApproveInput, ApproveResult,
+    ApproveInput, ApproveResult, ApprovedNpcData, ApprovedNpcInput as ApprovedNpc,
     PendingStagingInfo, PreStageInput, PreStageResult, ProposedNpc, RegenerateInput,
     RegeneratedNpc, StagingApprovalSource, StagingRegenerateResult as RegenerateResult,
     WaitingPcInfo,

@@ -7,8 +7,8 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_suggestion_service;
 use crate::presentation::state::use_generation_state;
-use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_app::application::services::SuggestionContext;
 
 /// Types of suggestions that can be requested
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

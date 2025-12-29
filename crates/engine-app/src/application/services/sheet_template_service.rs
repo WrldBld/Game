@@ -5,11 +5,12 @@
 //! the business logic layer for sheet template operations.
 
 use anyhow::Result;
+use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_domain::entities::{CharacterSheetTemplate, SheetTemplateId};
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort;
+use wrldbldr_engine_ports::outbound::{SheetTemplateRepositoryPort, SheetTemplateServicePort};
 
 /// Service for managing character sheet templates
 pub struct SheetTemplateService {
@@ -63,5 +64,44 @@ impl SheetTemplateService {
     /// Check if a world has any templates
     pub async fn has_templates(&self, world_id: &WorldId) -> Result<bool> {
         self.repository.has_templates(world_id).await
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl SheetTemplateServicePort for SheetTemplateService {
+    async fn create(&self, template: &CharacterSheetTemplate) -> Result<()> {
+        SheetTemplateService::create(self, template).await
+    }
+
+    async fn get(&self, id: &SheetTemplateId) -> Result<Option<CharacterSheetTemplate>> {
+        SheetTemplateService::get(self, id).await
+    }
+
+    async fn get_default_for_world(
+        &self,
+        world_id: &WorldId,
+    ) -> Result<Option<CharacterSheetTemplate>> {
+        SheetTemplateService::get_default_for_world(self, world_id).await
+    }
+
+    async fn list_by_world(&self, world_id: &WorldId) -> Result<Vec<CharacterSheetTemplate>> {
+        SheetTemplateService::list_by_world(self, world_id).await
+    }
+
+    async fn update(&self, template: &CharacterSheetTemplate) -> Result<()> {
+        SheetTemplateService::update(self, template).await
+    }
+
+    async fn delete(&self, id: &SheetTemplateId) -> Result<()> {
+        SheetTemplateService::delete(self, id).await
+    }
+
+    async fn delete_all_for_world(&self, world_id: &WorldId) -> Result<()> {
+        SheetTemplateService::delete_all_for_world(self, world_id).await
+    }
+
+    async fn has_templates(&self, world_id: &WorldId) -> Result<bool> {
+        SheetTemplateService::has_templates(self, world_id).await
     }
 }

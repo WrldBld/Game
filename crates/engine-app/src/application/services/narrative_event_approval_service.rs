@@ -9,8 +9,13 @@
 use std::sync::Arc;
 
 use crate::application::services::{NarrativeEventService, StoryEventService};
+use async_trait::async_trait;
 use thiserror::Error;
 use wrldbldr_domain::{NarrativeEventId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    NarrativeEventApprovalServicePort,
+    NarrativeEventTriggerResult as PortNarrativeEventTriggerResult,
+};
 
 /// Error type for narrative event approval operations
 #[derive(Debug, Error)]
@@ -174,5 +179,47 @@ where
             scene_direction: Some(narrative_event.scene_direction),
             effects,
         })
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `NarrativeEventApprovalServicePort` for `NarrativeEventApprovalService`.
+///
+/// This exposes narrative event approval methods to infrastructure adapters.
+#[async_trait]
+impl<N> NarrativeEventApprovalServicePort for NarrativeEventApprovalService<N>
+where
+    N: NarrativeEventService + 'static,
+{
+    async fn handle_decision(
+        &self,
+        world_id: WorldId,
+        request_id: String,
+        event_id: String,
+        approved: bool,
+        selected_outcome: Option<String>,
+    ) -> anyhow::Result<Option<PortNarrativeEventTriggerResult>> {
+        let result = NarrativeEventApprovalService::handle_decision(
+            self,
+            world_id,
+            request_id,
+            event_id,
+            approved,
+            selected_outcome,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // Convert internal result to port result
+        Ok(result.map(|r| PortNarrativeEventTriggerResult {
+            event_id: r.event_id,
+            event_name: r.event_name,
+            outcome_description: r.outcome_description,
+            scene_direction: r.scene_direction,
+            effects: r.effects,
+        }))
     }
 }

@@ -22,7 +22,9 @@ use wrldbldr_domain::DomainEvent;
 use wrldbldr_domain::{
     ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
 };
-use wrldbldr_engine_ports::outbound::{ClockPort, EventBusPort, StoryEventRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    ClockPort, EventBusPort, StoryEventRepositoryPort, StoryEventServicePort,
+};
 
 /// Service trait for recording gameplay events to the story timeline
 #[async_trait]
@@ -979,6 +981,48 @@ impl StoryEventService for StoryEventServiceImpl {
             false,                       // is_hidden
             Vec::new(),                  // tags
             None,                        // game_time
+        )
+        .await
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `StoryEventServicePort` for `StoryEventServiceImpl`.
+///
+/// This exposes the subset of story event service methods needed by infrastructure adapters.
+#[async_trait]
+impl StoryEventServicePort for StoryEventServiceImpl {
+    async fn get_story_event(&self, id: StoryEventId) -> Result<Option<StoryEvent>> {
+        self.get_event(id).await
+    }
+
+    async fn list_by_world(&self, world_id: WorldId, limit: usize) -> Result<Vec<StoryEvent>> {
+        // Use list_by_world_paginated with limit
+        self.list_by_world_paginated(world_id, limit as u32, 0)
+            .await
+    }
+
+    async fn record_event(
+        &self,
+        world_id: WorldId,
+        event_type: &str,
+        summary: &str,
+    ) -> Result<StoryEventId> {
+        // Create a simple DM marker to record the event
+        self.record_dm_marker(
+            world_id,
+            None,                         // scene_id
+            None,                         // location_id
+            event_type.to_string(),       // title
+            summary.to_string(),          // note
+            MarkerImportance::Minor,      // importance
+            DmMarkerType::Note,           // marker_type
+            false,                        // is_hidden
+            vec![event_type.to_string()], // tags
+            None,                         // game_time
         )
         .await
     }

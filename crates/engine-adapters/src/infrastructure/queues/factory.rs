@@ -405,7 +405,9 @@ impl QueueFactory {
     }
 
     /// Create an approval queue (approval queue)
-    pub async fn create_approval_queue(&self) -> Result<Arc<QueueBackendEnum<ApprovalRequestData>>> {
+    pub async fn create_approval_queue(
+        &self,
+    ) -> Result<Arc<QueueBackendEnum<ApprovalRequestData>>> {
         match self.config.backend.as_str() {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "approvals",

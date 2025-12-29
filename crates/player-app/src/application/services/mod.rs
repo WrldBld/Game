@@ -6,7 +6,6 @@
 
 pub mod actantial_service;
 pub mod action_service;
-pub mod user_service;
 pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
@@ -22,6 +21,7 @@ pub mod settings_service;
 pub mod skill_service;
 pub mod story_event_service;
 pub mod suggestion_service;
+pub mod user_service;
 pub mod workflow_service;
 pub mod world_service;
 

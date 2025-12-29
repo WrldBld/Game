@@ -1,7 +1,7 @@
 //! Application State Construction
 //!
 //! This module provides the construction logic for AppState.
-//! The AppState struct is defined in engine-adapters, but the construction
+//! The AppState struct is defined in engine-composition, but the construction
 //! (dependency injection and wiring) is done here in the composition root.
 
 use std::sync::Arc;
@@ -11,7 +11,6 @@ use anyhow::Result;
 use wrldbldr_engine_adapters::infrastructure::clock::SystemClock;
 use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
-use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
 use wrldbldr_engine_adapters::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
 use wrldbldr_engine_adapters::infrastructure::export::Neo4jWorldExporter;
 use wrldbldr_engine_adapters::infrastructure::ollama::OllamaClient;
@@ -24,12 +23,16 @@ use wrldbldr_engine_adapters::infrastructure::repositories::{
     SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
 };
 use wrldbldr_engine_adapters::infrastructure::settings_loader::load_settings_from_env;
+// Import old state containers temporarily (needed for UseCases::new() which creates concrete use cases)
 use wrldbldr_engine_adapters::infrastructure::state::{
-    AssetServices, CoreServices, EventInfrastructure, GameServices, PlayerServices, QueueServices,
-    UseCases,
+    AssetServices as OldAssetServices, CoreServices as OldCoreServices,
+    EventInfrastructure as OldEventInfrastructure, GameServices as OldGameServices,
+    PlayerServices as OldPlayerServices, QueueServices as OldQueueServices,
+    UseCases as OldUseCases,
 };
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::new_shared_manager;
+use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
 use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
 
 use wrldbldr_engine_app::application::handlers::AppRequestHandler;
@@ -49,27 +52,203 @@ use wrldbldr_engine_app::application::services::{
     SceneServiceImpl, SettingsService, SheetTemplateService, SkillServiceImpl,
     StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService, WorldServiceImpl,
 };
-use wrldbldr_engine_ports::inbound::RequestHandler;
-use wrldbldr_engine_ports::outbound::{
-    ClockPort, DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
+
+// Import composition layer types
+use wrldbldr_engine_composition::{
+    AppConfig as CompositionAppConfig, AppState, AssetServices, CoreServices, EventInfra,
+    GameServices, LlmPortDyn, PlayerServices, QueueServices, UseCases,
 };
 
-// Re-export AppState from engine-adapters
-pub use wrldbldr_engine_adapters::infrastructure::state::AppState;
+use wrldbldr_engine_ports::inbound::{
+    ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
+    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandler,
+    SceneUseCasePort, StagingUseCasePort,
+};
+use wrldbldr_engine_ports::outbound::{
+    ActantialContextServicePort,
+    AssetGenerationQueueServicePort,
+    AssetServicePort,
+    ChallengeOutcomeApprovalServicePort,
+    ChallengeResolutionServicePort,
+    ChallengeServicePort,
+    CharacterServicePort,
+    ClockPort,
+    ComfyUIPort,
+    DispositionServicePort,
+    DmActionQueueServicePort,
+    DmApprovalQueueServicePort,
+    DomainEventRepositoryPort,
+    EventBusPort,
+    EventChainServicePort,
+    EventEffectExecutorPort,
+    EventNotifierPort,
+    GenerationQueueProjectionServicePort,
+    GenerationReadStatePort,
+    GenerationServicePort,
+    InteractionServicePort,
+    ItemServicePort,
+    LlmQueueServicePort,
+    LocationServicePort,
+    NarrativeEventApprovalServicePort,
+    NarrativeEventServicePort,
+    // Queue service ports
+    PlayerActionQueueServicePort,
+    PlayerCharacterServicePort,
+    PromptContextServicePort,
+    PromptTemplateServicePort,
+    QueuePort,
+    RegionRepositoryPort,
+    RelationshipServicePort,
+    SceneResolutionServicePort,
+    SceneServicePort,
+    SettingsServicePort,
+    SheetTemplateServicePort,
+    SkillServicePort,
+    StagingServicePort,
+    StoryEventServicePort,
+    TriggerEvaluationServicePort,
+    WorkflowServicePort,
+    WorldConnectionManagerPort,
+    WorldServicePort,
+    WorldStatePort,
+};
+
+// Re-export AdapterState for server.rs
+pub use wrldbldr_engine_adapters::infrastructure::AdapterState;
+
+use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData,
+    GamePromptRequest, LlmRequestData, PlayerActionData,
+};
+use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient as ComfyUIClientType;
+use wrldbldr_engine_adapters::infrastructure::ollama::OllamaClient as OllamaClientType;
+use wrldbldr_engine_adapters::infrastructure::queues::{InProcessNotifier, QueueBackendEnum};
+
+/// Adapter that implements PromptContextServicePort by delegating to PromptContextService.
+///
+/// This adapter bridges the app-layer PromptContextService trait to the port-layer
+/// PromptContextServicePort trait. The port trait has a different method signature
+/// (individual fields vs struct), so this adapter does the conversion.
+///
+/// Note: This is a workaround for the incomplete trait migration. In the future,
+/// PromptContextServiceImpl should directly implement PromptContextServicePort.
+struct PromptContextServicePortAdapter {
+    inner: Arc<dyn wrldbldr_engine_app::application::services::PromptContextService>,
+}
+
+#[async_trait::async_trait]
+impl PromptContextServicePort for PromptContextServicePortAdapter {
+    async fn build_prompt_from_action(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
+        action_type: String,
+        target: Option<String>,
+        dialogue: Option<String>,
+        _region_id: Option<wrldbldr_domain::RegionId>,
+    ) -> Result<GamePromptRequest, wrldbldr_engine_ports::outbound::PromptContextError> {
+        use wrldbldr_domain::value_objects::PlayerActionData;
+        use wrldbldr_engine_ports::outbound::PromptContextError;
+
+        // Build the action struct from individual fields
+        let action = PlayerActionData {
+            world_id,
+            player_id: "adapter".to_string(), // Not used in prompt building
+            pc_id: Some(pc_id),
+            action_type,
+            target,
+            dialogue,
+            timestamp: chrono::Utc::now(),
+        };
+
+        // Delegate to the inner service
+        self.inner
+            .build_prompt_from_action(world_id, &action)
+            .await
+            .map_err(|e| PromptContextError::Internal(e.to_string()))
+    }
+
+    async fn find_responding_character(
+        &self,
+        _world_id: wrldbldr_domain::WorldId,
+        _scene_id: wrldbldr_domain::SceneId,
+        _target: Option<String>,
+    ) -> Result<Option<wrldbldr_domain::CharacterId>, wrldbldr_engine_ports::outbound::PromptContextError> {
+        // Not used by any current code paths through AppState
+        Ok(None)
+    }
+}
+
+/// Worker services - concrete queue service types for background workers.
+///
+/// Background workers need access to concrete service implementations because they
+/// call infrastructure-specific methods like `run_worker()` and `process_next()` that
+/// are not part of the port traits. These methods are worker-specific infrastructure
+/// code that legitimately needs concrete types.
+///
+/// This struct is separate from `AppState` (which uses port traits) to maintain clean
+/// hexagonal architecture: handlers use `AppState` with ports, workers use `WorkerServices`
+/// with concrete types.
+#[derive(Clone)]
+pub struct WorkerServices {
+    /// LLM queue service with `run_worker()` method
+    pub llm_queue_service: Arc<
+        LLMQueueService<
+            QueueBackendEnum<LlmRequestData>,
+            OllamaClientType,
+            InProcessNotifier,
+        >,
+    >,
+
+    /// Asset generation queue service with `run_worker()` method
+    pub asset_generation_queue_service: Arc<
+        AssetGenerationQueueService<
+            QueueBackendEnum<AssetGenerationData>,
+            ComfyUIClientType,
+            InProcessNotifier,
+        >,
+    >,
+
+    /// Player action queue service with `process_next()` method
+    pub player_action_queue_service: Arc<
+        PlayerActionQueueService<
+            QueueBackendEnum<PlayerActionData>,
+            QueueBackendEnum<LlmRequestData>,
+        >,
+    >,
+
+    /// DM action queue service with `process_next()` method
+    pub dm_action_queue_service: Arc<DmActionQueueService<QueueBackendEnum<DmActionData>>>,
+
+    /// DM approval queue service with `queue()` accessor for `expire_old()`
+    pub dm_approval_queue_service:
+        Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>>,
+
+    /// Challenge outcome queue (concrete backend type)
+    pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
+
+    /// Prompt context service (app-layer trait, not port trait)
+    /// Workers need the app-layer trait which has `build_prompt_from_action(&action)`
+    pub prompt_context_service:
+        Arc<dyn wrldbldr_engine_app::application::services::PromptContextService>,
+}
 
 /// Buffer size for internal event channels
 /// Provides backpressure when consumers are slow
 const EVENT_CHANNEL_BUFFER: usize = 256;
 
-/// Creates a new AppState with all services initialized.
+/// Creates a new AdapterState with all services initialized.
 ///
-/// Returns the state along with event receivers that need to be consumed by background workers:
+/// Returns:
+/// - `AdapterState`: The main application state with port-typed services
+/// - `WorkerServices`: Concrete queue services for background workers
 /// - `generation_event_rx`: GenerationEvent receiver for GenerationEventPublisher
 /// - `challenge_approval_rx`: ChallengeApprovalEvent receiver for ChallengeApprovalEventPublisher
 pub async fn new_app_state(
     config: AppConfig,
 ) -> Result<(
-    AppState,
+    AdapterState,
+    WorkerServices,
     tokio::sync::mpsc::Receiver<GenerationEvent>,
     tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,
 )> {
@@ -94,14 +273,12 @@ pub async fn new_app_state(
     // Initialize settings service early (needed by other services for validation)
     let settings_db_path = config.queue.sqlite_path.replace(".db", "_settings.db");
     if let Some(parent) = std::path::Path::new(&settings_db_path).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("Failed to create settings database directory: {}", e)
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("Failed to create settings database directory: {}", e))?;
     }
-    let settings_pool =
-        sqlx::SqlitePool::connect(&format!("sqlite:{}?mode=rwc", settings_db_path))
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to connect to settings database: {}", e))?;
+    let settings_pool = sqlx::SqlitePool::connect(&format!("sqlite:{}?mode=rwc", settings_db_path))
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to settings database: {}", e))?;
     tracing::info!("Connected to settings database: {}", settings_db_path);
 
     let settings_repository = SqliteSettingsRepository::new(settings_pool.clone())
@@ -117,14 +294,11 @@ pub async fn new_app_state(
     // Initialize prompt template service (uses same pool as settings - they share the DB file)
     let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool.clone())
         .await
-        .map_err(|e| {
-            anyhow::anyhow!("Failed to initialize prompt template repository: {}", e)
-        })?;
+        .map_err(|e| anyhow::anyhow!("Failed to initialize prompt template repository: {}", e))?;
     let prompt_template_repository: Arc<
         dyn wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort,
     > = Arc::new(prompt_template_repository);
-    let prompt_template_service =
-        Arc::new(PromptTemplateService::new(prompt_template_repository));
+    let prompt_template_service = Arc::new(PromptTemplateService::new(prompt_template_repository));
     tracing::info!("Initialized prompt template service");
 
     // Initialize directorial context repository (shares same SQLite pool)
@@ -147,9 +321,8 @@ pub async fn new_app_state(
         Arc::new(repository.locations());
     let scene_repo: Arc<dyn wrldbldr_engine_ports::outbound::SceneRepositoryPort> =
         Arc::new(repository.scenes());
-    let relationship_repo: Arc<
-        dyn wrldbldr_engine_ports::outbound::RelationshipRepositoryPort,
-    > = Arc::new(repository.relationships());
+    let relationship_repo: Arc<dyn wrldbldr_engine_ports::outbound::RelationshipRepositoryPort> =
+        Arc::new(repository.relationships());
     let skill_repo: Arc<dyn wrldbldr_engine_ports::outbound::SkillRepositoryPort> =
         Arc::new(repository.skills());
     let interaction_repo: Arc<dyn wrldbldr_engine_ports::outbound::InteractionRepositoryPort> =
@@ -162,9 +335,8 @@ pub async fn new_app_state(
         Arc::new(repository.assets());
     let workflow_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorkflowRepositoryPort> =
         Arc::new(repository.workflows());
-    let sheet_template_repo: Arc<
-        dyn wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort,
-    > = Arc::new(repository.sheet_templates());
+    let sheet_template_repo: Arc<dyn wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort> =
+        Arc::new(repository.sheet_templates());
     let narrative_event_repo: Arc<
         dyn wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort,
     > = Arc::new(repository.narrative_events());
@@ -188,61 +360,77 @@ pub async fn new_app_state(
 
     // Initialize application services as Arc<dyn Trait> for shared ownership
     // This allows services to be shared between grouped service structs and AppRequestHandler
+    //
+    // Each service is created with two Arc versions:
+    // - Arc<dyn *Service> for the old adapter-layer containers (OldCoreServices, etc.)
+    // - Arc<dyn *ServicePort> for the composition-layer containers (CoreServices, etc.)
+    // This is needed because trait objects can't be cast between different trait types.
 
+    let world_service_impl = WorldServiceImpl::new(
+        world_repo.clone(),
+        world_exporter,
+        settings_service.clone(),
+        clock.clone(),
+    );
     let world_service: Arc<dyn wrldbldr_engine_app::application::services::WorldService> =
-        Arc::new(WorldServiceImpl::new(
-            world_repo.clone(),
-            world_exporter,
-            settings_service.clone(),
-            clock.clone(),
-        ));
+        Arc::new(world_service_impl.clone());
+    let world_service_port: Arc<dyn WorldServicePort> = Arc::new(world_service_impl);
 
-    let character_service: Arc<
-        dyn wrldbldr_engine_app::application::services::CharacterService,
-    > = Arc::new(CharacterServiceImpl::new(
+    let character_service_impl = CharacterServiceImpl::new(
         world_repo.clone(),
         character_repo.clone(),
         relationship_repo.clone(),
         settings_service.clone(),
         clock.clone(),
-    ));
+    );
+    let character_service: Arc<dyn wrldbldr_engine_app::application::services::CharacterService> =
+        Arc::new(character_service_impl.clone());
+    let character_service_port: Arc<dyn CharacterServicePort> = Arc::new(character_service_impl);
 
+    let location_service_impl = LocationServiceImpl::new(world_repo.clone(), location_repo.clone());
     let location_service: Arc<dyn wrldbldr_engine_app::application::services::LocationService> =
-        Arc::new(LocationServiceImpl::new(
-            world_repo.clone(),
-            location_repo.clone(),
-        ));
+        Arc::new(location_service_impl.clone());
+    let location_service_port: Arc<dyn LocationServicePort> = Arc::new(location_service_impl);
 
     let relationship_repo_for_effects = relationship_repo.clone();
+    let relationship_service_impl = RelationshipServiceImpl::new(relationship_repo);
     let relationship_service: Arc<
         dyn wrldbldr_engine_app::application::services::RelationshipService,
-    > = Arc::new(RelationshipServiceImpl::new(relationship_repo));
+    > = Arc::new(relationship_service_impl.clone());
+    let relationship_service_port: Arc<dyn RelationshipServicePort> =
+        Arc::new(relationship_service_impl);
 
     let scene_repo_for_resolution = scene_repo.clone();
 
+    let scene_service_impl = SceneServiceImpl::new(
+        scene_repo.clone(),
+        location_repo.clone(),
+        character_repo.clone(),
+    );
     let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> =
-        Arc::new(SceneServiceImpl::new(
-            scene_repo.clone(),
-            location_repo.clone(),
-            character_repo.clone(),
-        ));
+        Arc::new(scene_service_impl.clone());
+    let scene_service_port: Arc<dyn SceneServicePort> = Arc::new(scene_service_impl);
 
+    let skill_service_impl_for_port = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
     let skill_service: Arc<dyn wrldbldr_engine_app::application::services::SkillService> =
-        Arc::new(SkillServiceImpl::new(
-            skill_repo.clone(),
-            world_repo.clone(),
-        ));
+        Arc::new(skill_service_impl_for_port.clone());
+    let skill_service_port: Arc<dyn SkillServicePort> = Arc::new(skill_service_impl_for_port);
 
+    let interaction_service_impl = InteractionServiceImpl::new(interaction_repo);
     let interaction_service: Arc<
         dyn wrldbldr_engine_app::application::services::InteractionService,
-    > = Arc::new(InteractionServiceImpl::new(interaction_repo));
+    > = Arc::new(interaction_service_impl.clone());
+    let interaction_service_port: Arc<dyn InteractionServicePort> =
+        Arc::new(interaction_service_impl);
 
     // Temporarily create a simple story event service without event_bus, will update after event_bus is created
     let story_event_repo_for_service = story_event_repo.clone();
 
-    let challenge_service: Arc<
-        dyn wrldbldr_engine_app::application::services::ChallengeService,
-    > = Arc::new(ChallengeServiceImpl::new(challenge_repo.clone()));
+    let challenge_service_for_port = ChallengeServiceImpl::new(challenge_repo.clone());
+    let challenge_service: Arc<dyn wrldbldr_engine_app::application::services::ChallengeService> =
+        Arc::new(challenge_service_for_port.clone());
+    let challenge_service_port: Arc<dyn ChallengeServicePort> =
+        Arc::new(challenge_service_for_port);
     // Keep concrete version for ChallengeResolutionService generics
     let challenge_service_impl = ChallengeServiceImpl::new(challenge_repo.clone());
 
@@ -255,21 +443,30 @@ pub async fn new_app_state(
     let narrative_event_repo_for_effects = narrative_event_repo.clone();
     let challenge_repo_for_effects = challenge_repo.clone();
 
+    // Clone event_chain_repo for port version before it's moved
+    let event_chain_repo_for_port = event_chain_repo.clone();
+    let event_chain_service_impl_for_port = EventChainServiceImpl::new(event_chain_repo);
     let event_chain_service: Arc<
         dyn wrldbldr_engine_app::application::services::EventChainService,
-    > = Arc::new(EventChainServiceImpl::new(event_chain_repo));
+    > = Arc::new(event_chain_service_impl_for_port.clone());
+    let event_chain_service_port: Arc<dyn EventChainServicePort> =
+        Arc::new(event_chain_service_impl_for_port);
 
     let asset_repo_for_service = asset_repo.clone();
     let asset_service = AssetServiceImpl::new(asset_repo_for_service, clock.clone());
+    // Clone workflow_repo before creating service (we'll need it for composition layer too)
+    let workflow_repo_for_composition = workflow_repo.clone();
     let workflow_config_service = WorkflowConfigService::new(workflow_repo);
     let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
 
+    let item_service_for_port = ItemServiceImpl::new(
+        item_repo.clone(),
+        player_character_repo.clone(),
+        region_repo.clone(),
+    );
     let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> =
-        Arc::new(ItemServiceImpl::new(
-            item_repo.clone(),
-            player_character_repo.clone(),
-            region_repo.clone(),
-        ));
+        Arc::new(item_service_for_port.clone());
+    let item_service_port: Arc<dyn ItemServicePort> = Arc::new(item_service_for_port);
     // Keep concrete version for DMApprovalQueueService
     let item_service_impl = ItemServiceImpl::new(
         item_repo.clone(),
@@ -281,14 +478,17 @@ pub async fn new_app_state(
     let player_character_repo_for_actantial = player_character_repo.clone();
     let player_character_repo_for_handler = player_character_repo.clone();
 
-    let player_character_service: Arc<
-        dyn wrldbldr_engine_app::application::services::PlayerCharacterService,
-    > = Arc::new(PlayerCharacterServiceImpl::new(
+    let player_character_service_for_port = PlayerCharacterServiceImpl::new(
         player_character_repo.clone(),
         location_repo.clone(),
         world_repo.clone(),
         clock.clone(),
-    ));
+    );
+    let player_character_service: Arc<
+        dyn wrldbldr_engine_app::application::services::PlayerCharacterService,
+    > = Arc::new(player_character_service_for_port.clone());
+    let player_character_service_port: Arc<dyn PlayerCharacterServicePort> =
+        Arc::new(player_character_service_for_port);
     // Keep concrete version for ChallengeResolutionService generics
     let player_character_service_impl = PlayerCharacterServiceImpl::new(
         player_character_repo.clone(),
@@ -309,14 +509,23 @@ pub async fn new_app_state(
     // Clone for request handler (scene_resolution_service consumes the original)
     let observation_repo_for_handler = observation_repo.clone();
 
-    let scene_resolution_service: Arc<
-        dyn wrldbldr_engine_app::application::services::SceneResolutionService,
-    > = Arc::new(SceneResolutionServiceImpl::new(
+    // Clone repos for port version before they're moved
+    let player_character_repo_for_scene_port = player_character_repo.clone();
+    let scene_repo_for_port = scene_repo_for_resolution.clone();
+    let flag_repo_for_port = flag_repo.clone();
+    let observation_repo_for_port = observation_repo.clone();
+
+    let scene_resolution_service_impl = SceneResolutionServiceImpl::new(
         player_character_repo,
         scene_repo_for_resolution,
         flag_repo,
         observation_repo,
-    ));
+    );
+    let scene_resolution_service: Arc<
+        dyn wrldbldr_engine_app::application::services::SceneResolutionService,
+    > = Arc::new(scene_resolution_service_impl.clone());
+    let scene_resolution_service_port: Arc<dyn SceneResolutionServicePort> =
+        Arc::new(scene_resolution_service_impl);
 
     // Create outcome trigger service for challenge resolution (Phase 22D)
     let outcome_trigger_service = Arc::new(OutcomeTriggerService::new(challenge_repo.clone()));
@@ -378,26 +587,31 @@ pub async fn new_app_state(
     ));
 
     // Create story event service with event bus
-    let story_event_service: Arc<
-        dyn wrldbldr_engine_app::application::services::StoryEventService,
-    > = Arc::new(StoryEventServiceImpl::new(
+    // Clone repo before it's moved so we can create port version
+    let story_event_repo_for_port = story_event_repo_for_service.clone();
+    let story_event_service_impl_for_port = StoryEventServiceImpl::new(
         story_event_repo_for_service,
         event_bus.clone(),
         clock.clone(),
-    ));
+    );
+    let story_event_service: Arc<
+        dyn wrldbldr_engine_app::application::services::StoryEventService,
+    > = Arc::new(story_event_service_impl_for_port.clone());
+    let story_event_service_port: Arc<dyn StoryEventServicePort> =
+        Arc::new(story_event_service_impl_for_port);
 
     // Create narrative event service with event bus
     // Create both trait object and concrete impl (impl needed for NarrativeEventApprovalService generics)
-    let narrative_event_service_impl = NarrativeEventServiceImpl::new(
-        narrative_event_repo_for_service.clone(),
-        event_bus.clone(),
-    );
+    let narrative_event_service_impl =
+        NarrativeEventServiceImpl::new(narrative_event_repo_for_service.clone(), event_bus.clone());
+    // Clone for port version
+    let narrative_event_service_impl_for_port =
+        NarrativeEventServiceImpl::new(narrative_event_repo_for_service.clone(), event_bus.clone());
     let narrative_event_service: Arc<
         dyn wrldbldr_engine_app::application::services::NarrativeEventService,
-    > = Arc::new(NarrativeEventServiceImpl::new(
-        narrative_event_repo_for_service,
-        event_bus.clone(),
-    ));
+    > = Arc::new(narrative_event_service_impl_for_port.clone());
+    let narrative_event_service_port: Arc<dyn NarrativeEventServicePort> =
+        Arc::new(narrative_event_service_impl_for_port);
 
     // Initialize queue services
     // Services take Arc<Q>, so we pass Arc<QueueBackendEnum<T>> directly
@@ -459,8 +673,7 @@ pub async fn new_app_state(
 
     // Create generation service (generation_event_tx already created above)
     let generation_service = Arc::new(GenerationService::new(
-        Arc::new(comfyui_client.clone())
-            as Arc<dyn wrldbldr_engine_ports::outbound::ComfyUIPort>,
+        Arc::new(comfyui_client.clone()) as Arc<dyn wrldbldr_engine_ports::outbound::ComfyUIPort>,
         asset_repo.clone(),
         clock.clone(),
         file_storage,
@@ -571,24 +784,25 @@ pub async fn new_app_state(
     ));
 
     // Create prompt context service for building LLM prompts from player actions
-    let prompt_context_service: Arc<dyn wrldbldr_engine_app::application::services::PromptContextService> =
-        Arc::new(PromptContextServiceImpl::new(
-            world_service.clone(),
-            world_state.clone() as Arc<dyn wrldbldr_engine_ports::outbound::WorldStatePort>,
-            challenge_service.clone(),
-            skill_service.clone(),
-            narrative_event_service.clone(),
-            character_repo.clone(),
-            player_character_repo_for_actantial,
-            region_repo.clone(),
-            disposition_service.clone(),
-            actantial_context_service.clone()
-                as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
-        ));
+    let prompt_context_service: Arc<
+        dyn wrldbldr_engine_app::application::services::PromptContextService,
+    > = Arc::new(PromptContextServiceImpl::new(
+        world_service.clone(),
+        world_state.clone() as Arc<dyn wrldbldr_engine_ports::outbound::WorldStatePort>,
+        challenge_service.clone(),
+        skill_service.clone(),
+        narrative_event_service.clone(),
+        character_repo.clone(),
+        player_character_repo_for_actantial,
+        region_repo.clone(),
+        disposition_service.clone(),
+        actantial_context_service.clone()
+            as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
+    ));
 
-    // Build grouped services
+    // Build grouped services (old style, for UseCases::new() which creates concrete use cases)
     // Services are already Arc<dyn Trait>, so we clone them for shared ownership
-    let core = CoreServices::new(
+    let old_core = OldCoreServices::new(
         world_service.clone(),
         character_service.clone(),
         location_service.clone(),
@@ -606,53 +820,53 @@ pub async fn new_app_state(
     let challenge_outcome_approval_for_use_cases = challenge_outcome_approval_service.clone();
     let challenge_resolution_for_use_cases = challenge_resolution_service.clone();
 
-    let game = GameServices::new(
-        story_event_service,
+    let old_game = OldGameServices::new(
+        story_event_service.clone(),
         challenge_service.clone(),
-        challenge_resolution_service,
-        challenge_outcome_approval_service,
+        challenge_resolution_service.clone(),
+        challenge_outcome_approval_service.clone(),
         narrative_event_service.clone(),
-        narrative_event_approval_service,
+        narrative_event_approval_service.clone(),
         event_chain_service.clone(),
-        trigger_evaluation_service,
-        event_effect_executor,
+        trigger_evaluation_service.clone(),
+        event_effect_executor.clone(),
         disposition_service.clone()
             as Arc<dyn wrldbldr_engine_app::application::services::DispositionService>,
         actantial_context_service.clone()
             as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
     );
 
-    let queues = QueueServices::new(
-        player_action_queue_service,
-        dm_action_queue_service,
-        llm_queue_service,
-        asset_generation_queue_service,
-        dm_approval_queue_service,
-        challenge_outcome_queue,
+    let old_queues = OldQueueServices::new(
+        player_action_queue_service.clone(),
+        dm_action_queue_service.clone(),
+        llm_queue_service.clone(),
+        asset_generation_queue_service.clone(),
+        dm_approval_queue_service.clone(),
+        challenge_outcome_queue.clone(),
     );
 
     // Clone generation services for use in request handler
     let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
     let generation_read_state_for_handler = generation_read_state_repository.clone();
 
-    let assets = AssetServices::new(
-        asset_service,
-        workflow_config_service,
-        generation_service,
-        generation_queue_projection_service,
+    let old_assets = OldAssetServices::new(
+        asset_service.clone(),
+        workflow_config_service, // Move, not clone - OldAssetServices owns it
+        generation_service.clone(),
+        generation_queue_projection_service.clone(),
     );
 
-    let player = PlayerServices::new(
-        sheet_template_service,
+    let old_player = OldPlayerServices::new(
+        sheet_template_service.clone(),
         player_character_service.clone(),
         scene_resolution_service.clone(),
     );
 
-    let events = EventInfrastructure::new(
-        event_bus,
-        event_notifier,
+    let old_events = OldEventInfrastructure::new(
+        event_bus.clone(),
+        event_notifier.clone(),
         domain_event_repository.clone(),
-        generation_read_state_repository,
+        generation_read_state_repository.clone(),
     );
 
     // Create suggestion enqueue adapter for AI suggestions
@@ -660,7 +874,7 @@ pub async fn new_app_state(
     let suggestion_enqueue_adapter: Arc<
         dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort,
     > = Arc::new(SuggestionEnqueueAdapter::new(
-        queues.llm_queue_service.clone(),
+        old_queues.llm_queue_service.clone(),
         world_repo.clone(),
     ));
     tracing::info!("Initialized suggestion enqueue adapter with world auto-enrichment");
@@ -673,29 +887,29 @@ pub async fn new_app_state(
     let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
     // Clone services needed for use cases
-    let scene_service_for_use_cases = core.scene_service.clone();
-    let interaction_service_for_use_cases = core.interaction_service.clone();
-    let world_service_for_use_cases = core.world_service.clone();
-    let pc_service_for_use_cases = player.player_character_service.clone();
+    let scene_service_for_use_cases = old_core.scene_service.clone();
+    let interaction_service_for_use_cases = old_core.interaction_service.clone();
+    let world_service_for_use_cases = old_core.world_service.clone();
+    let pc_service_for_use_cases = old_player.player_character_service.clone();
 
     let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
-        core.world_service.clone(),
-        core.character_service.clone(),
-        core.location_service.clone(),
-        core.skill_service.clone(),
-        core.scene_service.clone(),
-        core.interaction_service.clone(),
-        game.challenge_service.clone(),
-        game.narrative_event_service.clone(),
-        game.event_chain_service.clone(),
-        player.player_character_service.clone(),
-        core.relationship_service.clone(),
-        game.actantial_context_service.clone(),
-        game.disposition_service.clone(),
-        game.story_event_service.clone(),
-        core.item_service.clone(),
+        old_core.world_service.clone(),
+        old_core.character_service.clone(),
+        old_core.location_service.clone(),
+        old_core.skill_service.clone(),
+        old_core.scene_service.clone(),
+        old_core.interaction_service.clone(),
+        old_game.challenge_service.clone(),
+        old_game.narrative_event_service.clone(),
+        old_game.event_chain_service.clone(),
+        old_player.player_character_service.clone(),
+        old_core.relationship_service.clone(),
+        old_game.actantial_context_service.clone(),
+        old_game.disposition_service.clone(),
+        old_game.story_event_service.clone(),
+        old_core.item_service.clone(),
         region_service,
-        player.sheet_template_service.clone(),
+        old_player.sheet_template_service.clone(),
         character_repo_for_handler,
         observation_repo_for_handler,
         region_repo.clone(),
@@ -706,8 +920,8 @@ pub async fn new_app_state(
     ));
     tracing::info!("Initialized request handler for WebSocket-first architecture");
 
-    // Create use cases container with all dependencies
-    let use_cases = UseCases::new(
+    // Create use cases container with all dependencies (old style, creates concrete use cases)
+    let old_use_cases = OldUseCases::new(
         world_connection_manager.clone(),
         world_state.clone(),
         player_character_repo_for_handler.clone(),
@@ -728,36 +942,194 @@ pub async fn new_app_state(
         challenge_outcome_approval_for_use_cases,
         dm_approval_queue_for_use_cases,
         // Narrative event dependencies
-        game.narrative_event_approval_service.clone(),
+        old_game.narrative_event_approval_service.clone(),
         // Clock for time operations
         clock.clone(),
     );
     tracing::info!("Initialized use cases container with all 9 use cases");
 
-    Ok((
-        AppState {
-            config: config.clone(),
-            repository,
-            llm_client,
-            comfyui_client,
+    // ===========================================================================
+    // Create composition-layer UseCases with port traits (casting from concrete)
+    // ===========================================================================
+    let composition_use_cases = UseCases::new(
+        old_use_cases.broadcast.clone(),
+        old_use_cases.movement.clone() as Arc<dyn MovementUseCasePort>,
+        old_use_cases.staging.clone() as Arc<dyn StagingUseCasePort>,
+        old_use_cases.inventory.clone() as Arc<dyn InventoryUseCasePort>,
+        old_use_cases.player_action.clone() as Arc<dyn PlayerActionUseCasePort>,
+        old_use_cases.observation.clone() as Arc<dyn ObservationUseCasePort>,
+        old_use_cases.challenge.clone() as Arc<dyn ChallengeUseCasePort>,
+        old_use_cases.scene.clone() as Arc<dyn SceneUseCasePort>,
+        old_use_cases.connection.clone() as Arc<dyn ConnectionUseCasePort>,
+        old_use_cases.narrative_event.clone() as Arc<dyn NarrativeEventUseCasePort>,
+    );
 
-            core,
-            game,
-            queues,
-            assets,
-            player,
-            events,
-            settings_service,
-            prompt_template_service,
-            staging_service,
-            world_connection_manager,
-            world_state,
-            request_handler,
-            directorial_context_repo,
-            use_cases,
-            prompt_context_service,
-        },
+    // ===========================================================================
+    // Create composition-layer CoreServices (port-based)
+    // ===========================================================================
+    // Use the port-typed Arc versions created earlier (not app service trait versions)
+    let composition_core = CoreServices::new(
+        world_service_port.clone(),
+        character_service_port.clone(),
+        location_service_port.clone(),
+        scene_service_port.clone(),
+        skill_service_port.clone(),
+        interaction_service_port.clone(),
+        relationship_service_port.clone(),
+        item_service_port.clone(),
+    );
+
+    // ===========================================================================
+    // Create composition-layer GameServices (port-based)
+    // ===========================================================================
+    // Use port-typed versions for services, cast for services that are already Arc<concrete>
+    let composition_game = GameServices::new(
+        story_event_service_port.clone(),
+        challenge_service_port.clone(),
+        challenge_resolution_service.clone() as Arc<dyn ChallengeResolutionServicePort>,
+        challenge_outcome_approval_service.clone() as Arc<dyn ChallengeOutcomeApprovalServicePort>,
+        narrative_event_service_port.clone(),
+        narrative_event_approval_service.clone() as Arc<dyn NarrativeEventApprovalServicePort>,
+        event_chain_service_port.clone(),
+        trigger_evaluation_service.clone() as Arc<dyn TriggerEvaluationServicePort>,
+        event_effect_executor.clone() as Arc<dyn EventEffectExecutorPort>,
+        disposition_service.clone() as Arc<dyn DispositionServicePort>,
+        actantial_context_service.clone() as Arc<dyn ActantialContextServicePort>,
+    );
+
+    // ===========================================================================
+    // Create composition-layer QueueServices (port-based)
+    // ===========================================================================
+    let composition_queues = QueueServices::new(
+        player_action_queue_service.clone() as Arc<dyn PlayerActionQueueServicePort>,
+        dm_action_queue_service.clone() as Arc<dyn DmActionQueueServicePort>,
+        llm_queue_service.clone() as Arc<dyn LlmQueueServicePort>,
+        asset_generation_queue_service.clone() as Arc<dyn AssetGenerationQueueServicePort>,
+        dm_approval_queue_service.clone() as Arc<dyn DmApprovalQueueServicePort>,
+        challenge_outcome_queue.clone()
+            as Arc<dyn QueuePort<wrldbldr_domain::value_objects::ChallengeOutcomeData>>,
+    );
+
+    // ===========================================================================
+    // Create composition-layer AssetServices (port-based)
+    // ===========================================================================
+    // Create a new WorkflowConfigService for composition layer (uses cloned repo)
+    let workflow_config_service_for_composition =
+        Arc::new(WorkflowConfigService::new(workflow_repo_for_composition));
+    let composition_assets = AssetServices::new(
+        Arc::new(asset_service.clone()) as Arc<dyn AssetServicePort>,
+        workflow_config_service_for_composition as Arc<dyn WorkflowServicePort>,
+        generation_service.clone() as Arc<dyn GenerationServicePort>,
+        generation_queue_projection_service.clone()
+            as Arc<dyn GenerationQueueProjectionServicePort>,
+    );
+
+    // ===========================================================================
+    // Create composition-layer PlayerServices (port-based)
+    // ===========================================================================
+    // Use port-typed versions
+    let composition_player = PlayerServices::new(
+        sheet_template_service.clone() as Arc<dyn SheetTemplateServicePort>,
+        player_character_service_port.clone(),
+        scene_resolution_service_port.clone(),
+    );
+
+    // ===========================================================================
+    // Create composition-layer EventInfra (port-based)
+    // ===========================================================================
+    let composition_events = EventInfra::new(
+        event_bus.clone() as Arc<dyn EventBusPort>,
+        Arc::new(event_notifier.clone()) as Arc<dyn EventNotifierPort>,
+        domain_event_repository.clone() as Arc<dyn DomainEventRepositoryPort>,
+        generation_read_state_repository.clone() as Arc<dyn GenerationReadStatePort>,
+    );
+
+    // ===========================================================================
+    // Create composition-layer AppConfig
+    // ===========================================================================
+    // Note: adapter's AppConfig doesn't have server_host, use default "0.0.0.0"
+    let composition_config = CompositionAppConfig::new(
+        "0.0.0.0".to_string(), // server_host not in adapter config, use default
+        config.server_port,
+        config.neo4j_uri.clone(),
+        config.ollama_base_url.clone(),
+        config.comfyui_base_url.clone(),
+    );
+
+    // ===========================================================================
+    // Create composition-layer AppState (pure ports)
+    // ===========================================================================
+    let composition_app_state = AppState::new(
+        composition_config,
+        Arc::new(llm_client.clone()) as Arc<dyn LlmPortDyn>,
+        Arc::new(comfyui_client.clone()) as Arc<dyn ComfyUIPort>,
+        region_repo.clone() as Arc<dyn RegionRepositoryPort>,
+        composition_core,
+        composition_game,
+        composition_queues,
+        composition_assets,
+        composition_player,
+        composition_events,
+        settings_service.clone() as Arc<dyn SettingsServicePort>,
+        prompt_template_service.clone() as Arc<dyn PromptTemplateServicePort>,
+        staging_service.clone() as Arc<dyn StagingServicePort>,
+        world_connection_manager.clone() as Arc<dyn WorldConnectionManagerPort>,
+        world_state.clone() as Arc<dyn WorldStatePort>,
+        request_handler.clone(),
+        directorial_context_repo.clone(),
+        composition_use_cases,
+        Arc::new(PromptContextServicePortAdapter {
+            inner: prompt_context_service.clone(),
+        }) as Arc<dyn PromptContextServicePort>,
+    );
+
+    // ===========================================================================
+    // Create AdapterState (wraps composition AppState with infrastructure types)
+    // ===========================================================================
+    // Pass the full adapter config so server.rs can access queue/CORS settings
+    let adapter_state = AdapterState::new(
+        composition_app_state,
+        config,
+        world_connection_manager.clone(),
+        comfyui_client.clone(),
+        region_repo.clone(),
+    );
+
+    // ===========================================================================
+    // Create WorkerServices (concrete queue types for background workers)
+    // ===========================================================================
+    // Workers need concrete types because they call infrastructure-specific methods
+    // like run_worker() and process_next() that aren't part of the port traits
+    let worker_services = WorkerServices {
+        llm_queue_service: llm_queue_service.clone(),
+        asset_generation_queue_service: asset_generation_queue_service.clone(),
+        player_action_queue_service: player_action_queue_service.clone(),
+        dm_action_queue_service: dm_action_queue_service.clone(),
+        dm_approval_queue_service: dm_approval_queue_service.clone(),
+        challenge_outcome_queue: challenge_outcome_queue.clone(),
+        prompt_context_service: prompt_context_service.clone(),
+    };
+
+    Ok((
+        adapter_state,
+        worker_services,
         generation_event_rx,
         challenge_approval_rx,
     ))
+}
+
+/// Alias for `new_app_state` that returns `AdapterState`.
+///
+/// This is the preferred entry point for creating application state, as it makes
+/// clear that we're returning an `AdapterState` (infrastructure-aware) rather
+/// than a composition-layer `AppState`.
+pub async fn new_adapter_state(
+    config: AppConfig,
+) -> Result<(
+    AdapterState,
+    WorkerServices,
+    tokio::sync::mpsc::Receiver<GenerationEvent>,
+    tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,
+)> {
+    new_app_state(config).await
 }

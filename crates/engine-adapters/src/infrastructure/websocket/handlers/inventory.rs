@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId};
-use wrldbldr_engine_app::application::use_cases::InventoryUseCase;
 use wrldbldr_engine_ports::outbound::{DropInput, EquipInput, PickupInput, UnequipInput};
 use wrldbldr_protocol::ServerMessage;
 
@@ -111,7 +110,13 @@ pub async fn handle_drop_item(
         quantity,
     };
 
-    match InventoryUseCase::drop(&*state.app.use_cases.inventory, ctx, input).await {
+    match wrldbldr_engine_ports::inbound::InventoryUseCasePort::drop(
+        &*state.app.use_cases.inventory,
+        ctx,
+        input,
+    )
+    .await
+    {
         Ok(result) => Some(ServerMessage::ItemDropped {
             pc_id,
             item_id,

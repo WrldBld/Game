@@ -22,6 +22,7 @@ use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, FlagRepositoryPort, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
+    SceneResolutionResult as PortSceneResolutionResult, SceneResolutionServicePort,
 };
 
 /// Result of scene resolution
@@ -300,5 +301,28 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
             "No scene with met conditions at location"
         );
         Ok(None)
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl SceneResolutionServicePort for SceneResolutionServiceImpl {
+    async fn resolve_scene_for_world(
+        &self,
+        world_id: &WorldId,
+    ) -> Result<PortSceneResolutionResult> {
+        // Delegate to the internal trait method
+        let result = SceneResolutionService::resolve_scene_for_world(self, world_id).await?;
+
+        // Convert internal type to port type
+        Ok(PortSceneResolutionResult {
+            scene: result.scene,
+            is_split_party: result.is_split_party,
+            pc_locations: result.pc_locations,
+        })
+    }
+
+    async fn resolve_scene_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<Scene>> {
+        SceneResolutionService::resolve_scene_for_pc(self, pc_id).await
     }
 }

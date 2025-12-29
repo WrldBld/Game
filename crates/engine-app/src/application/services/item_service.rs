@@ -14,7 +14,7 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ItemRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    ItemRepositoryPort, ItemServicePort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
 };
 
 /// Request to create a new item
@@ -377,5 +377,27 @@ impl ItemService for ItemServiceImpl {
         );
 
         Ok(item)
+    }
+}
+
+// =============================================================================
+// ItemServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl ItemServicePort for ItemServiceImpl {
+    async fn get_item(&self, id: ItemId) -> Result<Option<Item>> {
+        ItemService::get_item(self, id).await
+    }
+
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Item>> {
+        ItemService::list_items(self, world_id).await
+    }
+
+    async fn list_by_region(&self, region_id: RegionId) -> Result<Vec<Item>> {
+        self.region_repository
+            .get_region_items(region_id)
+            .await
+            .context("Failed to list items by region")
     }
 }

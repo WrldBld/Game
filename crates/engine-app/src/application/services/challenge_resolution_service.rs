@@ -15,7 +15,6 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
-use wrldbldr_protocol::AdHocOutcomes;
 use crate::application::services::{
     ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
     PlayerCharacterService, SkillService,
@@ -25,7 +24,11 @@ use wrldbldr_domain::entities::OutcomeType;
 use wrldbldr_domain::value_objects::ApprovalRequestData;
 use wrldbldr_domain::value_objects::DiceRollInput;
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, ClockPort};
+use wrldbldr_engine_ports::outbound::{
+    ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceRoll as PortDiceRoll,
+    PendingResolution as PortPendingResolution, RollResult as PortRollResult,
+};
+use wrldbldr_protocol::AdHocOutcomes;
 
 // ============================================================================
 // Error Types
@@ -965,5 +968,78 @@ fn evaluate_challenge_result(
         wrldbldr_domain::entities::Difficulty::Custom(_) => {
             (OutcomeType::Success, &challenge.outcomes.success)
         }
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+use async_trait::async_trait;
+
+/// Implementation of the `ChallengeResolutionServicePort` for `ChallengeResolutionService`.
+///
+/// This exposes challenge resolution methods to infrastructure adapters.
+#[async_trait]
+impl<S, K, Q, P, L, I> ChallengeResolutionServicePort
+    for ChallengeResolutionService<S, K, Q, P, L, I>
+where
+    S: ChallengeService + 'static,
+    K: SkillService + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + 'static,
+    P: PlayerCharacterService + 'static,
+    L: LlmPort + 'static,
+    I: ItemService + 'static,
+{
+    async fn start_resolution(
+        &self,
+        challenge_id: ChallengeId,
+        pc_id: PlayerCharacterId,
+    ) -> anyhow::Result<String> {
+        // Generate a resolution ID for tracking
+        let resolution_id = uuid::Uuid::new_v4().to_string();
+
+        tracing::info!(
+            resolution_id = %resolution_id,
+            challenge_id = %challenge_id,
+            pc_id = %pc_id,
+            "Started challenge resolution"
+        );
+
+        Ok(resolution_id)
+    }
+
+    async fn submit_roll(
+        &self,
+        resolution_id: String,
+        roll: PortDiceRoll,
+    ) -> anyhow::Result<PortRollResult> {
+        // Parse resolution_id to extract challenge info
+        // In a full implementation, we'd store pending resolutions
+        // For now, return a placeholder indicating the roll was received
+        Ok(PortRollResult {
+            resolution_id,
+            challenge_id: String::new(),
+            challenge_name: String::new(),
+            challenge_description: None,
+            skill_name: None,
+            character_id: String::new(),
+            character_name: String::new(),
+            roll: roll.roll,
+            modifier: 0,
+            total: roll.roll,
+            outcome_type: "pending".to_string(),
+            outcome_description: "Awaiting resolution".to_string(),
+            roll_breakdown: roll.breakdown,
+            individual_rolls: roll.individual_rolls,
+        })
+    }
+
+    async fn get_pending_resolution(
+        &self,
+        _pc_id: PlayerCharacterId,
+    ) -> anyhow::Result<Option<PortPendingResolution>> {
+        // In a full implementation, this would query pending resolutions for the PC
+        Ok(None)
     }
 }

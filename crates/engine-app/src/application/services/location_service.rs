@@ -10,7 +10,9 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, Region};
 use wrldbldr_domain::{GridMapId, LocationId, WorldId};
-use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, WorldRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    LocationRepositoryPort, LocationServicePort, WorldRepositoryPort,
+};
 
 // Validation constants
 const MAX_LOCATION_NAME_LENGTH: usize = 255;
@@ -154,6 +156,7 @@ pub trait LocationService: Send + Sync {
 }
 
 /// Default implementation of LocationService using port abstractions
+#[derive(Clone)]
 pub struct LocationServiceImpl {
     world_repository: Arc<dyn WorldRepositoryPort>,
     location_repository: Arc<dyn LocationRepositoryPort>,
@@ -671,6 +674,21 @@ impl LocationService for LocationServiceImpl {
 
         info!(location_id = %location_id, "Removed grid map from location");
         Ok(())
+    }
+}
+
+// =============================================================================
+// LocationServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl LocationServicePort for LocationServiceImpl {
+    async fn get_location(&self, id: LocationId) -> Result<Option<Location>> {
+        LocationService::get_location(self, id).await
+    }
+
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Location>> {
+        LocationService::list_locations(self, world_id).await
     }
 }
 

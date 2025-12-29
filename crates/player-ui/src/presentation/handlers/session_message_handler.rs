@@ -11,13 +11,13 @@ use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ChallengeSuggestionInfo, CharacterData, ConnectedUser, DialogueChoice, EntityChangedData,
     GameTime, InteractionData, NarrativeEventSuggestionInfo, NavigationData, NpcDispositionData,
     NpcPresenceData, OutcomeBranchData, ProposedToolInfo, RegionData, RegionItemData, SceneData,
     SessionWorldSnapshot, SplitPartyLocation, WorldRole,
 };
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_protocol::ServerMessage;
 
 /// Handle an incoming `ServerMessage` and update presentation state.

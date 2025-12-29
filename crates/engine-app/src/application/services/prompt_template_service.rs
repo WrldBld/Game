@@ -8,6 +8,7 @@
 //!
 //! Provides caching for performance and methods to get/set/reset templates.
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -18,7 +19,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
+    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateServicePort,
+    PromptTemplateSource, ResolvedPromptTemplate,
 };
 
 /// Service for managing prompt templates with priority resolution
@@ -307,5 +309,69 @@ impl PromptTemplateService {
             source: PromptTemplateSource::Default,
             default_value,
         }
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl PromptTemplateServicePort for PromptTemplateService {
+    async fn get_all(&self) -> Vec<ResolvedPromptTemplate> {
+        self.get_all().await
+    }
+
+    async fn set_global(&self, key: &str, value: &str) -> Result<(), PromptTemplateError> {
+        self.set_global(key, value).await
+    }
+
+    async fn delete_global(&self, key: &str) -> Result<(), PromptTemplateError> {
+        self.delete_global(key).await
+    }
+
+    async fn reset_global(&self) -> Result<(), PromptTemplateError> {
+        self.reset_global().await
+    }
+
+    async fn get_all_for_world(&self, world_id: WorldId) -> Vec<ResolvedPromptTemplate> {
+        self.get_all_for_world(world_id).await
+    }
+
+    async fn set_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+        value: &str,
+    ) -> Result<(), PromptTemplateError> {
+        self.set_for_world(world_id, key, value).await
+    }
+
+    async fn delete_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> Result<(), PromptTemplateError> {
+        self.delete_for_world(world_id, key).await
+    }
+
+    async fn reset_for_world(&self, world_id: WorldId) -> Result<(), PromptTemplateError> {
+        self.reset_for_world(world_id).await
+    }
+
+    async fn resolve_with_source(&self, key: &str) -> ResolvedPromptTemplate {
+        self.resolve_with_source(key).await
+    }
+
+    async fn resolve_for_world_with_source(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> ResolvedPromptTemplate {
+        self.resolve_for_world_with_source(world_id, key).await
+    }
+
+    fn get_metadata(&self) -> Vec<PromptTemplateMetadata> {
+        self.get_metadata()
     }
 }

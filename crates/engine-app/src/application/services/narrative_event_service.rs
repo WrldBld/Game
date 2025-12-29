@@ -20,7 +20,7 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
-use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
+use wrldbldr_engine_ports::outbound::{NarrativeEventRepositoryPort, NarrativeEventServicePort};
 
 /// NarrativeEvent service trait defining the application use cases
 #[async_trait]
@@ -557,5 +557,35 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             .list_by_featured_npc(character_id)
             .await
             .context("Failed to list narrative events by featured NPC")
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `NarrativeEventServicePort` for `NarrativeEventServiceImpl`.
+///
+/// This exposes the subset of narrative event service methods needed by infrastructure adapters.
+#[async_trait]
+impl NarrativeEventServicePort for NarrativeEventServiceImpl {
+    async fn get(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>> {
+        NarrativeEventService::get(self, id).await
+    }
+
+    async fn list_pending(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>> {
+        NarrativeEventService::list_pending(self, world_id).await
+    }
+
+    async fn mark_triggered(
+        &self,
+        id: NarrativeEventId,
+        outcome_name: Option<String>,
+    ) -> Result<bool> {
+        NarrativeEventService::mark_triggered(self, id, outcome_name).await
+    }
+
+    async fn get_featured_npcs(&self, event_id: NarrativeEventId) -> Result<Vec<FeaturedNpc>> {
+        NarrativeEventService::get_featured_npcs(self, event_id).await
     }
 }

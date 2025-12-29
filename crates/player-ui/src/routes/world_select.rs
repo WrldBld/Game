@@ -2,8 +2,8 @@
 
 use super::Route;
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::dto::ParticipantRole;
 use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_app::application::dto::ParticipantRole;
 use wrldbldr_player_ports::outbound::storage_keys;
 
 /// Role selection route

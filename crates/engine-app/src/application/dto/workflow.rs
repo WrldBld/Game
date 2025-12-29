@@ -29,7 +29,9 @@ pub use wrldbldr_protocol::{
 
 /// Build a WorkflowConfigResponseDto from a WorkflowConfiguration.
 /// This requires WorkflowService to analyze the workflow JSON.
-pub fn workflow_config_to_response_dto(config: &WorkflowConfiguration) -> WorkflowConfigResponseDto {
+pub fn workflow_config_to_response_dto(
+    config: &WorkflowConfiguration,
+) -> WorkflowConfigResponseDto {
     let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
     WorkflowConfigResponseDto {
         id: config.id.to_string(),
@@ -53,7 +55,9 @@ pub fn workflow_config_to_response_dto(config: &WorkflowConfiguration) -> Workfl
 
 /// Build a WorkflowConfigFullResponseDto from a WorkflowConfiguration.
 /// This requires WorkflowService to analyze the workflow JSON.
-pub fn workflow_config_to_full_response_dto(config: &WorkflowConfiguration) -> WorkflowConfigFullResponseDto {
+pub fn workflow_config_to_full_response_dto(
+    config: &WorkflowConfiguration,
+) -> WorkflowConfigFullResponseDto {
     let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
     WorkflowConfigFullResponseDto {
         id: config.id.to_string(),

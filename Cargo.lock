@@ -7417,6 +7417,7 @@ name = "wrldbldr-engine-runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "chrono",
  "dotenvy",
@@ -7431,6 +7432,7 @@ dependencies = [
  "wrldbldr-domain",
  "wrldbldr-engine-adapters",
  "wrldbldr-engine-app",
+ "wrldbldr-engine-composition",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",
 ]

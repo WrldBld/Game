@@ -55,9 +55,9 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
+use async_trait::async_trait;
 use wrldbldr_domain::entities::{Location, Region};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
-use async_trait::async_trait;
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,

@@ -3,6 +3,7 @@
 //! Provides platform-specific implementations for desktop using
 //! standard library and native crates.
 
+use crate::state::Platform;
 use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::fs;
@@ -10,7 +11,6 @@ use std::path::PathBuf;
 use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{future::Future, pin::Pin, sync::Arc};
-use crate::state::Platform;
 use wrldbldr_player_ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,

@@ -5,10 +5,10 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort;
-use wrldbldr_engine_dto::SheetTemplateStorageDto;
 use wrldbldr_domain::entities::{CharacterSheetTemplate, SheetTemplateId};
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_dto::SheetTemplateStorageDto;
+use wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort;
 
 /// Repository for CharacterSheetTemplate operations
 pub struct Neo4jSheetTemplateRepository {
@@ -177,7 +177,8 @@ fn row_to_template(row: Row) -> Result<CharacterSheetTemplate> {
 
     let template_data: String = node.get("template_data")?;
     let stored: SheetTemplateStorageDto = serde_json::from_str(&template_data)?;
-    let template: CharacterSheetTemplate = stored.try_into().map_err(|e: String| anyhow::anyhow!(e))?;
+    let template: CharacterSheetTemplate =
+        stored.try_into().map_err(|e: String| anyhow::anyhow!(e))?;
 
     Ok(template)
 }
@@ -196,7 +197,10 @@ impl SheetTemplateRepositoryPort for Neo4jSheetTemplateRepository {
         self.get(id).await
     }
 
-    async fn get_default_for_world(&self, world_id: &WorldId) -> Result<Option<CharacterSheetTemplate>> {
+    async fn get_default_for_world(
+        &self,
+        world_id: &WorldId,
+    ) -> Result<Option<CharacterSheetTemplate>> {
         self.get_default_for_world(world_id).await
     }
 

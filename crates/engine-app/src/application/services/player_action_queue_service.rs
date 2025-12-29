@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
 use wrldbldr_domain::value_objects::{
@@ -12,7 +13,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueuePort,
+    ClockPort, PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
+    ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
 };
 
 /// Service for managing the player action queue
@@ -137,5 +139,152 @@ impl<Q: QueuePort<PlayerActionData>, LQ: ProcessingQueuePort<LlmRequestData>>
         id: QueueItemId,
     ) -> Result<Option<QueueItem<PlayerActionData>>, QueueError> {
         self.queue.get(id).await
+    }
+
+    /// Clean up old completed/failed items from the queue
+    ///
+    /// Removes items that have been in a terminal state (completed or failed)
+    /// for longer than the specified retention duration.
+    ///
+    /// Returns the number of items removed.
+    pub async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64> {
+        self.queue
+            .cleanup(retention)
+            .await
+            .map(|count| count as u64)
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    /// List items by status
+    pub async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> Result<Vec<QueueItem<PlayerActionData>>, QueueError> {
+        self.queue.list_by_status(status).await
+    }
+}
+
+// ============================================================================
+// Port Implementation
+// ============================================================================
+
+#[async_trait]
+impl<Q, LQ> PlayerActionQueueServicePort for PlayerActionQueueService<Q, LQ>
+where
+    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
+{
+    async fn enqueue(&self, action: PlayerAction) -> anyhow::Result<uuid::Uuid> {
+        let item = PlayerActionData {
+            world_id: WorldId::from_uuid(action.world_id),
+            player_id: action.player_id,
+            pc_id: action.pc_id.map(PlayerCharacterId::from_uuid),
+            action_type: action.action_type,
+            target: action.target,
+            dialogue: action.dialogue,
+            timestamp: action.timestamp,
+        };
+
+        self.queue
+            .enqueue(item, 0)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn dequeue(&self) -> anyhow::Result<Option<PlayerActionQueueItem>> {
+        let item = self
+            .queue
+            .dequeue()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| PlayerActionQueueItem {
+            id: i.id,
+            payload: PlayerAction {
+                world_id: i.payload.world_id.to_uuid(),
+                player_id: i.payload.player_id,
+                pc_id: i.payload.pc_id.map(|id| id.to_uuid()),
+                action_type: i.payload.action_type,
+                target: i.payload.target,
+                dialogue: i.payload.dialogue,
+                timestamp: i.payload.timestamp,
+            },
+            priority: i.priority,
+            enqueued_at: i.created_at,
+        }))
+    }
+
+    async fn complete(&self, id: uuid::Uuid) -> anyhow::Result<()> {
+        self.queue
+            .complete(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn depth(&self) -> anyhow::Result<usize> {
+        self.queue
+            .depth()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn get(&self, id: uuid::Uuid) -> anyhow::Result<Option<PlayerActionQueueItem>> {
+        let item = self
+            .queue
+            .get(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| PlayerActionQueueItem {
+            id: i.id,
+            payload: PlayerAction {
+                world_id: i.payload.world_id.to_uuid(),
+                player_id: i.payload.player_id,
+                pc_id: i.payload.pc_id.map(|id| id.to_uuid()),
+                action_type: i.payload.action_type,
+                target: i.payload.target,
+                dialogue: i.payload.dialogue,
+                timestamp: i.payload.timestamp,
+            },
+            priority: i.priority,
+            enqueued_at: i.created_at,
+        }))
+    }
+
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> anyhow::Result<Vec<PlayerActionQueueItem>> {
+        let items = self
+            .queue
+            .list_by_status(status)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(items
+            .into_iter()
+            .map(|i| PlayerActionQueueItem {
+                id: i.id,
+                payload: PlayerAction {
+                    world_id: i.payload.world_id.to_uuid(),
+                    player_id: i.payload.player_id,
+                    pc_id: i.payload.pc_id.map(|id| id.to_uuid()),
+                    action_type: i.payload.action_type,
+                    target: i.payload.target,
+                    dialogue: i.payload.dialogue,
+                    timestamp: i.payload.timestamp,
+                },
+                priority: i.priority,
+                enqueued_at: i.created_at,
+            })
+            .collect())
+    }
+
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64> {
+        self.queue
+            .cleanup(retention)
+            .await
+            .map(|count| count as u64)
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }

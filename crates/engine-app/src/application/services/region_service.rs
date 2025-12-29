@@ -11,7 +11,9 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{Character, Region, RegionConnection, RegionExit};
 use wrldbldr_domain::value_objects::RegionRelationshipType;
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, RegionRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    LocationRepositoryPort, RegionRepositoryPort, RegionServicePort,
+};
 
 // Validation constants
 const MAX_REGION_NAME_LENGTH: usize = 255;
@@ -395,6 +397,22 @@ impl RegionService for RegionServiceImpl {
             .delete_exit(from_region, to_location)
             .await
             .context("Failed to delete region exit")
+    }
+}
+
+// Implementation of the port trait for hexagonal architecture compliance
+#[async_trait]
+impl RegionServicePort for RegionServiceImpl {
+    async fn get_region(&self, id: RegionId) -> Result<Option<Region>> {
+        RegionService::get_region(self, id).await
+    }
+
+    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Region>> {
+        RegionService::list_regions(self, location_id).await
+    }
+
+    async fn get_spawn_regions(&self, world_id: WorldId) -> Result<Vec<Region>> {
+        RegionService::list_spawn_points(self, world_id).await
     }
 }
 

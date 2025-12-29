@@ -34,9 +34,9 @@ use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    CreateAdHocInput, DiscardChallengeInput, OutcomeDecision, OutcomeDecisionInput,
-    RegenerateOutcomeInput, RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput,
-    SubmitRollInput, ChallengeSuggestionDecisionInput as SuggestionDecisionInput,
+    ChallengeSuggestionDecisionInput as SuggestionDecisionInput, CreateAdHocInput,
+    DiscardChallengeInput, OutcomeDecision, OutcomeDecisionInput, RegenerateOutcomeInput,
+    RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
     TriggerChallengeInput,
 };
 use wrldbldr_protocol::ServerMessage;
@@ -264,7 +264,13 @@ pub async fn handle_challenge_outcome_decision(
         decision: to_use_case_decision(decision),
     };
 
-    match state.app.use_cases.challenge.outcome_decision(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .challenge
+        .outcome_decision(ctx, input)
+        .await
+    {
         Ok(_) => None, // Resolution broadcast handled by service
         Err(e) => Some(e.into_server_error()),
     }
@@ -287,7 +293,13 @@ pub async fn handle_request_outcome_suggestion(
         decision: OutcomeDecision::Suggest { guidance },
     };
 
-    match state.app.use_cases.challenge.outcome_decision(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .challenge
+        .outcome_decision(ctx, input)
+        .await
+    {
         Ok(_) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -310,7 +322,13 @@ pub async fn handle_request_outcome_branches(
         guidance,
     };
 
-    match state.app.use_cases.challenge.request_branches(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .challenge
+        .request_branches(ctx, input)
+        .await
+    {
         Ok(()) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -335,7 +353,13 @@ pub async fn handle_select_outcome_branch(
         modified_description,
     };
 
-    match state.app.use_cases.challenge.select_branch(ctx, input).await {
+    match state
+        .app
+        .use_cases
+        .challenge
+        .select_branch(ctx, input)
+        .await
+    {
         Ok(()) => None,
         Err(e) => Some(e.into_server_error()),
     }

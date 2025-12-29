@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{EventChainId, NarrativeEventId, WorldId};
-use wrldbldr_engine_ports::outbound::EventChainRepositoryPort;
+use wrldbldr_engine_ports::outbound::{EventChainRepositoryPort, EventChainServicePort};
 
 /// EventChain service trait defining the application use cases
 #[async_trait]
@@ -77,6 +77,7 @@ pub trait EventChainService: Send + Sync {
 }
 
 /// Default implementation of EventChainService using port abstractions
+#[derive(Clone)]
 pub struct EventChainServiceImpl {
     repository: Arc<dyn EventChainRepositoryPort>,
 }
@@ -252,5 +253,91 @@ impl EventChainService for EventChainServiceImpl {
             .list_statuses(world_id)
             .await
             .context("Failed to list chain statuses from repository")
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+/// Implementation of the `EventChainServicePort` for `EventChainServiceImpl`.
+///
+/// This exposes the event chain service methods to infrastructure adapters.
+#[async_trait]
+impl EventChainServicePort for EventChainServiceImpl {
+    async fn get_event_chain(&self, id: EventChainId) -> Result<Option<EventChain>> {
+        EventChainService::get_event_chain(self, id).await
+    }
+
+    async fn list_event_chains(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
+        EventChainService::list_event_chains(self, world_id).await
+    }
+
+    async fn list_active(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
+        EventChainService::list_active(self, world_id).await
+    }
+
+    async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
+        EventChainService::list_favorites(self, world_id).await
+    }
+
+    async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>> {
+        EventChainService::get_chains_for_event(self, event_id).await
+    }
+
+    async fn create_event_chain(&self, chain: EventChain) -> Result<EventChain> {
+        EventChainService::create_event_chain(self, chain).await
+    }
+
+    async fn update_event_chain(&self, chain: EventChain) -> Result<EventChain> {
+        EventChainService::update_event_chain(self, chain).await
+    }
+
+    async fn delete_event_chain(&self, id: EventChainId) -> Result<()> {
+        EventChainService::delete_event_chain(self, id).await
+    }
+
+    async fn add_event_to_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
+        EventChainService::add_event_to_chain(self, chain_id, event_id).await
+    }
+
+    async fn remove_event_from_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
+        EventChainService::remove_event_from_chain(self, chain_id, event_id).await
+    }
+
+    async fn complete_event(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
+        EventChainService::complete_event(self, chain_id, event_id).await
+    }
+
+    async fn toggle_favorite(&self, id: EventChainId) -> Result<bool> {
+        EventChainService::toggle_favorite(self, id).await
+    }
+
+    async fn set_active(&self, id: EventChainId, is_active: bool) -> Result<()> {
+        EventChainService::set_active(self, id, is_active).await
+    }
+
+    async fn reset_chain(&self, id: EventChainId) -> Result<()> {
+        EventChainService::reset_chain(self, id).await
+    }
+
+    async fn get_status(&self, id: EventChainId) -> Result<Option<ChainStatus>> {
+        EventChainService::get_status(self, id).await
+    }
+
+    async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>> {
+        EventChainService::list_statuses(self, world_id).await
     }
 }

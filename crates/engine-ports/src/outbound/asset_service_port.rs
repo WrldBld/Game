@@ -8,7 +8,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::entities::{AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch};
+use wrldbldr_domain::entities::{
+    AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch,
+};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Request to create a new asset
@@ -34,7 +36,7 @@ pub trait AssetServicePort: Send + Sync {
     async fn get_asset(&self, asset_id: AssetId) -> Result<Option<GalleryAsset>>;
 
     /// List all assets for an entity
-    async fn list_by_entity(
+    async fn list_assets(
         &self,
         entity_type: EntityType,
         entity_id: &str,

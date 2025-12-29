@@ -1,18 +1,27 @@
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{SettingsError, SettingsRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    LlmConfig, SettingsError, SettingsRepositoryPort, SettingsServicePort,
+};
 
 /// Callback type for loading settings from environment.
 /// This allows the service to remain decoupled from the adapters layer.
 pub type SettingsLoaderFn = Arc<dyn Fn() -> AppSettings + Send + Sync>;
 
+/// Callback type for loading LLM configuration from environment.
+/// This allows the service to remain decoupled from the adapters layer.
+pub type LlmConfigLoaderFn = Arc<dyn Fn() -> LlmConfig + Send + Sync>;
+
 pub struct SettingsService {
     repository: Arc<dyn SettingsRepositoryPort>,
     /// Callback to load settings from environment (injected from adapters layer)
     settings_loader: SettingsLoaderFn,
+    /// Callback to load LLM config from environment (injected from adapters layer)
+    llm_config_loader: Option<LlmConfigLoaderFn>,
     /// Cache for global settings
     global_cache: RwLock<Option<AppSettings>>,
     /// Cache for per-world settings
@@ -32,9 +41,19 @@ impl SettingsService {
         Self {
             repository,
             settings_loader,
+            llm_config_loader: None,
             global_cache: RwLock::new(None),
             world_cache: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Set the LLM config loader callback.
+    ///
+    /// This should be called during service construction to inject the
+    /// environment-based LLM configuration loader from the adapters layer.
+    pub fn with_llm_config_loader(mut self, loader: LlmConfigLoaderFn) -> Self {
+        self.llm_config_loader = Some(loader);
+        self
     }
 
     /// Get global settings (cached)
@@ -134,5 +153,69 @@ impl SettingsService {
     pub async fn invalidate_cache(&self) {
         *self.global_cache.write().await = None;
         self.world_cache.write().await.clear();
+    }
+
+    /// Get LLM configuration for a world
+    ///
+    /// Currently returns global LLM config from environment.
+    /// Per-world LLM overrides could be added in the future.
+    pub async fn get_llm_config(&self, _world_id: WorldId) -> Result<LlmConfig, SettingsError> {
+        match &self.llm_config_loader {
+            Some(loader) => Ok((loader)()),
+            None => {
+                // Return default config if no loader is set
+                // This provides reasonable defaults for testing
+                Ok(LlmConfig {
+                    api_base_url: "http://localhost:11434/v1".to_string(),
+                    model: "qwen3-vl:30b".to_string(),
+                    api_key: None,
+                    max_tokens: None,
+                    temperature: None,
+                })
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl SettingsServicePort for SettingsService {
+    async fn get(&self) -> AppSettings {
+        self.get().await
+    }
+
+    async fn update(&self, settings: AppSettings) -> Result<(), SettingsError> {
+        self.update(settings).await
+    }
+
+    async fn reset(&self) -> Result<AppSettings, SettingsError> {
+        self.reset().await
+    }
+
+    async fn get_for_world(&self, world_id: WorldId) -> AppSettings {
+        self.get_for_world(world_id).await
+    }
+
+    async fn update_for_world(
+        &self,
+        world_id: WorldId,
+        settings: AppSettings,
+    ) -> Result<(), SettingsError> {
+        self.update_for_world(world_id, settings).await
+    }
+
+    async fn reset_for_world(&self, world_id: WorldId) -> Result<AppSettings, SettingsError> {
+        self.reset_for_world(world_id).await
+    }
+
+    async fn delete_for_world(&self, world_id: WorldId) -> Result<(), SettingsError> {
+        self.delete_for_world(world_id).await
+    }
+
+    async fn get_llm_config(&self, world_id: WorldId) -> Result<LlmConfig, SettingsError> {
+        self.get_llm_config(world_id).await
     }
 }

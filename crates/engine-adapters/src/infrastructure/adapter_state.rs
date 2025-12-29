@@ -9,7 +9,7 @@
 //! ┌────────────────────────────────────────────────────────────────────────────┐
 //! │                           engine-runner                                     │
 //! │  Creates both AppState (composition) and AdapterState (infrastructure)      │
-//! └────────────────────────────────────────────────┬───────────────────────────┘
+//! └────────────────────────────────────────────────────────────────────┬───────┘
 //!                                                  │
 //!          ┌───────────────────────────────────────┼───────────────────────────┐
 //!          │                                       │                           │
@@ -18,8 +18,9 @@
 //! │   AdapterState      │            │      AppState        │       │   engine-app    │
 //! │  (infrastructure)   │───────────►│   (composition)      │◄──────│   (use cases)   │
 //! │                     │  contains  │   Arc<dyn Port>      │ uses  │                 │
-//! │ - connection_manager│            │   for all services   │       │                 │
-//! │ - comfyui_client    │            └──────────────────────┘       └─────────────────┘
+//! │ - config            │            │   for all services   │       │                 │
+//! │ - connection_manager│            └──────────────────────┘       └─────────────────┘
+//! │ - comfyui_client    │
 //! │ - region_repo       │
 //! └─────────────────────┘
 //! ```
@@ -39,6 +40,10 @@
 //!     // Infrastructure access - direct concrete type
 //!     let conn = state.connection_manager.get_connection_by_client_id(&client_id.to_string()).await;
 //!     
+//!     // Infrastructure config access
+//!     let cors_origins = &state.config.cors_allowed_origins;
+//!     let queue_config = &state.config.queue;
+//!     
 //!     // App-layer access - via ports
 //!     let world = state.app.core.world_service.get_world(world_id).await?;
 //! }
@@ -56,6 +61,7 @@ use wrldbldr_engine_composition::AppState;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 
 use crate::infrastructure::comfyui::ComfyUIClient;
+use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
 /// Adapter-layer state that extends AppState with infrastructure-specific types.
@@ -66,6 +72,15 @@ use crate::infrastructure::world_connection_manager::SharedWorldConnectionManage
 /// - **Infrastructure types** via direct fields (concrete types)
 ///
 /// # Infrastructure Fields
+///
+/// ## `config`
+/// Full adapter-layer configuration including:
+/// - Queue configuration (`config.queue.*`) - worker batch sizes, timeouts, backend
+/// - CORS configuration (`config.cors_allowed_origins`) - allowed origins list
+/// - Database/service URLs - Neo4j, Ollama, ComfyUI
+///
+/// Note: `app.config` has a minimal subset for composition layer; use `config`
+/// for infrastructure-specific settings like queue and CORS.
 ///
 /// ## `connection_manager`
 /// WebSocket connection tracking and management. Provides:
@@ -97,6 +112,18 @@ pub struct AdapterState {
     /// - `app.use_cases.movement`
     /// - etc.
     pub app: AppState,
+
+    /// Full adapter-layer configuration.
+    ///
+    /// Contains infrastructure-specific settings that the composition layer
+    /// doesn't need, such as:
+    /// - `queue` - Queue worker configuration (batch sizes, timeouts, backend)
+    /// - `cors_allowed_origins` - CORS allowed origins for HTTP server
+    /// - `session` - Session configuration (conversation history limits)
+    ///
+    /// Use this for infrastructure concerns in server.rs and HTTP handlers.
+    /// For basic server settings, you can also use `app.config`.
+    pub config: AppConfig,
 
     /// WebSocket connection manager for world-scoped connections.
     ///
@@ -134,6 +161,7 @@ impl AdapterState {
     /// # Arguments
     ///
     /// * `app` - The composition-layer AppState with all services as port traits
+    /// * `config` - Full adapter-layer configuration (queue, CORS, etc.)
     /// * `connection_manager` - WebSocket connection manager
     /// * `comfyui_client` - ComfyUI HTTP client
     /// * `region_repo` - Region repository for entity conversion
@@ -142,9 +170,11 @@ impl AdapterState {
     ///
     /// ```ignore
     /// // In engine-runner composition:
+    /// let config = AppConfig::from_env()?;
     /// let app_state = AppState::new(/* ... */);
     /// let adapter_state = AdapterState::new(
     ///     app_state,
+    ///     config,
     ///     connection_manager,
     ///     comfyui_client,
     ///     Arc::new(region_repo) as Arc<dyn RegionRepositoryPort>,
@@ -152,12 +182,14 @@ impl AdapterState {
     /// ```
     pub fn new(
         app: AppState,
+        config: AppConfig,
         connection_manager: SharedWorldConnectionManager,
         comfyui_client: ComfyUIClient,
         region_repo: Arc<dyn RegionRepositoryPort>,
     ) -> Self {
         Self {
             app,
+            config,
             connection_manager,
             comfyui_client,
             region_repo,
@@ -169,6 +201,7 @@ impl std::fmt::Debug for AdapterState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AdapterState")
             .field("app", &self.app)
+            .field("config", &self.config)
             .field("connection_manager", &"SharedWorldConnectionManager")
             .field("comfyui_client", &"ComfyUIClient")
             .field("region_repo", &"Arc<dyn RegionRepositoryPort>")

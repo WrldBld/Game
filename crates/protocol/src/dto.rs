@@ -529,8 +529,16 @@ impl From<WorkflowAnalysis> for WorkflowAnalysisDto {
     fn from(value: WorkflowAnalysis) -> Self {
         Self {
             node_count: value.node_count,
-            inputs: value.inputs.into_iter().map(WorkflowInputDto::from).collect(),
-            text_inputs: value.text_inputs.into_iter().map(WorkflowInputDto::from).collect(),
+            inputs: value
+                .inputs
+                .into_iter()
+                .map(WorkflowInputDto::from)
+                .collect(),
+            text_inputs: value
+                .text_inputs
+                .into_iter()
+                .map(WorkflowInputDto::from)
+                .collect(),
             errors: value.errors,
         }
     }

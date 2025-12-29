@@ -137,7 +137,9 @@ pub struct PromptTemplateMetadataDto {
 // =============================================================================
 
 /// Get all prompt templates (global context)
-async fn get_prompt_templates(State(state): State<Arc<AdapterState>>) -> Json<PromptTemplatesResponse> {
+async fn get_prompt_templates(
+    State(state): State<Arc<AdapterState>>,
+) -> Json<PromptTemplatesResponse> {
     let resolved = state.app.prompt_template_service.get_all().await;
 
     let templates: Vec<PromptTemplateDto> = resolved

@@ -133,11 +133,8 @@ pub trait ChallengeOutcomeApprovalServicePort: Send + Sync {
     /// Update suggestions for a pending resolution
     ///
     /// Used when LLM suggestions are ready to be attached to a pending resolution.
-    async fn update_suggestions(
-        &self,
-        resolution_id: &str,
-        suggestions: Vec<String>,
-    ) -> Result<()>;
+    async fn update_suggestions(&self, resolution_id: &str, suggestions: Vec<String>)
+        -> Result<()>;
 
     /// Get all pending resolutions for a world
     ///

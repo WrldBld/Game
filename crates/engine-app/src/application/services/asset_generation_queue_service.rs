@@ -7,16 +7,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 use wrldbldr_domain::value_objects::AssetGenerationData;
-use wrldbldr_domain::AssetId;
+use wrldbldr_domain::{AssetId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, ProcessingQueuePort, QueueError,
-    QueueItemId, QueueNotificationPort,
+    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
+    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, GenerationResult,
+    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
 };
 
 /// Priority constants for queue operations
@@ -385,5 +387,182 @@ impl<
     /// Get number of items currently processing
     pub async fn processing_count(&self) -> Result<usize, QueueError> {
         self.queue.processing_count().await
+    }
+
+    /// Clean up old completed/failed items beyond retention period
+    pub async fn cleanup(&self, retention: Duration) -> anyhow::Result<u64> {
+        Ok(self.queue.cleanup(retention).await? as u64)
+    }
+
+    /// Get a specific item by ID
+    pub async fn get(
+        &self,
+        id: QueueItemId,
+    ) -> Result<Option<wrldbldr_engine_ports::outbound::QueueItem<AssetGenerationData>>, QueueError>
+    {
+        self.queue.get(id).await
+    }
+
+    /// List items by status
+    pub async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<AssetGenerationData>>, QueueError>
+    {
+        self.queue.list_by_status(status).await
+    }
+
+    /// Check if queue has capacity
+    pub async fn has_capacity(&self) -> Result<bool, QueueError> {
+        // Check if we have permits available
+        Ok(self.semaphore.available_permits() > 0)
+    }
+}
+
+// ============================================================================
+// Port Implementation
+// ============================================================================
+
+#[async_trait]
+impl<Q, C, N> AssetGenerationQueueServicePort for AssetGenerationQueueService<Q, C, N>
+where
+    Q: ProcessingQueuePort<AssetGenerationData> + Send + Sync + 'static,
+    C: ComfyUIPort + Send + Sync + 'static,
+    N: QueueNotificationPort + Send + Sync + 'static,
+{
+    async fn enqueue(&self, request: AssetGenerationRequest) -> anyhow::Result<uuid::Uuid> {
+        let item = AssetGenerationData {
+            world_id: request.world_id.map(WorldId::from_uuid),
+            entity_type: request.entity_type,
+            entity_id: request.entity_id,
+            workflow_id: request.workflow_id,
+            prompt: request.prompt,
+            count: request.count,
+            // Note: negative_prompt and style_reference_id from port are not stored in domain
+            // These could be added to domain AssetGenerationData if needed
+        };
+
+        self.queue
+            .enqueue(item, PRIORITY_NORMAL)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn dequeue(&self) -> anyhow::Result<Option<AssetGenerationQueueItem>> {
+        let item = self
+            .queue
+            .dequeue()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| AssetGenerationQueueItem {
+            id: i.id,
+            payload: AssetGenerationRequest {
+                world_id: i.payload.world_id.map(|id| id.to_uuid()),
+                entity_type: i.payload.entity_type,
+                entity_id: i.payload.entity_id,
+                workflow_id: i.payload.workflow_id,
+                prompt: i.payload.prompt,
+                count: i.payload.count,
+                negative_prompt: None, // Not stored in domain
+                style_reference_id: None, // Not stored in domain
+            },
+            priority: i.priority,
+            enqueued_at: i.created_at,
+        }))
+    }
+
+    async fn complete(&self, id: uuid::Uuid, _result: GenerationResult) -> anyhow::Result<()> {
+        // The port receives a GenerationResult but the underlying queue just marks complete
+        // The actual result handling is done in run_worker
+        self.queue
+            .complete(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn fail(&self, id: uuid::Uuid, error: String) -> anyhow::Result<()> {
+        self.queue
+            .fail(id, &error)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn depth(&self) -> anyhow::Result<usize> {
+        self.queue
+            .depth()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn processing_count(&self) -> anyhow::Result<usize> {
+        self.queue
+            .processing_count()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn has_capacity(&self) -> anyhow::Result<bool> {
+        self.has_capacity()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn get(&self, id: uuid::Uuid) -> anyhow::Result<Option<AssetGenerationQueueItem>> {
+        let item = self
+            .queue
+            .get(id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(item.map(|i| AssetGenerationQueueItem {
+            id: i.id,
+            payload: AssetGenerationRequest {
+                world_id: i.payload.world_id.map(|id| id.to_uuid()),
+                entity_type: i.payload.entity_type,
+                entity_id: i.payload.entity_id,
+                workflow_id: i.payload.workflow_id,
+                prompt: i.payload.prompt,
+                count: i.payload.count,
+                negative_prompt: None, // Not stored in domain
+                style_reference_id: None, // Not stored in domain
+            },
+            priority: i.priority,
+            enqueued_at: i.created_at,
+        }))
+    }
+
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> anyhow::Result<Vec<AssetGenerationQueueItem>> {
+        let items = self
+            .queue
+            .list_by_status(status)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(items
+            .into_iter()
+            .map(|i| AssetGenerationQueueItem {
+                id: i.id,
+                payload: AssetGenerationRequest {
+                    world_id: i.payload.world_id.map(|id| id.to_uuid()),
+                    entity_type: i.payload.entity_type,
+                    entity_id: i.payload.entity_id,
+                    workflow_id: i.payload.workflow_id,
+                    prompt: i.payload.prompt,
+                    count: i.payload.count,
+                    negative_prompt: None, // Not stored in domain
+                    style_reference_id: None, // Not stored in domain
+                },
+                priority: i.priority,
+                enqueued_at: i.created_at,
+            })
+            .collect())
+    }
+
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64> {
+        self.cleanup(retention).await
     }
 }

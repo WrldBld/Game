@@ -3,8 +3,10 @@
 //! This notifier uses tokio::sync::Notify to provide instant wake-ups
 //! for in-process subscribers, complementing the polling mechanism.
 
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Notify;
+use wrldbldr_engine_ports::outbound::EventNotifierPort;
 
 /// A simple notifier for in-process event subscribers
 #[derive(Clone)]
@@ -34,5 +36,20 @@ impl InProcessEventNotifier {
 impl Default for InProcessEventNotifier {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl EventNotifierPort for InProcessEventNotifier {
+    fn notify(&self) {
+        self.notify()
+    }
+
+    async fn wait(&self) {
+        self.wait().await
     }
 }

@@ -141,12 +141,27 @@ impl QueueServices {
 impl std::fmt::Debug for QueueServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("QueueServices")
-            .field("player_action_queue_service", &"Arc<dyn PlayerActionQueueServicePort>")
-            .field("dm_action_queue_service", &"Arc<dyn DmActionQueueServicePort>")
+            .field(
+                "player_action_queue_service",
+                &"Arc<dyn PlayerActionQueueServicePort>",
+            )
+            .field(
+                "dm_action_queue_service",
+                &"Arc<dyn DmActionQueueServicePort>",
+            )
             .field("llm_queue_service", &"Arc<dyn LlmQueueServicePort>")
-            .field("asset_generation_queue_service", &"Arc<dyn AssetGenerationQueueServicePort>")
-            .field("dm_approval_queue_service", &"Arc<dyn DmApprovalQueueServicePort>")
-            .field("challenge_outcome_queue", &"Arc<dyn QueuePort<ChallengeOutcomeData>>")
+            .field(
+                "asset_generation_queue_service",
+                &"Arc<dyn AssetGenerationQueueServicePort>",
+            )
+            .field(
+                "dm_approval_queue_service",
+                &"Arc<dyn DmApprovalQueueServicePort>",
+            )
+            .field(
+                "challenge_outcome_queue",
+                &"Arc<dyn QueuePort<ChallengeOutcomeData>>",
+            )
             .finish()
     }
 }

@@ -8,9 +8,10 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
+use wrldbldr_domain::entities::InteractionTarget;
 use wrldbldr_domain::entities::InteractionTemplate;
 use wrldbldr_domain::{InteractionId, SceneId};
-use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
+use wrldbldr_engine_ports::outbound::{InteractionRepositoryPort, InteractionServicePort};
 
 /// Interaction service trait defining the application use cases
 #[async_trait]
@@ -128,5 +129,36 @@ impl InteractionService for InteractionServiceImpl {
             "Updated interaction availability"
         );
         Ok(())
+    }
+}
+
+// =============================================================================
+// InteractionServicePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl InteractionServicePort for InteractionServiceImpl {
+    async fn get_interaction(&self, id: InteractionId) -> Result<Option<InteractionTemplate>> {
+        InteractionService::get_interaction(self, id).await
+    }
+
+    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<InteractionTemplate>> {
+        InteractionService::list_interactions(self, scene_id).await
+    }
+
+    async fn get_interaction_with_target(
+        &self,
+        id: InteractionId,
+    ) -> Result<Option<(InteractionTemplate, InteractionTarget)>> {
+        // Get the interaction first
+        let interaction = match self.repository.get(id).await? {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+
+        // The interaction already has its target embedded
+        let target = interaction.target.clone();
+
+        Ok(Some((interaction, target)))
     }
 }

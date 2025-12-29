@@ -86,4 +86,7 @@ pub trait PlayerActionQueueServicePort: Send + Sync {
         &self,
         status: QueueItemStatus,
     ) -> anyhow::Result<Vec<PlayerActionQueueItem>>;
+
+    /// Clean up old completed/failed items beyond retention period
+    async fn cleanup(&self, retention: std::time::Duration) -> anyhow::Result<u64>;
 }
