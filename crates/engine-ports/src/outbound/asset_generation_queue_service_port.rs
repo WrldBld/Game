@@ -11,6 +11,8 @@ use uuid::Uuid;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
+use crate::outbound::queue_port::QueueItemStatus;
+
 // ============================================================================
 // Request/Response Types
 // ============================================================================
@@ -119,4 +121,10 @@ pub trait AssetGenerationQueueServicePort: Send + Sync {
 
     /// Get a specific item by ID
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<AssetGenerationQueueItem>>;
+
+    /// Get all items with a given status
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> anyhow::Result<Vec<AssetGenerationQueueItem>>;
 }

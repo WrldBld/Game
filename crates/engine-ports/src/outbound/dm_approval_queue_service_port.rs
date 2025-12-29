@@ -12,6 +12,7 @@ use uuid::Uuid;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
+use crate::outbound::queue_port::QueueItemStatus;
 use wrldbldr_domain::WorldId;
 
 // ============================================================================
@@ -222,4 +223,13 @@ pub trait DmApprovalQueueServicePort: Send + Sync {
 
     /// Discard a challenge suggestion from an approval
     async fn discard_challenge(&self, request_id: &str) -> anyhow::Result<()>;
+
+    /// Get the current queue depth (pending items)
+    async fn depth(&self) -> anyhow::Result<usize>;
+
+    /// Get all items with a given status
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> anyhow::Result<Vec<ApprovalQueueItem>>;
 }

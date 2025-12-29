@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
+use crate::outbound::queue_port::QueueItemStatus;
 use wrldbldr_domain::value_objects::GamePromptRequest;
 
 // ============================================================================
@@ -175,4 +176,7 @@ pub trait LlmQueueServicePort: Send + Sync {
 
     /// Get the number of items currently being processed
     async fn processing_count(&self) -> anyhow::Result<usize>;
+
+    /// Get all items with a given status
+    async fn list_by_status(&self, status: QueueItemStatus) -> anyhow::Result<Vec<LlmQueueItem>>;
 }

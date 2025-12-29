@@ -1705,16 +1705,16 @@ Implemented port traits for all 9 concrete use cases in `engine-app/src/applicat
 
 Each implementation delegates to existing methods (1:1 mapping).
 
-###### Phase C: Fix Queue Service Ports (~1 hour)
+###### Phase C: Fix Queue Service Ports (~1 hour) - **DONE**
 
 **Decision**: Add `list_by_status()` directly to service ports (cleanest approach per investigation).
 
-| Port | Method to Add |
-|------|---------------|
-| `PlayerActionQueueServicePort` | `list_by_status(status) -> Vec<PlayerActionQueueItem>` |
-| `LlmQueueServicePort` | `list_by_status(status) -> Vec<LlmQueueItem>` |
-| `AssetGenerationQueueServicePort` | `list_by_status(status) -> Vec<AssetGenerationQueueItem>` |
-| `DmApprovalQueueServicePort` | `depth()`, `list_by_status(status)` |
+| Port | Method Added | Status |
+|------|--------------|--------|
+| `PlayerActionQueueServicePort` | `list_by_status(status) -> Vec<PlayerActionQueueItem>` | **DONE** |
+| `LlmQueueServicePort` | `list_by_status(status) -> Vec<LlmQueueItem>` | **DONE** |
+| `AssetGenerationQueueServicePort` | `list_by_status(status) -> Vec<AssetGenerationQueueItem>` | **DONE** |
+| `DmApprovalQueueServicePort` | `depth()`, `list_by_status(status)` | **DONE** |
 
 **Why this approach**: 
 - Service ports define exactly what operations they support
