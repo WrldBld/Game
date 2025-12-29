@@ -33,8 +33,9 @@ pub use use_case_ports::{
     // Connection types
     ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent, WorldRole,
     // Scene types (DmAction, SceneWithRelations come through aliased from use_case_ports)
-    ApprovalDecision, CharacterEntity, DirectorialContextData, DmAction, InteractionEntity,
-    InteractionTarget, LocationEntity, NpcMotivation, SceneEntity, SceneWithRelations, TimeContext,
+    CharacterEntity, DirectorialContextData, DmAction, InteractionEntity,
+    InteractionTarget, LocationEntity, NpcMotivation, SceneApprovalDecision, SceneEntity,
+    SceneWithRelations, TimeContext,
     // Staging types
     ApprovedNpcData, PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc,
     StagedNpcData, StagingProposalData, WaitingPcData, WaitingPcInfo,

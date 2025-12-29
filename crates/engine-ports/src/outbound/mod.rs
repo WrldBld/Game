@@ -258,9 +258,9 @@ pub use player_action_queue_service_port::{
 #[cfg(any(test, feature = "testing"))]
 pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
 pub use dm_approval_queue_service_port::{
-    ApprovalDecision, ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency,
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalQueueServicePort,
-    NarrativeEventSuggestionInfo, ProposedToolInfo,
+    ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency,
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalDecision,
+    DmApprovalQueueServicePort, NarrativeEventSuggestionInfo, ProposedToolInfo,
 };
 
 // DM action queue service port - interface for DM action queue operations
@@ -319,7 +319,7 @@ pub use use_case_types::{
     StagingRegenerateResult,
     WaitingPcInfo,
     // Scene types
-    ApprovalDecision as SceneApprovalDecision,
+    SceneApprovalDecision,
     CharacterEntity,
     DirectorialContextData,
     DirectorialUpdateResult,

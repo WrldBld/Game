@@ -357,7 +357,7 @@ pub enum InteractionTarget {
 
 /// Approval decision types for scene operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ApprovalDecision {
+pub enum SceneApprovalDecision {
     /// Approve as-is
     Approve,
     /// Reject the request
@@ -371,7 +371,7 @@ pub enum ApprovalDecision {
 pub enum DmAction {
     ApprovalDecision {
         request_id: String,
-        decision: ApprovalDecision,
+        decision: SceneApprovalDecision,
     },
 }
 
@@ -780,7 +780,7 @@ pub struct SceneApprovalDecisionInput {
     /// Request ID being decided
     pub request_id: String,
     /// The decision
-    pub decision: ApprovalDecision,
+    pub decision: SceneApprovalDecision,
 }
 
 /// Scene data for responses
@@ -1219,17 +1219,17 @@ mod tests {
 
     #[test]
     fn test_approval_decision_variants() {
-        let approve = ApprovalDecision::Approve;
-        let reject = ApprovalDecision::Reject {
+        let approve = SceneApprovalDecision::Approve;
+        let reject = SceneApprovalDecision::Reject {
             reason: "Not appropriate".to_string(),
         };
-        let edit = ApprovalDecision::ApproveWithEdits {
+        let edit = SceneApprovalDecision::ApproveWithEdits {
             modified_text: "New text".to_string(),
         };
 
-        assert!(matches!(approve, ApprovalDecision::Approve));
-        assert!(matches!(reject, ApprovalDecision::Reject { .. }));
-        assert!(matches!(edit, ApprovalDecision::ApproveWithEdits { .. }));
+        assert!(matches!(approve, SceneApprovalDecision::Approve));
+        assert!(matches!(reject, SceneApprovalDecision::Reject { .. }));
+        assert!(matches!(edit, SceneApprovalDecision::ApproveWithEdits { .. }));
     }
 
     #[test]

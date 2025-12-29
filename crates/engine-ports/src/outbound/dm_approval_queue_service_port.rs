@@ -158,7 +158,7 @@ pub struct ApprovalQueueItem {
 /// DM's decision on an approval request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "decision")]
-pub enum ApprovalDecision {
+pub enum DmApprovalDecision {
     /// Accept the response as-is
     Accept,
     /// Accept with item distribution specified
@@ -202,7 +202,7 @@ pub trait DmApprovalQueueServicePort: Send + Sync {
     async fn dequeue(&self) -> anyhow::Result<Option<ApprovalQueueItem>>;
 
     /// Process a DM decision on an approval item
-    async fn complete(&self, id: Uuid, decision: ApprovalDecision) -> anyhow::Result<()>;
+    async fn complete(&self, id: Uuid, decision: DmApprovalDecision) -> anyhow::Result<()>;
 
     /// Get all pending approvals for a world
     async fn get_pending(&self, world_id: WorldId) -> anyhow::Result<Vec<ApprovalQueueItem>>;

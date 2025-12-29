@@ -32,9 +32,9 @@ pub use wrldbldr_engine_ports::inbound::{
 pub use wrldbldr_engine_ports::outbound::{
     CharacterEntity, DirectorialContextData, DirectorialUpdateResult, InteractionEntity,
     InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput, SceneChangeResult,
-    SceneApprovalDecision as ApprovalDecision,
-    SceneApprovalDecisionInput as ApprovalDecisionInput,
-    SceneApprovalDecisionResult as ApprovalDecisionResult,
+    SceneApprovalDecision,
+    SceneApprovalDecisionInput,
+    SceneApprovalDecisionResult,
     SceneCharacterData as CharacterData, SceneDmAction as DmAction, SceneEntity,
     SceneInteractionData as InteractionData, TimeContext, UpdateDirectorialInput,
     UseCaseSceneData as SceneData, UseCaseSceneWithRelations as SceneWithRelations,
@@ -220,8 +220,8 @@ impl SceneUseCase {
     pub async fn handle_approval_decision(
         &self,
         ctx: UseCaseContext,
-        input: ApprovalDecisionInput,
-    ) -> Result<ApprovalDecisionResult, SceneError> {
+        input: SceneApprovalDecisionInput,
+    ) -> Result<SceneApprovalDecisionResult, SceneError> {
         if !ctx.is_dm {
             return Err(SceneError::NotAuthorized);
         }
@@ -248,7 +248,7 @@ impl SceneUseCase {
             "Approval decision enqueued"
         );
 
-        Ok(ApprovalDecisionResult { processed: true })
+        Ok(SceneApprovalDecisionResult { processed: true })
     }
 }
 
@@ -258,17 +258,17 @@ mod tests {
 
     #[test]
     fn test_approval_decision_variants() {
-        let approve = ApprovalDecision::Approve;
-        let reject = ApprovalDecision::Reject {
+        let approve = SceneApprovalDecision::Approve;
+        let reject = SceneApprovalDecision::Reject {
             reason: "Not appropriate".to_string(),
         };
-        let edit = ApprovalDecision::ApproveWithEdits {
+        let edit = SceneApprovalDecision::ApproveWithEdits {
             modified_text: "New text".to_string(),
         };
 
-        assert!(matches!(approve, ApprovalDecision::Approve));
-        assert!(matches!(reject, ApprovalDecision::Reject { .. }));
-        assert!(matches!(edit, ApprovalDecision::ApproveWithEdits { .. }));
+        assert!(matches!(approve, SceneApprovalDecision::Approve));
+        assert!(matches!(reject, SceneApprovalDecision::Reject { .. }));
+        assert!(matches!(edit, SceneApprovalDecision::ApproveWithEdits { .. }));
     }
 
     #[test]
