@@ -7,20 +7,19 @@
 //! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
 //! These converters bridge protocol types to internal application types (`wrldbldr_engine_app`).
 
-use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
 use wrldbldr_engine_ports::outbound::{
-    MovementResult, OutcomeDecision, SceneChangedEvent, SelectCharacterResult,
+    DiceInputType, MovementResult, OutcomeDecision, SceneChangedEvent, SelectCharacterResult,
 };
 use wrldbldr_protocol::{
     ActantialRoleData, ChallengeOutcomeDecisionData, ServerMessage, WantVisibilityData,
 };
 
-/// Convert wrldbldr_protocol::DiceInputType to challenge_resolution_service::DiceInputType
-pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::DiceInputType {
+/// Convert wrldbldr_protocol::DiceInputType to engine-ports DiceInputType
+pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> DiceInputType {
     match input {
-        wrldbldr_protocol::DiceInputType::Formula(f) => crs::DiceInputType::Formula(f),
-        wrldbldr_protocol::DiceInputType::Manual(v) => crs::DiceInputType::Manual(v),
-        wrldbldr_protocol::DiceInputType::Unknown => crs::DiceInputType::Manual(0), // Default unknown to Manual(0)
+        wrldbldr_protocol::DiceInputType::Formula(f) => DiceInputType::Formula(f),
+        wrldbldr_protocol::DiceInputType::Manual(v) => DiceInputType::Manual(v),
+        wrldbldr_protocol::DiceInputType::Unknown => DiceInputType::Manual(0), // Default unknown to Manual(0)
     }
 }
 
