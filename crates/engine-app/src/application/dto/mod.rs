@@ -50,7 +50,6 @@ pub use asset::{
 
 // Challenge DTOs
 pub use challenge::{
-    AdHocOutcomesDto, ChallengeOutcomeApprovalRequest, ChallengeOutcomeDecision,
     ChallengeOutcomePendingNotification, ChallengeResolvedNotification, ChallengeResponseDto,
     ChallengeRollSubmittedNotification, CreateChallengeRequestDto, DifficultyRequestDto,
     OutcomeBranchDto, OutcomeBranchResponse, OutcomeBranchSelectionRequest,

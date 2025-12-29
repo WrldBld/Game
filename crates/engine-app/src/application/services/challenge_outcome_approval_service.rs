@@ -17,9 +17,8 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, RwLock};
 
-use crate::application::dto::{
-    ChallengeOutcomeDecision, OutcomeSuggestionRequest, PendingChallengeResolutionDto,
-};
+use crate::application::dto::{OutcomeSuggestionRequest, PendingChallengeResolutionDto};
+use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use crate::application::services::challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
 };
@@ -248,7 +247,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         &self,
         world_id: &WorldId,
         resolution_id: &str,
-        decision: ChallengeOutcomeDecision,
+        decision: OutcomeDecision,
     ) -> Result<(), ChallengeOutcomeError> {
         // Get the pending item
         let item = {
@@ -267,22 +266,20 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         }
 
         match decision {
-            ChallengeOutcomeDecision::Accept => {
+            OutcomeDecision::Accept => {
                 // Broadcast resolution with original description
                 self.broadcast_resolution(world_id, &item, None).await?;
                 // Remove from pending
                 self.remove_pending(resolution_id).await;
             }
-            ChallengeOutcomeDecision::Edit {
-                modified_description,
-            } => {
+            OutcomeDecision::Edit { modified_text } => {
                 // Broadcast resolution with modified description
-                self.broadcast_resolution(world_id, &item, Some(modified_description))
+                self.broadcast_resolution(world_id, &item, Some(modified_text))
                     .await?;
                 // Remove from pending
                 self.remove_pending(resolution_id).await;
             }
-            ChallengeOutcomeDecision::Suggest { guidance } => {
+            OutcomeDecision::Suggest { guidance } => {
                 // Mark as generating suggestions
                 self.set_generating_suggestions(resolution_id, true).await;
 

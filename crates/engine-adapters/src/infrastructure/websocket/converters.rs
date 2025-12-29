@@ -7,15 +7,12 @@
 //! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
 //! These converters bridge protocol types to internal application types (`wrldbldr_engine_app`).
 
-use wrldbldr_engine_app::application::dto::AdHocOutcomesDto;
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
 use wrldbldr_engine_ports::outbound::{
-    MovementResult, OutcomeDecision, SelectCharacterResult,
+    MovementResult, OutcomeDecision, SceneChangedEvent, SelectCharacterResult,
 };
-use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 use wrldbldr_protocol::{
-    ActantialRoleData, AdHocOutcomes, ChallengeOutcomeDecisionData, ServerMessage,
-    WantVisibilityData,
+    ActantialRoleData, ChallengeOutcomeDecisionData, ServerMessage, WantVisibilityData,
 };
 
 /// Convert wrldbldr_protocol::DiceInputType to challenge_resolution_service::DiceInputType
@@ -24,19 +21,6 @@ pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::Di
         wrldbldr_protocol::DiceInputType::Formula(f) => crs::DiceInputType::Formula(f),
         wrldbldr_protocol::DiceInputType::Manual(v) => crs::DiceInputType::Manual(v),
         wrldbldr_protocol::DiceInputType::Unknown => crs::DiceInputType::Manual(0), // Default unknown to Manual(0)
-    }
-}
-
-/// Convert protocol `AdHocOutcomes` (wire format) to application `AdHocOutcomesDto` (internal).
-///
-/// Both types are structurally identical - this conversion exists to maintain
-/// hexagonal architecture boundaries (protocol → application layer).
-pub fn to_adhoc_outcomes_dto(outcomes: AdHocOutcomes) -> AdHocOutcomesDto {
-    AdHocOutcomesDto {
-        success: outcomes.success,
-        failure: outcomes.failure,
-        critical_success: outcomes.critical_success,
-        critical_failure: outcomes.critical_failure,
     }
 }
 

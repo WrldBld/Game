@@ -532,25 +532,6 @@ impl ChallengeResponseDto {
 }
 
 // ============================================================================
-// Ad-hoc Challenge DTOs
-// ============================================================================
-
-/// Ad-hoc challenge outcomes provided by the DM (simple string descriptions)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdHocOutcomesDto {
-    /// What happens on success
-    pub success: String,
-    /// What happens on failure
-    pub failure: String,
-    /// Optional critical success outcome
-    #[serde(default)]
-    pub critical_success: Option<String>,
-    /// Optional critical failure outcome
-    #[serde(default)]
-    pub critical_failure: Option<String>,
-}
-
-// ============================================================================
 // Challenge Outcome Approval DTOs (P3.3)
 // ============================================================================
 
@@ -596,35 +577,6 @@ pub struct PendingChallengeResolutionDto {
     pub individual_rolls: Option<Vec<i32>>,
     /// When the roll was submitted
     pub timestamp: String,
-}
-
-/// DM's decision on a challenge outcome
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
-pub enum ChallengeOutcomeDecision {
-    /// Accept the outcome as-is
-    Accept,
-    /// Edit the outcome description
-    Edit {
-        /// The modified outcome text
-        modified_description: String,
-    },
-    /// Request LLM to suggest alternative outcomes
-    Suggest {
-        /// Optional guidance for the LLM
-        #[serde(default)]
-        guidance: Option<String>,
-    },
-}
-
-/// Request to approve/modify a challenge outcome
-#[derive(Debug, Clone, Deserialize)]
-pub struct ChallengeOutcomeApprovalRequest {
-    /// ID of the pending resolution
-    pub resolution_id: String,
-    /// The DM's decision
-    #[serde(flatten)]
-    pub decision: ChallengeOutcomeDecision,
 }
 
 /// Request for LLM outcome suggestions

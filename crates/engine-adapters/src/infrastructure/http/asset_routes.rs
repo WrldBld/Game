@@ -9,17 +9,19 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use std::str::FromStr;
+
 use crate::infrastructure::state::AppState;
-use wrldbldr_domain::entities::{BatchStatus, EntityType, GenerationBatch, GenerationRequest};
+use wrldbldr_domain::entities::{
+    AssetType, BatchStatus, EntityType, GenerationBatch, GenerationRequest,
+};
 use wrldbldr_domain::WorldId;
 use wrldbldr_domain::{AssetId, BatchId};
-use wrldbldr_engine_app::application::dto::{
-    parse_asset_type, parse_entity_type, GalleryAssetResponseDto, GenerateAssetRequestDto,
-    GenerationBatchResponseDto, SelectFromBatchRequestDto, UpdateAssetLabelRequestDto,
-    UploadAssetRequestDto,
-};
 use wrldbldr_engine_app::application::services::{AssetService, CreateAssetRequest};
-// NOTE: asset request/response DTOs live in `application/dto/asset.rs`.
+use wrldbldr_protocol::{
+    GalleryAssetResponseDto, GenerateAssetRequestDto, GenerationBatchResponseDto,
+    SelectFromBatchRequestDto, UpdateAssetLabelRequestDto, UploadAssetRequestDto,
+};
 
 // ==================== Character Gallery Routes ====================
 
@@ -49,8 +51,8 @@ pub async fn upload_character_asset(
     Path(character_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type =
-        parse_asset_type(&req.asset_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let asset_type = AssetType::from_str(&req.asset_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Character,
@@ -166,8 +168,8 @@ pub async fn upload_location_asset(
     Path(location_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type =
-        parse_asset_type(&req.asset_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let asset_type = AssetType::from_str(&req.asset_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Location,
@@ -264,8 +266,8 @@ pub async fn upload_item_asset(
     Path(item_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
 ) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
-    let asset_type =
-        parse_asset_type(&req.asset_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let asset_type = AssetType::from_str(&req.asset_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let create_request = CreateAssetRequest {
         entity_type: EntityType::Item,
@@ -345,15 +347,11 @@ pub async fn queue_generation(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    let entity_type = parse_entity_type(&req.entity_type).ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid entity type: {}", req.entity_type),
-        )
-    })?;
+    let entity_type = EntityType::from_str(&req.entity_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    let asset_type =
-        parse_asset_type(&req.asset_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let asset_type = AssetType::from_str(&req.asset_type)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
     let mut batch = GenerationBatch::new(
         world_id,

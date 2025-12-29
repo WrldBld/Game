@@ -12,16 +12,14 @@
 //!
 //! This module bridges between:
 //! - **Use Case Types** (from `wrldbldr_engine_ports`): `OutcomeDecision`, `AdHocOutcomes`
-//! - **DTO Types** (from `wrldbldr_engine_app`): `ChallengeOutcomeDecision`, `AdHocOutcomesDto`
+//! - **Protocol Types** (from `wrldbldr_protocol`): `AdHocOutcomes` (wire format)
 //!
-//! Note: Protocol types (`wrldbldr_protocol`) are converted in the WebSocket layer
-//! before reaching these adapters.
+//! Note: Protocol types are converted in the WebSocket layer before reaching these adapters.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::ApprovalRequestData;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::dto::AdHocOutcomesDto;
 use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
     DMApprovalQueueService, ItemService, PlayerCharacterService, SkillService,
@@ -32,6 +30,7 @@ use wrldbldr_engine_ports::inbound::{
     RollResultData as RollResult, TriggerInfo, TriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort, OutcomeDecision};
+use wrldbldr_protocol::AdHocOutcomes as ProtocolAdHocOutcomes;
 
 // =============================================================================
 // ChallengeOutcomeApprovalAdapter
@@ -58,19 +57,9 @@ impl<L: LlmPort + Send + Sync + 'static> ChallengeOutcomeApprovalPort
         resolution_id: &str,
         decision: OutcomeDecision,
     ) -> Result<(), String> {
-        // Convert port decision type to DTO decision type
-        use wrldbldr_engine_app::application::dto::ChallengeOutcomeDecision as DtoDecision;
-
-        let service_decision = match decision {
-            OutcomeDecision::Accept => DtoDecision::Accept,
-            OutcomeDecision::Edit { modified_text } => DtoDecision::Edit {
-                modified_description: modified_text,
-            },
-            OutcomeDecision::Suggest { guidance } => DtoDecision::Suggest { guidance },
-        };
-
+        // OutcomeDecision is now used directly - no conversion needed
         self.service
-            .process_decision(world_id, resolution_id, service_decision)
+            .process_decision(world_id, resolution_id, decision)
             .await
             .map_err(|e| e.to_string())
     }
@@ -331,9 +320,9 @@ where
         target_pc_id: PlayerCharacterId,
         outcomes: AdHocOutcomes,
     ) -> Result<AdHocResult, String> {
-        // Convert use case AdHocOutcomes to DTO
-        // DTO requires success/failure as non-optional, use empty string as fallback
-        let dto_outcomes = AdHocOutcomesDto {
+        // Convert use case AdHocOutcomes to protocol type
+        // Protocol type requires success/failure as non-optional, use empty string as fallback
+        let protocol_outcomes = ProtocolAdHocOutcomes {
             success: outcomes.success.unwrap_or_default(),
             failure: outcomes.failure.unwrap_or_default(),
             critical_success: outcomes.critical_success,
@@ -348,7 +337,7 @@ where
                 skill_name,
                 difficulty,
                 target_pc_id.to_string(),
-                dto_outcomes,
+                protocol_outcomes,
             )
             .await
             .map_err(|e| e.to_string())?;

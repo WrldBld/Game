@@ -14,8 +14,8 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::application::dto::AdHocOutcomesDto;
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
+use wrldbldr_protocol::AdHocOutcomes;
 use crate::application::services::{
     ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
     PlayerCharacterService, SkillService,
@@ -139,7 +139,7 @@ pub struct AdHocChallengeResult {
     /// Target player character ID
     pub target_pc_id: String,
     /// Challenge outcomes
-    pub outcomes: AdHocOutcomesDto,
+    pub outcomes: AdHocOutcomes,
 }
 
 /// Dice input type for challenge rolls
@@ -816,7 +816,7 @@ where
         skill_name: String,
         difficulty: String,
         target_pc_id: String,
-        outcomes: AdHocOutcomesDto,
+        outcomes: AdHocOutcomes,
     ) -> Result<(AdHocChallengeResult, ChallengeTriggerResult), ChallengeResolutionError> {
         // Generate a temporary challenge ID for this ad-hoc challenge
         let adhoc_challenge_id = uuid::Uuid::new_v4().to_string();
