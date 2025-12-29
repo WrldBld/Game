@@ -4,38 +4,29 @@
 //! Also supports manual result input for physical dice rolls.
 
 use rand::Rng;
-use std::fmt;
+use thiserror::Error;
 
 use super::DiceSystem;
 
 /// Error when parsing a dice formula
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum DiceParseError {
     /// The formula string is empty
+    #[error("Empty dice formula")]
     Empty,
     /// Invalid format - expected XdY or XdY+Z
+    #[error("Invalid dice format: {0}")]
     InvalidFormat(String),
     /// Dice count must be at least 1
+    #[error("Dice count must be at least 1")]
     InvalidDiceCount,
     /// Die size must be at least 2
+    #[error("Die size must be at least 2")]
     InvalidDieSize,
     /// Modifier overflow
+    #[error("Modifier value overflow")]
     ModifierOverflow,
 }
-
-impl fmt::Display for DiceParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Empty => write!(f, "Empty dice formula"),
-            Self::InvalidFormat(s) => write!(f, "Invalid dice format: {}", s),
-            Self::InvalidDiceCount => write!(f, "Dice count must be at least 1"),
-            Self::InvalidDieSize => write!(f, "Die size must be at least 2"),
-            Self::ModifierOverflow => write!(f, "Modifier value overflow"),
-        }
-    }
-}
-
-impl std::error::Error for DiceParseError {}
 
 /// A parsed dice formula like "2d6+3"
 #[derive(Debug, Clone, PartialEq, Eq)]

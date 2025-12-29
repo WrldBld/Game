@@ -1,6 +1,7 @@
 //! Player Character entity - PCs created by players, distinct from NPCs
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use crate::entities::sheet_template::CharacterSheetData;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
@@ -10,7 +11,8 @@ use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 /// and track their current location/region for scene resolution.
 ///
 /// Connection to the world is managed by WorldConnectionManager, not stored here.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerCharacter {
     pub id: PlayerCharacterId,
     pub user_id: String,  // Anonymous user ID from Player

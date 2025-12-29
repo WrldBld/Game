@@ -8,6 +8,7 @@
 //!
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId, TimeOfDay};
 
 /// A scene - a complete unit of storytelling
@@ -16,7 +17,8 @@ use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId, TimeOfDay};
 /// during Phase 0.D migration. New code should use repository edge methods:
 /// - Location: AT_LOCATION edge via `scene_repository.set_location()`
 /// - Characters: FEATURES_CHARACTER edge via `scene_repository.add_featured_character()`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Scene {
     pub id: SceneId,
     pub act_id: ActId,
@@ -79,7 +81,8 @@ impl Scene {
 }
 
 /// Time context for a scene
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TimeContext {
     /// No specific time
     Unspecified,
@@ -94,7 +97,8 @@ pub enum TimeContext {
 // TimeOfDay is imported from value_objects - the canonical 4-variant type
 
 /// Condition for entering a scene
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SceneCondition {
     /// Must have completed another scene
     CompletedScene(SceneId),
@@ -109,7 +113,8 @@ pub enum SceneCondition {
 }
 
 /// Data for the FEATURES_CHARACTER edge between Scene and Character
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SceneCharacter {
     /// The character's role in this scene
     pub role: SceneCharacterRole,
@@ -132,7 +137,8 @@ impl SceneCharacter {
 }
 
 /// Role a character plays in a scene
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SceneCharacterRole {
     /// Primary character in the scene
     Primary,

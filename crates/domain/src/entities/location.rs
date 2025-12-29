@@ -4,6 +4,7 @@
 //! Connections between locations use CONNECTED_TO edges.
 //! Regions are separate nodes with HAS_REGION edges (see region.rs).
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 use super::region::MapBounds;
 
@@ -14,7 +15,8 @@ use super::region::MapBounds;
 /// - Navigation: `(from)-[:CONNECTED_TO]->(to)`
 /// - Regions: `(location)-[:HAS_REGION]->(region)`
 /// - Grid map: `(location)-[:HAS_TACTICAL_MAP]->(map)`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Location {
     pub id: LocationId,
     pub world_id: WorldId,
@@ -115,7 +117,8 @@ impl Location {
 }
 
 /// The type of location
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum LocationType {
     /// Indoor location (tavern, dungeon room, etc.)
     Interior,
@@ -128,7 +131,8 @@ pub enum LocationType {
 /// A connection between two locations
 ///
 /// Stored as a `CONNECTED_TO` edge in Neo4j with properties.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocationConnection {
     pub from_location: LocationId,
     pub to_location: LocationId,

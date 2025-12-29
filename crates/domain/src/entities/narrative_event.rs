@@ -15,6 +15,7 @@
 //! complex nested structures with non-entity data (keywords, descriptions, effects).
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use wrldbldr_domain::{ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
@@ -29,7 +30,8 @@ use wrldbldr_domain::{ChallengeId, CharacterId, EventChainId, LocationId, Narrat
 /// - Act association: Use `BELONGS_TO_ACT` edge via repository methods
 /// - Featured NPCs: Use `FEATURES_NPC` edges via repository methods
 /// - Chain membership: Use `CONTAINS_EVENT` edge (from EventChain) via EventChainRepositoryPort
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NarrativeEvent {
     pub id: NarrativeEventId,
     pub world_id: WorldId,
@@ -99,7 +101,8 @@ pub struct NarrativeEvent {
 }
 
 /// How multiple trigger conditions are evaluated
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TriggerLogic {
     /// All conditions must be met (AND)
     #[default]
@@ -111,7 +114,8 @@ pub enum TriggerLogic {
 }
 
 /// A single trigger condition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NarrativeTrigger {
     /// The type and parameters of this trigger
     pub trigger_type: NarrativeTriggerType,
@@ -124,7 +128,8 @@ pub struct NarrativeTrigger {
 }
 
 /// Types of triggers for narrative events
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum NarrativeTriggerType {
     /// NPC performs a specific action or completes dialogue
     NpcAction {
@@ -219,7 +224,8 @@ pub enum NarrativeTriggerType {
 }
 
 /// An outcome branch for a narrative event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventOutcome {
     /// Unique identifier for this outcome within the event
     pub name: String,
@@ -238,7 +244,8 @@ pub struct EventOutcome {
 }
 
 /// Condition for an outcome branch
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum OutcomeCondition {
     /// DM selects this outcome manually
     DmChoice,
@@ -266,7 +273,8 @@ pub enum OutcomeCondition {
 }
 
 /// Effects that occur as part of an event outcome
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EventEffect {
     /// Change relationship between characters
     ModifyRelationship {
@@ -359,7 +367,8 @@ pub enum EventEffect {
 }
 
 /// Reference to a chained event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChainedEvent {
     /// Event to chain to
     pub event_id: NarrativeEventId,
@@ -568,7 +577,8 @@ impl NarrativeEvent {
 }
 
 /// Context for evaluating triggers
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TriggerContext {
     pub current_location: Option<LocationId>,
     pub current_scene: Option<SceneId>,
@@ -586,7 +596,8 @@ pub struct TriggerContext {
 }
 
 /// Result of trigger evaluation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TriggerEvaluation {
     pub is_triggered: bool,
     pub matched_triggers: Vec<String>,
@@ -612,7 +623,8 @@ impl TriggerEvaluation {
 // =============================================================================
 
 /// Represents a featured NPC in a narrative event (via FEATURES_NPC edge)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FeaturedNpc {
     /// The character ID of the featured NPC
     pub character_id: CharacterId,
@@ -640,7 +652,8 @@ impl FeaturedNpc {
 ///
 /// Note: This edge is stored from EventChain → NarrativeEvent, so this struct
 /// is used when querying chain membership from the event's perspective.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventChainMembership {
     /// The chain this event belongs to
     pub chain_id: EventChainId,

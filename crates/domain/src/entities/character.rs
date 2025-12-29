@@ -10,11 +10,13 @@
 //!
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, WorldId};
 use crate::value_objects::{ArchetypeChange, CampbellArchetype, DispositionLevel};
 
 /// A character (NPC) in the world
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Character {
     pub id: CharacterId,
     pub world_id: WorldId,
@@ -112,7 +114,8 @@ impl Character {
 }
 
 /// Character stats (system-agnostic)
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatBlock {
     /// Map of stat name to value
     pub stats: std::collections::HashMap<String, i32>,

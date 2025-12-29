@@ -16,6 +16,7 @@
 //! discriminated union data that doesn't represent entity relationships.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
 
@@ -30,7 +31,8 @@ use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, Sc
 /// - Involved characters: Use `INVOLVES` edges via repository methods
 /// - Triggering narrative event: Use `TRIGGERED_BY_NARRATIVE` edge via repository methods
 /// - Challenge recorded: Use `RECORDS_CHALLENGE` edge via repository methods
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StoryEvent {
     pub id: StoryEventId,
     pub world_id: WorldId,
@@ -55,7 +57,8 @@ pub struct StoryEvent {
 }
 
 /// Categories of story events that occurred during gameplay
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum StoryEventType {
     /// Player character moved to a new location
     LocationChange {
@@ -218,7 +221,8 @@ pub enum StoryEventType {
 }
 
 /// Combat event subtypes
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CombatEventType {
     Started,
     RoundCompleted,
@@ -228,7 +232,8 @@ pub enum CombatEventType {
 }
 
 /// Combat outcome types
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CombatOutcome {
     Victory,
     Defeat,
@@ -239,7 +244,8 @@ pub enum CombatOutcome {
 }
 
 /// Challenge event outcome
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ChallengeEventOutcome {
     CriticalSuccess,
     Success,
@@ -249,7 +255,8 @@ pub enum ChallengeEventOutcome {
 }
 
 /// Source of an acquired item
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ItemSource {
     Found { location: String },
     Purchased { from: String, cost: Option<String> },
@@ -262,7 +269,8 @@ pub enum ItemSource {
 }
 
 /// Type of revealed information
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InfoType {
     Lore,
     Quest,
@@ -274,7 +282,8 @@ pub enum InfoType {
 }
 
 /// Importance level for revealed information
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InfoImportance {
     Minor,
     Notable,
@@ -283,7 +292,8 @@ pub enum InfoImportance {
 }
 
 /// Importance level for DM markers
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum MarkerImportance {
     Minor,
     Notable,
@@ -292,7 +302,8 @@ pub enum MarkerImportance {
 }
 
 /// Types of DM markers
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DmMarkerType {
     Note,
     PlotPoint,
@@ -469,7 +480,8 @@ impl StoryEvent {
 // =============================================================================
 
 /// Represents a character involved in a story event (via INVOLVES edge)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InvolvedCharacter {
     /// The character ID
     pub character_id: CharacterId,

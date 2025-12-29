@@ -15,6 +15,7 @@
 //! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
 //! DEPRECATED and kept only for backward compatibility during migration.
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
 
 /// A challenge that can be triggered during gameplay
@@ -25,7 +26,8 @@ use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, World
 /// - `REQUIRES_COMPLETION_OF` -> Challenge: Prerequisite challenges
 /// - `AVAILABLE_AT` -> Location: Locations where this challenge is available
 /// - `ON_SUCCESS_UNLOCKS` -> Location: Locations unlocked on success
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Challenge {
     pub id: ChallengeId,
     pub world_id: WorldId,
@@ -104,7 +106,8 @@ impl Challenge {
 }
 
 /// Types of challenges
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ChallengeType {
     /// Standard skill check against difficulty
     SkillCheck,
@@ -137,7 +140,8 @@ impl ChallengeType {
 }
 
 /// Challenge difficulty representation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Difficulty {
     /// D20-style: roll + modifier >= DC
     DC(u32),
@@ -182,7 +186,8 @@ impl Difficulty {
 }
 
 /// Descriptive difficulty for narrative systems
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DifficultyDescriptor {
     Trivial,
     Easy,
@@ -217,7 +222,8 @@ impl DifficultyDescriptor {
 }
 
 /// Outcomes for a challenge
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChallengeOutcomes {
     pub success: Outcome,
     pub failure: Outcome,
@@ -257,7 +263,8 @@ impl ChallengeOutcomes {
 }
 
 /// A single outcome with narrative text and triggered effects
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Outcome {
     /// Narrative description shown to players
     pub description: String,
@@ -280,7 +287,8 @@ impl Outcome {
 }
 
 /// Effects triggered by challenge outcomes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum OutcomeTrigger {
     /// Reveal hidden information to the player
     RevealInformation {
@@ -352,7 +360,8 @@ impl OutcomeTrigger {
 }
 
 /// Condition that triggers LLM to suggest a challenge
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TriggerCondition {
     pub condition_type: TriggerType,
     /// Human-readable description for DM reference
@@ -382,7 +391,8 @@ impl TriggerCondition {
 }
 
 /// Types of trigger conditions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TriggerType {
     /// Player interacts with specific object
     ObjectInteraction {
@@ -501,7 +511,8 @@ impl TriggerType {
 
 
 /// Type of outcome achieved
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum OutcomeType {
     CriticalSuccess,
     Success,
@@ -531,7 +542,8 @@ impl OutcomeType {
 // =============================================================================
 
 /// Data for REQUIRES_COMPLETION_OF edge between challenges
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChallengePrerequisite {
     /// The prerequisite challenge ID
     pub challenge_id: ChallengeId,
@@ -556,7 +568,8 @@ impl ChallengePrerequisite {
 }
 
 /// Data for AVAILABLE_AT edge between Challenge and Location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChallengeLocationAvailability {
     /// The location where this challenge is available
     pub location_id: LocationId,
@@ -583,7 +596,8 @@ impl ChallengeLocationAvailability {
 }
 
 /// Data for AVAILABLE_AT_REGION edge between Challenge and Region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChallengeRegionAvailability {
     /// The region where this challenge is available
     pub region_id: RegionId,
@@ -610,7 +624,8 @@ impl ChallengeRegionAvailability {
 }
 
 /// Data for ON_SUCCESS_UNLOCKS edge between Challenge and Location
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChallengeUnlock {
     /// The location that gets unlocked on successful completion
     pub location_id: LocationId,

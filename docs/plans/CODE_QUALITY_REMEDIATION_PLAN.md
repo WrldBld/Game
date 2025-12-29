@@ -137,7 +137,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 4 | Dead Code Cleanup | In Progress | 70% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
-| Phase 5 | Domain Layer Polish | Pending | 0% |
+| Phase 5 | Domain Layer Polish | In Progress | 50% |
 | Phase 6 | Protocol Layer Polish | Pending | 0% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
 | Phase 8 | Documentation | Pending | 0% |
@@ -1124,15 +1124,15 @@ pub struct Character {
 
 | Task | Status |
 |------|--------|
-| [ ] Add serde derives to Character | Pending |
-| [ ] Add serde derives to World | Pending |
-| [ ] Add serde derives to Location | Pending |
-| [ ] Add serde derives to Scene | Pending |
-| [ ] Add serde derives to Challenge | Pending |
-| [ ] Add serde derives to Item | Pending |
-| [ ] Add serde derives to PlayerCharacter | Pending |
-| [ ] Add serde derives to StoryEvent | Pending |
-| [ ] Add serde derives to NarrativeEvent | Pending |
+| [x] Add serde derives to Character | **DONE** |
+| [x] Add serde derives to World | **DONE** (already had serde) |
+| [x] Add serde derives to Location | **DONE** |
+| [x] Add serde derives to Scene | **DONE** |
+| [x] Add serde derives to Challenge | **DONE** |
+| [x] Add serde derives to Item | **DONE** |
+| [x] Add serde derives to PlayerCharacter | **DONE** |
+| [x] Add serde derives to StoryEvent | **DONE** |
+| [x] Add serde derives to NarrativeEvent | **DONE** |
 
 ---
 
@@ -1157,8 +1157,8 @@ pub struct $name(Uuid);
 
 | Task | Status |
 |------|--------|
-| [ ] Update define_id! macro to include serde | Pending |
-| [ ] Verify all ID types serialize correctly | Pending |
+| [x] Update define_id! macro to include serde | **DONE** |
+| [ ] Verify all ID types serialize correctly | Pending (deferred to compilation check) |
 
 ---
 
@@ -1277,7 +1277,7 @@ pub enum DiceParseError {
 
 | Task | Status |
 |------|--------|
-| [ ] Convert DiceParseError to use thiserror derive | Pending |
+| [x] Convert DiceParseError to use thiserror derive | **DONE** |
 
 ---
 
