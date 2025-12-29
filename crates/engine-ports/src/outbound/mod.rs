@@ -7,6 +7,7 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod broadcast_port;
+mod challenge_service_port;
 mod clock_port;
 mod comfyui_port;
 mod directorial_context_port;
@@ -16,15 +17,22 @@ mod event_bus_port;
 mod game_events;
 mod generation_read_state_port;
 mod llm_port;
+mod narrative_event_service_port;
 mod queue_notification_port;
 mod queue_port;
 mod repository_port;
 mod prompt_template_port;
+mod scene_service_port;
 mod settings_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
 mod world_exporter_port;
 mod world_state_port;
+
+// Challenge service port - interface for challenge operations
+pub use challenge_service_port::ChallengeServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_service_port::MockChallengeServicePort;
 
 // Clock port - time abstraction for deterministic testing
 pub use clock_port::ClockPort;
@@ -86,6 +94,12 @@ pub use world_exporter_port::{
 };
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
+
+// Narrative event service port - interface for narrative event operations
+pub use narrative_event_service_port::NarrativeEventServicePort;
+
+// Scene service port - interface for scene operations
+pub use scene_service_port::{SceneServicePort, SceneWithRelations};
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
