@@ -189,7 +189,8 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 6.1 | Document Protocol Imports (dto.rs) | **DONE** | 100% |
 | Phase 6.3 | Versioning Documentation | **DONE** | 100% |
 | Phase 6.5 | Forward Compat (all 19 enums) | **DONE** | 100% |
-| Phase 7 | Test Infrastructure | Pending | 0% |
+| Phase 7 | Test Infrastructure | In Progress | 50% |
+| Phase 7.1 | Fix Test Compilation | **DONE** | 100% |
 | Phase 8 | Documentation | In Progress | 40% |
 | Phase 8.3 | Dioxus.toml Metadata | **DONE** | 80% |
 
@@ -1965,14 +1966,14 @@ pub enum ServerMessage {
 
 | Task | Status |
 |------|--------|
-| [ ] Fix staging_service_adapter.rs stub error types (root cause) | Pending |
-| [ ] Add missing trait methods to stubs | Pending |
-| [ ] Remove non-existent methods from stubs | Pending |
-| [ ] Fix LocationExit → RegionExit | Pending |
+| [x] Fix staging_service_adapter.rs stub error types (root cause) | **DONE** |
+| [x] Add missing trait methods to stubs | **DONE** |
+| [x] Remove non-existent methods from stubs | **DONE** |
+| [x] Fix LocationExit → RegionExit | **DONE** |
 | [ ] Consolidate MockPromptTemplateRepository (3 → 1) | Pending |
 | [ ] Consolidate MockLlm with consistent Error type | Pending |
 | [ ] Fix or remove empty tests | Pending |
-| [ ] Run `cargo test --workspace` and verify | Pending |
+| [x] Run `cargo test --workspace` and verify | **DONE** (201 tests pass) |
 
 ---
 
