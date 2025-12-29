@@ -32,13 +32,13 @@ use uuid::Uuid;
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_app::application::use_cases::{
-    ChallengeOutcomeDecision, CreateAdHocInput,
-    DiscardChallengeInput, OutcomeDecisionInput, RegenerateOutcomeInput, RequestBranchesInput,
-    SelectBranchInput, SubmitDiceInputInput, SubmitRollInput, SuggestionDecisionInput,
-    TriggerChallengeInput, UseCaseContext,
+use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType, UseCaseContext};
+use wrldbldr_engine_ports::outbound::{
+    CreateAdHocInput, DiscardChallengeInput, OutcomeDecision, OutcomeDecisionInput,
+    RegenerateOutcomeInput, RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput,
+    SubmitRollInput, ChallengeSuggestionDecisionInput as SuggestionDecisionInput,
+    TriggerChallengeInput,
 };
-use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType};
 use wrldbldr_protocol::ServerMessage;
 
 use super::common::{error_msg, extract_dm_context, extract_player_context};
@@ -281,7 +281,7 @@ pub async fn handle_request_outcome_suggestion(
 
     let input = OutcomeDecisionInput {
         resolution_id,
-        decision: ChallengeOutcomeDecision::Suggest { guidance },
+        decision: OutcomeDecision::Suggest { guidance },
     };
 
     match state.use_cases.challenge.outcome_decision(ctx, input).await {
@@ -410,19 +410,19 @@ pub async fn handle_regenerate_outcome(
 
 fn to_use_case_decision(
     decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
-) -> ChallengeOutcomeDecision {
+) -> OutcomeDecision {
     match decision {
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => ChallengeOutcomeDecision::Accept,
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => OutcomeDecision::Accept,
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit {
             modified_description,
-        } => ChallengeOutcomeDecision::Edit {
+        } => OutcomeDecision::Edit {
             modified_text: modified_description,
         },
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
-            ChallengeOutcomeDecision::Suggest { guidance }
+            OutcomeDecision::Suggest { guidance }
         }
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
-            ChallengeOutcomeDecision::Accept // Default unknown to Accept
+            OutcomeDecision::Accept // Default unknown to Accept
         }
     }
 }

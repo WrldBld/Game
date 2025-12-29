@@ -46,7 +46,7 @@ impl<T: ErrorCode + Display + ?Sized> IntoServerError for T {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_app::application::use_cases::MovementError;
+    use wrldbldr_engine_ports::outbound::MovementError;
 
     #[test]
     fn test_into_server_error() {

@@ -6,11 +6,11 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use uuid::Uuid;
 use wrldbldr_domain::SceneId;
-use wrldbldr_engine_app::application::use_cases::{
-    RequestSceneChangeInput, SceneApprovalDecisionInput, SceneChangeResult, UpdateDirectorialInput,
-};
 use wrldbldr_engine_app::application::use_cases::SceneApprovalDecision;
 use wrldbldr_engine_ports::inbound::NpcMotivation;
+use wrldbldr_engine_ports::outbound::{
+    RequestSceneChangeInput, SceneApprovalDecisionInput, SceneChangeResult, UpdateDirectorialInput,
+};
 use wrldbldr_protocol::{CharacterPosition, DirectorialContext, ServerMessage};
 
 use super::common::{error_msg, extract_context_opt, extract_dm_context_opt};

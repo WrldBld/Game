@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
-use wrldbldr_engine_app::application::use_cases::NarrativeEventSuggestionDecisionInput;
+use wrldbldr_engine_ports::outbound::NarrativeEventSuggestionDecisionInput;
 use wrldbldr_protocol::ServerMessage;
 
 use super::common::extract_dm_context;

@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, RegionId};
-use wrldbldr_engine_app::application::use_cases::{
-    ApproveInput, ApprovedNpc, PreStageInput, RegenerateInput, StagingApprovalSource,
+use wrldbldr_engine_ports::outbound::{
+    ApproveInput, ApprovedNpcInput, PreStageInput, RegenerateInput, StagingApprovalSource,
 };
 use wrldbldr_protocol::{ApprovedNpcInfo, ServerMessage, StagedNpcInfo};
 
@@ -57,7 +57,7 @@ pub async fn handle_staging_approval_response(
         .filter_map(|npc| {
             Uuid::parse_str(&npc.character_id)
                 .ok()
-                .map(|uuid| ApprovedNpc {
+                .map(|uuid| ApprovedNpcInput {
                     character_id: CharacterId::from_uuid(uuid),
                     is_present: npc.is_present,
                     is_hidden_from_players: npc.is_hidden_from_players,
@@ -175,7 +175,7 @@ pub async fn handle_pre_stage_region(
         .filter_map(|npc| {
             Uuid::parse_str(&npc.character_id)
                 .ok()
-                .map(|uuid| ApprovedNpc {
+                .map(|uuid| ApprovedNpcInput {
                     character_id: CharacterId::from_uuid(uuid),
                     is_present: npc.is_present,
                     is_hidden_from_players: npc.is_hidden_from_players,

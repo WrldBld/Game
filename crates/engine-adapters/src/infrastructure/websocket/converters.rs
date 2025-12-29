@@ -7,9 +7,11 @@
 //! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
 //! These converters bridge protocol types to internal application types (`wrldbldr_engine_app`).
 
-use wrldbldr_engine_app::application::dto::{AdHocOutcomesDto, ChallengeOutcomeDecision};
+use wrldbldr_engine_app::application::dto::AdHocOutcomesDto;
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
-use wrldbldr_engine_app::application::use_cases::{MovementResult, SelectCharacterResult};
+use wrldbldr_engine_ports::outbound::{
+    MovementResult, OutcomeDecision, SelectCharacterResult,
+};
 use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 use wrldbldr_protocol::{
     ActantialRoleData, AdHocOutcomes, ChallengeOutcomeDecisionData, ServerMessage,
@@ -43,24 +45,22 @@ pub fn value_to_server_message(value: serde_json::Value) -> Option<ServerMessage
     serde_json::from_value(value).ok()
 }
 
-/// Convert protocol `ChallengeOutcomeDecisionData` (wire format) to application `ChallengeOutcomeDecision`.
+/// Convert protocol `ChallengeOutcomeDecisionData` (wire format) to port `OutcomeDecision`.
 ///
 /// The protocol type includes an `Unknown` variant for forward compatibility - when a newer
 /// client sends an unrecognized variant, we default to `Accept` to avoid breaking workflows.
-pub fn to_challenge_outcome_decision(
-    decision: ChallengeOutcomeDecisionData,
-) -> ChallengeOutcomeDecision {
+pub fn to_challenge_outcome_decision(decision: ChallengeOutcomeDecisionData) -> OutcomeDecision {
     match decision {
-        ChallengeOutcomeDecisionData::Accept => ChallengeOutcomeDecision::Accept,
+        ChallengeOutcomeDecisionData::Accept => OutcomeDecision::Accept,
         ChallengeOutcomeDecisionData::Edit {
             modified_description,
-        } => ChallengeOutcomeDecision::Edit {
-            modified_description,
+        } => OutcomeDecision::Edit {
+            modified_text: modified_description,
         },
         ChallengeOutcomeDecisionData::Suggest { guidance } => {
-            ChallengeOutcomeDecision::Suggest { guidance }
+            OutcomeDecision::Suggest { guidance }
         }
-        ChallengeOutcomeDecisionData::Unknown => ChallengeOutcomeDecision::Accept, // Default unknown to Accept
+        ChallengeOutcomeDecisionData::Unknown => OutcomeDecision::Accept, // Default unknown to Accept
     }
 }
 

@@ -26,13 +26,12 @@ use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
     DMApprovalQueueService, ItemService, PlayerCharacterService, SkillService,
 };
-use wrldbldr_engine_app::application::use_cases::ChallengeOutcomeDecision;
 use wrldbldr_engine_ports::inbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
-    ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType, RollResultData as RollResult,
-    TriggerInfo, TriggerResult,
+    ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType,
+    RollResultData as RollResult, TriggerInfo, TriggerResult,
 };
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort, OutcomeDecision};
 
 // =============================================================================
 // ChallengeOutcomeApprovalAdapter
@@ -57,17 +56,17 @@ impl<L: LlmPort + Send + Sync + 'static> ChallengeOutcomeApprovalPort
         &self,
         world_id: &WorldId,
         resolution_id: &str,
-        decision: ChallengeOutcomeDecision,
+        decision: OutcomeDecision,
     ) -> Result<(), String> {
-        // Convert use case decision type to DTO decision type
+        // Convert port decision type to DTO decision type
         use wrldbldr_engine_app::application::dto::ChallengeOutcomeDecision as DtoDecision;
 
         let service_decision = match decision {
-            ChallengeOutcomeDecision::Accept => DtoDecision::Accept,
-            ChallengeOutcomeDecision::Edit { modified_text } => DtoDecision::Edit {
+            OutcomeDecision::Accept => DtoDecision::Accept,
+            OutcomeDecision::Edit { modified_text } => DtoDecision::Edit {
                 modified_description: modified_text,
             },
-            ChallengeOutcomeDecision::Suggest { guidance } => DtoDecision::Suggest { guidance },
+            OutcomeDecision::Suggest { guidance } => DtoDecision::Suggest { guidance },
         };
 
         self.service
@@ -367,17 +366,17 @@ mod tests {
     #[test]
     fn test_outcome_decision_variants() {
         // Test that OutcomeDecision variants can be created
-        let accept = ChallengeOutcomeDecision::Accept;
-        let edit = ChallengeOutcomeDecision::Edit {
+        let accept = OutcomeDecision::Accept;
+        let edit = OutcomeDecision::Edit {
             modified_text: "new text".to_string(),
         };
-        let suggest = ChallengeOutcomeDecision::Suggest {
+        let suggest = OutcomeDecision::Suggest {
             guidance: Some("be dramatic".to_string()),
         };
 
-        assert!(matches!(accept, ChallengeOutcomeDecision::Accept));
-        assert!(matches!(edit, ChallengeOutcomeDecision::Edit { .. }));
-        assert!(matches!(suggest, ChallengeOutcomeDecision::Suggest { .. }));
+        assert!(matches!(accept, OutcomeDecision::Accept));
+        assert!(matches!(edit, OutcomeDecision::Edit { .. }));
+        assert!(matches!(suggest, OutcomeDecision::Suggest { .. }));
     }
 
     #[test]
