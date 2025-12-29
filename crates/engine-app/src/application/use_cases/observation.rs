@@ -15,6 +15,7 @@
 //! These are DM-only operations that affect player perception of the game world.
 //! The observation system tracks what PCs know about NPCs.
 
+use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{info, warn};
 
@@ -28,7 +29,7 @@ use wrldbldr_engine_ports::outbound::{
 use super::errors::ObservationError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::WorldMessagePort;
+pub use wrldbldr_engine_ports::inbound::{ObservationUseCasePort, WorldMessagePort};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -271,6 +272,37 @@ impl ObservationUseCase {
         Ok(TriggerLocationEventResult {
             event_broadcast: true,
         })
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl ObservationUseCasePort for ObservationUseCase {
+    async fn share_npc_location(
+        &self,
+        ctx: UseCaseContext,
+        input: ShareNpcLocationInput,
+    ) -> Result<ShareNpcLocationResult, ObservationError> {
+        self.share_npc_location(ctx, input).await
+    }
+
+    async fn trigger_approach_event(
+        &self,
+        ctx: UseCaseContext,
+        input: TriggerApproachInput,
+    ) -> Result<TriggerApproachResult, ObservationError> {
+        self.trigger_approach_event(ctx, input).await
+    }
+
+    async fn trigger_location_event(
+        &self,
+        ctx: UseCaseContext,
+        input: TriggerLocationEventInput,
+    ) -> Result<TriggerLocationEventResult, ObservationError> {
+        self.trigger_location_event(ctx, input).await
     }
 }
 

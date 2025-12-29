@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::{CharacterId, WorldId};
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
     RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
@@ -419,6 +419,37 @@ impl StagingApprovalUseCase {
         }
 
         notified
+    }
+}
+
+// =============================================================================
+// StagingUseCasePort Implementation
+// =============================================================================
+
+#[async_trait::async_trait]
+impl StagingUseCasePort for StagingApprovalUseCase {
+    async fn approve(
+        &self,
+        ctx: UseCaseContext,
+        input: ApproveInput,
+    ) -> Result<ApproveResult, StagingError> {
+        self.approve(ctx, input).await
+    }
+
+    async fn regenerate(
+        &self,
+        ctx: UseCaseContext,
+        input: RegenerateInput,
+    ) -> Result<RegenerateResult, StagingError> {
+        self.regenerate(ctx, input).await
+    }
+
+    async fn pre_stage(
+        &self,
+        ctx: UseCaseContext,
+        input: PreStageInput,
+    ) -> Result<PreStageResult, StagingError> {
+        self.pre_stage(ctx, input).await
     }
 }
 

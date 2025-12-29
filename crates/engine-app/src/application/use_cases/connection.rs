@@ -17,6 +17,9 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
+use async_trait::async_trait;
+use uuid::Uuid;
+use wrldbldr_engine_ports::inbound::ConnectionUseCasePort;
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ConnectionError;
@@ -240,6 +243,34 @@ impl ConnectionUseCase {
             pc_id: input.pc_id,
             pc_name: pc_data.name,
         })
+    }
+}
+
+// =============================================================================
+// ConnectionUseCasePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl ConnectionUseCasePort for ConnectionUseCase {
+    async fn join_world(
+        &self,
+        connection_id: Uuid,
+        user_id: String,
+        input: JoinWorldInput,
+    ) -> Result<JoinWorldResult, ConnectionError> {
+        self.join_world(connection_id, user_id, input).await
+    }
+
+    async fn leave_world(&self, connection_id: Uuid) -> Result<LeaveWorldResult, ConnectionError> {
+        self.leave_world(connection_id).await
+    }
+
+    async fn set_spectate_target(
+        &self,
+        connection_id: Uuid,
+        input: SetSpectateTargetInput,
+    ) -> Result<SpectateTargetResult, ConnectionError> {
+        self.set_spectate_target(connection_id, input).await
     }
 }
 

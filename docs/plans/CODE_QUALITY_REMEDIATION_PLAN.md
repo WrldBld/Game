@@ -1687,11 +1687,23 @@ Each trait has:
 - Proper parameter types (UseCaseContext, input structs, domain IDs)
 - Comprehensive documentation
 
-###### Phase B: Implement Traits for Concrete Use Cases (~1-2 hours)
+###### Phase B: Implement Traits for Concrete Use Cases (~1-2 hours) - **DONE**
 
-For each use case in `engine-app/src/application/use_cases/`:
-- Add `impl UseCasePort for ConcreteUseCase`
-- Delegate to existing methods (mostly 1:1 mapping)
+Implemented port traits for all 9 concrete use cases in `engine-app/src/application/use_cases/`:
+
+| Use Case | Port Trait | Status |
+|----------|------------|--------|
+| `MovementUseCase` | `MovementUseCasePort` | **DONE** |
+| `ChallengeUseCase` | `ChallengeUseCasePort` | **DONE** |
+| `ConnectionUseCase` | `ConnectionUseCasePort` | **DONE** |
+| `SceneUseCase` | `SceneUseCasePort` | **DONE** |
+| `StagingApprovalUseCase` | `StagingUseCasePort` | **DONE** |
+| `InventoryUseCase` | `InventoryUseCasePort` | **DONE** |
+| `PlayerActionUseCase` | `PlayerActionUseCasePort` | **DONE** |
+| `ObservationUseCase` | `ObservationUseCasePort` | **DONE** |
+| `NarrativeEventUseCase<N>` | `NarrativeEventUseCasePort` | **DONE** |
+
+Each implementation delegates to existing methods (1:1 mapping).
 
 ###### Phase C: Fix Queue Service Ports (~1 hour)
 

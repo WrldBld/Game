@@ -57,7 +57,8 @@ use tracing::{debug, info, warn};
 
 use wrldbldr_domain::entities::{Location, Region};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use async_trait::async_trait;
+use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
     RegionRepositoryPort, StagingPendingEvent, StagingRequiredEvent, WaitingPcData,
@@ -508,6 +509,37 @@ impl MovementUseCase {
             region_id,
             region_name: region.name.clone(),
         })
+    }
+}
+
+// =============================================================================
+// MovementUseCasePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl MovementUseCasePort for MovementUseCase {
+    async fn select_character(
+        &self,
+        ctx: UseCaseContext,
+        input: SelectCharacterInput,
+    ) -> Result<SelectCharacterResult, MovementError> {
+        self.select_character(ctx, input).await
+    }
+
+    async fn move_to_region(
+        &self,
+        ctx: UseCaseContext,
+        input: MoveToRegionInput,
+    ) -> Result<MovementResult, MovementError> {
+        self.move_to_region(ctx, input).await
+    }
+
+    async fn exit_to_location(
+        &self,
+        ctx: UseCaseContext,
+        input: ExitToLocationInput,
+    ) -> Result<MovementResult, MovementError> {
+        self.exit_to_location(ctx, input).await
     }
 }
 

@@ -12,9 +12,10 @@
 //! This use case delegates to `NarrativeEventApprovalService` for the core
 //! approval logic, then broadcasts the result via `BroadcastPort`.
 
+use async_trait::async_trait;
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::inbound::{NarrativeEventUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent};
 
 use crate::application::services::{NarrativeEventApprovalService, NarrativeEventService};
@@ -94,5 +95,20 @@ impl<N: NarrativeEventService> NarrativeEventUseCase<N> {
         } else {
             Ok(DecisionResult { triggered: false })
         }
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl<N: NarrativeEventService> NarrativeEventUseCasePort for NarrativeEventUseCase<N> {
+    async fn handle_suggestion_decision(
+        &self,
+        ctx: UseCaseContext,
+        input: SuggestionDecisionInput,
+    ) -> Result<DecisionResult, NarrativeEventError> {
+        self.handle_suggestion_decision(ctx, input).await
     }
 }

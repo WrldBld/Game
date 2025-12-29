@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::inbound::{InventoryUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionRepositoryPort,
 };
@@ -373,6 +373,45 @@ impl InventoryUseCase {
         );
 
         Ok(PickupResult { item_name })
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait::async_trait]
+impl InventoryUseCasePort for InventoryUseCase {
+    async fn equip(
+        &self,
+        ctx: UseCaseContext,
+        input: EquipInput,
+    ) -> Result<EquipResult, InventoryError> {
+        self.equip(ctx, input).await
+    }
+
+    async fn unequip(
+        &self,
+        ctx: UseCaseContext,
+        input: UnequipInput,
+    ) -> Result<UnequipResult, InventoryError> {
+        self.unequip(ctx, input).await
+    }
+
+    async fn drop(
+        &self,
+        ctx: UseCaseContext,
+        input: DropInput,
+    ) -> Result<DropResult, InventoryError> {
+        self.drop(ctx, input).await
+    }
+
+    async fn pickup(
+        &self,
+        ctx: UseCaseContext,
+        input: PickupInput,
+    ) -> Result<PickupResult, InventoryError> {
+        self.pickup(ctx, input).await
     }
 }
 

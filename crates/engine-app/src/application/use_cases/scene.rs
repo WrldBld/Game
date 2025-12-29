@@ -17,7 +17,7 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::inbound::{SceneUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::SceneError;
@@ -249,6 +249,46 @@ impl SceneUseCase {
         );
 
         Ok(SceneApprovalDecisionResult { processed: true })
+    }
+}
+
+// =============================================================================
+// SceneUseCasePort Implementation
+// =============================================================================
+
+use async_trait::async_trait;
+use wrldbldr_engine_ports::inbound::scene_use_case_port::SceneUseCaseError as PortSceneError;
+
+#[async_trait]
+impl SceneUseCasePort for SceneUseCase {
+    async fn request_scene_change(
+        &self,
+        ctx: UseCaseContext,
+        input: RequestSceneChangeInput,
+    ) -> Result<SceneChangeResult, PortSceneError> {
+        self.request_scene_change(ctx, input)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn update_directorial_context(
+        &self,
+        ctx: UseCaseContext,
+        input: UpdateDirectorialInput,
+    ) -> Result<DirectorialUpdateResult, PortSceneError> {
+        self.update_directorial_context(ctx, input)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn handle_approval_decision(
+        &self,
+        ctx: UseCaseContext,
+        input: SceneApprovalDecisionInput,
+    ) -> Result<SceneApprovalDecisionResult, PortSceneError> {
+        self.handle_approval_decision(ctx, input)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 

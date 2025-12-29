@@ -22,6 +22,8 @@
 //! - Broadcasting via BroadcastPort
 
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use tracing::{debug, info};
 
 use wrldbldr_domain::PlayerCharacterId;
@@ -35,7 +37,7 @@ use super::errors::ChallengeError;
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
     ChallengeDmApprovalQueuePort as DmApprovalQueuePort, ChallengeOutcomeApprovalPort,
-    ChallengeResolutionPort,
+    ChallengeResolutionPort, ChallengeUseCasePort,
 };
 
 // Re-export types from engine-ports for backwards compatibility
@@ -478,6 +480,101 @@ impl ChallengeUseCase {
             )
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))
+    }
+}
+
+// =============================================================================
+// ChallengeUseCasePort Implementation
+// =============================================================================
+
+#[async_trait]
+impl ChallengeUseCasePort for ChallengeUseCase {
+    async fn submit_roll(
+        &self,
+        ctx: UseCaseContext,
+        input: SubmitRollInput,
+    ) -> Result<RollResult, ChallengeError> {
+        self.submit_roll(ctx, input).await
+    }
+
+    async fn submit_dice_input(
+        &self,
+        ctx: UseCaseContext,
+        input: SubmitDiceInputInput,
+    ) -> Result<RollResult, ChallengeError> {
+        self.submit_dice_input(ctx, input).await
+    }
+
+    async fn trigger_challenge(
+        &self,
+        ctx: UseCaseContext,
+        input: TriggerChallengeInput,
+    ) -> Result<TriggerResult, ChallengeError> {
+        self.trigger_challenge(ctx, input).await
+    }
+
+    async fn suggestion_decision(
+        &self,
+        ctx: UseCaseContext,
+        input: SuggestionDecisionInput,
+    ) -> Result<(), ChallengeError> {
+        self.suggestion_decision(ctx, input).await
+    }
+
+    async fn regenerate_outcome(
+        &self,
+        ctx: UseCaseContext,
+        input: RegenerateOutcomeInput,
+    ) -> Result<RegenerateResult, ChallengeError> {
+        self.regenerate_outcome(ctx, input).await
+    }
+
+    async fn discard_challenge(
+        &self,
+        ctx: UseCaseContext,
+        input: DiscardChallengeInput,
+    ) -> Result<DiscardResult, ChallengeError> {
+        self.discard_challenge(ctx, input).await
+    }
+
+    async fn create_adhoc(
+        &self,
+        ctx: UseCaseContext,
+        input: CreateAdHocInput,
+    ) -> Result<AdHocResult, ChallengeError> {
+        self.create_adhoc(ctx, input).await
+    }
+
+    async fn outcome_decision(
+        &self,
+        ctx: UseCaseContext,
+        input: OutcomeDecisionInput,
+    ) -> Result<OutcomeDecisionResult, ChallengeError> {
+        self.outcome_decision(ctx, input).await
+    }
+
+    async fn request_suggestion(
+        &self,
+        ctx: UseCaseContext,
+        input: RequestSuggestionInput,
+    ) -> Result<(), ChallengeError> {
+        self.request_suggestion(ctx, input).await
+    }
+
+    async fn request_branches(
+        &self,
+        ctx: UseCaseContext,
+        input: RequestBranchesInput,
+    ) -> Result<(), ChallengeError> {
+        self.request_branches(ctx, input).await
+    }
+
+    async fn select_branch(
+        &self,
+        ctx: UseCaseContext,
+        input: SelectBranchInput,
+    ) -> Result<(), ChallengeError> {
+        self.select_branch(ctx, input).await
     }
 }
 

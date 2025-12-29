@@ -15,6 +15,7 @@
 //! This use case delegates travel to MovementUseCase to avoid duplicating
 //! movement logic.
 
+use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -26,7 +27,9 @@ use super::errors::ActionError;
 use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{DmNotificationPort, PlayerActionQueuePort};
+pub use wrldbldr_engine_ports::inbound::{
+    DmNotificationPort, PlayerActionQueuePort, PlayerActionUseCasePort,
+};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
@@ -237,6 +240,21 @@ impl PlayerActionUseCase {
             action_id: action_id.to_string(),
             queue_depth: depth,
         })
+    }
+}
+
+// =============================================================================
+// Port Implementation
+// =============================================================================
+
+#[async_trait]
+impl PlayerActionUseCasePort for PlayerActionUseCase {
+    async fn handle_action(
+        &self,
+        ctx: UseCaseContext,
+        input: PlayerActionInput,
+    ) -> Result<ActionResult, ActionError> {
+        self.handle_action(ctx, input).await
     }
 }
 
