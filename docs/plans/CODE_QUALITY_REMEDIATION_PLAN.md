@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.1.12 - down to 31 imports, only services + correct imports remain)  
+**Last Updated**: 2025-12-29 (Phase 3.0.7 complete - composition root moved to runner, 26 imports remaining)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -185,7 +185,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
-| Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
+| Phase 3.0.7 | Move Composition Root to Runner | **DONE** | 100% |
 | Phase 3.1 | Challenge DTOs | **DONE** | 60% |
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
@@ -926,6 +926,30 @@ This is a hexagonal violation - these are contracts that adapters need, so they 
   - workflow conversion functions - need WorkflowService
 
 **Success Criteria Met**: All type/DTO imports removed. Only service and UseCase imports remain, which is correct hexagonal architecture (adapters use application layer orchestration).
+
+#### 3.0.7 Move Composition Root to Runner (COMPLETED 2025-12-29)
+
+**Problem**: The composition root (AppState::new, server.rs, queue_workers.rs) was in engine-adapters.
+In hexagonal architecture, the runner/main should own composition and dependency wiring.
+
+**Files moved to engine-runner**:
+- `run/server.rs` (~414 lines) - Server startup, worker spawning
+- `run/queue_workers.rs` (~549 lines) - Background worker functions
+- `composition/app_state.rs` (~741 lines) - new_app_state() constructor
+
+**Changes**:
+- AppState struct stays in engine-adapters (just the shape, fields public)
+- `AppState::new()` replaced by `new_app_state()` function in runner
+- main.rs now calls local `run::run()` 
+- Services still reference engine-app for service traits (correct)
+
+**Architecture after**:
+- engine-runner: Composition root, dependency wiring, server startup
+- engine-adapters: Pure adapter implementations (ports, persistence, http, websocket)
+- engine-app: Application services and use cases
+
+**Final import count**: 26 (down from 72)
+- Remaining imports are services used by adapter implementations (correct hexagonal usage)
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
