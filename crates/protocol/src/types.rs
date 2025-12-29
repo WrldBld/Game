@@ -22,6 +22,9 @@ pub enum ParticipantRole {
     DungeonMaster,
     Player,
     Spectator,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================
@@ -65,6 +68,9 @@ pub enum ApprovalDecision {
     TakeOver {
         dm_response: String,
     },
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================

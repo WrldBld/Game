@@ -127,6 +127,10 @@ pub enum AppEvent {
         #[serde(default)]
         world_id: Option<String>,
     },
+
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl AppEvent {
@@ -143,6 +147,7 @@ impl AppEvent {
             AppEvent::SuggestionProgress { .. } => "SuggestionProgress",
             AppEvent::SuggestionCompleted { .. } => "SuggestionCompleted",
             AppEvent::SuggestionFailed { .. } => "SuggestionFailed",
+            AppEvent::Unknown => "Unknown",
         }
     }
 

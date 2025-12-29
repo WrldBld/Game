@@ -919,6 +919,9 @@ pub enum CharacterPosition {
     Center,
     Right,
     OffScreen,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl CharacterPosition {
@@ -928,7 +931,7 @@ impl CharacterPosition {
             CharacterPosition::Left => "left-[10%]",
             CharacterPosition::Center => "left-1/2 -translate-x-1/2",
             CharacterPosition::Right => "right-[10%]",
-            CharacterPosition::OffScreen => "hidden",
+            CharacterPosition::OffScreen | CharacterPosition::Unknown => "hidden",
         }
     }
 }
@@ -1026,6 +1029,9 @@ pub enum DiceInputType {
     Formula(String),
     /// Use a manual result (physical dice roll)
     Manual(i32),
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Ad-hoc challenge outcomes for DM-created challenges
@@ -1061,6 +1067,9 @@ pub enum ChallengeOutcomeDecisionData {
         #[serde(default)]
         guidance: Option<String>,
     },
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Outcome branch data for DM selection
@@ -1170,6 +1179,9 @@ pub enum WantVisibilityData {
     /// Player has no idea (default)
     #[default]
     Hidden,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Type discriminator for actors (NPC vs PC)
@@ -1178,6 +1190,9 @@ pub enum WantVisibilityData {
 pub enum ActorTypeData {
     Npc,
     Pc,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Actantial role type for character views
@@ -1188,6 +1203,9 @@ pub enum ActantialRoleData {
     Opponent,
     Sender,
     Receiver,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Target type for wants
@@ -1197,6 +1215,9 @@ pub enum WantTargetTypeData {
     Character,
     Item,
     Goal,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Want data for wire transfer

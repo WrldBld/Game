@@ -114,6 +114,10 @@ pub enum ErrorCode {
     ServiceUnavailable,
     /// Operation timed out
     Timeout,
+
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl ErrorCode {
@@ -127,7 +131,7 @@ impl ErrorCode {
             ErrorCode::Conflict => 409,
             ErrorCode::ValidationError => 422,
             ErrorCode::RateLimitExceeded => 429,
-            ErrorCode::InternalError => 500,
+            ErrorCode::InternalError | ErrorCode::Unknown => 500,
             ErrorCode::ServiceUnavailable => 503,
             ErrorCode::Timeout => 504,
         }
@@ -265,6 +269,9 @@ pub enum EntityType {
     Want,
     ActantialView,
     GameTime,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Types of changes
@@ -274,6 +281,9 @@ pub enum ChangeType {
     Created,
     Updated,
     Deleted,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================
@@ -290,6 +300,9 @@ pub enum WorldRole {
     Player,
     /// Spectator - read-only view
     Spectator,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl WorldRole {
@@ -350,4 +363,7 @@ pub enum JoinError {
     WorldNotFound,
     /// User is not authorized to join this world
     Unauthorized,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
