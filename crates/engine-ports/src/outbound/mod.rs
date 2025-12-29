@@ -10,6 +10,7 @@ mod broadcast_port;
 mod clock_port;
 mod comfyui_port;
 mod directorial_context_port;
+mod dm_action_processor_port;
 mod domain_event_repository_port;
 mod event_bus_port;
 mod game_events;
@@ -32,6 +33,9 @@ pub use clock_port::MockClockPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
+
+// DM action processor - interface for processing DM actions
+pub use dm_action_processor_port::{DmActionProcessorPort, DmActionResult};
 
 pub use comfyui_port::{
     ComfyUIPort, GeneratedImage, HistoryResponse, NodeOutput, PromptHistory, PromptStatus,

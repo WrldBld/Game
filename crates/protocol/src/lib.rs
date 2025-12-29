@@ -115,7 +115,23 @@ pub use types::{
 // =============================================================================
 // DTOs
 // =============================================================================
-pub use dto::NpcDispositionStateDto;
+pub use dto::{
+    // NPC Disposition
+    NpcDispositionStateDto,
+    // Asset DTOs
+    GalleryAssetResponseDto,
+    GenerateAssetRequestDto,
+    GenerationBatchResponseDto,
+    SelectFromBatchRequestDto,
+    UpdateAssetLabelRequestDto,
+    UploadAssetRequestDto,
+    // Export DTOs
+    ExportQueryDto,
+    // Workflow DTOs
+    PromptMappingDto,
+    PromptMappingTypeDto,
+    WorkflowConfigResponseDto,
+};
 
 // =============================================================================
 // Request Types (WebSocket Request/Response Pattern)
