@@ -56,11 +56,13 @@ use crate::infrastructure::repositories::{
     SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
 };
 
+use crate::infrastructure::clock::SystemClock;
 use crate::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use crate::infrastructure::world_connection_manager::{
     SharedWorldConnectionManager, new_shared_manager,
 };
 use crate::infrastructure::WorldStateManager;
+use wrldbldr_engine_ports::outbound::ClockPort;
 
 /// Shared application state
 ///
@@ -142,6 +144,9 @@ impl AppState {
         tokio::sync::mpsc::UnboundedReceiver<GenerationEvent>,
         tokio::sync::mpsc::UnboundedReceiver<ChallengeApprovalEvent>,
     )> {
+        // Create system clock for all services that need time operations
+        let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
+
         // Initialize Neo4j repository
         let repository = Neo4jRepository::new(
             &config.neo4j_uri,
@@ -240,7 +245,7 @@ impl AppState {
         // This allows services to be shared between grouped service structs and AppRequestHandler
         
         let world_service: Arc<dyn wrldbldr_engine_app::application::services::WorldService> = 
-            Arc::new(WorldServiceImpl::new(world_repo.clone(), world_exporter, settings_service.clone()));
+            Arc::new(WorldServiceImpl::new(world_repo.clone(), world_exporter, settings_service.clone(), clock.clone()));
         
         let character_service: Arc<dyn wrldbldr_engine_app::application::services::CharacterService> = 
             Arc::new(CharacterServiceImpl::new(
@@ -296,11 +301,9 @@ impl AppState {
         let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
         
         let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = 
-            Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone())
-                .with_region_repository(region_repo.clone()));
+            Arc::new(ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone(), region_repo.clone()));
         // Keep concrete version for DMApprovalQueueService
-        let item_service_impl = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone())
-            .with_region_repository(region_repo.clone());
+        let item_service_impl = ItemServiceImpl::new(item_repo.clone(), player_character_repo.clone(), region_repo.clone());
         
         let player_character_repo_for_triggers = player_character_repo.clone();
         let player_character_repo_for_actantial = player_character_repo.clone();
@@ -417,9 +420,10 @@ impl AppState {
         let player_action_queue_service = Arc::new(PlayerActionQueueService::new(
             player_action_queue.clone(),
             llm_queue.clone(),
+            clock.clone(),
         ));
 
-        let dm_action_queue_service = Arc::new(DMActionQueueService::new(dm_action_queue.clone()));
+        let dm_action_queue_service = Arc::new(DMActionQueueService::new(dm_action_queue.clone(), clock.clone()));
 
         // Create event channel for generation service (needed for LLMQueueService suggestions)
         let (generation_event_tx, generation_event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -444,6 +448,7 @@ impl AppState {
             asset_generation_queue.clone(),
             Arc::new(comfyui_client.clone()),
             asset_repo_for_queue,
+            clock.clone(),
             queue_factory.config().asset_batch_size,
             queue_factory.asset_generation_notifier(),
         ));
@@ -452,12 +457,14 @@ impl AppState {
             approval_queue.clone(),
             story_event_service.clone(),
             Arc::new(item_service_impl.clone()),
+            clock.clone(),
         ));
 
         // Create generation service (generation_event_tx already created above)
         let generation_service = Arc::new(GenerationService::new(
             Arc::new(comfyui_client.clone()) as Arc<dyn wrldbldr_engine_ports::outbound::ComfyUIPort>,
             asset_repo.clone(),
+            clock.clone(),
             std::path::PathBuf::from("./data/assets"),
             std::path::PathBuf::from("./workflows"),
             generation_event_tx,
@@ -478,10 +485,11 @@ impl AppState {
                 player_character_repo_for_triggers.clone(),
                 item_repo.clone(),
                 prompt_template_service.clone(),
-            )
-            .with_queue(challenge_outcome_queue.clone())
-            .with_llm_port(llm_for_suggestions)
-            .with_settings_service(settings_service.clone()),
+                challenge_outcome_queue.clone(),
+                llm_for_suggestions,
+                settings_service.clone(),
+                clock.clone(),
+            ),
         );
 
         // Create challenge resolution service with required approval service
@@ -494,6 +502,7 @@ impl AppState {
                 Arc::new(player_character_service_impl.clone()),
                 dm_approval_queue_service.clone(),
                 challenge_outcome_approval_service.clone(),
+                clock.clone(),
             ),
         );
 
@@ -559,6 +568,7 @@ impl AppState {
             goal_repo,
             item_repo.clone(),
             want_repo,
+            clock.clone(),
         ));
 
         // Build grouped services
@@ -671,8 +681,11 @@ impl AppState {
             character_repo_for_handler,
             observation_repo_for_handler,
             region_repo.clone(),
-        ).with_suggestion_enqueue(suggestion_enqueue_adapter)
-         .with_generation_queue(generation_queue_projection_for_handler, generation_read_state_for_handler));
+            suggestion_enqueue_adapter,
+            generation_queue_projection_for_handler,
+            generation_read_state_for_handler,
+            clock.clone(),
+        ));
         tracing::info!("Initialized request handler for WebSocket-first architecture");
 
         // Create use cases container with all dependencies
@@ -698,6 +711,8 @@ impl AppState {
             dm_approval_queue_for_use_cases,
             // Narrative event dependencies
             game.narrative_event_approval_service.clone(),
+            // Clock for time operations
+            clock.clone(),
         );
         tracing::info!("Initialized use cases container with all 9 use cases");
 

@@ -114,8 +114,8 @@ pub enum ChallengeOutcomeError {
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Pending resolutions indexed by resolution_id (in-memory cache)
     pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
-    /// Optional persistent queue for challenge outcomes
-    queue: Option<Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>>,
+    /// Persistent queue for challenge outcomes
+    queue: Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>,
     /// Event channel sender for broadcasting events
     event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
@@ -125,9 +125,9 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Item repository for creating items
     item_repository: Arc<dyn ItemRepositoryPort>,
     /// LLM port for generating outcome suggestions
-    llm_port: Option<Arc<L>>,
+    llm_port: Arc<L>,
     /// Settings service for configurable values
-    settings_service: Option<Arc<SettingsService>>,
+    settings_service: Arc<SettingsService>,
     /// Prompt template service for resolving prompt templates
     prompt_template_service: Arc<PromptTemplateService>,
     /// Clock for time operations (required for testability)
@@ -137,35 +137,27 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
 impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Create a new challenge outcome approval service
     ///
-    /// # Arguments
-    ///
-    /// * `event_sender` - Channel sender for emitting `ChallengeApprovalEvent`
-    /// * `outcome_trigger_service` - Service for executing outcome triggers
-    /// * `pc_repository` - Repository for player character data
-    /// * `item_repository` - Repository for item data
-    /// * `prompt_template_service` - Service for resolving prompt templates
-    /// Create a new challenge outcome approval service
-    ///
-    /// # Arguments
-    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
-    ///             `MockClockPort` in tests for deterministic behavior.
+    /// All dependencies are required - there are no optional features.
     pub fn new(
         event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
         prompt_template_service: Arc<PromptTemplateService>,
+        queue: Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>,
+        llm_port: Arc<L>,
+        settings_service: Arc<SettingsService>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
-            queue: None,
+            queue,
             event_sender,
             outcome_trigger_service,
             pc_repository,
             item_repository,
-            llm_port: None,
-            settings_service: None,
+            llm_port,
+            settings_service,
             prompt_template_service,
             clock,
         }
@@ -174,18 +166,6 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Get the current time
     fn now(&self) -> DateTime<Utc> {
         self.clock.now()
-    }
-
-    /// Set the LLM port for generating outcome suggestions
-    pub fn with_llm_port(mut self, llm_port: Arc<L>) -> Self {
-        self.llm_port = Some(llm_port);
-        self
-    }
-
-    /// Set the settings service for configurable values
-    pub fn with_settings_service(mut self, settings_service: Arc<SettingsService>) -> Self {
-        self.settings_service = Some(settings_service);
-        self
     }
 
     /// Queue a challenge resolution for DM approval
@@ -230,17 +210,15 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             is_generating_suggestions: false,
         };
 
-        // If queue is configured, enqueue for persistence
-        if let Some(ref queue) = self.queue {
-            queue
-                .enqueue(item.clone(), 0)
-                .await
-                .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
-            tracing::debug!(
-                resolution_id = %resolution_id,
-                "Challenge outcome enqueued to persistent storage"
-            );
-        }
+        // Enqueue for persistence
+        self.queue
+            .enqueue(item.clone(), 0)
+            .await
+            .map_err(|e| ChallengeOutcomeError::SessionError(e.to_string()))?;
+        tracing::debug!(
+            resolution_id = %resolution_id,
+            "Challenge outcome enqueued to persistent storage"
+        );
 
         // Store in pending map (in-memory cache for active operations)
         {
@@ -303,82 +281,72 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 // Mark as generating suggestions
                 self.set_generating_suggestions(resolution_id, true).await;
 
-                // Check if LLM port is configured
-                if let Some(ref llm_port) = self.llm_port {
-                    tracing::info!(
-                        "Generating LLM suggestions for {}: {:?}",
-                        resolution_id,
-                        guidance
-                    );
+                tracing::info!(
+                    "Generating LLM suggestions for {}: {:?}",
+                    resolution_id,
+                    guidance
+                );
 
-                    // Build suggestion request
-                    let request = OutcomeSuggestionRequest {
-                        challenge_id: item.challenge_id.clone(),
-                        challenge_name: item.challenge_name.clone(),
-                        challenge_description: item.challenge_description.clone(),
-                        skill_name: item.skill_name.clone().unwrap_or_default(),
-                        outcome_type: item.outcome_type.clone(),
-                        roll_context: format!(
-                            "rolled {} + {} = {} ({})",
-                            item.roll, item.modifier, item.total, item.outcome_type
-                        ),
-                        guidance,
-                        narrative_context: None,
-                        world_id: Some(world_id.to_string()),
-                    };
+                // Build suggestion request
+                let request = OutcomeSuggestionRequest {
+                    challenge_id: item.challenge_id.clone(),
+                    challenge_name: item.challenge_name.clone(),
+                    challenge_description: item.challenge_description.clone(),
+                    skill_name: item.skill_name.clone().unwrap_or_default(),
+                    outcome_type: item.outcome_type.clone(),
+                    roll_context: format!(
+                        "rolled {} + {} = {} ({})",
+                        item.roll, item.modifier, item.total, item.outcome_type
+                    ),
+                    guidance,
+                    narrative_context: None,
+                    world_id: Some(world_id.to_string()),
+                };
 
-                    // Spawn async task to generate suggestions
-                    let llm = llm_port.clone();
-                    let pending = self.pending.clone();
-                    let event_sender = self.event_sender.clone();
-                    let resolution_id_owned = resolution_id.to_string();
-                    let prompt_template_service = self.prompt_template_service.clone();
-                    let world_id_owned = *world_id;
+                // Spawn async task to generate suggestions
+                let llm = self.llm_port.clone();
+                let pending = self.pending.clone();
+                let event_sender = self.event_sender.clone();
+                let resolution_id_owned = resolution_id.to_string();
+                let prompt_template_service = self.prompt_template_service.clone();
+                let world_id_owned = *world_id;
 
-                    tokio::spawn(async move {
-                        let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
-                        match suggestion_service.generate_suggestions(&request).await {
-                            Ok(suggestions) => {
-                                // Update suggestions in pending map
-                                let mut pending_guard = pending.write().await;
-                                if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                                    pending_item.suggestions = Some(suggestions.clone());
-                                    pending_item.is_generating_suggestions = false;
-                                    drop(pending_guard);
+                tokio::spawn(async move {
+                    let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
+                    match suggestion_service.generate_suggestions(&request).await {
+                        Ok(suggestions) => {
+                            // Update suggestions in pending map
+                            let mut pending_guard = pending.write().await;
+                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                                pending_item.suggestions = Some(suggestions.clone());
+                                pending_item.is_generating_suggestions = false;
+                                drop(pending_guard);
 
-                                    // Emit suggestions ready event
-                                    let event = ChallengeApprovalEvent::SuggestionsReady {
-                                        world_id: world_id_owned,
-                                        resolution_id: resolution_id_owned.clone(),
-                                        suggestions,
-                                    };
-                                    if let Err(e) = event_sender.send(event) {
-                                        tracing::error!("Failed to emit SuggestionsReady event: {}", e);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to generate outcome suggestions for {}: {}",
-                                    resolution_id_owned,
-                                    e
-                                );
-                                // Mark as no longer generating
-                                let mut pending_guard = pending.write().await;
-                                if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                                    pending_item.is_generating_suggestions = false;
+                                // Emit suggestions ready event
+                                let event = ChallengeApprovalEvent::SuggestionsReady {
+                                    world_id: world_id_owned,
+                                    resolution_id: resolution_id_owned.clone(),
+                                    suggestions,
+                                };
+                                if let Err(e) = event_sender.send(event) {
+                                    tracing::error!("Failed to emit SuggestionsReady event: {}", e);
                                 }
                             }
                         }
-                    });
-                } else {
-                    tracing::warn!(
-                        "LLM port not configured, cannot generate suggestions for {}",
-                        resolution_id
-                    );
-                    // Mark as no longer generating
-                    self.set_generating_suggestions(resolution_id, false).await;
-                }
+                        Err(e) => {
+                            tracing::error!(
+                                "Failed to generate outcome suggestions for {}: {}",
+                                resolution_id_owned,
+                                e
+                            );
+                            // Mark as no longer generating
+                            let mut pending_guard = pending.write().await;
+                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                                pending_item.is_generating_suggestions = false;
+                            }
+                        }
+                    }
+                });
             }
         }
 
@@ -550,17 +518,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         pending.remove(resolution_id);
         drop(pending);
 
-        // If queue is configured, mark as complete
         // Note: We need the queue item ID, but we only have resolution_id
         // For now, we just remove from in-memory. The queue worker will handle
         // completing items when processing them.
         // TODO: Track queue item ID -> resolution_id mapping for proper completion
-        if self.queue.is_some() {
-            tracing::debug!(
-                resolution_id = %resolution_id,
-                "Removed from in-memory cache (queue completion handled by worker)"
-            );
-        }
+        tracing::debug!(
+            resolution_id = %resolution_id,
+            "Removed from in-memory cache (queue completion handled by worker)"
+        );
     }
 
     /// Mark a resolution as generating suggestions
@@ -601,102 +566,90 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         // Mark as generating
         self.set_generating_suggestions(resolution_id, true).await;
 
-        // Check if LLM port is configured
-        if let Some(ref llm_port) = self.llm_port {
-            tracing::info!(
-                "Generating LLM outcome branches for {}: {:?}",
-                resolution_id,
-                guidance
-            );
+        tracing::info!(
+            "Generating LLM outcome branches for {}: {:?}",
+            resolution_id,
+            guidance
+        );
 
-            // Build suggestion request (same format)
-            let request = OutcomeSuggestionRequest {
-                challenge_id: item.challenge_id.clone(),
-                challenge_name: item.challenge_name.clone(),
-                challenge_description: item.challenge_description.clone(),
-                skill_name: item.skill_name.clone().unwrap_or_default(),
-                outcome_type: item.outcome_type.clone(),
-                roll_context: format!(
-                    "rolled {} + {} = {} ({})",
-                    item.roll, item.modifier, item.total, item.outcome_type
-                ),
-                guidance,
-                narrative_context: None,
-                world_id: Some(world_id.to_string()),
-            };
+        // Build suggestion request (same format)
+        let request = OutcomeSuggestionRequest {
+            challenge_id: item.challenge_id.clone(),
+            challenge_name: item.challenge_name.clone(),
+            challenge_description: item.challenge_description.clone(),
+            skill_name: item.skill_name.clone().unwrap_or_default(),
+            outcome_type: item.outcome_type.clone(),
+            roll_context: format!(
+                "rolled {} + {} = {} ({})",
+                item.roll, item.modifier, item.total, item.outcome_type
+            ),
+            guidance,
+            narrative_context: None,
+            world_id: Some(world_id.to_string()),
+        };
 
-            // Get settings for branch count and tokens per branch
-            let (branch_count, tokens_per_branch) = if let Some(ref settings_service) = self.settings_service {
-                let settings = settings_service.get_for_world(*world_id).await;
-                (settings.outcome_branch_count as usize, settings.suggestion_tokens_per_branch)
-            } else {
-                (2, 200) // Defaults if no settings service configured
-            };
+        // Get settings for branch count and tokens per branch
+        let settings = self.settings_service.get_for_world(*world_id).await;
+        let branch_count = settings.outcome_branch_count as usize;
+        let tokens_per_branch = settings.suggestion_tokens_per_branch;
 
-            // Spawn async task to generate branches
-            let llm = llm_port.clone();
-            let pending = self.pending.clone();
-            let event_sender = self.event_sender.clone();
-            let resolution_id_owned = resolution_id.to_string();
-            let outcome_type = item.outcome_type.clone();
-            let prompt_template_service = self.prompt_template_service.clone();
-            let world_id_owned = *world_id;
+        // Spawn async task to generate branches
+        let llm = self.llm_port.clone();
+        let pending = self.pending.clone();
+        let event_sender = self.event_sender.clone();
+        let resolution_id_owned = resolution_id.to_string();
+        let outcome_type = item.outcome_type.clone();
+        let prompt_template_service = self.prompt_template_service.clone();
+        let world_id_owned = *world_id;
 
-            tokio::spawn(async move {
-                let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
-                match suggestion_service.generate_branches(&request, branch_count, tokens_per_branch).await {
-                    Ok(branches) => {
-                        // Update pending item
-                        let mut pending_guard = pending.write().await;
-                        if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                            // Store branches as suggestions (converted to strings for backward compat)
-                            pending_item.suggestions = Some(
-                                branches.iter().map(|b| b.description.clone()).collect(),
-                            );
-                            pending_item.is_generating_suggestions = false;
-                            drop(pending_guard);
-
-                            // Emit branches ready event
-                            let event = ChallengeApprovalEvent::BranchesReady {
-                                world_id: world_id_owned,
-                                resolution_id: resolution_id_owned.clone(),
-                                outcome_type,
-                                branches: branches
-                                    .into_iter()
-                                    .map(|b| OutcomeBranchData {
-                                        id: b.id,
-                                        title: b.title,
-                                        description: b.description,
-                                        effects: b.effects,
-                                    })
-                                    .collect(),
-                            };
-                            if let Err(e) = event_sender.send(event) {
-                                tracing::error!("Failed to emit BranchesReady event: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to generate outcome branches for {}: {}",
-                            resolution_id_owned,
-                            e
+        tokio::spawn(async move {
+            let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
+            match suggestion_service.generate_branches(&request, branch_count, tokens_per_branch).await {
+                Ok(branches) => {
+                    // Update pending item
+                    let mut pending_guard = pending.write().await;
+                    if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                        // Store branches as suggestions (converted to strings for backward compat)
+                        pending_item.suggestions = Some(
+                            branches.iter().map(|b| b.description.clone()).collect(),
                         );
-                        // Mark as no longer generating
-                        let mut pending_guard = pending.write().await;
-                        if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                            pending_item.is_generating_suggestions = false;
+                        pending_item.is_generating_suggestions = false;
+                        drop(pending_guard);
+
+                        // Emit branches ready event
+                        let event = ChallengeApprovalEvent::BranchesReady {
+                            world_id: world_id_owned,
+                            resolution_id: resolution_id_owned.clone(),
+                            outcome_type,
+                            branches: branches
+                                .into_iter()
+                                .map(|b| OutcomeBranchData {
+                                    id: b.id,
+                                    title: b.title,
+                                    description: b.description,
+                                    effects: b.effects,
+                                })
+                                .collect(),
+                        };
+                        if let Err(e) = event_sender.send(event) {
+                            tracing::error!("Failed to emit BranchesReady event: {}", e);
                         }
                     }
                 }
-            });
-        } else {
-            tracing::warn!(
-                "LLM port not configured, cannot generate branches for {}",
-                resolution_id
-            );
-            self.set_generating_suggestions(resolution_id, false).await;
-        }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to generate outcome branches for {}: {}",
+                        resolution_id_owned,
+                        e
+                    );
+                    // Mark as no longer generating
+                    let mut pending_guard = pending.write().await;
+                    if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                        pending_item.is_generating_suggestions = false;
+                    }
+                }
+            }
+        });
 
         Ok(())
     }

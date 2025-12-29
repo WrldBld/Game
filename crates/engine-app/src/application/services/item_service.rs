@@ -151,7 +151,7 @@ pub trait ItemService: Send + Sync {
 pub struct ItemServiceImpl {
     item_repository: Arc<dyn ItemRepositoryPort>,
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repository: Option<Arc<dyn RegionRepositoryPort>>,
+    region_repository: Arc<dyn RegionRepositoryPort>,
 }
 
 impl ItemServiceImpl {
@@ -159,18 +159,13 @@ impl ItemServiceImpl {
     pub fn new(
         item_repository: Arc<dyn ItemRepositoryPort>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+        region_repository: Arc<dyn RegionRepositoryPort>,
     ) -> Self {
         Self {
             item_repository,
             pc_repository,
-            region_repository: None,
+            region_repository,
         }
-    }
-
-    /// Add region repository for item placement operations
-    pub fn with_region_repository(mut self, region_repository: Arc<dyn RegionRepositoryPort>) -> Self {
-        self.region_repository = Some(region_repository);
-        self
     }
 
     /// Validate an item creation request
@@ -350,12 +345,7 @@ impl ItemService for ItemServiceImpl {
 
     #[instrument(skip(self))]
     async fn place_item_in_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
-        let region_repo = self
-            .region_repository
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Region repository not configured for item placement"))?;
-
-        region_repo
+        self.region_repository
             .add_item_to_region(region_id, item_id)
             .await
             .context("Failed to place item in region")?;

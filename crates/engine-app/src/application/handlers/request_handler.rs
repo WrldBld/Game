@@ -84,14 +84,11 @@ pub struct AppRequestHandler {
     region_repo: Arc<dyn RegionRepositoryPort>,
 
     // AI suggestion enqueue port (for async LLM suggestions)
-    suggestion_enqueue: Option<Arc<dyn SuggestionEnqueuePort>>,
-
-    // Reserved for future BroadcastPort integration
-    // broadcast_port: Option<Arc<dyn BroadcastPort>>,
+    suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
 
     // Generation queue services (for WebSocket hydration)
-    generation_queue_projection: Option<Arc<GenerationQueueProjectionService>>,
-    generation_read_state: Option<Arc<dyn GenerationReadStatePort>>,
+    generation_queue_projection: Arc<GenerationQueueProjectionService>,
+    generation_read_state: Arc<dyn GenerationReadStatePort>,
 
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
@@ -100,9 +97,7 @@ pub struct AppRequestHandler {
 impl AppRequestHandler {
     /// Create a new request handler with all service dependencies
     ///
-    /// # Arguments
-    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
-    ///             `MockClockPort` in tests for deterministic behavior.
+    /// All dependencies are required - there are no optional features.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         world_service: Arc<dyn WorldService>,
@@ -125,6 +120,9 @@ impl AppRequestHandler {
         character_repo: Arc<dyn CharacterRepositoryPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
+        suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
+        generation_queue_projection: Arc<GenerationQueueProjectionService>,
+        generation_read_state: Arc<dyn GenerationReadStatePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -148,35 +146,11 @@ impl AppRequestHandler {
             character_repo,
             observation_repo,
             region_repo,
-            suggestion_enqueue: None,
-            // broadcast_port: None,
-            generation_queue_projection: None,
-            generation_read_state: None,
+            suggestion_enqueue,
+            generation_queue_projection,
+            generation_read_state,
             clock,
         }
-    }
-
-    /// Set the suggestion enqueue port for AI suggestions
-    pub fn with_suggestion_enqueue(mut self, port: Arc<dyn SuggestionEnqueuePort>) -> Self {
-        self.suggestion_enqueue = Some(port);
-        self
-    }
-
-    // Reserved for future BroadcastPort integration
-    // pub fn with_broadcast_port(mut self, port: Arc<dyn BroadcastPort>) -> Self {
-    //     self.broadcast_port = Some(port);
-    //     self
-    // }
-
-    /// Set the generation queue projection service for WebSocket hydration
-    pub fn with_generation_queue(
-        mut self,
-        projection: Arc<GenerationQueueProjectionService>,
-        read_state: Arc<dyn GenerationReadStatePort>,
-    ) -> Self {
-        self.generation_queue_projection = Some(projection);
-        self.generation_read_state = Some(read_state);
-        self
     }
 
     // Reserved for future BroadcastPort integration
@@ -2648,13 +2622,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 };
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 // Build suggestion context
                 let context = SuggestionEnqueueContext {
@@ -2700,13 +2668,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 };
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 // Build suggestion context
                 let context = SuggestionEnqueueContext {
@@ -2748,13 +2710,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 };
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 // Build suggestion context
                 let suggestion_context = SuggestionEnqueueContext {
@@ -2810,13 +2766,7 @@ impl RequestHandler for AppRequestHandler {
                     target_id.clone()
                 };
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 // Build suggestion context
                 // hints: Target of the actantial relationship
@@ -2861,35 +2811,21 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
 
-                let Some(projection) = &self.generation_queue_projection else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Generation queue projection not configured",
-                    );
-                };
-
                 // Use provided user_id or fall back to context user_id
                 let effective_user_id = user_id.as_deref().or(Some(&ctx.user_id));
 
-                match projection.project_queue(effective_user_id, wid).await {
+                match self.generation_queue_projection.project_queue(effective_user_id, wid).await {
                     Ok(snapshot) => ResponseResult::success(snapshot),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::SyncGenerationReadState { world_id, read_batches, read_suggestions } => {
-                let Some(read_state) = &self.generation_read_state else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Generation read state not configured",
-                    );
-                };
-
                 let user_id = &ctx.user_id;
                 
                 // Mark batches as read
                 for batch_id in &read_batches {
-                    if let Err(e) = read_state
+                    if let Err(e) = self.generation_read_state
                         .mark_read(user_id, &world_id, batch_id, GenerationReadKind::Batch)
                         .await
                     {
@@ -2902,7 +2838,7 @@ impl RequestHandler for AppRequestHandler {
 
                 // Mark suggestions as read
                 for request_id in &read_suggestions {
-                    if let Err(e) = read_state
+                    if let Err(e) = self.generation_read_state
                         .mark_read(user_id, &world_id, request_id, GenerationReadKind::Suggestion)
                         .await
                     {
@@ -2933,13 +2869,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 // Convert protocol context to port context
                 let suggestion_context = SuggestionEnqueueContext {
@@ -2972,13 +2902,7 @@ impl RequestHandler for AppRequestHandler {
                     return e;
                 }
 
-                // Check for suggestion enqueue port
-                let Some(suggestion_port) = &self.suggestion_enqueue else {
-                    return ResponseResult::error(
-                        ErrorCode::ServiceUnavailable,
-                        "Suggestion service not available",
-                    );
-                };
+                let suggestion_port = &self.suggestion_enqueue;
 
                 match suggestion_port.cancel_suggestion(&request_id).await {
                     Ok(cancelled) => ResponseResult::success(serde_json::json!({

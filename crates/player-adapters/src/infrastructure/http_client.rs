@@ -29,11 +29,11 @@ use wrldbldr_player_ports::outbound::ApiError;
 // Desktop: Use a shared static client for connection reuse and proper timeouts
 #[cfg(not(target_arch = "wasm32"))]
 mod desktop_client {
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
     use std::time::Duration;
     
     /// Shared HTTP client with 30 second timeout for connection reuse
-    pub static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+    pub static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()

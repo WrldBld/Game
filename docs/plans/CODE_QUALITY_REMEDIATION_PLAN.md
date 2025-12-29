@@ -538,6 +538,39 @@ pub trait ClockPort: Send + Sync {
 - `AppRequestHandler`
 - `WorkflowService::export_configs()` (now takes timestamp parameter)
 
+#### 3.0.2.2 Make All Service Dependencies Required (NEW)
+
+**Issue**: Several services use `Option<Arc<...>>` for dependencies with `.with_*()` builder methods. This is wrong because:
+1. All features are always enabled - there are no feature flags
+2. Optional deps hide bugs - forgetting to inject a dep fails silently at runtime
+3. Builder pattern is unnecessary complexity when deps are always needed
+
+**Affected Services**:
+
+| Service | Optional Field | Should Be |
+|---------|---------------|-----------|
+| `ItemServiceImpl` | `region_repository: Option<Arc<dyn RegionRepositoryPort>>` | Required |
+| `ChallengeOutcomeApprovalService` | `queue: Option<Arc<dyn QueuePort<...>>>` | Required |
+| `ChallengeOutcomeApprovalService` | `llm_port: Option<Arc<L>>` | Required |
+| `ChallengeOutcomeApprovalService` | `settings_service: Option<Arc<SettingsService>>` | Required |
+| `AppRequestHandler` | `suggestion_enqueue: Option<Arc<dyn SuggestionEnqueuePort>>` | Required |
+| `AppRequestHandler` | `generation_queue_projection: Option<Arc<...>>` | Required |
+| `AppRequestHandler` | `generation_read_state: Option<Arc<dyn GenerationReadStatePort>>` | Required |
+
+**Fix**:
+1. Change all `Option<Arc<...>>` to `Arc<...>` in struct definitions
+2. Add all deps as required constructor parameters
+3. Remove `.with_*()` builder methods
+4. Update composition root to pass all deps directly
+
+| Task | Status |
+|------|--------|
+| [ ] Fix ItemServiceImpl - make region_repository required | Pending |
+| [ ] Fix ChallengeOutcomeApprovalService - make queue, llm_port, settings_service required | Pending |
+| [ ] Fix AppRequestHandler - make all optional deps required | Pending |
+| [ ] Update composition root (AppState::new) to pass all deps | Pending |
+| [ ] Wire ClockPort at composition root (combines with 3.0.2.1) | Pending |
+
 #### 3.0.3 Move Business Logic Out of Adapters
 
 **Files with business logic in adapters** (4 files, ~1,570 lines):
