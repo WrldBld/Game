@@ -804,12 +804,12 @@ impl StorageProvider for DesktopStorageProvider {
 | Task | Status |
 |------|--------|
 | [x] Audit all 72 engine-adapters imports from engine-app | **DONE** (detailed above) |
-| [ ] Move queue DTOs to engine-dto (12 types) | Pending |
+| [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [ ] Move persistence DTOs to engine-dto (6 types) | Pending |
 | [ ] Move REST/WS DTOs to protocol (9 types) | Pending |
 | [ ] Create port traits for services (25 traits) | Pending |
 | [ ] Move use case types to engine-ports (15+ types) | Pending |
-| [ ] Move parser functions to domain (5 functions) | Pending |
+| [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
 | [ ] Refactor adapters to use only ports | Pending |
 | [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
 
@@ -969,11 +969,11 @@ pub trait ClockPort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Move `EnforcementResult`, `EnforcementStats` to domain | Pending |
-| [ ] Move `ContextBudgetEnforcer`, `ContextBuilder` to domain | Pending |
-| [ ] Re-export from `wrldbldr_domain::value_objects` | Pending |
-| [ ] Update adapter imports | Pending |
-| [ ] Delete original file | Pending |
+| [x] Move `EnforcementResult`, `EnforcementStats` to domain | **DONE** |
+| [x] Move `ContextBudgetEnforcer`, `ContextBuilder` to domain | **DONE** |
+| [x] Re-export from `wrldbldr_domain::value_objects` | **DONE** |
+| [ ] Update adapter imports to use domain | Pending |
+| [ ] Delete original file from adapters | Pending |
 
 ##### 3.0.3.2 websocket_helpers.rs (476 lines) → Application Layer
 
