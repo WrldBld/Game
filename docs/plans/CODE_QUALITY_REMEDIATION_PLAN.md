@@ -806,7 +806,7 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Audit all 72 engine-adapters imports from engine-app | **DONE** (detailed above) |
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
-| [ ] Move REST/WS DTOs to protocol (9 types) | Pending |
+| [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
 | [ ] Create port traits for services (25 traits) | Pending |
 | [ ] Move use case types to engine-ports (15+ types) | Pending |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
@@ -1071,10 +1071,10 @@ pub enum DmActionResult {
 
 | Task | Status |
 |------|--------|
-| [ ] Create `DmActionProcessorPort` in engine-ports | Pending |
+| [x] Create `DmActionProcessorPort` in engine-ports | **DONE** |
 | [ ] Create `DmActionProcessorService` in engine-app | Pending |
 | [ ] Move `process_dm_action()` logic (~241 lines) | Pending |
-| [ ] Create `BroadcastPort` for message broadcasting | Pending |
+| [x] `BroadcastPort` already exists (uses GameEvent) | **DONE** |
 | [ ] Refactor workers to call service via port | Pending |
 | [ ] Keep worker loops in adapters (infrastructure) | N/A |
 
