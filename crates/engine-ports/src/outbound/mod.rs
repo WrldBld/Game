@@ -6,11 +6,13 @@
 //! Ports that still depend on engine-app internals remain in `wrldbldr-engine-app`
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
+mod actantial_context_service_port;
 mod broadcast_port;
 mod challenge_service_port;
 mod clock_port;
 mod comfyui_port;
 mod directorial_context_port;
+mod disposition_service_port;
 mod dm_action_processor_port;
 mod domain_event_repository_port;
 mod event_bus_port;
@@ -24,10 +26,16 @@ mod repository_port;
 mod prompt_template_port;
 mod scene_service_port;
 mod settings_port;
+mod skill_service_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
 mod world_exporter_port;
 mod world_state_port;
+
+// Actantial context service port - interface for character motivation context
+pub use actantial_context_service_port::ActantialContextServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use actantial_context_service_port::MockActantialContextServicePort;
 
 // Challenge service port - interface for challenge operations
 pub use challenge_service_port::ChallengeServicePort;
@@ -100,6 +108,16 @@ pub use narrative_event_service_port::NarrativeEventServicePort;
 
 // Scene service port - interface for scene operations
 pub use scene_service_port::{SceneServicePort, SceneWithRelations};
+
+// Disposition service port - interface for NPC disposition operations
+pub use disposition_service_port::DispositionServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use disposition_service_port::MockDispositionServicePort;
+
+// Skill service port - interface for skill operations
+pub use skill_service_port::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
+#[cfg(any(test, feature = "testing"))]
+pub use skill_service_port::MockSkillServicePort;
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
