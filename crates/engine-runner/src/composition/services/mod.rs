@@ -1,14 +1,16 @@
 //! Service Composition Modules
 //!
-//! This module organizes the service initialization into logical groups:
-//! - Core services (database connections, event bus)
-//! - Domain services (characters, locations, items, etc.)
-//! - Infrastructure services (LLM, asset generation, etc.)
+//! This module re-exports the service group types from engine-adapters.
+//! The actual service group implementations live in engine-adapters/infrastructure/state.
 //!
-//! Each submodule is responsible for creating and configuring a group of
-//! related adapters and returning them ready to be wired into the AppState.
+//! Note: In the future, these may be moved here to the composition root,
+//! but for now they remain in engine-adapters since the handlers there
+//! need access to AppState fields.
 
-// TODO: Add service group modules as composition is migrated:
-// pub mod core;
-// pub mod domain;
-// pub mod infrastructure;
+// Re-export service groups from engine-adapters
+// Currently unused in this crate but kept for potential future use
+#[allow(unused_imports)]
+pub use wrldbldr_engine_adapters::infrastructure::state::{
+    AssetServices, CoreServices, EventInfrastructure, GameServices, PlayerServices, QueueServices,
+    UseCases,
+};

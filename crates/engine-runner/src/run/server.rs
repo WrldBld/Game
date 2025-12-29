@@ -18,14 +18,15 @@ use wrldbldr_engine_ports::outbound::{
     QueueNotificationPort, QueuePort, RegionRepositoryPort,
 };
 
-use crate::infrastructure;
-use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::http;
-use crate::infrastructure::queue_workers::{
+use wrldbldr_engine_adapters::infrastructure;
+use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
+use wrldbldr_engine_adapters::infrastructure::http;
+use wrldbldr_engine_adapters::infrastructure::queue_workers::{
     approval_notification_worker, challenge_outcome_notification_worker, dm_action_worker,
 };
-use crate::infrastructure::state::AppState;
-use crate::infrastructure::websocket_helpers::build_prompt_from_action;
+use wrldbldr_engine_adapters::infrastructure::websocket_helpers::build_prompt_from_action;
+
+use crate::composition::new_app_state;
 
 /// Creates a cancellation token and spawns a task that cancels it on SIGTERM/SIGINT
 fn setup_shutdown_signal(cancel_token: CancellationToken) {
@@ -87,7 +88,7 @@ pub async fn run() -> Result<()> {
     tracing::info!("  ComfyUI: {}", config.comfyui_base_url);
 
     // Initialize application state
-    let (state, generation_event_rx, challenge_approval_rx) = AppState::new(config).await?;
+    let (state, generation_event_rx, challenge_approval_rx) = new_app_state(config).await?;
     let state = Arc::new(state);
     tracing::info!("Application state initialized");
 

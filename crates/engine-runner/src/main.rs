@@ -4,9 +4,9 @@
 //! It assembles all adapters, wires them to ports, and starts the server.
 
 mod composition;
+mod run;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // TODO: Move composition logic here from engine-adapters
-    wrldbldr_engine_adapters::run::run().await
+    run::run().await
 }

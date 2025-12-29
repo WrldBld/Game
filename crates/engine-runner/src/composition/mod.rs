@@ -12,5 +12,7 @@
 pub mod app_state;
 pub mod services;
 
-// Re-exports will be added when AppState is moved here
-// pub use app_state::*;
+pub use app_state::new_app_state;
+// Re-export AppState for external consumers (this crate uses engine-adapters' AppState directly)
+#[allow(unused_imports)]
+pub use app_state::AppState;
