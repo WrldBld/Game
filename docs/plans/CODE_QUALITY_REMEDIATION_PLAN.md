@@ -166,11 +166,11 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 40% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 75% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
-| Phase 3.0.1.4 | Service port traits (6/25) | **IN PROGRESS** | 24% |
+| Phase 3.0.1.4 | Service port traits (26/26) | **DONE** | 100% |
 | Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
@@ -815,14 +815,14 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
 | [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
 | [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
-| [~] Create port traits for services (6/25) | **IN PROGRESS** |
+| [x] Create port traits for services (26/26) | **DONE** |
 |     - ChallengeServicePort (11 methods) | **DONE** |
 |     - SceneServicePort (1 method + SceneWithRelations) | **DONE** |
 |     - NarrativeEventServicePort (4 methods) | **DONE** |
 |     - DispositionServicePort (8 methods) | **DONE** |
 |     - ActantialContextServicePort (1 method) | **DONE** |
 |     - SkillServicePort (7 methods) | **DONE** |
-| [ ] Move use case types to engine-ports (15+ types) | Pending |
+| [x] Move use case types to engine-ports (50+ types) | **DONE** - use_case_types.rs |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
 | [ ] Refactor adapters to use only ports | Pending |
 | [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |

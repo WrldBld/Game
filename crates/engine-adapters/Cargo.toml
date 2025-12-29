@@ -8,6 +8,7 @@ description = "WrldBldr Engine Adapters - Infrastructure adapters"
 
 [dependencies]
 wrldbldr-engine-app = { workspace = true }
+wrldbldr-engine-dto = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 wrldbldr-domain = { workspace = true }

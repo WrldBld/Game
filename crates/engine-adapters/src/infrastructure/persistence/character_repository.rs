@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_want};
-use wrldbldr_engine_app::application::dto::parse_archetype;
+use std::str::FromStr;
 use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
     ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, StatBlock, Want, WantVisibility,
@@ -1529,8 +1529,8 @@ fn row_to_character(row: Row) -> Result<Character> {
 
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-    let base_archetype = parse_archetype(&base_archetype_str);
-    let current_archetype = parse_archetype(&current_archetype_str);
+    let base_archetype = CampbellArchetype::from_str(&base_archetype_str).unwrap_or_default();
+    let current_archetype = CampbellArchetype::from_str(&current_archetype_str).unwrap_or_default();
     let archetype_history: Vec<ArchetypeChange> =
         serde_json::from_str::<Vec<ArchetypeChangeStored>>(&archetype_history_json)?
             .into_iter()
@@ -1620,8 +1620,8 @@ impl From<ArchetypeChangeStored> for ArchetypeChange {
             .map(|dt| dt.with_timezone(&chrono::Utc))
             .unwrap_or_else(|_| chrono::Utc::now());
         Self {
-            from: parse_archetype(&value.from),
-            to: parse_archetype(&value.to),
+            from: CampbellArchetype::from_str(&value.from).unwrap_or_default(),
+            to: CampbellArchetype::from_str(&value.to).unwrap_or_default(),
             reason: value.reason,
             timestamp,
         }

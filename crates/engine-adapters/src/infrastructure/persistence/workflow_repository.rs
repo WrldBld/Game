@@ -9,7 +9,7 @@ use neo4rs::query;
 use uuid::Uuid;
 
 use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
-use wrldbldr_engine_app::application::dto::{InputDefaultDto, PromptMappingDto};
+use wrldbldr_engine_dto::persistence::{InputDefaultDto, PromptMappingDto};
 use wrldbldr_domain::entities::{
     InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot,
 };

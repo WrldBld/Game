@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_app::application::dto::{DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto};
+use wrldbldr_engine_dto::persistence::{DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto};
 use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 use wrldbldr_domain::entities::{
     Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,

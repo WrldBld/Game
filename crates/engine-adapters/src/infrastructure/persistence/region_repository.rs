@@ -14,7 +14,8 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_region};
-use wrldbldr_engine_app::application::dto::parse_archetype;
+use std::str::FromStr;
+use wrldbldr_domain::value_objects::CampbellArchetype;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
 use wrldbldr_domain::value_objects::{DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift};
@@ -619,11 +620,11 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
 
-    let base_archetype = parse_archetype(&base_archetype_str);
+    let base_archetype = CampbellArchetype::from_str(&base_archetype_str).unwrap_or_default();
     let current_archetype = if current_archetype_str.is_empty() {
         base_archetype
     } else {
-        parse_archetype(&current_archetype_str)
+        CampbellArchetype::from_str(&current_archetype_str).unwrap_or_default()
     };
     let default_disposition = default_disposition_str.parse().unwrap_or(DispositionLevel::Neutral);
 

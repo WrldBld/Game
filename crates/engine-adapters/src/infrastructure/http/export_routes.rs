@@ -8,7 +8,7 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_engine_app::application::dto::ExportQueryDto;
+use wrldbldr_protocol::dto::ExportQueryDto;
 use wrldbldr_engine_ports::outbound::PlayerWorldSnapshot;
 use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
