@@ -854,11 +854,13 @@ engine-adapters/ → implements ports, converts domain ↔ DTO
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 3.0.1.7.1 | Define domain queue item value objects | Pending |
-| 3.0.1.7.2 | Update QueuePort traits to use domain types | Pending |
-| 3.0.1.7.3 | Refactor queue services to use domain types | Pending |
-| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | Pending |
-| 3.0.1.7.5 | Update adapters to convert domain ↔ DTO | Pending |
+| 3.0.1.7.1 | Define domain queue item value objects | **DONE** - queue_data.rs (15+ types) |
+| 3.0.1.7.2 | Update QueuePort traits to use domain types | **DONE** - removed serde bounds |
+| 3.0.1.7.3 | Refactor queue services to use domain types | **DONE** - 6 services refactored |
+| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | **IN PROGRESS** |
+| 3.0.1.7.5 | Update adapters to convert domain ↔ DTO | **DONE** - 16 From impls |
+
+**Commit**: 713ea4f - 363 files changed, 13117 insertions(+), 6559 deletions(-)
 
 **Domain Queue Types to Create** (in `domain/value_objects/queue_data.rs`):
 - `PlayerActionData` - player action request
