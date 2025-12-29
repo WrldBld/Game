@@ -88,18 +88,16 @@ mod staging;
 // Re-export UseCaseContext from ports (defined there to avoid circular deps)
 pub use wrldbldr_engine_ports::inbound::UseCaseContext;
 
-// Re-export error types
-pub use errors::*;
+// Re-export error types (explicit)
+pub use errors::{
+    ErrorCode, MovementError, StagingError, InventoryError, ChallengeError,
+    ObservationError, SceneError, ConnectionError, NarrativeEventError, ActionError,
+};
 
-// Re-export builders
-pub use builders::*;
+// Re-export builders (explicit)
+pub use builders::SceneBuilder;
 
-// Re-export use cases
-// Note: Using explicit re-exports where there are naming conflicts
-
-// Error types are re-exported from errors module (already exported via pub use errors::*)
-// Here we just add the type-specific re-exports
-
+// Re-export use cases (explicit where possible)
 pub use challenge::{
     AdHocOutcomes, AdHocResult, ApprovalItem, ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort, ChallengeUseCase, CreateAdHocInput, DiceInputType, DiscardChallengeInput,
@@ -117,10 +115,23 @@ pub use connection::{
     UserLeftEvent, WorldRole, WorldServicePort,
 };
 
-pub use inventory::*;
-pub use movement::*;
-pub use observation::*;
-pub use player_action::*;
+pub use inventory::{
+    EquipInput, UnequipInput, DropInput, PickupInput,
+    EquipResult, UnequipResult, DropResult, PickupResult, InventoryUseCase,
+};
+pub use movement::{
+    MovementResult, SelectCharacterInput, SelectCharacterResult,
+    MoveToRegionInput, ExitToLocationInput, StagingStatePort, PendingStagingData,
+    StagingServicePort, StagingProposalData, MovementUseCase,
+};
+pub use observation::{
+    ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
+    ShareNpcLocationResult, TriggerApproachResult, TriggerLocationEventResult,
+    WorldMessagePort, ApproachEventData, LocationEventData, ObservationUseCase,
+};
+pub use player_action::{
+    PlayerActionInput, ActionResult, PlayerActionQueuePort, DmNotificationPort, PlayerActionUseCase,
+};
 
 pub use scene::{
     ApprovalDecision as SceneApprovalDecision, ApprovalDecisionInput as SceneApprovalDecisionInput,

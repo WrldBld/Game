@@ -3,7 +3,10 @@
 pub mod session_types;
 
 // Re-export session types at crate root for convenience
-pub use session_types::*;
+pub use session_types::{
+    ParticipantRole, DiceInput, ApprovalDecision, DirectorialContext,
+    NpcMotivationData, ApprovedNpcInfo, AdHocOutcomes, ChallengeOutcomeDecision,
+};
 
 pub mod config {
     use std::str::FromStr;

@@ -38,10 +38,20 @@ mod messages;
 
 pub use error_conversion::IntoServerError;
 
-pub use approval_converters::*;
+pub use approval_converters::{
+    app_tool_to_proto, proto_tool_to_app,
+    app_outcomes_to_proto, proto_outcomes_to_app,
+    app_challenge_to_proto, proto_challenge_to_app,
+    app_narrative_to_proto, proto_narrative_to_app,
+    app_decision_to_proto, proto_decision_to_app,
+};
 
 pub use broadcast_adapter::WebSocketBroadcastAdapter;
-pub use context::*;
+pub use context::{
+    HandlerContext, DmContext, PlayerContext,
+    error_response, not_found_error, invalid_id_error,
+    parse_uuid, parse_world_id, parse_player_character_id, parse_region_id,
+};
 
 use std::sync::Arc;
 

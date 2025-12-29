@@ -55,11 +55,12 @@ mod challenge_adapters;
 mod scene_adapters;
 mod connection_adapters;
 
-pub use staging_state_adapter::*;
-pub use staging_service_adapter::*;
-pub use connection_manager_adapter::*;
-pub use player_action_adapters::*;
-pub use observation_adapters::*;
-pub use challenge_adapters::*;
-pub use scene_adapters::*;
-pub use connection_adapters::*;
+// Explicit exports (no glob re-exports)
+pub use staging_state_adapter::StagingStateAdapter;
+pub use staging_service_adapter::StagingServiceAdapter;
+pub use connection_manager_adapter::ConnectionManagerAdapter;
+pub use player_action_adapters::{PlayerActionQueueAdapter, DmNotificationAdapter};
+pub use observation_adapters::WorldMessageAdapter;
+pub use challenge_adapters::{ChallengeOutcomeApprovalAdapter, ChallengeDmApprovalQueueAdapter, ChallengeResolutionAdapter};
+pub use scene_adapters::{SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder};
+pub use connection_adapters::{WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter};

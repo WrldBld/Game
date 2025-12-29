@@ -77,7 +77,12 @@ pub use world_exporter_port::{
 pub use directorial_context_port::DirectorialContextRepositoryPort;
 
 pub use broadcast_port::BroadcastPort;
-pub use game_events::*;
+pub use game_events::{
+    GameEvent, ItemInfo, LocationGroup, NavigationExit, NavigationInfo, NavigationTarget,
+    NpcPresenceData, OutcomeBranchInfo, OutcomeTriggerInfo, PcLocationData, PreviousStagingData,
+    RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent, StagedNpcData,
+    StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, StateChangeInfo, WaitingPcData,
+};
 
 // Re-export mocks for test builds
 #[cfg(any(test, feature = "testing"))]

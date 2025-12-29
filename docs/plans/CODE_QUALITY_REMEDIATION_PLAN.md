@@ -131,9 +131,10 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase | Description | Status | Completion |
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
-| Phase 2 | High Priority | Pending | 0% |
+| Phase 2 | High Priority | In Progress | 60% |
 | Phase 3 | Architecture Completion | Pending | 0% |
-| Phase 4 | Dead Code Cleanup | Pending | 0% |
+| Phase 4 | Dead Code Cleanup | In Progress | 20% |
+| Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 5 | Domain Layer Polish | Pending | 0% |
 | Phase 6 | Protocol Layer Polish | Pending | 0% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
@@ -1030,12 +1031,12 @@ pub use entities::{
 
 | Task | Status |
 |------|--------|
-| [ ] Replace glob re-exports in engine-adapters/ports/mod.rs (8) | Pending |
-| [ ] Replace glob re-exports in engine-app/use_cases/mod.rs (6) | Pending |
-| [ ] Replace glob re-exports in domain/lib.rs (4) | Pending |
-| [ ] Replace glob re-exports in engine-app/dto/mod.rs (3) | Pending |
-| [ ] Replace glob re-exports in protocol/lib.rs (2) | Pending |
-| [ ] Replace remaining glob re-exports (7) | Pending |
+| [x] Replace glob re-exports in engine-adapters/ports/mod.rs (8) | **DONE** |
+| [x] Replace glob re-exports in engine-app/use_cases/mod.rs (6) | **DONE** |
+| [x] Replace glob re-exports in domain/lib.rs (4) | **DONE** |
+| [x] Replace glob re-exports in engine-app/dto/mod.rs (3) | **DONE** |
+| [x] Replace glob re-exports in protocol/lib.rs (2) | **DONE** |
+| [x] Replace remaining glob re-exports (7) | **DONE** |
 | [ ] Add "No glob re-exports" rule to CLAUDE.md | Pending |
 
 ---
@@ -1695,7 +1696,7 @@ cargo test --workspace
 | Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 0-1 | ~830 lines total |
 | Business logic in adapters | **4** files (~1,570 lines) | 0 | +world_state_manager.rs (484 lines, sixth review) |
 | Composition root in adapters | **~1,045** lines | 0 | Move to runner (sixth review) |
-| Glob re-exports (pub use *) | **27** patterns | 0 | Replace with explicit exports (verified by arch-check) |
+| Glob re-exports (pub use *) | ~~27~~ **0** | 0 | **DONE** - All replaced with explicit exports |
 | Adapters→App dependencies | **2 crates** (73 imports) | **0** | CRITICAL |
 | Unbounded channels | **3** | 0 | websocket + 2 in state |
 | tokio::spawn without tracking | **27** | 0 | Add CancellationToken |
