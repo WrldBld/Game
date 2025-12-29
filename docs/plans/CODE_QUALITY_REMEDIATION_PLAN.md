@@ -165,15 +165,19 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 50% |
+| Phase 3 | Architecture Completion | In Progress | 40% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **PLANNED** | 0% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
+| Phase 3.0.3 | Move Business Logic from Adapters | **PLANNED** | 0% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
+| Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
 | Phase 3.1 | Challenge DTOs | **DONE** | 60% |
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
 | Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
+| Phase 3.5 | Split God Traits (169 methods → 25) | **PLANNED** | 0% |
 | Phase 4 | Dead Code Cleanup | In Progress | 85% |
 | Phase 4.1-4.3 | Unused Structs/Fields/Constants | **DONE** | 100% |
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
