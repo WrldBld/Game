@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::Utc;
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::WorkflowService;
@@ -111,20 +112,21 @@ pub async fn save_workflow_config(
 
     let is_update = existing.is_some();
 
+    let now = Utc::now();
     let config = if let Some(mut existing_config) = existing {
         // Update existing
         existing_config.name = req.name;
-        existing_config.update_workflow(req.workflow_json);
-        existing_config.set_prompt_mappings(req.prompt_mappings.into_iter().map(Into::into).collect());
-        existing_config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect());
-        existing_config.set_locked_inputs(req.locked_inputs);
+        existing_config.update_workflow(req.workflow_json, now);
+        existing_config.set_prompt_mappings(req.prompt_mappings.into_iter().map(Into::into).collect(), now);
+        existing_config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect(), now);
+        existing_config.set_locked_inputs(req.locked_inputs, now);
         existing_config
     } else {
         // Create new
-        let mut config = WorkflowConfiguration::new(workflow_slot, req.name, req.workflow_json);
-        config.set_prompt_mappings(req.prompt_mappings.into_iter().map(Into::into).collect());
-        config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect());
-        config.set_locked_inputs(req.locked_inputs);
+        let mut config = WorkflowConfiguration::new(workflow_slot, req.name, req.workflow_json, now);
+        config.set_prompt_mappings(req.prompt_mappings.into_iter().map(Into::into).collect(), now);
+        config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect(), now);
+        config.set_locked_inputs(req.locked_inputs, now);
         config
     };
 
@@ -184,11 +186,12 @@ pub async fn update_workflow_defaults(
         .ok_or_else(|| (StatusCode::NOT_FOUND, format!("No workflow configured for slot: {}", slot)))?;
 
     // Update defaults
-    config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect());
+    let now = Utc::now();
+    config.set_input_defaults(req.input_defaults.into_iter().map(Into::into).collect(), now);
 
     // Update locked inputs if provided
     if let Some(locked) = req.locked_inputs {
-        config.set_locked_inputs(locked);
+        config.set_locked_inputs(locked, now);
     }
 
     state

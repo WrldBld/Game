@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{EventBusPort, StoryEventRepositoryPort};
+use wrldbldr_engine_ports::outbound::{ClockPort, EventBusPort, StoryEventRepositoryPort};
 use wrldbldr_domain::entities::{
     ChallengeEventOutcome, DmMarkerType, InfoType, InvolvedCharacter, ItemSource, MarkerImportance,
     StoryEvent, StoryEventInfoImportance, StoryEventType,
@@ -285,11 +285,16 @@ pub trait StoryEventService: Send + Sync {
 pub struct StoryEventServiceImpl {
     repository: Arc<dyn StoryEventRepositoryPort>,
     event_bus: Arc<dyn EventBusPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl StoryEventServiceImpl {
-    pub fn new(repository: Arc<dyn StoryEventRepositoryPort>, event_bus: Arc<dyn EventBusPort>) -> Self {
-        Self { repository, event_bus }
+    pub fn new(
+        repository: Arc<dyn StoryEventRepositoryPort>,
+        event_bus: Arc<dyn EventBusPort>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
+        Self { repository, event_bus, clock }
     }
 
     /// Helper to publish StoryEventCreated after persisting
@@ -331,7 +336,7 @@ impl StoryEventService for StoryEventServiceImpl {
             tone,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Spoke with {}", npc_name));
 
         if let Some(gt) = game_time {
@@ -392,7 +397,7 @@ impl StoryEventService for StoryEventServiceImpl {
             ChallengeEventOutcome::CriticalFailure => "Critical Failure",
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("{}: {}", challenge_name, outcome_text));
 
         if let Some(gt) = game_time {
@@ -439,7 +444,7 @@ impl StoryEventService for StoryEventServiceImpl {
             trigger_reason,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Entered: {}", to_scene_name));
 
         if let Some(gt) = game_time {
@@ -481,7 +486,7 @@ impl StoryEventService for StoryEventServiceImpl {
             marker_type,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(title);
 
         if let Some(gt) = game_time {
@@ -534,7 +539,7 @@ impl StoryEventService for StoryEventServiceImpl {
             persist_to_journal,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Discovered: {}", title));
 
         if let Some(gt) = game_time {
@@ -583,7 +588,7 @@ impl StoryEventService for StoryEventServiceImpl {
             reason: reason.clone(),
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(reason);
 
         if let Some(gt) = game_time {
@@ -626,7 +631,7 @@ impl StoryEventService for StoryEventServiceImpl {
             quantity,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Acquired {}", item_name));
 
         if let Some(gt) = game_time {
@@ -670,7 +675,7 @@ impl StoryEventService for StoryEventServiceImpl {
             effects_applied,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type)
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Event: {}", narrative_event_name));
 
         if let Some(gt) = game_time {
@@ -711,7 +716,7 @@ impl StoryEventService for StoryEventServiceImpl {
             players_present,
         };
 
-        let event = StoryEvent::new(world_id, event_type)
+        let event = StoryEvent::new(world_id, event_type, self.clock.now())
             .with_summary(format!("Session {} started", session_number));
 
         let event_id = event.id;
@@ -734,7 +739,7 @@ impl StoryEventService for StoryEventServiceImpl {
             summary: summary.clone(),
         };
 
-        let event = StoryEvent::new(world_id, event_type).with_summary(summary);
+        let event = StoryEvent::new(world_id, event_type, self.clock.now()).with_summary(summary);
 
         let event_id = event.id;
         self.repository.create(&event).await?;

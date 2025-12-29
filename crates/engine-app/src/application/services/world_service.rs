@@ -164,7 +164,7 @@ impl WorldService for WorldServiceImpl {
         let settings = self.settings_service.get().await;
         Self::validate_create_request(&request, &settings)?;
 
-        let mut world = World::new(&request.name, &request.description);
+        let mut world = World::new(&request.name, &request.description, self.clock.now());
 
         if let Some(rule_system) = request.rule_system {
             world = world.with_rule_system(rule_system);
@@ -227,15 +227,16 @@ impl WorldService for WorldServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("World not found: {}", id))?;
 
+        let now = self.clock.now();
         if let Some(name) = request.name {
-            world.update_name(name);
+            world.update_name(name, now);
         }
         if let Some(description) = request.description {
-            world.update_description(description);
+            world.update_description(description, now);
         }
         if let Some(rule_system) = request.rule_system {
             world.rule_system = rule_system;
-            world.updated_at = self.clock.now();
+            world.updated_at = now;
         }
 
         self.repository

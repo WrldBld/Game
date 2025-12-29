@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -347,6 +348,7 @@ pub async fn queue_generation(
         &req.workflow,
         &req.prompt,
         req.count,
+        Utc::now(),
     );
 
     if let Some(neg) = req.negative_prompt {

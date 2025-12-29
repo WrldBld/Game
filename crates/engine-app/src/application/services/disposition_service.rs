@@ -20,7 +20,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
+use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, ClockPort};
 use wrldbldr_domain::value_objects::{
     DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
@@ -86,12 +86,13 @@ pub trait DispositionService: Send + Sync {
 #[derive(Clone)]
 pub struct DispositionServiceImpl {
     character_repo: Arc<dyn CharacterRepositoryPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl DispositionServiceImpl {
     /// Create a new DispositionServiceImpl with the given repository
-    pub fn new(character_repo: Arc<dyn CharacterRepositoryPort>) -> Self {
-        Self { character_repo }
+    pub fn new(character_repo: Arc<dyn CharacterRepositoryPort>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { character_repo, clock }
     }
 }
 
@@ -112,7 +113,7 @@ impl DispositionService for DispositionServiceImpl {
 
         // No existing disposition - create default from NPC's default_disposition
         let default_disposition = self.character_repo.get_default_disposition(npc_id).await?;
-        let disposition_state = NpcDispositionState::new(npc_id, pc_id).with_disposition(default_disposition);
+        let disposition_state = NpcDispositionState::new(npc_id, pc_id, self.clock.now()).with_disposition(default_disposition);
 
         // Persist the initial state
         self.character_repo.set_disposition_toward_pc(&disposition_state).await?;
@@ -134,7 +135,7 @@ impl DispositionService for DispositionServiceImpl {
         let mut disposition_state = self.get_disposition(npc_id, pc_id).await?;
 
         // Update the disposition
-        disposition_state.set_disposition(disposition, reason);
+        disposition_state.set_disposition(disposition, reason, self.clock.now());
 
         // Persist
         self.character_repo.set_disposition_toward_pc(&disposition_state).await?;
@@ -153,14 +154,15 @@ impl DispositionService for DispositionServiceImpl {
 
         let mut disposition_state = self.get_disposition(npc_id, pc_id).await?;
 
+        let now = self.clock.now();
         match outcome {
             InteractionOutcome::Positive { magnitude, reason } => {
-                disposition_state.adjust_sentiment(magnitude, Some(reason));
-                disposition_state.add_relationship_points((magnitude * 5.0) as i32);
+                disposition_state.adjust_sentiment(magnitude, Some(reason), now);
+                disposition_state.add_relationship_points((magnitude * 5.0) as i32, now);
             }
             InteractionOutcome::Negative { magnitude, reason } => {
-                disposition_state.adjust_sentiment(-magnitude, Some(reason));
-                disposition_state.add_relationship_points((-magnitude * 5.0) as i32);
+                disposition_state.adjust_sentiment(-magnitude, Some(reason), now);
+                disposition_state.add_relationship_points((-magnitude * 5.0) as i32, now);
             }
             InteractionOutcome::Neutral => {
                 // No change
@@ -172,12 +174,12 @@ impl DispositionService for DispositionServiceImpl {
             } => {
                 if succeeded {
                     let reason = format!("Succeeded at {} challenge", skill_name);
-                    disposition_state.adjust_sentiment(significance.success_delta(), Some(reason));
-                    disposition_state.add_relationship_points(significance.success_points());
+                    disposition_state.adjust_sentiment(significance.success_delta(), Some(reason), now);
+                    disposition_state.add_relationship_points(significance.success_points(), now);
                 } else {
                     let reason = format!("Failed {} challenge", skill_name);
-                    disposition_state.adjust_sentiment(significance.failure_delta(), Some(reason));
-                    disposition_state.add_relationship_points(significance.failure_points());
+                    disposition_state.adjust_sentiment(significance.failure_delta(), Some(reason), now);
+                    disposition_state.add_relationship_points(significance.failure_points(), now);
                 }
             }
         }
@@ -213,7 +215,7 @@ impl DispositionService for DispositionServiceImpl {
             if !existing_npc_ids.contains(&npc_id) {
                 // Get default disposition and create initial state
                 let default_disposition = self.character_repo.get_default_disposition(npc_id).await?;
-                let disposition_state = NpcDispositionState::new(npc_id, pc_id).with_disposition(default_disposition);
+                let disposition_state = NpcDispositionState::new(npc_id, pc_id, self.clock.now()).with_disposition(default_disposition);
                 all_dispositions.push(disposition_state);
             }
         }

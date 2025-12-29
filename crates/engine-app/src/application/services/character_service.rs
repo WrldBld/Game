@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, RelationshipRepositoryPort, WorldRepositoryPort,
+    CharacterRepositoryPort, ClockPort, RelationshipRepositoryPort, WorldRepositoryPort,
 };
 use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
@@ -149,6 +149,7 @@ pub struct CharacterServiceImpl {
     character_repository: Arc<dyn CharacterRepositoryPort>,
     relationship_repository: Arc<dyn RelationshipRepositoryPort>,
     settings_service: Arc<SettingsService>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl CharacterServiceImpl {
@@ -158,12 +159,14 @@ impl CharacterServiceImpl {
         character_repository: Arc<dyn CharacterRepositoryPort>,
         relationship_repository: Arc<dyn RelationshipRepositoryPort>,
         settings_service: Arc<SettingsService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             world_repository,
             character_repository,
             relationship_repository,
             settings_service,
+            clock,
         }
     }
 
@@ -240,7 +243,7 @@ impl CharacterService for CharacterServiceImpl {
 
         // Then create wants via edge-based operations
         for want_request in request.initial_wants {
-            let want = Want::new(&want_request.description)
+            let want = Want::new(&want_request.description, self.clock.now())
                 .with_intensity(want_request.intensity);
             let want = if want_request.known_to_player {
                 want.known()
@@ -406,7 +409,7 @@ impl CharacterService for CharacterServiceImpl {
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
         let old_archetype = character.current_archetype;
-        character.change_archetype(request.new_archetype, &request.reason);
+        character.change_archetype(request.new_archetype, &request.reason, self.clock.now());
 
         self.character_repository
             .update(&character)
@@ -485,7 +488,7 @@ impl CharacterService for CharacterServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
-        let want = Want::new(&request.description).with_intensity(request.intensity);
+        let want = Want::new(&request.description, self.clock.now()).with_intensity(request.intensity);
         let want = if request.known_to_player {
             want.known()
         } else {

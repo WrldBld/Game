@@ -1470,7 +1470,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 // Create the narrative event entity
-                let mut event = wrldbldr_domain::entities::NarrativeEvent::new(wid, data.name);
+                let mut event = wrldbldr_domain::entities::NarrativeEvent::new(wid, data.name, self.clock.now());
                 event.description = data.description.unwrap_or_default();
                 match self.narrative_event_service.create(event).await {
                     Ok(created) => {
@@ -1561,7 +1561,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 // Create the event chain entity
-                let mut chain = wrldbldr_domain::entities::EventChain::new(wid, data.name);
+                let mut chain = wrldbldr_domain::entities::EventChain::new(wid, data.name, self.clock.now());
                 chain.description = data.description.unwrap_or_default();
                 match self.event_chain_service.create_event_chain(chain).await {
                     Ok(created) => {
@@ -2231,15 +2231,16 @@ impl RequestHandler for AppRequestHandler {
                 // Use current time as game_time (in a real implementation, this might come from world state)
                 let game_time = self.clock.now();
                 // Create the observation based on type
+                let now = self.clock.now();
                 let observation = match observation_type {
                     wrldbldr_domain::entities::ObservationType::Direct => {
-                        wrldbldr_domain::entities::NpcObservation::direct(pid, npc_id, location_id, region_id, game_time)
+                        wrldbldr_domain::entities::NpcObservation::direct(pid, npc_id, location_id, region_id, game_time, now)
                     }
                     wrldbldr_domain::entities::ObservationType::HeardAbout => {
-                        wrldbldr_domain::entities::NpcObservation::heard_about(pid, npc_id, location_id, region_id, game_time, data.notes.clone())
+                        wrldbldr_domain::entities::NpcObservation::heard_about(pid, npc_id, location_id, region_id, game_time, data.notes.clone(), now)
                     }
                     wrldbldr_domain::entities::ObservationType::Deduced => {
-                        wrldbldr_domain::entities::NpcObservation::deduced(pid, npc_id, location_id, region_id, game_time, data.notes.clone())
+                        wrldbldr_domain::entities::NpcObservation::deduced(pid, npc_id, location_id, region_id, game_time, data.notes.clone(), now)
                     }
                 };
                 match self.observation_repo.upsert(&observation).await {

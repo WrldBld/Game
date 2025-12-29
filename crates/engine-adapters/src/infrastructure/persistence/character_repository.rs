@@ -241,7 +241,7 @@ impl Neo4jCharacterRepository {
         reason: &str,
     ) -> Result<()> {
         if let Some(mut character) = self.get(id).await? {
-            character.change_archetype(new_archetype, reason);
+            character.change_archetype(new_archetype, reason, Utc::now());
             self.update(&character).await?;
         }
         Ok(())

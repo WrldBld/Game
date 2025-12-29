@@ -12,7 +12,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use wrldbldr_engine_ports::outbound::{
-    ChatMessage, LlmPort, LlmRequest, NarrativeEventRepositoryPort, 
+    ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventRepositoryPort, 
     RegionRepositoryPort, StagingRepositoryPort,
 };
 use crate::application::services::{
@@ -103,6 +103,7 @@ where
     context_provider: StagingContextProvider<R, N>,
     llm_port: Arc<L>,
     prompt_template_service: Arc<PromptTemplateService>,
+    clock: Arc<dyn ClockPort>,
     config: StagingServiceConfig,
 }
 
@@ -120,6 +121,7 @@ where
         story_event_service: Arc<dyn StoryEventService>,
         llm_port: Arc<L>,
         prompt_template_service: Arc<PromptTemplateService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         let context_provider = StagingContextProvider::new(
             region_repository,
@@ -132,6 +134,7 @@ where
             context_provider,
             llm_port,
             prompt_template_service,
+            clock,
             config: StagingServiceConfig::default(),
         }
     }
@@ -269,6 +272,7 @@ where
             approved_by,
             source,
             ttl_hours,
+            self.clock.now(),
         );
 
         if let Some(guidance) = dm_guidance {

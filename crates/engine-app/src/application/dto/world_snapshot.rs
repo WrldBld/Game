@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use chrono::Utc;
 use wrldbldr_domain::entities::{Character, Location, Scene, World};
 
 /// A snapshot of the current world state for session joining
@@ -70,7 +71,7 @@ impl Default for WorldSnapshot {
     /// basic empty world containing no locations, characters, or scenes.
     fn default() -> Self {
         Self {
-            world: World::new("Empty World", "A placeholder world"),
+            world: World::new("Empty World", "A placeholder world", Utc::now()),
             locations: Vec::new(),
             characters: Vec::new(),
             scenes: Vec::new(),

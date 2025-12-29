@@ -384,7 +384,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
         debug!(character_id = %character_id, description = %request.description, "Creating want");
 
         // Build the want entity
-        let mut want = Want::new(&request.description)
+        let mut want = Want::new(&request.description, self.clock.now())
             .with_intensity(request.intensity)
             .with_visibility(request.visibility);
 
@@ -490,7 +490,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
             "Adding actantial view"
         );
 
-        let view = ActantialView::new(want_id, &reason);
+        let view = ActantialView::new(want_id, &reason, self.clock.now());
 
         match target_type {
             ActorTargetType::Npc => {

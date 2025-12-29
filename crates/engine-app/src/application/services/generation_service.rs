@@ -397,6 +397,7 @@ impl GenerationService {
             batch.asset_type.clone(),
             output_path.to_string_lossy().to_string(),
             metadata,
+            self.clock.now(),
         );
         // Override the auto-generated ID with our pre-generated one for the filename
         asset.id = asset_id;

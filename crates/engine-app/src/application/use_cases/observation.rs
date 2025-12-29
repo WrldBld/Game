@@ -196,6 +196,7 @@ impl ObservationUseCase {
             input.region_id,
             game_time,
             input.notes,
+            self.clock.now(),
         );
 
         // Store the observation
@@ -264,6 +265,7 @@ impl ObservationUseCase {
                     pc.current_location_id,
                     region_id,
                     game_time,
+                    self.clock.now(),
                 )
             } else {
                 NpcObservation::direct_unrevealed(
@@ -272,6 +274,7 @@ impl ObservationUseCase {
                     pc.current_location_id,
                     region_id,
                     game_time,
+                    self.clock.now(),
                 )
             };
 

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::AssetRepositoryPort;
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 use wrldbldr_domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
@@ -79,12 +79,13 @@ pub trait AssetService: Send + Sync {
 #[derive(Clone)]
 pub struct AssetServiceImpl {
     repository: Arc<dyn AssetRepositoryPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl AssetServiceImpl {
     /// Create a new AssetServiceImpl with the given repository
-    pub fn new(repository: Arc<dyn AssetRepositoryPort>) -> Self {
-        Self { repository }
+    pub fn new(repository: Arc<dyn AssetRepositoryPort>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { repository, clock }
     }
 
     /// Validate an asset creation request
@@ -136,6 +137,7 @@ impl AssetService for AssetServiceImpl {
             &request.entity_id,
             request.asset_type,
             &request.file_path,
+            self.clock.now(),
         );
 
         if let Some(label) = request.label {

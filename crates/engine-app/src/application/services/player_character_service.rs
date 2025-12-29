@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use wrldbldr_engine_ports::outbound::{
-    LocationRepositoryPort, PlayerCharacterRepositoryPort, WorldRepositoryPort,
+    ClockPort, LocationRepositoryPort, PlayerCharacterRepositoryPort, WorldRepositoryPort,
 };
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::entities::CharacterSheetData;
@@ -85,6 +85,7 @@ pub struct PlayerCharacterServiceImpl {
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
     location_repository: Arc<dyn LocationRepositoryPort>,
     world_repository: Arc<dyn WorldRepositoryPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl PlayerCharacterServiceImpl {
@@ -93,11 +94,13 @@ impl PlayerCharacterServiceImpl {
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         location_repository: Arc<dyn LocationRepositoryPort>,
         world_repository: Arc<dyn WorldRepositoryPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             pc_repository,
             location_repository,
             world_repository,
+            clock,
         }
     }
 
@@ -135,6 +138,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             request.world_id,
             request.name.clone(),
             request.starting_location_id,
+            self.clock.now(),
         );
 
         if let Some(description) = request.description {
@@ -244,7 +248,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             };
         }
 
-        pc.touch(); // Update last_active_at
+        pc.touch(self.clock.now()); // Update last_active_at
         pc.validate().map_err(|e| anyhow::anyhow!(e))?;
 
         self.pc_repository

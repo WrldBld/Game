@@ -257,6 +257,7 @@ impl AppState {
                 character_repo.clone(),
                 relationship_repo.clone(),
                 settings_service.clone(),
+                clock.clone(),
             ));
         
         let location_service: Arc<dyn wrldbldr_engine_app::application::services::LocationService> = 
@@ -300,7 +301,7 @@ impl AppState {
             Arc::new(EventChainServiceImpl::new(event_chain_repo));
         
         let asset_repo_for_service = asset_repo.clone();
-        let asset_service = AssetServiceImpl::new(asset_repo_for_service);
+        let asset_service = AssetServiceImpl::new(asset_repo_for_service, clock.clone());
         let workflow_config_service = WorkflowConfigService::new(workflow_repo);
         let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
         
@@ -318,12 +319,14 @@ impl AppState {
                 player_character_repo.clone(),
                 location_repo.clone(),
                 world_repo.clone(),
+                clock.clone(),
             ));
         // Keep concrete version for ChallengeResolutionService generics
         let player_character_service_impl = PlayerCharacterServiceImpl::new(
             player_character_repo.clone(),
             location_repo.clone(),
             world_repo.clone(),
+            clock.clone(),
         );
         
         // Keep concrete skill service for ChallengeResolutionService generics
@@ -408,7 +411,7 @@ impl AppState {
 
         // Create story event service with event bus
         let story_event_service: Arc<dyn wrldbldr_engine_app::application::services::StoryEventService> = 
-            Arc::new(StoryEventServiceImpl::new(story_event_repo_for_service, event_bus.clone()));
+            Arc::new(StoryEventServiceImpl::new(story_event_repo_for_service, event_bus.clone(), clock.clone()));
         
         // Create narrative event service with event bus
         // Create both trait object and concrete impl (impl needed for NarrativeEventApprovalService generics)
@@ -546,6 +549,7 @@ impl AppState {
             story_event_service.clone(),
             llm_for_staging,
             prompt_template_service.clone(),
+            clock.clone(),
         ));
 
         // Create generation queue projection service
@@ -556,7 +560,7 @@ impl AppState {
         ));
 
         // Create disposition service (P1.4)
-        let disposition_service = Arc::new(DispositionServiceImpl::new(character_repo.clone()));
+        let disposition_service = Arc::new(DispositionServiceImpl::new(character_repo.clone(), clock.clone()));
 
         // Create region service
         let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> = 
