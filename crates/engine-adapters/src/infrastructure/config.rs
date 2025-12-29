@@ -77,11 +77,11 @@ impl AppConfig {
             neo4j_database: env::var("NEO4J_DATABASE").unwrap_or_else(|_| "neo4j".to_string()),
 
             ollama_base_url: env::var("OLLAMA_BASE_URL")
-                .unwrap_or_else(|_| "http://10.8.0.6:11434/v1".to_string()),
+                .unwrap_or_else(|_| "http://localhost:11434/v1".to_string()),
             ollama_model: env::var("OLLAMA_MODEL").unwrap_or_else(|_| "qwen3-vl:30b".to_string()),
 
             comfyui_base_url: env::var("COMFYUI_BASE_URL")
-                .unwrap_or_else(|_| "http://10.8.0.6:8188".to_string()),
+                .unwrap_or_else(|_| "http://localhost:8188".to_string()),
 
             server_port: env::var("SERVER_PORT")
                 .unwrap_or_else(|_| "3000".to_string())

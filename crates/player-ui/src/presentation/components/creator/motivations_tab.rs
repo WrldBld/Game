@@ -494,10 +494,10 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
             }
             
             // Parse target: "npc:{id}" or "pc:{id}"
-            let (actor_id, actor_type) = if target_str.starts_with("npc:") {
-                (target_str.strip_prefix("npc:").unwrap().to_string(), ActorTypeData::Npc)
-            } else if target_str.starts_with("pc:") {
-                (target_str.strip_prefix("pc:").unwrap().to_string(), ActorTypeData::Pc)
+            let (actor_id, actor_type) = if let Some(id) = target_str.strip_prefix("npc:") {
+                (id.to_string(), ActorTypeData::Npc)
+            } else if let Some(id) = target_str.strip_prefix("pc:") {
+                (id.to_string(), ActorTypeData::Pc)
             } else {
                 // Default to NPC
                 (target_str.clone(), ActorTypeData::Npc)
