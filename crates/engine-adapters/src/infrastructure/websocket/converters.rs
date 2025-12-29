@@ -1,10 +1,18 @@
 //! Type conversion helpers for WebSocket message handling
 //!
 //! Contains functions to convert between protocol types, domain types, and application DTOs.
+//!
+//! # Architecture Note
+//!
+//! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
+//! These converters bridge protocol types to internal application types (`wrldbldr_engine_app`).
 
 use wrldbldr_engine_app::application::dto::{AdHocOutcomesDto, ChallengeOutcomeDecision};
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
-use wrldbldr_protocol::{ActantialRoleData, ServerMessage, WantVisibilityData};
+use wrldbldr_protocol::{
+    ActantialRoleData, AdHocOutcomes, ChallengeOutcomeDecisionData, ServerMessage,
+    WantVisibilityData,
+};
 
 /// Convert wrldbldr_protocol::DiceInputType to challenge_resolution_service::DiceInputType
 pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::DiceInputType {
@@ -15,8 +23,11 @@ pub fn to_service_dice_input(input: wrldbldr_protocol::DiceInputType) -> crs::Di
     }
 }
 
-/// Convert wrldbldr_protocol::AdHocOutcomes to application dto AdHocOutcomesDto
-pub fn to_adhoc_outcomes_dto(outcomes: wrldbldr_protocol::AdHocOutcomes) -> AdHocOutcomesDto {
+/// Convert protocol `AdHocOutcomes` (wire format) to application `AdHocOutcomesDto` (internal).
+///
+/// Both types are structurally identical - this conversion exists to maintain
+/// hexagonal architecture boundaries (protocol → application layer).
+pub fn to_adhoc_outcomes_dto(outcomes: AdHocOutcomes) -> AdHocOutcomesDto {
     AdHocOutcomesDto {
         success: outcomes.success,
         failure: outcomes.failure,
@@ -30,23 +41,24 @@ pub fn value_to_server_message(value: serde_json::Value) -> Option<ServerMessage
     serde_json::from_value(value).ok()
 }
 
-/// Convert wire format ChallengeOutcomeDecisionData to application DTO ChallengeOutcomeDecision
+/// Convert protocol `ChallengeOutcomeDecisionData` (wire format) to application `ChallengeOutcomeDecision`.
+///
+/// The protocol type includes an `Unknown` variant for forward compatibility - when a newer
+/// client sends an unrecognized variant, we default to `Accept` to avoid breaking workflows.
 pub fn to_challenge_outcome_decision(
-    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+    decision: ChallengeOutcomeDecisionData,
 ) -> ChallengeOutcomeDecision {
     match decision {
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => ChallengeOutcomeDecision::Accept,
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit {
+        ChallengeOutcomeDecisionData::Accept => ChallengeOutcomeDecision::Accept,
+        ChallengeOutcomeDecisionData::Edit {
             modified_description,
         } => ChallengeOutcomeDecision::Edit {
             modified_description,
         },
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
+        ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
-            ChallengeOutcomeDecision::Accept
-        } // Default unknown to Accept
+        ChallengeOutcomeDecisionData::Unknown => ChallengeOutcomeDecision::Accept, // Default unknown to Accept
     }
 }
 

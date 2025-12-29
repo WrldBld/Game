@@ -12,9 +12,8 @@ use crate::infrastructure::websocket::converters::{
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ExitToLocationInput, MoveToRegionInput, SelectCharacterInput,
+    ExitToLocationInput, MoveToRegionInput, SelectCharacterInput, UseCaseContext,
 };
-use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
 
 // =============================================================================

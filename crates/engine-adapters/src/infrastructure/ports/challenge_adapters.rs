@@ -7,6 +7,15 @@
 //! The challenge services are heavily generic due to dependency injection.
 //! These adapters wrap the concrete service types used in AppState and
 //! implement the port traits defined in the ChallengeUseCase.
+//!
+//! # Type Boundaries
+//!
+//! This module bridges between:
+//! - **Use Case Types** (from `wrldbldr_engine_ports`): `OutcomeDecision`, `AdHocOutcomes`
+//! - **DTO Types** (from `wrldbldr_engine_app`): `ChallengeOutcomeDecision`, `AdHocOutcomesDto`
+//!
+//! Note: Protocol types (`wrldbldr_protocol`) are converted in the WebSocket layer
+//! before reaching these adapters.
 
 use std::sync::Arc;
 
