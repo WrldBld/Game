@@ -50,6 +50,7 @@ mod prompt_template_port;
 mod prompt_template_service_port;
 mod queue_notification_port;
 mod queue_port;
+mod random_port;
 mod region_service_port;
 mod relationship_service_port;
 mod repository_port;
@@ -83,6 +84,11 @@ pub use challenge_service_port::MockChallengeServicePort;
 
 // Clock port - time abstraction for deterministic testing
 pub use clock_port::ClockPort;
+
+// Random port - RNG abstraction for deterministic testing
+pub use random_port::{FixedRandomPort, RandomPort};
+#[cfg(any(test, feature = "testing"))]
+pub use random_port::MockRandomPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};

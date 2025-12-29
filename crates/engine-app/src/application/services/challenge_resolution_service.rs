@@ -25,7 +25,7 @@ use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRol
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceRoll as PortDiceRoll,
-    PendingResolution as PortPendingResolution, RollResult as PortRollResult,
+    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
 };
 
 // ============================================================================
@@ -199,6 +199,8 @@ pub struct ChallengeResolutionService<
     challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
+    /// Random number generator for dice rolls (required for testability)
+    rng: Arc<dyn RandomPort>,
 }
 
 impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
@@ -217,6 +219,8 @@ where
     /// # Arguments
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
+    /// * `rng` - Random number generator. Use `ThreadRngAdapter` in production,
+    ///           `FixedRandomPort` in tests for deterministic behavior.
     pub fn new(
         challenge_service: Arc<S>,
         skill_service: Arc<K>,
@@ -224,6 +228,7 @@ where
         dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
         clock: Arc<dyn ClockPort>,
+        rng: Arc<dyn RandomPort>,
     ) -> Self {
         Self {
             challenge_service,
@@ -232,6 +237,7 @@ where
             dm_approval_queue_service,
             challenge_outcome_approval_service,
             clock,
+            rng,
         }
     }
 
@@ -528,9 +534,12 @@ where
             DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
         };
 
-        // Resolve the dice roll with character modifier
+        // Resolve the dice roll with character modifier using injected RNG
+        let rng = self.rng.clone();
         let roll_result = roll_input
-            .resolve_with_modifier(preamble.character_modifier)
+            .resolve_with_modifier(preamble.character_modifier, |min, max| {
+                rng.random_range(min, max)
+            })
             .map_err(|e| ChallengeResolutionError::InvalidDiceFormula(e.to_string()))?;
 
         // For d20 systems, check natural 1/20 using the raw die roll (before modifier)

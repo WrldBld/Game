@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use wrldbldr_engine_adapters::infrastructure::clock::SystemClock;
+use wrldbldr_engine_adapters::infrastructure::random_adapter::ThreadRngAdapter;
 use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
@@ -821,6 +822,10 @@ pub async fn new_app_state(
     // Create challenge resolution service with required approval service
     // Uses concrete service impls for generics compatibility
     // Note: No longer takes WorldConnectionPort - returns typed results for use case layer to broadcast
+    // Create RNG adapter for dice rolls
+    let rng: Arc<dyn wrldbldr_engine_ports::outbound::RandomPort> =
+        Arc::new(ThreadRngAdapter::new());
+
     let challenge_resolution_service = Arc::new(ChallengeResolutionService::new(
         Arc::new(challenge_service_impl.clone()),
         Arc::new(skill_service_impl.clone()),
@@ -828,6 +833,7 @@ pub async fn new_app_state(
         dm_approval_queue_service.clone(),
         challenge_outcome_approval_service.clone(),
         clock.clone(),
+        rng.clone(),
     ));
 
     // Create narrative event approval service

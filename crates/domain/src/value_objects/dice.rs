@@ -2,8 +2,15 @@
 //!
 //! Supports dice formulas like "1d20+5", "2d6-1", "1d100", etc.
 //! Also supports manual result input for physical dice rolls.
+//!
+//! # Hexagonal Architecture Note
+//!
+//! The `roll()` method accepts a random number generator function instead of
+//! directly using `rand::thread_rng()`. This enables:
+//! - Deterministic testing with fixed/mock RNG
+//! - Clean separation from I/O (RNG accesses system entropy)
+//! - Dependency injection at the call site
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
@@ -188,13 +195,35 @@ impl DiceFormula {
         }
     }
 
-    /// Roll the dice and return the result
-    pub fn roll(&self) -> DiceRollResult {
-        let mut rng = rand::thread_rng();
+    /// Roll the dice and return the result.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - A function that generates a random number in range [min, max] (inclusive).
+    ///   In production, this is typically backed by `rand::thread_rng().gen_range(min..=max)`.
+    ///   For testing, a fixed sequence can be provided.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use wrldbldr_domain::value_objects::DiceFormula;
+    ///
+    /// let formula = DiceFormula::parse("1d20+5").unwrap();
+    ///
+    /// // Production: use random adapter
+    /// let result = formula.roll(|min, max| rng.random_range(min, max));
+    ///
+    /// // Testing: use fixed value
+    /// let result = formula.roll(|_, _| 10);
+    /// ```
+    pub fn roll<F>(&self, mut rng: F) -> DiceRollResult
+    where
+        F: FnMut(i32, i32) -> i32,
+    {
         let mut individual_rolls = Vec::with_capacity(self.dice_count as usize);
 
         for _ in 0..self.dice_count {
-            let roll = rng.gen_range(1..=self.die_size as i32);
+            let roll = rng(1, self.die_size as i32);
             individual_rolls.push(roll);
         }
 
@@ -365,27 +394,43 @@ pub enum DiceRollInput {
 }
 
 impl DiceRollInput {
-    /// Resolve the input to a roll result
-    pub fn resolve(&self) -> Result<DiceRollResult, DiceParseError> {
+    /// Resolve the input to a roll result.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - A function that generates a random number in range [min, max] (inclusive).
+    pub fn resolve<F>(&self, rng: F) -> Result<DiceRollResult, DiceParseError>
+    where
+        F: FnMut(i32, i32) -> i32,
+    {
         match self {
             Self::Formula(formula_str) => {
                 let formula = DiceFormula::parse(formula_str)?;
-                Ok(formula.roll())
+                Ok(formula.roll(rng))
             }
             Self::ManualResult(total) => Ok(DiceRollResult::from_manual(*total)),
         }
     }
 
-    /// Resolve with an additional modifier (from character skills)
-    pub fn resolve_with_modifier(
+    /// Resolve with an additional modifier (from character skills).
+    ///
+    /// # Arguments
+    ///
+    /// * `skill_modifier` - Additional modifier to add to the roll.
+    /// * `rng` - A function that generates a random number in range [min, max] (inclusive).
+    pub fn resolve_with_modifier<F>(
         &self,
         skill_modifier: i32,
-    ) -> Result<DiceRollResult, DiceParseError> {
+        rng: F,
+    ) -> Result<DiceRollResult, DiceParseError>
+    where
+        F: FnMut(i32, i32) -> i32,
+    {
         match self {
             Self::Formula(formula_str) => {
                 let mut formula = DiceFormula::parse(formula_str)?;
                 formula.modifier += skill_modifier;
-                Ok(formula.roll())
+                Ok(formula.roll(rng))
             }
             Self::ManualResult(total) => {
                 // For manual results, the player already factored in their modifier
@@ -493,22 +538,34 @@ mod tests {
     }
 
     #[test]
-    fn test_roll_range() {
+    fn test_roll_deterministic() {
         let formula = DiceFormula::parse("1d20").unwrap();
-        for _ in 0..100 {
-            let result = formula.roll();
-            assert!(result.total >= 1 && result.total <= 20);
-        }
+        // Fixed RNG that always returns 10
+        let result = formula.roll(|_, _| 10);
+        assert_eq!(result.total, 10);
+        assert_eq!(result.individual_rolls, vec![10]);
     }
 
     #[test]
     fn test_roll_with_modifier() {
         let formula = DiceFormula::parse("1d20+5").unwrap();
-        for _ in 0..100 {
-            let result = formula.roll();
-            assert!(result.total >= 6 && result.total <= 25);
-            assert_eq!(result.modifier_applied, 5);
-        }
+        // Fixed RNG that returns 14
+        let result = formula.roll(|_, _| 14);
+        assert_eq!(result.total, 19); // 14 + 5
+        assert_eq!(result.modifier_applied, 5);
+    }
+
+    #[test]
+    fn test_roll_multiple_dice() {
+        let formula = DiceFormula::parse("3d6").unwrap();
+        let mut call_count = 0;
+        let result = formula.roll(|_, _| {
+            call_count += 1;
+            call_count + 1 // Returns 2, 3, 4
+        });
+        assert_eq!(result.individual_rolls, vec![2, 3, 4]);
+        assert_eq!(result.dice_total, 9);
+        assert_eq!(result.total, 9);
     }
 
     #[test]
@@ -571,15 +628,16 @@ mod tests {
     #[test]
     fn test_dice_roll_input_formula() {
         let input = DiceRollInput::Formula("1d20+5".to_string());
-        let result = input.resolve().unwrap();
+        let result = input.resolve(|_, _| 10).unwrap();
         assert!(!result.is_manual());
-        assert!(result.total >= 6 && result.total <= 25);
+        assert_eq!(result.total, 15); // 10 + 5
     }
 
     #[test]
     fn test_dice_roll_input_manual() {
         let input = DiceRollInput::ManualResult(18);
-        let result = input.resolve().unwrap();
+        // Manual result ignores RNG
+        let result = input.resolve(|_, _| panic!("should not be called")).unwrap();
         assert!(result.is_manual());
         assert_eq!(result.total, 18);
     }
@@ -587,8 +645,8 @@ mod tests {
     #[test]
     fn test_resolve_with_modifier() {
         let input = DiceRollInput::Formula("1d20".to_string());
-        let result = input.resolve_with_modifier(5).unwrap();
-        assert!(result.total >= 6 && result.total <= 25);
+        let result = input.resolve_with_modifier(5, |_, _| 10).unwrap();
+        assert_eq!(result.total, 15); // 10 + 5
         assert_eq!(result.modifier_applied, 5);
     }
 

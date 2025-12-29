@@ -37,6 +37,7 @@ pub mod ollama;
 pub mod persistence;
 pub mod ports;
 pub mod queues;
+pub mod random_adapter;
 pub mod repositories;
 pub mod settings_loader;
 pub mod state_broadcast;
@@ -48,6 +49,9 @@ pub mod world_state_manager;
 
 // Re-export clock adapter
 pub use clock::SystemClock;
+
+// Re-export random adapter
+pub use random_adapter::ThreadRngAdapter;
 
 // Re-export environment adapter
 pub use environment_adapter::SystemEnvironmentAdapter;

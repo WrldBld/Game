@@ -2842,15 +2842,20 @@ impl DiceFormula {
 
 | Task | Status |
 |------|--------|
-| [ ] Create RandomPort trait in engine-ports (model after player RandomProvider) | Pending |
-| [ ] Update DiceFormula::roll() to accept RandomPort | Pending |
-| [ ] Create ThreadRngAdapter in engine-adapters | Pending |
-| [ ] Update all call sites to use injected RandomPort | Pending |
-| [ ] Remove rand from domain Cargo.toml | Pending |
+| [x] Create RandomPort trait in engine-ports (model after player RandomProvider) | **DONE** |
+| [x] Update DiceFormula::roll() to accept closure (cleaner than trait for domain) | **DONE** |
+| [x] Create ThreadRngAdapter in engine-adapters | **DONE** |
+| [x] Update ChallengeResolutionService to use injected RandomPort | **DONE** |
+| [x] Remove rand from domain Cargo.toml | **DONE** |
 
-**Priority**: HIGH - This is one of the last domain purity violations.
+**Completed December 29, 2024**
 
-**Note**: The domain currently uses `rand::thread_rng()` which accesses system entropy (I/O). This must be abstracted behind a port trait for clean hexagonal architecture.
+**Implementation Details**:
+- `DiceFormula::roll()` now accepts a closure `F: FnMut(i32, i32) -> i32` instead of a trait
+- This keeps domain layer pure without needing to know about engine-ports
+- `RandomPort` trait in engine-ports with `FixedRandomPort` for testing
+- `ThreadRngAdapter` in engine-adapters for production
+- Composition root wires `Arc<dyn RandomPort>` to `ChallengeResolutionService`
 
 #### 5.4.2 Replace `anyhow::Error` with `thiserror`
 
@@ -3497,7 +3502,7 @@ cargo test --workspace
 | Swallowed errors (engine-app/services) | **43** | **0** | 0 (logged) | **DONE** - All logged |
 | God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort (ISP, not strict hexagonal) |
 | I/O in application layer | **12-13** + **14 time calls** | **0** | 0 | **DONE** - EnvironmentPort + FileStoragePort + ClockPort |
-| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | **3 Utc::now()** + rand | 0 | Utc::now() mostly done, 3 remaining in world_state.rs + game_time.rs, rand pending |
+| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | **3 Utc::now()** | 0 | Utc::now() mostly done, 3 remaining in world_state.rs + game_time.rs, **rand DONE** |
 | Direct time calls (no ClockPort) | ~~14+~~ **0** | **0** | 0 | **DONE** - ClockPort in engine-app |
 | Domain Utc::now() calls | **51** | **0** (entities) | 0 | **DONE** - Entities accept timestamp param |
 | Protocol imports in services | 14 | **0** | 0 | **DONE** - AdHocOutcomes moved to domain |
