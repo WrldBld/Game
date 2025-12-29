@@ -53,6 +53,7 @@ pub mod trigger_evaluation_service;
 pub mod workflow_config_service;
 pub mod workflow_service;
 pub mod world_service;
+pub mod world_session_policy;
 
 // Note: ActiveNarrativeEventContext and GamePromptRequest are now in domain::value_objects
 
@@ -206,5 +207,8 @@ pub use region_service::{RegionService, RegionServiceImpl};
 
 // Re-export prompt context service for building LLM prompts from player actions
 pub use prompt_context_service::{PromptContextService, PromptContextServiceImpl};
+
+// Re-export world session policy service (business rules for join validation)
+pub use world_session_policy::{JoinPolicyError, JoinValidation, WorldSessionPolicy};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

@@ -13,6 +13,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 
+use crate::application::services::dm_action_processor_service::ApprovalProcessorPort;
 use crate::application::services::item_service::ItemService;
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use crate::application::services::StoryEventService;
@@ -1083,5 +1084,26 @@ where
 
     async fn expire_old(&self, timeout: std::time::Duration) -> anyhow::Result<u64> {
         self.expire_old(timeout).await
+    }
+}
+
+// ============================================================================
+// ApprovalProcessorPort Implementation
+// ============================================================================
+
+#[async_trait]
+impl<Q, I> ApprovalProcessorPort for DMApprovalQueueService<Q, I>
+where
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
+    async fn process_decision(
+        &self,
+        world_id: WorldId,
+        item_id: uuid::Uuid,
+        decision: DmApprovalDecision,
+    ) -> Result<ApprovalOutcome, QueueError> {
+        // Delegate to the existing process_decision method
+        self.process_decision(world_id, item_id, decision).await
     }
 }

@@ -159,6 +159,13 @@ impl ConnectionManagerPort for ConnectionManagerAdapter {
 
         self.manager.broadcast_to_world(world_id, message).await;
     }
+
+    async fn get_dm_user_id(&self, world_id: Uuid) -> Option<String> {
+        self.manager
+            .get_dm_info(&world_id)
+            .await
+            .map(|info| info.user_id)
+    }
 }
 
 #[cfg(test)]

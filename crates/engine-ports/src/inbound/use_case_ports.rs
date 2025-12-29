@@ -170,7 +170,7 @@ pub trait ConnectionManagerPort: Send + Sync {
     /// Register a new connection
     async fn register_connection(&self, connection_id: Uuid, client_id: String, user_id: String);
 
-    /// Join a world
+    /// Join a world (assumes validation already done by use case)
     async fn join_world(
         &self,
         connection_id: Uuid,
@@ -197,6 +197,9 @@ pub trait ConnectionManagerPort: Send + Sync {
 
     /// Broadcast to world
     async fn broadcast_to_world(&self, world_id: Uuid, event: UserLeftEvent);
+
+    /// Get the current DM user ID for a world (None if no DM connected)
+    async fn get_dm_user_id(&self, world_id: Uuid) -> Option<String>;
 }
 
 /// Port for world service operations

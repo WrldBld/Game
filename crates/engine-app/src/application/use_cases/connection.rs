@@ -24,6 +24,9 @@ use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ConnectionError;
 
+// Import services
+use crate::application::services::{JoinPolicyError, JoinValidation, WorldSessionPolicy};
+
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
     ConnectionManagerPort, DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
@@ -50,6 +53,7 @@ pub struct ConnectionUseCase {
     directorial_repo: Arc<dyn DirectorialContextPort>,
     world_state: Arc<dyn WorldStatePort>,
     broadcast: Arc<dyn BroadcastPort>,
+    session_policy: WorldSessionPolicy,
 }
 
 impl ConnectionUseCase {
@@ -69,6 +73,7 @@ impl ConnectionUseCase {
             directorial_repo,
             world_state,
             broadcast,
+            session_policy: WorldSessionPolicy::new(),
         }
     }
 
@@ -86,12 +91,36 @@ impl ConnectionUseCase {
             "User joining world"
         );
 
+        // Validate join request using policy (business rules)
+        let current_dm_user_id = self
+            .connection_manager
+            .get_dm_user_id(*input.world_id.as_uuid())
+            .await;
+
+        let validation = self.session_policy.validate_join(
+            input.role,
+            &user_id,
+            input.pc_id.map(|id| *id.as_uuid()),
+            input.spectate_pc_id.map(|id| *id.as_uuid()),
+            current_dm_user_id.as_deref(),
+        );
+
+        if let JoinValidation::Denied(err) = validation {
+            warn!(
+                world_id = %input.world_id,
+                role = ?input.role,
+                error = ?err,
+                "Join request denied by policy"
+            );
+            return Err(ConnectionError::from(err));
+        }
+
         // Register connection
         self.connection_manager
             .register_connection(connection_id, connection_id.to_string(), user_id.clone())
             .await;
 
-        // Join the world
+        // Join the world (validation already done, this is just state management)
         let connected_users = self
             .connection_manager
             .join_world(

@@ -185,18 +185,14 @@ impl WorldConnectionState {
         self.dm_user_id.as_deref()
     }
 
-    fn add_dm(&mut self, connection_id: Uuid, user_id: &str) -> Result<(), JoinError> {
-        if let Some(existing) = &self.dm_user_id {
-            if existing != user_id {
-                return Err(JoinError::DmAlreadyConnected {
-                    existing_user_id: existing.clone(),
-                });
-            }
-        }
+    /// Add a DM connection
+    ///
+    /// Note: DM uniqueness validation is now handled by the application layer's
+    /// WorldSessionPolicy. This method assumes validation has already been performed.
+    fn add_dm(&mut self, connection_id: Uuid, user_id: &str) {
         self.dm_user_id = Some(user_id.to_string());
         self.dm_connections.insert(connection_id);
         self.connections.insert(connection_id);
-        Ok(())
     }
 
     fn add_player(&mut self, connection_id: Uuid) {
@@ -332,6 +328,12 @@ impl WorldConnectionManager {
     ///
     /// On success, returns a list of already-connected users.
     /// On failure, returns the join error.
+    ///
+    /// # Note
+    ///
+    /// Business rule validation (role requirements, DM uniqueness) is now handled
+    /// by the application layer's WorldSessionPolicy. This method assumes validation
+    /// has already been performed.
     pub async fn join_world(
         &self,
         connection_id: Uuid,
@@ -340,17 +342,6 @@ impl WorldConnectionManager {
         pc_id: Option<Uuid>,
         spectate_pc_id: Option<Uuid>,
     ) -> Result<Vec<ConnectedUser>, JoinError> {
-        // Validate role requirements
-        match role {
-            WorldRole::Player if pc_id.is_none() => {
-                return Err(JoinError::PlayerRequiresPc);
-            }
-            WorldRole::Spectator if spectate_pc_id.is_none() => {
-                return Err(JoinError::SpectatorRequiresTarget);
-            }
-            _ => {}
-        }
-
         // Get user_id first (need separate lock scope)
         let user_id = {
             let connections = self.connections.read().await;
@@ -368,13 +359,11 @@ impl WorldConnectionManager {
                 .entry(world_id)
                 .or_insert_with(WorldConnectionState::new);
 
-            // Check DM availability for DM role
-            if role == WorldRole::Dm {
-                world_state.add_dm(connection_id, &user_id)?;
-            } else if role == WorldRole::Player {
-                world_state.add_player(connection_id);
-            } else {
-                world_state.add_spectator(connection_id);
+            // Add connection based on role
+            match role {
+                WorldRole::Dm => world_state.add_dm(connection_id, &user_id),
+                WorldRole::Player => world_state.add_player(connection_id),
+                _ => world_state.add_spectator(connection_id),
             }
         }
 
@@ -1096,7 +1085,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dm_already_connected_different_user() {
+    async fn test_multiple_dms_allowed_when_validation_done_upstream() {
+        // Note: DM uniqueness validation is now done in the application layer
+        // (WorldSessionPolicy). The adapter just manages state.
         let manager = WorldConnectionManager::new();
         let conn_id1 = Uuid::new_v4();
         let conn_id2 = Uuid::new_v4();
@@ -1125,15 +1116,22 @@ mod tests {
             .await;
         assert!(result1.is_ok());
 
-        // Second join by different user should fail
+        // Second join by different user also succeeds at adapter level
+        // (validation is done by WorldSessionPolicy in the use case)
         let result2 = manager
             .join_world(conn_id2, world_id, WorldRole::Dm, None, None)
             .await;
-        assert!(matches!(result2, Err(JoinError::DmAlreadyConnected { .. })));
+        assert!(result2.is_ok());
+
+        // Note: In production, WorldSessionPolicy would reject this before
+        // it reaches the adapter. This test confirms adapter doesn't duplicate
+        // the validation logic.
     }
 
     #[tokio::test]
-    async fn test_player_requires_pc() {
+    async fn test_player_join_without_pc_allowed_when_validation_done_upstream() {
+        // Note: Role requirement validation is now done in the application layer
+        // (WorldSessionPolicy). The adapter just manages state.
         let manager = WorldConnectionManager::new();
         let conn_id = Uuid::new_v4();
         let world_id = Uuid::new_v4();
@@ -1147,18 +1145,43 @@ mod tests {
             )
             .await;
 
-        // Join as Player without PC should fail
+        // Join as Player without PC - adapter allows it
+        // (validation is done by WorldSessionPolicy in the use case)
         let result = manager
             .join_world(conn_id, world_id, WorldRole::Player, None, None)
             .await;
-        assert!(matches!(result, Err(JoinError::PlayerRequiresPc)));
+        assert!(result.is_ok());
+
+        // Note: In production, WorldSessionPolicy would reject this before
+        // it reaches the adapter. This test confirms adapter doesn't duplicate
+        // the validation logic.
+    }
+
+    #[tokio::test]
+    async fn test_player_join_with_pc() {
+        let manager = WorldConnectionManager::new();
+        let conn_id = Uuid::new_v4();
+        let world_id = Uuid::new_v4();
+        let pc_id = Uuid::new_v4();
+
+        manager
+            .register_connection(
+                conn_id,
+                "client1".to_string(),
+                "player".to_string(),
+                create_test_sender(),
+            )
+            .await;
 
         // Join as Player with PC should succeed
-        let pc_id = Uuid::new_v4();
         let result = manager
             .join_world(conn_id, world_id, WorldRole::Player, Some(pc_id), None)
             .await;
         assert!(result.is_ok());
+
+        // Verify PC is stored
+        let conn = manager.get_connection(conn_id).await.unwrap();
+        assert_eq!(conn.pc_id, Some(pc_id));
     }
 
     #[tokio::test]

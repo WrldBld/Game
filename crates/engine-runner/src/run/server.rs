@@ -188,22 +188,17 @@ pub async fn run() -> Result<()> {
     };
 
     // DM action queue worker (processes approval decisions and other DM actions)
+    // Business logic is handled by DmActionProcessorService via port trait
     let dm_action_worker_task = {
         let service = worker_services.dm_action_queue_service.clone();
-        let approval_service = worker_services.dm_approval_queue_service.clone();
-        let narrative_event_service = state.app.game.narrative_event_service.clone();
-        let scene_service = state.app.core.scene_service.clone();
-        let interaction_service = state.app.core.interaction_service.clone();
+        let dm_action_processor = worker_services.dm_action_processor.clone();
         let world_connection_manager = state.connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
             dm_action_worker(
                 service,
-                approval_service,
-                narrative_event_service,
-                scene_service,
-                interaction_service,
+                dm_action_processor,
                 world_connection_manager,
                 recovery_interval_clone,
                 cancel,

@@ -2,15 +2,25 @@
 //!
 //! These workers process items from the queues and handle notifications,
 //! approvals, and other async operations.
+//!
+//! # Architecture
+//!
+//! The workers in this module are **infrastructure** code - they handle:
+//! - Queue polling and dequeuing
+//! - Cancellation token handling
+//! - Broadcasting results to WebSocket clients
+//!
+//! Business logic is delegated to the application layer via ports:
+//! - `DmActionProcessorPort` for DM action processing
+//! - Queue services for queue management
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use serde_json::Value;
 use tokio_util::sync::CancellationToken;
-use wrldbldr_domain::value_objects::{
-    ApprovalRequestData, ChallengeOutcomeData, DmActionData, DmActionType,
-};
-use wrldbldr_domain::{NarrativeEventId, WorldId};
+use wrldbldr_domain::value_objects::{ApprovalRequestData, ChallengeOutcomeData, DmActionData};
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum;
 use wrldbldr_engine_adapters::infrastructure::websocket::{
     domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
@@ -18,13 +28,10 @@ use wrldbldr_engine_adapters::infrastructure::websocket::{
 };
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_app::application::services::{
-    ApprovalOutcome, DMApprovalQueueService, DmActionQueueService, ItemServiceImpl,
+    DMApprovalQueueService, DmActionQueueService, ItemServiceImpl,
 };
-use wrldbldr_engine_ports::outbound::{InteractionServicePort, NarrativeEventServicePort, SceneServicePort};
-use wrldbldr_engine_ports::outbound::QueueNotificationPort;
-use wrldbldr_protocol::{
-    CharacterData, CharacterPosition, InteractionData, ProposedToolInfo, SceneData, ServerMessage,
-};
+use wrldbldr_engine_ports::outbound::{DmActionProcessorPort, DmActionResult, QueueNotificationPort};
+use wrldbldr_protocol::{ProposedToolInfo, ServerMessage};
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
 pub async fn approval_notification_worker(
@@ -125,21 +132,21 @@ pub async fn approval_notification_worker(
 }
 
 /// Worker that processes DM action queue items
+///
+/// This worker handles the infrastructure concerns of DM action processing:
+/// - Dequeuing actions from the queue
+/// - Delegating business logic to `DmActionProcessorPort`
+/// - Broadcasting results to WebSocket clients
+///
+/// The business logic is fully contained in the application layer's
+/// `DmActionProcessorService`, keeping this worker pure infrastructure.
 pub async fn dm_action_worker(
     dm_action_queue_service: Arc<
         DmActionQueueService<
             wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<DmActionData>,
         >,
     >,
-    approval_queue_service: Arc<
-        DMApprovalQueueService<
-            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
-            ItemServiceImpl,
-        >,
-    >,
-    narrative_event_service: Arc<dyn NarrativeEventServicePort>,
-    scene_service: Arc<dyn SceneServicePort>,
-    interaction_service: Arc<dyn InteractionServicePort>,
+    dm_action_processor: Arc<dyn DmActionProcessorPort>,
     world_connection_manager: SharedWorldConnectionManager,
     recovery_interval: Duration,
     cancel_token: CancellationToken,
@@ -153,28 +160,39 @@ pub async fn dm_action_worker(
             break;
         }
 
+        let dm_action_processor_clone = dm_action_processor.clone();
         let world_connection_manager_clone = world_connection_manager.clone();
-        let approval_queue_service_clone = approval_queue_service.clone();
-        let narrative_event_service_clone = narrative_event_service.clone();
-        let scene_service_clone = scene_service.clone();
-        let interaction_service_clone = interaction_service.clone();
         match dm_action_queue_service
             .process_next(|action| {
+                let processor = dm_action_processor_clone.clone();
                 let world_connection_manager = world_connection_manager_clone.clone();
-                let approval_queue_service = approval_queue_service_clone.clone();
-                let narrative_event_service = narrative_event_service_clone.clone();
-                let scene_service = scene_service_clone.clone();
-                let interaction_service = interaction_service_clone.clone();
                 async move {
-                    process_dm_action(
-                        &world_connection_manager,
-                        &approval_queue_service,
-                        &*narrative_event_service,
-                        &*scene_service,
-                        &*interaction_service,
-                        &action,
-                    )
-                    .await
+                    // Delegate business logic to application layer via port
+                    let action_type = format!("{:?}", action.action);
+                    let action_data = serde_json::to_value(&action.action)
+                        .map_err(|e: serde_json::Error| wrldbldr_engine_ports::outbound::QueueError::Backend(e.to_string()))?;
+
+                    match processor
+                        .process_action(&action_type, action_data, action.world_id, &action.dm_id)
+                        .await
+                    {
+                        Ok(result) => {
+                            // Broadcast the result (infrastructure concern)
+                            broadcast_dm_action_result(
+                                &world_connection_manager,
+                                action.world_id,
+                                result,
+                            )
+                            .await;
+                            Ok(())
+                        }
+                        Err(e) => {
+                            tracing::error!("DM action processing failed: {}", e);
+                            Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
+                                e.to_string(),
+                            ))
+                        }
+                    }
                 }
             })
             .await
@@ -200,262 +218,144 @@ pub async fn dm_action_worker(
     }
 }
 
-async fn process_dm_action(
+/// Broadcast the result of a DM action to appropriate WebSocket clients
+///
+/// This is infrastructure code - it converts application-layer results
+/// into protocol messages and broadcasts them via the connection manager.
+async fn broadcast_dm_action_result(
     world_connection_manager: &SharedWorldConnectionManager,
-    approval_queue_service: &Arc<
-        DMApprovalQueueService<
-            wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
-            ItemServiceImpl,
-        >,
-    >,
-    narrative_event_service: &dyn NarrativeEventServicePort,
-    scene_service: &dyn SceneServicePort,
-    interaction_service: &dyn InteractionServicePort,
-    action: &DmActionData,
-) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
-    match &action.action {
-        DmActionType::ApprovalDecision {
-            request_id,
-            decision,
+    world_id: WorldId,
+    result: DmActionResult,
+) {
+    match result {
+        DmActionResult::ApprovalProcessed {
+            broadcast_messages,
+            dm_feedback,
         } => {
-            // Parse request_id as QueueItemId (UUID string)
-            let approval_item_id = match uuid::Uuid::parse_str(&request_id) {
-                Ok(uuid) => uuid,
-                Err(_) => {
-                    tracing::error!("Invalid approval item ID: {}", request_id);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::NotFound(
-                        request_id.clone(),
-                    ));
-                }
-            };
-
-            // The approval service's process_decision expects domain ApprovalDecision
-            // which matches what we have from the DmActionType
-
-            // Process the decision using the approval queue service
-            match approval_queue_service
-                .process_decision(action.world_id, approval_item_id, decision.clone())
-                .await
-            {
-                Ok(outcome) => match outcome {
-                    ApprovalOutcome::Broadcast {
-                        dialogue,
-                        npc_name,
-                        executed_tools,
-                    } => {
-                        let message = ServerMessage::DialogueResponse {
-                            speaker_id: npc_name.clone(),
-                            speaker_name: npc_name,
-                            text: dialogue,
-                            choices: vec![],
-                        };
-                        world_connection_manager
-                            .broadcast_to_players(action.world_id.into(), message)
-                            .await;
-                        tracing::info!("Broadcast approved dialogue, tools: {:?}", executed_tools);
-                    }
-                    ApprovalOutcome::Rejected {
-                        feedback,
-                        needs_reprocessing,
-                    } => {
-                        tracing::info!(
-                            "Approval rejected: {}, reprocess: {}",
-                            feedback,
-                            needs_reprocessing
-                        );
-                    }
-                    ApprovalOutcome::MaxRetriesExceeded { feedback } => {
-                        tracing::warn!("Approval max retries exceeded: {}", feedback);
-                    }
-                },
-                Err(e) => {
-                    tracing::error!("Failed to process approval decision: {}", e);
-                    return Err(e);
+            // Broadcast each message to players
+            for msg_json in broadcast_messages {
+                if let Ok(message) = serde_json::from_value::<ServerMessage>(msg_json.clone()) {
+                    world_connection_manager
+                        .broadcast_to_players(world_id.into(), message)
+                        .await;
                 }
             }
+            // Send feedback to DM if present
+            if let Some(feedback) = dm_feedback {
+                let feedback_msg = ServerMessage::Error {
+                    code: "DM_ACTION_FEEDBACK".to_string(),
+                    message: feedback,
+                };
+                let _ = world_connection_manager
+                    .send_to_dm(&world_id.into(), feedback_msg)
+                    .await;
+            }
         }
-        DmActionType::DirectNpcControl {
+        DmActionResult::DialogueGenerated {
             npc_id: _,
+            npc_name,
             dialogue,
         } => {
-            // Broadcast direct NPC control via world connection manager
-            let response = ServerMessage::DialogueResponse {
-                speaker_id: "NPC".to_string(),
-                speaker_name: "NPC".to_string(),
-                text: dialogue.clone(),
+            let message = ServerMessage::DialogueResponse {
+                speaker_id: npc_name.clone(),
+                speaker_name: npc_name,
+                text: dialogue,
                 choices: vec![],
             };
             world_connection_manager
-                .broadcast_to_players(action.world_id.into(), response)
+                .broadcast_to_players(world_id.into(), message)
                 .await;
         }
-        DmActionType::TriggerEvent { event_id } => {
-            // Parse event ID
-            let event_uuid = match uuid::Uuid::parse_str(&event_id) {
-                Ok(uuid) => NarrativeEventId::from_uuid(uuid),
-                Err(_) => {
-                    tracing::error!("Invalid event ID: {}", event_id);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
-                        format!("Invalid event ID: {}", event_id),
-                    ));
-                }
-            };
-
-            // Load the narrative event
-            let narrative_event = match narrative_event_service.get(event_uuid).await {
-                Ok(Some(event)) => event,
-                Ok(None) => {
-                    tracing::error!("Narrative event not found: {}", event_id);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::NotFound(
-                        event_id.clone(),
-                    ));
-                }
-                Err(e) => {
-                    tracing::error!("Failed to load narrative event: {}", e);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
-                        format!("Failed to load narrative event: {}", e),
-                    ));
-                }
-            };
-
-            // Mark event as triggered
-            if let Err(e) = narrative_event_service
-                .mark_triggered(event_uuid, None)
-                .await
-            {
-                tracing::error!("Failed to mark narrative event as triggered: {}", e);
-                return Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
-                    format!("Failed to mark event as triggered: {}", e),
-                ));
-            }
-
-            // Broadcast notification to session via world connection manager
-            let notification = ServerMessage::Error {
+        DmActionResult::EventTriggered {
+            event_id: _,
+            event_name,
+            outcome,
+        } => {
+            let message = ServerMessage::Error {
                 code: "NARRATIVE_EVENT_TRIGGERED".to_string(),
                 message: format!(
-                    "Narrative event '{}' has been triggered",
-                    narrative_event.name
+                    "Narrative event '{}' has been triggered{}",
+                    event_name,
+                    outcome
+                        .map(|o| format!(": {}", o))
+                        .unwrap_or_default()
                 ),
             };
             world_connection_manager
-                .broadcast_to_players(action.world_id.into(), notification)
+                .broadcast_to_players(world_id.into(), message)
                 .await;
-
-            tracing::info!(
-                "Triggered narrative event {} ({}) in world {}",
-                event_id,
-                narrative_event.name,
-                action.world_id.to_uuid()
-            );
         }
-        DmActionType::TransitionScene { scene_id } => {
-            // Load scene with relations
-            let scene_with_relations = match scene_service.get_scene_with_relations(*scene_id).await
-            {
-                Ok(Some(scene_data)) => scene_data,
-                Ok(None) => {
-                    tracing::error!("Scene not found: {}", scene_id);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::NotFound(
-                        scene_id.to_string(),
-                    ));
-                }
-                Err(e) => {
-                    tracing::error!("Failed to load scene: {}", e);
-                    return Err(wrldbldr_engine_ports::outbound::QueueError::Backend(
-                        format!("Failed to load scene: {}", e),
-                    ));
-                }
-            };
-
-            // Load interactions for the scene
-            let interactions = match interaction_service.list_by_scene(*scene_id).await {
-                Ok(interactions) => interactions
-                    .into_iter()
-                    .map(|i| {
-                        let target_name = match &i.target {
-                            wrldbldr_domain::entities::InteractionTarget::Character(_) => {
-                                Some("Character".to_string())
-                            }
-                            wrldbldr_domain::entities::InteractionTarget::Item(_) => {
-                                Some("Item".to_string())
-                            }
-                            wrldbldr_domain::entities::InteractionTarget::Environment(name) => {
-                                Some(name.clone())
-                            }
-                            wrldbldr_domain::entities::InteractionTarget::None => None,
-                        };
-                        InteractionData {
-                            id: i.id.to_string(),
-                            name: i.name.clone(),
-                            interaction_type: format!("{:?}", i.interaction_type),
-                            target_name,
-                            is_available: i.is_available,
-                        }
-                    })
-                    .collect(),
-                Err(e) => {
-                    tracing::warn!("Failed to load interactions for scene: {}", e);
-                    vec![]
-                }
-            };
-
-            // Build character data
-            let characters: Vec<CharacterData> = scene_with_relations
-                .featured_characters
-                .iter()
-                .map(|c| CharacterData {
-                    id: c.id.to_string(),
-                    name: c.name.clone(),
-                    sprite_asset: c.sprite_asset.clone(),
-                    portrait_asset: c.portrait_asset.clone(),
-                    position: CharacterPosition::Center,
-                    is_speaking: false,
-                    emotion: None, // Engine doesn't track emotion state yet
-                })
-                .collect();
-
-            // Build SceneUpdate message
-            let scene_update = ServerMessage::SceneUpdate {
-                scene: SceneData {
-                    id: scene_with_relations.scene.id.to_string(),
-                    name: scene_with_relations.scene.name.clone(),
-                    location_id: scene_with_relations.scene.location_id.to_string(),
-                    location_name: scene_with_relations.location.name.clone(),
-                    backdrop_asset: scene_with_relations
-                        .scene
-                        .backdrop_override
-                        .or(scene_with_relations.location.backdrop_asset.clone()),
-                    time_context: match &scene_with_relations.scene.time_context {
-                        wrldbldr_domain::entities::TimeContext::Unspecified => {
-                            "Unspecified".to_string()
-                        }
-                        wrldbldr_domain::entities::TimeContext::TimeOfDay(tod) => {
-                            format!("{:?}", tod)
-                        }
-                        wrldbldr_domain::entities::TimeContext::During(s) => s.clone(),
-                        wrldbldr_domain::entities::TimeContext::Custom(s) => s.clone(),
-                    },
-                    directorial_notes: scene_with_relations.scene.directorial_notes.clone(),
-                },
-                characters,
-                interactions,
-            };
-
-            // Broadcast scene update via world connection manager
-            // Note: Scene state is tracked per-world in WorldStateManager now
-            world_connection_manager
-                .broadcast_to_world(action.world_id.into(), scene_update)
-                .await;
-
-            tracing::info!(
-                "DM transitioned scene to {} in world {}",
-                scene_id,
-                action.world_id.to_uuid()
-            );
+        DmActionResult::SceneTransitioned {
+            scene_id: _,
+            scene_data,
+        } => {
+            // Parse the scene_data JSON and construct ServerMessage::SceneUpdate
+            if let Ok(update) = parse_scene_update_from_json(scene_data) {
+                world_connection_manager
+                    .broadcast_to_world(world_id.into(), update)
+                    .await;
+            } else {
+                tracing::error!("Failed to parse scene data for SceneUpdate message");
+            }
         }
     }
+}
 
-    Ok(())
+/// Parse a SceneUpdate message from the scene_data JSON returned by the processor
+fn parse_scene_update_from_json(scene_data: Value) -> Result<ServerMessage, ()> {
+    use wrldbldr_protocol::{CharacterData, CharacterPosition, InteractionData, SceneData};
+
+    let scene = scene_data.get("scene").ok_or(())?;
+    let characters = scene_data.get("characters").ok_or(())?;
+    let interactions = scene_data.get("interactions").ok_or(())?;
+
+    let scene_data_result = SceneData {
+        id: scene.get("id").and_then(Value::as_str).ok_or(())?.to_string(),
+        name: scene.get("name").and_then(Value::as_str).ok_or(())?.to_string(),
+        location_id: scene.get("location_id").and_then(Value::as_str).ok_or(())?.to_string(),
+        location_name: scene.get("location_name").and_then(Value::as_str).ok_or(())?.to_string(),
+        backdrop_asset: scene.get("backdrop_asset").and_then(Value::as_str).map(String::from),
+        time_context: scene.get("time_context").and_then(Value::as_str).unwrap_or("Unspecified").to_string(),
+        directorial_notes: scene.get("directorial_notes").and_then(Value::as_str).unwrap_or("").to_string(),
+    };
+
+    let characters: Vec<CharacterData> = characters
+        .as_array()
+        .ok_or(())?
+        .iter()
+        .filter_map(|c: &Value| {
+            Some(CharacterData {
+                id: c.get("id")?.as_str()?.to_string(),
+                name: c.get("name")?.as_str()?.to_string(),
+                sprite_asset: c.get("sprite_asset").and_then(Value::as_str).map(String::from),
+                portrait_asset: c.get("portrait_asset").and_then(Value::as_str).map(String::from),
+                position: CharacterPosition::Center,
+                is_speaking: c.get("is_speaking").and_then(Value::as_bool).unwrap_or(false),
+                emotion: c.get("emotion").and_then(Value::as_str).map(String::from),
+            })
+        })
+        .collect();
+
+    let interactions: Vec<InteractionData> = interactions
+        .as_array()
+        .ok_or(())?
+        .iter()
+        .filter_map(|i: &Value| {
+            Some(InteractionData {
+                id: i.get("id")?.as_str()?.to_string(),
+                name: i.get("name")?.as_str()?.to_string(),
+                interaction_type: i.get("interaction_type")?.as_str()?.to_string(),
+                target_name: i.get("target_name").and_then(Value::as_str).map(String::from),
+                is_available: i.get("is_available").and_then(Value::as_bool).unwrap_or(true),
+            })
+        })
+        .collect();
+
+    Ok(ServerMessage::SceneUpdate {
+        scene: scene_data_result,
+        characters,
+        interactions,
+    })
 }
 
 /// Worker that sends pending challenge outcomes to DM for approval

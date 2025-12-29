@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Use Case Port Traits implementation plan added)  
+**Last Updated**: 2025-12-29 (Phase 3.0.3.3 Complete - DmActionProcessorService wired)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -176,6 +176,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.3 | Move Business Logic from Adapters | **DONE** | 100% |
+| Phase 3.0.3.5 | WorldConnectionManager Join Validation | **DONE** | 100% |
 | Phase 3.0.3.1 | context_budget.rs to domain | **DONE** | 100% |
 | Phase 3.0.3.2 | PromptContextService + delete websocket_helpers.rs | **DONE** | 100% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
@@ -1023,8 +1024,8 @@ pub trait ClockPort: Send + Sync {
 | [x] Move `EnforcementResult`, `EnforcementStats` to domain | **DONE** |
 | [x] Move `ContextBudgetEnforcer`, `ContextBuilder` to domain | **DONE** |
 | [x] Re-export from `wrldbldr_domain::value_objects` | **DONE** |
-| [ ] Update adapter imports to use domain | Pending |
-| [ ] Delete original file from adapters | Pending |
+| [-] Update adapter imports to use domain | **DEFERRED** (adapter file provides logging extension traits) |
+| [-] Delete original file from adapters | **DEFERRED** (logging traits have value, file marked deprecated) |
 
 ##### 3.0.3.2 websocket_helpers.rs (476 lines) → Application Layer ✅ COMPLETE
 
@@ -1093,11 +1094,11 @@ pub enum DmActionResult {
 | Task | Status |
 |------|--------|
 | [x] Create `DmActionProcessorPort` in engine-ports | **DONE** |
-| [ ] Create `DmActionProcessorService` in engine-app | Pending |
-| [ ] Move `process_dm_action()` logic (~241 lines) | Pending |
+| [x] Create `DmActionProcessorService` in engine-app | **DONE** |
+| [x] Move `process_dm_action()` logic (~241 lines) | **DONE** |
 | [x] `BroadcastPort` already exists (uses GameEvent) | **DONE** |
-| [ ] Refactor workers to call service via port | Pending |
-| [ ] Keep worker loops in adapters (infrastructure) | N/A |
+| [x] Refactor workers to call service via port | **DONE** |
+| [x] Keep worker loops in adapters (infrastructure) | **DONE** |
 
 ##### 3.0.3.4 world_state_manager.rs (484 lines) → Port + Adapter
 
@@ -1165,11 +1166,79 @@ pub trait WorldStatePort: Send + Sync {
 | [x] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | **DONE** |
 | [x] Move `PendingApprovalItem` to domain | **DONE** |
 | [x] Create `WorldStatePort` trait in engine-ports | **DONE** |
-| [ ] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Pending |
-| [ ] Implement `WorldStatePort` for adapter | Pending |
-| [ ] Update consumers to use `Arc<dyn WorldStatePort>` | Pending |
-| [ ] Remove engine-app import (`StagingProposal`) | Pending |
-| Note: `WaitingPc` deferred (depends on StagingProposal from engine-app) | |
+| [x] WorldStateManager already implements `WorldStatePort` | **DONE** |
+| [x] Consumers use `Arc<dyn WorldStatePort>` (via composition layer) | **DONE** |
+| [x] StagingProposal already in engine-dto (not engine-app) | **DONE** |
+| [-] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | **DEFERRED** (cosmetic, no arch benefit) |
+
+##### 3.0.3.5 WorldConnectionManager Join Validation → Application Layer ✅ COMPLETE
+
+**Status**: DONE (December 29, 2024)
+
+**Original Issue**: `WorldConnectionManager.join_world()` (in adapters layer) contained embedded business rules:
+- Role validation (Player requires PC ID, Spectator requires spectate target)
+- DM uniqueness enforcement (only one DM per world, unless same user multi-screening)
+
+These are **business rules** that belong in the application layer, not infrastructure.
+
+**Changes Made**:
+
+1. **Created `WorldSessionPolicy` service** in `engine-app/src/application/services/world_session_policy.rs`
+   - `validate_role_requirements()` - Checks Player needs PC, Spectator needs target
+   - `validate_dm_availability()` - Enforces one DM per world, allows same-user multi-screen
+   - `validate_join()` - Combines all validation rules
+   - Uses `JoinPolicyError` enum with domain-appropriate error types
+
+2. **Extended `ConnectionManagerPort`** in `engine-ports/src/inbound/use_case_ports.rs`
+   - Added `get_dm_user_id(world_id) -> Option<String>` method for querying current DM
+
+3. **Implemented `get_dm_user_id` in `ConnectionManagerAdapter`** 
+   - Delegates to `WorldConnectionManager.get_dm_info()`
+
+4. **Updated `ConnectionUseCase.join_world()`** in `engine-app/src/application/use_cases/connection.rs`
+   - Added `WorldSessionPolicy` as a field (stateless service, constructed inline)
+   - Calls `session_policy.validate_join()` BEFORE registering connection
+   - Returns `ConnectionError::PlayerRequiresPc`, `SpectatorRequiresTarget`, or `DmAlreadyConnected` on policy violation
+
+5. **Removed validation from `WorldConnectionManager.join_world()`**
+   - Deleted role requirement check (lines 344-352)
+   - Simplified `WorldConnectionState.add_dm()` to not return Result (validation upstream)
+   - Added doc comment noting validation is done by application layer
+
+6. **Added new error variants to `ConnectionError`**
+   - `PlayerRequiresPc` - Player role requires a PC ID
+   - `SpectatorRequiresTarget` - Spectator role requires a spectate target PC ID  
+   - `DmAlreadyConnected { existing_user_id }` - Another user is already DM
+
+7. **Updated tests** in `world_connection_manager.rs`
+   - Renamed tests to reflect new behavior (validation done upstream)
+   - Added new test `test_player_join_with_pc` to verify PC storage
+
+**Files Modified**:
+- `engine-app/src/application/services/world_session_policy.rs` (updated to use ports types)
+- `engine-app/src/application/services/mod.rs` (export JoinPolicyError)
+- `engine-app/src/application/use_cases/connection.rs` (use policy for validation)
+- `engine-ports/src/inbound/use_case_ports.rs` (add get_dm_user_id to ConnectionManagerPort)
+- `engine-ports/src/outbound/use_case_types.rs` (add error variants to ConnectionError)
+- `engine-adapters/src/infrastructure/ports/connection_manager_adapter.rs` (implement get_dm_user_id)
+- `engine-adapters/src/infrastructure/world_connection_manager.rs` (remove validation logic, update tests)
+
+**Benefits**:
+- Business rules in application layer (proper hexagonal architecture)
+- Adapter is pure infrastructure (state management only)
+- Validation is testable in isolation via `WorldSessionPolicy` unit tests
+- Clear separation of concerns
+
+| Task | Status |
+|------|--------|
+| [x] Create `WorldSessionPolicy` service in engine-app | **DONE** |
+| [x] Add `get_dm_user_id` to `ConnectionManagerPort` | **DONE** |
+| [x] Implement `get_dm_user_id` in `ConnectionManagerAdapter` | **DONE** |
+| [x] Add policy validation to `ConnectionUseCase.join_world()` | **DONE** |
+| [x] Remove validation from `WorldConnectionManager.join_world()` | **DONE** |
+| [x] Add error variants to `ConnectionError` | **DONE** |
+| [x] Update tests to reflect new architecture | **DONE** |
+| [x] Verify compilation and tests pass | **DONE** |
 
 ##### Summary
 
@@ -1177,8 +1246,9 @@ pub trait WorldStatePort: Send + Sync {
 |------|-------|--------|----------|----------|
 | `context_budget.rs` | 369 | domain | None (pure domain) | Low |
 | `websocket_helpers.rs` | 476 | application | `PromptContextServicePort` | High |
-| `queue_workers.rs` | 502 | split | `DmActionProcessorPort` | Medium |
+| `queue_workers.rs` | 502 | split | `DmActionProcessorPort` | **DONE** |
 | `world_state_manager.rs` | 484 | port+adapter | `WorldStatePort` | High |
+| `world_connection_manager.rs` | ~50 | application | `WorldSessionPolicy` (service) | **DONE** |
 | **Total** | **1,831** | | | |
 
 #### 3.0.4 Fix Player-Side Hexagonal Architecture Violations

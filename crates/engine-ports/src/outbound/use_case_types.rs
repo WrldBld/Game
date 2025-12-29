@@ -1098,6 +1098,18 @@ pub enum ConnectionError {
     /// Database operation failed
     #[error("Database error: {0}")]
     Database(String),
+
+    /// Player role requires a PC ID
+    #[error("Player role requires a PC ID")]
+    PlayerRequiresPc,
+
+    /// Spectator role requires a spectate target PC ID
+    #[error("Spectator role requires a spectate target PC ID")]
+    SpectatorRequiresTarget,
+
+    /// DM already connected (another user is DM in this world)
+    #[error("DM already connected: {existing_user_id}")]
+    DmAlreadyConnected { existing_user_id: String },
 }
 
 impl ErrorCode for ConnectionError {
@@ -1111,6 +1123,9 @@ impl ErrorCode for ConnectionError {
             Self::InvalidSpectateTarget(_) => "INVALID_SPECTATE_TARGET",
             Self::ConnectionFailed(_) => "CONNECTION_FAILED",
             Self::Database(_) => "DATABASE_ERROR",
+            Self::PlayerRequiresPc => "PLAYER_REQUIRES_PC",
+            Self::SpectatorRequiresTarget => "SPECTATOR_REQUIRES_TARGET",
+            Self::DmAlreadyConnected { .. } => "DM_ALREADY_CONNECTED",
         }
     }
 }

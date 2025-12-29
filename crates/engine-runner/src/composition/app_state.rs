@@ -47,14 +47,15 @@ use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, staging_service::StagingService,
     ActantialContextServiceImpl, AssetGenerationQueueService, AssetServiceImpl,
     ChallengeApprovalEvent, ChallengeOutcomeApprovalService, ChallengeServiceImpl,
-    CharacterServiceImpl, DMApprovalQueueService, DispositionServiceImpl, DmActionQueueService,
-    EventChainServiceImpl, EventEffectExecutor, GenerationQueueProjectionService,
-    InteractionServiceImpl, ItemServiceImpl, LLMQueueService, LocationServiceImpl,
-    NarrativeEventApprovalService, NarrativeEventServiceImpl, OutcomeTriggerService,
-    PlayerActionQueueService, PlayerCharacterServiceImpl, PromptContextServiceImpl,
-    PromptTemplateService, RegionServiceImpl, RelationshipServiceImpl, SceneResolutionServiceImpl,
-    SceneServiceImpl, SettingsService, SheetTemplateService, SkillServiceImpl,
-    StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService, WorldServiceImpl,
+    CharacterServiceImpl, DMApprovalQueueService, DispositionServiceImpl, DmActionProcessorService,
+    DmActionQueueService, EventChainServiceImpl, EventEffectExecutor,
+    GenerationQueueProjectionService, InteractionServiceImpl, ItemServiceImpl, LLMQueueService,
+    LocationServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
+    OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
+    PromptContextServiceImpl, PromptTemplateService, RegionServiceImpl, RelationshipServiceImpl,
+    SceneResolutionServiceImpl, SceneServiceImpl, SettingsService, SheetTemplateService,
+    SkillServiceImpl, StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService,
+    WorldServiceImpl,
 };
 use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
@@ -85,6 +86,7 @@ use wrldbldr_engine_ports::outbound::{
     ClockPort,
     ComfyUIPort,
     DispositionServicePort,
+    DmActionProcessorPort,
     DmActionQueueServicePort,
     DmApprovalQueueServicePort,
     DomainEventRepositoryPort,
@@ -236,6 +238,10 @@ pub struct WorkerServices {
     /// DM approval queue service with `queue()` accessor for `expire_old()`
     pub dm_approval_queue_service:
         Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>>,
+
+    /// DM action processor service for processing DM actions (via port trait)
+    /// Uses port trait since dm_action_worker delegates business logic via DmActionProcessorPort
+    pub dm_action_processor: Arc<dyn DmActionProcessorPort>,
 
     /// Challenge outcome queue (concrete backend type)
     pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
@@ -686,6 +692,18 @@ pub async fn new_app_state(
         Arc::new(item_service_impl.clone()),
         clock.clone(),
     ));
+
+    // Create DM action processor service for dm_action_worker
+    // This service handles the business logic for DM actions (approval decisions,
+    // direct NPC control, event triggering, scene transitions)
+    let dm_action_processor: Arc<dyn DmActionProcessorPort> =
+        Arc::new(DmActionProcessorService::new(
+            dm_approval_queue_service.clone(),
+            narrative_event_service.clone(),
+            scene_service.clone(),
+            interaction_service.clone(),
+        ));
+    tracing::info!("Initialized DM action processor service");
 
     // Create file storage adapter for generation service
     let file_storage: Arc<dyn wrldbldr_engine_ports::outbound::FileStoragePort> =
@@ -1184,6 +1202,7 @@ pub async fn new_app_state(
         player_action_queue_service: player_action_queue_service.clone(),
         dm_action_queue_service: dm_action_queue_service.clone(),
         dm_approval_queue_service: dm_approval_queue_service.clone(),
+        dm_action_processor: dm_action_processor.clone(),
         challenge_outcome_queue: challenge_outcome_queue.clone(),
         prompt_context_service: prompt_context_service.clone(),
     };
