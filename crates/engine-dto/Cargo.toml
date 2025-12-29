@@ -8,6 +8,7 @@ description = "WrldBldr Engine DTOs - Shared data types for engine internals"
 
 [dependencies]
 wrldbldr-protocol = { workspace = true }
+wrldbldr-domain = { workspace = true }
 
 # Core dependencies
 serde = { workspace = true }

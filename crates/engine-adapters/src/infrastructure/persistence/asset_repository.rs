@@ -1,5 +1,7 @@
 //! Asset repository implementation for Neo4j
 
+use std::str::FromStr;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
@@ -469,7 +471,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset> {
     let id = uuid::Uuid::parse_str(&id_str)?;
     let entity_type = parse_entity_type(&entity_type_str);
     let asset_type = AssetType::from_str(&asset_type_str)
-        .ok_or_else(|| anyhow::anyhow!("Invalid asset type: {}", asset_type_str))?;
+        .map_err(|e| anyhow::anyhow!("Invalid asset type: {}", e))?;
     let generation_metadata: Option<GenerationMetadata> = if generation_metadata_json.is_empty() {
         None
     } else {
@@ -517,7 +519,7 @@ fn row_to_generation_batch(row: Row) -> Result<GenerationBatch> {
     let world_id = WorldId::from_uuid(uuid::Uuid::parse_str(&world_id_str)?);
     let entity_type = parse_entity_type(&entity_type_str);
     let asset_type = AssetType::from_str(&asset_type_str)
-        .ok_or_else(|| anyhow::anyhow!("Invalid asset type: {}", asset_type_str))?;
+        .map_err(|e| anyhow::anyhow!("Invalid asset type: {}", e))?;
     let status: BatchStatus = serde_json::from_str::<BatchStatusStored>(&status_json)?.into();
     let assets: Vec<AssetId> = serde_json::from_str::<Vec<String>>(&assets_json)?
         .into_iter()

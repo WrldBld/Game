@@ -1,5 +1,7 @@
 //! Neo4j repository for workflow configurations
 
+use std::str::FromStr;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -176,7 +178,7 @@ impl Neo4jWorkflowRepository {
 
         while let Some(row) = result.next().await? {
             let slot_str: String = row.get("slot").unwrap_or_default();
-            if let Some(slot) = WorkflowSlot::from_str(&slot_str) {
+            if let Ok(slot) = WorkflowSlot::from_str(&slot_str) {
                 slots.push(slot);
             }
         }
@@ -193,7 +195,7 @@ impl Neo4jWorkflowRepository {
 
         let slot_str: String = row.get("slot").unwrap_or_default();
         let slot = WorkflowSlot::from_str(&slot_str)
-            .ok_or_else(|| anyhow::anyhow!("Invalid workflow slot: {}", slot_str))?;
+            .map_err(|e| anyhow::anyhow!("Invalid workflow slot: {}", e))?;
 
         let name: String = row.get("name").unwrap_or_default();
 

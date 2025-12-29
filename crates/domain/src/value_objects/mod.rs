@@ -16,6 +16,7 @@ mod rule_system;
 mod settings;
 mod prompt_templates;
 mod staging_context;
+mod context_budget_enforcement;
 
 
 // Actantial model context for LLM consumption
@@ -57,6 +58,9 @@ pub use prompt_templates::{
 };
 pub use staging_context::{
     ActiveEventContext, NpcDialogueContext, RollResult, RuleBasedSuggestion, StagingContext,
+};
+pub use context_budget_enforcement::{
+    ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
 };
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)

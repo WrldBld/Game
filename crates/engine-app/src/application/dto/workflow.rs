@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 use chrono::{DateTime, Utc};
@@ -390,7 +392,7 @@ impl TryFrom<WorkflowConfigExportDto> for WorkflowConfiguration {
             .unwrap_or_else(|_| WorkflowConfigId::new());
 
         let slot = WorkflowSlot::from_str(&value.slot)
-            .ok_or_else(|| anyhow::anyhow!("Invalid workflow slot: {}", value.slot))?;
+            .map_err(|_| anyhow::anyhow!("Invalid workflow slot: {}", value.slot))?;
 
         let created_at = DateTime::parse_from_rfc3339(&value.created_at)
             .map(|dt| dt.with_timezone(&Utc))
@@ -414,6 +416,6 @@ impl TryFrom<WorkflowConfigExportDto> for WorkflowConfiguration {
 }
 
 pub fn parse_workflow_slot(slot: &str) -> Result<WorkflowSlot, String> {
-    WorkflowSlot::from_str(slot).ok_or_else(|| format!("Invalid slot: {}", slot))
+    WorkflowSlot::from_str(slot)
 }
 

@@ -35,6 +35,19 @@ impl EntityType {
     }
 }
 
+impl std::str::FromStr for EntityType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "character" => Ok(Self::Character),
+            "location" => Ok(Self::Location),
+            "item" => Ok(Self::Item),
+            _ => Err(format!("Unknown entity type: {}", s)),
+        }
+    }
+}
+
 /// Type of asset (determines which slot it occupies)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,21 +82,24 @@ impl std::fmt::Display for AssetType {
     }
 }
 
-impl AssetType {
-    /// Parse from string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for AssetType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "portrait" => Some(Self::Portrait),
-            "sprite" => Some(Self::Sprite),
-            "backdrop" => Some(Self::Backdrop),
-            "tilesheet" => Some(Self::Tilesheet),
-            "itemicon" | "item_icon" => Some(Self::ItemIcon),
-            "emotionsheet" | "emotion_sheet" => Some(Self::EmotionSheet),
-            "regionbackdrop" | "region_backdrop" => Some(Self::RegionBackdrop),
-            _ => None,
+            "portrait" => Ok(Self::Portrait),
+            "sprite" => Ok(Self::Sprite),
+            "backdrop" => Ok(Self::Backdrop),
+            "tilesheet" => Ok(Self::Tilesheet),
+            "itemicon" | "item_icon" => Ok(Self::ItemIcon),
+            "emotionsheet" | "emotion_sheet" => Ok(Self::EmotionSheet),
+            "regionbackdrop" | "region_backdrop" => Ok(Self::RegionBackdrop),
+            _ => Err(format!("Unknown asset type: {}", s)),
         }
     }
+}
 
+impl AssetType {
     /// Get the lowercase string representation for file paths
     pub fn as_str(&self) -> &'static str {
         match self {

@@ -200,22 +200,6 @@ impl WorkflowSlot {
         ]
     }
 
-    /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "character_portrait" => Some(Self::CharacterPortrait),
-            "character_sprite" => Some(Self::CharacterSprite),
-            "character_expression_sheet" => Some(Self::CharacterExpressionSheet),
-            "location_backdrop" => Some(Self::LocationBackdrop),
-            "location_tilesheet" => Some(Self::LocationTilesheet),
-            "location_time_variant" => Some(Self::LocationTimeVariant),
-            "item_icon" => Some(Self::ItemIcon),
-            "item_set" => Some(Self::ItemSet),
-            "map_region" => Some(Self::MapRegion),
-            _ => None,
-        }
-    }
-
     /// Convert to string
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -228,6 +212,25 @@ impl WorkflowSlot {
             Self::ItemIcon => "item_icon",
             Self::ItemSet => "item_set",
             Self::MapRegion => "map_region",
+        }
+    }
+}
+
+impl std::str::FromStr for WorkflowSlot {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "character_portrait" => Ok(Self::CharacterPortrait),
+            "character_sprite" => Ok(Self::CharacterSprite),
+            "character_expression_sheet" => Ok(Self::CharacterExpressionSheet),
+            "location_backdrop" => Ok(Self::LocationBackdrop),
+            "location_tilesheet" => Ok(Self::LocationTilesheet),
+            "location_time_variant" => Ok(Self::LocationTimeVariant),
+            "item_icon" => Ok(Self::ItemIcon),
+            "item_set" => Ok(Self::ItemSet),
+            "map_region" => Ok(Self::MapRegion),
+            _ => Err(format!("Unknown workflow slot: {}", s)),
         }
     }
 }
