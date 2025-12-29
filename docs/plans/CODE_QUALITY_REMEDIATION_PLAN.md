@@ -1145,27 +1145,112 @@ pub trait WorldStatePort: Send + Sync {
 | `world_state_manager.rs` | 484 | port+adapter | `WorldStatePort` | High |
 | **Total** | **1,831** | | | |
 
-#### 3.0.4 Fix Ports Layer Violations
+#### 3.0.4 Fix Player-Side Hexagonal Architecture Violations
 
-**Concrete implementations in ports that should be in adapters**:
+**Analysis completed**: Deep architectural analysis revealed multiple hexagonal violations on the player side.
 
-| File | Item | Lines | Issue |
-|------|------|-------|-------|
-| `player-ports/platform.rs` | Platform struct | 347 | Full implementation in ports |
-| `player-ports/testing/mock_game_connection.rs` | MockGameConnectionPort | 320 | Mock in ports, not adapters |
-| `engine-ports/use_case_context.rs` | UseCaseContext | 166 | Concrete struct with 8 methods |
+##### Current Violations
 
-**Fix**:
-- Move `Platform` struct to player-adapters, keep only traits in ports
-- Move `MockGameConnectionPort` to player-adapters/testing or use mockall
-- Document `UseCaseContext` as approved exception (it's a DTO/context object)
+| Violation | Location | Issue | Severity |
+|-----------|----------|-------|----------|
+| Platform struct in ports | `player-ports/outbound/platform.rs:87-350` | Concrete DI container with impl in ports layer | HIGH |
+| *Dyn traits in ports | `player-ports/outbound/platform.rs:99-141` | Private traits for type erasure - impl detail | HIGH |
+| Blanket impls in ports | `player-ports/outbound/platform.rs:143-218` | Wiring logic in ports layer | HIGH |
+| Business logic in ports | `player-ports/outbound/platform.rs:298-306` | `get_user_id()` creates IDs - app layer logic | MEDIUM |
+| player-adapters→player-app dep | `player-adapters/Cargo.toml:10` | Adapters should depend on ports, not app | HIGH |
+| MockGameConnectionPort in ports | `player-ports/testing/mock_game_connection.rs` | Mock impl in ports instead of adapters | MEDIUM |
+
+##### Optimal Player Architecture
+
+**Target dependency graph** (matches engine pattern):
+
+```
+                    ┌─────────────┐
+                    │   domain    │
+                    └──────▲──────┘
+                           │
+                    ┌──────┴──────┐
+                    │  protocol   │
+                    └──────▲──────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+       ┌──────┴──────┐     │     ┌──────┴──────┐
+       │player-ports │◄────┘     │             │
+       └──────▲──────┘           │             │
+              │                  │             │
+       ┌──────┴──────┐           │             │
+       │ player-app  │───────────┘             │
+       └──────▲──────┘                         │
+              │                                │
+              ├────────────────────────────────┤
+              │                                │
+       ┌──────┴──────┐                  ┌──────┴──────┐
+       │  player-ui  │                  │player-adapt │
+       └──────▲──────┘                  └──────▲──────┘
+              │                                │
+              └───────────────┬────────────────┘
+                              │
+                       ┌──────┴──────┐
+                       │player-runner│ (Composition Root)
+                       └─────────────┘
+```
+
+**Key rules**:
+1. `player-ports` → Only port traits, no implementations
+2. `player-app` → Depends on ports, NOT adapters
+3. `player-ui` → Depends on app + ports + adapters (for Platform DI container)
+4. `player-adapters` → Depends on ports only, implements traits
+5. `player-runner` → Composition root, depends on everything, wires dependencies
+
+##### What Goes Where
+
+| Crate | Contains | Does NOT Contain |
+|-------|----------|------------------|
+| **player-ports** | Port traits (`TimeProvider`, `StorageProvider`, etc.), `storage_keys` module | Platform struct, *Dyn traits, blanket impls, business logic |
+| **player-adapters** | Platform struct, *Dyn traits, blanket impls, adapter impls (desktop/wasm/mock), `create_platform()` factory | Application services, business logic |
+| **player-app** | Application services, `UserService` with `get_user_id()` logic | Infrastructure, DI containers |
+| **player-ui** | Dioxus components, hooks, routing | Service construction |
+| **player-runner** | `main()`, composition root, all wiring | Business logic, UI components |
+
+##### Implementation Tasks
 
 | Task | Status |
 |------|--------|
-| [ ] Move Platform struct (347 lines) to player-adapters | Pending |
-| [ ] Move blanket *Dyn impls to player-adapters | Pending |
-| [ ] Move MockGameConnectionPort to player-adapters/testing | Pending |
-| [ ] Document UseCaseContext as approved exception | Pending |
+| [ ] Create `player-adapters/src/state/` module structure | Pending |
+| [ ] Create `player-adapters/src/state/platform.rs` with Platform struct | Pending |
+| [ ] Move *Dyn traits from player-ports to player-adapters/state/platform.rs | Pending |
+| [ ] Move blanket impls from player-ports to player-adapters/state/platform.rs | Pending |
+| [ ] Move `get_user_id()` to `player-app/services/user_service.rs` | Pending |
+| [ ] Update `player-ports/outbound/platform.rs` to keep only traits + storage_keys | Pending |
+| [ ] Update `player-ports/outbound/mod.rs` exports (remove Platform) | Pending |
+| [ ] Update `player-adapters/infrastructure/platform/mod.rs` to export Platform | Pending |
+| [ ] Add `wrldbldr-player-adapters` dependency to `player-ui/Cargo.toml` | Pending |
+| [ ] Update all Platform imports across codebase (~28 files) | Pending |
+| [ ] Move MockGameConnectionPort to player-adapters/infrastructure/testing | Pending |
+| [ ] Remove `wrldbldr-player-app` dependency from player-adapters/Cargo.toml | Pending |
+| [ ] Verify compilation | Pending |
+
+##### Dioxus Context Handling
+
+The `Platform` struct is injected via Dioxus context in player-runner:
+
+```rust
+// player-runner/src/lib.rs
+pub fn run(deps: RunnerDeps) {
+    dioxus::LaunchBuilder::new()
+        .with_context(deps.platform)  // Platform from player-adapters
+        .launch(wrldbldr_player_ui::app);
+}
+```
+
+UI components access via hooks:
+```rust
+// In player-ui
+let platform = use_context::<Platform>();  // Platform imported from player-adapters
+```
+
+This is the correct hexagonal pattern: runner (composition root) creates and injects the DI container.
 
 #### 3.0.5 Remove Tokio from Ports Layer
 
