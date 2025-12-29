@@ -13,9 +13,9 @@ use wrldbldr_domain::entities::{
     ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability, Character,
     CharacterSheetTemplate, CharacterWant, EventChain, FrequencyLevel, GalleryAsset,
     GenerationBatch, Goal, InteractionRequirement, InteractionTargetType, InteractionTemplate,
-    InventoryItem, InvolvedCharacter, Item, Location, LocationConnection, NpcObservation,
-    PlayerCharacter, Region, RegionConnection, RegionExit, Scene, SceneCharacter, SheetTemplateId,
-    Skill, StoryEvent, Want, WorkflowConfiguration, World,
+    InventoryItem, Item, Location, LocationConnection, NpcObservation, PlayerCharacter, Region,
+    RegionConnection, RegionExit, Scene, SceneCharacter, SheetTemplateId, Skill, Want,
+    WorkflowConfiguration, World,
 };
 use wrldbldr_domain::value_objects::{
     ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship,
@@ -24,7 +24,7 @@ use wrldbldr_domain::value_objects::{
 use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
     InteractionId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
-    RelationshipId, SceneId, SkillId, StoryEventId, WantId, WorldId,
+    RelationshipId, SceneId, SkillId, WantId, WorldId,
 };
 
 // =============================================================================
@@ -1156,194 +1156,17 @@ pub trait ChallengeRepositoryPort: Send + Sync {
 }
 
 // =============================================================================
-// StoryEvent Repository Port
+// StoryEvent Repository Port - MOVED to story_event_repository module
 // =============================================================================
-
-/// Repository port for StoryEvent operations
-#[async_trait]
-pub trait StoryEventRepositoryPort: Send + Sync {
-    /// Create a new story event
-    async fn create(&self, event: &StoryEvent) -> Result<()>;
-
-    /// Get a story event by ID
-    async fn get(&self, id: StoryEventId) -> Result<Option<StoryEvent>>;
-
-    /// List story events for a world
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>>;
-
-    /// List story events for a world with pagination
-    async fn list_by_world_paginated(
-        &self,
-        world_id: WorldId,
-        limit: u32,
-        offset: u32,
-    ) -> Result<Vec<StoryEvent>>;
-
-    /// List visible (non-hidden) story events for a world
-    async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>>;
-
-    /// Search story events by tags
-    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>)
-        -> Result<Vec<StoryEvent>>;
-
-    /// Search story events by text in summary
-    async fn search_by_text(&self, world_id: WorldId, search_text: &str)
-        -> Result<Vec<StoryEvent>>;
-
-    /// List events involving a specific character
-    async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>>;
-
-    /// List events at a specific location
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<StoryEvent>>;
-
-    /// Update story event summary
-    async fn update_summary(&self, id: StoryEventId, summary: &str) -> Result<bool>;
-
-    /// Update event visibility
-    async fn set_hidden(&self, id: StoryEventId, is_hidden: bool) -> Result<bool>;
-
-    /// Update event tags
-    async fn update_tags(&self, id: StoryEventId, tags: Vec<String>) -> Result<bool>;
-
-    /// Delete a story event
-    async fn delete(&self, id: StoryEventId) -> Result<bool>;
-
-    /// Count events for a world
-    async fn count_by_world(&self, world_id: WorldId) -> Result<u64>;
-
-    // =========================================================================
-    // OCCURRED_AT Edge Methods (Location)
-    // =========================================================================
-
-    /// Set the location where event occurred (creates OCCURRED_AT edge)
-    async fn set_location(&self, event_id: StoryEventId, location_id: LocationId) -> Result<bool>;
-
-    /// Get the location where event occurred
-    async fn get_location(&self, event_id: StoryEventId) -> Result<Option<LocationId>>;
-
-    /// Remove location association (deletes OCCURRED_AT edge)
-    async fn remove_location(&self, event_id: StoryEventId) -> Result<bool>;
-
-    // =========================================================================
-    // OCCURRED_IN_SCENE Edge Methods
-    // =========================================================================
-
-    /// Set the scene where event occurred (creates OCCURRED_IN_SCENE edge)
-    async fn set_scene(&self, event_id: StoryEventId, scene_id: SceneId) -> Result<bool>;
-
-    /// Get the scene where event occurred
-    async fn get_scene(&self, event_id: StoryEventId) -> Result<Option<SceneId>>;
-
-    /// Remove scene association (deletes OCCURRED_IN_SCENE edge)
-    async fn remove_scene(&self, event_id: StoryEventId) -> Result<bool>;
-
-    // =========================================================================
-    // INVOLVES Edge Methods
-    // =========================================================================
-
-    /// Add an involved character (creates INVOLVES edge with role)
-    async fn add_involved_character(
-        &self,
-        event_id: StoryEventId,
-        involved: InvolvedCharacter,
-    ) -> Result<bool>;
-
-    /// Get all involved characters for an event
-    async fn get_involved_characters(
-        &self,
-        event_id: StoryEventId,
-    ) -> Result<Vec<InvolvedCharacter>>;
-
-    /// Remove an involved character (deletes INVOLVES edge)
-    async fn remove_involved_character(
-        &self,
-        event_id: StoryEventId,
-        character_id: CharacterId,
-    ) -> Result<bool>;
-
-    // =========================================================================
-    // TRIGGERED_BY_NARRATIVE Edge Methods
-    // =========================================================================
-
-    /// Set the narrative event that triggered this story event
-    async fn set_triggered_by(
-        &self,
-        event_id: StoryEventId,
-        narrative_event_id: NarrativeEventId,
-    ) -> Result<bool>;
-
-    /// Get the narrative event that triggered this story event
-    async fn get_triggered_by(&self, event_id: StoryEventId) -> Result<Option<NarrativeEventId>>;
-
-    /// Remove the triggered_by association
-    async fn remove_triggered_by(&self, event_id: StoryEventId) -> Result<bool>;
-
-    // =========================================================================
-    // RECORDS_CHALLENGE Edge Methods
-    // =========================================================================
-
-    /// Set the challenge this event records (creates RECORDS_CHALLENGE edge)
-    async fn set_recorded_challenge(
-        &self,
-        event_id: StoryEventId,
-        challenge_id: ChallengeId,
-    ) -> Result<bool>;
-
-    /// Get the challenge this event records
-    async fn get_recorded_challenge(&self, event_id: StoryEventId) -> Result<Option<ChallengeId>>;
-
-    /// Remove the recorded challenge association
-    async fn remove_recorded_challenge(&self, event_id: StoryEventId) -> Result<bool>;
-
-    // =========================================================================
-    // Query Methods by Edge Relationships
-    // =========================================================================
-
-    /// List events triggered by a specific narrative event
-    async fn list_by_narrative_event(
-        &self,
-        narrative_event_id: NarrativeEventId,
-    ) -> Result<Vec<StoryEvent>>;
-
-    /// List events recording a specific challenge
-    async fn list_by_challenge(&self, challenge_id: ChallengeId) -> Result<Vec<StoryEvent>>;
-
-    /// List events that occurred in a specific scene
-    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<StoryEvent>>;
-
-    // =========================================================================
-    // Dialogue-Specific Query Methods
-    // =========================================================================
-
-    /// Get recent dialogue exchanges with a specific NPC
-    ///
-    /// Returns DialogueExchange events involving the specified NPC,
-    /// ordered by timestamp descending (most recent first).
-    ///
-    /// Used by the Staging System to provide LLM context about
-    /// recent conversations with NPCs who might be present.
-    async fn get_dialogues_with_npc(
-        &self,
-        world_id: WorldId,
-        npc_id: CharacterId,
-        limit: u32,
-    ) -> Result<Vec<StoryEvent>>;
-
-    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
-    ///
-    /// This edge tracks conversation history metadata:
-    /// - `last_dialogue_at`: When the most recent dialogue occurred
-    /// - `last_topic`: Primary topic of the last conversation (optional)
-    /// - `conversation_count`: Total number of conversations
-    ///
-    /// Used by the Staging System to understand PC-NPC relationship history.
-    async fn update_spoke_to_edge(
-        &self,
-        pc_id: wrldbldr_domain::PlayerCharacterId,
-        npc_id: CharacterId,
-        topic: Option<String>,
-    ) -> Result<()>;
-}
+// 
+// StoryEventRepositoryPort has been split into 4 focused traits following ISP:
+// - StoryEventCrudPort (7 methods) - Core CRUD + state management
+// - StoryEventEdgePort (15 methods) - Edge relationship management
+// - StoryEventQueryPort (10 methods) - Query operations
+// - StoryEventDialoguePort (2 methods) - Dialogue-specific operations
+//
+// The super-trait StoryEventRepositoryPort is retained for backward compatibility.
+// See: crate::outbound::story_event_repository
 
 // =============================================================================
 // NarrativeEvent Repository Port - MOVED to narrative_event_repository module

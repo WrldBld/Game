@@ -40,6 +40,7 @@ mod location_service_port;
 mod narrative_event_approval_service_port;
 mod narrative_event_repository;
 mod narrative_event_service_port;
+mod story_event_repository;
 mod player_action_queue_service_port;
 mod player_character_service_port;
 mod prompt_context_service_port;
@@ -132,9 +133,17 @@ pub use repository_port::{
     ItemRepositoryPort, LocationRepositoryPort, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort, RegionRepositoryPort, RelationshipEdge,
     RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
-    SkillRepositoryPort, SocialNetwork, StoryEventRepositoryPort, WantRepositoryPort,
-    WorkflowRepositoryPort, WorldRepositoryPort,
+    SkillRepositoryPort, SocialNetwork, WantRepositoryPort, WorkflowRepositoryPort,
+    WorldRepositoryPort,
 };
+
+// StoryEvent repository ports - split for Interface Segregation Principle
+pub use story_event_repository::{
+    StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
+    StoryEventRepositoryPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_repository::MockStoryEventRepository;
 
 // NarrativeEvent repository ports - split for Interface Segregation Principle
 pub use narrative_event_repository::{
