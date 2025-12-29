@@ -113,6 +113,12 @@ pub struct SpectateTargetResult {
 // =============================================================================
 
 /// Port for connection management
+///
+/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
+/// because it depends on use-case-specific DTOs (ConnectedUser, ConnectionInfo,
+/// UserJoinedEvent, etc.) that are defined in this crate. Moving to engine-ports
+/// would create circular dependencies. This is an approved deviation from the
+/// standard hexagonal port placement.
 #[async_trait::async_trait]
 pub trait ConnectionManagerPort: Send + Sync {
     /// Register a new connection

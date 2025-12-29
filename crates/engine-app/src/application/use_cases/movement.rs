@@ -126,6 +126,12 @@ pub struct ExitToLocationInput {
 ///
 /// This abstracts the WorldStateManager which lives in the adapters layer.
 /// The use case interacts with staging state through this interface.
+///
+/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
+/// because it depends on use-case-specific DTOs (PendingStagingData, WaitingPcData)
+/// that are defined in this crate. Moving to engine-ports would create circular
+/// dependencies. This is an approved deviation from the standard hexagonal port
+/// placement.
 #[async_trait::async_trait]
 pub trait StagingStatePort: Send + Sync {
     /// Get current game time for the world

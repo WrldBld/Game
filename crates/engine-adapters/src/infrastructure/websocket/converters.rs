@@ -49,6 +49,9 @@ pub fn to_challenge_outcome_decision(
 // =============================================================================
 // Actantial Model Conversion Helpers (P1.5)
 // =============================================================================
+//
+// TODO: These helpers are prepared for P1.5 actantial model websocket integration.
+// Remove #[allow(dead_code)] when the actantial model websocket handlers are implemented.
 
 /// Convert WantVisibilityData to domain WantVisibility
 #[allow(dead_code)]

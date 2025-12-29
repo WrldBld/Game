@@ -76,6 +76,14 @@ Do not add "convenience" shims:
 
 Goal: a single canonical import path for every type.
 
+### 5) No glob re-exports
+
+Use explicit exports instead of `pub use module::*`:
+
+- **Why**: Glob re-exports hide dead code from the compiler, break IDE navigation, and make dependency graphs unclear.
+- **Enforcement**: `cargo xtask arch-check` detects glob re-exports.
+- **Pattern**: Replace `pub use foo::*;` with explicit `pub use foo::{Type1, Type2, ...};`
+
 ### 5) Composition roots own construction
 
 - Binaries (and runner crates) may wire concrete adapters into services.

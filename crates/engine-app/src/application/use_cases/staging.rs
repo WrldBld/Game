@@ -130,6 +130,12 @@ pub struct PreStageResult {
 // =============================================================================
 
 /// Extended port for staging state management (adds operations needed by this use case)
+///
+/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
+/// because it depends on use-case-specific DTOs (PendingStagingInfo, RegeneratedNpc,
+/// WaitingPcInfo, ProposedNpc) that are defined in this crate. Moving to engine-ports
+/// would create circular dependencies. This is an approved deviation from the
+/// standard hexagonal port placement.
 #[async_trait::async_trait]
 pub trait StagingStateExtPort: StagingStatePort {
     /// Get a pending staging by request ID

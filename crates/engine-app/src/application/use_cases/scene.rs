@@ -224,6 +224,11 @@ pub enum InteractionTarget {
 }
 
 /// Port for world state management
+///
+/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
+/// because it depends on use-case-specific DTOs (DirectorialContextData, etc.) that are
+/// defined in this crate. Moving to engine-ports would create circular dependencies.
+/// This is an approved deviation from the standard hexagonal port placement.
 pub trait WorldStatePort: Send + Sync {
     /// Set the current scene for a world
     fn set_current_scene(&self, world_id: &wrldbldr_domain::WorldId, scene_id: Option<String>);

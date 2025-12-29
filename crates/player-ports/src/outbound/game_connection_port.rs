@@ -13,7 +13,10 @@ use crate::session_types::{
     DiceInput, DirectorialContext, ParticipantRole,
 };
 
-// Keep these for now - they're the request/response contract
+// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
+// This port uses protocol types directly because it defines the primary
+// engine-player communication boundary. The protocol crate exists specifically
+// to share types across this boundary.
 use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
 
 /// Connection state for the game session

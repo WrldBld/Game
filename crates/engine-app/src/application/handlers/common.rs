@@ -100,14 +100,12 @@ pub fn parse_interaction_id(id: &str) -> Result<InteractionId, ResponseResult> {
 }
 
 /// Parse a goal ID string into a GoalId
-#[allow(dead_code)]
 pub fn parse_goal_id(id: &str) -> Result<GoalId, ResponseResult> {
     let uuid = parse_uuid(id, "goal")?;
     Ok(GoalId::from_uuid(uuid))
 }
 
 /// Parse a want ID string into a WantId
-#[allow(dead_code)]
 pub fn parse_want_id(id: &str) -> Result<WantId, ResponseResult> {
     let uuid = parse_uuid(id, "want")?;
     Ok(WantId::from_uuid(uuid))
@@ -120,14 +118,12 @@ pub fn parse_region_id(id: &str) -> Result<RegionId, ResponseResult> {
 }
 
 /// Parse a relationship ID string into a RelationshipId
-#[allow(dead_code)]
 pub fn parse_relationship_id(id: &str) -> Result<RelationshipId, ResponseResult> {
     let uuid = parse_uuid(id, "relationship")?;
     Ok(RelationshipId::from_uuid(uuid))
 }
 
 /// Parse a story event ID string into a StoryEventId
-#[allow(dead_code)]
 pub fn parse_story_event_id(id: &str) -> Result<StoryEventId, ResponseResult> {
     let uuid = parse_uuid(id, "story_event")?;
     Ok(StoryEventId::from_uuid(uuid))
