@@ -14,6 +14,7 @@ pub mod challenge_resolution_service;
 pub mod challenge_service;
 pub mod dm_approval_queue_service;
 pub mod character_service;
+pub mod dm_action_processor_service;
 pub mod dm_action_queue_service;
 pub mod event_chain_service;
 pub mod generation_event_publisher;
@@ -34,6 +35,7 @@ pub mod outcome_suggestion_service;
 pub mod outcome_trigger_service;
 pub mod player_action_queue_service;
 pub mod player_character_service;
+pub mod prompt_context_service;
 pub mod prompt_template_service;
 pub mod relationship_service;
 pub mod scene_resolution_service;
@@ -152,6 +154,7 @@ pub use event_chain_service::{EventChainService, EventChainServiceImpl};
 
 // Re-export queue service types (used in infrastructure layer)
 pub use asset_generation_queue_service::AssetGenerationQueueService;
+pub use dm_action_processor_service::{ApprovalProcessorPort, DmActionProcessorService};
 pub use dm_action_queue_service::DMActionQueueService;
 pub use dm_approval_queue_service::{DMApprovalQueueService, ApprovalOutcome};
 pub use generation_event_publisher::GenerationEventPublisher;
@@ -210,5 +213,8 @@ pub use actantial_context_service::{
 
 // Re-export region service
 pub use region_service::{RegionService, RegionServiceImpl};
+
+// Re-export prompt context service (hexagonal refactor - moved from websocket_helpers)
+pub use prompt_context_service::{PromptContextService, PromptContextServiceImpl};
 
 // Note: PlayerActionService and ApprovalService were removed - functionality moved to queue services

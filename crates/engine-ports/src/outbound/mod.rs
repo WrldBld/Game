@@ -33,6 +33,7 @@ mod location_service_port;
 mod narrative_event_service_port;
 mod player_action_queue_service_port;
 mod player_character_service_port;
+mod prompt_context_service_port;
 mod prompt_template_port;
 mod prompt_template_service_port;
 mod queue_notification_port;
@@ -47,6 +48,7 @@ mod staging_repository_port;
 mod staging_service_port;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
+mod use_case_types;
 mod workflow_service_port;
 mod world_exporter_port;
 mod world_service_port;
@@ -198,6 +200,11 @@ pub use prompt_template_service_port::{PromptTemplate, PromptTemplateServicePort
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_template_service_port::MockPromptTemplateServicePort;
 
+// Prompt context service port - interface for building LLM prompt context
+pub use prompt_context_service_port::{PromptContextError, PromptContextServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use prompt_context_service_port::MockPromptContextServicePort;
+
 // Asset service port - interface for asset gallery operations
 pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
 #[cfg(any(test, feature = "testing"))]
@@ -266,6 +273,24 @@ pub use asset_generation_queue_service_port::{
 };
 #[cfg(any(test, feature = "testing"))]
 pub use asset_generation_queue_service_port::MockAssetGenerationQueueServicePort;
+
+// Use case types - input/output types for use case operations
+pub use use_case_types::{
+    // Movement types
+    MovementResult, MovementError, SelectCharacterInput, SelectCharacterResult,
+    MoveToRegionInput, ExitToLocationInput, PendingStagingData, StagingProposalData,
+    // Connection types
+    WorldRole, ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent,
+    JoinWorldInput, JoinWorldResult, LeaveWorldResult, SetSpectateTargetInput, SpectateTargetResult,
+    // Scene types
+    TimeContext, DirectorialContextData, NpcMotivation, SceneEntity, LocationEntity,
+    CharacterEntity, InteractionEntity, InteractionTarget, ApprovalDecision as SceneApprovalDecision,
+    DmAction as SceneDmAction,
+    // Challenge types
+    TriggerInfo, TriggerResult, AdHocResult, AdHocOutcomes, DiceInputType, RollResultData,
+    OutcomeDecision, OutcomeDecisionResult, DiscardResult, RegenerateResult, OutcomeDetail,
+    ApprovalItem,
+};
 
 // Re-export mocks for test builds
 #[cfg(any(test, feature = "testing"))]
