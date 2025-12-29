@@ -1,11 +1,11 @@
 //! Type conversion helpers for WebSocket message handling
 //!
-//! Contains functions to convert between protocol types, domain types, and application DTOs.
+//! Contains functions to convert between protocol types, domain types, and port types.
 //!
 //! # Architecture Note
 //!
 //! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
-//! These converters bridge protocol types to internal application types (`wrldbldr_engine_app`).
+//! These converters bridge protocol types to internal port types (`wrldbldr_engine_ports`).
 
 use wrldbldr_engine_ports::outbound::{
     DiceInputType, MovementResult, OutcomeDecision, SceneChangedEvent, SelectCharacterResult,

@@ -22,6 +22,7 @@ mod dm_action_processor_port;
 mod dm_action_queue_service_port;
 mod dm_approval_queue_service_port;
 mod domain_event_repository_port;
+mod environment_port;
 mod event_bus_port;
 mod event_chain_service_port;
 mod event_effect_executor_port;
@@ -83,6 +84,9 @@ pub use clock_port::MockClockPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
+
+// Environment port - interface for environment variable access
+pub use environment_port::EnvironmentPort;
 
 // DM action processor - interface for processing DM actions
 pub use dm_action_processor_port::{DmActionProcessorPort, DmActionResult};

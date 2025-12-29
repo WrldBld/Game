@@ -3,7 +3,7 @@
 //! This service manages the AssetGenerationQueue, which processes ComfyUI
 //! requests with controlled concurrency (typically batch_size=1).
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,7 +38,7 @@ pub struct AssetGenerationQueueService<
     /// File storage for saving generated assets
     file_storage: Arc<dyn FileStoragePort>,
     /// Output directory for generated assets
-    output_dir: PathBuf,
+    output_dir: String,
     semaphore: Arc<Semaphore>,
     notifier: N,
 }
@@ -71,7 +71,7 @@ impl<
         asset_repository: Arc<dyn AssetRepositoryPort>,
         clock: Arc<dyn ClockPort>,
         file_storage: Arc<dyn FileStoragePort>,
-        output_dir: PathBuf,
+        output_dir: String,
         batch_size: usize,
         notifier: N,
     ) -> Self {
@@ -295,7 +295,7 @@ impl<
 
                 // Create assets directory if needed
                 let assets_dir = output_dir;
-                if let Err(e) = file_storage.create_dir_all(&assets_dir).await {
+                if let Err(e) = file_storage.create_dir_all(Path::new(&assets_dir)).await {
                     tracing::error!("Failed to create assets directory: {}", e);
                     if let Err(e2) = queue_clone
                         .fail(
@@ -314,10 +314,10 @@ impl<
                     let asset_id = AssetId::new();
                     let extension = original_filename.split('.').last().unwrap_or("png");
                     let file_name = format!("{}_{}.{}", request.entity_id, asset_id, extension);
-                    let file_path = assets_dir.join(&file_name);
+                    let file_path = format!("{}/{}", assets_dir, file_name);
 
                     // Save image to disk
-                    if let Err(e) = file_storage.write(&file_path, &bytes).await {
+                    if let Err(e) = file_storage.write(Path::new(&file_path), &bytes).await {
                         tracing::error!("Failed to save image to disk: {}", e);
                         continue;
                     }
@@ -337,7 +337,7 @@ impl<
                         entity_type: entity_type.clone(),
                         entity_id: request.entity_id.clone(),
                         asset_type: asset_type.clone(),
-                        file_path: file_path.to_string_lossy().to_string(),
+                        file_path,
                         is_active: created_assets == 0, // First asset is active
                         label: None,
                         generation_metadata: Some(metadata),

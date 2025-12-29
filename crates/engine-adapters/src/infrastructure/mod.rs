@@ -7,19 +7,25 @@
 //! - Ollama: LLM integration for AI-powered responses
 //! - ComfyUI: Asset generation integration
 //! - Config: Application configuration
-//! - State: Shared application state (legacy - being replaced by adapter_state)
-//! - Adapter State: New hexagonal-compliant state (AppState + infrastructure)
+//! - Adapter State: Hexagonal-compliant state (AppState + infrastructure)
 //! - Event Bus: Event publishing and subscription infrastructure
 //! - Repositories: Additional persistence implementations
 //! - Context Budget: Token budget enforcement for LLM prompts
 //! - State Broadcast: Utilities for broadcasting state changes to WebSocket clients
 //! - Clock: System time abstraction for testability
+//!
+//! # Architecture Note
+//!
+//! The old `state` module has been deprecated. Use case construction is now done
+//! directly in `engine-runner/composition/app_state.rs`. Service containers are
+//! provided by `engine-composition` crate.
 
 pub mod adapter_state;
 pub mod clock;
 pub mod comfyui;
 pub mod config;
 pub mod context_budget;
+pub mod environment_adapter;
 pub mod event_bus;
 pub mod export;
 pub mod file_storage;
@@ -30,7 +36,6 @@ pub mod ports;
 pub mod queues;
 pub mod repositories;
 pub mod settings_loader;
-pub mod state;
 pub mod state_broadcast;
 pub mod suggestion_enqueue_adapter;
 pub mod websocket;
@@ -40,6 +45,9 @@ pub mod world_state_manager;
 
 // Re-export clock adapter
 pub use clock::SystemClock;
+
+// Re-export environment adapter
+pub use environment_adapter::SystemEnvironmentAdapter;
 
 // Re-export file storage adapter
 pub use file_storage::TokioFileStorageAdapter;

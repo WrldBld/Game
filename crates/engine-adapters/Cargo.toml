@@ -7,7 +7,8 @@ authors.workspace = true
 description = "WrldBldr Engine Adapters - Infrastructure adapters"
 
 [dependencies]
-wrldbldr-engine-app = { workspace = true }
+# Hexagonal architecture: adapters depend on ports, NOT app layer
+# The engine-app dependency has been removed to enforce proper hexagonal boundaries
 wrldbldr-engine-composition = { workspace = true }
 wrldbldr-engine-dto = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }

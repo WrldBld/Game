@@ -165,8 +165,8 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
-| Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 85% (non-state files done, state module blocked) |
+| Phase 3 | Architecture Completion | In Progress | 70% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **DONE** | 100% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
@@ -819,31 +819,57 @@ impl StorageProvider for DesktopStorageProvider {
 | [x] Move REST/WS DTOs to protocol (10 types) | **DONE** - added to dto.rs |
 | [x] Create port traits for services (35+/35+) | **DONE** (Phase E+F) |
 |     - All core, game, queue, asset, player, infrastructure services | **DONE** |
-| [ ] Move use case types to engine-ports (15+ types) | Pending |
+| [x] Move use case types to engine-ports (15+ types) | **DONE** - Use case port traits |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
 | [x] Refactor adapters to use only ports (non-state files) | **DONE** - All adapter files now use port traits |
-| [~] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | **BLOCKED** - state module still needs it |
+| [x] Move UseCases::new() logic to engine-runner | **DONE** (December 29, 2024) |
+| [x] Delete old state module from engine-adapters | **DONE** (~848 lines removed) |
+| [x] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | **DONE** ✅
 
-**Current Status (December 29, 2024)**:
-- Non-state adapter files: **0 imports** from engine-app ✅
-- State module (`state/*.rs`): **11 imports** from engine-app ⚠️
-- The state module contains `UseCases::new()` with ~347 lines of adapter/use case wiring logic
-- This logic needs to be moved to engine-runner before engine-app dep can be removed
+**Completed (December 29, 2024)**:
+- Moved all use case construction logic from `engine-adapters/infrastructure/state/use_cases.rs` to `engine-runner/composition/app_state.rs`
+- Deleted the entire `engine-adapters/infrastructure/state/` module (~848 lines)
+- Removed `wrldbldr-engine-app` dependency from engine-adapters/Cargo.toml
+- **Zero imports** from engine-app in engine-adapters ✅
 
-**Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
+**Success Criteria MET**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns **0 results**.
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
-**Files with I/O in engine-app** (12-13 violations):
+**Status**: **DONE** ✅ (December 29, 2024)
 
-| File | Lines | Operations |
-|------|-------|------------|
-| `generation_service.rs` | 103, 109, 353, 357, 365, 402, 403 | PathBuf fields, create_dir_all, Path::new, write, exists, read_to_string |
-| `asset_generation_queue_service.rs` | 230, 231, 245 | PathBuf::from, create_dir_all, write |
-| `prompt_template_service.rs` | 222, 268 | std::env::var |
-| `player-app/error.rs` | 128 | std::env::var |
+**Original Issues** (12-13 violations):
 
-**Fix**: Create `FileStoragePort` in engine-ports:
+| File | Lines | Operations | Fix Applied |
+|------|-------|------------|-------------|
+| `generation_service.rs` | 103, 109 | PathBuf fields | Changed to String |
+| `generation_service.rs` | 353, 357, 365 | Path::new for extension | String-based extraction |
+| `generation_service.rs` | 402, 403 | create_dir_all, write | Uses FileStoragePort |
+| `asset_generation_queue_service.rs` | 230, 231, 245 | PathBuf::from, I/O | Changed to String + FileStoragePort |
+| `prompt_template_service.rs` | 222, 268 | std::env::var | Uses EnvironmentPort |
+
+**Changes Made**:
+
+1. **Created EnvironmentPort** (`engine-ports/src/outbound/environment_port.rs`)
+   - `get_var(key)` -> `Option<String>` for environment variable access
+   - `get_var_or(key, default)` -> `String` with default fallback
+
+2. **Created SystemEnvironmentAdapter** (`engine-adapters/src/infrastructure/environment_adapter.rs`)
+   - Wraps `std::env::var()` to implement EnvironmentPort
+
+3. **Updated PromptTemplateService**
+   - Now accepts `Arc<dyn EnvironmentPort>` in constructor
+   - Replaced `std::env::var(&env_var)` with `self.environment.get_var(&env_var)`
+
+4. **Replaced PathBuf with String in service structs**
+   - `generation_service.rs`: `output_dir: String`, `workflow_dir: String`
+   - `asset_generation_queue_service.rs`: `output_dir: String`
+   - Uses `Path::new(&string_path)` when calling FileStoragePort methods
+
+5. **String-based file extension extraction**
+   - Replaced `std::path::Path::new(filename).extension()` with `filename.rsplit('.').next()`
+
+**FileStoragePort** was already implemented (from earlier work):
 ```rust
 #[async_trait]
 pub trait FileStoragePort: Send + Sync {
@@ -851,16 +877,23 @@ pub trait FileStoragePort: Send + Sync {
     async fn write(&self, path: &Path, data: &[u8]) -> Result<()>;
     async fn read_to_string(&self, path: &Path) -> Result<String>;
     async fn exists(&self, path: &Path) -> Result<bool>;
+    // ... more methods
 }
 ```
 
 | Task | Status |
 |------|--------|
-| [ ] Create FileStoragePort trait in engine-ports | Pending |
-| [ ] Create TokioFileStorageAdapter in engine-adapters | Pending |
-| [ ] Update generation_service.rs to use FileStoragePort | Pending |
-| [ ] Update asset_generation_queue_service.rs | Pending |
-| [ ] Move env::var calls to adapter/runner layer | Pending |
+| [x] Create FileStoragePort trait in engine-ports | **DONE** (existed) |
+| [x] Create TokioFileStorageAdapter in engine-adapters | **DONE** (existed) |
+| [x] Update generation_service.rs to use FileStoragePort | **DONE** |
+| [x] Update asset_generation_queue_service.rs | **DONE** |
+| [x] Create EnvironmentPort for env::var calls | **DONE** |
+| [x] Create SystemEnvironmentAdapter | **DONE** |
+| [x] Update prompt_template_service.rs to use EnvironmentPort | **DONE** |
+| [x] Replace PathBuf with String in service structs | **DONE** |
+
+**Verification**: `grep -rn "std::env::" crates/engine-app/src/` returns **0 results** ✅
+**Verification**: `grep -rn "PathBuf" crates/engine-app/src/` returns **0 results** ✅
 
 #### 3.0.2.1 Create ClockPort for Time Abstraction (NEW - Seventh Review)
 

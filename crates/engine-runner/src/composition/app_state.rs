@@ -23,15 +23,19 @@ use wrldbldr_engine_adapters::infrastructure::repositories::{
     SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
 };
 use wrldbldr_engine_adapters::infrastructure::settings_loader::load_settings_from_env;
-// Import old state containers temporarily (needed for UseCases::new() which creates concrete use cases)
-use wrldbldr_engine_adapters::infrastructure::state::{
-    AssetServices as OldAssetServices, CoreServices as OldCoreServices,
-    EventInfrastructure as OldEventInfrastructure, GameServices as OldGameServices,
-    PlayerServices as OldPlayerServices, QueueServices as OldQueueServices,
-    UseCases as OldUseCases,
+// Import port adapters for use case construction (replaces OldUseCases::new())
+use wrldbldr_engine_adapters::infrastructure::ports::{
+    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
+    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
+    DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
+    InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
+    SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
+    WorldMessageAdapter, WorldServiceAdapter,
 };
+use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::new_shared_manager;
+use wrldbldr_engine_adapters::infrastructure::SystemEnvironmentAdapter;
 use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
 use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
 
@@ -52,6 +56,10 @@ use wrldbldr_engine_app::application::services::{
     SceneServiceImpl, SettingsService, SheetTemplateService, SkillServiceImpl,
     StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService, WorldServiceImpl,
 };
+use wrldbldr_engine_app::application::use_cases::{
+    ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
+    ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
+};
 
 // Import composition layer types
 use wrldbldr_engine_composition::{
@@ -68,9 +76,11 @@ use wrldbldr_engine_ports::outbound::{
     ActantialContextServicePort,
     AssetGenerationQueueServicePort,
     AssetServicePort,
+    BroadcastPort,
     ChallengeOutcomeApprovalServicePort,
     ChallengeResolutionServicePort,
     ChallengeServicePort,
+    CharacterRepositoryPort,
     CharacterServicePort,
     ClockPort,
     ComfyUIPort,
@@ -88,9 +98,12 @@ use wrldbldr_engine_ports::outbound::{
     InteractionServicePort,
     ItemServicePort,
     LlmQueueServicePort,
+    LocationRepositoryPort,
     LocationServicePort,
     NarrativeEventApprovalServicePort,
     NarrativeEventServicePort,
+    ObservationRepositoryPort,
+    PlayerCharacterRepositoryPort,
     // Queue service ports
     PlayerActionQueueServicePort,
     PlayerCharacterServicePort,
@@ -255,6 +268,10 @@ pub async fn new_app_state(
     // Create system clock for all services that need time operations
     let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
 
+    // Create environment adapter for services that need environment variable access
+    let environment_adapter: Arc<dyn wrldbldr_engine_ports::outbound::EnvironmentPort> =
+        Arc::new(SystemEnvironmentAdapter::new());
+
     // Initialize Neo4j repository
     let repository = Neo4jRepository::new(
         &config.neo4j_uri,
@@ -298,7 +315,10 @@ pub async fn new_app_state(
     let prompt_template_repository: Arc<
         dyn wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort,
     > = Arc::new(prompt_template_repository);
-    let prompt_template_service = Arc::new(PromptTemplateService::new(prompt_template_repository));
+    let prompt_template_service = Arc::new(PromptTemplateService::new(
+        prompt_template_repository,
+        environment_adapter.clone(),
+    ));
     tracing::info!("Initialized prompt template service");
 
     // Initialize directorial context repository (shares same SQLite pool)
@@ -655,7 +675,7 @@ pub async fn new_app_state(
         asset_repo_for_queue,
         clock.clone(),
         file_storage_for_asset_queue,
-        std::path::PathBuf::from("./data/generated_assets"),
+        "./data/generated_assets".to_string(),
         queue_factory.config().asset_batch_size,
         queue_factory.asset_generation_notifier(),
     ));
@@ -677,8 +697,8 @@ pub async fn new_app_state(
         asset_repo.clone(),
         clock.clone(),
         file_storage,
-        std::path::PathBuf::from("./data/assets"),
-        std::path::PathBuf::from("./workflows"),
+        "./data/assets".to_string(),
+        "./workflows".to_string(),
         generation_event_tx,
     ));
 
@@ -800,80 +820,15 @@ pub async fn new_app_state(
             as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
     ));
 
-    // Build grouped services (old style, for UseCases::new() which creates concrete use cases)
-    // Services are already Arc<dyn Trait>, so we clone them for shared ownership
-    let old_core = OldCoreServices::new(
-        world_service.clone(),
-        character_service.clone(),
-        location_service.clone(),
-        scene_service.clone(),
-        skill_service.clone(),
-        interaction_service.clone(),
-        relationship_service.clone(),
-        item_service.clone(),
-    );
-
-    // Clone services before moving to QueueServices/GameServices
-    // (use cases also need references to them)
-    let player_action_queue_for_use_cases = player_action_queue_service.clone();
-    let dm_approval_queue_for_use_cases = dm_approval_queue_service.clone();
-    let challenge_outcome_approval_for_use_cases = challenge_outcome_approval_service.clone();
-    let challenge_resolution_for_use_cases = challenge_resolution_service.clone();
-
-    let old_game = OldGameServices::new(
-        story_event_service.clone(),
-        challenge_service.clone(),
-        challenge_resolution_service.clone(),
-        challenge_outcome_approval_service.clone(),
-        narrative_event_service.clone(),
-        narrative_event_approval_service.clone(),
-        event_chain_service.clone(),
-        trigger_evaluation_service.clone(),
-        event_effect_executor.clone(),
-        disposition_service.clone()
-            as Arc<dyn wrldbldr_engine_app::application::services::DispositionService>,
-        actantial_context_service.clone()
-            as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
-    );
-
-    let old_queues = OldQueueServices::new(
-        player_action_queue_service.clone(),
-        dm_action_queue_service.clone(),
-        llm_queue_service.clone(),
-        asset_generation_queue_service.clone(),
-        dm_approval_queue_service.clone(),
-        challenge_outcome_queue.clone(),
-    );
-
     // Clone generation services for use in request handler
     let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
     let generation_read_state_for_handler = generation_read_state_repository.clone();
-
-    let old_assets = OldAssetServices::new(
-        asset_service.clone(),
-        workflow_config_service, // Move, not clone - OldAssetServices owns it
-        generation_service.clone(),
-        generation_queue_projection_service.clone(),
-    );
-
-    let old_player = OldPlayerServices::new(
-        sheet_template_service.clone(),
-        player_character_service.clone(),
-        scene_resolution_service.clone(),
-    );
-
-    let old_events = OldEventInfrastructure::new(
-        event_bus.clone(),
-        event_notifier.clone(),
-        domain_event_repository.clone(),
-        generation_read_state_repository.clone(),
-    );
 
     // Create suggestion enqueue adapter for AI suggestions
     // Pass world_repo for auto-enrichment of suggestion context
     // Cast LLMQueueService to LlmQueueServicePort for hexagonal architecture compliance
     let llm_queue_service_port: Arc<dyn wrldbldr_engine_ports::outbound::LlmQueueServicePort> =
-        old_queues.llm_queue_service.clone();
+        llm_queue_service.clone();
     let suggestion_enqueue_adapter: Arc<
         dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort,
     > = Arc::new(SuggestionEnqueueAdapter::new(
@@ -889,30 +844,26 @@ pub async fn new_app_state(
     let character_repo_for_use_cases = character_repo.clone();
     let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
-    // Clone port-typed services for use cases (UseCases::new expects port traits)
-    let scene_service_for_use_cases = scene_service_port.clone();
-    let interaction_service_for_use_cases = interaction_service_port.clone();
-    let world_service_for_use_cases = world_service_port.clone();
-    let pc_service_for_use_cases = player_character_service_port.clone();
-
     let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
-        old_core.world_service.clone(),
-        old_core.character_service.clone(),
-        old_core.location_service.clone(),
-        old_core.skill_service.clone(),
-        old_core.scene_service.clone(),
-        old_core.interaction_service.clone(),
-        old_game.challenge_service.clone(),
-        old_game.narrative_event_service.clone(),
-        old_game.event_chain_service.clone(),
-        old_player.player_character_service.clone(),
-        old_core.relationship_service.clone(),
-        old_game.actantial_context_service.clone(),
-        old_game.disposition_service.clone(),
-        old_game.story_event_service.clone(),
-        old_core.item_service.clone(),
+        world_service.clone(),
+        character_service.clone(),
+        location_service.clone(),
+        skill_service.clone(),
+        scene_service.clone(),
+        interaction_service.clone(),
+        challenge_service.clone(),
+        narrative_event_service.clone(),
+        event_chain_service.clone(),
+        player_character_service.clone(),
+        relationship_service.clone(),
+        actantial_context_service.clone()
+            as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
+        disposition_service.clone()
+            as Arc<dyn wrldbldr_engine_app::application::services::DispositionService>,
+        story_event_service.clone(),
+        item_service.clone(),
         region_service,
-        old_player.sheet_template_service.clone(),
+        sheet_template_service.clone(),
         character_repo_for_handler,
         observation_repo_for_handler,
         region_repo.clone(),
@@ -923,48 +874,172 @@ pub async fn new_app_state(
     ));
     tracing::info!("Initialized request handler for WebSocket-first architecture");
 
-    // Create use cases container with all dependencies (old style, creates concrete use cases)
-    let old_use_cases = OldUseCases::new(
-        world_connection_manager.clone(),
-        world_state.clone(),
+    // ===========================================================================
+    // Create use cases directly (replaces OldUseCases::new())
+    // This moves the use case construction from engine-adapters to engine-runner
+    // ===========================================================================
+
+    // Create broadcast adapter for all use cases to share
+    let broadcast: Arc<dyn BroadcastPort> =
+        Arc::new(WebSocketBroadcastAdapter::new(world_connection_manager.clone()));
+
+    // Create DM notification adapter (clone connection_manager since we'll use it again)
+    let dm_notification = Arc::new(DmNotificationAdapter::new(world_connection_manager.clone()));
+
+    // Create staging adapters
+    // Note: StagingStateAdapter implements both StagingStatePort and StagingStateExtPort
+    // Note: StagingServiceAdapter implements both StagingServicePort and StagingServiceExtPort
+    let staging_state_adapter = Arc::new(StagingStateAdapter::new(world_state.clone()));
+    let staging_service_adapter = Arc::new(StagingServiceAdapter::new(staging_service.clone()));
+
+    // Create shared scene builder
+    let scene_builder = Arc::new(SceneBuilder::new(
+        region_repo.clone(),
+        location_repo.clone(),
+    ));
+
+    // Create movement use case
+    let movement_use_case = Arc::new(MovementUseCase::new(
         player_character_repo_for_handler.clone(),
         region_repo.clone(),
         location_repo.clone(),
+        staging_service_adapter.clone(),
+        staging_state_adapter.clone(),
+        broadcast.clone(),
+        scene_builder.clone(),
+    ));
+
+    // Create inventory use case
+    let inventory_use_case = Arc::new(InventoryUseCase::new(
+        player_character_repo_for_handler.clone(),
+        region_repo.clone(),
+        broadcast.clone(),
+    ));
+
+    // Create staging approval use case
+    let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
+        staging_service_adapter,
+        staging_state_adapter,
+        character_repo_for_use_cases.clone(),
+        region_repo.clone(),
+        location_repo.clone(),
+        broadcast.clone(),
+        scene_builder,
+    ));
+
+    // Create player action use case
+    let player_action_queue_adapter =
+        Arc::new(PlayerActionQueueAdapter::new(player_action_queue_service.clone()));
+    let player_action_use_case = Arc::new(PlayerActionUseCase::new(
+        movement_use_case.clone(),
+        player_action_queue_adapter,
+        dm_notification,
+        broadcast.clone(),
+    ));
+
+    // Create observation adapters
+    // Note: observation_repo now directly implements the same ObservationRepositoryPort
+    // used by ObservationUseCase (consolidated from engine-ports)
+    let world_message_adapter = Arc::new(WorldMessageAdapter::new(world_connection_manager.clone()));
+
+    // Create observation use case
+    let observation_use_case = Arc::new(ObservationUseCase::new(
+        player_character_repo_for_handler.clone(),
         character_repo_for_use_cases,
         observation_repo_for_use_cases,
-        staging_service.clone(),
-        player_action_queue_for_use_cases,
-        // Scene and Connection dependencies
-        scene_service_for_use_cases,
-        interaction_service_for_use_cases,
-        directorial_context_repo.clone(),
-        world_service_for_use_cases,
-        pc_service_for_use_cases,
-        // Challenge dependencies
-        challenge_resolution_for_use_cases,
-        challenge_outcome_approval_for_use_cases,
-        dm_approval_queue_for_use_cases,
-        // Narrative event dependencies
-        old_game.narrative_event_approval_service.clone(),
-        // Clock for time operations
+        world_message_adapter,
+        broadcast.clone(),
         clock.clone(),
-    );
+    ));
+
+    // =========================================================================
+    // Challenge Use Case
+    // =========================================================================
+    // Adapter wraps the ChallengeResolutionService to implement ChallengeResolutionPort
+    let challenge_resolution_adapter = Arc::new(ChallengeResolutionAdapter::new(
+        challenge_resolution_service.clone(),
+    ));
+    let challenge_outcome_adapter = Arc::new(ChallengeOutcomeApprovalAdapter::new(
+        challenge_outcome_approval_service.clone(),
+    ));
+    let challenge_dm_queue_adapter = Arc::new(ChallengeDmApprovalQueueAdapter::new(
+        dm_approval_queue_service.clone(),
+    ));
+
+    let challenge_use_case = Arc::new(ChallengeUseCase::new(
+        challenge_resolution_adapter,
+        challenge_outcome_adapter,
+        challenge_dm_queue_adapter,
+        broadcast.clone(),
+    ));
+
+    // =========================================================================
+    // Scene Use Case
+    // =========================================================================
+    let scene_service_adapter = Arc::new(SceneServiceAdapter::new(scene_service_port.clone()));
+    let interaction_service_adapter =
+        Arc::new(InteractionServiceAdapter::new(interaction_service_port.clone()));
+    let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(world_state.clone()));
+    let scene_directorial_adapter = Arc::new(DirectorialContextAdapter::new(
+        directorial_context_repo.clone(),
+    ));
+    let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
+
+    let scene_use_case = Arc::new(SceneUseCase::new(
+        scene_service_adapter,
+        interaction_service_adapter,
+        scene_world_state_adapter,
+        scene_directorial_adapter,
+        dm_action_queue_placeholder,
+        broadcast.clone(),
+    ));
+
+    // =========================================================================
+    // Connection Use Case
+    // =========================================================================
+    let connection_manager_adapter =
+        Arc::new(ConnectionManagerAdapter::new(world_connection_manager.clone()));
+    let world_service_adapter = Arc::new(WorldServiceAdapter::new(world_service_port.clone()));
+    let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(player_character_service_port.clone()));
+    let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
+        directorial_context_repo.clone(),
+    ));
+    let connection_world_state_adapter =
+        Arc::new(ConnectionWorldStateAdapter::new(world_state.clone()));
+
+    let connection_use_case = Arc::new(ConnectionUseCase::new(
+        connection_manager_adapter,
+        world_service_adapter,
+        pc_service_adapter,
+        connection_directorial_adapter,
+        connection_world_state_adapter,
+        broadcast.clone(),
+    ));
+
+    // =========================================================================
+    // Narrative Event Use Case
+    // =========================================================================
+    let narrative_event_use_case = Arc::new(NarrativeEventUseCase::new(
+        narrative_event_approval_service.clone(),
+        broadcast.clone(),
+    ));
+
     tracing::info!("Initialized use cases container with all 9 use cases");
 
     // ===========================================================================
     // Create composition-layer UseCases with port traits (casting from concrete)
     // ===========================================================================
     let composition_use_cases = UseCases::new(
-        old_use_cases.broadcast.clone(),
-        old_use_cases.movement.clone() as Arc<dyn MovementUseCasePort>,
-        old_use_cases.staging.clone() as Arc<dyn StagingUseCasePort>,
-        old_use_cases.inventory.clone() as Arc<dyn InventoryUseCasePort>,
-        old_use_cases.player_action.clone() as Arc<dyn PlayerActionUseCasePort>,
-        old_use_cases.observation.clone() as Arc<dyn ObservationUseCasePort>,
-        old_use_cases.challenge.clone() as Arc<dyn ChallengeUseCasePort>,
-        old_use_cases.scene.clone() as Arc<dyn SceneUseCasePort>,
-        old_use_cases.connection.clone() as Arc<dyn ConnectionUseCasePort>,
-        old_use_cases.narrative_event.clone() as Arc<dyn NarrativeEventUseCasePort>,
+        broadcast.clone(),
+        movement_use_case as Arc<dyn MovementUseCasePort>,
+        staging_approval_use_case as Arc<dyn StagingUseCasePort>,
+        inventory_use_case as Arc<dyn InventoryUseCasePort>,
+        player_action_use_case as Arc<dyn PlayerActionUseCasePort>,
+        observation_use_case as Arc<dyn ObservationUseCasePort>,
+        challenge_use_case as Arc<dyn ChallengeUseCasePort>,
+        scene_use_case as Arc<dyn SceneUseCasePort>,
+        connection_use_case as Arc<dyn ConnectionUseCasePort>,
+        narrative_event_use_case as Arc<dyn NarrativeEventUseCasePort>,
     );
 
     // ===========================================================================

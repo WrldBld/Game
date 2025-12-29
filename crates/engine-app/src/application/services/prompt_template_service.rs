@@ -19,13 +19,15 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateServicePort,
+    EnvironmentPort, PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateServicePort,
     PromptTemplateSource, ResolvedPromptTemplate,
 };
 
 /// Service for managing prompt templates with priority resolution
 pub struct PromptTemplateService {
     repository: Arc<dyn PromptTemplateRepositoryPort>,
+    /// Environment port for reading environment variables (hexagonal architecture)
+    environment: Arc<dyn EnvironmentPort>,
     /// Cache for global resolved templates
     global_cache: RwLock<HashMap<String, ResolvedPromptTemplate>>,
     /// Cache for per-world resolved templates
@@ -34,9 +36,13 @@ pub struct PromptTemplateService {
 
 impl PromptTemplateService {
     /// Create a new prompt template service
-    pub fn new(repository: Arc<dyn PromptTemplateRepositoryPort>) -> Self {
+    pub fn new(
+        repository: Arc<dyn PromptTemplateRepositoryPort>,
+        environment: Arc<dyn EnvironmentPort>,
+    ) -> Self {
         Self {
             repository,
+            environment,
             global_cache: RwLock::new(HashMap::new()),
             world_cache: RwLock::new(HashMap::new()),
         }
@@ -245,9 +251,9 @@ impl PromptTemplateService {
             };
         }
 
-        // 2. Check environment variable
+        // 2. Check environment variable (via port - no direct I/O in app layer)
         let env_var = key_to_env_var(key);
-        if let Ok(value) = std::env::var(&env_var) {
+        if let Some(value) = self.environment.get_var(&env_var) {
             return ResolvedPromptTemplate {
                 key: key.to_string(),
                 value,
@@ -291,9 +297,9 @@ impl PromptTemplateService {
             };
         }
 
-        // 3. Check environment variable
+        // 3. Check environment variable (via port - no direct I/O in app layer)
         let env_var = key_to_env_var(key);
-        if let Ok(value) = std::env::var(&env_var) {
+        if let Some(value) = self.environment.get_var(&env_var) {
             return ResolvedPromptTemplate {
                 key: key.to_string(),
                 value,

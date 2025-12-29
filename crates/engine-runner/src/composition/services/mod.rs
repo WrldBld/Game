@@ -1,20 +1,6 @@
-//! Service Container Re-exports
+//! Service Container Re-exports (DEPRECATED)
 //!
-//! This module re-exports service containers from engine-adapters.
-//! The containers are defined in adapters because they hold concrete adapter types.
+//! This module is now empty. The old service containers from engine-adapters have been
+//! deprecated in favor of the composition-layer containers in engine-composition.
 //!
-//! # Why not in runner?
-//!
-//! We attempted to move these to the runner (composition root), but `AppState` and
-//! service containers hold concrete adapter types (`OllamaClient`, `ComfyUIClient`,
-//! `Neo4jRepository`), which would create circular dependencies if defined separately.
-//!
-//! # Architecture Decision
-//!
-//! Service containers stay in engine-adapters (with concrete types), while the
-//! construction logic (`new_app_state()`) is in engine-runner.
-
-pub use wrldbldr_engine_adapters::infrastructure::state::{
-    AssetServices, CoreServices, EventInfrastructure, GameServices, PlayerServices, QueueServices,
-    UseCases,
-};
+//! All use case construction is now done directly in `app_state.rs`.

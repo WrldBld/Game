@@ -6,7 +6,7 @@
 //! - Tracking progress and notifying clients via WebSocket
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -104,13 +104,13 @@ pub struct GenerationService {
     /// File storage for abstracting file system operations
     file_storage: Arc<dyn FileStoragePort>,
     /// Directory to save generated assets
-    output_dir: PathBuf,
+    output_dir: String,
     /// Active batches being processed
     active_batches: RwLock<HashMap<BatchId, BatchTracker>>,
     /// Event sender for notifying about generation progress (bounded channel)
     event_sender: mpsc::Sender<GenerationEvent>,
     /// Workflow templates directory
-    workflow_dir: PathBuf,
+    workflow_dir: String,
 }
 
 /// Tracks an active batch being processed
@@ -131,8 +131,8 @@ impl GenerationService {
         repository: Arc<dyn AssetRepositoryPort>,
         clock: Arc<dyn ClockPort>,
         file_storage: Arc<dyn FileStoragePort>,
-        output_dir: PathBuf,
-        workflow_dir: PathBuf,
+        output_dir: String,
+        workflow_dir: String,
         event_sender: mpsc::Sender<GenerationEvent>,
     ) -> Self {
         Self {
@@ -364,24 +364,27 @@ impl GenerationService {
             .await?;
 
         // Create output directory structure
-        let entity_dir = self
-            .output_dir
-            .join(batch.entity_type.as_str())
-            .join(&batch.entity_id)
-            .join(batch.asset_type.as_str());
-        self.file_storage.create_dir_all(&entity_dir).await?;
+        let entity_dir = format!(
+            "{}/{}/{}/{}",
+            self.output_dir,
+            batch.entity_type.as_str(),
+            batch.entity_id,
+            batch.asset_type.as_str()
+        );
+        self.file_storage
+            .create_dir_all(Path::new(&entity_dir))
+            .await?;
 
         // Generate unique filename
         let asset_id = AssetId::new();
-        let extension = std::path::Path::new(filename)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("png");
+        let extension = filename.rsplit('.').next().unwrap_or("png");
         let output_filename = format!("{}.{}", asset_id, extension);
-        let output_path = entity_dir.join(&output_filename);
+        let output_path = format!("{}/{}", entity_dir, output_filename);
 
         // Save the file
-        self.file_storage.write(&output_path, &image_data).await?;
+        self.file_storage
+            .write(Path::new(&output_path), &image_data)
+            .await?;
 
         // Create generation metadata
         let mut metadata = GenerationMetadata::new(
@@ -402,7 +405,7 @@ impl GenerationService {
             batch.entity_type.clone(),
             batch.entity_id.clone(),
             batch.asset_type.clone(),
-            output_path.to_string_lossy().to_string(),
+            output_path,
             metadata,
             self.clock.now(),
         );
@@ -417,10 +420,10 @@ impl GenerationService {
 
     /// Load a workflow template from file
     async fn load_workflow_template(&self, workflow_name: &str) -> Result<serde_json::Value> {
-        let path = self.workflow_dir.join(format!("{}.json", workflow_name));
+        let path = format!("{}/{}.json", self.workflow_dir, workflow_name);
 
-        if self.file_storage.exists(&path).await? {
-            let content = self.file_storage.read_to_string(&path).await?;
+        if self.file_storage.exists(Path::new(&path)).await? {
+            let content = self.file_storage.read_to_string(Path::new(&path)).await?;
             let workflow: serde_json::Value = serde_json::from_str(&content)?;
             Ok(workflow)
         } else {
