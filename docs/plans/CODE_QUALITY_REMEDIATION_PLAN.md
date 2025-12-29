@@ -1397,9 +1397,9 @@ pub fn participant_role_to_world_role(role: proto::ParticipantRole) -> proto::Wo
 
 | Task | Status |
 |------|--------|
-| [ ] Add `participant_role_to_world_role()` to session_type_converters.rs | Pending |
-| [ ] Update desktop/client.rs to use centralized converter | Pending |
-| [ ] Update wasm/client.rs to use centralized converter | Pending |
+| [x] Add `participant_role_to_world_role()` to session_type_converters.rs | **DONE** |
+| [x] Update desktop/client.rs to use centralized converter | **DONE** |
+| [x] Update wasm/client.rs to use centralized converter | **DONE** |
 
 ---
 

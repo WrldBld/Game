@@ -8,8 +8,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage, WorldRole};
+use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
 
+use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
 
 /// WebSocket client for communicating with the Engine (Desktop)
@@ -189,11 +190,7 @@ impl EngineClient {
         role: ParticipantRole,
     ) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
-        let world_role = match role {
-            ParticipantRole::DungeonMaster => WorldRole::Dm,
-            ParticipantRole::Player => WorldRole::Player,
-            ParticipantRole::Spectator => WorldRole::Spectator,
-        };
+        let world_role = participant_role_to_world_role(role);
 
         self.send(ClientMessage::JoinWorld {
             world_id,

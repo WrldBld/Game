@@ -29,6 +29,18 @@ pub fn participant_role_from_proto(role: proto::ParticipantRole) -> app::Partici
     }
 }
 
+/// Convert ParticipantRole to WorldRole
+///
+/// This conversion is used when joining a world to determine the user's
+/// role-based permissions (Player, DM, Spectator).
+pub fn participant_role_to_world_role(role: proto::ParticipantRole) -> proto::WorldRole {
+    match role {
+        proto::ParticipantRole::DungeonMaster => proto::WorldRole::Dm,
+        proto::ParticipantRole::Player => proto::WorldRole::Player,
+        proto::ParticipantRole::Spectator => proto::WorldRole::Spectator,
+    }
+}
+
 // =============================================================================
 // DiceInput Conversions
 // =============================================================================

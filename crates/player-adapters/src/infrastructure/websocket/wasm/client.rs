@@ -11,8 +11,9 @@ use gloo_timers::future::TimeoutFuture;
 use wasm_bindgen::prelude::*;
 use web_sys::{MessageEvent, WebSocket};
 
-use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage, WorldRole};
+use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
 
+use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
 
 /// Storage for WebSocket event closures to prevent leaks on reconnect
@@ -266,15 +267,11 @@ impl EngineClient {
     pub fn join_world(
         &self,
         world_id: &str,
-        user_id: &str,
+        _user_id: &str,
         role: ParticipantRole,
     ) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
-        let world_role = match role {
-            ParticipantRole::DungeonMaster => WorldRole::Dm,
-            ParticipantRole::Player => WorldRole::Player,
-            ParticipantRole::Spectator => WorldRole::Spectator,
-        };
+        let world_role = participant_role_to_world_role(role);
 
         self.send(ClientMessage::JoinWorld {
             world_id,
