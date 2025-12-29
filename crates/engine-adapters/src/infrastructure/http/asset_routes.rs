@@ -637,7 +637,7 @@ pub async fn retry_batch(
         style_reference_id: original_batch.style_reference_id,
     };
 
-    let new_batch = retry_request.into_batch();
+    let new_batch = retry_request.into_batch(chrono::Utc::now());
     
     // Create the new batch
     let created_batch = state

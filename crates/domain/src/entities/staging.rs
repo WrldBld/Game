@@ -75,6 +75,7 @@ impl Staging {
         approved_by: impl Into<String>,
         source: StagingSource,
         ttl_hours: i32,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             id: StagingId::new(),
@@ -83,7 +84,7 @@ impl Staging {
             world_id,
             npcs: Vec::new(),
             game_time,
-            approved_at: Utc::now(),
+            approved_at: now,
             ttl_hours,
             approved_by: approved_by.into(),
             source,

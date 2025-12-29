@@ -47,8 +47,8 @@ impl PlayerCharacter {
         world_id: WorldId,
         name: impl Into<String>,
         starting_location_id: LocationId,
+        now: DateTime<Utc>,
     ) -> Self {
-        let now = Utc::now();
         Self {
             id: PlayerCharacterId::new(),
             user_id: user_id.into(),
@@ -97,28 +97,28 @@ impl PlayerCharacter {
     }
 
     /// Update the character's current location (clears region)
-    pub fn update_location(&mut self, location_id: LocationId) {
+    pub fn update_location(&mut self, location_id: LocationId, now: DateTime<Utc>) {
         self.current_location_id = location_id;
         self.current_region_id = None;  // Region needs to be set separately
-        self.last_active_at = Utc::now();
+        self.last_active_at = now;
     }
 
     /// Update the character's current region (within current location)
-    pub fn update_region(&mut self, region_id: RegionId) {
+    pub fn update_region(&mut self, region_id: RegionId, now: DateTime<Utc>) {
         self.current_region_id = Some(region_id);
-        self.last_active_at = Utc::now();
+        self.last_active_at = now;
     }
 
     /// Update both location and region at once
-    pub fn update_position(&mut self, location_id: LocationId, region_id: Option<RegionId>) {
+    pub fn update_position(&mut self, location_id: LocationId, region_id: Option<RegionId>, now: DateTime<Utc>) {
         self.current_location_id = location_id;
         self.current_region_id = region_id;
-        self.last_active_at = Utc::now();
+        self.last_active_at = now;
     }
 
     /// Update the last active timestamp
-    pub fn touch(&mut self) {
-        self.last_active_at = Utc::now();
+    pub fn touch(&mut self, now: DateTime<Utc>) {
+        self.last_active_at = now;
     }
 
     /// Validate that the character has required fields

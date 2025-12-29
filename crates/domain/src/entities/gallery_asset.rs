@@ -187,6 +187,7 @@ impl GalleryAsset {
         entity_id: impl Into<String>,
         asset_type: AssetType,
         file_path: impl Into<String>,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             id: AssetId::new(),
@@ -197,7 +198,7 @@ impl GalleryAsset {
             is_active: false,
             label: None,
             generation_metadata: None,
-            created_at: Utc::now(),
+            created_at: now,
         }
     }
 
@@ -208,6 +209,7 @@ impl GalleryAsset {
         asset_type: AssetType,
         file_path: impl Into<String>,
         metadata: GenerationMetadata,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             id: AssetId::new(),
@@ -218,7 +220,7 @@ impl GalleryAsset {
             is_active: false,
             label: None,
             generation_metadata: Some(metadata),
-            created_at: Utc::now(),
+            created_at: now,
         }
     }
 

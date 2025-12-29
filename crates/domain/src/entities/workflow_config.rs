@@ -31,8 +31,7 @@ pub struct WorkflowConfiguration {
 
 impl WorkflowConfiguration {
     /// Create a new workflow configuration
-    pub fn new(slot: WorkflowSlot, name: impl Into<String>, workflow_json: serde_json::Value) -> Self {
-        let now = Utc::now();
+    pub fn new(slot: WorkflowSlot, name: impl Into<String>, workflow_json: serde_json::Value, now: DateTime<Utc>) -> Self {
         Self {
             id: WorkflowConfigId::new(),
             slot,
@@ -93,27 +92,27 @@ impl WorkflowConfiguration {
     }
 
     /// Update the workflow JSON
-    pub fn update_workflow(&mut self, workflow_json: serde_json::Value) {
+    pub fn update_workflow(&mut self, workflow_json: serde_json::Value, now: DateTime<Utc>) {
         self.workflow_json = workflow_json;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Update prompt mappings
-    pub fn set_prompt_mappings(&mut self, mappings: Vec<PromptMapping>) {
+    pub fn set_prompt_mappings(&mut self, mappings: Vec<PromptMapping>, now: DateTime<Utc>) {
         self.prompt_mappings = mappings;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Update input defaults
-    pub fn set_input_defaults(&mut self, defaults: Vec<InputDefault>) {
+    pub fn set_input_defaults(&mut self, defaults: Vec<InputDefault>, now: DateTime<Utc>) {
         self.input_defaults = defaults;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Update locked inputs
-    pub fn set_locked_inputs(&mut self, locked: Vec<String>) {
+    pub fn set_locked_inputs(&mut self, locked: Vec<String>, now: DateTime<Utc>) {
         self.locked_inputs = locked;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 }
 

@@ -383,8 +383,7 @@ pub struct ChainedEvent {
 }
 
 impl NarrativeEvent {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
-        let now = Utc::now();
+    pub fn new(world_id: WorldId, name: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self {
             id: NarrativeEventId::new(),
             world_id,
@@ -542,12 +541,12 @@ impl NarrativeEvent {
     }
 
     /// Mark this event as triggered with the given outcome
-    pub fn trigger(&mut self, outcome_name: Option<String>) {
+    pub fn trigger(&mut self, outcome_name: Option<String>, now: DateTime<Utc>) {
         self.is_triggered = true;
-        self.triggered_at = Some(Utc::now());
+        self.triggered_at = Some(now);
         self.selected_outcome = outcome_name;
         self.trigger_count += 1;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
 
         // If not repeatable, deactivate
         if !self.is_repeatable {
@@ -556,11 +555,11 @@ impl NarrativeEvent {
     }
 
     /// Reset the triggered state (for repeatable events)
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, now: DateTime<Utc>) {
         self.is_triggered = false;
         self.triggered_at = None;
         self.selected_outcome = None;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Get the outcome by name

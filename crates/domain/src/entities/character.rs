@@ -90,12 +90,13 @@ impl Character {
         &mut self,
         new_archetype: CampbellArchetype,
         reason: impl Into<String>,
+        now: chrono::DateTime<chrono::Utc>,
     ) {
         let change = ArchetypeChange {
             from: self.current_archetype,
             to: new_archetype,
             reason: reason.into(),
-            timestamp: chrono::Utc::now(),
+            timestamp: now,
         };
         self.archetype_history.push(change);
         self.current_archetype = new_archetype;

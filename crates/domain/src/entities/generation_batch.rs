@@ -98,6 +98,7 @@ impl GenerationBatch {
         workflow: impl Into<String>,
         prompt: impl Into<String>,
         count: u8,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             id: BatchId::new(),
@@ -112,7 +113,7 @@ impl GenerationBatch {
             status: BatchStatus::Queued,
             assets: Vec::new(),
             style_reference_id: None,
-            requested_at: Utc::now(),
+            requested_at: now,
             completed_at: None,
         }
     }
@@ -140,26 +141,26 @@ impl GenerationBatch {
     }
 
     /// Mark generation as complete, ready for selection
-    pub fn complete_generation(&mut self, asset_ids: Vec<AssetId>) {
+    pub fn complete_generation(&mut self, asset_ids: Vec<AssetId>, now: DateTime<Utc>) {
         self.assets = asset_ids;
         self.status = BatchStatus::ReadyForSelection;
-        self.completed_at = Some(Utc::now());
+        self.completed_at = Some(now);
     }
 
     /// Mark batch as fully completed (user has selected assets)
-    pub fn finalize(&mut self) {
+    pub fn finalize(&mut self, now: DateTime<Utc>) {
         self.status = BatchStatus::Completed;
         if self.completed_at.is_none() {
-            self.completed_at = Some(Utc::now());
+            self.completed_at = Some(now);
         }
     }
 
     /// Mark batch as failed
-    pub fn fail(&mut self, error: impl Into<String>) {
+    pub fn fail(&mut self, error: impl Into<String>, now: DateTime<Utc>) {
         self.status = BatchStatus::Failed {
             error: error.into(),
         };
-        self.completed_at = Some(Utc::now());
+        self.completed_at = Some(now);
     }
 
     /// Get position in queue (for display purposes)
@@ -185,7 +186,7 @@ pub struct GenerationRequest {
 }
 
 impl GenerationRequest {
-    pub fn into_batch(self) -> GenerationBatch {
+    pub fn into_batch(self, now: DateTime<Utc>) -> GenerationBatch {
         let mut batch = GenerationBatch::new(
             self.world_id,
             self.entity_type,
@@ -194,6 +195,7 @@ impl GenerationRequest {
             self.workflow,
             self.prompt,
             self.count,
+            now,
         );
         if let Some(neg) = self.negative_prompt {
             batch = batch.with_negative_prompt(neg);

@@ -107,12 +107,12 @@ pub struct InventoryItem {
 }
 
 impl InventoryItem {
-    pub fn new(item: Item, quantity: u32) -> Self {
+    pub fn new(item: Item, quantity: u32, now: DateTime<Utc>) -> Self {
         Self {
             item,
             quantity,
             equipped: false,
-            acquired_at: Utc::now(),
+            acquired_at: now,
             acquisition_method: None,
         }
     }

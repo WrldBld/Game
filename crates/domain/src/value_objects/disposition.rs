@@ -281,14 +281,14 @@ pub struct NpcDispositionState {
 
 impl NpcDispositionState {
     /// Create a new disposition state with defaults
-    pub fn new(npc_id: CharacterId, pc_id: PlayerCharacterId) -> Self {
+    pub fn new(npc_id: CharacterId, pc_id: PlayerCharacterId, now: DateTime<Utc>) -> Self {
         Self {
             npc_id,
             pc_id,
             disposition: DispositionLevel::Neutral,
             relationship: RelationshipLevel::Stranger,
             sentiment: 0.0,
-            updated_at: Utc::now(),
+            updated_at: now,
             disposition_reason: None,
             relationship_points: 0,
         }
@@ -308,25 +308,25 @@ impl NpcDispositionState {
     }
 
     /// Update the disposition with a reason
-    pub fn set_disposition(&mut self, disposition: DispositionLevel, reason: Option<String>) {
+    pub fn set_disposition(&mut self, disposition: DispositionLevel, reason: Option<String>, now: DateTime<Utc>) {
         self.disposition = disposition;
         self.sentiment = disposition.base_sentiment();
         self.disposition_reason = reason;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Adjust sentiment and potentially update disposition
-    pub fn adjust_sentiment(&mut self, delta: f32, reason: Option<String>) {
+    pub fn adjust_sentiment(&mut self, delta: f32, reason: Option<String>, now: DateTime<Utc>) {
         self.sentiment = (self.sentiment + delta).clamp(-1.0, 1.0);
         self.disposition = DispositionLevel::from_sentiment(self.sentiment);
         self.disposition_reason = reason;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Add relationship points and potentially upgrade/downgrade relationship
-    pub fn add_relationship_points(&mut self, points: i32) {
+    pub fn add_relationship_points(&mut self, points: i32, now: DateTime<Utc>) {
         self.relationship_points += points;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
 
         // Thresholds for relationship changes
         // Positive: 10 = Acquaintance, 25 = Friend, 50 = Ally
@@ -446,24 +446,26 @@ mod tests {
 
     #[test]
     fn test_relationship_points() {
+        let now = Utc::now();
         let mut state = NpcDispositionState::new(
             CharacterId::new(),
             PlayerCharacterId::new(),
+            now,
         );
 
         // Starts as Stranger (0 points)
         assert_eq!(state.relationship, RelationshipLevel::Stranger);
 
         // +15 = 15 points -> Acquaintance (>= 10)
-        state.add_relationship_points(15);
+        state.add_relationship_points(15, now);
         assert_eq!(state.relationship, RelationshipLevel::Acquaintance);
 
         // +20 = 35 points -> Friend (>= 25)
-        state.add_relationship_points(20);
+        state.add_relationship_points(20, now);
         assert_eq!(state.relationship, RelationshipLevel::Friend);
 
         // -60 = -25 points -> Enemy (> -50 but <= -25)
-        state.add_relationship_points(-60);
+        state.add_relationship_points(-60, now);
         assert_eq!(state.relationship, RelationshipLevel::Enemy);
     }
 

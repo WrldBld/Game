@@ -32,22 +32,22 @@ pub struct GameFlag {
 
 impl GameFlag {
     /// Create a new flag
-    pub fn new(name: impl Into<String>, value: bool) -> Self {
+    pub fn new(name: impl Into<String>, value: bool, now: DateTime<Utc>) -> Self {
         Self {
             name: name.into(),
             value,
-            updated_at: Utc::now(),
+            updated_at: now,
         }
     }
 
     /// Create a set flag
-    pub fn set(name: impl Into<String>) -> Self {
-        Self::new(name, true)
+    pub fn set(name: impl Into<String>, now: DateTime<Utc>) -> Self {
+        Self::new(name, true, now)
     }
 
     /// Create an unset flag
-    pub fn unset(name: impl Into<String>) -> Self {
-        Self::new(name, false)
+    pub fn unset(name: impl Into<String>, now: DateTime<Utc>) -> Self {
+        Self::new(name, false, now)
     }
 }
 

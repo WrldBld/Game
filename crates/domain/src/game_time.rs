@@ -35,14 +35,14 @@ pub struct GameTime {
 
 impl Default for GameTime {
     fn default() -> Self {
-        Self::new()
+        Self::new(Utc::now())
     }
 }
 
 impl GameTime {
-    pub fn new() -> Self {
+    pub fn new(now: DateTime<Utc>) -> Self {
         Self {
-            current: Utc::now(),
+            current: now,
             is_paused: true,
         }
     }
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn new_game_time_is_paused() {
-        let gt = GameTime::new();
+        let gt = GameTime::new(Utc::now());
         assert!(gt.is_paused());
     }
 

@@ -94,8 +94,9 @@ impl NpcObservation {
         location_id: LocationId,
         region_id: RegionId,
         game_time: DateTime<Utc>,
+        now: DateTime<Utc>,
     ) -> Self {
-        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, true)
+        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, true, now)
     }
 
     /// Create a new direct observation but keep identity unrevealed.
@@ -105,8 +106,9 @@ impl NpcObservation {
         location_id: LocationId,
         region_id: RegionId,
         game_time: DateTime<Utc>,
+        now: DateTime<Utc>,
     ) -> Self {
-        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, false)
+        Self::direct_with_reveal(pc_id, npc_id, location_id, region_id, game_time, false, now)
     }
 
     fn direct_with_reveal(
@@ -116,6 +118,7 @@ impl NpcObservation {
         region_id: RegionId,
         game_time: DateTime<Utc>,
         is_revealed_to_player: bool,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             pc_id,
@@ -126,7 +129,7 @@ impl NpcObservation {
             observation_type: ObservationType::Direct,
             is_revealed_to_player,
             notes: None,
-            created_at: Utc::now(),
+            created_at: now,
         }
     }
 
@@ -138,6 +141,7 @@ impl NpcObservation {
         region_id: RegionId,
         game_time: DateTime<Utc>,
         notes: Option<String>,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             pc_id,
@@ -148,7 +152,7 @@ impl NpcObservation {
             observation_type: ObservationType::HeardAbout,
             is_revealed_to_player: true,
             notes,
-            created_at: Utc::now(),
+            created_at: now,
         }
     }
 
@@ -160,6 +164,7 @@ impl NpcObservation {
         region_id: RegionId,
         game_time: DateTime<Utc>,
         notes: Option<String>,
+        now: DateTime<Utc>,
     ) -> Self {
         Self {
             pc_id,
@@ -170,7 +175,7 @@ impl NpcObservation {
             observation_type: ObservationType::Deduced,
             is_revealed_to_player: true,
             notes,
-            created_at: Utc::now(),
+            created_at: now,
         }
     }
 
@@ -234,8 +239,9 @@ mod tests {
         let location_id = LocationId::new();
         let region_id = RegionId::new();
         let game_time = Utc::now();
+        let now = Utc::now();
 
-        let obs = NpcObservation::direct(pc_id, npc_id, location_id, region_id, game_time);
+        let obs = NpcObservation::direct(pc_id, npc_id, location_id, region_id, game_time, now);
 
         assert_eq!(obs.observation_type, ObservationType::Direct);
         assert!(obs.is_revealed_to_player);
@@ -249,8 +255,9 @@ mod tests {
         let location_id = LocationId::new();
         let region_id = RegionId::new();
         let game_time = Utc::now();
+        let now = Utc::now();
 
-        let obs = NpcObservation::direct_unrevealed(pc_id, npc_id, location_id, region_id, game_time);
+        let obs = NpcObservation::direct_unrevealed(pc_id, npc_id, location_id, region_id, game_time, now);
 
         assert_eq!(obs.observation_type, ObservationType::Direct);
         assert!(!obs.is_revealed_to_player);
@@ -263,6 +270,7 @@ mod tests {
         let location_id = LocationId::new();
         let region_id = RegionId::new();
         let game_time = Utc::now();
+        let now = Utc::now();
 
         let obs = NpcObservation::heard_about(
             pc_id,
@@ -271,6 +279,7 @@ mod tests {
             region_id,
             game_time,
             Some("The bartender told me".to_string()),
+            now,
         );
 
         assert_eq!(obs.observation_type, ObservationType::HeardAbout);

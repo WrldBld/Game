@@ -47,8 +47,7 @@ pub struct EventChain {
 }
 
 impl EventChain {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
-        let now = Utc::now();
+    pub fn new(world_id: WorldId, name: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self {
             id: EventChainId::new(),
             world_id,
@@ -68,25 +67,25 @@ impl EventChain {
     }
 
     /// Add an event to the chain
-    pub fn add_event(&mut self, event_id: NarrativeEventId) {
+    pub fn add_event(&mut self, event_id: NarrativeEventId, now: DateTime<Utc>) {
         self.events.push(event_id);
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Add an event at a specific position
-    pub fn insert_event(&mut self, position: usize, event_id: NarrativeEventId) {
+    pub fn insert_event(&mut self, position: usize, event_id: NarrativeEventId, now: DateTime<Utc>) {
         if position <= self.events.len() {
             self.events.insert(position, event_id);
-            self.updated_at = Utc::now();
+            self.updated_at = now;
         }
     }
 
     /// Remove an event from the chain
-    pub fn remove_event(&mut self, event_id: &NarrativeEventId) -> bool {
+    pub fn remove_event(&mut self, event_id: &NarrativeEventId, now: DateTime<Utc>) -> bool {
         let original_len = self.events.len();
         self.events.retain(|e| e != event_id);
         if self.events.len() != original_len {
-            self.updated_at = Utc::now();
+            self.updated_at = now;
             true
         } else {
             false
@@ -94,13 +93,13 @@ impl EventChain {
     }
 
     /// Reorder events in the chain
-    pub fn reorder_events(&mut self, event_ids: Vec<NarrativeEventId>) {
+    pub fn reorder_events(&mut self, event_ids: Vec<NarrativeEventId>, now: DateTime<Utc>) {
         self.events = event_ids;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Mark an event as completed
-    pub fn complete_event(&mut self, event_id: NarrativeEventId) {
+    pub fn complete_event(&mut self, event_id: NarrativeEventId, now: DateTime<Utc>) {
         if !self.completed_events.contains(&event_id) {
             self.completed_events.push(event_id);
         }
@@ -112,7 +111,7 @@ impl EventChain {
             }
         }
 
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Get the current event in the chain (if any)
@@ -150,22 +149,22 @@ impl EventChain {
     }
 
     /// Reset the chain to the beginning
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, now: DateTime<Utc>) {
         self.current_position = 0;
         self.completed_events.clear();
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Deactivate the chain
-    pub fn deactivate(&mut self) {
+    pub fn deactivate(&mut self, now: DateTime<Utc>) {
         self.is_active = false;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Activate the chain
-    pub fn activate(&mut self) {
+    pub fn activate(&mut self, now: DateTime<Utc>) {
         self.is_active = true;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Check if an event is in this chain

@@ -87,13 +87,13 @@ pub struct Want {
 }
 
 impl Want {
-    pub fn new(description: impl Into<String>) -> Self {
+    pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self {
             id: WantId::new(),
             description: description.into(),
             intensity: 0.5,
             visibility: WantVisibility::Hidden,
-            created_at: Utc::now(),
+            created_at: now,
             deflection_behavior: None,
             tells: Vec::new(),
         }
@@ -161,11 +161,11 @@ pub struct CharacterWant {
 }
 
 impl CharacterWant {
-    pub fn new(want: Want, priority: u32) -> Self {
+    pub fn new(want: Want, priority: u32, now: DateTime<Utc>) -> Self {
         Self {
             want,
             priority,
-            acquired_at: Utc::now(),
+            acquired_at: now,
         }
     }
 
@@ -216,11 +216,11 @@ pub struct ActantialView {
 }
 
 impl ActantialView {
-    pub fn new(want_id: WantId, reason: impl Into<String>) -> Self {
+    pub fn new(want_id: WantId, reason: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self {
             want_id,
             reason: reason.into(),
-            assigned_at: Utc::now(),
+            assigned_at: now,
         }
     }
 }

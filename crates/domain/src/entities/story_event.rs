@@ -326,7 +326,7 @@ impl StoryEvent {
     /// - `add_involved_character()` for INVOLVES edges
     /// - `set_triggered_by()` for TRIGGERED_BY_NARRATIVE edge
     /// - `set_recorded_challenge()` for RECORDS_CHALLENGE edge
-    pub fn new(world_id: WorldId, event_type: StoryEventType) -> Self {
+    pub fn new(world_id: WorldId, event_type: StoryEventType, now: DateTime<Utc>) -> Self {
         Self {
             id: StoryEventId::new(),
             world_id,
@@ -334,7 +334,7 @@ impl StoryEvent {
             // NOTE: scene_id now stored as OCCURRED_IN_SCENE edge
             // NOTE: location_id now stored as OCCURRED_AT edge
             event_type,
-            timestamp: Utc::now(),
+            timestamp: now,
             game_time: None,
             summary: String::new(),
             // NOTE: involved_characters now stored as INVOLVES edges

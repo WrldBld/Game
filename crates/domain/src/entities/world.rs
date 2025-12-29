@@ -21,14 +21,13 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
-        let now = Utc::now();
+    pub fn new(name: impl Into<String>, description: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self {
             id: WorldId::new(),
             name: name.into(),
             description: description.into(),
             rule_system: RuleSystemConfig::default(),
-            game_time: GameTime::default(),
+            game_time: GameTime::new(now),
             created_at: now,
             updated_at: now,
         }
@@ -39,14 +38,14 @@ impl World {
         self
     }
 
-    pub fn update_name(&mut self, name: impl Into<String>) {
+    pub fn update_name(&mut self, name: impl Into<String>, now: DateTime<Utc>) {
         self.name = name.into();
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
-    pub fn update_description(&mut self, description: impl Into<String>) {
+    pub fn update_description(&mut self, description: impl Into<String>, now: DateTime<Utc>) {
         self.description = description.into();
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 }
 
