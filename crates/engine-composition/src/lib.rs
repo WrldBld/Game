@@ -56,4 +56,4 @@ pub use event_infra::EventInfra;
 pub use game_services::GameServices;
 pub use player_services::PlayerServices;
 pub use queue_services::QueueServices;
-pub use use_cases::{UseCasePlaceholder, UseCases};
+pub use use_cases::UseCases;

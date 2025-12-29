@@ -1721,12 +1721,14 @@ Each implementation delegates to existing methods (1:1 mapping).
 - No leaky abstractions (handlers don't access underlying `QueuePort<T>`)
 - Already the established pattern (e.g., `LlmQueueServicePort` already has `depth()`)
 
-###### Phase D: Update engine-composition UseCases (~30 min)
+###### Phase D: Update engine-composition UseCases (~30 min) - **DONE**
 
-Update `engine-composition/src/use_cases.rs`:
-- Change from `Arc<dyn UseCasePlaceholder>` to `Arc<dyn UseCasePort>` for each use case
-- Update constructor to accept port trait objects
-- Remove `UseCasePlaceholder` trait
+Updated `engine-composition/src/use_cases.rs`:
+- Changed from `Arc<dyn UseCasePlaceholder>` to `Arc<dyn UseCasePort>` for all 9 use cases
+- Updated constructor to accept port trait objects
+- Removed `UseCasePlaceholder` trait entirely
+- Updated tests to use Mock port types
+- Updated lib.rs to remove UseCasePlaceholder re-export
 
 ###### Phase E: Update engine-runner Composition (~1 hour)
 

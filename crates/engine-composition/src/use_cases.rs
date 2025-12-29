@@ -5,9 +5,7 @@
 //!
 //! # Architecture
 //!
-//! Unlike `engine-adapters/src/infrastructure/state/use_cases.rs` which uses
-//! concrete use case implementations from `engine-app`, this struct uses only
-//! port traits and placeholder types. This enables:
+//! This struct uses port traits from `wrldbldr-engine-ports::inbound`. This enables:
 //!
 //! - **Testability**: Easy mocking via port traits
 //! - **Hexagonal purity**: Composition layer depends only on ports, not implementations
@@ -25,21 +23,6 @@
 //!       ├──> StagingServicePort (→ StagingServiceAdapter)
 //!       └──> BroadcastPort (→ WebSocketBroadcastAdapter)
 //! ```
-//!
-//! # Implementation Status
-//!
-//! Use cases without dedicated port traits use `Box<dyn Any + Send + Sync>` as a
-//! placeholder until proper port traits are defined:
-//!
-//! - [ ] MovementUseCasePort - PC movement between regions/locations
-//! - [ ] StagingApprovalUseCasePort - DM staging approval, regeneration, pre-staging
-//! - [ ] InventoryUseCasePort - Item management
-//! - [ ] PlayerActionUseCasePort - Player action handling
-//! - [ ] ObservationUseCasePort - NPC observation events
-//! - [ ] ChallengeUseCasePort - Challenge resolution
-//! - [ ] SceneUseCasePort - Scene management
-//! - [ ] ConnectionUseCasePort - World connection management
-//! - [ ] NarrativeEventUseCasePort - Narrative event approval
 //!
 //! # Usage
 //!
@@ -61,24 +44,14 @@
 //! );
 //! ```
 
-use std::any::Any;
 use std::sync::Arc;
 
+use wrldbldr_engine_ports::inbound::{
+    ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
+    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, SceneUseCasePort,
+    StagingUseCasePort,
+};
 use wrldbldr_engine_ports::outbound::BroadcastPort;
-
-/// Placeholder type for use cases that don't have port traits yet.
-///
-/// This allows the composition layer to be defined now, with proper port
-/// traits to be added incrementally as each use case is refactored.
-///
-/// When a proper port trait is added, the corresponding field in `UseCases`
-/// will be changed from `Arc<dyn UseCasePlaceholder>` to `Arc<dyn TheNewPort>`.
-pub trait UseCasePlaceholder: Any + Send + Sync {
-    /// Downcast to the concrete type if needed.
-    ///
-    /// This is a workaround until proper port traits are defined.
-    fn as_any(&self) -> &dyn Any;
-}
 
 /// Container for all use cases.
 ///
@@ -131,47 +104,47 @@ pub struct UseCases {
     /// Movement use case for PC movement between regions/locations.
     ///
     /// Handles character movement, validates paths, and triggers staging.
-    pub movement: Arc<dyn UseCasePlaceholder>,
+    pub movement: Arc<dyn MovementUseCasePort>,
 
     /// Staging approval use case for DM staging operations.
     ///
     /// Manages NPC staging proposals, approvals, and regeneration.
-    pub staging: Arc<dyn UseCasePlaceholder>,
+    pub staging: Arc<dyn StagingUseCasePort>,
 
     /// Inventory use case for item equip/unequip/drop/pickup.
     ///
     /// Handles all item-related player actions.
-    pub inventory: Arc<dyn UseCasePlaceholder>,
+    pub inventory: Arc<dyn InventoryUseCasePort>,
 
     /// Player action use case for travel and queued actions.
     ///
     /// Manages the player action queue and processing.
-    pub player_action: Arc<dyn UseCasePlaceholder>,
+    pub player_action: Arc<dyn PlayerActionUseCasePort>,
 
     /// Observation use case for NPC observation and event triggering.
     ///
     /// Handles what happens when PCs observe NPCs and vice versa.
-    pub observation: Arc<dyn UseCasePlaceholder>,
+    pub observation: Arc<dyn ObservationUseCasePort>,
 
     /// Challenge use case for dice rolls and challenge resolution.
     ///
     /// Manages the full challenge workflow from triggering to outcome.
-    pub challenge: Arc<dyn UseCasePlaceholder>,
+    pub challenge: Arc<dyn ChallengeUseCasePort>,
 
     /// Scene use case for scene changes and directorial context.
     ///
     /// Handles scene transitions and DM directorial tools.
-    pub scene: Arc<dyn UseCasePlaceholder>,
+    pub scene: Arc<dyn SceneUseCasePort>,
 
     /// Connection use case for join/leave world operations.
     ///
     /// Manages player connection lifecycle within worlds.
-    pub connection: Arc<dyn UseCasePlaceholder>,
+    pub connection: Arc<dyn ConnectionUseCasePort>,
 
     /// Narrative event use case for DM approval of narrative events.
     ///
     /// Handles the narrative event approval workflow.
-    pub narrative_event: Arc<dyn UseCasePlaceholder>,
+    pub narrative_event: Arc<dyn NarrativeEventUseCasePort>,
 }
 
 impl UseCases {
@@ -180,44 +153,44 @@ impl UseCases {
     /// # Arguments
     ///
     /// * `broadcast` - Implementation of [`BroadcastPort`] for event broadcasting
-    /// * `movement` - Movement use case implementation
-    /// * `staging` - Staging approval use case implementation
-    /// * `inventory` - Inventory use case implementation
-    /// * `player_action` - Player action use case implementation
-    /// * `observation` - Observation use case implementation
-    /// * `challenge` - Challenge use case implementation
-    /// * `scene` - Scene use case implementation
-    /// * `connection` - Connection use case implementation
-    /// * `narrative_event` - Narrative event use case implementation
+    /// * `movement` - Implementation of [`MovementUseCasePort`]
+    /// * `staging` - Implementation of [`StagingUseCasePort`]
+    /// * `inventory` - Implementation of [`InventoryUseCasePort`]
+    /// * `player_action` - Implementation of [`PlayerActionUseCasePort`]
+    /// * `observation` - Implementation of [`ObservationUseCasePort`]
+    /// * `challenge` - Implementation of [`ChallengeUseCasePort`]
+    /// * `scene` - Implementation of [`SceneUseCasePort`]
+    /// * `connection` - Implementation of [`ConnectionUseCasePort`]
+    /// * `narrative_event` - Implementation of [`NarrativeEventUseCasePort`]
     ///
     /// # Example
     ///
     /// ```ignore
     /// let use_cases = UseCases::new(
     ///     Arc::new(broadcast_adapter) as Arc<dyn BroadcastPort>,
-    ///     Arc::new(movement_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(staging_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(inventory_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(player_action_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(observation_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(challenge_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(scene_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(connection_impl) as Arc<dyn UseCasePlaceholder>,
-    ///     Arc::new(narrative_event_impl) as Arc<dyn UseCasePlaceholder>,
+    ///     Arc::new(movement_impl) as Arc<dyn MovementUseCasePort>,
+    ///     Arc::new(staging_impl) as Arc<dyn StagingUseCasePort>,
+    ///     Arc::new(inventory_impl) as Arc<dyn InventoryUseCasePort>,
+    ///     Arc::new(player_action_impl) as Arc<dyn PlayerActionUseCasePort>,
+    ///     Arc::new(observation_impl) as Arc<dyn ObservationUseCasePort>,
+    ///     Arc::new(challenge_impl) as Arc<dyn ChallengeUseCasePort>,
+    ///     Arc::new(scene_impl) as Arc<dyn SceneUseCasePort>,
+    ///     Arc::new(connection_impl) as Arc<dyn ConnectionUseCasePort>,
+    ///     Arc::new(narrative_event_impl) as Arc<dyn NarrativeEventUseCasePort>,
     /// );
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         broadcast: Arc<dyn BroadcastPort>,
-        movement: Arc<dyn UseCasePlaceholder>,
-        staging: Arc<dyn UseCasePlaceholder>,
-        inventory: Arc<dyn UseCasePlaceholder>,
-        player_action: Arc<dyn UseCasePlaceholder>,
-        observation: Arc<dyn UseCasePlaceholder>,
-        challenge: Arc<dyn UseCasePlaceholder>,
-        scene: Arc<dyn UseCasePlaceholder>,
-        connection: Arc<dyn UseCasePlaceholder>,
-        narrative_event: Arc<dyn UseCasePlaceholder>,
+        movement: Arc<dyn MovementUseCasePort>,
+        staging: Arc<dyn StagingUseCasePort>,
+        inventory: Arc<dyn InventoryUseCasePort>,
+        player_action: Arc<dyn PlayerActionUseCasePort>,
+        observation: Arc<dyn ObservationUseCasePort>,
+        challenge: Arc<dyn ChallengeUseCasePort>,
+        scene: Arc<dyn SceneUseCasePort>,
+        connection: Arc<dyn ConnectionUseCasePort>,
+        narrative_event: Arc<dyn NarrativeEventUseCasePort>,
     ) -> Self {
         Self {
             broadcast,
@@ -246,15 +219,15 @@ impl std::fmt::Debug for UseCases {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UseCases")
             .field("broadcast", &"Arc<dyn BroadcastPort>")
-            .field("movement", &"Arc<dyn UseCasePlaceholder>")
-            .field("staging", &"Arc<dyn UseCasePlaceholder>")
-            .field("inventory", &"Arc<dyn UseCasePlaceholder>")
-            .field("player_action", &"Arc<dyn UseCasePlaceholder>")
-            .field("observation", &"Arc<dyn UseCasePlaceholder>")
-            .field("challenge", &"Arc<dyn UseCasePlaceholder>")
-            .field("scene", &"Arc<dyn UseCasePlaceholder>")
-            .field("connection", &"Arc<dyn UseCasePlaceholder>")
-            .field("narrative_event", &"Arc<dyn UseCasePlaceholder>")
+            .field("movement", &"Arc<dyn MovementUseCasePort>")
+            .field("staging", &"Arc<dyn StagingUseCasePort>")
+            .field("inventory", &"Arc<dyn InventoryUseCasePort>")
+            .field("player_action", &"Arc<dyn PlayerActionUseCasePort>")
+            .field("observation", &"Arc<dyn ObservationUseCasePort>")
+            .field("challenge", &"Arc<dyn ChallengeUseCasePort>")
+            .field("scene", &"Arc<dyn SceneUseCasePort>")
+            .field("connection", &"Arc<dyn ConnectionUseCasePort>")
+            .field("narrative_event", &"Arc<dyn NarrativeEventUseCasePort>")
             .finish()
     }
 }
@@ -262,51 +235,49 @@ impl std::fmt::Debug for UseCases {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_engine_ports::inbound::{
+        MockChallengeUseCasePort, MockConnectionUseCasePort, MockInventoryUseCasePort,
+        MockMovementUseCasePort, MockNarrativeEventUseCasePort, MockObservationUseCasePort,
+        MockPlayerActionUseCasePort, MockSceneUseCasePort, MockStagingUseCasePort,
+    };
     use wrldbldr_engine_ports::outbound::MockBroadcastPort;
-
-    /// Simple mock placeholder for use cases
-    struct MockUseCasePlaceholder;
-
-    impl UseCasePlaceholder for MockUseCasePlaceholder {
-        fn as_any(&self) -> &dyn Any {
-            self
-        }
-    }
 
     #[test]
     fn test_use_cases_construction() {
         let use_cases = UseCases::new(
             Arc::new(MockBroadcastPort::new()),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
+            Arc::new(MockMovementUseCasePort::new()),
+            Arc::new(MockStagingUseCasePort::new()),
+            Arc::new(MockInventoryUseCasePort::new()),
+            Arc::new(MockPlayerActionUseCasePort::new()),
+            Arc::new(MockObservationUseCasePort::new()),
+            Arc::new(MockChallengeUseCasePort::new()),
+            Arc::new(MockSceneUseCasePort::new()),
+            Arc::new(MockConnectionUseCasePort::new()),
+            Arc::new(MockNarrativeEventUseCasePort::new()),
         );
 
         // Verify debug output works
         let debug_str = format!("{:?}", use_cases);
         assert!(debug_str.contains("UseCases"));
         assert!(debug_str.contains("BroadcastPort"));
+        assert!(debug_str.contains("MovementUseCasePort"));
+        assert!(debug_str.contains("StagingUseCasePort"));
     }
 
     #[test]
     fn test_use_cases_clone() {
         let use_cases = UseCases::new(
             Arc::new(MockBroadcastPort::new()),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
+            Arc::new(MockMovementUseCasePort::new()),
+            Arc::new(MockStagingUseCasePort::new()),
+            Arc::new(MockInventoryUseCasePort::new()),
+            Arc::new(MockPlayerActionUseCasePort::new()),
+            Arc::new(MockObservationUseCasePort::new()),
+            Arc::new(MockChallengeUseCasePort::new()),
+            Arc::new(MockSceneUseCasePort::new()),
+            Arc::new(MockConnectionUseCasePort::new()),
+            Arc::new(MockNarrativeEventUseCasePort::new()),
         );
 
         // Clone should work (important for sharing across async tasks)
@@ -317,15 +288,15 @@ mod tests {
     fn test_broadcast_accessor() {
         let use_cases = UseCases::new(
             Arc::new(MockBroadcastPort::new()),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
-            Arc::new(MockUseCasePlaceholder),
+            Arc::new(MockMovementUseCasePort::new()),
+            Arc::new(MockStagingUseCasePort::new()),
+            Arc::new(MockInventoryUseCasePort::new()),
+            Arc::new(MockPlayerActionUseCasePort::new()),
+            Arc::new(MockObservationUseCasePort::new()),
+            Arc::new(MockChallengeUseCasePort::new()),
+            Arc::new(MockSceneUseCasePort::new()),
+            Arc::new(MockConnectionUseCasePort::new()),
+            Arc::new(MockNarrativeEventUseCasePort::new()),
         );
 
         // broadcast() accessor should return the same Arc
