@@ -1329,167 +1329,189 @@ This is the correct hexagonal pattern: runner (composition root) creates and inj
 | [x] Add unit tests for roundtrip conversions | **DONE** (12 tests) |
 | [x] Update session_type_converters.rs to delegate to From impls | **DONE** |
 
-#### 3.0.7 Move Composition Root to Runner (NEW - Sixth Review)
+#### 3.0.7 Engine Hexagonal Architecture Deep Refactor (REVISED)
 
-**Issue**: The composition root (wiring of all dependencies) is in the adapters layer instead of the runner layer. This is a significant hexagonal architecture violation.
+**Status**: IN PROGRESS
 
-**Files with composition root logic**:
+**Issue**: Comprehensive analysis revealed multiple hexagonal architecture violations on the engine side. The composition root is split between adapters and runner, and adapters incorrectly depends on engine-app.
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `engine-adapters/src/infrastructure/state/mod.rs` | **753** | `AppState::new()` - wires all dependencies |
-| `engine-adapters/src/run/server.rs` | **406** | `run()` - server setup and worker spawning |
-| **Total** | **~1,159** | Lines in wrong layer |
+##### Comprehensive Architecture Analysis (December 2024)
 
-**Current state**: `engine-runner/src/main.rs` is only **9 lines** - an empty shell that delegates everything to adapters.
+###### Current Violations Summary
 
-##### AppState::new() Analysis (state/mod.rs)
+| Crate | Expected Role | Compliance | Key Violations |
+|-------|--------------|------------|----------------|
+| **domain** | Pure business logic | GOOD | Clean |
+| **engine-ports** | Trait definitions only | GOOD | Clean |
+| **engine-dto** | Persistence/queue DTOs | GOOD | Clean |
+| **engine-app** | Services + use cases | GOOD | Clean |
+| **engine-adapters** | Adapter implementations | **PARTIAL** | Contains composition logic, depends on app |
+| **engine-runner** | Composition root | **PARTIAL** | Split ownership of composition with adapters |
 
-**Dependencies Created (Arc<dyn Port>) - 31 total**:
-- `clock: Arc<dyn ClockPort>` (SystemClock)
-- 20+ repository ports: `world_repo`, `character_repo`, `location_repo`, `scene_repo`, `relationship_repo`, `skill_repo`, `interaction_repo`, `story_event_repo`, `challenge_repo`, `asset_repo`, `workflow_repo`, `sheet_template_repo`, `narrative_event_repo`, `event_chain_repo`, `player_character_repo`, `item_repo`, `goal_repo`, `want_repo`, `region_repo`, `flag_repo`, `observation_repo`
-- Infrastructure ports: `world_exporter`, `settings_repository`, `prompt_template_repository`, `directorial_context_repo`, `domain_event_repository`, `generation_read_state_repository`, `event_bus`, `suggestion_enqueue_adapter`, `request_handler`
+###### Critical Violation: Wrong-Direction Dependency
 
-**Adapters Instantiated**:
-- `Neo4jRepository` (creates sub-repositories via `.worlds()`, `.characters()`, etc.)
-- `OllamaClient` (LLM adapter)
-- `ComfyUIClient` (image generation)
-- `SqliteSettingsRepository`, `SqlitePromptTemplateRepository`, `SqliteDirectorialContextRepository`
-- `SqliteDomainEventRepository`, `SqliteGenerationReadStateRepository`
-- `Neo4jWorldExporter`, `Neo4jRegionRepository`, `Neo4jNarrativeEventRepository`, `Neo4jStagingRepository`
-- `SystemClock`, `InProcessEventNotifier`, `SqliteEventBus`
-- `QueueFactory` → creates 6 queue adapters
-- `SuggestionEnqueueAdapter`, `WorldStateManager`, `SharedWorldConnectionManager`
-
-**Services Created (35+ application layer services)**:
-- Core: `SettingsService`, `PromptTemplateService`, `WorldServiceImpl`, `CharacterServiceImpl`, `LocationServiceImpl`, `RelationshipServiceImpl`, `SceneServiceImpl`, `SkillServiceImpl`, `InteractionServiceImpl`
-- Events: `StoryEventServiceImpl`, `NarrativeEventServiceImpl`, `EventChainServiceImpl`, `TriggerEvaluationService`, `EventEffectExecutor`
-- Challenges: `ChallengeServiceImpl`, `ChallengeResolutionService`, `ChallengeOutcomeApprovalService`
-- Generation: `AssetServiceImpl`, `WorkflowConfigService`, `GenerationService`, `GenerationQueueProjectionService`
-- Queue: `PlayerActionQueueService`, `DMActionQueueService`, `LLMQueueService`, `AssetGenerationQueueService`, `DMApprovalQueueService`
-- Other: `SheetTemplateService`, `ItemServiceImpl`, `PlayerCharacterServiceImpl`, `SceneResolutionServiceImpl`, `OutcomeTriggerService`, `StagingService`, `DispositionServiceImpl`, `RegionServiceImpl`, `ActantialContextServiceImpl`
-- Handler: `AppRequestHandler`
-
-**Grouped Service Containers**:
-- `CoreServices` (8 services), `GameServices` (11 services)
-- `QueueServices` (6 services), `AssetServices` (4 services)
-- `PlayerServices` (3 services), `EventInfrastructure` (4 items)
-- `UseCases` (9 use cases)
-
-**Configuration Loaded**:
-- `AppConfig` passed in from environment
-- SQLite paths derived: `{sqlite_path}_settings.db`, `{sqlite_path}_events.db`
-- Hardcoded paths: `./data/assets`, `./workflows`
-
-**Event Channels**: `generation_event_tx/rx`, `challenge_approval_tx/rx` (tokio mpsc, buffer 256)
-
-##### server.rs run() Analysis (~406 lines)
-
-**Server Setup**:
-- `dotenvy::dotenv()` - load .env file
-- `tracing_subscriber` initialization with EnvFilter
-- `AppConfig::from_env()` - load configuration
-- `AppState::new(config)` - create application state
-- Axum Router: root route, `http::create_routes()`, WebSocket handler
-- Middleware: `TraceLayer`, `CorsLayer`
-- `axum::serve()` with graceful shutdown
-
-**Workers Spawned (9 total)**:
-1. `llm_worker` - LLM queue processing
-2. `asset_worker` - Asset generation queue
-3. `player_action_worker` - Player action queue (includes prompt building)
-4. `approval_notification_worker_task` - DM approval notifications
-5. `dm_action_worker_task` - DM action processing
-6. `challenge_outcome_worker_task` - Challenge outcome notifications
-7. `cleanup_worker` - Queue cleanup (retention, expiration)
-8. `generation_event_worker` - GenerationEventPublisher
-9. `challenge_approval_worker` - ChallengeApprovalEventPublisher
-
-**Signal Handling**:
-- `CancellationToken` pattern
-- `setup_shutdown_signal()` - watches SIGINT, SIGTERM
-- Graceful shutdown with 10-second timeout
-
-##### Migration Plan
-
-**Step 1**: Create `engine-runner/src/composition.rs`
-```rust
-// Composition root - dependency injection container
-pub struct AppState { ... }
-
-impl AppState {
-    pub async fn new(config: AppConfig) -> anyhow::Result<Self> {
-        // Move ALL adapter instantiation here
-        // Move ALL service creation here
-        // Move grouped containers (CoreServices, etc.)
-        // Move event channel creation
-    }
-}
+```
+CURRENT (INCORRECT):                    TARGET (CORRECT):
+                                        
+runner → adapters → app → ports         runner → app → ports ← adapters
+                    ↓                              ↓
+                  domain                         domain
 ```
 
-**Step 2**: Create `engine-runner/src/server.rs`
-```rust
-pub async fn run() -> anyhow::Result<()> {
-    // Load .env
-    // Initialize tracing
-    // Load AppConfig
-    // Create AppState
-    // Build Axum router
-    // Spawn workers
-    // Handle signals
-    // Run server with graceful shutdown
-}
+`engine-adapters → engine-app` is a hexagonal architecture violation. Adapters should implement ports, not depend on the application layer.
 
-fn setup_shutdown_signal() -> CancellationToken { ... }
+###### Files with Composition Logic in Wrong Layer
+
+| Source File | Lines | Issue |
+|-------------|-------|-------|
+| `engine-adapters/src/infrastructure/state/mod.rs` | 121 | AppState struct definition |
+| `engine-adapters/src/infrastructure/state/core_services.rs` | 57 | Service container struct |
+| `engine-adapters/src/infrastructure/state/game_services.rs` | 119 | Service container struct |
+| `engine-adapters/src/infrastructure/state/queue_services.rs` | 87 | Service container struct |
+| `engine-adapters/src/infrastructure/state/asset_services.rs` | 38 | Service container struct |
+| `engine-adapters/src/infrastructure/state/player_services.rs` | 42 | Service container struct |
+| `engine-adapters/src/infrastructure/state/event_infra.rs` | 36 | Service container struct |
+| `engine-adapters/src/infrastructure/state/use_cases.rs` | 337 | UseCases struct + 200-line new() |
+| **Total** | **~836** | Lines in wrong layer |
+
+###### engine-adapters Imports from engine-app (28 violations)
+
+```rust
+// Examples of violations in engine-adapters:
+use wrldbldr_engine_app::application::services::{
+    StagingService, PlayerActionQueueService, ChallengeOutcomeApprovalService,
+    ChallengeResolutionService, DMApprovalQueueService, // ... and more
+};
 ```
 
-**Step 3**: Update `engine-adapters` exports
-- Export only adapter implementations (no composition)
-- Remove `run` module entirely
-- Export config types: `AppConfig`, `QueueConfig`, `SessionConfig`
+##### Solution: Create `engine-composition` Crate
 
-**Step 4**: Update `engine-runner/src/main.rs`
-```rust
-mod composition;
-mod server;
+Following the pattern established for player-side (where we have `player-adapters` with Platform DI container), we create a dedicated crate for engine-side composition concerns.
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    server::run().await
-}
+###### New Crate: `crates/engine-composition/`
+
+**Purpose**: Shared composition types that both adapters and runner need.
+
+**Contains**:
+- `AppState` struct definition
+- Service container structs (`CoreServices`, `GameServices`, etc.)
+- `UseCases` struct definition
+- No construction logic (that stays in runner)
+
+**Depends on**:
+- `engine-ports` (for port trait types in signatures)
+- `engine-app` (for service types in signatures)
+- `engine-adapters` (for adapter types in signatures)
+- `domain`, `protocol`, `engine-dto`
+
+**Depended on by**:
+- `engine-adapters` (to use AppState in handlers)
+- `engine-runner` (to construct AppState)
+
+###### Target Dependency Graph
+
+```
+                    ┌─────────────────┐
+                    │  engine-runner  │
+                    └────────┬────────┘
+                             │ depends on all for composition
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+         ▼                   ▼                   ▼
+┌─────────────────┐  ┌───────────────────┐  ┌─────────────────┐
+│ engine-adapters │  │ engine-composition│  │   engine-app    │
+└────────┬────────┘  └─────────┬─────────┘  └────────┬────────┘
+         │                     │                     │
+         │ implements          │ defines             │ depends on
+         │                     │ AppState shape      │
+         │                     │                     │
+         └─────────┬───────────┴─────────┬───────────┘
+                   │                     │
+                   ▼                     ▼
+           ┌─────────────────┐   ┌─────────────────┐
+           │  engine-ports   │   │   engine-dto    │
+           └────────┬────────┘   └────────┬────────┘
+                    │                     │
+                    └──────────┬──────────┘
+                               ▼
+                       ┌───────────────┐
+                       │    domain     │
+                       └───────────────┘
 ```
 
-**Step 5**: Update `engine-runner/Cargo.toml`
-Add dependencies needed for composition:
-- `axum` (Router building)
-- `tower-http` (CorsLayer, TraceLayer)
-- `tracing-subscriber` (logging setup)
-- `tokio-util` (CancellationToken)
-- `dotenvy` (.env loading)
-- `sqlx` (pool creation)
+##### Implementation Plan
 
-##### Additional Considerations
-
-1. **Hardcoded paths**: `./data/assets`, `./workflows` should become config options
-2. **Database path derivation**: SQLite paths derived by string manipulation - make explicit in config
-3. **Complex generics**: `UseCases::new()` has 12 generic type parameters - consider simplifying
-4. **Worker coupling**: `player_action_worker` tightly coupled to `build_prompt_from_action` (see 3.0.3.2)
-5. **Config location**: `AppConfig` could stay in adapters or move to runner (composition concern)
+###### Phase 1: Create engine-composition crate
 
 | Task | Status |
 |------|--------|
-| [ ] Create engine-runner/src/composition.rs | Pending |
-| [ ] Move AppState struct definition | Pending |
-| [ ] Move AppState::new() logic (~753 lines) | Pending |
-| [ ] Move grouped service containers | Pending |
-| [ ] Create engine-runner/src/server.rs | Pending |
-| [ ] Move run() function body | Pending |
-| [ ] Move setup_shutdown_signal() | Pending |
-| [ ] Move worker spawn logic (9 workers) | Pending |
-| [ ] Update engine-adapters to export only adapters | Pending |
-| [ ] Remove `run` module from engine-adapters | Pending |
-| [ ] Update engine-runner/Cargo.toml with dependencies | Pending |
-| [ ] Update main.rs to use new modules | Pending |
+| [ ] Create `crates/engine-composition/Cargo.toml` | Pending |
+| [ ] Create `crates/engine-composition/src/lib.rs` | Pending |
+| [ ] Create `crates/engine-composition/src/app_state.rs` (struct only, no new()) | Pending |
+| [ ] Create `crates/engine-composition/src/services/` module | Pending |
+| [ ] Move service container structs to composition crate | Pending |
+| [ ] Add to workspace `Cargo.toml` | Pending |
+
+###### Phase 2: Update engine-adapters
+
+| Task | Status |
+|------|--------|
+| [ ] Add `engine-composition` dependency | Pending |
+| [ ] Update imports to use `wrldbldr_engine_composition::AppState` | Pending |
+| [ ] Remove `engine-adapters/src/infrastructure/state/` module | Pending |
+| [ ] Remove `wrldbldr-engine-app` dependency from Cargo.toml | Pending |
+| [ ] Update all adapter files to use new import paths | Pending |
+
+###### Phase 3: Update engine-runner
+
+| Task | Status |
+|------|--------|
+| [ ] Add `engine-composition` dependency | Pending |
+| [ ] Update `composition/app_state.rs` to use imported types | Pending |
+| [ ] Remove duplicate service container files from `composition/services/` | Pending |
+| [ ] Keep construction logic (`new_app_state()`) in runner | Pending |
+
+###### Phase 4: Verify clean architecture
+
+| Task | Status |
+|------|--------|
+| [ ] Verify `engine-adapters` has NO `wrldbldr_engine_app` imports | Pending |
+| [ ] Verify dependency graph matches target | Pending |
+| [ ] Run `cargo check --workspace` | Pending |
+| [ ] Commit with architecture documentation | Pending |
+
+##### Code Smells to Address During Refactor
+
+1. **Generic Type Explosion**: `GameServices<L: LlmPort>` leaks concrete types - use `Arc<dyn Trait>`
+2. **UseCases::new() 200+ lines**: Correct behavior but should be in runner
+3. **Adapters importing concrete services**: Should receive via injection
+
+##### Files to Create
+
+```
+crates/engine-composition/
+├── Cargo.toml
+└── src/
+    ├── lib.rs
+    ├── app_state.rs      # AppState struct definition
+    └── services/
+        ├── mod.rs
+        ├── core_services.rs
+        ├── game_services.rs
+        ├── queue_services.rs
+        ├── asset_services.rs
+        ├── player_services.rs
+        ├── event_infra.rs
+        └── use_cases.rs
+```
+
+##### Success Criteria
+
+1. `engine-adapters/Cargo.toml` has NO `wrldbldr-engine-app` dependency
+2. `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns NO results
+3. `AppState` struct is defined in `engine-composition`, not adapters
+4. `new_app_state()` construction is in `engine-runner`, not adapters
+5. Dependency graph matches target (no adapters→app)
 
 ---
 
