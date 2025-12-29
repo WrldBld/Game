@@ -7,7 +7,7 @@ use std::sync::Arc;
 use wrldbldr_domain::value_objects::{LlmRequestData, PlayerActionData};
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::services::PlayerActionQueueService;
-use wrldbldr_engine_app::application::use_cases::{DmNotificationPort, PlayerActionQueuePort};
+use wrldbldr_engine_ports::inbound::{DmNotificationPort, PlayerActionQueuePort};
 use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueuePort};
 use wrldbldr_protocol::ServerMessage;
 

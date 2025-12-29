@@ -9,8 +9,9 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ConnectionError, JoinWorldInput, SetSpectateTargetInput, WorldRole as UseCaseWorldRole,
+    ConnectionError, JoinWorldInput, SetSpectateTargetInput,
 };
+use wrldbldr_engine_ports::inbound::WorldRole as UseCaseWorldRole;
 use wrldbldr_protocol::{JoinError, ServerMessage, WorldRole};
 
 /// Handles heartbeat messages by returning a Pong response.

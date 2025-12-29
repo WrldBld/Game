@@ -12,7 +12,7 @@ use wrldbldr_domain::{GameTime, RegionId, WorldId};
 use wrldbldr_engine_app::application::services::staging_service::{
     StagedNpcProposal, StagingProposal,
 };
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_ports::inbound::{
     PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc, StagingStateExtPort,
     StagingStatePort, WaitingPcInfo,
 };

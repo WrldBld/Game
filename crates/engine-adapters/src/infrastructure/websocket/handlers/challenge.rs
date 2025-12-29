@@ -33,11 +33,12 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_app::application::use_cases::{
-    AdHocOutcomes, ChallengeOutcomeDecision, CreateAdHocInput, DiceInputType,
+    ChallengeOutcomeDecision, CreateAdHocInput,
     DiscardChallengeInput, OutcomeDecisionInput, RegenerateOutcomeInput, RequestBranchesInput,
     SelectBranchInput, SubmitDiceInputInput, SubmitRollInput, SuggestionDecisionInput,
     TriggerChallengeInput, UseCaseContext,
 };
+use wrldbldr_engine_ports::inbound::{AdHocOutcomes, DiceInputType};
 use wrldbldr_protocol::ServerMessage;
 
 use super::common::{error_msg, extract_dm_context, extract_player_context};

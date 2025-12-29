@@ -4,18 +4,18 @@
 //! implementing type into a ServerMessage::Error.
 //!
 //! This module exists to maintain proper hexagonal architecture boundaries:
-//! - The `ErrorCode` trait in engine-app only provides `code()` method
+//! - The `ErrorCode` trait in engine-ports only provides `code()` method
 //! - The adapters layer (this module) handles protocol-specific conversion
 //! - Handlers import `IntoServerError` to get `.into_server_error()` method
 
 use std::fmt::Display;
-use wrldbldr_engine_app::application::use_cases::ErrorCode;
+use wrldbldr_engine_ports::outbound::ErrorCode;
 use wrldbldr_protocol::ServerMessage;
 
 /// Extension trait for converting use case errors to ServerMessage
 ///
 /// This trait is implemented for any type that implements both `ErrorCode`
-/// (from engine-app) and `Display`. It provides the bridge between
+/// (from engine-ports) and `Display`. It provides the bridge between
 /// domain-layer error handling and protocol-layer message formatting.
 ///
 /// # Example

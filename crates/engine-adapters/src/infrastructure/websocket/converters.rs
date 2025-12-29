@@ -9,6 +9,8 @@
 
 use wrldbldr_engine_app::application::dto::{AdHocOutcomesDto, ChallengeOutcomeDecision};
 use wrldbldr_engine_app::application::services::challenge_resolution_service as crs;
+use wrldbldr_engine_app::application::use_cases::{MovementResult, SelectCharacterResult};
+use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 use wrldbldr_protocol::{
     ActantialRoleData, AdHocOutcomes, ChallengeOutcomeDecisionData, ServerMessage,
     WantVisibilityData,
@@ -147,9 +149,6 @@ pub fn to_protocol_game_time(game_time: &wrldbldr_domain::GameTime) -> wrldbldr_
 // =============================================================================
 // Movement Result Conversion (Use Case -> Protocol)
 // =============================================================================
-
-use wrldbldr_engine_app::application::use_cases::{MovementResult, SelectCharacterResult};
-use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 
 /// Convert a MovementResult to a ServerMessage
 pub fn movement_result_to_message(result: MovementResult, pc_id: &str) -> ServerMessage {

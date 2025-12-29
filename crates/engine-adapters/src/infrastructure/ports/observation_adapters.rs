@@ -7,9 +7,7 @@
 
 use uuid::Uuid;
 
-use wrldbldr_engine_app::application::use_cases::{
-    ApproachEventData, LocationEventData, WorldMessagePort,
-};
+use wrldbldr_engine_ports::inbound::{ApproachEventData, LocationEventData, WorldMessagePort};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;

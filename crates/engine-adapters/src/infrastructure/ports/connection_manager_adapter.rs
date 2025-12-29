@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use tokio::sync::broadcast;
 use wrldbldr_domain::PlayerCharacterId;
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_ports::inbound::{
     ConnectedUser, ConnectionInfo, ConnectionManagerPort, UserJoinedEvent, UserLeftEvent,
     WorldRole as UseCaseWorldRole,
 };

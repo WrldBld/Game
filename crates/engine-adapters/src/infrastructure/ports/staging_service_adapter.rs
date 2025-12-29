@@ -11,7 +11,7 @@ use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_app::application::services::staging_service::{
     ApprovedNpcData as ServiceApprovedNpcData, StagedNpcProposal, StagingService,
 };
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_ports::inbound::{
     ApprovedNpcData, RegeneratedNpc, StagingProposalData, StagingServiceExtPort, StagingServicePort,
 };
 use wrldbldr_engine_ports::outbound::{

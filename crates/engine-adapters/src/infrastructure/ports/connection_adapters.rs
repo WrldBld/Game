@@ -16,7 +16,7 @@ use std::sync::Arc;
 use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_ports::inbound::{
     DirectorialContextData, DirectorialContextPort, NpcMotivation, PcData,
     PlayerCharacterServicePort, WorldServicePort, WorldStatePort,
 };

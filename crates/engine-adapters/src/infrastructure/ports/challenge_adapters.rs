@@ -26,10 +26,11 @@ use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
     DMApprovalQueueService, ItemService, PlayerCharacterService, SkillService,
 };
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_app::application::use_cases::ChallengeOutcomeDecision;
+use wrldbldr_engine_ports::inbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
-    ChallengeOutcomeApprovalPort, ChallengeOutcomeDecision, ChallengeResolutionPort, DiceInputType,
-    RollResult, TriggerInfo, TriggerResult,
+    ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType, RollResultData as RollResult,
+    TriggerInfo, TriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort};
 

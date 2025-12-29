@@ -17,9 +17,9 @@ use wrldbldr_domain::{
     WorldId,
 };
 use wrldbldr_engine_app::application::services::{InteractionService, SceneService};
-use wrldbldr_engine_app::application::use_cases::{
+use wrldbldr_engine_ports::inbound::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
-    InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity,
+    InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity, NpcMotivation,
     SceneDmActionQueuePort, SceneEntity, SceneServicePort,
     SceneWithRelations as UseCaseSceneWithRelations, TimeContext, WorldStatePort,
 };
@@ -279,7 +279,6 @@ impl SceneDmActionQueuePort for DmActionQueuePlaceholder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_app::application::use_cases::NpcMotivation;
 
     #[test]
     fn test_time_context_conversion() {
