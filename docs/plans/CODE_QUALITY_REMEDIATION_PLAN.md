@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.1.8 - port traits and use case types to engine-ports)  
+**Last Updated**: 2025-12-29 (Phase 3.0.1.10 - adapters now import from engine-ports, down to 37 imports)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -166,14 +166,15 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 80% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 90% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
 | Phase 3.0.1.4 | Service port traits (26/26) | **DONE** | 100% |
 | Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
 | Phase 3.0.1.8 | Port traits + use case types to engine-ports | **DONE** | 100% |
-| Phase 3.0.1.9 | Update engine-app to re-export from engine-ports | **IN PROGRESS** | 30% |
+| Phase 3.0.1.9 | Update engine-app to re-export from engine-ports | **DONE** | 100% |
+| Phase 3.0.1.10 | Update adapters to import from engine-ports | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
@@ -896,16 +897,26 @@ This is a hexagonal violation - these are contracts that adapters need, so they 
 - cadc440 - refactor: Phase 3.0.1 - Move use case types, port traits, and DTOs to proper layers
 - 55d6e52 - docs: Add architecture notes to adapter files
 
-**Remaining Work (Phase 3.0.1.9)**:
-engine-app still defines duplicate versions of these types. The use_cases/*.rs files need to:
-1. Import port traits from `wrldbldr_engine_ports::inbound` instead of defining them
-2. Import use case types from `wrldbldr_engine_ports::outbound` instead of defining them
-3. Re-export for backward compatibility
+**Phase 3.0.1.9 Completed**: engine-app now imports from engine-ports instead of duplicating.
+- Removed 666 lines of duplicate type/trait definitions
+- challenge.rs, connection.rs, scene.rs, etc. now re-export from engine-ports
 
-Once engine-app re-exports from engine-ports, the adapters can import from either location
-and the trait implementations will match.
+**Phase 3.0.1.10 Completed**: Updated adapters to import from engine-ports.
+- WebSocket handlers, port adapters now use `wrldbldr_engine_ports::inbound` for traits
+- Input/output types from `wrldbldr_engine_ports::outbound`
 
-**Current import count**: 56 (down from 72)
+**Current import count**: 37 (down from 72)
+
+**Remaining imports breakdown**:
+- 28 service imports (composition root - Phase 3.0.7 will move to runner)
+- 5 DTO imports (AdHocOutcomesDto, ChallengeOutcomeDecision - need protocol move)
+- 3 UseCase struct imports (ChallengeUseCase etc. - correct, stay in engine-app)
+- 1 handler import (AppRequestHandler - correct, stay in engine-app)
+
+**Known issue**: Two `ApprovalDecision` enums with different variants:
+- `use_case_types.rs`: Approve, Reject, ApproveWithEdits (scene approval)
+- `dm_approval_queue_service_port.rs`: Accept, AcceptWithModification, Reject, TakeOver (DM approval)
+These should be renamed to avoid confusion (SceneApprovalDecision, DmApprovalDecision)
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
