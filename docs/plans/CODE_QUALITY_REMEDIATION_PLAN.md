@@ -1384,134 +1384,138 @@ use wrldbldr_engine_app::application::services::{
 };
 ```
 
-##### Solution: Create `engine-composition` Crate
+##### Solution Analysis: Why engine-composition Crate Doesn't Work
 
-Following the pattern established for player-side (where we have `player-adapters` with Platform DI container), we create a dedicated crate for engine-side composition concerns.
+**ATTEMPTED**: Creating `engine-composition` crate (December 2024)
 
-###### New Crate: `crates/engine-composition/`
+**PROBLEM DISCOVERED**: Circular dependency
+- `engine-composition` must depend on `engine-adapters` (for concrete types like `OllamaClient`, `ComfyUIClient`)
+- `engine-adapters` would depend on `engine-composition` (for `AppState` type)
+- This creates an unsolvable circular dependency
 
-**Purpose**: Shared composition types that both adapters and runner need.
+**Root Cause**: Engine-side `AppState` holds **concrete adapter types**, not trait objects:
+```rust
+// Current AppState uses concrete types:
+pub struct AppState {
+    pub llm_client: OllamaClient,      // Concrete type from adapters
+    pub comfyui_client: ComfyUIClient, // Concrete type from adapters
+    pub repository: Neo4jRepository,   // Concrete type from adapters
+    // ...
+}
+```
 
-**Contains**:
-- `AppState` struct definition
-- Service container structs (`CoreServices`, `GameServices`, etc.)
-- `UseCases` struct definition
-- No construction logic (that stays in runner)
+Compare to player-side `Platform` which uses trait objects:
+```rust
+// Player Platform uses Arc<dyn Trait>:
+pub struct Platform {
+    time: Arc<dyn TimeProviderDyn>,
+    storage: Arc<dyn StorageProviderDyn>,
+    // ...no concrete adapter types
+}
+```
 
-**Depends on**:
-- `engine-ports` (for port trait types in signatures)
-- `engine-app` (for service types in signatures)
-- `engine-adapters` (for adapter types in signatures)
-- `domain`, `protocol`, `engine-dto`
+##### Revised Solution: Refactor AppState to Use Trait Objects
 
-**Depended on by**:
-- `engine-adapters` (to use AppState in handlers)
-- `engine-runner` (to construct AppState)
+**Goal**: Enable `AppState` to be defined without depending on concrete adapter types.
 
-###### Target Dependency Graph
+**Approach**:
+1. **Keep `AppState` in adapters** (where concrete types are available)
+2. **Remove `engine-adapters → engine-app` dependency** through:
+   - Moving service traits to `engine-ports` (most already there)
+   - Moving DTOs/parsers to `engine-dto`
+   - Having adapters wrap services via port traits, not concrete imports
+
+**Alternative Long-term**: Refactor `AppState` to use `Arc<dyn Trait>` for all adapter types, enabling a true composition crate. This is a larger refactor.
+
+##### Current Architecture (Acceptable for MVP)
 
 ```
                     ┌─────────────────┐
                     │  engine-runner  │
                     └────────┬────────┘
-                             │ depends on all for composition
-         ┌───────────────────┼───────────────────┐
-         │                   │                   │
-         ▼                   ▼                   ▼
-┌─────────────────┐  ┌───────────────────┐  ┌─────────────────┐
-│ engine-adapters │  │ engine-composition│  │   engine-app    │
-└────────┬────────┘  └─────────┬─────────┘  └────────┬────────┘
-         │                     │                     │
-         │ implements          │ defines             │ depends on
-         │                     │ AppState shape      │
-         │                     │                     │
-         └─────────┬───────────┴─────────┬───────────┘
-                   │                     │
-                   ▼                     ▼
-           ┌─────────────────┐   ┌─────────────────┐
-           │  engine-ports   │   │   engine-dto    │
-           └────────┬────────┘   └────────┬────────┘
-                    │                     │
-                    └──────────┬──────────┘
-                               ▼
-                       ┌───────────────┐
-                       │    domain     │
-                       └───────────────┘
+                             │ depends on
+                             ▼
+                    ┌─────────────────┐
+                    │ engine-adapters │ ← AppState lives here (uses concrete types)
+                    └────────┬────────┘
+                             │ depends on (VIOLATION to fix)
+                             ▼
+                    ┌─────────────────┐
+                    │   engine-app    │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │  engine-ports   │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │     domain      │
+                    └─────────────────┘
 ```
 
-##### Implementation Plan
+##### Implementation Plan (Revised)
 
-###### Phase 1: Create engine-composition crate
+The goal is to **remove `engine-adapters → engine-app` dependency** while keeping AppState in adapters.
 
-| Task | Status |
-|------|--------|
-| [ ] Create `crates/engine-composition/Cargo.toml` | Pending |
-| [ ] Create `crates/engine-composition/src/lib.rs` | Pending |
-| [ ] Create `crates/engine-composition/src/app_state.rs` (struct only, no new()) | Pending |
-| [ ] Create `crates/engine-composition/src/services/` module | Pending |
-| [ ] Move service container structs to composition crate | Pending |
-| [ ] Add to workspace `Cargo.toml` | Pending |
+###### Phase 1: Audit and categorize engine-app imports (28 total)
 
-###### Phase 2: Update engine-adapters
+| Category | Count | Files | Fix |
+|----------|-------|-------|-----|
+| **state/* containers** | 10 | core_services.rs, game_services.rs, etc. | Move service traits to ports |
+| **ports/* adapters** | 7 | challenge_adapters.rs, scene_adapters.rs, etc. | Use port traits only |
+| **http/* handlers** | 4 | workflow_routes.rs, asset_routes.rs, etc. | Access via AppState (ok) |
+| **DTOs/parsers** | 4 | persistence/*.rs | Move to engine-dto |
+| **suggestion_enqueue** | 1 | suggestion_enqueue_adapter.rs | Create port trait |
+| **world_state_manager** | 1 | world_state_manager.rs | Move StagingProposal to domain |
+| **use_cases import** | 1 | inventory.rs | Access via AppState (ok) |
 
-| Task | Status |
-|------|--------|
-| [ ] Add `engine-composition` dependency | Pending |
-| [ ] Update imports to use `wrldbldr_engine_composition::AppState` | Pending |
-| [ ] Remove `engine-adapters/src/infrastructure/state/` module | Pending |
-| [ ] Remove `wrldbldr-engine-app` dependency from Cargo.toml | Pending |
-| [ ] Update all adapter files to use new import paths | Pending |
+###### Phase 2: Move DTOs and parsers to engine-dto
 
-###### Phase 3: Update engine-runner
+| Item | Current Location | Target |
+|------|------------------|--------|
+| `SheetTemplateStorageDto` | engine-app/dto | engine-dto |
+| `parse_archetype` | engine-app/dto | domain (FromStr impl) |
+| `SuggestionContext` | engine-app/services | engine-dto or ports |
+| `StagingProposal` | engine-app/services | domain or ports |
+| `GenerationQueueSnapshot` | engine-app/services | protocol (it's a response type) |
 
-| Task | Status |
-|------|--------|
-| [ ] Add `engine-composition` dependency | Pending |
-| [ ] Update `composition/app_state.rs` to use imported types | Pending |
-| [ ] Remove duplicate service container files from `composition/services/` | Pending |
-| [ ] Keep construction logic (`new_app_state()`) in runner | Pending |
+###### Phase 3: Ensure all service traits are in ports
 
-###### Phase 4: Verify clean architecture
+Already done for most services. Verify and fix any gaps.
 
-| Task | Status |
-|------|--------|
-| [ ] Verify `engine-adapters` has NO `wrldbldr_engine_app` imports | Pending |
-| [ ] Verify dependency graph matches target | Pending |
-| [ ] Run `cargo check --workspace` | Pending |
-| [ ] Commit with architecture documentation | Pending |
+###### Phase 4: Update adapter wrapping to use only port traits
 
-##### Code Smells to Address During Refactor
-
-1. **Generic Type Explosion**: `GameServices<L: LlmPort>` leaks concrete types - use `Arc<dyn Trait>`
-2. **UseCases::new() 200+ lines**: Correct behavior but should be in runner
-3. **Adapters importing concrete services**: Should receive via injection
-
-##### Files to Create
-
-```
-crates/engine-composition/
-├── Cargo.toml
-└── src/
-    ├── lib.rs
-    ├── app_state.rs      # AppState struct definition
-    └── services/
-        ├── mod.rs
-        ├── core_services.rs
-        ├── game_services.rs
-        ├── queue_services.rs
-        ├── asset_services.rs
-        ├── player_services.rs
-        ├── event_infra.rs
-        └── use_cases.rs
-```
+The `ports/*_adapters.rs` files should wrap services using port traits, not concrete types.
 
 ##### Success Criteria
 
-1. `engine-adapters/Cargo.toml` has NO `wrldbldr-engine-app` dependency
-2. `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns NO results
-3. `AppState` struct is defined in `engine-composition`, not adapters
-4. `new_app_state()` construction is in `engine-runner`, not adapters
-5. Dependency graph matches target (no adapters→app)
+1. `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns **ONLY** state/* files
+2. State files import ONLY service **traits** from engine-app (not concrete types)
+3. All DTOs used by adapters are in `engine-dto` or `protocol`
+4. All parser functions are `FromStr` impls in domain
+
+##### Tasks
+
+| Task | Status |
+|------|--------|
+| [ ] Move `SheetTemplateStorageDto` to engine-dto | Pending |
+| [ ] Move `parse_archetype` to domain as `CampbellArchetype::from_str()` | Pending |
+| [ ] Move `StagingProposal` to domain | Pending |
+| [ ] Move `GenerationQueueSnapshot` to protocol | Pending |
+| [ ] Create `SuggestionEnqueuePort` in engine-ports | Pending |
+| [ ] Update adapters to import from new locations | Pending |
+| [ ] Verify clean architecture | Pending |
+
+##### Notes
+
+The engine-side architecture is more complex than player-side due to:
+1. More concrete adapter types (Neo4j, Ollama, ComfyUI vs just WebSocket)
+2. Complex generic type parameters in service containers
+3. Tighter coupling between services and their implementations
+
+A full "Platform-style" refactor (all trait objects) would require significant changes to how services are parameterized. This is deferred to a future iteration.
 
 ---
 

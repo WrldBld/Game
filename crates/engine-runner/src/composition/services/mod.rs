@@ -1,15 +1,19 @@
-//! Service Composition Modules
+//! Service Container Re-exports
 //!
-//! This module re-exports the service group types from engine-adapters.
-//! The actual service group implementations live in engine-adapters/infrastructure/state.
+//! This module re-exports service containers from engine-adapters.
+//! The containers are defined in adapters because they hold concrete adapter types.
 //!
-//! Note: In the future, these may be moved here to the composition root,
-//! but for now they remain in engine-adapters since the handlers there
-//! need access to AppState fields.
+//! # Why not in runner?
+//!
+//! We attempted to move these to the runner (composition root), but `AppState` and
+//! service containers hold concrete adapter types (`OllamaClient`, `ComfyUIClient`,
+//! `Neo4jRepository`), which would create circular dependencies if defined separately.
+//!
+//! # Architecture Decision
+//!
+//! Service containers stay in engine-adapters (with concrete types), while the
+//! construction logic (`new_app_state()`) is in engine-runner.
 
-// Re-export service groups from engine-adapters
-// Currently unused in this crate but kept for potential future use
-#[allow(unused_imports)]
 pub use wrldbldr_engine_adapters::infrastructure::state::{
     AssetServices, CoreServices, EventInfrastructure, GameServices, PlayerServices, QueueServices,
     UseCases,
