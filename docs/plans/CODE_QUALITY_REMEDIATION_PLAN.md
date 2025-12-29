@@ -941,34 +941,219 @@ pub trait ClockPort: Send + Sync {
 
 #### 3.0.3 Move Business Logic Out of Adapters
 
-**Files with business logic in adapters** (4 files, ~1,570 lines):
+**Issue**: ~1,831 lines of business logic incorrectly placed in adapters layer.
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `context_budget.rs` | 369 | Token counting, budget enforcement |
-| `websocket_helpers.rs` | 476 | Prompt building, character selection, context aggregation |
-| `queue_workers.rs` | 241 (process_dm_action) | DM action processing, scene transitions |
-| `world_state_manager.rs` | **484** | Game time, conversation history, approval workflows (NEW - Sixth Review) |
+##### 3.0.3.1 context_budget.rs (369 lines) → Domain Layer
 
-**Note**: `world_state_manager.rs` also imports from engine-app (`StagingProposal`) - a double violation.
+**Current Location**: `engine-adapters/src/infrastructure/context_budget.rs`
 
-**Fix**: Create services in engine-app:
-- `ContextBudgetService` - move from context_budget.rs
-- `PromptBuilderService` - move from websocket_helpers.rs
-- `DmActionProcessorService` - move from queue_workers.rs
-- `WorldStateService` - move from world_state_manager.rs (NEW)
+**Business Logic Identified**:
+- `ContextBudgetEnforcer` - orchestrates budget enforcement for LLM prompts
+- `EnforcementResult` - value object for budget enforcement outcome
+- `EnforcementStats` - statistics tracking
+- `ContextBuilder` - builder pattern for budget-enforced context
+- Token counting and truncation logic
+
+**Domain Concepts Used**:
+- `ContextBudgetConfig`, `ContextCategory`, `TokenCounter` (all from domain)
+
+**External Dependencies**: `tracing` only (logging, can stay with wrapper)
+
+**Analysis**: **Pure business logic** with zero external I/O. Operates entirely on domain value objects.
+
+**Target Location**: `crates/domain/src/value_objects/context_budget_enforcement.rs`
 
 | Task | Status |
 |------|--------|
-| [ ] Move ContextBudgetEnforcer to engine-app/services | Pending |
-| [ ] Create PromptBuilderService in engine-app | Pending |
-| [ ] Move build_prompt_from_action (162 lines) | Pending |
-| [ ] Move helper functions from websocket_helpers.rs (~300 lines) | Pending |
-| [ ] Create DmActionProcessorService in engine-app | Pending |
-| [ ] Move process_dm_action logic (241 lines) | Pending |
-| [ ] Create WorldStateService in engine-app (NEW) | Pending |
-| [ ] Move world_state_manager.rs logic (484 lines) | Pending |
-| [ ] Remove engine-app import from world_state_manager.rs | Pending |
+| [ ] Move `EnforcementResult`, `EnforcementStats` to domain | Pending |
+| [ ] Move `ContextBudgetEnforcer`, `ContextBuilder` to domain | Pending |
+| [ ] Re-export from `wrldbldr_domain::value_objects` | Pending |
+| [ ] Update adapter imports | Pending |
+| [ ] Delete original file | Pending |
+
+##### 3.0.3.2 websocket_helpers.rs (476 lines) → Application Layer
+
+**Current Location**: `engine-adapters/src/infrastructure/websocket_helpers.rs`
+
+**Business Logic Identified**:
+- `build_prompt_from_action()` - **CRITICAL**: Orchestrates building `GamePromptRequest`
+- `find_responding_character()` - identifies NPC to respond
+- `get_npc_disposition_toward_pc()` - retrieves NPC mood/disposition
+- `get_actantial_context()` - builds motivations and social stance context
+- `get_active_challenges()` - gathers active challenges
+- `get_active_narrative_events()` - gathers narrative events
+- `get_featured_npc_names()` - resolves NPC names
+- `conversation_entry_to_turn()` - converts conversation entries
+- `default_scene_context()` - creates fallback context
+
+**Domain Concepts Used**:
+- `GamePromptRequest`, `SceneContext`, `PlayerActionContext`, `CharacterContext`
+- `ConversationTurn`, `ActiveChallengeContext`, `ActiveNarrativeEventContext`
+- `MotivationsContext`, `SocialStanceContext`, `RegionItemContext`
+
+**External Dependencies**: Calls multiple ports/services (no direct I/O)
+
+**Analysis**: **Application-layer orchestration logic** - coordinates multiple services to build prompt.
+
+**Target Location**: `crates/engine-app/src/application/services/prompt_context_service.rs`
+
+**New Port**: `PromptContextServicePort` in `engine-ports/src/outbound/`
+
+```rust
+#[async_trait]
+pub trait PromptContextServicePort: Send + Sync {
+    async fn build_prompt_from_action(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        action_type: &str,
+        target: Option<&str>,
+        dialogue: Option<&str>,
+    ) -> Result<GamePromptRequest, QueueError>;
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create `PromptContextServicePort` in engine-ports | Pending |
+| [ ] Create `PromptContextServiceImpl` in engine-app | Pending |
+| [ ] Move `build_prompt_from_action()` (~162 lines) | Pending |
+| [ ] Move helper functions (~300 lines) | Pending |
+| [ ] Abstract `WorldStateManager` via `WorldStatePort` | Pending |
+| [ ] Update WebSocket handlers to use new port | Pending |
+| [ ] Delete original file | Pending |
+
+##### 3.0.3.3 queue_workers.rs (502 lines) → Split (App + Adapters)
+
+**Current Location**: `engine-adapters/src/infrastructure/queue_workers.rs`
+
+**Business Logic (WRONG in adapters)**:
+- `process_dm_action()` - **CRITICAL**: Core DM decision processing
+  - `DMAction::ApprovalDecision` - processes approval/rejection with broadcasting
+  - `DMAction::DirectNPCControl` - direct NPC dialogue control
+  - `DMAction::TriggerEvent` - triggers narrative events
+  - `DMAction::TransitionScene` - loads scene, builds scene update
+- Scene data transformation logic
+
+**Infrastructure Logic (CORRECTLY in adapters)**:
+- `approval_notification_worker()` - polls queue, sends WebSocket messages
+- `dm_action_worker()` - processes queue items, handles retry/backoff
+- `challenge_outcome_notification_worker()` - polls queue, notifies DM
+
+**Analysis**: **Mixed concerns** - workers stay, business logic moves.
+
+**Target Location**: `crates/engine-app/src/application/services/dm_action_processor.rs`
+
+**New Port**: `DmActionProcessorPort` in `engine-ports/src/outbound/`
+
+```rust
+#[async_trait]
+pub trait DmActionProcessorPort: Send + Sync {
+    async fn process_action(
+        &self,
+        action: DMAction,
+        world_id: WorldId,
+        user_id: &str,
+    ) -> Result<DmActionResult, ProcessingError>;
+}
+
+pub enum DmActionResult {
+    ApprovalProcessed { broadcast_messages: Vec<ServerMessage> },
+    DialogueGenerated { npc_id: CharacterId, dialogue: String },
+    EventTriggered { event_id: NarrativeEventId },
+    SceneTransitioned { scene_data: SceneData },
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create `DmActionProcessorPort` in engine-ports | Pending |
+| [ ] Create `DmActionProcessorService` in engine-app | Pending |
+| [ ] Move `process_dm_action()` logic (~241 lines) | Pending |
+| [ ] Create `BroadcastPort` for message broadcasting | Pending |
+| [ ] Refactor workers to call service via port | Pending |
+| [ ] Keep worker loops in adapters (infrastructure) | N/A |
+
+##### 3.0.3.4 world_state_manager.rs (484 lines) → Port + Adapter
+
+**Current Location**: `engine-adapters/src/infrastructure/world_state_manager.rs`
+
+**Business Logic Identified**:
+- `WorldStateManager` - in-memory state management
+- Game time management (`get_game_time`, `set_game_time`, `advance_game_time`)
+- Conversation history (FIFO buffer, 30-entry limit)
+- Pending approvals tracking
+- Pending staging approvals (rich domain type)
+- Current scene tracking
+- Directorial context management
+- World lifecycle (`initialize_world`, `cleanup_world`)
+
+**Domain Types Defined (should move)**:
+- `ConversationEntry` - value object
+- `Speaker` - enum
+- `PendingApprovalItem` - value object
+- `ApprovalType` - enum
+- `WorldPendingStagingApproval` - rich staging type
+- `WaitingPc` - value object
+
+**External Dependencies**: `DashMap` only (concurrent data structure - infrastructure)
+
+**Analysis**: Application-layer state management with infrastructure implementation details.
+
+**Target Locations**:
+- Domain types: `crates/domain/src/value_objects/`
+- Port: `crates/engine-ports/src/outbound/world_state_port.rs`
+- Implementation: rename to `InMemoryWorldStateAdapter`
+
+**New Port**: `WorldStatePort` in `engine-ports/src/outbound/`
+
+```rust
+#[async_trait]
+pub trait WorldStatePort: Send + Sync {
+    // Game Time
+    fn get_game_time(&self, world_id: WorldId) -> Option<GameTime>;
+    fn set_game_time(&self, world_id: WorldId, time: GameTime);
+    fn advance_game_time(&self, world_id: WorldId, delta: TimeDelta);
+    
+    // Conversation History
+    fn add_conversation(&self, world_id: WorldId, entry: ConversationEntry);
+    fn get_conversation_history(&self, world_id: WorldId, limit: usize) -> Vec<ConversationEntry>;
+    
+    // Pending Approvals
+    fn add_pending_approval(&self, world_id: WorldId, item: PendingApprovalItem);
+    fn remove_pending_approval(&self, world_id: WorldId, id: &str) -> Option<PendingApprovalItem>;
+    fn get_pending_approvals(&self, world_id: WorldId) -> Vec<PendingApprovalItem>;
+    
+    // Staging Approvals
+    fn set_pending_staging(&self, world_id: WorldId, region_id: RegionId, approval: WorldPendingStagingApproval);
+    fn get_pending_staging(&self, world_id: WorldId, region_id: RegionId) -> Option<WorldPendingStagingApproval>;
+    fn clear_pending_staging(&self, world_id: WorldId, region_id: RegionId);
+    
+    // Lifecycle
+    fn initialize_world(&self, world_id: WorldId);
+    fn cleanup_world(&self, world_id: WorldId);
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | Pending |
+| [ ] Move `PendingApprovalItem`, `WaitingPc` to domain | Pending |
+| [ ] Create `WorldStatePort` trait in engine-ports | Pending |
+| [ ] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Pending |
+| [ ] Implement `WorldStatePort` for adapter | Pending |
+| [ ] Update consumers to use `Arc<dyn WorldStatePort>` | Pending |
+| [ ] Remove engine-app import (`StagingProposal`) | Pending |
+
+##### Summary
+
+| File | Lines | Target | New Port | Priority |
+|------|-------|--------|----------|----------|
+| `context_budget.rs` | 369 | domain | None (pure domain) | Low |
+| `websocket_helpers.rs` | 476 | application | `PromptContextServicePort` | High |
+| `queue_workers.rs` | 502 | split | `DmActionProcessorPort` | Medium |
+| `world_state_manager.rs` | 484 | port+adapter | `WorldStatePort` | High |
+| **Total** | **1,831** | | | |
 
 #### 3.0.4 Fix Ports Layer Violations
 
