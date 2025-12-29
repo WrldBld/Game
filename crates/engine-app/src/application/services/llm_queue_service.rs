@@ -10,28 +10,34 @@ use std::time::Duration;
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
+use crate::application::services::generation_service::GenerationEvent;
+use crate::application::services::llm::LLMService;
+use crate::application::services::PromptTemplateService;
+use crate::application::services::SuggestionContext;
+use wrldbldr_domain::value_objects::{
+    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeSuggestion,
+    LlmRequestData, LlmRequestType, NarrativeEventSuggestion, ProposedTool,
+};
+use wrldbldr_domain::{CharacterId, LocationId, SceneId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeRepositoryPort, LlmPort, NarrativeEventRepositoryPort,
-    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort, SkillRepositoryPort,
+    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
+    SkillRepositoryPort,
 };
-use crate::application::services::llm::LLMService;
-use crate::application::services::generation_service::GenerationEvent;
-use crate::application::services::PromptTemplateService;
-use crate::application::dto::{
-    ApprovalItem, ChallengeSuggestionInfo, DecisionType, DecisionUrgency, LLMRequestItem,
-    LLMRequestType, NarrativeEventSuggestionInfo, ProposedToolInfo,
-};
-use wrldbldr_domain::WorldId;
 
 /// Priority constant for queue operations
 const PRIORITY_NORMAL: u8 = 0;
 
 /// Service for managing the LLM reasoning queue
-pub struct LLMQueueService<Q: ProcessingQueuePort<LLMRequestItem>, L: LlmPort + Clone, N: QueueNotificationPort> {
+pub struct LLMQueueService<
+    Q: ProcessingQueuePort<LlmRequestData>,
+    L: LlmPort + Clone,
+    N: QueueNotificationPort,
+> {
     pub(crate) queue: Arc<Q>,
     llm_service: Arc<LLMService<L>>,
     llm_client: Arc<L>, // Keep for SuggestionService
-    approval_queue: Arc<dyn ApprovalQueuePort<ApprovalItem>>,
+    approval_queue: Arc<dyn ApprovalQueuePort<ApprovalRequestData>>,
     challenge_repo: Arc<dyn ChallengeRepositoryPort>,
     skill_repo: Arc<dyn SkillRepositoryPort>,
     narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
@@ -41,7 +47,12 @@ pub struct LLMQueueService<Q: ProcessingQueuePort<LLMRequestItem>, L: LlmPort + 
     prompt_template_service: Arc<PromptTemplateService>,
 }
 
-impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'static, N: QueueNotificationPort + 'static> LLMQueueService<Q, L, N> {
+impl<
+        Q: ProcessingQueuePort<LlmRequestData> + 'static,
+        L: LlmPort + Clone + 'static,
+        N: QueueNotificationPort + 'static,
+    > LLMQueueService<Q, L, N>
+{
     pub fn queue(&self) -> &Arc<Q> {
         &self.queue
     }
@@ -62,7 +73,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     pub fn new(
         queue: Arc<Q>,
         llm_client: Arc<L>,
-        approval_queue: Arc<dyn ApprovalQueuePort<ApprovalItem>>,
+        approval_queue: Arc<dyn ApprovalQueuePort<ApprovalRequestData>>,
         challenge_repo: Arc<dyn ChallengeRepositoryPort>,
         skill_repo: Arc<dyn SkillRepositoryPort>,
         narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
@@ -73,7 +84,10 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     ) -> Self {
         Self {
             queue,
-            llm_service: Arc::new(LLMService::new(Arc::clone(&llm_client), prompt_template_service.clone())),
+            llm_service: Arc::new(LLMService::new(
+                Arc::clone(&llm_client),
+                prompt_template_service.clone(),
+            )),
             llm_client,
             approval_queue,
             challenge_repo,
@@ -87,7 +101,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     }
 
     /// Enqueue an LLM request
-    pub async fn enqueue(&self, request: LLMRequestItem) -> Result<QueueItemId, QueueError> {
+    pub async fn enqueue(&self, request: LlmRequestData) -> Result<QueueItemId, QueueError> {
         self.queue.enqueue(request, PRIORITY_NORMAL).await
     }
 
@@ -95,31 +109,37 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     pub async fn cancel_suggestion(&self, request_id: &str) -> Result<bool, QueueError> {
         // Search through pending and processing items
         let pending_items = self.queue.list_by_status(QueueItemStatus::Pending).await?;
-        let processing_items = self.queue.list_by_status(QueueItemStatus::Processing).await?;
-        
+        let processing_items = self
+            .queue
+            .list_by_status(QueueItemStatus::Processing)
+            .await?;
+
         // Find item with matching callback_id
         for item in pending_items.iter().chain(processing_items.iter()) {
             if item.payload.callback_id == request_id {
                 // Mark as failed with cancellation message
                 self.queue.fail(item.id, "Cancelled by user").await?;
-                
+
                 // Emit cancellation event (non-blocking, logs warning if buffer full)
-                if let Err(e) = self.generation_event_tx.try_send(GenerationEvent::SuggestionFailed {
-                    request_id: request_id.to_string(),
-                    field_type: match &item.payload.request_type {
-                        LLMRequestType::Suggestion { field_type, .. } => field_type.clone(),
-                        _ => String::new(),
-                    },
-                    error: "Cancelled by user".to_string(),
-                    world_id: Some(WorldId::from_uuid(item.payload.world_id)),
-                }) {
+                if let Err(e) =
+                    self.generation_event_tx
+                        .try_send(GenerationEvent::SuggestionFailed {
+                            request_id: request_id.to_string(),
+                            field_type: match &item.payload.request_type {
+                                LlmRequestType::Suggestion { field_type, .. } => field_type.clone(),
+                                _ => String::new(),
+                            },
+                            error: "Cancelled by user".to_string(),
+                            world_id: Some(item.payload.world_id),
+                        })
+                {
                     tracing::warn!("Failed to send cancellation event: {}", e);
                 }
-                
+
                 return Ok(true);
             }
         }
-        
+
         Ok(false) // Not found
     }
 
@@ -132,7 +152,11 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
     /// # Arguments
     /// * `recovery_interval` - Fallback poll interval for crash recovery
     /// * `cancel_token` - Token to signal graceful shutdown
-    pub async fn run_worker(self: Arc<Self>, recovery_interval: Duration, cancel_token: CancellationToken) {
+    pub async fn run_worker(
+        self: Arc<Self>,
+        recovery_interval: Duration,
+        cancel_token: CancellationToken,
+    ) {
         loop {
             // Check for cancellation
             if cancel_token.is_cancelled() {
@@ -189,7 +213,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                 };
 
                 match &request.request_type {
-                    LLMRequestType::NPCResponse { action_item_id } => {
+                    LlmRequestType::NpcResponse { action_item_id } => {
                         // Process NPC response request
                         let Some(prompt) = request.prompt.as_ref() else {
                             let error = "Missing prompt for NPC response".to_string();
@@ -199,101 +223,134 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                             return;
                         };
-                        match llm_service_clone.generate_npc_response(prompt.clone()).await {
+                        match llm_service_clone
+                            .generate_npc_response(prompt.clone())
+                            .await
+                        {
                             Ok(response) => {
                                 // Create approval item for DM
                                 let world_id = request.world_id;
 
                                 // Extract NPC name and ID from the prompt's responding character
                                 let npc_name = prompt.responding_character.name.clone();
-                                let npc_id = prompt.responding_character.character_id.clone();
+                                let npc_id = prompt
+                                    .responding_character
+                                    .character_id
+                                    .as_ref()
+                                    .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                                    .map(CharacterId::from_uuid);
 
                                 // Extract challenge suggestion from LLM response
-                                let challenge_suggestion = if let Some(cs) = response.challenge_suggestion {
+                                let challenge_suggestion = if let Some(cs) =
+                                    response.challenge_suggestion
+                                {
                                     // Parse the challenge ID from string
-                                    let challenge_id_result = uuid::Uuid::parse_str(&cs.challenge_id)
-                                        .map(wrldbldr_domain::ChallengeId::from_uuid);
-                                    
+                                    let challenge_id_result =
+                                        uuid::Uuid::parse_str(&cs.challenge_id)
+                                            .map(wrldbldr_domain::ChallengeId::from_uuid);
+
                                     match challenge_id_result {
                                         Ok(challenge_id) => {
-                                    // Look up challenge details
-                                    match challenge_repo_clone.get(challenge_id).await {
-                                        Ok(Some(challenge)) => {
-                                            // Fetch skill_id from REQUIRES_SKILL edge
-                                            let skill_id = match challenge_repo_clone.get_required_skill(challenge_id).await {
-                                                Ok(sid) => sid,
+                                            // Look up challenge details
+                                            match challenge_repo_clone.get(challenge_id).await {
+                                                Ok(Some(challenge)) => {
+                                                    // Fetch skill_id from REQUIRES_SKILL edge
+                                                    let skill_id = match challenge_repo_clone
+                                                        .get_required_skill(challenge_id)
+                                                        .await
+                                                    {
+                                                        Ok(sid) => sid,
+                                                        Err(e) => {
+                                                            tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_id, e);
+                                                            None
+                                                        }
+                                                    };
+
+                                                    // Look up skill name
+                                                    let skill_name = if let Some(sid) = skill_id {
+                                                        match skill_repo_clone.get(sid).await {
+                                                            Ok(Some(skill)) => skill.name,
+                                                            Ok(None) => {
+                                                                tracing::warn!("Skill {} not found for challenge {}", sid, cs.challenge_id);
+                                                                sid.to_string()
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!("Failed to look up skill {}: {}", sid, e);
+                                                                sid.to_string()
+                                                            }
+                                                        }
+                                                    } else {
+                                                        "Unknown Skill".to_string()
+                                                    };
+
+                                                    Some(ChallengeSuggestion {
+                                                        challenge_id: cs.challenge_id,
+                                                        challenge_name: challenge.name,
+                                                        skill_name,
+                                                        difficulty_display: challenge
+                                                            .difficulty
+                                                            .display(),
+                                                        confidence: format!("{:?}", cs.confidence),
+                                                        reasoning: cs.reasoning,
+                                                        target_pc_id: request.pc_id,
+                                                        outcomes: None,
+                                                    })
+                                                }
+                                                Ok(None) => {
+                                                    tracing::warn!("Challenge {} not found, using minimal info", cs.challenge_id);
+                                                    Some(ChallengeSuggestion {
+                                                        challenge_id: cs.challenge_id.clone(),
+                                                        challenge_name: format!(
+                                                            "Challenge {}",
+                                                            cs.challenge_id
+                                                        ),
+                                                        skill_name: String::new(),
+                                                        difficulty_display: String::new(),
+                                                        confidence: format!("{:?}", cs.confidence),
+                                                        reasoning: cs.reasoning.clone(),
+                                                        target_pc_id: request.pc_id,
+                                                        outcomes: None,
+                                                    })
+                                                }
                                                 Err(e) => {
-                                                    tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_id, e);
-                                                    None
+                                                    tracing::error!(
+                                                        "Failed to look up challenge {}: {}",
+                                                        cs.challenge_id,
+                                                        e
+                                                    );
+                                                    Some(ChallengeSuggestion {
+                                                        challenge_id: cs.challenge_id.clone(),
+                                                        challenge_name: format!(
+                                                            "Challenge {}",
+                                                            cs.challenge_id
+                                                        ),
+                                                        skill_name: String::new(),
+                                                        difficulty_display: String::new(),
+                                                        confidence: format!("{:?}", cs.confidence),
+                                                        reasoning: cs.reasoning.clone(),
+                                                        target_pc_id: request.pc_id,
+                                                        outcomes: None,
+                                                    })
                                                 }
-                                            };
-
-                                            // Look up skill name
-                                            let skill_name = if let Some(sid) = skill_id {
-                                                match skill_repo_clone.get(sid).await {
-                                                    Ok(Some(skill)) => skill.name,
-                                                    Ok(None) => {
-                                                        tracing::warn!("Skill {} not found for challenge {}", sid, cs.challenge_id);
-                                                        sid.to_string()
-                                                    }
-                                                    Err(e) => {
-                                                        tracing::error!("Failed to look up skill {}: {}", sid, e);
-                                                        sid.to_string()
-                                                    }
-                                                }
-                                            } else {
-                                                "Unknown Skill".to_string()
-                                            };
-
-                                            Some(ChallengeSuggestionInfo {
-                                                challenge_id: cs.challenge_id,
-                                                challenge_name: challenge.name,
-                                                skill_name,
-                                                difficulty_display: challenge.difficulty.display(),
-                                                confidence: format!("{:?}", cs.confidence),
-                                                reasoning: cs.reasoning,
-                                                target_pc_id: request.pc_id.map(|id| id.to_string()),
-                                                outcomes: None,
-                                            })
-                                        }
-                                        Ok(None) => {
-                                            tracing::warn!("Challenge {} not found, using minimal info", cs.challenge_id);
-                                            Some(ChallengeSuggestionInfo {
-                                                challenge_id: cs.challenge_id.clone(),
-                                                challenge_name: format!("Challenge {}", cs.challenge_id),
-                                                skill_name: String::new(),
-                                                difficulty_display: String::new(),
-                                                confidence: format!("{:?}", cs.confidence),
-                                                reasoning: cs.reasoning.clone(),
-                                                target_pc_id: request.pc_id.map(|id| id.to_string()),
-                                                outcomes: None,
-                                            })
+                                            }
                                         }
                                         Err(e) => {
-                                            tracing::error!("Failed to look up challenge {}: {}", cs.challenge_id, e);
-                                            Some(ChallengeSuggestionInfo {
-                                                challenge_id: cs.challenge_id.clone(),
-                                                challenge_name: format!("Challenge {}", cs.challenge_id),
-                                                skill_name: String::new(),
-                                                difficulty_display: String::new(),
-                                                confidence: format!("{:?}", cs.confidence),
-                                                reasoning: cs.reasoning.clone(),
-                                                target_pc_id: request.pc_id.map(|id| id.to_string()),
-                                                outcomes: None,
-                                            })
-                                        }
-                                    }
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("Failed to parse challenge ID {}: {}", cs.challenge_id, e);
-                                            Some(ChallengeSuggestionInfo {
+                                            tracing::error!(
+                                                "Failed to parse challenge ID {}: {}",
+                                                cs.challenge_id,
+                                                e
+                                            );
+                                            Some(ChallengeSuggestion {
                                                 challenge_id: cs.challenge_id,
-                                                challenge_name: format!("Challenge {}", "invalid-id"),
+                                                challenge_name: format!(
+                                                    "Challenge {}",
+                                                    "invalid-id"
+                                                ),
                                                 skill_name: String::new(),
                                                 difficulty_display: String::new(),
                                                 confidence: format!("{:?}", cs.confidence),
                                                 reasoning: cs.reasoning,
-                                                target_pc_id: request.pc_id.map(|id| id.to_string()),
+                                                target_pc_id: request.pc_id,
                                                 outcomes: None,
                                             })
                                         }
@@ -303,58 +360,76 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                 };
 
                                 // Extract narrative event suggestion from LLM response
-                                let narrative_event_suggestion = if let Some(nes) = response.narrative_event_suggestion {
+                                let narrative_event_suggestion = if let Some(nes) =
+                                    response.narrative_event_suggestion
+                                {
                                     // Parse the narrative event ID from string
                                     let event_id_result = uuid::Uuid::parse_str(&nes.event_id)
                                         .map(wrldbldr_domain::NarrativeEventId::from_uuid);
-                                    
+
                                     match event_id_result {
                                         Ok(event_id) => {
-                                    // Look up narrative event details
-                                    match narrative_event_repo_clone.get(event_id).await {
-                                        Ok(Some(event)) => {
-                                            Some(NarrativeEventSuggestionInfo {
-                                                event_id: nes.event_id.clone(),
-                                                event_name: event.name,
-                                                description: event.description,
-                                                scene_direction: event.scene_direction,
-                                                confidence: format!("{:?}", nes.confidence),
-                                                reasoning: nes.reasoning.clone(),
-                                                matched_triggers: nes.matched_triggers.clone(),
-                                                suggested_outcome: None,
-                                            })
-                                        }
-                                        Ok(None) => {
-                                            tracing::warn!("Narrative event {} not found, using minimal info", nes.event_id);
-                                            Some(NarrativeEventSuggestionInfo {
-                                                event_id: nes.event_id.clone(),
-                                                event_name: format!("Event {}", nes.event_id),
-                                                description: String::new(),
-                                                scene_direction: String::new(),
-                                                confidence: format!("{:?}", nes.confidence),
-                                                reasoning: nes.reasoning.clone(),
-                                                matched_triggers: nes.matched_triggers.clone(),
-                                                suggested_outcome: None,
-                                            })
+                                            // Look up narrative event details
+                                            match narrative_event_repo_clone.get(event_id).await {
+                                                Ok(Some(event)) => Some(NarrativeEventSuggestion {
+                                                    event_id: nes.event_id.clone(),
+                                                    event_name: event.name,
+                                                    description: event.description,
+                                                    scene_direction: event.scene_direction,
+                                                    confidence: format!("{:?}", nes.confidence),
+                                                    reasoning: nes.reasoning.clone(),
+                                                    matched_triggers: nes.matched_triggers.clone(),
+                                                    suggested_outcome: None,
+                                                }),
+                                                Ok(None) => {
+                                                    tracing::warn!("Narrative event {} not found, using minimal info", nes.event_id);
+                                                    Some(NarrativeEventSuggestion {
+                                                        event_id: nes.event_id.clone(),
+                                                        event_name: format!(
+                                                            "Event {}",
+                                                            nes.event_id
+                                                        ),
+                                                        description: String::new(),
+                                                        scene_direction: String::new(),
+                                                        confidence: format!("{:?}", nes.confidence),
+                                                        reasoning: nes.reasoning.clone(),
+                                                        matched_triggers: nes
+                                                            .matched_triggers
+                                                            .clone(),
+                                                        suggested_outcome: None,
+                                                    })
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        "Failed to look up narrative event {}: {}",
+                                                        nes.event_id,
+                                                        e
+                                                    );
+                                                    Some(NarrativeEventSuggestion {
+                                                        event_id: nes.event_id.clone(),
+                                                        event_name: format!(
+                                                            "Event {}",
+                                                            nes.event_id
+                                                        ),
+                                                        description: String::new(),
+                                                        scene_direction: String::new(),
+                                                        confidence: format!("{:?}", nes.confidence),
+                                                        reasoning: nes.reasoning.clone(),
+                                                        matched_triggers: nes
+                                                            .matched_triggers
+                                                            .clone(),
+                                                        suggested_outcome: None,
+                                                    })
+                                                }
+                                            }
                                         }
                                         Err(e) => {
-                                            tracing::error!("Failed to look up narrative event {}: {}", nes.event_id, e);
-                                            Some(NarrativeEventSuggestionInfo {
-                                                event_id: nes.event_id.clone(),
-                                                event_name: format!("Event {}", nes.event_id),
-                                                description: String::new(),
-                                                scene_direction: String::new(),
-                                                confidence: format!("{:?}", nes.confidence),
-                                                reasoning: nes.reasoning.clone(),
-                                                matched_triggers: nes.matched_triggers.clone(),
-                                                suggested_outcome: None,
-                                            })
-                                        }
-                                    }
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("Failed to parse narrative event ID {}: {}", nes.event_id, e);
-                                            Some(NarrativeEventSuggestionInfo {
+                                            tracing::error!(
+                                                "Failed to parse narrative event ID {}: {}",
+                                                nes.event_id,
+                                                e
+                                            );
+                                            Some(NarrativeEventSuggestion {
                                                 event_id: nes.event_id,
                                                 event_name: format!("Event {}", "invalid-id"),
                                                 description: String::new(),
@@ -370,11 +445,11 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     None
                                 };
 
-                                let approval = ApprovalItem {
+                                let approval = ApprovalRequestData {
                                     world_id,
                                     source_action_id: *action_item_id,
-                                    decision_type: DecisionType::NPCResponse,
-                                    urgency: DecisionUrgency::AwaitingPlayer,
+                                    decision_type: ApprovalDecisionType::NpcResponse,
+                                    urgency: ApprovalUrgency::AwaitingPlayer,
                                     pc_id: request.pc_id,
                                     npc_id,
                                     npc_name,
@@ -383,7 +458,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     proposed_tools: response
                                         .proposed_tool_calls
                                         .iter()
-                                        .map(|t| ProposedToolInfo {
+                                        .map(|t| ProposedTool {
                                             id: uuid::Uuid::new_v4().to_string(), // Generate ID for tool call
                                             name: t.tool_name.clone(),
                                             description: format!("Tool call: {}", t.tool_name),
@@ -395,15 +470,26 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                     narrative_event_suggestion,
                                     // P1.2: Context for dialogue persistence
                                     player_dialogue: prompt.player_action.dialogue.clone(),
-                                    scene_id: prompt.scene_id.clone(),
-                                    location_id: prompt.location_id.clone(),
+                                    scene_id: prompt
+                                        .scene_id
+                                        .as_ref()
+                                        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                                        .map(SceneId::from_uuid),
+                                    location_id: prompt
+                                        .location_id
+                                        .as_ref()
+                                        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                                        .map(LocationId::from_uuid),
                                     game_time: prompt.game_time.clone(),
                                     topics: response.topics.clone(),
                                 };
 
                                 // Enqueue approval and notify DM
                                 match approval_queue_clone
-                                    .enqueue(approval.clone(), DecisionUrgency::AwaitingPlayer as u8)
+                                    .enqueue(
+                                        approval.clone(),
+                                        ApprovalUrgency::AwaitingPlayer as u8,
+                                    )
                                     .await
                                 {
                                     Ok(approval_item_id) => {
@@ -421,13 +507,21 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                         );
 
                                         if let Err(e) = queue_clone.complete(item_id).await {
-                                            tracing::error!("Failed to mark queue item as complete: {}", e);
+                                            tracing::error!(
+                                                "Failed to mark queue item as complete: {}",
+                                                e
+                                            );
                                         }
                                     }
                                     Err(e) => {
                                         tracing::error!("Failed to enqueue approval: {}", e);
-                                        if let Err(e2) = queue_clone.fail(item_id, &e.to_string()).await {
-                                            tracing::error!("Failed to mark queue item as failed: {}", e2);
+                                        if let Err(e2) =
+                                            queue_clone.fail(item_id, &e.to_string()).await
+                                        {
+                                            tracing::error!(
+                                                "Failed to mark queue item as failed: {}",
+                                                e2
+                                            );
                                         }
                                     }
                                 }
@@ -440,9 +534,12 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                         }
                     }
-                    LLMRequestType::Suggestion { field_type, entity_id } => {
+                    LlmRequestType::Suggestion {
+                        field_type,
+                        entity_id,
+                    } => {
                         // Process suggestion request
-                        let Some(context) = request.suggestion_context.as_ref() else {
+                        let Some(domain_context) = request.suggestion_context.as_ref() else {
                             let error = "Missing suggestion context".to_string();
                             tracing::error!("{}", error);
                             if let Err(e) = queue_clone.fail(item_id, &error).await {
@@ -450,52 +547,108 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                             return;
                         };
-                        
+
+                        // Convert domain SuggestionContext to service SuggestionContext
+                        let context = SuggestionContext {
+                            entity_type: domain_context.entity_type.clone(),
+                            entity_name: domain_context.entity_name.clone(),
+                            world_setting: domain_context.world_setting.clone(),
+                            hints: domain_context.hints.clone(),
+                            additional_context: domain_context.additional_context.clone(),
+                            world_id: domain_context.world_id.map(|id| id.to_string()),
+                        };
+
                         let request_id = request.callback_id.clone();
                         let field_type_clone = field_type.clone();
                         let entity_id_clone = entity_id.clone();
-                        let world_id_clone = request.world_id.clone();
-                        
+                        let world_id_clone = request.world_id;
+
                         // Emit queued event
-                        if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionQueued {
-                            request_id: request_id.clone(),
-                            field_type: field_type_clone.clone(),
-                            entity_id: entity_id_clone.clone(),
-                            world_id: Some(WorldId::from_uuid(world_id_clone)),
-                        }) {
+                        if let Err(e) =
+                            generation_event_tx_clone.try_send(GenerationEvent::SuggestionQueued {
+                                request_id: request_id.clone(),
+                                field_type: field_type_clone.clone(),
+                                entity_id: entity_id_clone.clone(),
+                                world_id: Some(world_id_clone),
+                            })
+                        {
                             tracing::warn!("Failed to send SuggestionQueued event: {}", e);
                         }
-                        
+
                         // Create suggestion service
                         use crate::application::services::SuggestionService;
-                        let suggestion_service = SuggestionService::new((*llm_client_clone).clone(), prompt_template_service_clone.clone());
-                        
+                        let suggestion_service = SuggestionService::new(
+                            (*llm_client_clone).clone(),
+                            prompt_template_service_clone.clone(),
+                        );
+
                         // Process based on field type
                         let result = match field_type.as_str() {
-                            "character_name" => suggestion_service.suggest_character_names(context).await,
-                            "character_description" => suggestion_service.suggest_character_description(context).await,
-                            "character_wants" => suggestion_service.suggest_character_wants(context).await,
-                            "character_fears" => suggestion_service.suggest_character_fears(context).await,
-                            "character_backstory" => suggestion_service.suggest_character_backstory(context).await,
-                            "location_name" => suggestion_service.suggest_location_names(context).await,
-                            "location_description" => suggestion_service.suggest_location_description(context).await,
-                            "location_atmosphere" => suggestion_service.suggest_location_atmosphere(context).await,
-                            "location_features" => suggestion_service.suggest_location_features(context).await,
-                            "location_secrets" => suggestion_service.suggest_location_secrets(context).await,
+                            "character_name" => {
+                                suggestion_service.suggest_character_names(&context).await
+                            }
+                            "character_description" => {
+                                suggestion_service
+                                    .suggest_character_description(&context)
+                                    .await
+                            }
+                            "character_wants" => {
+                                suggestion_service.suggest_character_wants(&context).await
+                            }
+                            "character_fears" => {
+                                suggestion_service.suggest_character_fears(&context).await
+                            }
+                            "character_backstory" => {
+                                suggestion_service
+                                    .suggest_character_backstory(&context)
+                                    .await
+                            }
+                            "location_name" => {
+                                suggestion_service.suggest_location_names(&context).await
+                            }
+                            "location_description" => {
+                                suggestion_service
+                                    .suggest_location_description(&context)
+                                    .await
+                            }
+                            "location_atmosphere" => {
+                                suggestion_service
+                                    .suggest_location_atmosphere(&context)
+                                    .await
+                            }
+                            "location_features" => {
+                                suggestion_service.suggest_location_features(&context).await
+                            }
+                            "location_secrets" => {
+                                suggestion_service.suggest_location_secrets(&context).await
+                            }
                             // Actantial Model suggestions
-                            "deflection_behavior" => suggestion_service.suggest_deflection_behavior(context).await,
-                            "behavioral_tells" => suggestion_service.suggest_behavioral_tells(context).await,
-                            "want_description" => suggestion_service.suggest_want_description(context).await,
-                            "actantial_reason" => suggestion_service.suggest_actantial_reason(context).await,
+                            "deflection_behavior" => {
+                                suggestion_service
+                                    .suggest_deflection_behavior(&context)
+                                    .await
+                            }
+                            "behavioral_tells" => {
+                                suggestion_service.suggest_behavioral_tells(&context).await
+                            }
+                            "want_description" => {
+                                suggestion_service.suggest_want_description(&context).await
+                            }
+                            "actantial_reason" => {
+                                suggestion_service.suggest_actantial_reason(&context).await
+                            }
                             _ => {
-                                let error = format!("Unknown suggestion field type: {}", field_type);
+                                let error =
+                                    format!("Unknown suggestion field type: {}", field_type);
                                 tracing::error!("{}", error);
-                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionFailed {
-                                    request_id: request_id.clone(),
-                                    field_type: field_type_clone.clone(),
-                                    error: error.clone(),
-                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                }) {
+                                if let Err(e) = generation_event_tx_clone.try_send(
+                                    GenerationEvent::SuggestionFailed {
+                                        request_id: request_id.clone(),
+                                        field_type: field_type_clone.clone(),
+                                        error: error.clone(),
+                                        world_id: Some(world_id_clone),
+                                    },
+                                ) {
                                     tracing::warn!("Failed to send SuggestionFailed event: {}", e);
                                 }
                                 if let Err(e) = queue_clone.fail(item_id, &error).await {
@@ -504,17 +657,26 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                                 return;
                             }
                         };
-                        
+
                         match result {
                             Ok(suggestions) => {
-                                tracing::info!("Suggestion request {} completed with {} suggestions", request_id, suggestions.len());
-                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionComplete {
-                                    request_id: request_id.clone(),
-                                    field_type: field_type_clone.clone(),
-                                    suggestions,
-                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                }) {
-                                    tracing::warn!("Failed to send SuggestionComplete event: {}", e);
+                                tracing::info!(
+                                    "Suggestion request {} completed with {} suggestions",
+                                    request_id,
+                                    suggestions.len()
+                                );
+                                if let Err(e) = generation_event_tx_clone.try_send(
+                                    GenerationEvent::SuggestionComplete {
+                                        request_id: request_id.clone(),
+                                        field_type: field_type_clone.clone(),
+                                        suggestions,
+                                        world_id: Some(world_id_clone),
+                                    },
+                                ) {
+                                    tracing::warn!(
+                                        "Failed to send SuggestionComplete event: {}",
+                                        e
+                                    );
                                 }
                                 if let Err(e) = queue_clone.complete(item_id).await {
                                     tracing::error!("Failed to mark queue item as complete: {}", e);
@@ -522,13 +684,19 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                             Err(e) => {
                                 let error = e.to_string();
-                                tracing::error!("Suggestion request {} failed: {}", request_id, error);
-                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionFailed {
-                                    request_id: request_id.clone(),
-                                    field_type: field_type_clone.clone(),
-                                    error: error.clone(),
-                                    world_id: Some(WorldId::from_uuid(world_id_clone)),
-                                }) {
+                                tracing::error!(
+                                    "Suggestion request {} failed: {}",
+                                    request_id,
+                                    error
+                                );
+                                if let Err(e) = generation_event_tx_clone.try_send(
+                                    GenerationEvent::SuggestionFailed {
+                                        request_id: request_id.clone(),
+                                        field_type: field_type_clone.clone(),
+                                        error: error.clone(),
+                                        world_id: Some(world_id_clone),
+                                    },
+                                ) {
                                     tracing::warn!("Failed to send SuggestionFailed event: {}", e);
                                 }
                                 if let Err(e) = queue_clone.fail(item_id, &error).await {
@@ -537,7 +705,6 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             }
                         }
                     }
-
                 }
             });
         }

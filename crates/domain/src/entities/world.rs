@@ -21,7 +21,11 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(name: impl Into<String>, description: impl Into<String>, now: DateTime<Utc>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             id: WorldId::new(),
             name: name.into(),

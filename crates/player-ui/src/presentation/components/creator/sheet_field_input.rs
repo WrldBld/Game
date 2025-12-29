@@ -23,19 +23,13 @@ pub fn SheetSectionInput(props: SheetSectionProps) -> Element {
     let mut is_collapsed = use_signal(|| props.section.collapsed_by_default);
 
     let section_class = match props.section.layout {
-        wrldbldr_player_app::application::dto::SectionLayout::Vertical => {
-            "flex flex-col gap-3"
-        }
+        wrldbldr_player_app::application::dto::SectionLayout::Vertical => "flex flex-col gap-3",
         wrldbldr_player_app::application::dto::SectionLayout::Grid { columns } => {
             let _cols = columns.min(4).max(1);
             "grid gap-3"
         }
-        wrldbldr_player_app::application::dto::SectionLayout::TwoColumn => {
-            "grid grid-cols-2 gap-3"
-        }
-        wrldbldr_player_app::application::dto::SectionLayout::Flow => {
-            "flex flex-wrap gap-2"
-        }
+        wrldbldr_player_app::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
+        wrldbldr_player_app::application::dto::SectionLayout::Flow => "flex flex-wrap gap-2",
     };
 
     // Sort fields by order

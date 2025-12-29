@@ -6,10 +6,10 @@
 use uuid::Uuid;
 
 /// Parse a UUID string with logging on failure.
-/// 
+///
 /// This is used in `From` trait implementations where we can't return `Result`.
 /// On parse failure, logs a warning and returns a nil UUID (all zeros).
-/// 
+///
 /// # Warning
 /// This should only be used in deserialization contexts where data corruption
 /// is possible. New code should use proper `Result` handling where possible.
@@ -40,9 +40,9 @@ mod item_repository;
 mod location_repository;
 mod narrative_event_repository;
 mod observation_repository;
+mod player_character_repository;
 mod prompt_template_repository;
 mod region_repository;
-mod player_character_repository;
 mod relationship_repository;
 mod scene_repository;
 mod settings_repository;
@@ -67,9 +67,9 @@ pub use item_repository::Neo4jItemRepository;
 pub use location_repository::Neo4jLocationRepository;
 pub use narrative_event_repository::Neo4jNarrativeEventRepository;
 pub use observation_repository::Neo4jObservationRepository;
+pub use player_character_repository::Neo4jPlayerCharacterRepository;
 pub use prompt_template_repository::SqlitePromptTemplateRepository;
 pub use region_repository::Neo4jRegionRepository;
-pub use player_character_repository::Neo4jPlayerCharacterRepository;
 pub use relationship_repository::Neo4jRelationshipRepository;
 pub use scene_repository::Neo4jSceneRepository;
 pub use settings_repository::SqliteSettingsRepository;

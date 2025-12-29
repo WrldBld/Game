@@ -15,12 +15,12 @@ mod interaction;
 mod item;
 mod location;
 mod narrative_event;
+mod player_character;
 mod queue_items;
 mod rule_system;
 mod scene;
-mod sheet_template;
 mod session_info;
-mod player_character;
+mod sheet_template;
 mod skill;
 mod story_event;
 mod suggestion;
@@ -41,10 +41,9 @@ pub use approval::{
 
 // Queue items (used by queue services)
 pub use queue_items::{
-    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem,
-    DMAction, DMActionItem, DecisionType, DecisionUrgency,
-    EnhancedChallengeSuggestion, EnhancedOutcomes, OutcomeDetail,
-    LLMRequestItem, LLMRequestType, PlayerActionItem,
+    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem, DMAction, DMActionItem,
+    DecisionType, DecisionUrgency, EnhancedChallengeSuggestion, EnhancedOutcomes, LLMRequestItem,
+    LLMRequestType, OutcomeDetail, PlayerActionItem,
 };
 
 // Asset DTOs
@@ -57,30 +56,29 @@ pub use asset::{
 // Challenge DTOs
 pub use challenge::{
     AdHocOutcomesDto, ChallengeOutcomeApprovalRequest, ChallengeOutcomeDecision,
-    ChallengeOutcomePendingNotification, ChallengeResolvedNotification,
-    ChallengeResponseDto, ChallengeRollSubmittedNotification, CreateChallengeRequestDto,
-    DifficultyRequestDto, OutcomeBranchDto, OutcomeBranchResponse, OutcomeBranchSelectionRequest,
+    ChallengeOutcomePendingNotification, ChallengeResolvedNotification, ChallengeResponseDto,
+    ChallengeRollSubmittedNotification, CreateChallengeRequestDto, DifficultyRequestDto,
+    OutcomeBranchDto, OutcomeBranchResponse, OutcomeBranchSelectionRequest,
     OutcomeBranchesReadyNotification, OutcomeRequestDto, OutcomeSuggestionReadyNotification,
-    OutcomeSuggestionRequest, OutcomeSuggestionResponse, OutcomesRequestDto,
-    OutcomeTriggerRequestDto, PendingChallengeResolutionDto, TriggerConditionRequestDto,
+    OutcomeSuggestionRequest, OutcomeSuggestionResponse, OutcomeTriggerRequestDto,
+    OutcomesRequestDto, PendingChallengeResolutionDto, TriggerConditionRequestDto,
     UpdateChallengeRequestDto,
 };
 
 // Rule system DTOs
 pub use rule_system::{
-    parse_system_type, parse_variant,
-    RuleSystemPresetDetailsDto, RuleSystemPresetSummaryDto, RuleSystemSummaryDto,
-    RuleSystemTypeDetailsDto,
+    parse_system_type, parse_variant, RuleSystemPresetDetailsDto, RuleSystemPresetSummaryDto,
+    RuleSystemSummaryDto, RuleSystemTypeDetailsDto,
 };
 
 // Workflow DTOs
 pub use workflow::{
     parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
-    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, InputDefaultDto,
-    PromptMappingDto, TestWorkflowRequestDto, TestWorkflowResponseDto,
-    UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
-    WorkflowConfigExportDto, WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
-    WorkflowSlotCategoryDto, WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
+    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, InputDefaultDto, PromptMappingDto,
+    TestWorkflowRequestDto, TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto,
+    WorkflowAnalysisResponseDto, WorkflowConfigExportDto, WorkflowConfigFullResponseDto,
+    WorkflowConfigResponseDto, WorkflowSlotCategoryDto, WorkflowSlotStatusDto,
+    WorkflowSlotsResponseDto,
 };
 
 // Scene DTOs
@@ -88,8 +86,7 @@ pub use scene::{CreateSceneRequestDto, SceneResponseDto, UpdateNotesRequestDto};
 
 // Story event DTOs
 pub use story_event::{
-    CreateDmMarkerRequestDto,
-    ListStoryEventsQueryDto, PaginatedStoryEventsResponseDto,
+    CreateDmMarkerRequestDto, ListStoryEventsQueryDto, PaginatedStoryEventsResponseDto,
     StoryEventResponseDto, UpdateStoryEventRequestDto,
 };
 
@@ -101,15 +98,15 @@ pub use narrative_event::{
 
 // Event chain DTOs
 pub use event_chain::{
-    AddEventRequestDto, ChainStatusResponseDto, CreateEventChainRequestDto,
-    EventChainResponseDto, UpdateEventChainRequestDto,
+    AddEventRequestDto, ChainStatusResponseDto, CreateEventChainRequestDto, EventChainResponseDto,
+    UpdateEventChainRequestDto,
 };
 
 // Location DTOs
 pub use location::{
     parse_location_type, ConnectionResponseDto, CreateConnectionRequestDto,
-    CreateLocationRequestDto, CreateRegionRequestDto, LocationResponseDto,
-    MapBoundsDto, RegionResponseDto,
+    CreateLocationRequestDto, CreateRegionRequestDto, LocationResponseDto, MapBoundsDto,
+    RegionResponseDto,
 };
 
 // Character DTOs
@@ -128,9 +125,7 @@ pub use item::{
 pub use comfyui_config::ComfyUIConfigDto;
 
 // Skill DTOs
-pub use skill::{
-    CreateSkillRequestDto, SkillResponseDto, UpdateSkillRequestDto,
-};
+pub use skill::{CreateSkillRequestDto, SkillResponseDto, UpdateSkillRequestDto};
 
 // Interaction DTOs
 pub use interaction::{

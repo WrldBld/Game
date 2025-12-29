@@ -9,12 +9,15 @@ use uuid::Uuid;
 
 use super::connection::Neo4jConnection;
 use super::parse_uuid_or_nil;
-use wrldbldr_engine_ports::outbound::StoryEventRepositoryPort;
 use wrldbldr_domain::entities::{
-    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType, InvolvedCharacter,
-    ItemSource, MarkerImportance, StoryEvent, StoryEventInfoImportance, StoryEventType,
+    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType,
+    InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventInfoImportance,
+    StoryEventType,
 };
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
+};
+use wrldbldr_engine_ports::outbound::StoryEventRepositoryPort;
 
 // ============================================================================
 // Storage DTOs for StoryEventType
@@ -591,8 +594,14 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::LocationChange {
                 from_location: from_location
                     .and_then(|id| Uuid::parse_str(&id).ok().map(LocationId::from)),
-                to_location: LocationId::from(parse_uuid_or_nil(&to_location, "StoryEventType::LocationChange.to_location")),
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::LocationChange.character_id")),
+                to_location: LocationId::from(parse_uuid_or_nil(
+                    &to_location,
+                    "StoryEventType::LocationChange.to_location",
+                )),
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "StoryEventType::LocationChange.character_id",
+                )),
                 travel_method,
             },
             StoredStoryEventType::DialogueExchange {
@@ -603,7 +612,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 topics_discussed,
                 tone,
             } => StoryEventType::DialogueExchange {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "StoryEventType::DialogueExchange.npc_id")),
+                npc_id: CharacterId::from(parse_uuid_or_nil(
+                    &npc_id,
+                    "StoryEventType::DialogueExchange.npc_id",
+                )),
                 npc_name,
                 player_dialogue,
                 npc_response,
@@ -625,7 +637,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                     .collect(),
                 enemies,
                 outcome: outcome.map(|o| o.into()),
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "StoryEventType::CombatEvent.location_id")),
+                location_id: LocationId::from(parse_uuid_or_nil(
+                    &location_id,
+                    "StoryEventType::CombatEvent.location_id",
+                )),
                 rounds,
             },
             StoredStoryEventType::ChallengeAttempted {
@@ -641,7 +656,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 challenge_id: challenge_id
                     .and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
                 challenge_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ChallengeAttempted.character_id")),
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "StoryEventType::ChallengeAttempted.character_id",
+                )),
                 skill_used,
                 difficulty,
                 roll_result,
@@ -657,7 +675,10 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::ItemAcquired {
                 item_name,
                 item_description,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ItemAcquired.character_id")),
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "StoryEventType::ItemAcquired.character_id",
+                )),
                 source: source.into(),
                 quantity,
             },
@@ -671,7 +692,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 item_name,
                 from_character: from_character
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "StoryEventType::ItemTransferred.to_character")),
+                to_character: CharacterId::from(parse_uuid_or_nil(
+                    &to_character,
+                    "StoryEventType::ItemTransferred.to_character",
+                )),
                 quantity,
                 reason,
             },
@@ -683,7 +707,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 consumed,
             } => StoryEventType::ItemUsed {
                 item_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::ItemUsed.character_id")),
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "StoryEventType::ItemUsed.character_id",
+                )),
                 target,
                 effect,
                 consumed,
@@ -696,12 +723,14 @@ impl From<StoredStoryEventType> for StoryEventType {
                 sentiment_change,
                 reason,
             } => StoryEventType::RelationshipChanged {
-                from_character: CharacterId::from(
-                    parse_uuid_or_nil(&from_character, "StoryEventType::RelationshipChanged.from_character"),
-                ),
-                to_character: CharacterId::from(
-                    parse_uuid_or_nil(&to_character, "StoryEventType::RelationshipChanged.to_character"),
-                ),
+                from_character: CharacterId::from(parse_uuid_or_nil(
+                    &from_character,
+                    "StoryEventType::RelationshipChanged.from_character",
+                )),
+                to_character: CharacterId::from(parse_uuid_or_nil(
+                    &to_character,
+                    "StoryEventType::RelationshipChanged.to_character",
+                )),
                 previous_sentiment,
                 new_sentiment,
                 sentiment_change,
@@ -715,7 +744,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 trigger_reason,
             } => StoryEventType::SceneTransition {
                 from_scene: from_scene.and_then(|id| Uuid::parse_str(&id).ok().map(SceneId::from)),
-                to_scene: SceneId::from(parse_uuid_or_nil(&to_scene, "StoryEventType::SceneTransition.to_scene")),
+                to_scene: SceneId::from(parse_uuid_or_nil(
+                    &to_scene,
+                    "StoryEventType::SceneTransition.to_scene",
+                )),
                 from_scene_name,
                 to_scene_name,
                 trigger_reason,
@@ -743,7 +775,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 dm_approved,
                 dm_modified,
             } => StoryEventType::NpcAction {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "StoryEventType::NpcAction.npc_id")),
+                npc_id: CharacterId::from(parse_uuid_or_nil(
+                    &npc_id,
+                    "StoryEventType::NpcAction.npc_id",
+                )),
                 npc_name,
                 action_type,
                 description,
@@ -767,9 +802,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 outcome_branch,
                 effects_applied,
             } => StoryEventType::NarrativeEventTriggered {
-                narrative_event_id: NarrativeEventId::from(
-                    parse_uuid_or_nil(&narrative_event_id, "StoryEventType::NarrativeEventTriggered.narrative_event_id"),
-                ),
+                narrative_event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                    &narrative_event_id,
+                    "StoryEventType::NarrativeEventTriggered.narrative_event_id",
+                )),
                 narrative_event_name,
                 outcome_branch,
                 effects_applied,
@@ -781,7 +817,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 new_value,
                 reason,
             } => StoryEventType::StatModified {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "StoryEventType::StatModified.character_id")),
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "StoryEventType::StatModified.character_id",
+                )),
                 stat_name,
                 previous_value,
                 new_value,
@@ -974,10 +1013,7 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
         .param("world_id", event.world_id.to_string())
         .param("event_type_json", event_type_json)
         .param("timestamp", event.timestamp.to_rfc3339())
-        .param(
-            "game_time",
-            event.game_time.clone().unwrap_or_default(),
-        )
+        .param("game_time", event.game_time.clone().unwrap_or_default())
         .param("summary", event.summary.clone())
         .param("is_hidden", event.is_hidden)
         .param("tags_json", tags_json);
@@ -1675,7 +1711,11 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
         while let Some(row) = result.next().await? {
             let event = row_to_story_event(row)?;
             // Double-check it's actually a DialogueExchange with this NPC
-            if let StoryEventType::DialogueExchange { npc_id: event_npc_id, .. } = &event.event_type {
+            if let StoryEventType::DialogueExchange {
+                npc_id: event_npc_id,
+                ..
+            } = &event.event_type
+            {
                 if *event_npc_id == npc_id {
                     events.push(event);
                 }
@@ -1708,11 +1748,7 @@ impl StoryEventRepositoryPort for Neo4jStoryEventRepository {
         .param("topic", topic.unwrap_or_default());
 
         self.connection.graph().run(q).await?;
-        tracing::debug!(
-            "Updated SPOKE_TO edge: PC {} -> NPC {}",
-            pc_id,
-            npc_id
-        );
+        tracing::debug!("Updated SPOKE_TO edge: PC {} -> NPC {}", pc_id, npc_id);
 
         Ok(())
     }

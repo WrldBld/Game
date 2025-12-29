@@ -108,5 +108,3 @@ impl GenerationReadStatePort for SqliteGenerationReadStateRepository {
         Ok(result)
     }
 }
-
-

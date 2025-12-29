@@ -3,21 +3,21 @@
 //! Components for the Creator Mode in the DM View, providing
 //! entity creation, editing, asset generation, and LLM suggestions.
 
-pub mod entity_browser;
-pub mod character_form;
-pub mod location_form;
 pub mod asset_gallery;
-pub mod generation_queue;
-pub mod motivations_tab;
-pub mod suggestion_button;
-pub mod sheet_field_input;
+pub mod character_form;
 pub mod comfyui_banner;
+pub mod entity_browser;
+pub mod generation_queue;
+pub mod location_form;
+pub mod motivations_tab;
+pub mod sheet_field_input;
+pub mod suggestion_button;
 
+use crate::presentation::services::use_generation_service;
+use crate::presentation::state::use_generation_state;
+use crate::presentation::state::use_session_state;
 use dioxus::prelude::*;
 use wrldbldr_player_ports::outbound::Platform;
-use crate::presentation::state::use_session_state;
-use crate::presentation::state::use_generation_state;
-use crate::presentation::services::use_generation_service;
 
 /// Props for CreatorMode
 #[derive(Props, Clone, PartialEq)]
@@ -45,20 +45,24 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
     let mut selected_entity_id: Signal<Option<String>> = use_signal(|| None);
 
     // Entity lists - stored as reactive signals (single source of truth)
-    let mut characters: Signal<Vec<wrldbldr_player_app::application::services::character_service::CharacterSummary>> = use_signal(Vec::new);
-    let mut locations: Signal<Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>> = use_signal(Vec::new);
-    
+    let mut characters: Signal<
+        Vec<wrldbldr_player_app::application::services::character_service::CharacterSummary>,
+    > = use_signal(Vec::new);
+    let mut locations: Signal<
+        Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>,
+    > = use_signal(Vec::new);
+
     // Loading and error states
     let mut characters_loading = use_signal(|| true);
     let mut locations_loading = use_signal(|| true);
     let mut characters_error: Signal<Option<String>> = use_signal(|| None);
     let mut locations_error: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Initial data fetching on mount
     let character_service = crate::presentation::services::use_character_service();
     let location_service = crate::presentation::services::use_location_service();
     let world_id_for_fetch = props.world_id.clone();
-    
+
     // Fetch characters on mount
     use_effect(move || {
         let world_id = world_id_for_fetch.clone();
@@ -76,7 +80,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
             }
         });
     });
-    
+
     // Fetch locations on mount
     let world_id_for_locations = props.world_id.clone();
     use_effect(move || {
@@ -125,7 +129,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
     });
 
     let session_state = use_session_state();
-    
+
     rsx! {
         div {
             class: "creator-mode h-full flex flex-col gap-4 p-4",

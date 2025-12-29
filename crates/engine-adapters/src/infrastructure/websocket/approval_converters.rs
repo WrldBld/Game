@@ -39,7 +39,9 @@ pub fn proto_tool_to_app(proto: proto::ProposedToolInfo) -> app::ProposedToolInf
 // =============================================================================
 
 /// Convert app ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
-pub fn app_outcomes_to_proto(app: app::ChallengeSuggestionOutcomes) -> proto::ChallengeSuggestionOutcomes {
+pub fn app_outcomes_to_proto(
+    app: app::ChallengeSuggestionOutcomes,
+) -> proto::ChallengeSuggestionOutcomes {
     proto::ChallengeSuggestionOutcomes {
         success: app.success,
         failure: app.failure,
@@ -49,7 +51,9 @@ pub fn app_outcomes_to_proto(app: app::ChallengeSuggestionOutcomes) -> proto::Ch
 }
 
 /// Convert protocol ChallengeSuggestionOutcomes to app ChallengeSuggestionOutcomes
-pub fn proto_outcomes_to_app(proto: proto::ChallengeSuggestionOutcomes) -> app::ChallengeSuggestionOutcomes {
+pub fn proto_outcomes_to_app(
+    proto: proto::ChallengeSuggestionOutcomes,
+) -> app::ChallengeSuggestionOutcomes {
     app::ChallengeSuggestionOutcomes {
         success: proto.success,
         failure: proto.failure,
@@ -77,7 +81,9 @@ pub fn app_challenge_to_proto(app: app::ChallengeSuggestionInfo) -> proto::Chall
 }
 
 /// Convert protocol ChallengeSuggestionInfo to app ChallengeSuggestionInfo
-pub fn proto_challenge_to_app(proto: proto::ChallengeSuggestionInfo) -> app::ChallengeSuggestionInfo {
+pub fn proto_challenge_to_app(
+    proto: proto::ChallengeSuggestionInfo,
+) -> app::ChallengeSuggestionInfo {
     app::ChallengeSuggestionInfo {
         challenge_id: proto.challenge_id,
         challenge_name: proto.challenge_name,
@@ -95,7 +101,9 @@ pub fn proto_challenge_to_app(proto: proto::ChallengeSuggestionInfo) -> app::Cha
 // =============================================================================
 
 /// Convert app NarrativeEventSuggestionInfo to protocol NarrativeEventSuggestionInfo
-pub fn app_narrative_to_proto(app: app::NarrativeEventSuggestionInfo) -> proto::NarrativeEventSuggestionInfo {
+pub fn app_narrative_to_proto(
+    app: app::NarrativeEventSuggestionInfo,
+) -> proto::NarrativeEventSuggestionInfo {
     proto::NarrativeEventSuggestionInfo {
         event_id: app.event_id,
         event_name: app.event_name,
@@ -109,7 +117,9 @@ pub fn app_narrative_to_proto(app: app::NarrativeEventSuggestionInfo) -> proto::
 }
 
 /// Convert protocol NarrativeEventSuggestionInfo to app NarrativeEventSuggestionInfo
-pub fn proto_narrative_to_app(proto: proto::NarrativeEventSuggestionInfo) -> app::NarrativeEventSuggestionInfo {
+pub fn proto_narrative_to_app(
+    proto: proto::NarrativeEventSuggestionInfo,
+) -> app::NarrativeEventSuggestionInfo {
     app::NarrativeEventSuggestionInfo {
         event_id: proto.event_id,
         event_name: proto.event_name,
@@ -226,4 +236,89 @@ pub fn proto_narrative_suggestion_to_app(
     suggestion: Option<proto::NarrativeEventSuggestionInfo>,
 ) -> Option<app::NarrativeEventSuggestionInfo> {
     suggestion.map(proto_narrative_to_app)
+}
+
+// =============================================================================
+// Domain ProposedTool conversions
+// =============================================================================
+
+/// Convert domain ProposedTool to protocol ProposedToolInfo
+pub fn domain_tool_to_proto(
+    domain: &wrldbldr_domain::value_objects::ProposedTool,
+) -> proto::ProposedToolInfo {
+    proto::ProposedToolInfo {
+        id: domain.id.clone(),
+        name: domain.name.clone(),
+        description: domain.description.clone(),
+        arguments: domain.arguments.clone(),
+    }
+}
+
+/// Convert a slice of domain ProposedTool to Vec of protocol ProposedToolInfo
+pub fn domain_tools_to_proto(
+    tools: &[wrldbldr_domain::value_objects::ProposedTool],
+) -> Vec<proto::ProposedToolInfo> {
+    tools.iter().map(domain_tool_to_proto).collect()
+}
+
+// =============================================================================
+// Domain ChallengeSuggestion and NarrativeEventSuggestion conversions
+// =============================================================================
+
+/// Convert domain ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
+pub fn domain_outcomes_to_proto(
+    domain: &wrldbldr_domain::value_objects::ChallengeSuggestionOutcomes,
+) -> proto::ChallengeSuggestionOutcomes {
+    proto::ChallengeSuggestionOutcomes {
+        success: domain.success.clone(),
+        failure: domain.failure.clone(),
+        critical_success: domain.critical_success.clone(),
+        critical_failure: domain.critical_failure.clone(),
+    }
+}
+
+/// Convert domain ChallengeSuggestion to protocol ChallengeSuggestionInfo
+pub fn domain_challenge_to_proto(
+    domain: &wrldbldr_domain::value_objects::ChallengeSuggestion,
+) -> proto::ChallengeSuggestionInfo {
+    proto::ChallengeSuggestionInfo {
+        challenge_id: domain.challenge_id.clone(),
+        challenge_name: domain.challenge_name.clone(),
+        skill_name: domain.skill_name.clone(),
+        difficulty_display: domain.difficulty_display.clone(),
+        confidence: domain.confidence.clone(),
+        reasoning: domain.reasoning.clone(),
+        target_pc_id: domain.target_pc_id.map(|id| id.to_string()),
+        outcomes: domain.outcomes.as_ref().map(domain_outcomes_to_proto),
+    }
+}
+
+/// Convert Option<domain ChallengeSuggestion> to Option<proto::ChallengeSuggestionInfo>
+pub fn domain_challenge_suggestion_to_proto(
+    suggestion: Option<&wrldbldr_domain::value_objects::ChallengeSuggestion>,
+) -> Option<proto::ChallengeSuggestionInfo> {
+    suggestion.map(domain_challenge_to_proto)
+}
+
+/// Convert domain NarrativeEventSuggestion to protocol NarrativeEventSuggestionInfo
+pub fn domain_narrative_to_proto(
+    domain: &wrldbldr_domain::value_objects::NarrativeEventSuggestion,
+) -> proto::NarrativeEventSuggestionInfo {
+    proto::NarrativeEventSuggestionInfo {
+        event_id: domain.event_id.clone(),
+        event_name: domain.event_name.clone(),
+        description: domain.description.clone(),
+        scene_direction: domain.scene_direction.clone(),
+        confidence: domain.confidence.clone(),
+        reasoning: domain.reasoning.clone(),
+        matched_triggers: domain.matched_triggers.clone(),
+        suggested_outcome: domain.suggested_outcome.clone(),
+    }
+}
+
+/// Convert Option<domain NarrativeEventSuggestion> to Option<proto::NarrativeEventSuggestionInfo>
+pub fn domain_narrative_suggestion_to_proto(
+    suggestion: Option<&wrldbldr_domain::value_objects::NarrativeEventSuggestion>,
+) -> Option<proto::NarrativeEventSuggestionInfo> {
+    suggestion.map(domain_narrative_to_proto)
 }

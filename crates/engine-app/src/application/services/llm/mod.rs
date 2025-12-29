@@ -18,15 +18,13 @@ mod tool_definitions;
 mod tool_parser;
 
 // Re-export public types and functions
-pub use prompt_builder::{
-    PromptBuilder, build_conversation_history, build_user_message,
-};
+pub use prompt_builder::{build_conversation_history, build_user_message, PromptBuilder};
 
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
 use wrldbldr_domain::value_objects::{DirectorialNotes, GamePromptRequest};
+use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
 
 use tool_definitions::get_game_tool_definitions;
 use tool_parser::parse_tool_calls_from_response;
@@ -95,7 +93,8 @@ impl<L: LlmPort> LLMService<L> {
         request: GamePromptRequest,
     ) -> Result<LLMGameResponse, LLMServiceError> {
         // Use the enhanced version with no directorial notes
-        self.generate_npc_response_with_direction(request, None).await
+        self.generate_npc_response_with_direction(request, None)
+            .await
     }
 
     /// Generate an NPC response with comprehensive directorial guidance
@@ -130,24 +129,31 @@ impl<L: LlmPort> LLMService<L> {
         // Build prompt using configurable templates
         // Convert world_id string to WorldId if present
         let world_id = request.world_id.as_ref().and_then(|id| {
-            uuid::Uuid::parse_str(id).ok().map(wrldbldr_domain::WorldId::from_uuid)
+            uuid::Uuid::parse_str(id)
+                .ok()
+                .map(wrldbldr_domain::WorldId::from_uuid)
         });
-        
-        let system_prompt = self.prompt_builder.build_system_prompt_with_notes(
-            world_id,
-            &request.scene_context,
-            &request.responding_character,
-            directorial_notes,
-            &request.active_challenges,
-            &request.active_narrative_events,
-        ).await;
-        
+
+        let system_prompt = self
+            .prompt_builder
+            .build_system_prompt_with_notes(
+                world_id,
+                &request.scene_context,
+                &request.responding_character,
+                directorial_notes,
+                &request.active_challenges,
+                &request.active_narrative_events,
+            )
+            .await;
+
         // Apply token budget enforcement if configured
         let system_prompt = match &request.context_budget {
-            Some(budget_config) => self.prompt_builder.enforce_budget(system_prompt, budget_config),
+            Some(budget_config) => self
+                .prompt_builder
+                .enforce_budget(system_prompt, budget_config),
             None => system_prompt,
         };
-        
+
         let user_message = build_user_message(&request);
 
         let mut messages = build_conversation_history(&request.conversation_history);
@@ -337,10 +343,12 @@ pub enum LLMServiceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_ports::outbound::{LlmResponse, ToolDefinition, PromptTemplateRepositoryPort, PromptTemplateError};
-    use wrldbldr_engine_dto::FinishReason;
     use wrldbldr_domain::value_objects::{CharacterContext, SceneContext};
     use wrldbldr_domain::WorldId;
+    use wrldbldr_engine_dto::FinishReason;
+    use wrldbldr_engine_ports::outbound::{
+        LlmResponse, PromptTemplateError, PromptTemplateRepositoryPort, ToolDefinition,
+    };
 
     /// Mock prompt template repository for tests
     struct MockPromptTemplateRepository;
@@ -362,19 +370,38 @@ mod tests {
         async fn delete_all_global(&self) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn get_for_world(&self, _world_id: WorldId, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+        async fn get_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+        ) -> Result<Option<String>, PromptTemplateError> {
             Ok(None)
         }
-        async fn get_all_for_world(&self, _world_id: WorldId) -> Result<Vec<(String, String)>, PromptTemplateError> {
+        async fn get_all_for_world(
+            &self,
+            _world_id: WorldId,
+        ) -> Result<Vec<(String, String)>, PromptTemplateError> {
             Ok(vec![])
         }
-        async fn set_for_world(&self, _world_id: WorldId, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+        async fn set_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+            _value: &str,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn delete_for_world(&self, _world_id: WorldId, _key: &str) -> Result<(), PromptTemplateError> {
+        async fn delete_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn delete_all_for_world(&self, _world_id: WorldId) -> Result<(), PromptTemplateError> {
+        async fn delete_all_for_world(
+            &self,
+            _world_id: WorldId,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
     }
@@ -386,10 +413,7 @@ mod tests {
     impl LlmPort for MockLlm {
         type Error = std::io::Error;
 
-        async fn generate(
-            &self,
-            _request: LlmRequest,
-        ) -> Result<LlmResponse, Self::Error> {
+        async fn generate(&self, _request: LlmRequest) -> Result<LlmResponse, Self::Error> {
             Ok(LlmResponse {
                 content: String::new(),
                 tool_calls: Vec::new(),

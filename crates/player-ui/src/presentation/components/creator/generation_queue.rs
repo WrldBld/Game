@@ -2,17 +2,15 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_ports::outbound::Platform;
-use crate::presentation::state::{use_generation_state, use_game_state, BatchStatus, GenerationBatch, SuggestionStatus, SuggestionTask};
 use crate::presentation::services::{
-    visible_batches,
-    visible_suggestions,
-    mark_batch_read_and_sync,
-    mark_suggestion_read_and_sync,
-    use_suggestion_service,
-    use_asset_service,
-    use_generation_service,
+    mark_batch_read_and_sync, mark_suggestion_read_and_sync, use_asset_service,
+    use_generation_service, use_suggestion_service, visible_batches, visible_suggestions,
 };
+use crate::presentation::state::{
+    use_game_state, use_generation_state, BatchStatus, GenerationBatch, SuggestionStatus,
+    SuggestionTask,
+};
+use wrldbldr_player_ports::outbound::Platform;
 
 /// Filter type for the generation queue
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -58,12 +56,12 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
     let filter_val = *active_filter.read();
     let all_batches = visible_batches(&generation_state, show_read_val);
     let all_suggestions = visible_suggestions(&generation_state, show_read_val);
-    
+
     // Compute counts before filtering
     let batch_count = all_batches.len();
     let suggestion_count = all_suggestions.len();
     let total_count = batch_count + suggestion_count;
-    
+
     // Filter by active filter
     let mut visible_batches = match filter_val {
         QueueFilter::All | QueueFilter::Images => all_batches.clone(),
@@ -73,7 +71,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
         QueueFilter::All | QueueFilter::Suggestions => all_suggestions.clone(),
         QueueFilter::Images => Vec::new(),
     };
-    
+
     // Sort items based on sort_order
     let sort_val = *sort_order.read();
     match sort_val {
@@ -101,29 +99,27 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
         SortOrder::Type => {
             // Sort by entity type, then entity_id
             visible_batches.sort_by(|a, b| {
-                a.entity_type.cmp(&b.entity_type)
+                a.entity_type
+                    .cmp(&b.entity_type)
                     .then_with(|| a.entity_id.cmp(&b.entity_id))
             });
             visible_suggestions.sort_by(|a, b| {
-                a.field_type.cmp(&b.field_type)
+                a.field_type
+                    .cmp(&b.field_type)
                     .then_with(|| a.entity_id.cmp(&b.entity_id))
             });
         }
     }
-    
+
     let total_items = visible_batches.len() + visible_suggestions.len();
-    
+
     // Counts for badge
     let active_batch_count = generation_state.active_count();
     let active_suggestion_count = generation_state.active_suggestion_count();
     let total_active = active_batch_count + active_suggestion_count;
 
     // Derive world_id from game state if available (for scoping read markers)
-    let world_id = game_state
-        .world
-        .read()
-        .as_ref()
-        .map(|w| w.world.id.clone());
+    let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
 
     rsx! {
         div {
@@ -132,7 +128,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
             // Header with filter tabs and toggle for read items
             div {
                 class: "mb-2",
-                
+
                 // Title and badge
                 div {
                     class: "flex items-center justify-between mb-2",
@@ -188,7 +184,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
                         span { "Show read" }
                     }
                 }
-                
+
                 // Filter tabs and sort dropdown
                 div {
                     class: "flex justify-between items-center gap-2 mb-2",
@@ -313,8 +309,16 @@ fn FilterTab(
     is_active: bool,
     onclick: EventHandler<()>,
 ) -> Element {
-    let border_class = if is_active { "border-b-2 border-purple-500" } else { "border-b-2 border-transparent" };
-    let text_class = if is_active { "text-white" } else { "text-gray-400" };
+    let border_class = if is_active {
+        "border-b-2 border-purple-500"
+    } else {
+        "border-b-2 border-transparent"
+    };
+    let text_class = if is_active {
+        "text-white"
+    } else {
+        "text-gray-400"
+    };
 
     rsx! {
         button {
@@ -337,8 +341,7 @@ fn QueueItemRow(
     batch: GenerationBatch,
     #[props(default = false)] show_read: bool,
     world_id: Option<String>,
-    #[props(default)]
-    on_navigate_to_entity: Option<EventHandler<(String, String)>>,
+    #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
     let generation_service = use_generation_service();
     let platform = use_context::<Platform>();
@@ -346,11 +349,11 @@ fn QueueItemRow(
     let mut expanded_details: Signal<bool> = use_signal(|| false);
     let batch_id = batch.batch_id.clone();
     let (status_icon, status_color, _status_text) = match &batch.status {
-                    BatchStatus::Queued { position } => ("🖼️", "#9ca3af", format!("#{} in queue", position)),
-                    BatchStatus::Generating { progress } => ("⚙️", "#f59e0b", format!("{}%", progress)),
-                    BatchStatus::Ready { asset_count } => ("✅", "#22c55e", format!("{} ready", asset_count)),
-                    BatchStatus::Failed { error: _ } => ("❌", "#ef4444", "Failed".into()),
-                };
+        BatchStatus::Queued { position } => ("🖼️", "#9ca3af", format!("#{} in queue", position)),
+        BatchStatus::Generating { progress } => ("⚙️", "#f59e0b", format!("{}%", progress)),
+        BatchStatus::Ready { asset_count } => ("✅", "#22c55e", format!("{} ready", asset_count)),
+        BatchStatus::Failed { error: _ } => ("❌", "#ef4444", "Failed".into()),
+    };
 
     let display_name = format!("{} ({})", batch.entity_id, batch.entity_type);
 
@@ -569,7 +572,7 @@ fn QueueItemRow(
                     }
                 }
             }
-            
+
 
             // Expanded error details for failed batches
             if let BatchStatus::Failed { error } = &batch.status {
@@ -619,11 +622,9 @@ fn QueueItemRow(
 fn SuggestionQueueRow(
     suggestion: SuggestionTask,
     selected_suggestion: Signal<Option<SuggestionTask>>,
-    #[props(default = false)]
-    show_read: bool,
+    #[props(default = false)] show_read: bool,
     world_id: Option<String>,
-    #[props(default)]
-    on_navigate_to_entity: Option<EventHandler<(String, String)>>,
+    #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
     let generation_service = use_generation_service();
     let platform = use_context::<Platform>();
@@ -631,9 +632,9 @@ fn SuggestionQueueRow(
     let (status_icon, status_color, status_text) = match &suggestion.status {
         SuggestionStatus::Queued => ("💭", "#9ca3af", "Queued".to_string()),
         SuggestionStatus::Processing => ("⚙️", "#f59e0b", "Processing".to_string()),
-        SuggestionStatus::Ready { suggestions: results } => {
-            ("✅", "#22c55e", format!("{} ready", results.len()))
-        }
+        SuggestionStatus::Ready {
+            suggestions: results,
+        } => ("✅", "#22c55e", format!("{} ready", results.len())),
         SuggestionStatus::Failed { error: _ } => ("❌", "#ef4444", "Failed".to_string()),
     };
 
@@ -843,7 +844,10 @@ fn SuggestionViewModal(suggestion: SuggestionTask, on_close: EventHandler<()>) -
         _ => Vec::new(),
     };
 
-    let title = format!("Suggestions for {}", suggestion.field_type.replace("_", " "));
+    let title = format!(
+        "Suggestions for {}",
+        suggestion.field_type.replace("_", " ")
+    );
 
     rsx! {
         // Backdrop

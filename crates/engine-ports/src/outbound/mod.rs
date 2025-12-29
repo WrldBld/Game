@@ -94,10 +94,11 @@ pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 pub use repository_port::{
     AssetRepositoryPort, ChallengeRepositoryPort, CharacterNode, CharacterRepositoryPort,
     EventChainRepositoryPort, FlagRepositoryPort, GoalRepositoryPort, InteractionRepositoryPort,
-    ItemRepositoryPort, LocationRepositoryPort, NarrativeEventRepositoryPort, ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort, RegionRepositoryPort, RelationshipEdge, RelationshipRepositoryPort,
-    SceneRepositoryPort, SheetTemplateRepositoryPort, SkillRepositoryPort, SocialNetwork,
-    StoryEventRepositoryPort, WantRepositoryPort, WorkflowRepositoryPort, WorldRepositoryPort,
+    ItemRepositoryPort, LocationRepositoryPort, NarrativeEventRepositoryPort,
+    ObservationRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
+    SkillRepositoryPort, SocialNetwork, StoryEventRepositoryPort, WantRepositoryPort,
+    WorkflowRepositoryPort, WorldRepositoryPort,
 };
 
 pub use prompt_template_port::{
@@ -113,6 +114,7 @@ pub use suggestion_enqueue_port::{
     SuggestionEnqueueResponse,
 };
 
+// Queue port - generic queue interface for domain payloads (no serde bounds)
 pub use queue_port::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueuePort,
@@ -137,9 +139,9 @@ pub use disposition_service_port::DispositionServicePort;
 pub use disposition_service_port::MockDispositionServicePort;
 
 // Skill service port - interface for skill operations
-pub use skill_service_port::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
 #[cfg(any(test, feature = "testing"))]
 pub use skill_service_port::MockSkillServicePort;
+pub use skill_service_port::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
 
 // Interaction service port - interface for interaction operations
 pub use interaction_service_port::InteractionServicePort;
@@ -147,9 +149,9 @@ pub use interaction_service_port::InteractionServicePort;
 pub use interaction_service_port::MockInteractionServicePort;
 
 // World service port - interface for world operations
-pub use world_service_port::WorldServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use world_service_port::MockWorldServicePort;
+pub use world_service_port::WorldServicePort;
 
 // Character service port - interface for character operations
 pub use character_service_port::CharacterServicePort;
@@ -162,9 +164,9 @@ pub use location_service_port::LocationServicePort;
 pub use location_service_port::MockLocationServicePort;
 
 // Region service port - interface for region operations
-pub use region_service_port::RegionServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use region_service_port::MockRegionServicePort;
+pub use region_service_port::RegionServicePort;
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
@@ -181,115 +183,148 @@ pub use item_service_port::ItemServicePort;
 pub use item_service_port::MockItemServicePort;
 
 // Player character service port - interface for player character operations
-pub use player_character_service_port::PlayerCharacterServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use player_character_service_port::MockPlayerCharacterServicePort;
+pub use player_character_service_port::PlayerCharacterServicePort;
 
 // Story event service port - interface for story event operations
-pub use story_event_service_port::StoryEventServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use story_event_service_port::MockStoryEventServicePort;
+pub use story_event_service_port::StoryEventServicePort;
 
 // Settings service port - interface for settings operations
-pub use settings_service_port::{LlmConfig, SettingsServicePort};
 #[cfg(any(test, feature = "testing"))]
 pub use settings_service_port::MockSettingsServicePort;
+pub use settings_service_port::{LlmConfig, SettingsServicePort};
 
 // Prompt template service port - interface for prompt template operations
-pub use prompt_template_service_port::{PromptTemplate, PromptTemplateServicePort, PromptTemplateSource as ServicePromptTemplateSource};
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_template_service_port::MockPromptTemplateServicePort;
+pub use prompt_template_service_port::{
+    PromptTemplate, PromptTemplateServicePort, PromptTemplateSource as ServicePromptTemplateSource,
+};
 
 // Prompt context service port - interface for building LLM prompt context
-pub use prompt_context_service_port::{PromptContextError, PromptContextServicePort};
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_context_service_port::MockPromptContextServicePort;
+pub use prompt_context_service_port::{PromptContextError, PromptContextServicePort};
 
 // Asset service port - interface for asset gallery operations
-pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
 #[cfg(any(test, feature = "testing"))]
 pub use asset_service_port::MockAssetServicePort;
+pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
 
 // Workflow service port - interface for workflow configuration operations
-pub use workflow_service_port::WorkflowServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use workflow_service_port::MockWorkflowServicePort;
+pub use workflow_service_port::WorkflowServicePort;
 
 // Generation service port - interface for asset generation operations
-pub use generation_service_port::{GenerationRequest, GenerationServicePort};
 #[cfg(any(test, feature = "testing"))]
 pub use generation_service_port::MockGenerationServicePort;
+pub use generation_service_port::{GenerationRequest, GenerationServicePort};
 
 // Challenge resolution service port - interface for challenge resolution operations
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_resolution_service_port::MockChallengeResolutionServicePort;
 pub use challenge_resolution_service_port::{
     ChallengeResolutionServicePort, DiceRoll, PendingResolution, RollResult,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use challenge_resolution_service_port::MockChallengeResolutionServicePort;
 
 // Staging service port - interface for NPC staging operations
+#[cfg(any(test, feature = "testing"))]
+pub use staging_service_port::MockStagingServicePort;
 pub use staging_service_port::{
     ApprovedNpc, StagedNpcProposal, StagingProposal, StagingServicePort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use staging_service_port::MockStagingServicePort;
 
 // LLM queue service port - interface for LLM request queue operations
-pub use llm_queue_service_port::{
-    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueServicePort,
-    LlmRequestType, LlmResponse as LlmQueueResponse, NarrativeEventSuggestion,
-    ProposedToolCall, SuggestionContext as LlmSuggestionContext,
-};
 #[cfg(any(test, feature = "testing"))]
 pub use llm_queue_service_port::MockLlmQueueServicePort;
+pub use llm_queue_service_port::{
+    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueServicePort,
+    LlmRequestType, LlmResponse as LlmQueueResponse, NarrativeEventSuggestion, ProposedToolCall,
+    SuggestionContext as LlmSuggestionContext,
+};
 
 // Player action queue service port - interface for player action queue operations
+#[cfg(any(test, feature = "testing"))]
+pub use player_action_queue_service_port::MockPlayerActionQueueServicePort;
 pub use player_action_queue_service_port::{
     PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use player_action_queue_service_port::MockPlayerActionQueueServicePort;
 
 // DM approval queue service port - interface for DM approval queue operations
+#[cfg(any(test, feature = "testing"))]
+pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
 pub use dm_approval_queue_service_port::{
     ApprovalDecision, ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency,
     ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalQueueServicePort,
     NarrativeEventSuggestionInfo, ProposedToolInfo,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
 
 // DM action queue service port - interface for DM action queue operations
+#[cfg(any(test, feature = "testing"))]
+pub use dm_action_queue_service_port::MockDmActionQueueServicePort;
 pub use dm_action_queue_service_port::{
     DmAction, DmActionQueueItem, DmActionQueueServicePort, DmActionType, DmDecision,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use dm_action_queue_service_port::MockDmActionQueueServicePort;
 
 // Asset generation queue service port - interface for asset generation queue operations
+#[cfg(any(test, feature = "testing"))]
+pub use asset_generation_queue_service_port::MockAssetGenerationQueueServicePort;
 pub use asset_generation_queue_service_port::{
     AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
     GenerationMetadata as AssetGenerationMetadata, GenerationResult,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use asset_generation_queue_service_port::MockAssetGenerationQueueServicePort;
 
 // Use case types - input/output types for use case operations
 pub use use_case_types::{
-    // Movement types
-    MovementResult, MovementError, SelectCharacterInput, SelectCharacterResult,
-    MoveToRegionInput, ExitToLocationInput, PendingStagingData, StagingProposalData,
-    // Connection types
-    WorldRole, ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent,
-    JoinWorldInput, JoinWorldResult, LeaveWorldResult, SetSpectateTargetInput, SpectateTargetResult,
-    // Scene types
-    TimeContext, DirectorialContextData, NpcMotivation, SceneEntity, LocationEntity,
-    CharacterEntity, InteractionEntity, InteractionTarget, ApprovalDecision as SceneApprovalDecision,
-    DmAction as SceneDmAction,
-    // Challenge types
-    TriggerInfo, TriggerResult, AdHocResult, AdHocOutcomes, DiceInputType, RollResultData,
-    OutcomeDecision, OutcomeDecisionResult, DiscardResult, RegenerateResult, OutcomeDetail,
+    AdHocOutcomes,
+    AdHocResult,
+    ApprovalDecision as SceneApprovalDecision,
     ApprovalItem,
+    CharacterEntity,
+    ConnectedUser,
+    ConnectionInfo,
+    DiceInputType,
+    DirectorialContextData,
+    DiscardResult,
+    DmAction as SceneDmAction,
+    ExitToLocationInput,
+    InteractionEntity,
+    InteractionTarget,
+    JoinWorldInput,
+    JoinWorldResult,
+    LeaveWorldResult,
+    LocationEntity,
+    MoveToRegionInput,
+    MovementError,
+    // Movement types
+    MovementResult,
+    NpcMotivation,
+    OutcomeDecision,
+    OutcomeDecisionResult,
+    OutcomeDetail,
+    PcData,
+    PendingStagingData,
+    RegenerateResult,
+    RollResultData,
+    SceneEntity,
+    SelectCharacterInput,
+    SelectCharacterResult,
+    SetSpectateTargetInput,
+    SpectateTargetResult,
+    StagingProposalData,
+    // Scene types
+    TimeContext,
+    // Challenge types
+    TriggerInfo,
+    TriggerResult,
+    UserJoinedEvent,
+    UserLeftEvent,
+    // Connection types
+    WorldRole,
 };
 
 // Re-export mocks for test builds

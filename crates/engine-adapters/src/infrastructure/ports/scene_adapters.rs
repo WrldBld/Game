@@ -11,14 +11,17 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{InteractionTarget as DomainInteractionTarget, SceneId, TimeContext as DomainTimeContext, WorldId};
 use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
+use wrldbldr_domain::{
+    InteractionTarget as DomainInteractionTarget, SceneId, TimeContext as DomainTimeContext,
+    WorldId,
+};
 use wrldbldr_engine_app::application::services::{InteractionService, SceneService};
 use wrldbldr_engine_app::application::use_cases::{
     CharacterEntity, DirectorialContextData, DirectorialContextRepositoryPort, DmAction,
     InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity,
-    SceneEntity, SceneServicePort, SceneWithRelations as UseCaseSceneWithRelations, TimeContext,
-    SceneDmActionQueuePort, WorldStatePort,
+    SceneDmActionQueuePort, SceneEntity, SceneServicePort,
+    SceneWithRelations as UseCaseSceneWithRelations, TimeContext, WorldStatePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
 
@@ -147,10 +150,8 @@ impl WorldStatePort for SceneWorldStateAdapter {
             .npc_motivations
             .into_iter()
             .map(|m| {
-                let motivation = DomainNpcMotivation::new(
-                    m.emotional_state.unwrap_or_default(),
-                    m.motivation,
-                );
+                let motivation =
+                    DomainNpcMotivation::new(m.emotional_state.unwrap_or_default(), m.motivation);
                 (m.character_id, motivation)
             })
             .collect();
@@ -267,8 +268,11 @@ impl SceneDmActionQueuePort for DmActionQueuePlaceholder {
         // Scene approval actions use a different approval flow than the DM action queue.
         // Handlers should process approval decisions directly or use the appropriate
         // approval service.
-        Err("DM action queue adapter not implemented for scene approvals. \
-             Handlers should call the approval service directly.".to_string())
+        Err(
+            "DM action queue adapter not implemented for scene approvals. \
+             Handlers should call the approval service directly."
+                .to_string(),
+        )
     }
 }
 

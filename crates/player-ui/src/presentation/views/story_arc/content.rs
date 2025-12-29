@@ -2,10 +2,10 @@
 
 use dioxus::prelude::*;
 
+use super::{EventChainsView, StoryArcSubTab, StoryArcTabLink};
+use crate::presentation::components::story_arc::narrative_event_library::NarrativeEventLibrary;
 use crate::presentation::components::story_arc::timeline_view::TimelineView;
 use crate::presentation::components::story_arc::visual_timeline::VisualTimeline;
-use crate::presentation::components::story_arc::narrative_event_library::NarrativeEventLibrary;
-use super::{StoryArcSubTab, StoryArcTabLink, EventChainsView};
 
 /// Story Arc mode content - Timeline, Narrative Events, Event Chains
 #[derive(Props, Clone, PartialEq)]
@@ -18,7 +18,8 @@ pub struct StoryArcContentProps {
 #[component]
 pub fn StoryArcContent(props: StoryArcContentProps) -> Element {
     // Parse selected tab from URL, default to Timeline
-    let active_tab = props.selected_tab
+    let active_tab = props
+        .selected_tab
         .as_ref()
         .map(|s| StoryArcSubTab::from_str(s))
         .unwrap_or(StoryArcSubTab::Timeline);

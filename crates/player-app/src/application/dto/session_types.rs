@@ -5,6 +5,6 @@
 
 // Re-export session types from player-ports (explicit list)
 pub use wrldbldr_player_ports::session_types::{
-    ParticipantRole, DiceInput, ApprovalDecision, DirectorialContext,
-    NpcMotivationData, ApprovedNpcInfo, AdHocOutcomes, ChallengeOutcomeDecision,
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
+    DirectorialContext, NpcMotivationData, ParticipantRole,
 };

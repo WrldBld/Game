@@ -13,12 +13,12 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::services::{PlayerCharacterService, WorldService};
 use wrldbldr_engine_app::application::use_cases::{
     DirectorialContextData, DirectorialContextPort, NpcMotivation, PcData,
-    PlayerCharacterServicePort, WorldStatePort, WorldServicePort,
+    PlayerCharacterServicePort, WorldServicePort, WorldStatePort,
 };
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort;
 
@@ -122,7 +122,9 @@ impl DirectorialContextPort for ConnectionDirectorialContextAdapter {
                             },
                         })
                         .collect(),
-                    scene_mood: if tone_str.is_empty() || tone_str == "Neutral - balanced, conversational" {
+                    scene_mood: if tone_str.is_empty()
+                        || tone_str == "Neutral - balanced, conversational"
+                    {
                         None
                     } else {
                         Some(tone_str)
@@ -166,10 +168,8 @@ impl WorldStatePort for ConnectionWorldStateAdapter {
             .npc_motivations
             .into_iter()
             .map(|m| {
-                let motivation = DomainNpcMotivation::new(
-                    m.emotional_state.unwrap_or_default(),
-                    m.motivation,
-                );
+                let motivation =
+                    DomainNpcMotivation::new(m.emotional_state.unwrap_or_default(), m.motivation);
                 (m.character_id, motivation)
             })
             .collect();

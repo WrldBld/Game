@@ -3,18 +3,18 @@
 //! Provides platform-specific implementations for desktop using
 //! standard library and native crates.
 
-use wrldbldr_player_ports::outbound::platform::{
-    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
-    SleepProvider, StorageProvider, TimeProvider,
-};
-use wrldbldr_player_ports::outbound::Platform;
+use directories::ProjectDirs;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{future::Future, pin::Pin, sync::Arc};
-use directories::ProjectDirs;
+use wrldbldr_player_ports::outbound::platform::{
+    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
+    SleepProvider, StorageProvider, TimeProvider,
+};
+use wrldbldr_player_ports::outbound::Platform;
 
 /// Desktop time provider using std::time
 #[derive(Clone, Default)]
@@ -88,15 +88,13 @@ impl DesktopStorageProvider {
         // Load existing data from file
         let cache = if storage_path.exists() {
             match fs::read_to_string(&storage_path) {
-                Ok(data) => {
-                    match serde_json::from_str::<HashMap<String, String>>(&data) {
-                        Ok(map) => map,
-                        Err(e) => {
-                            tracing::warn!("Failed to parse storage file: {}", e);
-                            HashMap::new()
-                        }
+                Ok(data) => match serde_json::from_str::<HashMap<String, String>>(&data) {
+                    Ok(map) => map,
+                    Err(e) => {
+                        tracing::warn!("Failed to parse storage file: {}", e);
+                        HashMap::new()
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!("Failed to read storage file: {}", e);
                     HashMap::new()
@@ -258,8 +256,13 @@ impl EngineConfigProvider for DesktopEngineConfigProvider {
 pub struct DesktopConnectionFactoryProvider;
 
 impl ConnectionFactoryProvider for DesktopConnectionFactoryProvider {
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn wrldbldr_player_ports::outbound::GameConnectionPort> {
-        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(server_url)
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> Arc<dyn wrldbldr_player_ports::outbound::GameConnectionPort> {
+        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(
+            server_url,
+        )
     }
 }
 

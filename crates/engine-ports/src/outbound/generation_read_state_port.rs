@@ -35,5 +35,3 @@ pub trait GenerationReadStatePort: Send + Sync {
         world_id: &str,
     ) -> anyhow::Result<Vec<(String, GenerationReadKind)>>;
 }
-
-

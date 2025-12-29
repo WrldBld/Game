@@ -4,8 +4,8 @@
 //! The worker handles queue processing and broadcasting; this port handles
 //! the actual action logic (approvals, scene transitions, event triggers, etc.)
 
-use async_trait::async_trait;
 use anyhow::Result;
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, NarrativeEventId, SceneId, WorldId};
 

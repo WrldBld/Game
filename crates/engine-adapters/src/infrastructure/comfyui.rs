@@ -10,11 +10,12 @@ use std::time::Duration;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use wrldbldr_engine_ports::outbound::{
-    ComfyUIPort, GeneratedImage, HistoryResponse as PortHistoryResponse, NodeOutput as PortNodeOutput,
-    PromptHistory as PortPromptHistory, PromptStatus as PortPromptStatus, QueuePromptResponse,
-};
 use wrldbldr_domain::value_objects::ComfyUIConfig;
+use wrldbldr_engine_ports::outbound::{
+    ComfyUIPort, GeneratedImage, HistoryResponse as PortHistoryResponse,
+    NodeOutput as PortNodeOutput, PromptHistory as PortPromptHistory,
+    PromptStatus as PortPromptStatus, QueuePromptResponse,
+};
 
 // =============================================================================
 // Circuit Breaker Constants
@@ -146,7 +147,10 @@ impl ComfyUIClient {
 
     /// Get a copy of the current config
     pub fn config(&self) -> ComfyUIConfig {
-        self.config.lock().unwrap_or_else(|p| p.into_inner()).clone()
+        self.config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
     }
 
     /// Update the config
@@ -160,7 +164,10 @@ impl ComfyUIClient {
     async fn cached_health_check(&self) -> Result<bool, ComfyUIError> {
         // Check cache first (5 second TTL)
         {
-            let cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
+            let cache = self
+                .last_health_check
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
             if let Some((timestamp, result)) = cache.as_ref() {
                 let age = Utc::now().signed_duration_since(*timestamp);
                 if age.num_seconds() < 5 {
@@ -175,7 +182,10 @@ impl ComfyUIClient {
 
         // Update cache
         {
-            let mut cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
+            let mut cache = self
+                .last_health_check
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
             *cache = Some((Utc::now(), is_healthy));
         }
 
@@ -206,7 +216,11 @@ impl ComfyUIClient {
     {
         let mut last_error: Option<String> = None;
 
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let config = self
+            .config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         for attempt in 0..=config.max_retries {
             // Check circuit breaker
             if let Err(e) = self.circuit_breaker.check_circuit() {
@@ -247,13 +261,18 @@ impl ComfyUIClient {
                     }
 
                     // Exponential backoff: base * 3^attempt
-                    let delay_seconds = config.base_delay_seconds as u64 * 3_u64.pow(attempt as u32);
+                    let delay_seconds =
+                        config.base_delay_seconds as u64 * 3_u64.pow(attempt as u32);
                     sleep(Duration::from_secs(delay_seconds)).await;
                 }
             }
         }
 
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let config = self
+            .config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         self.circuit_breaker.record_failure();
         Err(ComfyUIError::MaxRetriesExceeded(config.max_retries))
     }
@@ -261,13 +280,20 @@ impl ComfyUIClient {
     /// Get current connection state
     pub fn connection_state(&self) -> ComfyUIConnectionState {
         if self.circuit_breaker.is_open() {
-            let state = self.circuit_breaker.state.lock().unwrap_or_else(|p| p.into_inner());
+            let state = self
+                .circuit_breaker
+                .state
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
             if let CircuitBreakerState::Open { until } = *state {
                 return ComfyUIConnectionState::CircuitOpen { until };
             }
         }
 
-        let cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
+        let cache = self
+            .last_health_check
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         if let Some((timestamp, is_healthy)) = cache.as_ref() {
             let age = Utc::now().signed_duration_since(*timestamp);
             if age.num_seconds() < HEALTH_CHECK_CACHE_TTL_SECS {
@@ -292,7 +318,11 @@ impl ComfyUIClient {
         // Health check before queuing
         self.cached_health_check().await?;
 
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let config = self
+            .config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         self.with_retry(|| {
             let client = self.client.clone();
             let base_url = self.base_url.clone();
@@ -320,13 +350,17 @@ impl ComfyUIClient {
                     })?;
 
                 if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                    let error_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
                     return Err(ComfyUIError::ApiError(error_text));
                 }
 
-                let queue_response: QueueResponse = response.json().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
+                let queue_response: QueueResponse = response
+                    .json()
+                    .await
+                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
                 Ok(queue_response)
             }
         })
@@ -336,7 +370,11 @@ impl ComfyUIClient {
     /// Get the history of a completed prompt
     pub async fn get_history(&self, prompt_id: &str) -> Result<HistoryResponse, ComfyUIError> {
         let prompt_id = prompt_id.to_string();
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let config = self
+            .config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         self.with_retry(|| {
             let client = self.client.clone();
             let base_url = self.base_url.clone();
@@ -357,13 +395,17 @@ impl ComfyUIClient {
                     })?;
 
                 if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                    let error_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
                     return Err(ComfyUIError::ApiError(error_text));
                 }
 
-                let history: HistoryResponse = response.json().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
+                let history: HistoryResponse = response
+                    .json()
+                    .await
+                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
                 Ok(history)
             }
         })
@@ -380,7 +422,11 @@ impl ComfyUIClient {
         let filename = filename.to_string();
         let subfolder = subfolder.to_string();
         let folder_type = folder_type.to_string();
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let config = self
+            .config
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         self.with_retry(|| {
             let client = self.client.clone();
             let base_url = self.base_url.clone();
@@ -408,13 +454,17 @@ impl ComfyUIClient {
                     })?;
 
                 if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                    let error_text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
                     return Err(ComfyUIError::ApiError(error_text));
                 }
 
-                let bytes = response.bytes().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
                 Ok(bytes.to_vec())
             }
         })
@@ -617,7 +667,12 @@ impl ComfyUIPort for ComfyUIClient {
         Ok(PortHistoryResponse { prompts })
     }
 
-    async fn get_image(&self, filename: &str, subfolder: &str, folder_type: &str) -> Result<Vec<u8>> {
+    async fn get_image(
+        &self,
+        filename: &str,
+        subfolder: &str,
+        folder_type: &str,
+    ) -> Result<Vec<u8>> {
         // Call the inherent method using ComfyUIClient:: syntax to avoid recursion
         let image_data = ComfyUIClient::get_image(self, filename, subfolder, folder_type).await?;
         Ok(image_data)

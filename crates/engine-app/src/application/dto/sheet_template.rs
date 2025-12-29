@@ -53,7 +53,9 @@ impl SheetTemplateStorageDto {
     fn variant_to_json(variant: &RuleSystemVariant) -> serde_json::Value {
         match variant {
             RuleSystemVariant::Dnd5e => serde_json::Value::String("Dnd5e".to_string()),
-            RuleSystemVariant::Pathfinder2e => serde_json::Value::String("Pathfinder2e".to_string()),
+            RuleSystemVariant::Pathfinder2e => {
+                serde_json::Value::String("Pathfinder2e".to_string())
+            }
             RuleSystemVariant::GenericD20 => serde_json::Value::String("GenericD20".to_string()),
             RuleSystemVariant::CallOfCthulhu7e => {
                 serde_json::Value::String("CallOfCthulhu7e".to_string())
@@ -414,7 +416,13 @@ impl From<FieldType> for FieldTypeDto {
                 categories,
                 show_attribute,
             },
-            FieldType::Derived { formula, depends_on } => Self::Derived { formula, depends_on },
+            FieldType::Derived {
+                formula,
+                depends_on,
+            } => Self::Derived {
+                formula,
+                depends_on,
+            },
             FieldType::Resource {
                 max_field,
                 default_max,
@@ -462,7 +470,13 @@ impl From<FieldTypeDto> for FieldType {
                 categories,
                 show_attribute,
             },
-            FieldTypeDto::Derived { formula, depends_on } => Self::Derived { formula, depends_on },
+            FieldTypeDto::Derived {
+                formula,
+                depends_on,
+            } => Self::Derived {
+                formula,
+                depends_on,
+            },
             FieldTypeDto::Resource {
                 max_field,
                 default_max,
@@ -487,4 +501,3 @@ impl From<FieldTypeDto> for FieldType {
         }
     }
 }
-

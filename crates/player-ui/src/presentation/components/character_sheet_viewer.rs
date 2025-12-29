@@ -95,18 +95,12 @@ fn SheetSectionViewer(props: SheetSectionViewerProps) -> Element {
 
     // CRITICAL: Extract layout classes BEFORE rsx! block - no inline conditionals in class strings
     let content_layout_class = match props.section.layout {
-        wrldbldr_player_app::application::dto::SectionLayout::Vertical => {
-            "flex flex-col gap-2"
-        }
+        wrldbldr_player_app::application::dto::SectionLayout::Vertical => "flex flex-col gap-2",
         wrldbldr_player_app::application::dto::SectionLayout::Grid { columns: _ } => {
             "grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3"
         }
-        wrldbldr_player_app::application::dto::SectionLayout::TwoColumn => {
-            "grid grid-cols-2 gap-3"
-        }
-        wrldbldr_player_app::application::dto::SectionLayout::Flow => {
-            "flex flex-wrap gap-3"
-        }
+        wrldbldr_player_app::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
+        wrldbldr_player_app::application::dto::SectionLayout::Flow => "flex flex-wrap gap-3",
     };
 
     // Sort fields by order
@@ -251,17 +245,15 @@ fn format_field_value(field_type: &FieldType, value: &Option<FieldValue>) -> Str
                 n.to_string()
             }
         }
-        (FieldType::Number { default, .. }, None) => {
-            default.map(|d| format!("+{}", d)).unwrap_or_else(|| "0".to_string())
-        }
+        (FieldType::Number { default, .. }, None) => default
+            .map(|d| format!("+{}", d))
+            .unwrap_or_else(|| "0".to_string()),
         (FieldType::Text { .. }, Some(FieldValue::Text(s))) => s.clone(),
         (FieldType::Text { .. }, None) => "—".to_string(),
         (FieldType::Checkbox { .. }, Some(FieldValue::Boolean(b))) => {
             if *b { "Yes" } else { "No" }.to_string()
         }
-        (FieldType::Checkbox { default }, None) => {
-            if *default { "Yes" } else { "No" }.to_string()
-        }
+        (FieldType::Checkbox { default }, None) => if *default { "Yes" } else { "No" }.to_string(),
         (FieldType::Select { options }, Some(FieldValue::Text(s))) => {
             // Find the label for the selected value
             options
@@ -270,9 +262,10 @@ fn format_field_value(field_type: &FieldType, value: &Option<FieldValue>) -> Str
                 .map(|o| o.label.clone())
                 .unwrap_or_else(|| s.clone())
         }
-        (FieldType::Select { options }, None) => {
-            options.first().map(|o| o.label.clone()).unwrap_or_else(|| "—".to_string())
-        }
+        (FieldType::Select { options }, None) => options
+            .first()
+            .map(|o| o.label.clone())
+            .unwrap_or_else(|| "—".to_string()),
         (FieldType::Resource { .. }, _) => {
             // Handled specially in the component
             "—".to_string()

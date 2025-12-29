@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, WorldRepositoryPort};
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, Region};
 use wrldbldr_domain::{GridMapId, LocationId, WorldId};
+use wrldbldr_engine_ports::outbound::{LocationRepositoryPort, WorldRepositoryPort};
 
 // Validation constants
 const MAX_LOCATION_NAME_LENGTH: usize = 255;
@@ -140,11 +140,7 @@ pub trait LocationService: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Add a region to a location
-    async fn add_region(
-        &self,
-        location_id: LocationId,
-        region: Region,
-    ) -> Result<()>;
+    async fn add_region(&self, location_id: LocationId, region: Region) -> Result<()>;
 
     // -------------------------------------------------------------------------
     // Grid map operations (via edge)
@@ -210,19 +206,13 @@ impl LocationServiceImpl {
     }
 
     /// Build hierarchy tree by querying parent/child edges
-    async fn build_hierarchy_from_repo(
-        &self,
-        world_id: WorldId,
-    ) -> Result<Vec<LocationHierarchy>> {
+    async fn build_hierarchy_from_repo(&self, world_id: WorldId) -> Result<Vec<LocationHierarchy>> {
         // Get all locations in the world
         let locations = self.location_repository.list(world_id).await?;
 
         // Build a map of location_id -> Location
-        let _location_map: std::collections::HashMap<LocationId, Location> = locations
-            .iter()
-            .cloned()
-            .map(|l| (l.id, l))
-            .collect();
+        let _location_map: std::collections::HashMap<LocationId, Location> =
+            locations.iter().cloned().map(|l| (l.id, l)).collect();
 
         // Build parent -> children map by querying each location's children
         let mut children_map: std::collections::HashMap<LocationId, Vec<Location>> =
@@ -565,8 +555,11 @@ impl LocationService for LocationServiceImpl {
             anyhow::bail!("Cannot create connection from a location to itself");
         }
 
-        let mut connection =
-            LocationConnection::new(request.from_location, request.to_location, &request.connection_type);
+        let mut connection = LocationConnection::new(
+            request.from_location,
+            request.to_location,
+            &request.connection_type,
+        );
 
         if let Some(description) = request.description {
             connection = connection.with_description(description);
@@ -629,11 +622,7 @@ impl LocationService for LocationServiceImpl {
     }
 
     #[instrument(skip(self, region), fields(location_id = %location_id))]
-    async fn add_region(
-        &self,
-        location_id: LocationId,
-        region: Region,
-    ) -> Result<()> {
+    async fn add_region(&self, location_id: LocationId, region: Region) -> Result<()> {
         // Verify location exists
         let location = self
             .location_repository

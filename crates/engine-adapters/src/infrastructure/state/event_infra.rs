@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort};
 use crate::infrastructure::event_bus::InProcessEventNotifier;
+use wrldbldr_engine_ports::outbound::{
+    DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
+};
 
 /// Event infrastructure for application-level events
 ///

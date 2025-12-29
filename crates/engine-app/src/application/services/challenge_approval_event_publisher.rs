@@ -28,7 +28,9 @@ use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, OutcomeBranchInfo, OutcomeTriggerInfo,
 };
 
-use super::challenge_approval_events::{ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData};
+use super::challenge_approval_events::{
+    ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
+};
 
 /// Publisher that converts `ChallengeApprovalEvent` to `GameEvent` and broadcasts
 pub struct ChallengeApprovalEventPublisher {
@@ -49,7 +51,11 @@ impl ChallengeApprovalEventPublisher {
     /// # Arguments
     /// * `rx` - Channel receiver for challenge approval events
     /// * `cancel_token` - Token to signal graceful shutdown
-    pub async fn run(self, mut rx: Receiver<ChallengeApprovalEvent>, cancel_token: CancellationToken) {
+    pub async fn run(
+        self,
+        mut rx: Receiver<ChallengeApprovalEvent>,
+        cancel_token: CancellationToken,
+    ) {
         tracing::info!("ChallengeApprovalEventPublisher started");
 
         loop {

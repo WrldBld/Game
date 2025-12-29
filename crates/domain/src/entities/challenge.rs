@@ -53,11 +53,7 @@ impl Challenge {
     ///
     /// Note: The skill relationship should be set via `ChallengeRepositoryPort::set_required_skill()`
     /// after creating the challenge.
-    pub fn new(
-        world_id: WorldId,
-        name: impl Into<String>,
-        difficulty: Difficulty,
-    ) -> Self {
+    pub fn new(world_id: WorldId, name: impl Into<String>, difficulty: Difficulty) -> Self {
         Self {
             id: ChallengeId::new(),
             world_id,
@@ -101,7 +97,9 @@ impl Challenge {
 
     /// Check if a trigger condition matches some player action/context
     pub fn matches_trigger(&self, action: &str, context: &str) -> bool {
-        self.trigger_conditions.iter().any(|tc| tc.matches(action, context))
+        self.trigger_conditions
+            .iter()
+            .any(|tc| tc.matches(action, context))
     }
 }
 
@@ -174,15 +172,29 @@ impl Difficulty {
     }
 
     /// Standard D20 difficulty presets
-    pub fn d20_easy() -> Self { Self::DC(10) }
-    pub fn d20_medium() -> Self { Self::DC(15) }
-    pub fn d20_hard() -> Self { Self::DC(20) }
-    pub fn d20_very_hard() -> Self { Self::DC(25) }
+    pub fn d20_easy() -> Self {
+        Self::DC(10)
+    }
+    pub fn d20_medium() -> Self {
+        Self::DC(15)
+    }
+    pub fn d20_hard() -> Self {
+        Self::DC(20)
+    }
+    pub fn d20_very_hard() -> Self {
+        Self::DC(25)
+    }
 
     /// D100 difficulty presets (based on typical skill values)
-    pub fn d100_regular() -> Self { Self::Percentage(100) }
-    pub fn d100_hard() -> Self { Self::Percentage(50) }
-    pub fn d100_extreme() -> Self { Self::Percentage(20) }
+    pub fn d100_regular() -> Self {
+        Self::Percentage(100)
+    }
+    pub fn d100_hard() -> Self {
+        Self::Percentage(50)
+    }
+    pub fn d100_extreme() -> Self {
+        Self::Percentage(20)
+    }
 }
 
 /// Descriptive difficulty for narrative systems
@@ -297,31 +309,20 @@ pub enum OutcomeTrigger {
         persist: bool,
     },
     /// Enable another challenge (unlock prerequisite)
-    EnableChallenge {
-        challenge_id: ChallengeId,
-    },
+    EnableChallenge { challenge_id: ChallengeId },
     /// Disable a challenge (remove from available)
-    DisableChallenge {
-        challenge_id: ChallengeId,
-    },
+    DisableChallenge { challenge_id: ChallengeId },
     /// Modify a character stat (HP, Sanity, etc.)
-    ModifyCharacterStat {
-        stat: String,
-        modifier: i32,
-    },
+    ModifyCharacterStat { stat: String, modifier: i32 },
     /// Trigger a scene transition
-    TriggerScene {
-        scene_id: SceneId,
-    },
+    TriggerScene { scene_id: SceneId },
     /// Add an item to inventory
     GiveItem {
         item_name: String,
         item_description: Option<String>,
     },
     /// Custom trigger with free-text description
-    Custom {
-        description: String,
-    },
+    Custom { description: String },
 }
 
 impl OutcomeTrigger {
@@ -400,13 +401,9 @@ pub enum TriggerType {
         keywords: Vec<String>,
     },
     /// Player enters specific area/location
-    EnterArea {
-        area_keywords: Vec<String>,
-    },
+    EnterArea { area_keywords: Vec<String> },
     /// Player discusses specific topic
-    DialogueTopic {
-        topic_keywords: Vec<String>,
-    },
+    DialogueTopic { topic_keywords: Vec<String> },
     /// Another challenge completed (success or failure)
     ChallengeComplete {
         challenge_id: ChallengeId,
@@ -414,17 +411,11 @@ pub enum TriggerType {
         requires_success: Option<bool>,
     },
     /// Time-based trigger (after N turns/exchanges)
-    TimeBased {
-        turns: u32,
-    },
+    TimeBased { turns: u32 },
     /// NPC present in scene
-    NpcPresent {
-        npc_keywords: Vec<String>,
-    },
+    NpcPresent { npc_keywords: Vec<String> },
     /// Free-text condition for LLM interpretation
-    Custom {
-        description: String,
-    },
+    Custom { description: String },
 }
 
 impl TriggerType {
@@ -434,32 +425,27 @@ impl TriggerType {
         let context_lower = context.to_lowercase();
 
         match self {
-            Self::ObjectInteraction { keywords } => {
-                keywords.iter().any(|k| {
-                    let k_lower = k.to_lowercase();
-                    action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
-                })
-            }
-            Self::EnterArea { area_keywords } => {
-                area_keywords.iter().any(|k| {
-                    let k_lower = k.to_lowercase();
-                    action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
-                })
-            }
-            Self::DialogueTopic { topic_keywords } => {
-                topic_keywords.iter().any(|k| {
-                    let k_lower = k.to_lowercase();
-                    action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
-                })
-            }
+            Self::ObjectInteraction { keywords } => keywords.iter().any(|k| {
+                let k_lower = k.to_lowercase();
+                action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
+            }),
+            Self::EnterArea { area_keywords } => area_keywords.iter().any(|k| {
+                let k_lower = k.to_lowercase();
+                action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
+            }),
+            Self::DialogueTopic { topic_keywords } => topic_keywords.iter().any(|k| {
+                let k_lower = k.to_lowercase();
+                action_lower.contains(&k_lower) || context_lower.contains(&k_lower)
+            }),
             Self::Custom { description } => {
                 // Custom triggers rely on LLM interpretation
                 // This basic implementation checks for keyword overlap
                 let desc_lower = description.to_lowercase();
                 let desc_words: Vec<&str> = desc_lower.split_whitespace().collect();
-                desc_words.iter().filter(|w| w.len() > 3).any(|w| {
-                    action_lower.contains(*w) || context_lower.contains(*w)
-                })
+                desc_words
+                    .iter()
+                    .filter(|w| w.len() > 3)
+                    .any(|w| action_lower.contains(*w) || context_lower.contains(*w))
             }
             // These require external state to evaluate
             Self::ChallengeComplete { .. } | Self::TimeBased { .. } | Self::NpcPresent { .. } => {
@@ -508,7 +494,6 @@ impl TriggerType {
 }
 
 /// Result of a challenge resolution
-
 
 /// Type of outcome achieved
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -645,23 +630,27 @@ mod tests {
     fn test_challenge_creation() {
         let world_id = WorldId::new();
 
-        let challenge = Challenge::new(world_id, "Investigate the Statue", Difficulty::d20_medium())
-            .with_description("Examine the ancient statue for hidden compartments")
-            .with_outcomes(ChallengeOutcomes::simple(
-                "You find a hidden mechanism in the statue's base",
-                "The statue appears to be solid stone"
-            ));
+        let challenge =
+            Challenge::new(world_id, "Investigate the Statue", Difficulty::d20_medium())
+                .with_description("Examine the ancient statue for hidden compartments")
+                .with_outcomes(ChallengeOutcomes::simple(
+                    "You find a hidden mechanism in the statue's base",
+                    "The statue appears to be solid stone",
+                ));
 
         assert_eq!(challenge.name, "Investigate the Statue");
         assert!(challenge.active);
-        assert_eq!(challenge.outcomes.success.description, "You find a hidden mechanism in the statue's base");
+        assert_eq!(
+            challenge.outcomes.success.description,
+            "You find a hidden mechanism in the statue's base"
+        );
     }
 
     #[test]
     fn test_trigger_condition_matching() {
         let trigger = TriggerCondition::new(
             TriggerType::object(["statue", "ancient", "stone"]),
-            "When player examines the statue"
+            "When player examines the statue",
         );
 
         assert!(trigger.matches("I want to examine the statue", ""));
@@ -673,7 +662,10 @@ mod tests {
     fn test_difficulty_display() {
         assert_eq!(Difficulty::DC(15).display(), "DC 15");
         assert_eq!(Difficulty::Percentage(45).display(), "45%");
-        assert_eq!(Difficulty::Descriptor(DifficultyDescriptor::Hard).display(), "Hard");
+        assert_eq!(
+            Difficulty::Descriptor(DifficultyDescriptor::Hard).display(),
+            "Hard"
+        );
     }
 
     #[test]

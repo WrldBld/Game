@@ -211,8 +211,11 @@ pub trait DmApprovalQueueServicePort: Send + Sync {
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<ApprovalQueueItem>>;
 
     /// Get approval history for a world
-    async fn get_history(&self, world_id: WorldId, limit: usize)
-        -> anyhow::Result<Vec<ApprovalQueueItem>>;
+    async fn get_history(
+        &self,
+        world_id: WorldId,
+        limit: usize,
+    ) -> anyhow::Result<Vec<ApprovalQueueItem>>;
 
     /// Delay an approval for later
     async fn delay(&self, id: Uuid, until: DateTime<Utc>) -> anyhow::Result<()>;

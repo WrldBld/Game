@@ -229,13 +229,30 @@ impl From<Outcome> for OutcomeRequestDto {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutcomeTriggerRequestDto {
-    RevealInformation { info: String, persist: bool },
-    EnableChallenge { challenge_id: String },
-    DisableChallenge { challenge_id: String },
-    ModifyCharacterStat { stat: String, modifier: i32 },
-    TriggerScene { scene_id: String },
-    GiveItem { item_name: String, item_description: Option<String> },
-    Custom { description: String },
+    RevealInformation {
+        info: String,
+        persist: bool,
+    },
+    EnableChallenge {
+        challenge_id: String,
+    },
+    DisableChallenge {
+        challenge_id: String,
+    },
+    ModifyCharacterStat {
+        stat: String,
+        modifier: i32,
+    },
+    TriggerScene {
+        scene_id: String,
+    },
+    GiveItem {
+        item_name: String,
+        item_description: Option<String>,
+    },
+    Custom {
+        description: String,
+    },
 }
 
 impl From<OutcomeTriggerRequestDto> for OutcomeTrigger {
@@ -308,7 +325,9 @@ impl From<OutcomeTrigger> for OutcomeTriggerRequestDto {
                 item_name,
                 item_description,
             },
-            OutcomeTrigger::Custom { description } => OutcomeTriggerRequestDto::Custom { description },
+            OutcomeTrigger::Custom { description } => {
+                OutcomeTriggerRequestDto::Custom { description }
+            }
         }
     }
 }
@@ -346,16 +365,28 @@ impl From<TriggerCondition> for TriggerConditionRequestDto {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TriggerTypeRequestDto {
-    ObjectInteraction { keywords: Vec<String> },
-    EnterArea { keywords: Vec<String> },
-    DialogueTopic { keywords: Vec<String> },
+    ObjectInteraction {
+        keywords: Vec<String>,
+    },
+    EnterArea {
+        keywords: Vec<String>,
+    },
+    DialogueTopic {
+        keywords: Vec<String>,
+    },
     ChallengeComplete {
         challenge_id: String,
         requires_success: Option<bool>,
     },
-    TimeBased { turns: u32 },
-    NpcPresent { keywords: Vec<String> },
-    Custom { description: String },
+    TimeBased {
+        turns: u32,
+    },
+    NpcPresent {
+        keywords: Vec<String>,
+    },
+    Custom {
+        description: String,
+    },
 }
 
 impl From<TriggerTypeRequestDto> for TriggerType {
@@ -364,12 +395,12 @@ impl From<TriggerTypeRequestDto> for TriggerType {
             TriggerTypeRequestDto::ObjectInteraction { keywords } => {
                 TriggerType::ObjectInteraction { keywords }
             }
-            TriggerTypeRequestDto::EnterArea { keywords } => {
-                TriggerType::EnterArea { area_keywords: keywords }
-            }
-            TriggerTypeRequestDto::DialogueTopic { keywords } => {
-                TriggerType::DialogueTopic { topic_keywords: keywords }
-            }
+            TriggerTypeRequestDto::EnterArea { keywords } => TriggerType::EnterArea {
+                area_keywords: keywords,
+            },
+            TriggerTypeRequestDto::DialogueTopic { keywords } => TriggerType::DialogueTopic {
+                topic_keywords: keywords,
+            },
             TriggerTypeRequestDto::ChallengeComplete {
                 challenge_id,
                 requires_success,
@@ -383,9 +414,9 @@ impl From<TriggerTypeRequestDto> for TriggerType {
                 }
             }
             TriggerTypeRequestDto::TimeBased { turns } => TriggerType::TimeBased { turns },
-            TriggerTypeRequestDto::NpcPresent { keywords } => {
-                TriggerType::NpcPresent { npc_keywords: keywords }
-            }
+            TriggerTypeRequestDto::NpcPresent { keywords } => TriggerType::NpcPresent {
+                npc_keywords: keywords,
+            },
             TriggerTypeRequestDto::Custom { description } => TriggerType::Custom { description },
         }
     }
@@ -397,12 +428,12 @@ impl From<TriggerType> for TriggerTypeRequestDto {
             TriggerType::ObjectInteraction { keywords } => {
                 TriggerTypeRequestDto::ObjectInteraction { keywords }
             }
-            TriggerType::EnterArea { area_keywords } => {
-                TriggerTypeRequestDto::EnterArea { keywords: area_keywords }
-            }
-            TriggerType::DialogueTopic { topic_keywords } => {
-                TriggerTypeRequestDto::DialogueTopic { keywords: topic_keywords }
-            }
+            TriggerType::EnterArea { area_keywords } => TriggerTypeRequestDto::EnterArea {
+                keywords: area_keywords,
+            },
+            TriggerType::DialogueTopic { topic_keywords } => TriggerTypeRequestDto::DialogueTopic {
+                keywords: topic_keywords,
+            },
             TriggerType::ChallengeComplete {
                 challenge_id,
                 requires_success,
@@ -411,9 +442,9 @@ impl From<TriggerType> for TriggerTypeRequestDto {
                 requires_success,
             },
             TriggerType::TimeBased { turns } => TriggerTypeRequestDto::TimeBased { turns },
-            TriggerType::NpcPresent { npc_keywords } => {
-                TriggerTypeRequestDto::NpcPresent { keywords: npc_keywords }
-            }
+            TriggerType::NpcPresent { npc_keywords } => TriggerTypeRequestDto::NpcPresent {
+                keywords: npc_keywords,
+            },
             TriggerType::Custom { description } => TriggerTypeRequestDto::Custom { description },
         }
     }
@@ -460,7 +491,11 @@ impl ChallengeResponseDto {
             skill_id,
             difficulty: challenge.difficulty.into(),
             outcomes: challenge.outcomes.into(),
-            trigger_conditions: challenge.trigger_conditions.into_iter().map(Into::into).collect(),
+            trigger_conditions: challenge
+                .trigger_conditions
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             prerequisite_challenges: prerequisite_ids,
             active: challenge.active,
             order: challenge.order,
@@ -481,7 +516,11 @@ impl ChallengeResponseDto {
             skill_id: None,
             difficulty: challenge.difficulty.into(),
             outcomes: challenge.outcomes.into(),
-            trigger_conditions: challenge.trigger_conditions.into_iter().map(Into::into).collect(),
+            trigger_conditions: challenge
+                .trigger_conditions
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             prerequisite_challenges: Vec::new(),
             active: challenge.active,
             order: challenge.order,
@@ -806,7 +845,11 @@ pub struct OutcomeBranchDto {
 }
 
 impl OutcomeBranchDto {
-    pub fn new(id: impl Into<String>, title: impl Into<String>, description: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        title: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             title: title.into(),
@@ -835,7 +878,11 @@ pub struct OutcomeBranchesReadyNotification {
 }
 
 impl OutcomeBranchesReadyNotification {
-    pub fn new(resolution_id: String, outcome_type: String, branches: Vec<OutcomeBranchDto>) -> Self {
+    pub fn new(
+        resolution_id: String,
+        outcome_type: String,
+        branches: Vec<OutcomeBranchDto>,
+    ) -> Self {
         Self {
             message_type: "OutcomeBranchesReady",
             resolution_id,
@@ -867,4 +914,3 @@ pub struct OutcomeBranchResponse {
     /// Generated branches
     pub branches: Vec<OutcomeBranchDto>,
 }
-

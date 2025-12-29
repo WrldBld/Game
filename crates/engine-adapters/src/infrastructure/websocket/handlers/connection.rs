@@ -9,8 +9,7 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::use_cases::{
-    ConnectionError, JoinWorldInput, SetSpectateTargetInput,
-    WorldRole as UseCaseWorldRole,
+    ConnectionError, JoinWorldInput, SetSpectateTargetInput, WorldRole as UseCaseWorldRole,
 };
 use wrldbldr_protocol::{JoinError, ServerMessage, WorldRole};
 
@@ -37,7 +36,12 @@ pub async fn handle_join_world(
         spectate_pc_id: spectate_pc_id.map(PlayerCharacterId::from_uuid),
     };
 
-    match state.use_cases.connection.join_world(client_id, user_id, input).await {
+    match state
+        .use_cases
+        .connection
+        .join_world(client_id, user_id, input)
+        .await
+    {
         Ok(result) => {
             let connected_users = result
                 .connected_users
@@ -96,7 +100,12 @@ pub async fn handle_set_spectate_target(
         pc_id: PlayerCharacterId::from_uuid(pc_id),
     };
 
-    match state.use_cases.connection.set_spectate_target(client_id, input).await {
+    match state
+        .use_cases
+        .connection
+        .set_spectate_target(client_id, input)
+        .await
+    {
         Ok(result) => Some(ServerMessage::SpectateTargetChanged {
             pc_id: *result.pc_id.as_uuid(),
             pc_name: result.pc_name,

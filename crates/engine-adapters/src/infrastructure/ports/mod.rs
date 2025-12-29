@@ -45,22 +45,30 @@
 //! - [x] SceneAdapters - For SceneUseCase
 //! - [x] ConnectionAdapters - For ConnectionUseCase (WorldServiceAdapter, PlayerCharacterServiceAdapter, etc.)
 
-mod staging_state_adapter;
-mod staging_service_adapter;
-mod connection_manager_adapter;
-mod player_action_adapters;
-mod observation_adapters;
 mod challenge_adapters;
+mod connection_manager_adapter;
+mod observation_adapters;
+mod player_action_adapters;
+mod staging_service_adapter;
+mod staging_state_adapter;
 
-mod scene_adapters;
 mod connection_adapters;
+mod scene_adapters;
 
 // Explicit exports (no glob re-exports)
-pub use staging_state_adapter::StagingStateAdapter;
-pub use staging_service_adapter::StagingServiceAdapter;
+pub use challenge_adapters::{
+    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
+};
+pub use connection_adapters::{
+    ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter,
+    PlayerCharacterServiceAdapter, WorldServiceAdapter,
+};
 pub use connection_manager_adapter::ConnectionManagerAdapter;
-pub use player_action_adapters::{PlayerActionQueueAdapter, DmNotificationAdapter};
 pub use observation_adapters::WorldMessageAdapter;
-pub use challenge_adapters::{ChallengeOutcomeApprovalAdapter, ChallengeDmApprovalQueueAdapter, ChallengeResolutionAdapter};
-pub use scene_adapters::{SceneServiceAdapter, InteractionServiceAdapter, SceneWorldStateAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder};
-pub use connection_adapters::{WorldServiceAdapter, PlayerCharacterServiceAdapter, ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter};
+pub use player_action_adapters::{DmNotificationAdapter, PlayerActionQueueAdapter};
+pub use scene_adapters::{
+    DirectorialContextAdapter, DmActionQueuePlaceholder, InteractionServiceAdapter,
+    SceneServiceAdapter, SceneWorldStateAdapter,
+};
+pub use staging_service_adapter::StagingServiceAdapter;
+pub use staging_state_adapter::StagingStateAdapter;

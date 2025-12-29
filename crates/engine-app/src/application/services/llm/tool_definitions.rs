@@ -116,7 +116,8 @@ pub fn get_game_tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "modify_character_description".to_string(),
-            description: "Update a character's description (appearance, personality, or backstory)".to_string(),
+            description: "Update a character's description (appearance, personality, or backstory)"
+                .to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {

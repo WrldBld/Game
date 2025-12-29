@@ -16,11 +16,11 @@ pub struct StagingContext {
     pub location_name: String,
     pub time_of_day: String,
     pub time_display: String,
-    
+
     // Story context
     pub active_events: Vec<ActiveEventContext>,
     pub npc_dialogues: Vec<NpcDialogueContext>,
-    
+
     // Extensible additional context
     pub additional_context: HashMap<String, String>,
 }

@@ -25,14 +25,13 @@
 
 use std::sync::Arc;
 
-use tracing::{debug, info, warn, instrument};
+use tracing::{debug, info, instrument, warn};
 
-use wrldbldr_engine_ports::outbound::{
-    ChallengeRepositoryPort, NarrativeEventRepositoryPort,
-    RelationshipRepositoryPort,
-};
 use wrldbldr_domain::entities::EventEffect;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{
+    ChallengeRepositoryPort, NarrativeEventRepositoryPort, RelationshipRepositoryPort,
+};
 
 // =============================================================================
 // Error Types
@@ -147,13 +146,13 @@ impl EventEffectExecutor {
 
         for effect in effects {
             let result = self.execute_single_effect(effect, world_id).await;
-            
+
             if result.was_executed {
                 executed_count += 1;
             } else {
                 logged_count += 1;
             }
-            
+
             results.push(result);
         }
 
@@ -182,56 +181,136 @@ impl EventEffectExecutor {
                 self.execute_set_flag(flag_name, *value, world_id).await
             }
 
-            EventEffect::EnableChallenge { challenge_id, challenge_name } => {
-                self.execute_enable_challenge(*challenge_id, challenge_name, world_id).await
+            EventEffect::EnableChallenge {
+                challenge_id,
+                challenge_name,
+            } => {
+                self.execute_enable_challenge(*challenge_id, challenge_name, world_id)
+                    .await
             }
 
-            EventEffect::DisableChallenge { challenge_id, challenge_name } => {
-                self.execute_disable_challenge(*challenge_id, challenge_name, world_id).await
+            EventEffect::DisableChallenge {
+                challenge_id,
+                challenge_name,
+            } => {
+                self.execute_disable_challenge(*challenge_id, challenge_name, world_id)
+                    .await
             }
 
-            EventEffect::EnableEvent { event_id, event_name } => {
-                self.execute_enable_event(*event_id, event_name, world_id).await
+            EventEffect::EnableEvent {
+                event_id,
+                event_name,
+            } => {
+                self.execute_enable_event(*event_id, event_name, world_id)
+                    .await
             }
 
-            EventEffect::DisableEvent { event_id, event_name } => {
-                self.execute_disable_event(*event_id, event_name, world_id).await
+            EventEffect::DisableEvent {
+                event_id,
+                event_name,
+            } => {
+                self.execute_disable_event(*event_id, event_name, world_id)
+                    .await
             }
 
-            EventEffect::RevealInformation { info_type, title, content, persist_to_journal } => {
-                self.execute_reveal_information(info_type, title, content, *persist_to_journal, world_id).await
+            EventEffect::RevealInformation {
+                info_type,
+                title,
+                content,
+                persist_to_journal,
+            } => {
+                self.execute_reveal_information(
+                    info_type,
+                    title,
+                    content,
+                    *persist_to_journal,
+                    world_id,
+                )
+                .await
             }
 
-            EventEffect::GiveItem { item_name, item_description, quantity } => {
-                self.execute_give_item(item_name, item_description.as_deref(), *quantity, world_id).await
+            EventEffect::GiveItem {
+                item_name,
+                item_description,
+                quantity,
+            } => {
+                self.execute_give_item(item_name, item_description.as_deref(), *quantity, world_id)
+                    .await
             }
 
-            EventEffect::TakeItem { item_name, quantity } => {
-                self.execute_take_item(item_name, *quantity, world_id).await
+            EventEffect::TakeItem {
+                item_name,
+                quantity,
+            } => self.execute_take_item(item_name, *quantity, world_id).await,
+
+            EventEffect::ModifyRelationship {
+                from_character,
+                from_name,
+                to_character,
+                to_name,
+                sentiment_change,
+                reason,
+            } => {
+                self.execute_modify_relationship(
+                    *from_character,
+                    from_name,
+                    *to_character,
+                    to_name,
+                    *sentiment_change,
+                    reason,
+                    world_id,
+                )
+                .await
             }
 
-            EventEffect::ModifyRelationship { from_character, from_name, to_character, to_name, sentiment_change, reason } => {
-                self.execute_modify_relationship(*from_character, from_name, *to_character, to_name, *sentiment_change, reason, world_id).await
+            EventEffect::ModifyStat {
+                character_id,
+                character_name,
+                stat_name,
+                modifier,
+            } => {
+                self.execute_modify_stat(
+                    *character_id,
+                    character_name,
+                    stat_name,
+                    *modifier,
+                    world_id,
+                )
+                .await
             }
 
-            EventEffect::ModifyStat { character_id, character_name, stat_name, modifier } => {
-                self.execute_modify_stat(*character_id, character_name, stat_name, *modifier, world_id).await
+            EventEffect::TriggerScene {
+                scene_id,
+                scene_name,
+            } => {
+                self.execute_trigger_scene(*scene_id, scene_name, world_id)
+                    .await
             }
 
-            EventEffect::TriggerScene { scene_id, scene_name } => {
-                self.execute_trigger_scene(*scene_id, scene_name, world_id).await
+            EventEffect::StartCombat {
+                participants: _,
+                participant_names,
+                combat_description,
+            } => {
+                self.execute_start_combat(participant_names, combat_description, world_id)
+                    .await
             }
 
-            EventEffect::StartCombat { participants: _, participant_names, combat_description } => {
-                self.execute_start_combat(participant_names, combat_description, world_id).await
+            EventEffect::AddReward {
+                reward_type,
+                amount,
+                description,
+            } => {
+                self.execute_add_reward(reward_type, *amount, description, world_id)
+                    .await
             }
 
-            EventEffect::AddReward { reward_type, amount, description } => {
-                self.execute_add_reward(reward_type, *amount, description, world_id).await
-            }
-
-            EventEffect::Custom { description, requires_dm_action } => {
-                self.execute_custom(description, *requires_dm_action, world_id).await
+            EventEffect::Custom {
+                description,
+                requires_dm_action,
+            } => {
+                self.execute_custom(description, *requires_dm_action, world_id)
+                    .await
             }
         }
     }
@@ -247,7 +326,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(flag_name = flag_name, value = value, "Setting game flag");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         // Note: Flag storage would need world state modification
         EffectExecutionResult {
@@ -264,7 +343,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(challenge_id = %challenge_id, "Enabling challenge");
-        
+
         match self.challenge_repo.set_active(challenge_id, true).await {
             Ok(()) => {
                 // Conversation history now managed by caller via WorldStateManager
@@ -292,7 +371,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(challenge_id = %challenge_id, "Disabling challenge");
-        
+
         match self.challenge_repo.set_active(challenge_id, false).await {
             Ok(()) => {
                 // Conversation history now managed by caller via WorldStateManager
@@ -320,7 +399,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(event_id = %event_id, "Enabling narrative event");
-        
+
         match self.narrative_event_repo.set_active(event_id, true).await {
             Ok(_) => {
                 // Conversation history now managed by caller via WorldStateManager
@@ -348,7 +427,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(event_id = %event_id, "Disabling narrative event");
-        
+
         match self.narrative_event_repo.set_active(event_id, false).await {
             Ok(_) => {
                 // Conversation history now managed by caller via WorldStateManager
@@ -377,11 +456,24 @@ impl EventEffectExecutor {
         persist_to_journal: bool,
         _world_id: WorldId,
     ) -> EffectExecutionResult {
-        debug!(info_type = info_type, title = title, "Revealing information");
-        
+        debug!(
+            info_type = info_type,
+            title = title,
+            "Revealing information"
+        );
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
-            description: format!("Revealed {} '{}'{}", info_type, title, if persist_to_journal { " (journaled)" } else { "" }),
+            description: format!(
+                "Revealed {} '{}'{}",
+                info_type,
+                title,
+                if persist_to_journal {
+                    " (journaled)"
+                } else {
+                    ""
+                }
+            ),
             was_executed: true,
             note: None,
         }
@@ -395,7 +487,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(item_name = item_name, quantity = quantity, "Giving item");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         // Note: Actual inventory modification would need player character repo access
         EffectExecutionResult {
@@ -412,7 +504,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(item_name = item_name, quantity = quantity, "Taking item");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
             description: format!("Took {} {}", quantity, item_name),
@@ -437,15 +529,22 @@ impl EventEffectExecutor {
             change = sentiment_change,
             "Modifying relationship"
         );
-        
+
         // Try to update the relationship in the database
-        match self.relationship_repo.get_for_character(from_character).await {
+        match self
+            .relationship_repo
+            .get_for_character(from_character)
+            .await
+        {
             Ok(relationships) => {
                 // Find the existing relationship
-                if let Some(mut rel) = relationships.into_iter().find(|r| r.to_character == to_character) {
+                if let Some(mut rel) = relationships
+                    .into_iter()
+                    .find(|r| r.to_character == to_character)
+                {
                     rel.sentiment += sentiment_change;
                     rel.sentiment = rel.sentiment.clamp(-1.0, 1.0);
-                    
+
                     if let Err(e) = self.relationship_repo.update(&rel).await {
                         warn!(error = %e, "Failed to update relationship");
                     }
@@ -476,11 +575,16 @@ impl EventEffectExecutor {
         modifier: i32,
         _world_id: WorldId,
     ) -> EffectExecutionResult {
-        debug!(character_name = character_name, stat_name = stat_name, modifier = modifier, "Modifying stat");
-        
+        debug!(
+            character_name = character_name,
+            stat_name = stat_name,
+            modifier = modifier,
+            "Modifying stat"
+        );
+
         let direction = if modifier >= 0 { "+" } else { "" };
         // Conversation history now managed by caller via WorldStateManager
-        
+
         // Note: Actual stat modification would need character sheet access
         EffectExecutionResult {
             description: format!("{} {} {}{}", character_name, stat_name, direction, modifier),
@@ -496,7 +600,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(scene_name = scene_name, "Triggering scene transition");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
             description: format!("Scene transition to '{}'", scene_name),
@@ -512,7 +616,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(participants = ?participant_names, "Starting combat");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
             description: format!("Combat initiated: {}", combat_description),
@@ -529,7 +633,7 @@ impl EventEffectExecutor {
         _world_id: WorldId,
     ) -> EffectExecutionResult {
         debug!(reward_type = reward_type, amount = amount, "Adding reward");
-        
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
             description: format!("Awarded {} {} ({})", amount, reward_type, description),
@@ -544,8 +648,12 @@ impl EventEffectExecutor {
         requires_dm_action: bool,
         _world_id: WorldId,
     ) -> EffectExecutionResult {
-        debug!(description = description, requires_dm_action = requires_dm_action, "Custom effect");
-        
+        debug!(
+            description = description,
+            requires_dm_action = requires_dm_action,
+            "Custom effect"
+        );
+
         // Conversation history now managed by caller via WorldStateManager
         EffectExecutionResult {
             description: description.to_string(),

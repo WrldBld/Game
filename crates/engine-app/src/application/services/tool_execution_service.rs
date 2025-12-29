@@ -28,14 +28,9 @@ pub struct ToolExecutionResult {
 #[serde(tag = "type")]
 pub enum StateChange {
     /// An item was added to a character's inventory
-    ItemAdded {
-        character: String,
-        item: String,
-    },
+    ItemAdded { character: String, item: String },
     /// Information was revealed to the player
-    InfoRevealed {
-        info: String,
-    },
+    InfoRevealed { info: String },
     /// A relationship sentiment was changed
     RelationshipChanged {
         from: String,
@@ -43,9 +38,7 @@ pub enum StateChange {
         delta: i32,
     },
     /// An event was triggered
-    EventTriggered {
-        name: String,
-    },
+    EventTriggered { name: String },
     /// An NPC's motivation was modified
     NpcMotivationChanged {
         npc_id: String,
@@ -150,39 +143,46 @@ impl ToolExecutionService {
         tool: &GameTool,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
         match tool {
-            GameTool::GiveItem { item_name, description } => {
-                self.execute_give_item(item_name, description).await
-            }
+            GameTool::GiveItem {
+                item_name,
+                description,
+            } => self.execute_give_item(item_name, description).await,
             GameTool::RevealInfo {
                 info_type,
                 content,
                 importance,
             } => {
-                self.execute_reveal_info(info_type, content, importance).await
+                self.execute_reveal_info(info_type, content, importance)
+                    .await
             }
-            GameTool::ChangeRelationship { change, amount, reason } => {
-                self.execute_change_relationship(change, amount, reason).await
+            GameTool::ChangeRelationship {
+                change,
+                amount,
+                reason,
+            } => {
+                self.execute_change_relationship(change, amount, reason)
+                    .await
             }
             GameTool::TriggerEvent {
                 event_type,
                 description,
-            } => {
-                self.execute_trigger_event(event_type, description).await
-            }
+            } => self.execute_trigger_event(event_type, description).await,
             GameTool::ModifyNpcMotivation {
                 npc_id,
                 motivation_type,
                 new_value,
                 reason,
             } => {
-                self.execute_modify_npc_motivation(npc_id, motivation_type, new_value, reason).await
+                self.execute_modify_npc_motivation(npc_id, motivation_type, new_value, reason)
+                    .await
             }
             GameTool::ModifyCharacterDescription {
                 character_id,
                 change_type,
                 description,
             } => {
-                self.execute_modify_character_description(character_id, change_type, description).await
+                self.execute_modify_character_description(character_id, change_type, description)
+                    .await
             }
             GameTool::ModifyNpcOpinion {
                 npc_id,
@@ -190,35 +190,42 @@ impl ToolExecutionService {
                 opinion_change,
                 reason,
             } => {
-                self.execute_modify_npc_opinion(npc_id, target_pc_id, opinion_change, reason).await
+                self.execute_modify_npc_opinion(npc_id, target_pc_id, opinion_change, reason)
+                    .await
             }
             GameTool::TransferItem {
                 from_id,
                 to_id,
                 item_name,
-            } => {
-                self.execute_transfer_item(from_id, to_id, item_name).await
-            }
+            } => self.execute_transfer_item(from_id, to_id, item_name).await,
             GameTool::AddCondition {
                 character_id,
                 condition_name,
                 description,
                 duration,
             } => {
-                self.execute_add_condition(character_id, condition_name, description, duration.as_deref()).await
+                self.execute_add_condition(
+                    character_id,
+                    condition_name,
+                    description,
+                    duration.as_deref(),
+                )
+                .await
             }
             GameTool::RemoveCondition {
                 character_id,
                 condition_name,
             } => {
-                self.execute_remove_condition(character_id, condition_name).await
+                self.execute_remove_condition(character_id, condition_name)
+                    .await
             }
             GameTool::UpdateCharacterStat {
                 character_id,
                 stat_name,
                 delta,
             } => {
-                self.execute_update_character_stat(character_id, stat_name, *delta).await
+                self.execute_update_character_stat(character_id, stat_name, *delta)
+                    .await
             }
         }
     }
@@ -230,10 +237,7 @@ impl ToolExecutionService {
         item_name: &str,
         description: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let description_msg = format!(
-            "Gave '{}' to player: {}",
-            item_name, description
-        );
+        let description_msg = format!("Gave '{}' to player: {}", item_name, description);
 
         debug!("Item transfer: {}", description_msg);
 
@@ -257,11 +261,7 @@ impl ToolExecutionService {
         content: &str,
         importance: &InfoImportance,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let description_msg = format!(
-            "Revealed {} {} information",
-            importance.as_str(),
-            info_type
-        );
+        let description_msg = format!("Revealed {} {} information", importance.as_str(), info_type);
 
         debug!("Info revealed: {} - {}", info_type, content);
 
@@ -445,10 +445,7 @@ impl ToolExecutionService {
         to_id: &str,
         item_name: &str,
     ) -> Result<ToolExecutionResult, ToolExecutionError> {
-        let description_msg = format!(
-            "'{}' transferred from {} to {}",
-            item_name, from_id, to_id
-        );
+        let description_msg = format!("'{}' transferred from {} to {}", item_name, from_id, to_id);
 
         info!("Item transferred: {}", description_msg);
 
@@ -536,10 +533,7 @@ impl ToolExecutionService {
             format!("{}", delta)
         };
 
-        let description_msg = format!(
-            "{} {} changed by {}",
-            character_id, stat_name, change_str
-        );
+        let description_msg = format!("{} {} changed by {}", character_id, stat_name, change_str);
 
         info!("Character stat updated: {}", description_msg);
 

@@ -77,8 +77,7 @@ pub fn parse_target(
     match target_type {
         "Character" => {
             let id = target_id.ok_or_else(|| "Character target requires target_id".to_string())?;
-            let uuid =
-                Uuid::parse_str(id).map_err(|_| "Invalid character ID".to_string())?;
+            let uuid = Uuid::parse_str(id).map_err(|_| "Invalid character ID".to_string())?;
             Ok(InteractionTarget::Character(CharacterId::from_uuid(uuid)))
         }
         "Item" => {
@@ -95,4 +94,3 @@ pub fn parse_target(
         _ => Ok(InteractionTarget::None),
     }
 }
-

@@ -10,9 +10,9 @@
 //!
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
 
+use crate::value_objects::{ArchetypeChange, CampbellArchetype, DispositionLevel};
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, WorldId};
-use crate::value_objects::{ArchetypeChange, CampbellArchetype, DispositionLevel};
 
 /// A character (NPC) in the world
 #[derive(Debug, Clone, Serialize, Deserialize)]

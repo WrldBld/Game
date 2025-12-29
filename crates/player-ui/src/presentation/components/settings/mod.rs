@@ -6,15 +6,15 @@
 pub mod app_settings;
 pub mod game_settings;
 pub mod skills_panel;
-pub mod workflow_slot_list;
 pub mod workflow_config_editor;
+pub mod workflow_slot_list;
 pub mod workflow_upload_modal;
 
 // Re-export the game settings panel for easy access
 pub use game_settings::GameSettingsPanel;
 
-use dioxus::prelude::*;
 use crate::routes::Route;
+use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::SkillData;
 
 /// Props for SettingsView
@@ -245,7 +245,10 @@ fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
         let mut grouped: HashMap<SkillCategory, Vec<SkillData>> = HashMap::new();
         for skill in skills_read.iter() {
             if !skill.is_hidden || show_hidden_val {
-                grouped.entry(skill.category).or_default().push(skill.clone());
+                grouped
+                    .entry(skill.category)
+                    .or_default()
+                    .push(skill.clone());
             }
         }
         for skills_vec in grouped.values_mut() {
@@ -393,7 +396,11 @@ fn SkillRowInline(props: SkillRowInlineProps) -> Element {
     } else {
         "flex items-center gap-3 py-2 px-3 bg-dark-bg rounded"
     };
-    let name_color = if props.skill.is_hidden { "text-gray-500" } else { "text-white" };
+    let name_color = if props.skill.is_hidden {
+        "text-gray-500"
+    } else {
+        "text-white"
+    };
 
     rsx! {
         div {
@@ -445,7 +452,6 @@ fn SkillRowInline(props: SkillRowInlineProps) -> Element {
         }
     }
 }
-
 
 /// Empty state panel when no workflow is selected
 #[component]

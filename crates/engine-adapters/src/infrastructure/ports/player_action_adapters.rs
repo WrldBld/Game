@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::value_objects::{LlmRequestData, PlayerActionData};
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::dto::{LLMRequestItem, PlayerActionItem};
 use wrldbldr_engine_app::application::services::PlayerActionQueueService;
 use wrldbldr_engine_app::application::use_cases::{DmNotificationPort, PlayerActionQueuePort};
 use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueuePort};
@@ -18,16 +18,16 @@ use crate::infrastructure::world_connection_manager::SharedWorldConnectionManage
 /// Generic over the queue backend types used by PlayerActionQueueService.
 pub struct PlayerActionQueueAdapter<Q, LQ>
 where
-    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
 {
     service: Arc<PlayerActionQueueService<Q, LQ>>,
 }
 
 impl<Q, LQ> PlayerActionQueueAdapter<Q, LQ>
 where
-    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
 {
     pub fn new(service: Arc<PlayerActionQueueService<Q, LQ>>) -> Self {
         Self { service }
@@ -37,8 +37,8 @@ where
 #[async_trait::async_trait]
 impl<Q, LQ> PlayerActionQueuePort for PlayerActionQueueAdapter<Q, LQ>
 where
-    Q: QueuePort<PlayerActionItem> + Send + Sync + 'static,
-    LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+    Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
+    LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
 {
     async fn enqueue_action(
         &self,

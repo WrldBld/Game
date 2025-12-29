@@ -9,5 +9,3 @@ pub struct SessionInfo {
     pub active_player_count: usize,
     pub created_at: i64,
 }
-
-

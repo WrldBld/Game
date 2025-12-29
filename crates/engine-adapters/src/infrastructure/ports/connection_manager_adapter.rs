@@ -15,7 +15,7 @@ use wrldbldr_engine_app::application::use_cases::{
 use wrldbldr_protocol::{ServerMessage, WorldRole as ProtocolWorldRole};
 
 use crate::infrastructure::world_connection_manager::{
-    SharedWorldConnectionManager, ConnectionInfo as InfraConnectionInfo,
+    ConnectionInfo as InfraConnectionInfo, SharedWorldConnectionManager,
 };
 
 /// Adapter that implements ConnectionManagerPort using WorldConnectionManager
@@ -67,11 +67,10 @@ impl ConnectionManagerAdapter {
         ConnectedUser {
             user_id: user.user_id.clone(),
             role: Self::convert_role_from_protocol(user.role),
-            pc_id: user.pc_id.as_ref().and_then(|id| {
-                Uuid::parse_str(id)
-                    .ok()
-                    .map(PlayerCharacterId::from_uuid)
-            }),
+            pc_id: user
+                .pc_id
+                .as_ref()
+                .and_then(|id| Uuid::parse_str(id).ok().map(PlayerCharacterId::from_uuid)),
             pc_name: None, // Protocol doesn't have pc_name, would need to fetch
         }
     }
@@ -79,15 +78,10 @@ impl ConnectionManagerAdapter {
 
 #[async_trait::async_trait]
 impl ConnectionManagerPort for ConnectionManagerAdapter {
-    async fn register_connection(
-        &self,
-        connection_id: Uuid,
-        client_id: String,
-        user_id: String,
-    ) {
+    async fn register_connection(&self, connection_id: Uuid, client_id: String, user_id: String) {
         // Create a broadcast channel for this connection
         let (sender, _) = broadcast::channel::<ServerMessage>(256);
-        
+
         self.manager
             .register_connection(connection_id, client_id, user_id, sender)
             .await;
@@ -104,7 +98,13 @@ impl ConnectionManagerPort for ConnectionManagerAdapter {
         let protocol_role = Self::convert_role_to_protocol(role);
 
         self.manager
-            .join_world(connection_id, world_id, protocol_role, pc_id, spectate_pc_id)
+            .join_world(
+                connection_id,
+                world_id,
+                protocol_role,
+                pc_id,
+                spectate_pc_id,
+            )
             .await
             .map(|users| users.iter().map(Self::convert_connected_user).collect())
             .map_err(|e| format!("{:?}", e))
@@ -138,13 +138,17 @@ impl ConnectionManagerPort for ConnectionManagerAdapter {
             user_id: user_joined.user_id.clone(),
             username: user_joined.pc.as_ref().map(|pc| pc.name.clone()),
             role: Self::convert_role_to_protocol(user_joined.role),
-            pc: user_joined.pc.as_ref().map(|pc| serde_json::json!({
-                "id": pc.id.to_string(),
-                "name": pc.name,
-            })),
+            pc: user_joined.pc.as_ref().map(|pc| {
+                serde_json::json!({
+                    "id": pc.id.to_string(),
+                    "name": pc.name,
+                })
+            }),
         };
 
-        self.manager.send_to_connection(connection_id, message).await;
+        self.manager
+            .send_to_connection(connection_id, message)
+            .await;
     }
 
     async fn broadcast_to_world(&self, world_id: Uuid, event: UserLeftEvent) {

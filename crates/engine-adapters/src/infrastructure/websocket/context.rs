@@ -24,7 +24,10 @@
 //! - Use cases receive clean domain context (UseCaseContext)
 
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId, WorldId, ChallengeId, NarrativeEventId, SceneId};
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
+    SceneId, WorldId,
+};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::state::AppState;
@@ -167,9 +170,8 @@ impl HandlerContext {
     ///
     /// Use this when you need a PC ID but don't need full player context validation.
     pub fn require_pc_id(&self) -> Result<PlayerCharacterId, ServerMessage> {
-        self.pc_id.ok_or_else(|| {
-            error_response("NO_PC_SELECTED", "No player character selected")
-        })
+        self.pc_id
+            .ok_or_else(|| error_response("NO_PC_SELECTED", "No player character selected"))
     }
 }
 
@@ -275,7 +277,7 @@ mod tests {
         let id = "not-a-uuid";
         let result = parse_uuid(id, "test");
         assert!(result.is_err());
-        
+
         if let Err(ServerMessage::Error { code, .. }) = result {
             assert_eq!(code, "INVALID_TEST_ID");
         } else {

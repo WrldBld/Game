@@ -45,10 +45,13 @@ impl From<Scene> for SceneResponseDto {
             location_id: s.location_id.to_string(),
             time_context: format!("{:?}", s.time_context),
             backdrop_override: s.backdrop_override,
-            featured_characters: s.featured_characters.iter().map(|c| c.to_string()).collect(),
+            featured_characters: s
+                .featured_characters
+                .iter()
+                .map(|c| c.to_string())
+                .collect(),
             directorial_notes: s.directorial_notes,
             order: s.order,
         }
     }
 }
-

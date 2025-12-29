@@ -9,13 +9,14 @@ use std::sync::Arc;
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_app::application::services::staging_service::{
-    ApprovedNpcData as ServiceApprovedNpcData, StagingService, StagedNpcProposal,
+    ApprovedNpcData as ServiceApprovedNpcData, StagedNpcProposal, StagingService,
 };
 use wrldbldr_engine_app::application::use_cases::{
     ApprovedNpcData, RegeneratedNpc, StagingProposalData, StagingServiceExtPort, StagingServicePort,
 };
 use wrldbldr_engine_ports::outbound::{
-    LlmPort, NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcData, StagingRepositoryPort,
+    LlmPort, NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcData,
+    StagingRepositoryPort,
 };
 
 /// Adapter that implements staging service ports using StagingService
@@ -100,7 +101,11 @@ where
         region_id: RegionId,
         game_time: &GameTime,
     ) -> Result<Option<Vec<StagedNpc>>, String> {
-        match self.staging_service.get_current_staging(region_id, game_time).await {
+        match self
+            .staging_service
+            .get_current_staging(region_id, game_time)
+            .await
+        {
             Ok(Some(staging)) => Ok(Some(staging.npcs)),
             Ok(None) => Ok(None),
             Err(e) => Err(e.to_string()),

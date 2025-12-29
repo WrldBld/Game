@@ -34,12 +34,28 @@ pub struct InventoryPanelProps {
 pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
     // Group items by type
     let equipped_items: Vec<_> = props.items.iter().filter(|i| i.equipped).collect();
-    let weapon_items: Vec<_> = props.items.iter().filter(|i| !i.equipped && i.is_weapon()).collect();
-    let consumable_items: Vec<_> = props.items.iter().filter(|i| !i.equipped && i.is_consumable()).collect();
-    let key_items: Vec<_> = props.items.iter().filter(|i| !i.equipped && (i.is_key() || i.is_quest())).collect();
-    let other_items: Vec<_> = props.items.iter().filter(|i| {
-        !i.equipped && !i.is_weapon() && !i.is_consumable() && !i.is_key() && !i.is_quest()
-    }).collect();
+    let weapon_items: Vec<_> = props
+        .items
+        .iter()
+        .filter(|i| !i.equipped && i.is_weapon())
+        .collect();
+    let consumable_items: Vec<_> = props
+        .items
+        .iter()
+        .filter(|i| !i.equipped && i.is_consumable())
+        .collect();
+    let key_items: Vec<_> = props
+        .items
+        .iter()
+        .filter(|i| !i.equipped && (i.is_key() || i.is_quest()))
+        .collect();
+    let other_items: Vec<_> = props
+        .items
+        .iter()
+        .filter(|i| {
+            !i.equipped && !i.is_weapon() && !i.is_consumable() && !i.is_key() && !i.is_quest()
+        })
+        .collect();
 
     rsx! {
         // Overlay background

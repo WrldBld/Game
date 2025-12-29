@@ -3,19 +3,19 @@
 //! This implementation is for single-process deployments where
 //! workers run in the same process as enqueuers.
 
+use async_trait::async_trait;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
 use tokio::sync::Notify;
 
 use wrldbldr_engine_ports::outbound::{QueueNotificationPort, WaitResult};
 
 /// In-process notifier using tokio::sync::Notify
-/// 
+///
 /// Suitable for:
 /// - SQLite backend (single process)
 /// - InMemory backend (testing)
-/// 
+///
 /// NOT suitable for:
 /// - Multi-process deployments
 /// - Redis backend (use RedisPubSubNotifier instead)
@@ -52,4 +52,3 @@ impl QueueNotificationPort for InProcessNotifier {
         &self.queue_name
     }
 }
-

@@ -8,12 +8,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
+use wrldbldr_domain::entities::CharacterSheetData;
+use wrldbldr_domain::entities::PlayerCharacter;
+use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, LocationRepositoryPort, PlayerCharacterRepositoryPort, WorldRepositoryPort,
 };
-use wrldbldr_domain::entities::PlayerCharacter;
-use wrldbldr_domain::entities::CharacterSheetData;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 
 /// Request to create a new player character
 #[derive(Debug, Clone)]
@@ -131,7 +131,9 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
             .location_repository
             .get(request.starting_location_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Location not found: {}", request.starting_location_id))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("Location not found: {}", request.starting_location_id)
+            })?;
 
         let mut pc = PlayerCharacter::new(
             request.user_id.clone(),
@@ -189,7 +191,8 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
     ) -> Result<Option<PlayerCharacter>> {
         debug!(user_id = %user_id, world_id = %world_id, "Fetching player character by user and world");
         // Get all PCs for user in this world and return the first one (active PC)
-        let pcs = self.pc_repository
+        let pcs = self
+            .pc_repository
             .get_by_user_and_world(user_id, *world_id)
             .await
             .context("Failed to get player character from repository")?;
@@ -328,4 +331,3 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         Ok(0)
     }
 }
-

@@ -170,8 +170,16 @@ pub fn SystemButton(props: SystemButtonProps) -> Element {
     };
 
     // CRITICAL: Extract conditional classes BEFORE rsx! - no inline if in class strings
-    let opacity_class = if props.disabled { "opacity-50" } else { "opacity-100" };
-    let cursor_class = if props.disabled { "cursor-not-allowed" } else { "cursor-pointer" };
+    let opacity_class = if props.disabled {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
+    let cursor_class = if props.disabled {
+        "cursor-not-allowed"
+    } else {
+        "cursor-pointer"
+    };
 
     rsx! {
         button {
@@ -208,8 +216,16 @@ pub fn InteractionButton(props: InteractionButtonProps) -> Element {
     let interaction = props.interaction.clone();
 
     // CRITICAL: Extract conditional classes BEFORE rsx! - no inline if in class strings
-    let opacity_class = if props.disabled { "opacity-50" } else { "opacity-100" };
-    let cursor_class = if props.disabled { "cursor-not-allowed" } else { "cursor-pointer" };
+    let opacity_class = if props.disabled {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
+    let cursor_class = if props.disabled {
+        "cursor-not-allowed"
+    } else {
+        "cursor-pointer"
+    };
 
     rsx! {
         button {
@@ -271,8 +287,16 @@ pub struct LootButtonProps {
 /// Loot button with item count badge
 #[component]
 pub fn LootButton(props: LootButtonProps) -> Element {
-    let opacity_class = if props.disabled { "opacity-50" } else { "opacity-100" };
-    let cursor_class = if props.disabled { "cursor-not-allowed" } else { "cursor-pointer" };
+    let opacity_class = if props.disabled {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
+    let cursor_class = if props.disabled {
+        "cursor-not-allowed"
+    } else {
+        "cursor-pointer"
+    };
 
     rsx! {
         button {
@@ -295,5 +319,3 @@ pub fn LootButton(props: LootButtonProps) -> Element {
         }
     }
 }
-
-

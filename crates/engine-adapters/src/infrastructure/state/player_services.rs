@@ -18,10 +18,10 @@ use wrldbldr_engine_app::application::services::{
 pub struct PlayerServices {
     /// Character sheet template management
     pub sheet_template_service: Arc<SheetTemplateService>,
-    
+
     /// Player character CRUD and inventory management
     pub player_character_service: Arc<dyn PlayerCharacterService>,
-    
+
     /// Scene resolution and availability checking
     pub scene_resolution_service: Arc<dyn SceneResolutionService>,
 }

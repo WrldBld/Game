@@ -2,11 +2,11 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::components::story_arc::event_chain_list::{EventChainList, ChainFilter};
-use crate::presentation::components::story_arc::event_chain_visualizer::EventChainVisualizer;
 use crate::presentation::components::story_arc::event_chain_editor::EventChainEditor;
-use wrldbldr_player_app::application::services::EventChainData;
+use crate::presentation::components::story_arc::event_chain_list::{ChainFilter, EventChainList};
+use crate::presentation::components::story_arc::event_chain_visualizer::EventChainVisualizer;
 use crate::presentation::services::use_event_chain_service;
+use wrldbldr_player_app::application::services::EventChainData;
 
 /// Event Chains view - main component for managing event chains
 #[component]

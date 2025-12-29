@@ -17,12 +17,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument, warn};
 
+use wrldbldr_domain::entities::{Scene, SceneCondition};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, FlagRepositoryPort, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort, SceneRepositoryPort,
 };
-use wrldbldr_domain::entities::{Scene, SceneCondition};
-use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 
 /// Result of scene resolution
 #[derive(Debug, Clone)]
@@ -39,16 +39,10 @@ pub struct SceneResolutionResult {
 #[async_trait]
 pub trait SceneResolutionService: Send + Sync {
     /// Resolve the scene for a world based on PC locations
-    async fn resolve_scene_for_world(
-        &self,
-        world_id: &WorldId,
-    ) -> Result<SceneResolutionResult>;
+    async fn resolve_scene_for_world(&self, world_id: &WorldId) -> Result<SceneResolutionResult>;
 
     /// Resolve the scene for a specific player character
-    async fn resolve_scene_for_pc(
-        &self,
-        pc_id: PlayerCharacterId,
-    ) -> Result<Option<Scene>>;
+    async fn resolve_scene_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<Scene>>;
 }
 
 /// Default implementation of SceneResolutionService
@@ -99,7 +93,11 @@ impl SceneResolutionServiceImpl {
                 }
                 SceneCondition::KnowsCharacter(character_id) => {
                     // Check if PC has observed this NPC via ObservationRepositoryPort
-                    match self.observation_repository.has_observed(pc_id, *character_id).await {
+                    match self
+                        .observation_repository
+                        .has_observed(pc_id, *character_id)
+                        .await
+                    {
                         Ok(has_observed) => {
                             if !has_observed {
                                 debug!(
@@ -127,7 +125,9 @@ impl SceneResolutionServiceImpl {
                     if pc_flag {
                         true
                     } else {
-                        self.flag_repository.get_world_flag(world_id, flag_name).await?
+                        self.flag_repository
+                            .get_world_flag(world_id, flag_name)
+                            .await?
                     }
                 }
                 SceneCondition::Custom(description) => {
@@ -159,10 +159,7 @@ impl SceneResolutionServiceImpl {
 #[async_trait]
 impl SceneResolutionService for SceneResolutionServiceImpl {
     #[instrument(skip(self), fields(world_id = %world_id))]
-    async fn resolve_scene_for_world(
-        &self,
-        world_id: &WorldId,
-    ) -> Result<SceneResolutionResult> {
+    async fn resolve_scene_for_world(&self, world_id: &WorldId) -> Result<SceneResolutionResult> {
         // Get all PCs in the world
         let pcs = self
             .pc_repository
@@ -180,7 +177,8 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
         }
 
         // Group PCs by location
-        let mut location_pcs: std::collections::HashMap<LocationId, Vec<_>> = std::collections::HashMap::new();
+        let mut location_pcs: std::collections::HashMap<LocationId, Vec<_>> =
+            std::collections::HashMap::new();
         for pc in &pcs {
             location_pcs
                 .entry(pc.current_location_id)
@@ -304,4 +302,3 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
         Ok(None)
     }
 }
-

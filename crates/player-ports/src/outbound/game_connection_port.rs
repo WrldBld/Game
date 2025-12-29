@@ -9,8 +9,8 @@ use std::pin::Pin;
 
 // Import session types from this crate (ports layer owns these DTOs)
 use crate::session_types::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
-    DiceInput, DirectorialContext, ParticipantRole,
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
+    DirectorialContext, ParticipantRole,
 };
 
 // ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
@@ -89,19 +89,35 @@ pub trait GameConnectionPort: Send + Sync {
     fn send_directorial_update(&self, context: DirectorialContext) -> anyhow::Result<()>;
 
     /// Send an approval decision (DM only)
-    fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> anyhow::Result<()>;
+    fn send_approval_decision(
+        &self,
+        request_id: &str,
+        decision: ApprovalDecision,
+    ) -> anyhow::Result<()>;
 
     /// Send a challenge outcome decision (DM only)
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: ChallengeOutcomeDecision) -> anyhow::Result<()>;
+    fn send_challenge_outcome_decision(
+        &self,
+        resolution_id: &str,
+        decision: ChallengeOutcomeDecision,
+    ) -> anyhow::Result<()>;
 
     /// Trigger a challenge (DM only)
-    fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> anyhow::Result<()>;
+    fn trigger_challenge(
+        &self,
+        challenge_id: &str,
+        target_character_id: &str,
+    ) -> anyhow::Result<()>;
 
     /// Submit a challenge roll (Player only) - legacy method using raw i32
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> anyhow::Result<()>;
 
     /// Submit a challenge roll with dice input (Player only) - supports formulas and manual input
-    fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInput) -> anyhow::Result<()>;
+    fn submit_challenge_roll_input(
+        &self,
+        challenge_id: &str,
+        input: DiceInput,
+    ) -> anyhow::Result<()>;
 
     /// Send a heartbeat ping
     fn heartbeat(&self) -> anyhow::Result<()>;
@@ -110,16 +126,32 @@ pub trait GameConnectionPort: Send + Sync {
     fn move_to_region(&self, pc_id: &str, region_id: &str) -> anyhow::Result<()>;
 
     /// Exit to a different location
-    fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> anyhow::Result<()>;
+    fn exit_to_location(
+        &self,
+        pc_id: &str,
+        location_id: &str,
+        arrival_region_id: Option<&str>,
+    ) -> anyhow::Result<()>;
 
     /// Send a staging approval response (DM only)
-    fn send_staging_approval(&self, request_id: &str, approved_npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32, source: &str) -> anyhow::Result<()>;
+    fn send_staging_approval(
+        &self,
+        request_id: &str,
+        approved_npcs: Vec<ApprovedNpcInfo>,
+        ttl_hours: i32,
+        source: &str,
+    ) -> anyhow::Result<()>;
 
     /// Request regeneration of staging suggestions (DM only)
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> anyhow::Result<()>;
 
     /// Pre-stage a region before player arrival (DM only)
-    fn pre_stage_region(&self, region_id: &str, npcs: Vec<ApprovedNpcInfo>, ttl_hours: i32) -> anyhow::Result<()>;
+    fn pre_stage_region(
+        &self,
+        region_id: &str,
+        npcs: Vec<ApprovedNpcInfo>,
+        ttl_hours: i32,
+    ) -> anyhow::Result<()>;
 
     /// Create an ad-hoc challenge (DM only)
     fn create_adhoc_challenge(
@@ -147,10 +179,21 @@ pub trait GameConnectionPort: Send + Sync {
     fn check_comfyui_health(&self) -> anyhow::Result<()>;
 
     /// Set NPC disposition toward a PC (DM only)
-    fn set_npc_disposition(&self, npc_id: &str, pc_id: &str, disposition: &str, reason: Option<&str>) -> anyhow::Result<()>;
+    fn set_npc_disposition(
+        &self,
+        npc_id: &str,
+        pc_id: &str,
+        disposition: &str,
+        reason: Option<&str>,
+    ) -> anyhow::Result<()>;
 
     /// Set NPC relationship toward a PC (DM only)
-    fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> anyhow::Result<()>;
+    fn set_npc_relationship(
+        &self,
+        npc_id: &str,
+        pc_id: &str,
+        relationship: &str,
+    ) -> anyhow::Result<()>;
 
     /// Request NPC dispositions for a PC (fetches current disposition data)
     fn get_npc_dispositions(&self, pc_id: &str) -> anyhow::Result<()>;

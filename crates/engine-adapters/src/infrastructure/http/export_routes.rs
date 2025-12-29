@@ -8,10 +8,10 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_protocol::dto::ExportQueryDto;
-use wrldbldr_engine_ports::outbound::PlayerWorldSnapshot;
-use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
+use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::PlayerWorldSnapshot;
+use wrldbldr_protocol::dto::ExportQueryDto;
 
 /// Export a world as JSON snapshot
 pub async fn export_world(
@@ -23,7 +23,8 @@ pub async fn export_world(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .core.world_service
+        .core
+        .world_service
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -41,7 +42,8 @@ pub async fn export_world_raw(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .core.world_service
+        .core
+        .world_service
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

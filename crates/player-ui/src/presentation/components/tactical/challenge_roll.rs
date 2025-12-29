@@ -9,11 +9,11 @@
 //! Supports both formula-based rolls (e.g., "1d20+5") and manual result entry
 //! for physical dice rolls.
 
+use crate::presentation::state::challenge_state::ChallengeResultData;
+use crate::presentation::state::{use_session_state, RollSubmissionStatus};
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::DiceInput;
 use wrldbldr_player_ports::outbound::Platform;
-use crate::presentation::state::{RollSubmissionStatus, use_session_state};
-use crate::presentation::state::challenge_state::ChallengeResultData;
 
 /// Props for the ChallengeRollModal component
 #[derive(Props, Clone, PartialEq)]
@@ -61,21 +61,28 @@ pub fn ChallengeRollModal(props: ChallengeRollModalProps) -> Element {
     let current_status = roll_status.read().clone();
 
     // Get suggested dice display
-    let suggested_dice_display = props.suggested_dice.clone().unwrap_or_else(|| "1d20".to_string());
+    let suggested_dice_display = props
+        .suggested_dice
+        .clone()
+        .unwrap_or_else(|| "1d20".to_string());
     let rule_hint = props.rule_system_hint.clone();
 
     // Determine border color based on status
     let border_class = match &current_status {
-        RollSubmissionStatus::ResultReady(result) => {
-            match result.outcome.as_str() {
-                "critical_success" => "border-2 border-yellow-400 shadow-[0_20px_60px_rgba(250,204,21,0.3)]",
-                "success" => "border-2 border-green-500 shadow-[0_20px_60px_rgba(34,197,94,0.3)]",
-                "failure" => "border-2 border-red-500 shadow-[0_20px_60px_rgba(239,68,68,0.3)]",
-                "critical_failure" => "border-2 border-red-700 shadow-[0_20px_60px_rgba(185,28,28,0.3)]",
-                _ => "border-2 border-amber-500 shadow-[0_20px_60px_rgba(245,158,11,0.2)]",
+        RollSubmissionStatus::ResultReady(result) => match result.outcome.as_str() {
+            "critical_success" => {
+                "border-2 border-yellow-400 shadow-[0_20px_60px_rgba(250,204,21,0.3)]"
             }
+            "success" => "border-2 border-green-500 shadow-[0_20px_60px_rgba(34,197,94,0.3)]",
+            "failure" => "border-2 border-red-500 shadow-[0_20px_60px_rgba(239,68,68,0.3)]",
+            "critical_failure" => {
+                "border-2 border-red-700 shadow-[0_20px_60px_rgba(185,28,28,0.3)]"
+            }
+            _ => "border-2 border-amber-500 shadow-[0_20px_60px_rgba(245,158,11,0.2)]",
+        },
+        RollSubmissionStatus::AwaitingApproval { .. } => {
+            "border-2 border-blue-500 shadow-[0_20px_60px_rgba(59,130,246,0.2)]"
         }
-        RollSubmissionStatus::AwaitingApproval { .. } => "border-2 border-blue-500 shadow-[0_20px_60px_rgba(59,130,246,0.2)]",
         _ => "border-2 border-amber-500 shadow-[0_20px_60px_rgba(245,158,11,0.2)]",
     };
 
@@ -180,13 +187,16 @@ fn RollInputPhase(
             .map_err(|_| "Invalid regex".to_string())?;
 
         if let Some(caps) = re_pattern.captures(&formula) {
-            let count: u8 = caps.get(1)
+            let count: u8 = caps
+                .get(1)
                 .and_then(|m| m.as_str().parse().ok())
                 .ok_or("Invalid dice count")?;
-            let sides: u8 = caps.get(2)
+            let sides: u8 = caps
+                .get(2)
                 .and_then(|m| m.as_str().parse().ok())
                 .ok_or("Invalid die size")?;
-            let modifier: i32 = caps.get(3)
+            let modifier: i32 = caps
+                .get(3)
                 .map(|m| m.as_str().parse().unwrap_or(0))
                 .unwrap_or(0);
 
@@ -526,17 +536,34 @@ fn AwaitingApprovalPhase(
 
 /// Phase 3: Result Display (P3.3/P3.4)
 #[component]
-fn ResultDisplayPhase(
-    result: ChallengeResultData,
-    on_continue: EventHandler<()>,
-) -> Element {
+fn ResultDisplayPhase(result: ChallengeResultData, on_continue: EventHandler<()>) -> Element {
     // Determine display colors and text based on outcome
     let (outcome_text, outcome_class, glow_class) = match result.outcome.as_str() {
-        "critical_success" => ("CRITICAL SUCCESS", "text-yellow-400", "shadow-[0_0_30px_rgba(250,204,21,0.5)]"),
-        "success" => ("SUCCESS", "text-green-500", "shadow-[0_0_20px_rgba(34,197,94,0.5)]"),
-        "failure" => ("FAILURE", "text-red-500", "shadow-[0_0_20px_rgba(239,68,68,0.5)]"),
-        "critical_failure" => ("CRITICAL FAILURE", "text-red-700", "shadow-[0_0_30px_rgba(185,28,28,0.5)]"),
-        _ => ("RESULT", "text-amber-500", "shadow-[0_0_20px_rgba(245,158,11,0.5)]"),
+        "critical_success" => (
+            "CRITICAL SUCCESS",
+            "text-yellow-400",
+            "shadow-[0_0_30px_rgba(250,204,21,0.5)]",
+        ),
+        "success" => (
+            "SUCCESS",
+            "text-green-500",
+            "shadow-[0_0_20px_rgba(34,197,94,0.5)]",
+        ),
+        "failure" => (
+            "FAILURE",
+            "text-red-500",
+            "shadow-[0_0_20px_rgba(239,68,68,0.5)]",
+        ),
+        "critical_failure" => (
+            "CRITICAL FAILURE",
+            "text-red-700",
+            "shadow-[0_0_30px_rgba(185,28,28,0.5)]",
+        ),
+        _ => (
+            "RESULT",
+            "text-amber-500",
+            "shadow-[0_0_20px_rgba(245,158,11,0.5)]",
+        ),
     };
 
     rsx! {
@@ -627,7 +654,9 @@ fn RollResultDisplay(
     on_reroll: EventHandler<()>,
 ) -> Element {
     // Format individual rolls for display
-    let rolls_display = result.individual_rolls.iter()
+    let rolls_display = result
+        .individual_rolls
+        .iter()
         .map(|r| r.to_string())
         .collect::<Vec<_>>()
         .join(", ");

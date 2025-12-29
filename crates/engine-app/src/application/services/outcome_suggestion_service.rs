@@ -8,9 +8,9 @@ use uuid::Uuid;
 
 use crate::application::dto::{OutcomeBranchDto, OutcomeSuggestionRequest};
 use crate::application::services::PromptTemplateService;
-use wrldbldr_engine_ports::outbound::LlmPort;
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::LlmPort;
 
 /// Error type for outcome suggestion operations
 #[derive(Debug, thiserror::Error)]
@@ -30,14 +30,15 @@ pub struct OutcomeSuggestionService<L: LlmPort> {
 impl<L: LlmPort> OutcomeSuggestionService<L> {
     /// Create a new outcome suggestion service
     pub fn new(llm: Arc<L>, prompt_template_service: Arc<PromptTemplateService>) -> Self {
-        Self { llm, prompt_template_service }
+        Self {
+            llm,
+            prompt_template_service,
+        }
     }
-    
+
     /// Parse world_id from optional string
     fn parse_world_id(world_id: Option<&String>) -> Option<WorldId> {
-        world_id.and_then(|id| {
-            uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid)
-        })
+        world_id.and_then(|id| uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid))
     }
 
     /// Generate alternative outcome descriptions
@@ -57,7 +58,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 
         let llm_request = LlmRequest::new(messages)
             .with_system_prompt(system_prompt)
-            .with_temperature(0.8)  // Higher temperature for creativity
+            .with_temperature(0.8) // Higher temperature for creativity
             .with_max_tokens(Some(500));
 
         let response = self
@@ -88,7 +89,9 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         tokens_per_branch: u32,
     ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
         let world_id = Self::parse_world_id(request.world_id.as_ref());
-        let system_prompt = self.build_branch_system_prompt(world_id, branch_count).await;
+        let system_prompt = self
+            .build_branch_system_prompt(world_id, branch_count)
+            .await;
         let user_prompt = self.build_branch_user_prompt(request, branch_count);
 
         use wrldbldr_engine_ports::outbound::{ChatMessage, LlmRequest};
@@ -118,26 +121,38 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     /// Build the system prompt for outcome generation (async for template resolution)
     async fn build_system_prompt(&self, world_id: Option<WorldId>) -> String {
         match world_id {
-            Some(wid) => self.prompt_template_service
-                .resolve_for_world(wid, prompt_keys::OUTCOME_SYSTEM_PROMPT)
-                .await,
-            None => self.prompt_template_service
-                .resolve(prompt_keys::OUTCOME_SYSTEM_PROMPT)
-                .await,
+            Some(wid) => {
+                self.prompt_template_service
+                    .resolve_for_world(wid, prompt_keys::OUTCOME_SYSTEM_PROMPT)
+                    .await
+            }
+            None => {
+                self.prompt_template_service
+                    .resolve(prompt_keys::OUTCOME_SYSTEM_PROMPT)
+                    .await
+            }
         }
     }
 
     /// Build the system prompt for branch generation (async for template resolution)
-    async fn build_branch_system_prompt(&self, world_id: Option<WorldId>, branch_count: usize) -> String {
+    async fn build_branch_system_prompt(
+        &self,
+        world_id: Option<WorldId>,
+        branch_count: usize,
+    ) -> String {
         let template = match world_id {
-            Some(wid) => self.prompt_template_service
-                .resolve_for_world(wid, prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
-                .await,
-            None => self.prompt_template_service
-                .resolve(prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
-                .await,
+            Some(wid) => {
+                self.prompt_template_service
+                    .resolve_for_world(wid, prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
+                    .await
+            }
+            None => {
+                self.prompt_template_service
+                    .resolve(prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
+                    .await
+            }
         };
-        
+
         // Replace the {branch_count} placeholder
         template.replace("{branch_count}", &branch_count.to_string())
     }
@@ -171,7 +186,11 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     }
 
     /// Build the user prompt for branch generation
-    fn build_branch_user_prompt(&self, request: &OutcomeSuggestionRequest, branch_count: usize) -> String {
+    fn build_branch_user_prompt(
+        &self,
+        request: &OutcomeSuggestionRequest,
+        branch_count: usize,
+    ) -> String {
         let mut prompt = format!(
             "Generate {} distinct {} outcome branches for:\n\n\
             Challenge: {}\n\
@@ -210,7 +229,9 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             .filter(|line| !line.is_empty())
             // Filter out numbered prefixes like "1." or "1)"
             .map(|line| {
-                let trimmed = line.trim_start_matches(|c: char| c.is_numeric() || c == '.' || c == ')' || c == ' ');
+                let trimmed = line.trim_start_matches(|c: char| {
+                    c.is_numeric() || c == '.' || c == ')' || c == ' '
+                });
                 trimmed.trim().to_string()
             })
             .filter(|line| !line.is_empty())
@@ -227,7 +248,11 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     }
 
     /// Parse branches from LLM response
-    fn parse_branches(&self, content: &str, expected_count: usize) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
+    fn parse_branches(
+        &self,
+        content: &str,
+        expected_count: usize,
+    ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
         let mut branches = Vec::new();
         let mut current_title: Option<String> = None;
         let mut current_description: Option<String> = None;
@@ -236,7 +261,9 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             let line = line.trim();
             if line.is_empty() {
                 // End of a branch block - save if we have both parts
-                if let (Some(title), Some(desc)) = (current_title.take(), current_description.take()) {
+                if let (Some(title), Some(desc)) =
+                    (current_title.take(), current_description.take())
+                {
                     branches.push(OutcomeBranchDto::new(
                         Uuid::new_v4().to_string(),
                         title,
@@ -247,11 +274,17 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             }
 
             // Check for TITLE: prefix (case insensitive)
-            if let Some(title) = line.strip_prefix("TITLE:").or_else(|| line.strip_prefix("Title:")) {
+            if let Some(title) = line
+                .strip_prefix("TITLE:")
+                .or_else(|| line.strip_prefix("Title:"))
+            {
                 current_title = Some(title.trim().to_string());
             }
             // Check for DESCRIPTION: prefix (case insensitive)
-            else if let Some(desc) = line.strip_prefix("DESCRIPTION:").or_else(|| line.strip_prefix("Description:")) {
+            else if let Some(desc) = line
+                .strip_prefix("DESCRIPTION:")
+                .or_else(|| line.strip_prefix("Description:"))
+            {
                 current_description = Some(desc.trim().to_string());
             }
             // If we have a title but no description, and this line doesn't have a prefix,
@@ -289,13 +322,15 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             for (i, line) in lines.into_iter().take(expected_count).enumerate() {
                 // Strip any leading numbering
                 let clean = line
-                    .trim_start_matches(|c: char| c.is_numeric() || c == '.' || c == ')' || c == ' ')
+                    .trim_start_matches(|c: char| {
+                        c.is_numeric() || c == '.' || c == ')' || c == ' '
+                    })
                     .trim();
-                
+
                 // Generate a title from first few words
                 let words: Vec<&str> = clean.split_whitespace().take(5).collect();
                 let title = words.join(" ");
-                
+
                 branches.push(OutcomeBranchDto::new(
                     Uuid::new_v4().to_string(),
                     format!("Option {}: {}", i + 1, title),
@@ -317,7 +352,9 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_engine_ports::outbound::{FinishReason, ToolDefinition, PromptTemplateRepositoryPort, PromptTemplateError};
+    use wrldbldr_engine_ports::outbound::{
+        FinishReason, PromptTemplateError, PromptTemplateRepositoryPort, ToolDefinition,
+    };
 
     fn create_test_service() -> OutcomeSuggestionService<MockLlm> {
         let mock_repo = Arc::new(MockPromptTemplateRepository);
@@ -395,19 +432,38 @@ mod tests {
         async fn delete_all_global(&self) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn get_for_world(&self, _world_id: WorldId, _key: &str) -> Result<Option<String>, PromptTemplateError> {
+        async fn get_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+        ) -> Result<Option<String>, PromptTemplateError> {
             Ok(None)
         }
-        async fn get_all_for_world(&self, _world_id: WorldId) -> Result<Vec<(String, String)>, PromptTemplateError> {
+        async fn get_all_for_world(
+            &self,
+            _world_id: WorldId,
+        ) -> Result<Vec<(String, String)>, PromptTemplateError> {
             Ok(vec![])
         }
-        async fn set_for_world(&self, _world_id: WorldId, _key: &str, _value: &str) -> Result<(), PromptTemplateError> {
+        async fn set_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+            _value: &str,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn delete_for_world(&self, _world_id: WorldId, _key: &str) -> Result<(), PromptTemplateError> {
+        async fn delete_for_world(
+            &self,
+            _world_id: WorldId,
+            _key: &str,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
-        async fn delete_all_for_world(&self, _world_id: WorldId) -> Result<(), PromptTemplateError> {
+        async fn delete_all_for_world(
+            &self,
+            _world_id: WorldId,
+        ) -> Result<(), PromptTemplateError> {
             Ok(())
         }
     }

@@ -151,7 +151,17 @@ pub fn WorkflowUploadModal(props: WorkflowUploadModalProps) -> Element {
                 }));
             }
 
-            match svc.save_workflow_config(&slot, &name, workflow_json_value, prompt_mappings, vec![], vec![]).await {
+            match svc
+                .save_workflow_config(
+                    &slot,
+                    &name,
+                    workflow_json_value,
+                    prompt_mappings,
+                    vec![],
+                    vec![],
+                )
+                .await
+            {
                 Ok(_) => {
                     on_save.call(());
                 }
@@ -499,7 +509,10 @@ struct TextInputSelectorProps {
 
 #[component]
 fn TextInputSelector(props: TextInputSelectorProps) -> Element {
-    let selected_key = props.selected.as_ref().map(|i| format!("{}:{}", i.node_id, i.input_name));
+    let selected_key = props
+        .selected
+        .as_ref()
+        .map(|i| format!("{}:{}", i.node_id, i.input_name));
 
     rsx! {
         select {
@@ -600,22 +613,37 @@ fn ReviewRow(label: &'static str, value: String) -> Element {
 
 impl From<AnalyzeWorkflowResponse> for WorkflowAnalysisResult {
     fn from(resp: AnalyzeWorkflowResponse) -> Self {
-        let text_inputs: Vec<TextInputInfo> = resp.analysis.text_inputs.iter().map(|i| TextInputInfo {
-            node_id: i.node_id.clone(),
-            node_title: i.node_title.clone(),
-            input_name: i.input_name.clone(),
-        }).collect();
+        let text_inputs: Vec<TextInputInfo> = resp
+            .analysis
+            .text_inputs
+            .iter()
+            .map(|i| TextInputInfo {
+                node_id: i.node_id.clone(),
+                node_title: i.node_title.clone(),
+                input_name: i.input_name.clone(),
+            })
+            .collect();
 
-        let suggested_primary = resp.suggested_prompt_mappings.iter()
+        let suggested_primary = resp
+            .suggested_prompt_mappings
+            .iter()
             .find(|m| m.mapping_type == "primary")
             .and_then(|m| {
-                text_inputs.iter().find(|i| i.node_id == m.node_id && i.input_name == m.input_name).cloned()
+                text_inputs
+                    .iter()
+                    .find(|i| i.node_id == m.node_id && i.input_name == m.input_name)
+                    .cloned()
             });
 
-        let suggested_negative = resp.suggested_prompt_mappings.iter()
+        let suggested_negative = resp
+            .suggested_prompt_mappings
+            .iter()
             .find(|m| m.mapping_type == "negative")
             .and_then(|m| {
-                text_inputs.iter().find(|i| i.node_id == m.node_id && i.input_name == m.input_name).cloned()
+                text_inputs
+                    .iter()
+                    .find(|i| i.node_id == m.node_id && i.input_name == m.input_name)
+                    .cloned()
             });
 
         Self {

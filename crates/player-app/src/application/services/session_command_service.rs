@@ -25,12 +25,17 @@ impl SessionCommandService {
         self.connection.send_directorial_update(context)
     }
 
-    pub fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> Result<()> {
+    pub fn send_approval_decision(
+        &self,
+        request_id: &str,
+        decision: ApprovalDecision,
+    ) -> Result<()> {
         self.connection.send_approval_decision(request_id, decision)
     }
 
     pub fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
-        self.connection.trigger_challenge(challenge_id, target_character_id)
+        self.connection
+            .trigger_challenge(challenge_id, target_character_id)
     }
 
     pub fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
@@ -38,7 +43,7 @@ impl SessionCommandService {
     }
 
     pub fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInput) -> Result<()> {
-        self.connection.submit_challenge_roll_input(challenge_id, input)
+        self.connection
+            .submit_challenge_roll_input(challenge_id, input)
     }
 }
-

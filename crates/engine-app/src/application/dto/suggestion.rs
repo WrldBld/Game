@@ -49,4 +49,3 @@ pub struct UnifiedSuggestionRequestDto {
     #[serde(flatten)]
     pub context: SuggestionRequestDto,
 }
-

@@ -8,18 +8,17 @@
 //! - Recent NPC dialogue history (using StoryEventService)
 //! - Rule-based presence suggestions
 
-use std::sync::Arc;
 use anyhow::Result;
+use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{
-    NarrativeEventRepositoryPort, RegionRepositoryPort,
-};
 use crate::application::services::StoryEventService;
 use wrldbldr_domain::entities::Character;
 use wrldbldr_domain::value_objects::{
-    ActiveEventContext, NpcDialogueContext, RegionRelationshipType, RuleBasedSuggestion, StagingContext,
+    ActiveEventContext, NpcDialogueContext, RegionRelationshipType, RuleBasedSuggestion,
+    StagingContext,
 };
 use wrldbldr_domain::{CharacterId, GameTime, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::{NarrativeEventRepositoryPort, RegionRepositoryPort};
 
 /// Service for gathering context needed for staging decisions
 pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> {
@@ -53,27 +52,30 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
         game_time: &GameTime,
     ) -> Result<StagingContext> {
         // Get region information
-        let region = self.region_repository.get(region_id).await?
+        let region = self
+            .region_repository
+            .get(region_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Region not found: {}", region_id))?;
 
         let time_of_day = game_time.time_of_day();
-        
+
         // Get active narrative events for this region/world
         let active_events = self.get_active_events(world_id, region_id).await?;
 
         // Get NPC relationships to this region (for gathering dialogue context)
-        let npc_relationships = self.region_repository
+        let npc_relationships = self
+            .region_repository
             .get_npcs_related_to_region(region_id)
             .await?;
 
         // Gather dialogue context for each NPC
         let mut npc_dialogues = Vec::new();
         for (character, _rel_type) in &npc_relationships {
-            if let Some(dialogue_ctx) = self.get_npc_dialogue_context(
-                world_id, 
-                character.id, 
-                &character.name,
-            ).await? {
+            if let Some(dialogue_ctx) = self
+                .get_npc_dialogue_context(world_id, character.id, &character.name)
+                .await?
+            {
                 npc_dialogues.push(dialogue_ctx);
             }
         }
@@ -99,7 +101,8 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
         region_id: RegionId,
         game_time: &GameTime,
     ) -> Result<Vec<RuleBasedSuggestion>> {
-        let npc_relationships = self.region_repository
+        let npc_relationships = self
+            .region_repository
             .get_npcs_related_to_region(region_id)
             .await?;
 
@@ -133,7 +136,9 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
         &self,
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>> {
-        self.region_repository.get_npcs_related_to_region(region_id).await
+        self.region_repository
+            .get_npcs_related_to_region(region_id)
+            .await
     }
 
     /// Get active narrative events relevant to staging
@@ -144,7 +149,8 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
     ) -> Result<Vec<ActiveEventContext>> {
         // Get active narrative events for this world
         // TODO: Filter by region relevance when we have region-specific events
-        let events = self.narrative_event_repository
+        let events = self
+            .narrative_event_repository
             .list_by_world(world_id)
             .await?;
 
@@ -177,7 +183,8 @@ impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextPro
         npc_name: &str,
     ) -> Result<Option<NpcDialogueContext>> {
         // Use story event service to get dialogue summary
-        let summary = self.story_event_service
+        let summary = self
+            .story_event_service
             .get_dialogue_summary_for_npc(world_id, npc_id, 3)
             .await?;
 
@@ -236,7 +243,11 @@ Time: {} ({})
             prompt.push_str(&format!(
                 "- {} ({}): {}\n",
                 suggestion.character_name,
-                if suggestion.is_present { "present" } else { "absent" },
+                if suggestion.is_present {
+                    "present"
+                } else {
+                    "absent"
+                },
                 suggestion.reasoning,
             ));
         }
@@ -301,17 +312,15 @@ mod tests {
             "8:00 AM",
         );
 
-        let suggestions = vec![
-            RuleBasedSuggestion::present(
-                Uuid::new_v4(),
-                "Bob the Baker",
-                "Works here during the day",
-            ),
-        ];
+        let suggestions = vec![RuleBasedSuggestion::present(
+            Uuid::new_v4(),
+            "Bob the Baker",
+            "Works here during the day",
+        )];
 
         let prompt = build_staging_prompt(
-            &context, 
-            &suggestions, 
+            &context,
+            &suggestions,
             None,
             prompt_defaults::STAGING_ROLE_INSTRUCTIONS,
             prompt_defaults::STAGING_RESPONSE_FORMAT,

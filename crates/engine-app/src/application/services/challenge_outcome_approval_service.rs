@@ -18,18 +18,20 @@ use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, RwLock};
 
 use crate::application::dto::{
-    ChallengeOutcomeApprovalItem, ChallengeOutcomeDecision, OutcomeSuggestionRequest,
-    PendingChallengeResolutionDto, ProposedToolInfo,
+    ChallengeOutcomeDecision, OutcomeSuggestionRequest, PendingChallengeResolutionDto,
 };
 use crate::application::services::challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
 };
+use crate::application::services::tool_execution_service::StateChange;
 use crate::application::services::{
     OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService,
 };
-use crate::application::services::tool_execution_service::StateChange;
-use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{ClockPort, ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort};
+use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
+use wrldbldr_domain::{CharacterId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    ClockPort, ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort,
+};
 
 /// Result of challenge approval operations
 ///
@@ -113,9 +115,9 @@ pub enum ChallengeOutcomeError {
 /// by keeping the service layer protocol-agnostic.
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Pending resolutions indexed by resolution_id (in-memory cache)
-    pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
+    pending: Arc<RwLock<HashMap<String, ChallengeOutcomeData>>>,
     /// Persistent queue for challenge outcomes
-    queue: Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>,
+    queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
     /// Event channel sender for broadcasting events (bounded channel)
     event_sender: mpsc::Sender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
@@ -144,7 +146,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
         prompt_template_service: Arc<PromptTemplateService>,
-        queue: Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>,
+        queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
         llm_port: Arc<L>,
         settings_service: Arc<SettingsService>,
         clock: Arc<dyn ClockPort>,
@@ -178,15 +180,20 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Result<String, ChallengeOutcomeError> {
         let resolution_id = resolution.resolution_id.clone();
 
-        // Convert DTO to approval item
-        let item = ChallengeOutcomeApprovalItem {
+        // Parse character_id to domain type
+        let character_id = uuid::Uuid::parse_str(&resolution.character_id)
+            .map(CharacterId::from)
+            .unwrap_or_else(|_| CharacterId::new());
+
+        // Convert DTO to domain type
+        let item = ChallengeOutcomeData {
             resolution_id: resolution.resolution_id.clone(),
-            world_id: (*world_id).into(),
+            world_id: *world_id,
             challenge_id: resolution.challenge_id,
             challenge_name: resolution.challenge_name.clone(),
             challenge_description: resolution.challenge_description,
             skill_name: resolution.skill_name,
-            character_id: resolution.character_id,
+            character_id,
             character_name: resolution.character_name.clone(),
             roll: resolution.roll,
             modifier: resolution.modifier,
@@ -196,14 +203,13 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             outcome_triggers: resolution
                 .outcome_triggers
                 .iter()
-                .map(|t| ProposedToolInfo {
+                .map(|t| ProposedTool {
                     id: uuid::Uuid::new_v4().to_string(),
                     name: format!("{:?}", t),
                     description: String::new(),
                     arguments: serde_json::json!({}),
                 })
                 .collect(),
-            original_triggers: resolution.outcome_triggers,
             roll_breakdown: resolution.roll_breakdown,
             timestamp: self.now(),
             suggestions: None,
@@ -254,8 +260,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify world matches
-        let world_uuid: uuid::Uuid = (*world_id).into();
-        if item.world_id != world_uuid {
+        if item.world_id != *world_id {
             return Err(ChallengeOutcomeError::InvalidState(
                 "World mismatch".to_string(),
             ));
@@ -312,12 +317,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 let world_id_owned = *world_id;
 
                 tokio::spawn(async move {
-                    let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
+                    let suggestion_service =
+                        OutcomeSuggestionService::new(llm, prompt_template_service);
                     match suggestion_service.generate_suggestions(&request).await {
                         Ok(suggestions) => {
                             // Update suggestions in pending map
                             let mut pending_guard = pending.write().await;
-                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned)
+                            {
                                 pending_item.suggestions = Some(suggestions.clone());
                                 pending_item.is_generating_suggestions = false;
                                 drop(pending_guard);
@@ -341,7 +348,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                             );
                             // Mark as no longer generating
                             let mut pending_guard = pending.write().await;
-                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
+                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned)
+                            {
                                 pending_item.is_generating_suggestions = false;
                             }
                         }
@@ -365,7 +373,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             item.is_generating_suggestions = false;
 
             // Emit suggestions ready event
-            let world_id = WorldId::from_uuid(item.world_id);
+            let world_id = item.world_id;
             drop(pending);
 
             let event = ChallengeApprovalEvent::SuggestionsReady {
@@ -385,14 +393,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     }
 
     /// Get all pending resolutions for a world
-    pub async fn get_pending_for_world(
-        &self,
-        world_id: &WorldId,
-    ) -> Vec<ChallengeOutcomeApprovalItem> {
+    pub async fn get_pending_for_world(&self, world_id: &WorldId) -> Vec<ChallengeOutcomeData> {
         let pending = self.pending.read().await;
         pending
             .values()
-            .filter(|item| item.world_id == uuid::Uuid::from(*world_id))
+            .filter(|item| item.world_id == *world_id)
             .cloned()
             .collect()
     }
@@ -401,7 +406,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     async fn broadcast_resolution(
         &self,
         world_id: &WorldId,
-        item: &ChallengeOutcomeApprovalItem,
+        item: &ChallengeOutcomeData,
         modified_description: Option<String>,
     ) -> Result<(), ChallengeOutcomeError> {
         let description = modified_description.unwrap_or_else(|| item.outcome_description.clone());
@@ -426,25 +431,28 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         }
 
         // Execute outcome triggers if any
-        if !item.original_triggers.is_empty() {
+        if !item.outcome_triggers.is_empty() {
             use wrldbldr_domain::entities::OutcomeTrigger;
-            
-            // Convert DTOs to domain triggers
+
+            // Convert ProposedTool to domain OutcomeTrigger
+            // Note: ProposedTool stores tool info for display; we parse the name to determine trigger type
             let domain_triggers: Vec<OutcomeTrigger> = item
-                .original_triggers
+                .outcome_triggers
                 .iter()
-                .cloned()
-                .map(OutcomeTrigger::from)
+                .filter_map(|t| Self::proposed_tool_to_outcome_trigger(t))
                 .collect();
-            
+
             let result = self
                 .outcome_trigger_service
                 .execute_triggers(&domain_triggers, *world_id)
                 .await;
-            
+
             // Process state changes from trigger execution
             if !result.state_changes.is_empty() {
-                if let Err(e) = self.process_state_changes(&result.state_changes, &item, world_id).await {
+                if let Err(e) = self
+                    .process_state_changes(&result.state_changes, item, world_id)
+                    .await
+                {
                     tracing::warn!(
                         error = %e,
                         "Failed to process some state changes for challenge {}",
@@ -452,7 +460,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     );
                 }
             }
-            
+
             tracing::info!(
                 trigger_count = result.trigger_count,
                 state_changes = result.state_changes.len(),
@@ -472,21 +480,124 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         Ok(())
     }
 
+    /// Convert a ProposedTool to an OutcomeTrigger if possible
+    ///
+    /// This parses the tool name and arguments to reconstruct the domain trigger type.
+    fn proposed_tool_to_outcome_trigger(
+        tool: &ProposedTool,
+    ) -> Option<wrldbldr_domain::entities::OutcomeTrigger> {
+        use wrldbldr_domain::entities::OutcomeTrigger;
+        use wrldbldr_domain::{ChallengeId, SceneId};
+
+        // Parse the tool name to determine type
+        let name_lower = tool.name.to_lowercase();
+
+        if name_lower.contains("revealinformation") || name_lower.contains("reveal_information") {
+            let info = tool
+                .arguments
+                .get("info")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let persist = tool
+                .arguments
+                .get("persist")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            Some(OutcomeTrigger::RevealInformation { info, persist })
+        } else if name_lower.contains("enablechallenge") || name_lower.contains("enable_challenge")
+        {
+            let challenge_id_str = tool
+                .arguments
+                .get("challenge_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let challenge_id = uuid::Uuid::parse_str(challenge_id_str)
+                .map(ChallengeId::from_uuid)
+                .unwrap_or_else(|_| ChallengeId::new());
+            Some(OutcomeTrigger::EnableChallenge { challenge_id })
+        } else if name_lower.contains("disablechallenge")
+            || name_lower.contains("disable_challenge")
+        {
+            let challenge_id_str = tool
+                .arguments
+                .get("challenge_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let challenge_id = uuid::Uuid::parse_str(challenge_id_str)
+                .map(ChallengeId::from_uuid)
+                .unwrap_or_else(|_| ChallengeId::new());
+            Some(OutcomeTrigger::DisableChallenge { challenge_id })
+        } else if name_lower.contains("modifycharacterstat")
+            || name_lower.contains("modify_character_stat")
+        {
+            let stat = tool
+                .arguments
+                .get("stat")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let modifier = tool
+                .arguments
+                .get("modifier")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0) as i32;
+            Some(OutcomeTrigger::ModifyCharacterStat { stat, modifier })
+        } else if name_lower.contains("triggerscene") || name_lower.contains("trigger_scene") {
+            let scene_id_str = tool
+                .arguments
+                .get("scene_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let scene_id = uuid::Uuid::parse_str(scene_id_str)
+                .map(SceneId::from_uuid)
+                .unwrap_or_else(|_| SceneId::new());
+            Some(OutcomeTrigger::TriggerScene { scene_id })
+        } else if name_lower.contains("giveitem") || name_lower.contains("give_item") {
+            let item_name = tool
+                .arguments
+                .get("item_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let item_description = tool
+                .arguments
+                .get("item_description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            Some(OutcomeTrigger::GiveItem {
+                item_name,
+                item_description,
+            })
+        } else if name_lower.contains("custom") {
+            let description = tool
+                .arguments
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&tool.description)
+                .to_string();
+            Some(OutcomeTrigger::Custom { description })
+        } else {
+            // Unknown trigger type - log and skip
+            tracing::warn!(
+                tool_name = %tool.name,
+                "Unknown trigger type in ProposedTool, skipping"
+            );
+            None
+        }
+    }
+
     /// Notify of a roll submission (triggers both DM pending and player status events)
     ///
     /// The `ChallengeApprovalEvent::RollSubmitted` event will be processed by the
     /// publisher to send appropriate messages to DM and players.
-    fn emit_roll_submitted(
-        &self,
-        world_id: &WorldId,
-        item: &ChallengeOutcomeApprovalItem,
-    ) {
+    fn emit_roll_submitted(&self, world_id: &WorldId, item: &ChallengeOutcomeData) {
         let event = ChallengeApprovalEvent::RollSubmitted {
             world_id: *world_id,
             resolution_id: item.resolution_id.clone(),
             challenge_id: item.challenge_id.clone(),
             challenge_name: item.challenge_name.clone(),
-            character_id: item.character_id.clone(),
+            character_id: item.character_id.to_string(),
             character_name: item.character_name.clone(),
             roll: item.roll,
             modifier: item.modifier,
@@ -556,8 +667,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify world matches
-        let world_uuid: uuid::Uuid = (*world_id).into();
-        if item.world_id != world_uuid {
+        if item.world_id != *world_id {
             return Err(ChallengeOutcomeError::InvalidState(
                 "World mismatch".to_string(),
             ));
@@ -604,15 +714,17 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
 
         tokio::spawn(async move {
             let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
-            match suggestion_service.generate_branches(&request, branch_count, tokens_per_branch).await {
+            match suggestion_service
+                .generate_branches(&request, branch_count, tokens_per_branch)
+                .await
+            {
                 Ok(branches) => {
                     // Update pending item
                     let mut pending_guard = pending.write().await;
                     if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
                         // Store branches as suggestions (converted to strings for backward compat)
-                        pending_item.suggestions = Some(
-                            branches.iter().map(|b| b.description.clone()).collect(),
-                        );
+                        pending_item.suggestions =
+                            Some(branches.iter().map(|b| b.description.clone()).collect());
                         pending_item.is_generating_suggestions = false;
                         drop(pending_guard);
 
@@ -674,8 +786,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         };
 
         // Verify world matches
-        let world_uuid: uuid::Uuid = (*world_id).into();
-        if item.world_id != world_uuid {
+        if item.world_id != *world_id {
             return Err(ChallengeOutcomeError::InvalidState(
                 "World mismatch".to_string(),
             ));
@@ -684,7 +795,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         // The branch_id would be used to look up the selected branch's description
         // For now, we use the modified_description if provided, or fall back to the original
         // TODO: Store branches in the approval item and look up by branch_id
-        let final_description = modified_description.unwrap_or_else(|| item.outcome_description.clone());
+        let final_description =
+            modified_description.unwrap_or_else(|| item.outcome_description.clone());
 
         // Broadcast the resolution with the selected branch description
         self.broadcast_resolution(world_id, &item, Some(final_description))
@@ -703,15 +815,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     async fn process_state_changes(
         &self,
         state_changes: &[StateChange],
-        item: &ChallengeOutcomeApprovalItem,
+        item: &ChallengeOutcomeData,
         world_id: &WorldId,
     ) -> anyhow::Result<()> {
-        use wrldbldr_domain::entities::Item;
         use anyhow::Context;
+        use wrldbldr_domain::entities::Item;
 
         for change in state_changes {
             match change {
-                StateChange::ItemAdded { character, item: item_name } => {
+                StateChange::ItemAdded {
+                    character,
+                    item: item_name,
+                } => {
                     // Only handle "active_pc" for now - this refers to the character who rolled
                     if character == "active_pc" {
                         tracing::info!(
@@ -732,15 +847,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                             .with_context(|| format!("Failed to create item '{}'", item_name))?;
 
                         // Add to the PC's inventory
-                        let character_id = uuid::Uuid::parse_str(&item.character_id)
-                            .with_context(|| format!("Invalid character ID: {}", item.character_id))?
-                            .into();
-                        
+                        let character_id: wrldbldr_domain::PlayerCharacterId =
+                            uuid::Uuid::from(item.character_id).into();
+
                         self.pc_repository
                             .add_inventory_item(
                                 character_id,
                                 new_item.id,
-                                1, // Default quantity
+                                1,     // Default quantity
                                 false, // Not equipped by default
                                 Some(wrldbldr_domain::entities::AcquisitionMethod::Gifted), // Challenge reward
                             )
@@ -766,12 +880,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 StateChange::InfoRevealed { .. } => {
                     // Information revealing is already handled by adding to conversation history
                     // No additional processing needed
-                    tracing::debug!("InfoRevealed state change - already handled in conversation history");
+                    tracing::debug!(
+                        "InfoRevealed state change - already handled in conversation history"
+                    );
                 }
-                StateChange::CharacterStatUpdated { character_id, stat_name, delta } => {
+                StateChange::CharacterStatUpdated {
+                    character_id,
+                    stat_name,
+                    delta,
+                } => {
                     // Resolve "active_pc" to the actual character ID from the approval item
                     let resolved_character_id = if character_id == "active_pc" {
-                        item.character_id.clone()
+                        item.character_id.to_string()
                     } else {
                         character_id.clone()
                     };
@@ -785,17 +905,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     );
 
                     // Parse the character ID
-                    let pc_id: wrldbldr_domain::PlayerCharacterId = match uuid::Uuid::parse_str(&resolved_character_id) {
-                        Ok(uuid) => uuid.into(),
-                        Err(e) => {
-                            tracing::error!(
-                                character_id = %resolved_character_id,
-                                error = %e,
-                                "Invalid character ID for stat update"
-                            );
-                            continue;
-                        }
-                    };
+                    let pc_id: wrldbldr_domain::PlayerCharacterId =
+                        match uuid::Uuid::parse_str(&resolved_character_id) {
+                            Ok(uuid) => uuid.into(),
+                            Err(e) => {
+                                tracing::error!(
+                                    character_id = %resolved_character_id,
+                                    error = %e,
+                                    "Invalid character ID for stat update"
+                                );
+                                continue;
+                            }
+                        };
 
                     // Get the player character
                     let mut pc = match self.pc_repository.get(pc_id).await {
@@ -818,16 +939,19 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     };
 
                     // Get or create sheet data
-                    let sheet_data = pc.sheet_data.get_or_insert_with(|| {
-                        wrldbldr_domain::entities::CharacterSheetData::new()
-                    });
+                    let sheet_data = pc
+                        .sheet_data
+                        .get_or_insert_with(wrldbldr_domain::entities::CharacterSheetData::new);
 
                     // Get current value (default to 0 if not set)
                     let current_value = sheet_data.get_number(stat_name).unwrap_or(0);
                     let new_value = current_value + delta;
 
                     // Update the stat
-                    sheet_data.set(stat_name.clone(), wrldbldr_domain::entities::FieldValue::Number(new_value));
+                    sheet_data.set(
+                        stat_name.clone(),
+                        wrldbldr_domain::entities::FieldValue::Number(new_value),
+                    );
 
                     // Save the updated PC
                     if let Err(e) = self.pc_repository.update(&pc).await {
@@ -851,7 +975,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
 
                     // Emit stat update event
                     let event = ChallengeApprovalEvent::StatUpdated {
-                        world_id: WorldId::from(item.world_id),
+                        world_id: item.world_id,
                         character_id: resolved_character_id.clone(),
                         character_name: pc.name.clone(),
                         stat_name: stat_name.clone(),
@@ -874,10 +998,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     tracing::debug!("EventTriggered state change - informational only");
                 }
                 _ => {
-                    tracing::warn!(
-                        state_change = ?change,
-                        "Unhandled state change type"
-                    );
+                    tracing::warn!(state_change = ?change, "Unhandled state change type");
                 }
             }
         }

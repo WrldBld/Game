@@ -7,12 +7,12 @@ use super::asset_gallery::AssetGallery;
 use super::motivations_tab::MotivationsTab;
 use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
-use wrldbldr_player_app::application::services::SuggestionContext;
-use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
-use wrldbldr_player_ports::outbound::Platform;
-use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
+use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
+use wrldbldr_player_app::application::services::SuggestionContext;
+use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};
+use wrldbldr_player_ports::outbound::Platform;
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[
@@ -31,7 +31,9 @@ const ARCHETYPES: &[&str] = &[
 pub fn CharacterForm(
     character_id: String,
     world_id: String,
-    characters_signal: Signal<Vec<wrldbldr_player_app::application::services::character_service::CharacterSummary>>,
+    characters_signal: Signal<
+        Vec<wrldbldr_player_app::application::services::character_service::CharacterSummary>,
+    >,
     on_close: EventHandler<()>,
 ) -> Element {
     let is_new = character_id.is_empty();
@@ -67,20 +69,21 @@ pub fn CharacterForm(
             let world_id_clone = world_id_for_template.clone();
             spawn(async move {
                 match svc.get_sheet_template(&world_id_clone).await {
-                        Ok(template_json) => {
-                            // Parse the JSON into SheetTemplate
-                            match serde_json::from_value::<SheetTemplate>(template_json) {
-                                Ok(template) => {
-                                    sheet_template.set(Some(template));
-                                }
-                                Err(_e) => {
-                                    platform.log_warn(&format!("Failed to parse sheet template: {}", _e));
-                                }
+                    Ok(template_json) => {
+                        // Parse the JSON into SheetTemplate
+                        match serde_json::from_value::<SheetTemplate>(template_json) {
+                            Ok(template) => {
+                                sheet_template.set(Some(template));
+                            }
+                            Err(_e) => {
+                                platform
+                                    .log_warn(&format!("Failed to parse sheet template: {}", _e));
                             }
                         }
-                        Err(_e) => {
-                            // Template fetch failure is not critical - sheet section just won't appear
-                            platform.log_warn(&format!("Failed to load sheet template: {}", _e));
+                    }
+                    Err(_e) => {
+                        // Template fetch failure is not critical - sheet section just won't appear
+                        platform.log_warn(&format!("Failed to load sheet template: {}", _e));
                     }
                 }
             });
@@ -97,23 +100,24 @@ pub fn CharacterForm(
             if !char_id.is_empty() {
                 spawn(async move {
                     match svc.get_character(&char_id).await {
-                            Ok(char_data) => {
-                                name.set(char_data.name);
-                                description.set(char_data.description.unwrap_or_default());
-                                archetype.set(char_data.archetype.unwrap_or_else(|| "Hero".to_string()));
-                                wants.set(char_data.wants.unwrap_or_default());
-                                fears.set(char_data.fears.unwrap_or_default());
-                                backstory.set(char_data.backstory.unwrap_or_default());
-                                // Load sheet values if present
-                                if let Some(data) = char_data.sheet_data {
-                                    sheet_values.set(data.values);
-                                }
-                                is_loading.set(false);
+                        Ok(char_data) => {
+                            name.set(char_data.name);
+                            description.set(char_data.description.unwrap_or_default());
+                            archetype
+                                .set(char_data.archetype.unwrap_or_else(|| "Hero".to_string()));
+                            wants.set(char_data.wants.unwrap_or_default());
+                            fears.set(char_data.fears.unwrap_or_default());
+                            backstory.set(char_data.backstory.unwrap_or_default());
+                            // Load sheet values if present
+                            if let Some(data) = char_data.sheet_data {
+                                sheet_values.set(data.values);
                             }
-                            Err(e) => {
-                                error_message.set(Some(format!("Failed to load character: {}", e)));
-                                is_loading.set(false);
-                            }
+                            is_loading.set(false);
+                        }
+                        Err(e) => {
+                            error_message.set(Some(format!("Failed to load character: {}", e)));
+                            is_loading.set(false);
+                        }
                     }
                 });
             }
@@ -487,7 +491,7 @@ pub fn CharacterForm(
                                                     }
                                                 }
                                             }
-                                            
+
                                             success_message.set(Some(if is_new {
                                                 "Character created successfully".to_string()
                                             } else {

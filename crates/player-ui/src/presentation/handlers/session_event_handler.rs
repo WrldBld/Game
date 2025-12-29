@@ -33,16 +33,29 @@ pub fn handle_session_event(
 
             // Map application status to presentation status
             let presentation_status = match status {
-                wrldbldr_player_app::application::dto::AppConnectionStatus::Disconnected => ConnectionStatus::Disconnected,
-                wrldbldr_player_app::application::dto::AppConnectionStatus::Connecting => ConnectionStatus::Connecting,
-                wrldbldr_player_app::application::dto::AppConnectionStatus::Connected => ConnectionStatus::Connected,
-                wrldbldr_player_app::application::dto::AppConnectionStatus::Reconnecting => ConnectionStatus::Reconnecting,
-                wrldbldr_player_app::application::dto::AppConnectionStatus::Failed => ConnectionStatus::Failed,
+                wrldbldr_player_app::application::dto::AppConnectionStatus::Disconnected => {
+                    ConnectionStatus::Disconnected
+                }
+                wrldbldr_player_app::application::dto::AppConnectionStatus::Connecting => {
+                    ConnectionStatus::Connecting
+                }
+                wrldbldr_player_app::application::dto::AppConnectionStatus::Connected => {
+                    ConnectionStatus::Connected
+                }
+                wrldbldr_player_app::application::dto::AppConnectionStatus::Reconnecting => {
+                    ConnectionStatus::Reconnecting
+                }
+                wrldbldr_player_app::application::dto::AppConnectionStatus::Failed => {
+                    ConnectionStatus::Failed
+                }
             };
 
             session_state.connection_status().set(presentation_status);
 
-            if matches!(state, PortConnectionState::Disconnected | PortConnectionState::Failed) {
+            if matches!(
+                state,
+                PortConnectionState::Disconnected | PortConnectionState::Failed
+            ) {
                 session_state.engine_client().set(None);
             }
         }

@@ -17,16 +17,18 @@ use serde::{Deserialize, Serialize};
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_want};
 use std::str::FromStr;
-use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 use wrldbldr_domain::entities::{
-    ActantialRole, ActantialView, AcquisitionMethod, Character, CharacterWant, FrequencyLevel, InventoryItem, StatBlock, Want, WantVisibility,
+    AcquisitionMethod, ActantialRole, ActantialView, Character, CharacterWant, FrequencyLevel,
+    InventoryItem, StatBlock, Want, WantVisibility,
 };
 use wrldbldr_domain::value_objects::{
-    ActantialTarget, ArchetypeChange, CampbellArchetype, DispositionLevel, NpcDispositionState, RegionFrequency,
-    RegionRelationship, RegionRelationshipType, RegionShift, RelationshipLevel, WantTarget,
+    ActantialTarget, ArchetypeChange, CampbellArchetype, DispositionLevel, NpcDispositionState,
+    RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift, RelationshipLevel,
+    WantTarget,
 };
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
+use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {
@@ -95,7 +97,10 @@ impl Neo4jCharacterRepository {
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
         .param("is_active", character.is_active)
-        .param("default_disposition", character.default_disposition.to_string());
+        .param(
+            "default_disposition",
+            character.default_disposition.to_string(),
+        );
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Created character: {}", character.name);
@@ -204,7 +209,10 @@ impl Neo4jCharacterRepository {
         .param("stats", stats_json)
         .param("is_alive", character.is_alive)
         .param("is_active", character.is_active)
-        .param("default_disposition", character.default_disposition.to_string());
+        .param(
+            "default_disposition",
+            character.default_disposition.to_string(),
+        );
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Updated character: {}", character.name);
@@ -288,13 +296,20 @@ impl Neo4jCharacterRepository {
         .param("intensity", want.intensity as f64)
         .param("visibility", visibility_str)
         .param("created_at", want.created_at.to_rfc3339())
-        .param("deflection_behavior", want.deflection_behavior.clone().unwrap_or_default())
+        .param(
+            "deflection_behavior",
+            want.deflection_behavior.clone().unwrap_or_default(),
+        )
         .param("tells", tells_json)
         .param("priority", priority as i64)
         .param("acquired_at", Utc::now().to_rfc3339());
 
         self.connection.graph().run(q).await?;
-        tracing::debug!("Created want for character {}: {}", character_id, want.description);
+        tracing::debug!(
+            "Created want for character {}: {}",
+            character_id,
+            want.description
+        );
         Ok(())
     }
 
@@ -350,7 +365,10 @@ impl Neo4jCharacterRepository {
         .param("description", want.description.clone())
         .param("intensity", want.intensity as f64)
         .param("visibility", visibility_str)
-        .param("deflection_behavior", want.deflection_behavior.clone().unwrap_or_default())
+        .param(
+            "deflection_behavior",
+            want.deflection_behavior.clone().unwrap_or_default(),
+        )
         .param("tells", tells_json);
 
         self.connection.graph().run(q).await?;
@@ -655,7 +673,9 @@ impl Neo4jCharacterRepository {
             let labels: Vec<String> = row.get("labels")?;
             let id_str: String = row.get("id")?;
             let name: String = row.get("name")?;
-            let description: Option<String> = row.get("description").ok()
+            let description: Option<String> = row
+                .get("description")
+                .ok()
                 .filter(|s: &String| !s.is_empty());
 
             let id = uuid::Uuid::parse_str(&id_str)?;
@@ -666,7 +686,11 @@ impl Neo4jCharacterRepository {
             } else if labels.contains(&"Item".to_string()) {
                 Ok(Some(WantTarget::Item { id, name }))
             } else if labels.contains(&"Goal".to_string()) {
-                Ok(Some(WantTarget::Goal { id, name, description }))
+                Ok(Some(WantTarget::Goal {
+                    id,
+                    name,
+                    description,
+                }))
             } else {
                 Ok(None)
             }
@@ -1314,8 +1338,12 @@ impl Neo4jCharacterRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
-            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let disposition_str: String = row
+                .get("disposition")
+                .unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row
+                .get("relationship")
+                .unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
@@ -1329,7 +1357,9 @@ impl Neo4jCharacterRepository {
                 npc_id,
                 pc_id,
                 disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
-                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                relationship: relationship_str
+                    .parse()
+                    .unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
                 disposition_reason,
@@ -1341,7 +1371,10 @@ impl Neo4jCharacterRepository {
     }
 
     /// Set/update an NPC's disposition state toward a specific PC
-    pub async fn set_disposition_toward_pc(&self, disposition_state: &NpcDispositionState) -> Result<()> {
+    pub async fn set_disposition_toward_pc(
+        &self,
+        disposition_state: &NpcDispositionState,
+    ) -> Result<()> {
         let q = query(
             "MATCH (npc:Character {id: $npc_id}), (pc:PlayerCharacter {id: $pc_id})
             MERGE (npc)-[r:DISPOSITION_TOWARD]->(pc)
@@ -1359,8 +1392,17 @@ impl Neo4jCharacterRepository {
         .param("relationship", disposition_state.relationship.to_string())
         .param("sentiment", disposition_state.sentiment as f64)
         .param("updated_at", disposition_state.updated_at.to_rfc3339())
-        .param("disposition_reason", disposition_state.disposition_reason.clone().unwrap_or_default())
-        .param("relationship_points", disposition_state.relationship_points as i64);
+        .param(
+            "disposition_reason",
+            disposition_state
+                .disposition_reason
+                .clone()
+                .unwrap_or_default(),
+        )
+        .param(
+            "relationship_points",
+            disposition_state.relationship_points as i64,
+        );
 
         self.connection.graph().run(q).await?;
         tracing::debug!(
@@ -1399,8 +1441,12 @@ impl Neo4jCharacterRepository {
 
         while let Some(row) = result.next().await? {
             let npc_id_str: String = row.get("npc_id")?;
-            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
-            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let disposition_str: String = row
+                .get("disposition")
+                .unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row
+                .get("relationship")
+                .unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
@@ -1415,7 +1461,9 @@ impl Neo4jCharacterRepository {
                 npc_id: CharacterId::from_uuid(npc_uuid),
                 pc_id,
                 disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
-                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                relationship: relationship_str
+                    .parse()
+                    .unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
                 disposition_reason,
@@ -1445,8 +1493,12 @@ impl Neo4jCharacterRepository {
 
         while let Some(row) = result.next().await? {
             let npc_id_str: String = row.get("npc_id")?;
-            let disposition_str: String = row.get("disposition").unwrap_or_else(|_| "Neutral".to_string());
-            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let disposition_str: String = row
+                .get("disposition")
+                .unwrap_or_else(|_| "Neutral".to_string());
+            let relationship_str: String = row
+                .get("relationship")
+                .unwrap_or_else(|_| "Stranger".to_string());
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
@@ -1461,7 +1513,9 @@ impl Neo4jCharacterRepository {
                 npc_id: CharacterId::from_uuid(npc_uuid),
                 pc_id,
                 disposition: disposition_str.parse().unwrap_or(DispositionLevel::Neutral),
-                relationship: relationship_str.parse().unwrap_or(RelationshipLevel::Stranger),
+                relationship: relationship_str
+                    .parse()
+                    .unwrap_or(RelationshipLevel::Stranger),
                 sentiment: sentiment as f32,
                 updated_at,
                 disposition_reason,
@@ -1483,7 +1537,9 @@ impl Neo4jCharacterRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let disposition_str: String = row.get("default_disposition").unwrap_or_else(|_| "Neutral".to_string());
+            let disposition_str: String = row
+                .get("default_disposition")
+                .unwrap_or_else(|_| "Neutral".to_string());
             Ok(disposition_str.parse().unwrap_or(DispositionLevel::Neutral))
         } else {
             Ok(DispositionLevel::Neutral)
@@ -1491,7 +1547,11 @@ impl Neo4jCharacterRepository {
     }
 
     /// Set the NPC's default/global disposition (on Character node)
-    pub async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()> {
+    pub async fn set_default_disposition(
+        &self,
+        npc_id: CharacterId,
+        disposition: DispositionLevel,
+    ) -> Result<()> {
         let q = query(
             "MATCH (c:Character {id: $id})
             SET c.default_disposition = $disposition
@@ -1501,7 +1561,11 @@ impl Neo4jCharacterRepository {
         .param("disposition", disposition.to_string());
 
         self.connection.graph().run(q).await?;
-        tracing::debug!("Set default disposition for NPC {}: {:?}", npc_id, disposition);
+        tracing::debug!(
+            "Set default disposition for NPC {}: {:?}",
+            npc_id,
+            disposition
+        );
         Ok(())
     }
 }
@@ -1537,7 +1601,9 @@ fn row_to_character(row: Row) -> Result<Character> {
             .map(Into::into)
             .collect();
     let stats: StatBlock = serde_json::from_str::<StatBlockStored>(&stats_json)?.into();
-    let default_disposition = default_disposition_str.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+    let default_disposition = default_disposition_str
+        .parse()
+        .map_err(|e: String| anyhow::anyhow!(e))?;
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -1711,7 +1777,8 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         target_id: PlayerCharacterId,
         view: &ActantialView,
     ) -> Result<()> {
-        Neo4jCharacterRepository::add_actantial_view_to_pc(self, subject_id, role, target_id, view).await
+        Neo4jCharacterRepository::add_actantial_view_to_pc(self, subject_id, role, target_id, view)
+            .await
     }
 
     async fn get_actantial_views(
@@ -1739,8 +1806,10 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         target_id: PlayerCharacterId,
         want_id: WantId,
     ) -> Result<()> {
-        Neo4jCharacterRepository::remove_actantial_view_to_pc(self, subject_id, role, target_id, want_id)
-            .await
+        Neo4jCharacterRepository::remove_actantial_view_to_pc(
+            self, subject_id, role, target_id, want_id,
+        )
+        .await
     }
 
     async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>> {
@@ -1786,8 +1855,14 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         quantity: u32,
         equipped: bool,
     ) -> Result<()> {
-        Neo4jCharacterRepository::update_inventory_item(self, character_id, item_id, quantity, equipped)
-            .await
+        Neo4jCharacterRepository::update_inventory_item(
+            self,
+            character_id,
+            item_id,
+            quantity,
+            equipped,
+        )
+        .await
     }
 
     async fn remove_inventory_item(
@@ -1892,7 +1967,10 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::get_disposition_toward_pc(self, npc_id, pc_id).await
     }
 
-    async fn set_disposition_toward_pc(&self, disposition_state: &NpcDispositionState) -> Result<()> {
+    async fn set_disposition_toward_pc(
+        &self,
+        disposition_state: &NpcDispositionState,
+    ) -> Result<()> {
         Neo4jCharacterRepository::set_disposition_toward_pc(self, disposition_state).await
     }
 
@@ -1904,7 +1982,10 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::get_scene_dispositions(self, npc_ids, pc_id).await
     }
 
-    async fn get_all_npc_dispositions_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcDispositionState>> {
+    async fn get_all_npc_dispositions_for_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>> {
         Neo4jCharacterRepository::get_all_npc_dispositions_for_pc(self, pc_id).await
     }
 
@@ -1912,7 +1993,11 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::get_default_disposition(self, npc_id).await
     }
 
-    async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()> {
+    async fn set_default_disposition(
+        &self,
+        npc_id: CharacterId,
+        disposition: DispositionLevel,
+    ) -> Result<()> {
         Neo4jCharacterRepository::set_default_disposition(self, npc_id, disposition).await
     }
 
@@ -1924,11 +2009,7 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         Neo4jCharacterRepository::list_region_relationships(self, character_id).await
     }
 
-    async fn set_home_region(
-        &self,
-        character_id: CharacterId,
-        region_id: RegionId,
-    ) -> Result<()> {
+    async fn set_home_region(&self, character_id: CharacterId, region_id: RegionId) -> Result<()> {
         Neo4jCharacterRepository::set_home_region(self, character_id, region_id).await
     }
 

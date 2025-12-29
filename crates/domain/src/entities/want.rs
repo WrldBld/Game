@@ -74,13 +74,12 @@ pub struct Want {
     pub visibility: WantVisibility,
     /// When this want was created
     pub created_at: DateTime<Utc>,
-    
+
     // === Behavioral Guidance for Secret Wants ===
-    
     /// How the NPC should behave when probed about this want (for Hidden/Suspected)
     /// Example: "Deflect with a sad smile; change subject to present dangers"
     pub deflection_behavior: Option<String>,
-    
+
     /// Subtle behavioral tells that hint at this want
     /// Example: ["Avoids eye contact when past is mentioned", "Tenses at the word 'village'"]
     pub tells: Vec<String>,

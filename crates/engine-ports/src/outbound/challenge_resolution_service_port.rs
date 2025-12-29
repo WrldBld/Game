@@ -39,11 +39,7 @@ impl DiceRoll {
     }
 
     /// Create a dice roll with full formula details
-    pub fn with_formula(
-        roll: i32,
-        breakdown: String,
-        individual_rolls: Vec<i32>,
-    ) -> Self {
+    pub fn with_formula(roll: i32, breakdown: String, individual_rolls: Vec<i32>) -> Self {
         Self {
             roll,
             breakdown: Some(breakdown),
@@ -134,11 +130,7 @@ pub trait ChallengeResolutionServicePort: Send + Sync {
     ///
     /// Evaluates the roll against the challenge difficulty, determines the
     /// outcome, and queues it for DM approval.
-    async fn submit_roll(
-        &self,
-        resolution_id: String,
-        roll: DiceRoll,
-    ) -> Result<RollResult>;
+    async fn submit_roll(&self, resolution_id: String, roll: DiceRoll) -> Result<RollResult>;
 
     /// Get the pending resolution for a player character (if any)
     ///

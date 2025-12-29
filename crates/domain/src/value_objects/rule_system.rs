@@ -72,7 +72,9 @@ impl RuleSystemVariant {
         match self {
             Self::Dnd5e | Self::Pathfinder2e | Self::GenericD20 => RuleSystemType::D20,
             Self::CallOfCthulhu7e | Self::RuneQuest | Self::GenericD100 => RuleSystemType::D100,
-            Self::KidsOnBikes | Self::FateCore | Self::PoweredByApocalypse => RuleSystemType::Narrative,
+            Self::KidsOnBikes | Self::FateCore | Self::PoweredByApocalypse => {
+                RuleSystemType::Narrative
+            }
             Self::Custom(_) => RuleSystemType::Custom,
         }
     }
@@ -82,7 +84,9 @@ impl RuleSystemVariant {
         match system_type {
             RuleSystemType::D20 => vec![Self::Dnd5e, Self::Pathfinder2e, Self::GenericD20],
             RuleSystemType::D100 => vec![Self::CallOfCthulhu7e, Self::RuneQuest, Self::GenericD100],
-            RuleSystemType::Narrative => vec![Self::KidsOnBikes, Self::FateCore, Self::PoweredByApocalypse],
+            RuleSystemType::Narrative => {
+                vec![Self::KidsOnBikes, Self::FateCore, Self::PoweredByApocalypse]
+            }
             RuleSystemType::Custom => vec![],
         }
     }
@@ -149,7 +153,8 @@ impl RuleSystemConfig {
             ],
             dice_system: DiceSystem::D20,
             success_comparison: SuccessComparison::GreaterOrEqual,
-            skill_check_formula: "1d20 + ability modifier + proficiency (if proficient)".to_string(),
+            skill_check_formula: "1d20 + ability modifier + proficiency (if proficient)"
+                .to_string(),
             description: "Roll d20, add modifiers. Meet or beat the DC to succeed.".to_string(),
         }
     }
@@ -171,7 +176,8 @@ impl RuleSystemConfig {
             dice_system: DiceSystem::D20,
             success_comparison: SuccessComparison::GreaterOrEqual,
             skill_check_formula: "1d20 + modifier vs DC (4 degrees of success)".to_string(),
-            description: "Roll d20 + modifier. Crit success on DC+10, crit fail on DC-10.".to_string(),
+            description: "Roll d20 + modifier. Crit success on DC+10, crit fail on DC-10."
+                .to_string(),
         }
     }
 
@@ -216,7 +222,8 @@ impl RuleSystemConfig {
             dice_system: DiceSystem::D100,
             success_comparison: SuccessComparison::LessOrEqual,
             skill_check_formula: "Roll d100 ≤ skill value".to_string(),
-            description: "Roll d100. Regular success ≤ skill, Hard ≤ half, Extreme ≤ fifth.".to_string(),
+            description: "Roll d100. Regular success ≤ skill, Hard ≤ half, Extreme ≤ fifth."
+                .to_string(),
         }
     }
 
@@ -280,7 +287,8 @@ impl RuleSystemConfig {
             dice_system: DiceSystem::Custom("Variable die (d4-d20)".to_string()),
             success_comparison: SuccessComparison::Narrative,
             skill_check_formula: "Roll stat die vs difficulty (1-6 scale)".to_string(),
-            description: "Roll your stat die. Higher stat = bigger die. Narrative outcomes.".to_string(),
+            description: "Roll your stat die. Higher stat = bigger die. Narrative outcomes."
+                .to_string(),
         }
     }
 
@@ -321,7 +329,8 @@ impl RuleSystemConfig {
             dice_system: DiceSystem::Custom("2d6".to_string()),
             success_comparison: SuccessComparison::Narrative,
             skill_check_formula: "2d6 + stat: 10+ full success, 7-9 partial, 6- miss".to_string(),
-            description: "Roll 2d6 + stat. 10+ success, 7-9 success with cost, 6- trouble.".to_string(),
+            description: "Roll 2d6 + stat. 10+ success, 7-9 success with cost, 6- trouble."
+                .to_string(),
         }
     }
 
@@ -339,7 +348,6 @@ impl RuleSystemConfig {
         }
     }
 }
-
 
 /// How success is determined
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

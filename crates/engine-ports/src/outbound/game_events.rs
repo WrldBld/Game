@@ -112,9 +112,8 @@ pub enum GameEvent {
     },
 
     // === Challenge Events (Enhanced) ===
-    
     /// Roll submitted, awaiting DM approval
-    /// 
+    ///
     /// Sent when a player submits a dice roll for a challenge. The adapter
     /// routes this to DM (full details) and players (status only).
     ChallengeRollSubmitted {
@@ -147,7 +146,7 @@ pub enum GameEvent {
         /// Triggers to execute on approval
         outcome_triggers: Vec<OutcomeTriggerInfo>,
     },
-    
+
     /// Challenge fully resolved and approved
     ///
     /// Sent when DM approves a challenge outcome. Broadcast to all players.
@@ -177,7 +176,7 @@ pub enum GameEvent {
         /// State changes that occurred
         state_changes: Vec<StateChangeInfo>,
     },
-    
+
     /// Challenge prompt sent to player
     ///
     /// Sent when DM triggers a challenge for a specific player.
@@ -201,7 +200,7 @@ pub enum GameEvent {
         /// Rule system hint
         rule_system_hint: String,
     },
-    
+
     /// LLM suggestions ready for outcome
     ///
     /// Sent to DM when AI-generated suggestions are ready.
@@ -211,7 +210,7 @@ pub enum GameEvent {
         /// Generated suggestions
         suggestions: Vec<String>,
     },
-    
+
     /// Outcome branches ready for selection
     ///
     /// Sent to DM when branching outcome options are ready.
@@ -279,7 +278,6 @@ pub enum GameEvent {
     },
 
     // === Narrative Events ===
-
     /// Narrative event triggered (broadcast to all players)
     ///
     /// Sent when DM approves a narrative event suggestion.

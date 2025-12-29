@@ -17,9 +17,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 use wrldbldr_domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
 use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 
 /// Challenge service trait defining the application use cases
 #[async_trait]
@@ -99,7 +99,10 @@ pub trait ChallengeService: Send + Sync {
     ) -> Result<()>;
 
     /// Get all prerequisites for a challenge
-    async fn get_prerequisites(&self, challenge_id: ChallengeId) -> Result<Vec<ChallengePrerequisite>>;
+    async fn get_prerequisites(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengePrerequisite>>;
 
     /// Remove a prerequisite from a challenge
     async fn remove_prerequisite(
@@ -137,13 +140,21 @@ pub trait ChallengeService: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Add a location that gets unlocked on successful challenge completion
-    async fn add_unlock_location(&self, challenge_id: ChallengeId, location_id: LocationId) -> Result<()>;
+    async fn add_unlock_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+    ) -> Result<()>;
 
     /// Get locations that get unlocked when this challenge succeeds
     async fn get_unlock_locations(&self, challenge_id: ChallengeId) -> Result<Vec<LocationId>>;
 
     /// Remove an unlock from a challenge
-    async fn remove_unlock_location(&self, challenge_id: ChallengeId, location_id: LocationId) -> Result<()>;
+    async fn remove_unlock_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+    ) -> Result<()>;
 }
 
 /// Default implementation of ChallengeService using port abstractions
@@ -365,7 +376,10 @@ impl ChallengeService for ChallengeServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn get_prerequisites(&self, challenge_id: ChallengeId) -> Result<Vec<ChallengePrerequisite>> {
+    async fn get_prerequisites(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<Vec<ChallengePrerequisite>> {
         debug!(challenge_id = %challenge_id, "Getting prerequisites");
         self.repository
             .get_prerequisites(challenge_id)
@@ -433,7 +447,11 @@ impl ChallengeService for ChallengeServiceImpl {
     // -------------------------------------------------------------------------
 
     #[instrument(skip(self))]
-    async fn add_unlock_location(&self, challenge_id: ChallengeId, location_id: LocationId) -> Result<()> {
+    async fn add_unlock_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+    ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %location_id, "Adding unlock location");
         self.repository
             .add_unlock_location(challenge_id, location_id)
@@ -451,7 +469,11 @@ impl ChallengeService for ChallengeServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn remove_unlock_location(&self, challenge_id: ChallengeId, location_id: LocationId) -> Result<()> {
+    async fn remove_unlock_location(
+        &self,
+        challenge_id: ChallengeId,
+        location_id: LocationId,
+    ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %location_id, "Removing unlock location");
         self.repository
             .remove_unlock_location(challenge_id, location_id)

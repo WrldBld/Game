@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::entities::{AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch};
+use wrldbldr_domain::entities::{
+    AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct UploadAssetRequestDto {
@@ -140,4 +142,3 @@ pub fn parse_entity_type(s: &str) -> Option<EntityType> {
 pub fn parse_asset_type(asset_type: &str) -> Result<AssetType, String> {
     AssetType::from_str(asset_type)
 }
-

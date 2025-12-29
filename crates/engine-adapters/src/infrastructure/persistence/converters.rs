@@ -5,7 +5,7 @@
 //! handle the standard deserialization of Neo4j rows into domain entities.
 //!
 //! # Usage
-//! 
+//!
 //! Repository files should import the converters they need:
 //! ```ignore
 //! use super::converters::{row_to_item, row_to_want, row_to_region};

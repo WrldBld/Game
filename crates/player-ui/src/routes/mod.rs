@@ -26,18 +26,20 @@
 //! These are loaded on application startup and saved when changed.
 
 mod connection;
-mod main_menu;
-mod world_select;
 mod dm_routes;
-mod player_routes;
+mod main_menu;
 mod pc_creation;
+mod player_routes;
+mod world_select;
 mod world_session_layout;
 
+pub use dm_routes::{
+    DMCreatorSubTabRoute, DMSettingsSubTabRoute, DMStoryArcSubTabRoute, DMViewRoute, DMViewTabRoute,
+};
 pub use main_menu::MainMenuRoute;
-pub use world_select::{WorldSelectRoute, RoleSelectRoute};
-pub use dm_routes::{DMViewRoute, DMViewTabRoute, DMCreatorSubTabRoute, DMSettingsSubTabRoute, DMStoryArcSubTabRoute};
-pub use player_routes::{PCViewRoute, SpectatorViewRoute};
 pub use pc_creation::PCCreationRoute;
+pub use player_routes::{PCViewRoute, SpectatorViewRoute};
+pub use world_select::{RoleSelectRoute, WorldSelectRoute};
 
 use dioxus::prelude::*;
 

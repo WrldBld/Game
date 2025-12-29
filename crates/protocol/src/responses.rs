@@ -143,7 +143,7 @@ impl ErrorCode {
 // =============================================================================
 
 /// Client-side request errors
-/// 
+///
 /// These are errors that occur on the client side when making requests,
 /// distinct from server-side errors returned in `ResponseResult::Error`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -352,9 +352,7 @@ pub struct ConnectedUser {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum JoinError {
     /// Another DM is already connected to this world
-    DmAlreadyConnected {
-        existing_user_id: String,
-    },
+    DmAlreadyConnected { existing_user_id: String },
     /// Player role requires a PC selection
     PlayerRequiresPc,
     /// Spectator role requires a target PC

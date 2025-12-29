@@ -10,9 +10,11 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::application::dto::GenerationBatchResponseDto;
-use wrldbldr_domain::{DomainEvent, WorldId};
-use wrldbldr_engine_ports::outbound::{DomainEventRepositoryPort, GenerationReadKind, GenerationReadStatePort};
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
+use wrldbldr_domain::{DomainEvent, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    DomainEventRepositoryPort, GenerationReadKind, GenerationReadStatePort,
+};
 
 /// Snapshot DTO for suggestion tasks, mirrored from `infrastructure::http::queue_routes`.
 #[derive(Debug, serde::Serialize)]
@@ -72,13 +74,17 @@ impl GenerationQueueProjectionService {
         world_id: WorldId,
     ) -> anyhow::Result<GenerationQueueSnapshot> {
         let world_key = world_id.to_string();
-        
+
         // 1. Compute read markers for this user/world
         let mut read_batches: HashSet<String> = HashSet::new();
         let mut read_suggestions: HashSet<String> = HashSet::new();
 
         if let Some(uid) = user_id {
-            if let Ok(markers) = self.read_state.list_read_for_user_world(uid, &world_key).await {
+            if let Ok(markers) = self
+                .read_state
+                .list_read_for_user_world(uid, &world_key)
+                .await
+            {
                 for (item_id, kind) in markers {
                     match kind {
                         GenerationReadKind::Batch => {
@@ -100,7 +106,10 @@ impl GenerationQueueProjectionService {
             .map(|b| {
                 let dto = GenerationBatchResponseDto::from(b);
                 let is_read = read_batches.contains(&dto.id);
-                GenerationBatchResponseDtoWithRead { batch: dto, is_read }
+                GenerationBatchResponseDtoWithRead {
+                    batch: dto,
+                    is_read,
+                }
             })
             .collect();
 
@@ -116,9 +125,8 @@ impl GenerationQueueProjectionService {
                         entity_id,
                         ..
                     } => {
-                        let entry = suggestions_map
-                            .entry(request_id.clone())
-                            .or_insert(SuggestionTaskSnapshot {
+                        let entry = suggestions_map.entry(request_id.clone()).or_insert(
+                            SuggestionTaskSnapshot {
                                 request_id,
                                 field_type,
                                 entity_id,
@@ -126,13 +134,13 @@ impl GenerationQueueProjectionService {
                                 suggestions: None,
                                 error: None,
                                 is_read: false,
-                            });
+                            },
+                        );
                         entry.status = "queued".to_string();
                     }
                     DomainEvent::SuggestionProgress { request_id, .. } => {
-                        let entry = suggestions_map
-                            .entry(request_id.clone())
-                            .or_insert(SuggestionTaskSnapshot {
+                        let entry = suggestions_map.entry(request_id.clone()).or_insert(
+                            SuggestionTaskSnapshot {
                                 request_id,
                                 field_type: String::new(),
                                 entity_id: None,
@@ -140,7 +148,8 @@ impl GenerationQueueProjectionService {
                                 suggestions: None,
                                 error: None,
                                 is_read: false,
-                            });
+                            },
+                        );
                         entry.status = "processing".to_string();
                     }
                     DomainEvent::SuggestionCompleted {
@@ -149,9 +158,8 @@ impl GenerationQueueProjectionService {
                         suggestions,
                         ..
                     } => {
-                        let entry = suggestions_map
-                            .entry(request_id.clone())
-                            .or_insert(SuggestionTaskSnapshot {
+                        let entry = suggestions_map.entry(request_id.clone()).or_insert(
+                            SuggestionTaskSnapshot {
                                 request_id,
                                 field_type: field_type.clone(),
                                 entity_id: None,
@@ -159,7 +167,8 @@ impl GenerationQueueProjectionService {
                                 suggestions: Some(suggestions.clone()),
                                 error: None,
                                 is_read: false,
-                            });
+                            },
+                        );
                         entry.field_type = field_type;
                         entry.status = "ready".to_string();
                         entry.suggestions = Some(suggestions);
@@ -171,9 +180,8 @@ impl GenerationQueueProjectionService {
                         error,
                         ..
                     } => {
-                        let entry = suggestions_map
-                            .entry(request_id.clone())
-                            .or_insert(SuggestionTaskSnapshot {
+                        let entry = suggestions_map.entry(request_id.clone()).or_insert(
+                            SuggestionTaskSnapshot {
                                 request_id,
                                 field_type: field_type.clone(),
                                 entity_id: None,
@@ -181,7 +189,8 @@ impl GenerationQueueProjectionService {
                                 suggestions: None,
                                 error: Some(error.clone()),
                                 is_read: false,
-                            });
+                            },
+                        );
                         entry.field_type = field_type;
                         entry.status = "failed".to_string();
                         entry.error = Some(error);
@@ -198,8 +207,9 @@ impl GenerationQueueProjectionService {
             }
         }
 
-        Ok(GenerationQueueSnapshot { batches, suggestions })
+        Ok(GenerationQueueSnapshot {
+            batches,
+            suggestions,
+        })
     }
 }
-
-

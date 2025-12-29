@@ -24,11 +24,21 @@ pub fn DirectorQueuePanel(props: DirectorQueuePanelProps) -> Element {
     // Filter to only active items
     let active_batches: Vec<_> = batches
         .iter()
-        .filter(|b| matches!(b.status, BatchStatus::Queued { .. } | BatchStatus::Generating { .. }))
+        .filter(|b| {
+            matches!(
+                b.status,
+                BatchStatus::Queued { .. } | BatchStatus::Generating { .. }
+            )
+        })
         .collect();
     let active_suggestions: Vec<_> = suggestions
         .iter()
-        .filter(|s| matches!(s.status, SuggestionStatus::Queued | SuggestionStatus::Processing))
+        .filter(|s| {
+            matches!(
+                s.status,
+                SuggestionStatus::Queued | SuggestionStatus::Processing
+            )
+        })
         .collect();
 
     rsx! {
@@ -115,4 +125,3 @@ pub fn DirectorQueuePanel(props: DirectorQueuePanelProps) -> Element {
         }
     }
 }
-

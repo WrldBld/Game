@@ -8,13 +8,13 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
+use crate::application::services::SettingsService;
+use wrldbldr_domain::entities::{Act, MonomythStage, World};
+use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
+use wrldbldr_domain::{GameTime, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
 };
-use crate::application::services::SettingsService;
-use wrldbldr_domain::entities::{Act, MonomythStage, World};
-use wrldbldr_domain::{GameTime, WorldId};
-use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 
 /// Request to create a new world
 #[derive(Debug, Clone)]
@@ -129,10 +129,16 @@ impl WorldServiceImpl {
             anyhow::bail!("World name cannot be empty");
         }
         if request.name.len() > settings.max_name_length {
-            anyhow::bail!("World name cannot exceed {} characters", settings.max_name_length);
+            anyhow::bail!(
+                "World name cannot exceed {} characters",
+                settings.max_name_length
+            );
         }
         if request.description.len() > settings.max_description_length {
-            anyhow::bail!("World description cannot exceed {} characters", settings.max_description_length);
+            anyhow::bail!(
+                "World description cannot exceed {} characters",
+                settings.max_description_length
+            );
         }
         Ok(())
     }
@@ -144,12 +150,18 @@ impl WorldServiceImpl {
                 anyhow::bail!("World name cannot be empty");
             }
             if name.len() > settings.max_name_length {
-                anyhow::bail!("World name cannot exceed {} characters", settings.max_name_length);
+                anyhow::bail!(
+                    "World name cannot exceed {} characters",
+                    settings.max_name_length
+                );
             }
         }
         if let Some(ref description) = request.description {
             if description.len() > settings.max_description_length {
-                anyhow::bail!("World description cannot exceed {} characters", settings.max_description_length);
+                anyhow::bail!(
+                    "World description cannot exceed {} characters",
+                    settings.max_description_length
+                );
             }
         }
         Ok(())
@@ -336,34 +348,34 @@ impl WorldService for WorldServiceImpl {
     #[instrument(skip(self))]
     async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime> {
         debug!(world_id = %world_id, "Getting game time for world");
-        
+
         let world = self
             .repository
             .get(world_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("World not found: {}", world_id))?;
-        
+
         Ok(world.game_time)
     }
 
     #[instrument(skip(self))]
     async fn advance_game_time(&self, world_id: WorldId, hours: u32) -> Result<GameTime> {
         debug!(world_id = %world_id, hours = hours, "Advancing game time");
-        
+
         let mut world = self
             .repository
             .get(world_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("World not found: {}", world_id))?;
-        
+
         world.game_time.advance_hours(hours);
         world.updated_at = self.clock.now();
-        
+
         self.repository
             .update(&world)
             .await
             .context("Failed to update world game time")?;
-        
+
         info!(world_id = %world_id, hours = hours, "Advanced game time");
         Ok(world.game_time)
     }

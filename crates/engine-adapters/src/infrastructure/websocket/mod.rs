@@ -39,21 +39,18 @@ mod messages;
 pub use error_conversion::IntoServerError;
 
 pub use approval_converters::{
-    app_tool_to_proto, proto_tool_to_app,
-    app_tools_to_proto,
-    app_outcomes_to_proto, proto_outcomes_to_app,
-    app_challenge_to_proto, proto_challenge_to_app,
-    app_challenge_suggestion_to_proto,
-    app_narrative_to_proto, proto_narrative_to_app,
-    app_narrative_suggestion_to_proto,
-    app_decision_to_proto, proto_decision_to_app,
+    app_challenge_suggestion_to_proto, app_challenge_to_proto, app_decision_to_proto,
+    app_narrative_suggestion_to_proto, app_narrative_to_proto, app_outcomes_to_proto,
+    app_tool_to_proto, app_tools_to_proto, domain_tool_to_proto, domain_tools_to_proto,
+    domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
+    proto_challenge_to_app, proto_decision_to_app,
+    proto_narrative_to_app, proto_outcomes_to_app, proto_tool_to_app,
 };
 
 pub use broadcast_adapter::WebSocketBroadcastAdapter;
 pub use context::{
-    HandlerContext, DmContext, PlayerContext,
-    error_response, not_found_error, invalid_id_error,
-    parse_uuid, parse_world_id, parse_player_character_id, parse_region_id,
+    error_response, invalid_id_error, not_found_error, parse_player_character_id, parse_region_id,
+    parse_uuid, parse_world_id, DmContext, HandlerContext, PlayerContext,
 };
 
 use std::sync::Arc;
@@ -119,7 +116,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         match tx.try_send(response) {
                             Ok(_) => {}
                             Err(mpsc::error::TrySendError::Full(_)) => {
-                                tracing::warn!("Message buffer full for client {}, dropping message", client_id);
+                                tracing::warn!(
+                                    "Message buffer full for client {}, dropping message",
+                                    client_id
+                                );
                             }
                             Err(mpsc::error::TrySendError::Closed(_)) => {
                                 break;
@@ -136,7 +136,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     match tx.try_send(error) {
                         Ok(_) => {}
                         Err(mpsc::error::TrySendError::Full(_)) => {
-                            tracing::warn!("Message buffer full for client {}, dropping error message", client_id);
+                            tracing::warn!(
+                                "Message buffer full for client {}, dropping error message",
+                                client_id
+                            );
                         }
                         Err(mpsc::error::TrySendError::Closed(_)) => {
                             break;

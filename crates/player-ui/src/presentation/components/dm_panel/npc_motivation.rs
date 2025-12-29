@@ -7,8 +7,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::CharacterData as SceneCharacterState;
 use crate::presentation::components::dm_panel::director_generate_modal::DirectorGenerateModal;
+use wrldbldr_player_app::application::dto::CharacterData as SceneCharacterState;
 
 /// NPC motivation state
 #[derive(Clone, PartialEq)]
@@ -164,4 +164,3 @@ pub fn NPCMotivation(props: NPCMotivationProps) -> Element {
         }
     }
 }
-

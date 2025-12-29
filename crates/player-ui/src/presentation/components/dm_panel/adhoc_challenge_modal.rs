@@ -59,8 +59,16 @@ pub fn AdHocChallengeModal(props: AdHocChallengeModalProps) -> Element {
 
     let is_expanded = *show_criticals.read();
     let rotation_class = if is_expanded { "rotate-90" } else { "rotate-0" };
-    let create_btn_bg = if is_valid { "bg-purple-600" } else { "bg-gray-500" };
-    let create_btn_cursor = if is_valid { "cursor-pointer" } else { "cursor-not-allowed" };
+    let create_btn_bg = if is_valid {
+        "bg-purple-600"
+    } else {
+        "bg-gray-500"
+    };
+    let create_btn_cursor = if is_valid {
+        "cursor-pointer"
+    } else {
+        "cursor-not-allowed"
+    };
 
     rsx! {
         // Modal overlay

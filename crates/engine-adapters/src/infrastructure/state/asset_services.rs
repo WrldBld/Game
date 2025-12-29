@@ -3,7 +3,9 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::generation_service::GenerationService;
-use wrldbldr_engine_app::application::services::{AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService};
+use wrldbldr_engine_app::application::services::{
+    AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
+};
 
 /// Services for managing assets, workflows, and generation
 ///
@@ -12,7 +14,8 @@ use wrldbldr_engine_app::application::services::{AssetServiceImpl, GenerationQue
 pub struct AssetServices {
     pub asset_service: AssetServiceImpl,
     pub workflow_config_service: WorkflowConfigService,
-    #[allow(dead_code)] // Kept for potential future direct generation access (currently event-driven via queue)
+    #[allow(dead_code)]
+    // Kept for potential future direct generation access (currently event-driven via queue)
     pub generation_service: Arc<GenerationService>,
     pub generation_queue_projection_service: Arc<GenerationQueueProjectionService>,
 }

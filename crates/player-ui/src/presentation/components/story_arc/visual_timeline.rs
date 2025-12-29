@@ -2,11 +2,15 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
-use crate::presentation::components::story_arc::timeline_filters::{CharacterOption, LocationOption, TimelineFilters};
-use crate::presentation::components::story_arc::timeline_view::{TimelineFilterState, TimelineViewModel, get_event_type_icon};
+use crate::presentation::components::story_arc::timeline_filters::{
+    CharacterOption, LocationOption, TimelineFilters,
+};
+use crate::presentation::components::story_arc::timeline_view::{
+    get_event_type_icon, TimelineFilterState, TimelineViewModel,
+};
 use crate::presentation::services::use_story_event_service;
 use crate::presentation::state::use_game_state;
+use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
 
 /// A cluster of events that are close together on the timeline
 #[derive(Debug, Clone)]
@@ -47,7 +51,7 @@ fn cluster_events(
     // Get min/max timestamps
     let mut min_ts: Option<i64> = None;
     let mut max_ts: Option<i64> = None;
-    
+
     for event in events {
         if let Some(ts) = timestamp_to_ms(&event.timestamp) {
             min_ts = Some(min_ts.map_or(ts, |m| m.min(ts)));
@@ -66,12 +70,12 @@ fn cluster_events(
     let padded_range = range + (range / 10);
 
     // Create a set of filtered event IDs for quick lookup
-    let filtered_ids: std::collections::HashSet<&str> = 
+    let filtered_ids: std::collections::HashSet<&str> =
         filtered_events.iter().map(|e| e.id.as_str()).collect();
 
     // Calculate x positions for all events
     let mut positioned_events: Vec<(StoryEventData, f32, bool)> = Vec::new();
-    
+
     for event in events {
         if let Some(ts) = timestamp_to_ms(&event.timestamp) {
             let x = ((ts - padded_min) as f32 / padded_range as f32) * 100.0 * zoom;
@@ -90,7 +94,7 @@ fn cluster_events(
     for (event, x, is_filtered_out) in positioned_events {
         // Check if we can add to existing cluster
         let mut added_to_cluster = false;
-        
+
         for cluster in clusters.iter_mut() {
             // Only cluster same type (filtered vs non-filtered)
             if cluster.is_filtered_out == is_filtered_out {
@@ -98,7 +102,9 @@ fn cluster_events(
                 if distance < cluster_threshold {
                     cluster.events.push(event.clone());
                     // Update cluster position to average
-                    let total_x: f32 = cluster.events.iter()
+                    let total_x: f32 = cluster
+                        .events
+                        .iter()
                         .filter_map(|e| timestamp_to_ms(&e.timestamp))
                         .map(|ts| ((ts - padded_min) as f32 / padded_range as f32) * 100.0 * zoom)
                         .sum();
@@ -124,19 +130,19 @@ fn cluster_events(
 /// Get color for event type
 fn get_event_color(event_type: &StoryEventTypeData) -> &'static str {
     match event_type {
-        StoryEventTypeData::LocationChange { .. } => "#22c55e",      // green
-        StoryEventTypeData::DialogueExchange { .. } => "#3b82f6",    // blue
-        StoryEventTypeData::CombatEvent { .. } => "#ef4444",         // red
-        StoryEventTypeData::ChallengeAttempted { .. } => "#f59e0b",  // amber
-        StoryEventTypeData::ItemAcquired { .. } => "#a855f7",        // purple
+        StoryEventTypeData::LocationChange { .. } => "#22c55e", // green
+        StoryEventTypeData::DialogueExchange { .. } => "#3b82f6", // blue
+        StoryEventTypeData::CombatEvent { .. } => "#ef4444",    // red
+        StoryEventTypeData::ChallengeAttempted { .. } => "#f59e0b", // amber
+        StoryEventTypeData::ItemAcquired { .. } => "#a855f7",   // purple
         StoryEventTypeData::RelationshipChanged { .. } => "#ec4899", // pink
-        StoryEventTypeData::SceneTransition { .. } => "#06b6d4",     // cyan
+        StoryEventTypeData::SceneTransition { .. } => "#06b6d4", // cyan
         StoryEventTypeData::InformationRevealed { .. } => "#eab308", // yellow
-        StoryEventTypeData::DmMarker { .. } => "#8b5cf6",            // violet
+        StoryEventTypeData::DmMarker { .. } => "#8b5cf6",       // violet
         StoryEventTypeData::NarrativeEventTriggered { .. } => "#f97316", // orange
-        StoryEventTypeData::SessionStarted { .. } => "#10b981",      // emerald
-        StoryEventTypeData::SessionEnded { .. } => "#6b7280",        // gray
-        StoryEventTypeData::Custom { .. } => "#64748b",              // slate
+        StoryEventTypeData::SessionStarted { .. } => "#10b981", // emerald
+        StoryEventTypeData::SessionEnded { .. } => "#6b7280",   // gray
+        StoryEventTypeData::Custom { .. } => "#64748b",         // slate
     }
 }
 
@@ -174,11 +180,11 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut filters = use_signal(TimelineFilterState::default);
     let mut show_filters = use_signal(|| false);
-    
+
     // Zoom and pan state
     let mut zoom_level = use_signal(|| 1.0_f32);
     let mut scroll_offset = use_signal(|| 0.0_f32);
-    
+
     // Interaction state
     let mut hovered_event: Signal<Option<StoryEventData>> = use_signal(|| None);
     let mut selected_event: Signal<Option<StoryEventData>> = use_signal(|| None);
@@ -218,11 +224,21 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
     let (characters, locations) = {
         let world = game_state.world.read();
         if let Some(ref snapshot) = *world {
-            let chars = snapshot.characters.iter()
-                .map(|c| CharacterOption { id: c.id.clone(), name: c.name.clone() })
+            let chars = snapshot
+                .characters
+                .iter()
+                .map(|c| CharacterOption {
+                    id: c.id.clone(),
+                    name: c.name.clone(),
+                })
                 .collect::<Vec<_>>();
-            let locs = snapshot.locations.iter()
-                .map(|l| LocationOption { id: l.id.clone(), name: l.name.clone() })
+            let locs = snapshot
+                .locations
+                .iter()
+                .map(|l| LocationOption {
+                    id: l.id.clone(),
+                    name: l.name.clone(),
+                })
                 .collect::<Vec<_>>();
             (chars, locs)
         } else {
@@ -233,16 +249,16 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
     // Calculate date markers from all events
     let date_markers: Vec<(String, f32)> = {
         let mut markers = std::collections::BTreeMap::new();
-        
+
         if !all_events.is_empty() {
             let mut min_ts: Option<i64> = None;
             let mut max_ts: Option<i64> = None;
-            
+
             for event in &all_events {
                 if let Some(ts) = timestamp_to_ms(&event.timestamp) {
                     min_ts = Some(min_ts.map_or(ts, |m| m.min(ts)));
                     max_ts = Some(max_ts.map_or(ts, |m| m.max(ts)));
-                    
+
                     let date = format_date(&event.timestamp);
                     markers.entry(date).or_insert(ts);
                 }
@@ -253,7 +269,8 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                 let padded_min = min - (range / 20);
                 let padded_range = range + (range / 10);
 
-                markers.into_iter()
+                markers
+                    .into_iter()
                     .map(|(date, ts)| {
                         let x = ((ts - padded_min) as f32 / padded_range as f32) * 100.0 * zoom;
                         (date, x)
@@ -278,7 +295,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                 div {
                     class: "flex items-center gap-4",
                     h2 { class: "text-white m-0 text-xl", "Visual Timeline" }
-                    
+
                     // Filter toggle
                     {
                         let is_showing = *show_filters.read();
@@ -299,7 +316,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                 // Zoom controls
                 div {
                     class: "flex items-center gap-2",
-                    
+
                     button {
                         onclick: move |_| {
                             let new_zoom = (*zoom_level.read() - 0.25).max(0.25);
@@ -309,12 +326,12 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                         class: "w-8 h-8 bg-gray-700 text-white border-none rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
                         "-"
                     }
-                    
-                    span { 
+
+                    span {
                         class: "text-gray-400 text-sm min-w-[60px] text-center",
                         "{(*zoom_level.read() * 100.0) as i32}%"
                     }
-                    
+
                     button {
                         onclick: move |_| {
                             let new_zoom = (*zoom_level.read() + 0.25).min(4.0);
@@ -324,7 +341,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                         class: "w-8 h-8 bg-gray-700 text-white border-none rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
                         "+"
                     }
-                    
+
                     button {
                         onclick: move |_| zoom_level.set(1.0),
                         class: "px-2 py-1 bg-gray-700 text-gray-300 border-none rounded cursor-pointer text-xs ml-2",
@@ -380,7 +397,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                             "◀"
                         }
                     }
-                    
+
                     div {
                         class: "absolute right-2 top-1/2 -translate-y-1/2 z-10",
                         button {
@@ -406,7 +423,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                             // Date markers at top
                             div {
                                 class: "absolute top-4 left-0 right-0 h-6",
-                                
+
                                 for (date, x) in date_markers.iter() {
                                     div {
                                         key: "{date}",
@@ -436,18 +453,18 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                                             cluster.events.iter().take(3).cloned().collect()
                                         };
                                         let remaining = cluster.events.len().saturating_sub(3);
-                                        
+
                                         rsx! {
                                             div {
                                                 key: "cluster-{idx}",
                                                 class: "absolute flex flex-col items-center gap-1",
                                                 style: "left: {cluster.x_position}%; transform: translateX(-50%);",
-                                                
+
                                                 // Vertical connector line
                                                 div {
                                                     class: "w-0.5 h-4 bg-gray-600"
                                                 }
-                                                
+
                                                 // Event nodes
                                                 for (_event_idx, event) in visible_events.iter().enumerate() {
                                                     {
@@ -459,7 +476,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                                                         let icon = get_event_type_icon(&event.event_type);
                                                         let event_for_hover = event.clone();
                                                         let event_for_click = event.clone();
-                                                        
+
                                                         rsx! {
                                                             div {
                                                                 key: "{event.id}",
@@ -478,7 +495,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                                                         }
                                                     }
                                                 }
-                                                
+
                                                 // "+N more" button for clusters
                                                 if show_expand {
                                                     button {
@@ -487,7 +504,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                                                         "+{remaining} more"
                                                     }
                                                 }
-                                                
+
                                                 // Collapse button for expanded clusters
                                                 if is_expanded && cluster.events.len() > 3 {
                                                     button {
@@ -517,19 +534,19 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                         rsx! {
                             div {
                                 class: "flex items-center gap-3",
-                                
+
                                 div {
                                     class: "w-8 h-8 rounded-full flex items-center justify-center",
                                     style: "background-color: {color};",
                                     span { "{icon}" }
                                 }
-                                
+
                                 div {
-                                    p { 
+                                    p {
                                         class: "text-white m-0 text-sm line-clamp-1",
-                                        "{event.summary}" 
+                                        "{event.summary}"
                                     }
-                                    p { 
+                                    p {
                                         class: "text-gray-500 m-0 text-xs",
                                         "{format_datetime(&event.timestamp)}"
                                         if !event.involved_characters.is_empty() {

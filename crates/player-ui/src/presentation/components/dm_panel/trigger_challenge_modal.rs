@@ -32,9 +32,18 @@ pub fn TriggerChallengeModal(props: TriggerChallengeModalProps) -> Element {
     let challenges = props.challenges.clone();
     let scene_characters = props.scene_characters.clone();
 
-    let is_both_selected = !selected_challenge.read().is_empty() && !selected_character.read().is_empty();
-    let trigger_btn_bg = if is_both_selected { "bg-green-500" } else { "bg-gray-500" };
-    let trigger_btn_cursor = if is_both_selected { "cursor-pointer" } else { "cursor-not-allowed" };
+    let is_both_selected =
+        !selected_challenge.read().is_empty() && !selected_character.read().is_empty();
+    let trigger_btn_bg = if is_both_selected {
+        "bg-green-500"
+    } else {
+        "bg-gray-500"
+    };
+    let trigger_btn_cursor = if is_both_selected {
+        "cursor-pointer"
+    } else {
+        "cursor-not-allowed"
+    };
 
     rsx! {
         // Modal overlay

@@ -4,9 +4,9 @@
 //! Connections between locations use CONNECTED_TO edges.
 //! Regions are separate nodes with HAS_REGION edges (see region.rs).
 
+use super::region::MapBounds;
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
-use super::region::MapBounds;
 
 /// A location in the world
 ///
@@ -23,24 +23,24 @@ pub struct Location {
     pub name: String,
     pub description: String,
     pub location_type: LocationType,
-    
+
     // Visual assets
     /// Path to the default backdrop image asset (used if entering without specific region)
     pub backdrop_asset: Option<String>,
     /// Path to the top-down map image for navigation between regions
     pub map_asset: Option<String>,
-    
+
     // Position on parent location's map (if this location is nested)
     /// Bounds defining where this location appears on its parent's map
     pub parent_map_bounds: Option<MapBounds>,
-    
+
     // Default entry point
     /// Default region to place players when arriving without a specific region target
     pub default_region_id: Option<RegionId>,
-    
+
     /// Sensory/emotional description of the location's atmosphere
     pub atmosphere: Option<String>,
-    
+
     // Staging settings
     /// Default staging duration in game hours (default: 3)
     pub presence_cache_ttl_hours: i32,

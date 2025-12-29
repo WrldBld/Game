@@ -17,9 +17,9 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 
-use wrldbldr_engine_ports::outbound::{StagedNpcRow, StagingRepositoryPort};
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId};
+use wrldbldr_engine_ports::outbound::{StagedNpcRow, StagingRepositoryPort};
 
 pub struct Neo4jStagingRepository {
     connection: Neo4jConnection,
@@ -216,19 +216,19 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         // Create INCLUDES_NPC edges for each NPC
         for npc in &staging.npcs {
             let npc_q = query(
-                 "MATCH (s:Staging {id: $staging_id})
+                "MATCH (s:Staging {id: $staging_id})
                   MATCH (c:Character {id: $character_id})
                   CREATE (s)-[:INCLUDES_NPC {
                       is_present: $is_present,
                       is_hidden_from_players: $is_hidden_from_players,
                       reasoning: $reasoning
                   }]->(c)",
-             )
-             .param("staging_id", staging.id.to_string())
-             .param("character_id", npc.character_id.to_string())
-             .param("is_present", npc.is_present)
-             .param("is_hidden_from_players", npc.is_hidden_from_players)
-             .param("reasoning", npc.reasoning.clone());
+            )
+            .param("staging_id", staging.id.to_string())
+            .param("character_id", npc.character_id.to_string())
+            .param("is_present", npc.is_present)
+            .param("is_hidden_from_players", npc.is_hidden_from_players)
+            .param("reasoning", npc.reasoning.clone());
 
             self.connection
                 .graph()
@@ -361,8 +361,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
             let is_hidden_from_players: bool = row.get("is_hidden_from_players")?;
             let reasoning: String = row.get("reasoning")?;
 
-            let character_id =
-                CharacterId::from_uuid(uuid::Uuid::parse_str(&character_id_str)?);
+            let character_id = CharacterId::from_uuid(uuid::Uuid::parse_str(&character_id_str)?);
 
             npcs.push(StagedNpcRow {
                 character_id,

@@ -303,8 +303,7 @@ impl PromptContextServiceImpl {
                 .await;
 
             // Try to get actantial context (motivations and social stance)
-            let (motivations, social_stance) =
-                self.get_actantial_context(&char_data.id).await;
+            let (motivations, social_stance) = self.get_actantial_context(&char_data.id).await;
 
             CharacterContext {
                 character_id: Some(char_data.id.clone()),
@@ -343,7 +342,11 @@ impl PromptContextServiceImpl {
         let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
 
         // Get the disposition state
-        match self.disposition_service.get_disposition(npc_id, pc_id).await {
+        match self
+            .disposition_service
+            .get_disposition(npc_id, pc_id)
+            .await
+        {
             Ok(disposition_state) => {
                 // Convert disposition level to a descriptive string
                 Some(format!("{:?}", disposition_state.disposition))

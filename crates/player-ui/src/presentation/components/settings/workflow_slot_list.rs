@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_workflow_service;
-use wrldbldr_player_app::application::services::{WorkflowSlotStatus, WorkflowSlotCategory};
+use wrldbldr_player_app::application::services::{WorkflowSlotCategory, WorkflowSlotStatus};
 
 /// Props for the WorkflowSlotList component
 #[derive(Props, Clone, PartialEq)]
@@ -237,4 +237,3 @@ fn SlotCard(props: SlotCardProps) -> Element {
         }
     }
 }
-

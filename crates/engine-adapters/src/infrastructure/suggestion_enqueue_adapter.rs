@@ -15,7 +15,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_app::application::dto::{LLMRequestItem, LLMRequestType};
+use wrldbldr_domain::value_objects::{LlmRequestData, LlmRequestType};
 use wrldbldr_engine_app::application::services::{LLMQueueService, SuggestionContext};
 use wrldbldr_engine_ports::outbound::{
     LlmPort, ProcessingQueuePort, QueueError, QueueNotificationPort, SuggestionEnqueuePort,
@@ -29,7 +29,7 @@ use wrldbldr_engine_ports::outbound::{
 /// auto-enrichment of suggestion context with world data.
 pub struct SuggestionEnqueueAdapter<Q, L, N>
 where
-    Q: ProcessingQueuePort<LLMRequestItem> + 'static,
+    Q: ProcessingQueuePort<LlmRequestData> + 'static,
     L: LlmPort + Clone + 'static,
     N: QueueNotificationPort + 'static,
 {
@@ -39,7 +39,7 @@ where
 
 impl<Q, L, N> SuggestionEnqueueAdapter<Q, L, N>
 where
-    Q: ProcessingQueuePort<LLMRequestItem> + 'static,
+    Q: ProcessingQueuePort<LlmRequestData> + 'static,
     L: LlmPort + Clone + 'static,
     N: QueueNotificationPort + 'static,
 {
@@ -89,10 +89,7 @@ where
                     );
                 }
                 Ok(None) => {
-                    tracing::warn!(
-                        "World {} not found for suggestion context enrichment",
-                        wid
-                    );
+                    tracing::warn!("World {} not found for suggestion context enrichment", wid);
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -111,7 +108,7 @@ where
 #[async_trait]
 impl<Q, L, N> SuggestionEnqueuePort for SuggestionEnqueueAdapter<Q, L, N>
 where
-    Q: ProcessingQueuePort<LLMRequestItem> + 'static,
+    Q: ProcessingQueuePort<LlmRequestData> + 'static,
     L: LlmPort + Clone + 'static,
     N: QueueNotificationPort + 'static,
 {
@@ -142,16 +139,29 @@ where
             .enrich_context(suggestion_context, Some(world_id))
             .await;
 
-        // Create LLM request item
-        let llm_request = LLMRequestItem {
-            request_type: LLMRequestType::Suggestion {
+        // Convert service SuggestionContext to domain SuggestionContext
+        let domain_context = wrldbldr_domain::value_objects::SuggestionContext {
+            entity_type: enriched_context.entity_type,
+            entity_name: enriched_context.entity_name,
+            world_setting: enriched_context.world_setting,
+            hints: enriched_context.hints,
+            additional_context: enriched_context.additional_context,
+            world_id: enriched_context
+                .world_id
+                .and_then(|s| uuid::Uuid::parse_str(&s).ok())
+                .map(WorldId::from_uuid),
+        };
+
+        // Create LLM request data
+        let llm_request = LlmRequestData {
+            request_type: LlmRequestType::Suggestion {
                 field_type: request.field_type,
                 entity_id: request.entity_id,
             },
-            world_id,
+            world_id: WorldId::from_uuid(world_id),
             pc_id: None,
             prompt: None,
-            suggestion_context: Some(enriched_context),
+            suggestion_context: Some(domain_context),
             callback_id: request_id.clone(),
         };
 

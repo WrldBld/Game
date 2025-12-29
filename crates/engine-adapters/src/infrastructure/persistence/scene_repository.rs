@@ -12,9 +12,11 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::SceneRepositoryPort;
-use wrldbldr_domain::entities::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
+use wrldbldr_domain::entities::{
+    Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
+};
 use wrldbldr_domain::{ActId, CharacterId, ItemId, LocationId, PlayerCharacterId, SceneId};
+use wrldbldr_engine_ports::outbound::SceneRepositoryPort;
 
 /// Repository for Scene operations
 pub struct Neo4jSceneRepository {
@@ -326,7 +328,10 @@ impl Neo4jSceneRepository {
         .param("scene_id", scene_id.to_string())
         .param("character_id", character_id.to_string())
         .param("role", scene_char.role.to_string())
-        .param("entrance_cue", scene_char.entrance_cue.clone().unwrap_or_default());
+        .param(
+            "entrance_cue",
+            scene_char.entrance_cue.clone().unwrap_or_default(),
+        );
 
         self.connection.graph().run(q).await?;
         Ok(())
@@ -505,7 +510,9 @@ fn row_to_scene(row: Row) -> Result<Scene> {
     let backdrop_override: String = node.get("backdrop_override")?;
     let entry_conditions_json: String = node.get("entry_conditions")?;
     // featured_characters may not exist in newer schemas
-    let featured_characters_json: String = node.get("featured_characters").unwrap_or_else(|_| "[]".to_string());
+    let featured_characters_json: String = node
+        .get("featured_characters")
+        .unwrap_or_else(|_| "[]".to_string());
     let directorial_notes: String = node.get("directorial_notes")?;
     let order_num: i64 = node.get("order_num")?;
 
@@ -641,15 +648,15 @@ impl TryFrom<SceneConditionStored> for SceneCondition {
 
     fn try_from(value: SceneConditionStored) -> Result<Self> {
         Ok(match value {
-            SceneConditionStored::CompletedScene(id) => SceneCondition::CompletedScene(
-                SceneId::from_uuid(uuid::Uuid::parse_str(&id)?),
-            ),
+            SceneConditionStored::CompletedScene(id) => {
+                SceneCondition::CompletedScene(SceneId::from_uuid(uuid::Uuid::parse_str(&id)?))
+            }
             SceneConditionStored::HasItem(id) => {
                 SceneCondition::HasItem(ItemId::from_uuid(uuid::Uuid::parse_str(&id)?))
             }
-            SceneConditionStored::KnowsCharacter(id) => SceneCondition::KnowsCharacter(
-                CharacterId::from_uuid(uuid::Uuid::parse_str(&id)?),
-            ),
+            SceneConditionStored::KnowsCharacter(id) => {
+                SceneCondition::KnowsCharacter(CharacterId::from_uuid(uuid::Uuid::parse_str(&id)?))
+            }
             SceneConditionStored::FlagSet(s) => SceneCondition::FlagSet(s),
             SceneConditionStored::Custom(s) => SceneCondition::Custom(s),
         })

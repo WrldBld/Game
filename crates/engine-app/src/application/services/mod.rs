@@ -12,25 +12,26 @@ pub mod challenge_approval_events;
 pub mod challenge_outcome_approval_service;
 pub mod challenge_resolution_service;
 pub mod challenge_service;
-pub mod dm_approval_queue_service;
 pub mod character_service;
+pub mod disposition_service;
 pub mod dm_action_processor_service;
 pub mod dm_action_queue_service;
+pub mod dm_approval_queue_service;
 pub mod event_chain_service;
 pub mod generation_event_publisher;
-pub mod generation_service;
 pub mod generation_queue_projection_service;
+pub mod generation_service;
 pub mod interaction_service;
 pub mod item_service;
-pub mod llm_queue_service;
 pub mod llm;
+pub mod llm_queue_service;
 pub mod location_service;
-pub mod disposition_service;
 pub mod region_service;
 
 // Re-export LLM service types for backward compatibility
-pub mod narrative_event_service;
+pub mod event_effect_executor;
 pub mod narrative_event_approval_service;
+pub mod narrative_event_service;
 pub mod outcome_suggestion_service;
 pub mod outcome_trigger_service;
 pub mod player_action_queue_service;
@@ -43,13 +44,12 @@ pub mod scene_service;
 pub mod settings_service;
 pub mod sheet_template_service;
 pub mod skill_service;
+pub mod staging_context_provider;
+pub mod staging_service;
 pub mod story_event_service;
 pub mod suggestion_service;
 pub mod tool_execution_service;
 pub mod trigger_evaluation_service;
-pub mod event_effect_executor;
-pub mod staging_context_provider;
-pub mod staging_service;
 pub mod workflow_config_service;
 pub mod workflow_service;
 pub mod world_service;
@@ -62,19 +62,15 @@ pub use world_service::{
 };
 
 // Re-export scene service types
-pub use scene_service::{
-    CreateSceneRequest, SceneService, SceneServiceImpl, UpdateSceneRequest,
-};
+pub use scene_service::{CreateSceneRequest, SceneService, SceneServiceImpl, UpdateSceneRequest};
 
 // Re-export scene resolution service types
-pub use scene_resolution_service::{
-    SceneResolutionService, SceneResolutionServiceImpl,
-};
+pub use scene_resolution_service::{SceneResolutionService, SceneResolutionServiceImpl};
 
 // Re-export character service types
 pub use character_service::{
-    ChangeArchetypeRequest, CharacterService, CharacterServiceImpl,
-    CreateCharacterRequest, UpdateCharacterRequest,
+    ChangeArchetypeRequest, CharacterService, CharacterServiceImpl, CreateCharacterRequest,
+    UpdateCharacterRequest,
 };
 
 // Re-export player character service types
@@ -90,9 +86,7 @@ pub use location_service::{
 };
 
 // Re-export suggestion service types
-pub use suggestion_service::{
-    SuggestionContext, SuggestionService, SuggestionType,
-};
+pub use suggestion_service::{SuggestionContext, SuggestionService, SuggestionType};
 
 // Re-export workflow services
 pub use workflow_config_service::WorkflowConfigService;
@@ -109,9 +103,7 @@ pub use narrative_event_approval_service::{
 };
 
 // Re-export skill service types
-pub use skill_service::{
-    CreateSkillRequest, SkillService, SkillServiceImpl, UpdateSkillRequest,
-};
+pub use skill_service::{CreateSkillRequest, SkillService, SkillServiceImpl, UpdateSkillRequest};
 
 // Re-export interaction service types (used in HTTP routes)
 pub use interaction_service::{InteractionService, InteractionServiceImpl};
@@ -126,9 +118,8 @@ pub use challenge_service::{ChallengeService, ChallengeServiceImpl};
 
 // Re-export challenge resolution service types
 pub use challenge_resolution_service::{
-    ChallengeResolutionService, ChallengeResolutionError,
-    RollSubmissionResult, ChallengeTriggerResult, AdHocChallengeResult,
-    OutcomeTriggerInfo, DiceInputType,
+    AdHocChallengeResult, ChallengeResolutionError, ChallengeResolutionService,
+    ChallengeTriggerResult, DiceInputType, OutcomeTriggerInfo, RollSubmissionResult,
 };
 
 // Re-export relationship service types
@@ -155,16 +146,15 @@ pub use event_chain_service::{EventChainService, EventChainServiceImpl};
 // Re-export queue service types (used in infrastructure layer)
 pub use asset_generation_queue_service::AssetGenerationQueueService;
 pub use dm_action_processor_service::{ApprovalProcessorPort, DmActionProcessorService};
-pub use dm_action_queue_service::DMActionQueueService;
-pub use dm_approval_queue_service::{DMApprovalQueueService, ApprovalOutcome};
+pub use dm_action_queue_service::DmActionQueueService;
+pub use dm_approval_queue_service::{ApprovalOutcome, DMApprovalQueueService};
 pub use generation_event_publisher::GenerationEventPublisher;
 pub use llm_queue_service::LLMQueueService;
 pub use player_action_queue_service::PlayerActionQueueService;
 
 // Re-export generation queue projection service (snapshot types are used by HTTP layer)
 pub use generation_queue_projection_service::{
-    GenerationQueueProjectionService,
-    GenerationQueueSnapshot,
+    GenerationQueueProjectionService, GenerationQueueSnapshot,
 };
 
 // Re-export outcome trigger service
@@ -180,35 +170,35 @@ pub use challenge_outcome_approval_service::{
 pub use outcome_suggestion_service::{OutcomeSuggestionService, SuggestionError};
 
 // Re-export challenge approval event types (P3.3 refactor)
+pub use challenge_approval_event_publisher::ChallengeApprovalEventPublisher;
 pub use challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData as ChallengeOutcomeBranchData,
     OutcomeTriggerData as ChallengeOutcomeTriggerData,
 };
-pub use challenge_approval_event_publisher::ChallengeApprovalEventPublisher;
 
 // Re-export trigger evaluation service (Phase 2)
 pub use trigger_evaluation_service::{
-    TriggerEvaluationService, TriggerEvaluationError, TriggerEvaluationResult,
-    TriggeredEventCandidate, TriggerSource, GameStateSnapshot, ImmediateContext,
-    CompletedChallenge, CompletedNarrativeEvent,
+    CompletedChallenge, CompletedNarrativeEvent, GameStateSnapshot, ImmediateContext,
+    TriggerEvaluationError, TriggerEvaluationResult, TriggerEvaluationService, TriggerSource,
+    TriggeredEventCandidate,
 };
 
 // Re-export event effect executor (Phase 2)
 pub use event_effect_executor::{
-    EventEffectExecutor, EffectExecutionError, EffectExecutionResult, OutcomeExecutionResult,
+    EffectExecutionError, EffectExecutionResult, EventEffectExecutor, OutcomeExecutionResult,
 };
 
 // Re-export staging services (Staging System - replaces legacy PresenceService)
-pub use staging_context_provider::{StagingContextProvider, build_staging_prompt};
-pub use staging_service::{StagingService, StagingProposal};
+pub use staging_context_provider::{build_staging_prompt, StagingContextProvider};
+pub use staging_service::{StagingProposal, StagingService};
 
 // Re-export disposition service (P1.4)
 pub use disposition_service::{DispositionService, DispositionServiceImpl};
 
 // Re-export actantial context service (P1.5)
 pub use actantial_context_service::{
-    ActantialContextService, ActantialContextServiceImpl,
-    CreateWantRequest, UpdateWantRequest, ActorTargetType,
+    ActantialContextService, ActantialContextServiceImpl, ActorTargetType, CreateWantRequest,
+    UpdateWantRequest,
 };
 
 // Re-export region service

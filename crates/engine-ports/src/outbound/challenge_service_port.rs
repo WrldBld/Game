@@ -14,9 +14,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use wrldbldr_domain::entities::{
-    Challenge, ChallengeLocationAvailability, ChallengePrerequisite,
-};
+use wrldbldr_domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
 use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
 
 /// Port for challenge service operations used by infrastructure adapters.

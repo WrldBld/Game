@@ -24,24 +24,37 @@ pub struct SuggestionService<L: LlmPort> {
 impl<L: LlmPort> SuggestionService<L> {
     /// Create a new suggestion service
     pub fn new(llm: L, prompt_template_service: Arc<PromptTemplateService>) -> Self {
-        Self { llm, prompt_template_service }
+        Self {
+            llm,
+            prompt_template_service,
+        }
     }
-    
+
     /// Parse world_id from optional string
     fn parse_world_id(world_id: Option<&String>) -> Option<WorldId> {
-        world_id.and_then(|id| {
-            uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid)
-        })
+        world_id.and_then(|id| uuid::Uuid::parse_str(id).ok().map(WorldId::from_uuid))
     }
-    
+
     /// Apply placeholder substitutions to a template
     fn apply_placeholders(template: &str, context: &SuggestionContext) -> String {
         template
-            .replace("{entity_type}", context.entity_type.as_deref().unwrap_or("fantasy"))
-            .replace("{entity_name}", context.entity_name.as_deref().unwrap_or("this entity"))
-            .replace("{world_setting}", context.world_setting.as_deref().unwrap_or("fantasy"))
+            .replace(
+                "{entity_type}",
+                context.entity_type.as_deref().unwrap_or("fantasy"),
+            )
+            .replace(
+                "{entity_name}",
+                context.entity_name.as_deref().unwrap_or("this entity"),
+            )
+            .replace(
+                "{world_setting}",
+                context.world_setting.as_deref().unwrap_or("fantasy"),
+            )
             .replace("{hints}", context.hints.as_deref().unwrap_or(""))
-            .replace("{additional_context}", context.additional_context.as_deref().unwrap_or(""))
+            .replace(
+                "{additional_context}",
+                context.additional_context.as_deref().unwrap_or(""),
+            )
     }
 
     /// Generate character name suggestions
@@ -50,7 +63,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_NAME)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -63,17 +77,25 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION)
+        let template = self
+            .prompt_template_service
+            .resolve_optional_world(
+                world_id.as_ref(),
+                prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
     }
 
     /// Generate character wants/desires suggestions
-    pub async fn suggest_character_wants(&self, context: &SuggestionContext) -> Result<Vec<String>> {
+    pub async fn suggest_character_wants(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_WANTS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -81,9 +103,13 @@ impl<L: LlmPort> SuggestionService<L> {
     }
 
     /// Generate character fears suggestions
-    pub async fn suggest_character_fears(&self, context: &SuggestionContext) -> Result<Vec<String>> {
+    pub async fn suggest_character_fears(
+        &self,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_FEARS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -96,8 +122,12 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_BACKSTORY)
+        let template = self
+            .prompt_template_service
+            .resolve_optional_world(
+                world_id.as_ref(),
+                prompt_keys::SUGGESTION_CHARACTER_BACKSTORY,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 2).await
@@ -106,7 +136,8 @@ impl<L: LlmPort> SuggestionService<L> {
     /// Generate location name suggestions
     pub async fn suggest_location_names(&self, context: &SuggestionContext) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_NAME)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -119,8 +150,12 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_DESCRIPTION)
+        let template = self
+            .prompt_template_service
+            .resolve_optional_world(
+                world_id.as_ref(),
+                prompt_keys::SUGGESTION_LOCATION_DESCRIPTION,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -132,8 +167,12 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE)
+        let template = self
+            .prompt_template_service
+            .resolve_optional_world(
+                world_id.as_ref(),
+                prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
@@ -145,7 +184,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_FEATURES)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -158,7 +198,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_SECRETS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -168,7 +209,7 @@ impl<L: LlmPort> SuggestionService<L> {
     // === Actantial Model Suggestion Methods ===
 
     /// Generate deflection behavior suggestions for an NPC hiding their wants
-    /// 
+    ///
     /// Context expectations:
     /// - entity_name: NPC name
     /// - hints: The want being hidden
@@ -179,15 +220,19 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR)
+        let template = self
+            .prompt_template_service
+            .resolve_optional_world(
+                world_id.as_ref(),
+                prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
     }
 
     /// Generate behavioral tells that reveal a hidden want
-    /// 
+    ///
     /// Context expectations:
     /// - entity_name: NPC name
     /// - hints: The want being hidden
@@ -198,7 +243,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_BEHAVIORAL_TELLS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -206,7 +252,7 @@ impl<L: LlmPort> SuggestionService<L> {
     }
 
     /// Generate want description suggestions (actantial-aware)
-    /// 
+    ///
     /// Context expectations:
     /// - entity_name: NPC name
     /// - hints: Character archetype
@@ -217,7 +263,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_WANT_DESCRIPTION)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -225,7 +272,7 @@ impl<L: LlmPort> SuggestionService<L> {
     }
 
     /// Generate reasons for actantial relationships
-    /// 
+    ///
     /// Context expectations:
     /// - entity_name: NPC who holds this view
     /// - hints: Target of the actantial relationship (the actor)
@@ -236,7 +283,8 @@ impl<L: LlmPort> SuggestionService<L> {
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template = self.prompt_template_service
+        let template = self
+            .prompt_template_service
             .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_ACTANTIAL_REASON)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
@@ -266,8 +314,9 @@ impl<L: LlmPort> SuggestionService<L> {
             .filter(|s| !s.is_empty())
             .map(|s| {
                 // Remove common list prefixes
-                let s = s
-                    .trim_start_matches(|c: char| c.is_numeric() || c == '.' || c == ')' || c == '-');
+                let s = s.trim_start_matches(|c: char| {
+                    c.is_numeric() || c == '.' || c == ')' || c == '-'
+                });
                 s.trim().to_string()
             })
             .filter(|s| !s.is_empty())

@@ -7,10 +7,12 @@ use serde_json;
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
-use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 use neo4rs::Node;
-use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, PlayerCharacter, CharacterSheetData};
+use wrldbldr_domain::entities::{
+    AcquisitionMethod, CharacterSheetData, InventoryItem, PlayerCharacter,
+};
 use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
@@ -32,7 +34,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
             "{}".to_string()
         };
 
-        let current_region_id_str = pc.current_region_id.map(|r| r.to_string()).unwrap_or_default();
+        let current_region_id_str = pc
+            .current_region_id
+            .map(|r| r.to_string())
+            .unwrap_or_default();
 
         let q = query(
             "MATCH (w:World {id: $world_id})
@@ -68,7 +73,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("current_region_id", current_region_id_str)
         .param("starting_location_id", pc.starting_location_id.to_string())
         .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
-        .param("portrait_asset", pc.portrait_asset.clone().unwrap_or_default())
+        .param(
+            "portrait_asset",
+            pc.portrait_asset.clone().unwrap_or_default(),
+        )
         .param("created_at", pc.created_at.to_rfc3339())
         .param("last_active_at", pc.last_active_at.to_rfc3339());
 
@@ -130,7 +138,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("description", pc.description.clone().unwrap_or_default())
         .param("sheet_data", sheet_data_json)
         .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
-        .param("portrait_asset", pc.portrait_asset.clone().unwrap_or_default())
+        .param(
+            "portrait_asset",
+            pc.portrait_asset.clone().unwrap_or_default(),
+        )
         .param("last_active_at", pc.last_active_at.to_rfc3339());
 
         self.connection.graph().run(q).await?;
@@ -138,11 +149,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         Ok(())
     }
 
-    async fn update_location(
-        &self,
-        id: PlayerCharacterId,
-        location_id: LocationId,
-    ) -> Result<()> {
+    async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()> {
         // Delete old AT_LOCATION relationship
         let delete_q = query(
             "MATCH (pc:PlayerCharacter {id: $id})-[r:AT_LOCATION]->()
@@ -166,15 +173,15 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("last_active_at", chrono::Utc::now().to_rfc3339());
 
         self.connection.graph().run(create_q).await?;
-        tracing::debug!("Updated player character location: {} -> {}", id, location_id);
+        tracing::debug!(
+            "Updated player character location: {} -> {}",
+            id,
+            location_id
+        );
         Ok(())
     }
 
-    async fn update_region(
-        &self,
-        id: PlayerCharacterId,
-        region_id: RegionId,
-    ) -> Result<()> {
+    async fn update_region(&self, id: PlayerCharacterId, region_id: RegionId) -> Result<()> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $id})
             SET pc.current_region_id = $region_id,
@@ -221,7 +228,11 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("last_active_at", chrono::Utc::now().to_rfc3339());
 
         self.connection.graph().run(create_q).await?;
-        tracing::debug!("Updated player character position: {} -> {:?}", id, (location_id, region_id));
+        tracing::debug!(
+            "Updated player character position: {} -> {:?}",
+            id,
+            (location_id, region_id)
+        );
         Ok(())
     }
 
@@ -404,11 +415,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         Ok(())
     }
 
-    async fn remove_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<()> {
+    async fn remove_inventory_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<()> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item {id: $item_id})
             DELETE r",
@@ -453,25 +460,21 @@ fn row_to_inventory_item(row: &Row) -> Result<InventoryItem> {
 
 /// Parse a PlayerCharacter from a Neo4j row
 fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
-    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
     use chrono::DateTime;
-    
+    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
-    let node = row.get::<Node>("pc")
-        .context("Expected 'pc' node in row")?;
+    let node = row.get::<Node>("pc").context("Expected 'pc' node in row")?;
 
     let id_str: String = node.get("id").context("Missing id")?;
     let id = PlayerCharacterId::from_uuid(
-        uuid::Uuid::parse_str(&id_str)
-            .context("Invalid UUID for player character id")?,
+        uuid::Uuid::parse_str(&id_str).context("Invalid UUID for player character id")?,
     );
 
     let user_id: String = node.get("user_id").context("Missing user_id")?;
 
     let world_id_str: String = node.get("world_id").context("Missing world_id")?;
     let world_id = WorldId::from_uuid(
-        uuid::Uuid::parse_str(&world_id_str)
-            .context("Invalid UUID for world_id")?,
+        uuid::Uuid::parse_str(&world_id_str).context("Invalid UUID for world_id")?,
     );
 
     let name: String = node.get("name").context("Missing name")?;
@@ -492,7 +495,9 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
         )
     };
 
-    let current_location_id_str: String = node.get("current_location_id").context("Missing current_location_id")?;
+    let current_location_id_str: String = node
+        .get("current_location_id")
+        .context("Missing current_location_id")?;
     let current_location_id = LocationId::from_uuid(
         uuid::Uuid::parse_str(&current_location_id_str)
             .context("Invalid UUID for current_location_id")?,
@@ -509,7 +514,9 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
         ))
     };
 
-    let starting_location_id_str: String = node.get("starting_location_id").context("Missing starting_location_id")?;
+    let starting_location_id_str: String = node
+        .get("starting_location_id")
+        .context("Missing starting_location_id")?;
     let starting_location_id = LocationId::from_uuid(
         uuid::Uuid::parse_str(&starting_location_id_str)
             .context("Invalid UUID for starting_location_id")?,
@@ -523,7 +530,11 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
     };
 
     let portrait_asset: Option<String> = node.get("portrait_asset").ok().flatten();
-    let portrait_asset = if portrait_asset.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+    let portrait_asset = if portrait_asset
+        .as_ref()
+        .map(|s| s.is_empty())
+        .unwrap_or(true)
+    {
         None
     } else {
         portrait_asset
@@ -534,7 +545,9 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
         .context("Invalid created_at timestamp")?
         .with_timezone(&chrono::Utc);
 
-    let last_active_at_str: String = node.get("last_active_at").context("Missing last_active_at")?;
+    let last_active_at_str: String = node
+        .get("last_active_at")
+        .context("Missing last_active_at")?;
     let last_active_at = DateTime::parse_from_rfc3339(&last_active_at_str)
         .context("Invalid last_active_at timestamp")?
         .with_timezone(&chrono::Utc);
@@ -555,4 +568,3 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
         last_active_at,
     })
 }
-

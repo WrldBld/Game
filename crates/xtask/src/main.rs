@@ -84,7 +84,7 @@ fn arch_check() -> anyhow::Result<()> {
 
         let Some(allowed) = rules.get(*crate_name) else {
             anyhow::bail!(
-                "arch-check missing rules for workspace crate '{crate_name}'. Add it to xtask." 
+                "arch-check missing rules for workspace crate '{crate_name}'. Add it to xtask."
             );
         };
 
@@ -149,15 +149,13 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
 
     // Ban cross-crate re-export shims like: `pub use wrldbldr_*::...`
     // Regex avoids whitespace/newline sensitivity.
-    let reexport_re =
-        regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+::?wrldbldr_")
-            .context("compiling re-export shim regex")?;
+    let reexport_re = regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+::?wrldbldr_")
+        .context("compiling re-export shim regex")?;
 
     // Ban crate-alias shims like: `use wrldbldr_protocol as messages;`
-    let crate_alias_re = regex_lite::Regex::new(
-        r"(?m)^\s*use\s+::?wrldbldr_[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_]+\s*;",
-    )
-    .context("compiling crate-alias shim regex")?;
+    let crate_alias_re =
+        regex_lite::Regex::new(r"(?m)^\s*use\s+::?wrldbldr_[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_]+\s*;")
+            .context("compiling crate-alias shim regex")?;
 
     // Ban crate-alias shims like: `extern crate wrldbldr_protocol as messages;`
     let extern_crate_alias_re = regex_lite::Regex::new(
@@ -166,14 +164,12 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
     .context("compiling extern-crate-alias shim regex")?;
 
     // Ban internal re-export shims like: `pub use crate::...`
-    let pub_use_crate_re =
-        regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+crate::")
-            .context("compiling pub-use-crate shim regex")?;
+    let pub_use_crate_re = regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+crate::")
+        .context("compiling pub-use-crate shim regex")?;
 
     // Ban internal visibility re-export shims like: `pub(crate) use ...`
-    let pub_crate_use_re =
-        regex_lite::Regex::new(r"(?m)^\s*pub\s*\(crate\)\s+use\s+")
-            .context("compiling pub(crate)-use shim regex")?;
+    let pub_crate_use_re = regex_lite::Regex::new(r"(?m)^\s*pub\s*\(crate\)\s+use\s+")
+        .context("compiling pub(crate)-use shim regex")?;
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -234,9 +230,7 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!(
-            "Forbidden shims (cross-crate and internal re-export/alias shims):"
-        );
+        eprintln!("Forbidden shims (cross-crate and internal re-export/alias shims):");
         for v in violations {
             eprintln!("  - {v}");
         }
@@ -270,8 +264,9 @@ fn walkdir_rs_files(dir: &std::path::Path) -> anyhow::Result<Vec<std::path::Path
         for entry in entries {
             let entry = entry.with_context(|| format!("reading entry under {}", path.display()))?;
             let entry_path = entry.path();
-            let metadata =
-                entry.metadata().with_context(|| format!("stat {}", entry_path.display()))?;
+            let metadata = entry
+                .metadata()
+                .with_context(|| format!("stat {}", entry_path.display()))?;
 
             if metadata.is_dir() {
                 stack.push(entry_path);
@@ -299,8 +294,8 @@ fn check_handler_complexity() -> anyhow::Result<()> {
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    let handlers_dir = workspace_root
-        .join("crates/engine-adapters/src/infrastructure/websocket/handlers");
+    let handlers_dir =
+        workspace_root.join("crates/engine-adapters/src/infrastructure/websocket/handlers");
 
     if !handlers_dir.exists() {
         return Ok(());
@@ -318,10 +313,7 @@ fn check_handler_complexity() -> anyhow::Result<()> {
     const MAX_HANDLER_LINES: usize = 400;
 
     for entry in walkdir_rs_files(&handlers_dir)? {
-        let file_name = entry
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if exempt_files.contains(file_name) {
             continue;
@@ -371,14 +363,12 @@ fn check_use_case_layer() -> anyhow::Result<()> {
     }
 
     // Forbidden: importing ServerMessage in use cases (except errors.rs which converts to it)
-    let forbidden_server_message = regex_lite::Regex::new(
-        r"use\s+wrldbldr_protocol::[^;]*ServerMessage",
-    )?;
+    let forbidden_server_message =
+        regex_lite::Regex::new(r"use\s+wrldbldr_protocol::[^;]*ServerMessage")?;
 
     // Forbidden: importing ClientMessage (use cases are server-side only)
-    let forbidden_client_message = regex_lite::Regex::new(
-        r"use\s+wrldbldr_protocol::[^;]*ClientMessage",
-    )?;
+    let forbidden_client_message =
+        regex_lite::Regex::new(r"use\s+wrldbldr_protocol::[^;]*ClientMessage")?;
 
     // Files exempt from protocol import checks
     let exempt_files: HashSet<&str> = ["mod.rs", "errors.rs"].into_iter().collect();
@@ -386,10 +376,7 @@ fn check_use_case_layer() -> anyhow::Result<()> {
     let mut violations = Vec::new();
 
     for entry in walkdir_rs_files(&use_cases_dir)? {
-        let file_name = entry
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         if exempt_files.contains(file_name) {
             continue;
@@ -439,12 +426,7 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
         .context("finding workspace root")?;
 
     // Directories to check within engine-app/src/application/
-    let check_dirs = [
-        "use_cases",
-        "services",
-        "dto",
-        "handlers",
-    ];
+    let check_dirs = ["use_cases", "services", "dto", "handlers"];
 
     // Patterns that indicate protocol usage
     let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
@@ -460,16 +442,16 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
         }
 
         for entry in walkdir_rs_files(&dir)? {
-            let file_name = entry
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             // Exempt files:
             // - mod.rs: Module declarations only
             // - request_handler.rs: Documented exemption - implements RequestHandler trait from ports
             // - common.rs: Contains helpers for request_handler.rs
-            if file_name == "mod.rs" || file_name == "request_handler.rs" || file_name == "common.rs" {
+            if file_name == "mod.rs"
+                || file_name == "request_handler.rs"
+                || file_name == "common.rs"
+            {
                 continue;
             }
 
@@ -481,7 +463,10 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
                 let trimmed = line.trim();
 
                 // Skip comment lines
-                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                if trimmed.starts_with("//")
+                    || trimmed.starts_with("/*")
+                    || trimmed.starts_with('*')
+                {
                     continue;
                 }
 
@@ -532,10 +517,7 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
     let mut violations = Vec::new();
 
     for entry in walkdir_rs_files(&ports_dir)? {
-        let file_name = entry
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         // Exempt files:
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
@@ -605,9 +587,9 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     // Files exempt from protocol import checks (with justification)
     let exempt_files: HashSet<&str> = [
         "mod.rs",           // Module declarations only, re-exports with documented exceptions
-        "error.rs",         // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
+        "error.rs", // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
         "player_events.rs", // From<protocol::*> impls must live here due to Rust orphan rules
-        "requests.rs",      // App-layer DTOs with From impls for protocol conversion at boundary
+        "requests.rs", // App-layer DTOs with From impls for protocol conversion at boundary
         // Services use GameConnectionPort which takes RequestPayload.
         // They construct app-layer DTOs and convert via .into() at the boundary.
         // The protocol types are only touched in From impls, not in business logic.
@@ -626,7 +608,9 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         "character_service.rs",
         "suggestion_service.rs",
         "session_service.rs",
-    ].into_iter().collect();
+    ]
+    .into_iter()
+    .collect();
 
     let mut violations = Vec::new();
 
@@ -638,10 +622,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         }
 
         for entry in walkdir_rs_files(&dir)? {
-            let file_name = entry
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             if exempt_files.contains(file_name) {
                 continue;
@@ -655,7 +636,10 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
                 let trimmed = line.trim();
 
                 // Skip comment lines
-                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                if trimmed.starts_with("//")
+                    || trimmed.starts_with("/*")
+                    || trimmed.starts_with('*')
+                {
                     continue;
                 }
 
@@ -697,7 +681,10 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!("Player-app protocol isolation violations ({} files):", violations.len());
+        eprintln!(
+            "Player-app protocol isolation violations ({} files):",
+            violations.len()
+        );
         for v in &violations {
             eprintln!("  - {v}");
         }
@@ -730,10 +717,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     let mut violations = Vec::new();
 
     for entry in walkdir_rs_files(&ports_dir)? {
-        let file_name = entry
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         // Exempt files:
         // - game_connection_port.rs: Critical exemption - WebSocket port uses protocol types
@@ -769,7 +753,10 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
 
     if !violations.is_empty() {
         // For now, just report violations without failing the build
-        eprintln!("Player-ports protocol isolation violations ({} files):", violations.len());
+        eprintln!(
+            "Player-ports protocol isolation violations ({} files):",
+            violations.len()
+        );
         for v in &violations {
             eprintln!("  - {v}");
         }
@@ -811,9 +798,8 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
     // Pattern: `pub use something::*;` - captures glob re-exports
     // Matches: pub use foo::*; pub use self::bar::*; pub use super::baz::*;
     // Does NOT match: pub use foo::{A, B, C}; (explicit exports are fine)
-    let glob_reexport_re = regex_lite::Regex::new(
-        r"(?m)^\s*pub\s+use\s+[^;]+::\*\s*;"
-    ).context("compiling glob re-export regex")?;
+    let glob_reexport_re = regex_lite::Regex::new(r"(?m)^\s*pub\s+use\s+[^;]+::\*\s*;")
+        .context("compiling glob re-export regex")?;
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -831,7 +817,10 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
                 let trimmed = line.trim();
 
                 // Skip comment lines
-                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                if trimmed.starts_with("//")
+                    || trimmed.starts_with("/*")
+                    || trimmed.starts_with('*')
+                {
                     continue;
                 }
 
@@ -849,7 +838,10 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
 
     if !violations.is_empty() {
         // WARNING mode: Report but don't fail (until Phase 4.6 cleanup)
-        eprintln!("Glob re-export violations ({} instances):", violations.len());
+        eprintln!(
+            "Glob re-export violations ({} instances):",
+            violations.len()
+        );
         eprintln!("  Architecture rule: No `pub use module::*` - use explicit exports");
         eprintln!();
         for v in &violations {
@@ -875,7 +867,11 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         ("wrldbldr-engine-dto", HashSet::from(["wrldbldr-protocol"])),
         (
             "wrldbldr-engine-ports",
-            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol", "wrldbldr-engine-dto"]),
+            HashSet::from([
+                "wrldbldr-domain",
+                "wrldbldr-protocol",
+                "wrldbldr-engine-dto",
+            ]),
         ),
         (
             "wrldbldr-player-ports",
@@ -934,11 +930,10 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-adapters",
             ]),
         ),
-         (
-             "wrldbldr-engine-runner",
-             HashSet::from(["wrldbldr-engine-adapters"]),
-         ),
-
+        (
+            "wrldbldr-engine-runner",
+            HashSet::from(["wrldbldr-engine-adapters"]),
+        ),
         ("xtask", HashSet::from([])),
     ])
 }

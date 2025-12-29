@@ -14,12 +14,8 @@ pub use connection_factory::ConnectionFactory;
 
 // Re-export converters for use by adapter implementations
 pub use session_type_converters::{
-    adhoc_outcomes_to_proto,
-    approval_decision_to_proto,
-    approved_npc_info_to_proto,
-    challenge_outcome_decision_to_proto,
-    dice_input_to_proto,
-    directorial_context_to_proto,
+    adhoc_outcomes_to_proto, approval_decision_to_proto, approved_npc_info_to_proto,
+    challenge_outcome_decision_to_proto, dice_input_to_proto, directorial_context_to_proto,
     participant_role_to_proto,
 };
 

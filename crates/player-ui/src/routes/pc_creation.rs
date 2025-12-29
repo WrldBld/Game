@@ -1,8 +1,8 @@
 //! PC (Player Character) creation route handler
 
+use crate::presentation::state::SessionState;
 use dioxus::prelude::*;
 use wrldbldr_player_ports::outbound::Platform;
-use crate::presentation::state::SessionState;
 
 /// PC creation route
 #[component]
@@ -17,7 +17,10 @@ pub fn PCCreationRoute(world_id: String) -> Element {
     });
 
     // Get session_id from session state
-    let session_id = session_state.session_id().read().clone()
+    let session_id = session_state
+        .session_id()
+        .read()
+        .clone()
         .unwrap_or_else(|| "".to_string());
 
     rsx! {

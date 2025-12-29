@@ -5,10 +5,10 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::services::SuggestionContext;
-use wrldbldr_player_ports::outbound::Platform;
 use crate::presentation::services::use_suggestion_service;
 use crate::presentation::state::use_generation_state;
+use wrldbldr_player_app::application::services::SuggestionContext;
+use wrldbldr_player_ports::outbound::Platform;
 
 /// Types of suggestions that can be requested
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -82,7 +82,9 @@ pub fn SuggestionButton(
             let all_suggestions = generation_state.get_suggestions();
             if let Some(task) = all_suggestions.iter().find(|s| s.request_id == *req_id) {
                 match &task.status {
-                    crate::presentation::state::SuggestionStatus::Ready { suggestions: results } => {
+                    crate::presentation::state::SuggestionStatus::Ready {
+                        suggestions: results,
+                    } => {
                         if !results.is_empty() {
                             suggestions.set(results.clone());
                             show_dropdown.set(true);
@@ -126,17 +128,20 @@ pub fn SuggestionButton(
                 platform.log_info(&format!("Enqueueing suggestion request for {}", field_type));
 
                 // Enqueue the suggestion request
-                match service.enqueue_suggestion(&field_type, &world_id, &context).await {
+                match service
+                    .enqueue_suggestion(&field_type, &world_id, &context)
+                    .await
+                {
                     Ok(req_id) => {
                         platform.log_info(&format!("Suggestion request queued: {}", req_id));
                         request_id.set(Some(req_id.clone()));
-                        
+
                         // Add to generation state with context for retry
                         generation_state.add_suggestion_task(
                             req_id,
                             field_type,
-                            None, // entity_id not available here
-                            Some(context.clone()), // Store context for retry
+                            None,                   // entity_id not available here
+                            Some(context.clone()),  // Store context for retry
                             Some(world_id.clone()), // Store world_id for retry
                         );
                     }

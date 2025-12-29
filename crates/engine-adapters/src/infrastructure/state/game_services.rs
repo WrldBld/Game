@@ -5,16 +5,15 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_app::application::dto::ApprovalItem;
-use wrldbldr_engine_ports::outbound::LlmPort;
+use wrldbldr_domain::value_objects::ApprovalRequestData;
 use wrldbldr_engine_app::application::services::{
-    ActantialContextService, ChallengeService, EventChainService,
-    DispositionService, NarrativeEventService,
-    challenge_resolution_service::ChallengeResolutionService,
-    ChallengeOutcomeApprovalService, ChallengeServiceImpl, EventEffectExecutor,
-    ItemServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
-    PlayerCharacterServiceImpl, SkillServiceImpl, StoryEventService, TriggerEvaluationService,
+    challenge_resolution_service::ChallengeResolutionService, ActantialContextService,
+    ChallengeOutcomeApprovalService, ChallengeService, ChallengeServiceImpl, DispositionService,
+    EventChainService, EventEffectExecutor, ItemServiceImpl, NarrativeEventApprovalService,
+    NarrativeEventService, NarrativeEventServiceImpl, PlayerCharacterServiceImpl, SkillServiceImpl,
+    StoryEventService, TriggerEvaluationService,
 };
+use wrldbldr_engine_ports::outbound::LlmPort;
 
 /// Services for game mechanics, challenges, and narrative events
 ///
@@ -34,43 +33,44 @@ use wrldbldr_engine_app::application::services::{
 pub struct GameServices<L: LlmPort> {
     /// Story event service for recording gameplay events
     pub story_event_service: Arc<dyn StoryEventService>,
-    
+
     /// Challenge CRUD service
     pub challenge_service: Arc<dyn ChallengeService>,
-    
+
     /// Challenge resolution and dice rolling
     pub challenge_resolution_service: Arc<
         ChallengeResolutionService<
             ChallengeServiceImpl,
             SkillServiceImpl,
-            crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>,
+            crate::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
             PlayerCharacterServiceImpl,
             L,
             ItemServiceImpl,
         >,
     >,
-    
+
     /// Challenge outcome approval workflow
     pub challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
-    
+
     /// Narrative event CRUD service  
     pub narrative_event_service: Arc<dyn NarrativeEventService>,
-    
+
     /// Narrative event approval workflow
-    pub narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
-    
+    pub narrative_event_approval_service:
+        Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
+
     /// Event chain (story arc) management
     pub event_chain_service: Arc<dyn EventChainService>,
-    
+
     /// Service for evaluating narrative event triggers (Phase 2)
     pub trigger_evaluation_service: Arc<TriggerEvaluationService>,
-    
+
     /// Service for executing narrative event outcome effects (Phase 2)
     pub event_effect_executor: Arc<EventEffectExecutor>,
-    
+
     /// Service for NPC disposition and relationship tracking (P1.4)
     pub disposition_service: Arc<dyn DispositionService>,
-    
+
     /// Service for actantial model context (P1.5)
     pub actantial_context_service: Arc<dyn ActantialContextService>,
 }
@@ -85,7 +85,7 @@ impl<L: LlmPort + 'static> GameServices<L> {
             ChallengeResolutionService<
                 ChallengeServiceImpl,
                 SkillServiceImpl,
-                crate::infrastructure::queues::QueueBackendEnum<ApprovalItem>,
+                crate::infrastructure::queues::QueueBackendEnum<ApprovalRequestData>,
                 PlayerCharacterServiceImpl,
                 L,
                 ItemServiceImpl,
@@ -93,7 +93,9 @@ impl<L: LlmPort + 'static> GameServices<L> {
         >,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
         narrative_event_service: Arc<dyn NarrativeEventService>,
-        narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
+        narrative_event_approval_service: Arc<
+            NarrativeEventApprovalService<NarrativeEventServiceImpl>,
+        >,
         event_chain_service: Arc<dyn EventChainService>,
         trigger_evaluation_service: Arc<TriggerEvaluationService>,
         event_effect_executor: Arc<EventEffectExecutor>,

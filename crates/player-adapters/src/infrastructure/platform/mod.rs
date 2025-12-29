@@ -16,9 +16,8 @@ pub mod mock;
 // Re-export the platform-specific types explicitly
 #[cfg(target_arch = "wasm32")]
 pub use wasm::{
-    create_platform, WasmConnectionFactoryProvider, WasmDocumentProvider,
-    WasmEngineConfigProvider, WasmLogProvider, WasmRandomProvider, WasmSleepProvider,
-    WasmStorageProvider, WasmTimeProvider,
+    create_platform, WasmConnectionFactoryProvider, WasmDocumentProvider, WasmEngineConfigProvider,
+    WasmLogProvider, WasmRandomProvider, WasmSleepProvider, WasmStorageProvider, WasmTimeProvider,
 };
 
 #[cfg(not(target_arch = "wasm32"))]

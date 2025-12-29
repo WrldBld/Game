@@ -7,8 +7,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_workflow_service;
 use wrldbldr_player_app::application::services::{
-    WorkflowConfig, WorkflowInput, PromptMapping, InputDefault,
-    TestWorkflowResponse,
+    InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig, WorkflowInput,
 };
 
 /// Props for the WorkflowConfigEditor component
@@ -477,9 +476,10 @@ struct PromptMappingRowProps {
 
 #[component]
 fn PromptMappingRow(props: PromptMappingRowProps) -> Element {
-    let input_info = props.inputs.iter().find(|i| {
-        i.node_id == props.mapping.node_id && i.input_name == props.mapping.input_name
-    });
+    let input_info = props
+        .inputs
+        .iter()
+        .find(|i| i.node_id == props.mapping.node_id && i.input_name == props.mapping.input_name);
 
     let node_label = input_info
         .and_then(|i| i.node_title.clone())
@@ -521,15 +521,19 @@ struct InputDefaultRowProps {
 
 #[component]
 fn InputDefaultRow(props: InputDefaultRowProps) -> Element {
-    let current_default = props.defaults.iter().find(|d| {
-        d.node_id == props.input.node_id && d.input_name == props.input.input_name
-    });
+    let current_default = props
+        .defaults
+        .iter()
+        .find(|d| d.node_id == props.input.node_id && d.input_name == props.input.input_name);
 
     let display_value = current_default
         .map(|d| format_json_value(&d.default_value))
         .unwrap_or_else(|| format_json_value(&props.input.current_value));
 
-    let node_label = props.input.node_title.clone()
+    let node_label = props
+        .input
+        .node_title
+        .clone()
         .unwrap_or_else(|| format!("Node {}", props.input.node_id));
 
     let input_for_change = props.input.clone();
@@ -830,4 +834,3 @@ fn TestWorkflowModal(props: TestWorkflowModalProps) -> Element {
         }
     }
 }
-

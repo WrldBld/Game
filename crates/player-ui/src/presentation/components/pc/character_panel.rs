@@ -2,9 +2,9 @@
 
 use dioxus::prelude::*;
 
+use crate::presentation::services::use_world_service;
 use wrldbldr_player_app::application::dto::SheetTemplate;
 use wrldbldr_player_app::application::services::PlayerCharacterData;
-use crate::presentation::services::use_world_service;
 
 /// Props for CharacterPanel
 #[derive(Props, Clone, PartialEq)]
@@ -106,4 +106,3 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
         }
     }
 }
-

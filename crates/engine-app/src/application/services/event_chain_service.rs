@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::EventChainRepositoryPort;
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_engine_ports::outbound::EventChainRepositoryPort;
 
 /// EventChain service trait defining the application use cases
 #[async_trait]
@@ -40,13 +40,25 @@ pub trait EventChainService: Send + Sync {
     async fn delete_event_chain(&self, id: EventChainId) -> Result<()>;
 
     /// Add an event to a chain
-    async fn add_event_to_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()>;
+    async fn add_event_to_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()>;
 
     /// Remove an event from a chain
-    async fn remove_event_from_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()>;
+    async fn remove_event_from_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()>;
 
     /// Mark an event as completed in a chain
-    async fn complete_event(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()>;
+    async fn complete_event(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()>;
 
     /// Toggle favorite status for an event chain
     async fn toggle_favorite(&self, id: EventChainId) -> Result<bool>;
@@ -154,7 +166,11 @@ impl EventChainService for EventChainServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn add_event_to_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()> {
+    async fn add_event_to_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Adding event to chain");
         self.repository
             .add_event_to_chain(chain_id, event_id)
@@ -164,7 +180,11 @@ impl EventChainService for EventChainServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn remove_event_from_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()> {
+    async fn remove_event_from_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Removing event from chain");
         self.repository
             .remove_event_from_chain(chain_id, event_id)
@@ -174,7 +194,11 @@ impl EventChainService for EventChainServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn complete_event(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<()> {
+    async fn complete_event(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Completing event in chain");
         self.repository
             .complete_event(chain_id, event_id)

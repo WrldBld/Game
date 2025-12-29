@@ -16,13 +16,13 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, LocationRepositoryPort, SceneRepositoryPort,
-};
 use wrldbldr_domain::entities::{
     Character, Location, Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
+use wrldbldr_engine_ports::outbound::{
+    CharacterRepositoryPort, LocationRepositoryPort, SceneRepositoryPort,
+};
 
 /// Request to create a new scene
 #[derive(Debug, Clone)]
@@ -87,7 +87,8 @@ pub trait SceneService: Send + Sync {
     async fn add_character(&self, scene_id: SceneId, character_id: CharacterId) -> Result<Scene>;
 
     /// Remove a character from a scene
-    async fn remove_character(&self, scene_id: SceneId, character_id: CharacterId) -> Result<Scene>;
+    async fn remove_character(&self, scene_id: SceneId, character_id: CharacterId)
+        -> Result<Scene>;
 
     /// Update featured characters for a scene
     async fn update_featured_characters(

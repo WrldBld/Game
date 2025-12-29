@@ -18,7 +18,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
+};
 
 /// A story event - an immutable record of something that happened
 ///
@@ -390,17 +392,23 @@ impl StoryEvent {
                 (CombatEventType::Ended, Some(CombatOutcome::Defeat)) => {
                     "Lost the battle".to_string()
                 }
-                (CombatEventType::Ended, Some(CombatOutcome::Fled)) => "Fled from combat".to_string(),
+                (CombatEventType::Ended, Some(CombatOutcome::Fled)) => {
+                    "Fled from combat".to_string()
+                }
                 (CombatEventType::Ended, Some(CombatOutcome::Negotiated)) => {
                     "Combat ended through negotiation".to_string()
                 }
-                (CombatEventType::Ended, Some(CombatOutcome::Draw)) => "Combat ended in a draw".to_string(),
+                (CombatEventType::Ended, Some(CombatOutcome::Draw)) => {
+                    "Combat ended in a draw".to_string()
+                }
                 (CombatEventType::Ended, Some(CombatOutcome::Interrupted)) => {
                     "Combat was interrupted".to_string()
                 }
                 (CombatEventType::Ended, None) => "Combat ended".to_string(),
                 (CombatEventType::RoundCompleted, _) => "Combat round completed".to_string(),
-                (CombatEventType::CharacterDefeated, _) => "Character defeated in combat".to_string(),
+                (CombatEventType::CharacterDefeated, _) => {
+                    "Character defeated in combat".to_string()
+                }
                 (CombatEventType::CharacterFled, _) => "Character fled from combat".to_string(),
             },
             StoryEventType::ChallengeAttempted {

@@ -10,15 +10,16 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::value_objects::ApprovalRequestData;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::dto::{ApprovalItem, AdHocOutcomesDto};
+use wrldbldr_engine_app::application::dto::AdHocOutcomesDto;
 use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
     DMApprovalQueueService, ItemService, PlayerCharacterService, SkillService,
 };
 use wrldbldr_engine_app::application::use_cases::{
-    AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeOutcomeApprovalPort,
-    ChallengeOutcomeDecision, ChallengeDmApprovalQueuePort, ChallengeResolutionPort, DiceInputType,
+    AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
+    ChallengeOutcomeApprovalPort, ChallengeOutcomeDecision, ChallengeResolutionPort, DiceInputType,
     RollResult, TriggerInfo, TriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, LlmPort};
@@ -98,7 +99,7 @@ impl<L: LlmPort + Send + Sync + 'static> ChallengeOutcomeApprovalPort
 /// Adapter that wraps DMApprovalQueueService to implement DmApprovalQueuePort.
 pub struct ChallengeDmApprovalQueueAdapter<Q, I>
 where
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,
 {
     service: Arc<DMApprovalQueueService<Q, I>>,
@@ -106,7 +107,7 @@ where
 
 impl<Q, I> ChallengeDmApprovalQueueAdapter<Q, I>
 where
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,
 {
     pub fn new(service: Arc<DMApprovalQueueService<Q, I>>) -> Self {
@@ -117,7 +118,7 @@ where
 #[async_trait::async_trait]
 impl<Q, I> ChallengeDmApprovalQueuePort for ChallengeDmApprovalQueueAdapter<Q, I>
 where
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,
 {
     async fn get_by_id(&self, request_id: &str) -> Result<Option<UseCaseApprovalItem>, String> {
@@ -156,7 +157,7 @@ pub struct ChallengeResolutionAdapter<S, K, Q, P, L, I>
 where
     S: ChallengeService + Send + Sync + 'static,
     K: SkillService + Send + Sync + 'static,
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     P: PlayerCharacterService + Send + Sync + 'static,
     L: LlmPort + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,
@@ -168,7 +169,7 @@ impl<S, K, Q, P, L, I> ChallengeResolutionAdapter<S, K, Q, P, L, I>
 where
     S: ChallengeService + Send + Sync + 'static,
     K: SkillService + Send + Sync + 'static,
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     P: PlayerCharacterService + Send + Sync + 'static,
     L: LlmPort + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,
@@ -183,7 +184,7 @@ impl<S, K, Q, P, L, I> ChallengeResolutionPort for ChallengeResolutionAdapter<S,
 where
     S: ChallengeService + Send + Sync + 'static,
     K: SkillService + Send + Sync + 'static,
-    Q: ApprovalQueuePort<ApprovalItem> + Send + Sync + 'static,
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     P: PlayerCharacterService + Send + Sync + 'static,
     L: LlmPort + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,

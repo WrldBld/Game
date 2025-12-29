@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{SkillId, WorldId};
 use crate::value_objects::RuleSystemVariant;
+use wrldbldr_domain::{SkillId, WorldId};
 
 /// A skill that characters can use for challenges
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,7 +162,6 @@ fn dnd5e_skills(world_id: WorldId) -> Vec<Skill> {
             .with_base_attribute("STR")
             .with_description("Climbing, swimming, jumping, and physical exertion")
             .with_order(1),
-
         // DEX skills
         Skill::new(world_id, "Acrobatics", SkillCategory::Physical)
             .with_base_attribute("DEX")
@@ -176,7 +175,6 @@ fn dnd5e_skills(world_id: WorldId) -> Vec<Skill> {
             .with_base_attribute("DEX")
             .with_description("Moving silently and hiding")
             .with_order(4),
-
         // INT skills
         Skill::new(world_id, "Arcana", SkillCategory::Mental)
             .with_base_attribute("INT")
@@ -198,7 +196,6 @@ fn dnd5e_skills(world_id: WorldId) -> Vec<Skill> {
             .with_base_attribute("INT")
             .with_description("Knowledge of deities, rites, and religious traditions")
             .with_order(9),
-
         // WIS skills
         Skill::new(world_id, "Animal Handling", SkillCategory::Social)
             .with_base_attribute("WIS")
@@ -220,7 +217,6 @@ fn dnd5e_skills(world_id: WorldId) -> Vec<Skill> {
             .with_base_attribute("WIS")
             .with_description("Tracking, foraging, navigating wilderness")
             .with_order(14),
-
         // CHA skills
         Skill::new(world_id, "Deception", SkillCategory::Social)
             .with_base_attribute("CHA")
@@ -338,7 +334,6 @@ fn coc7e_skills(world_id: WorldId) -> Vec<Skill> {
         Skill::new(world_id, "Psychology", SkillCategory::Interpersonal)
             .with_description("Understand motives, see through lies")
             .with_order(5),
-
         // Investigation
         Skill::new(world_id, "Library Use", SkillCategory::Investigation)
             .with_description("Navigate libraries, find information in documents")
@@ -352,61 +347,35 @@ fn coc7e_skills(world_id: WorldId) -> Vec<Skill> {
         Skill::new(world_id, "Track", SkillCategory::Investigation)
             .with_description("Follow tracks, signs of passage")
             .with_order(9),
-
         // Academic
-        Skill::new(world_id, "Accounting", SkillCategory::Academic)
-            .with_order(10),
-        Skill::new(world_id, "Anthropology", SkillCategory::Academic)
-            .with_order(11),
-        Skill::new(world_id, "Archaeology", SkillCategory::Academic)
-            .with_order(12),
-        Skill::new(world_id, "History", SkillCategory::Academic)
-            .with_order(13),
-        Skill::new(world_id, "Law", SkillCategory::Academic)
-            .with_order(14),
-        Skill::new(world_id, "Medicine", SkillCategory::Academic)
-            .with_order(15),
-        Skill::new(world_id, "Natural World", SkillCategory::Academic)
-            .with_order(16),
+        Skill::new(world_id, "Accounting", SkillCategory::Academic).with_order(10),
+        Skill::new(world_id, "Anthropology", SkillCategory::Academic).with_order(11),
+        Skill::new(world_id, "Archaeology", SkillCategory::Academic).with_order(12),
+        Skill::new(world_id, "History", SkillCategory::Academic).with_order(13),
+        Skill::new(world_id, "Law", SkillCategory::Academic).with_order(14),
+        Skill::new(world_id, "Medicine", SkillCategory::Academic).with_order(15),
+        Skill::new(world_id, "Natural World", SkillCategory::Academic).with_order(16),
         Skill::new(world_id, "Occult", SkillCategory::Academic)
             .with_description("Knowledge of the Mythos and supernatural")
             .with_order(17),
-        Skill::new(world_id, "Science", SkillCategory::Academic)
-            .with_order(18),
-
+        Skill::new(world_id, "Science", SkillCategory::Academic).with_order(18),
         // Practical
-        Skill::new(world_id, "Art/Craft", SkillCategory::Practical)
-            .with_order(19),
-        Skill::new(world_id, "Disguise", SkillCategory::Practical)
-            .with_order(20),
-        Skill::new(world_id, "Drive Auto", SkillCategory::Practical)
-            .with_order(21),
-        Skill::new(world_id, "Electrical Repair", SkillCategory::Practical)
-            .with_order(22),
-        Skill::new(world_id, "First Aid", SkillCategory::Practical)
-            .with_order(23),
-        Skill::new(world_id, "Locksmith", SkillCategory::Practical)
-            .with_order(24),
-        Skill::new(world_id, "Mechanical Repair", SkillCategory::Practical)
-            .with_order(25),
-        Skill::new(world_id, "Navigate", SkillCategory::Practical)
-            .with_order(26),
-        Skill::new(world_id, "Sleight of Hand", SkillCategory::Practical)
-            .with_order(27),
-        Skill::new(world_id, "Stealth", SkillCategory::Practical)
-            .with_order(28),
-
+        Skill::new(world_id, "Art/Craft", SkillCategory::Practical).with_order(19),
+        Skill::new(world_id, "Disguise", SkillCategory::Practical).with_order(20),
+        Skill::new(world_id, "Drive Auto", SkillCategory::Practical).with_order(21),
+        Skill::new(world_id, "Electrical Repair", SkillCategory::Practical).with_order(22),
+        Skill::new(world_id, "First Aid", SkillCategory::Practical).with_order(23),
+        Skill::new(world_id, "Locksmith", SkillCategory::Practical).with_order(24),
+        Skill::new(world_id, "Mechanical Repair", SkillCategory::Practical).with_order(25),
+        Skill::new(world_id, "Navigate", SkillCategory::Practical).with_order(26),
+        Skill::new(world_id, "Sleight of Hand", SkillCategory::Practical).with_order(27),
+        Skill::new(world_id, "Stealth", SkillCategory::Practical).with_order(28),
         // Combat
-        Skill::new(world_id, "Dodge", SkillCategory::Combat)
-            .with_order(29),
-        Skill::new(world_id, "Fighting (Brawl)", SkillCategory::Combat)
-            .with_order(30),
-        Skill::new(world_id, "Firearms (Handgun)", SkillCategory::Combat)
-            .with_order(31),
-        Skill::new(world_id, "Firearms (Rifle/Shotgun)", SkillCategory::Combat)
-            .with_order(32),
-        Skill::new(world_id, "Throw", SkillCategory::Combat)
-            .with_order(33),
+        Skill::new(world_id, "Dodge", SkillCategory::Combat).with_order(29),
+        Skill::new(world_id, "Fighting (Brawl)", SkillCategory::Combat).with_order(30),
+        Skill::new(world_id, "Firearms (Handgun)", SkillCategory::Combat).with_order(31),
+        Skill::new(world_id, "Firearms (Rifle/Shotgun)", SkillCategory::Combat).with_order(32),
+        Skill::new(world_id, "Throw", SkillCategory::Combat).with_order(33),
     ]
 }
 

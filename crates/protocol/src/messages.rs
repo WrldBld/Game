@@ -53,10 +53,7 @@ pub enum ClientMessage {
         decision: ApprovalDecision,
     },
     /// Player submits a challenge roll (legacy - accepts raw roll value)
-    ChallengeRoll {
-        challenge_id: String,
-        roll: i32,
-    },
+    ChallengeRoll { challenge_id: String, roll: i32 },
     /// Player submits a challenge roll with dice input (formula or manual)
     ChallengeRollInput {
         challenge_id: String,
@@ -148,10 +145,7 @@ pub enum ClientMessage {
     SelectPlayerCharacter { pc_id: String },
 
     /// Player moves to a different region within the same location
-    MoveToRegion {
-        pc_id: String,
-        region_id: String,
-    },
+    MoveToRegion { pc_id: String, region_id: String },
 
     /// Player exits to a different location
     ExitToLocation {
@@ -170,7 +164,6 @@ pub enum ClientMessage {
         reveal: bool,
     },
 
-
     /// DM triggers a location event (narration for all PCs in a region)
     TriggerLocationEvent {
         region_id: String,
@@ -180,7 +173,6 @@ pub enum ClientMessage {
     // =========================================================================
     // Staging System (NPC Presence Approval)
     // =========================================================================
-
     /// DM approves/modifies staging for a region
     StagingApprovalResponse {
         request_id: String,
@@ -210,18 +202,11 @@ pub enum ClientMessage {
     // =========================================================================
     // Inventory Actions
     // =========================================================================
-
     /// Player equips an item
-    EquipItem {
-        pc_id: String,
-        item_id: String,
-    },
+    EquipItem { pc_id: String, item_id: String },
 
     /// Player unequips an item
-    UnequipItem {
-        pc_id: String,
-        item_id: String,
-    },
+    UnequipItem { pc_id: String, item_id: String },
 
     /// Player drops an item (destroys it for now; future: place in region)
     DropItem {
@@ -233,15 +218,11 @@ pub enum ClientMessage {
     },
 
     /// Player picks up an item from their current region
-    PickupItem {
-        pc_id: String,
-        item_id: String,
-    },
+    PickupItem { pc_id: String, item_id: String },
 
     // =========================================================================
     // WebSocket-First Protocol (World-scoped connections)
     // =========================================================================
-
     /// Join a world (replaces JoinSession)
     JoinWorld {
         /// World to join
@@ -396,10 +377,7 @@ pub enum ServerMessage {
     /// Generation progress update
     GenerationProgress { batch_id: String, progress: u8 },
     /// Generation batch completed
-    GenerationComplete {
-        batch_id: String,
-        asset_count: u32,
-    },
+    GenerationComplete { batch_id: String, asset_count: u32 },
     /// Generation batch failed
     GenerationFailed { batch_id: String, error: String },
     /// A suggestion request has been queued
@@ -409,20 +387,14 @@ pub enum ServerMessage {
         entity_id: Option<String>,
     },
     /// A suggestion request is being processed
-    SuggestionProgress {
-        request_id: String,
-        status: String,
-    },
+    SuggestionProgress { request_id: String, status: String },
     /// A suggestion request has completed
     SuggestionComplete {
         request_id: String,
         suggestions: Vec<String>,
     },
     /// A suggestion request has failed
-    SuggestionFailed {
-        request_id: String,
-        error: String,
-    },
+    SuggestionFailed { request_id: String, error: String },
     /// ComfyUI connection state changed
     ComfyUIStateChanged {
         state: String,
@@ -541,7 +513,6 @@ pub enum ServerMessage {
     // =========================================================================
     // Staging System (NPC Presence Approval)
     // =========================================================================
-
     /// Staging approval required (sent to DM)
     /// Sent when a PC enters a region without valid staging
     StagingApprovalRequired {
@@ -589,7 +560,6 @@ pub enum ServerMessage {
     // =========================================================================
     // Inventory Updates
     // =========================================================================
-
     /// Item was equipped (sent to player)
     ItemEquipped {
         pc_id: String,
@@ -625,7 +595,6 @@ pub enum ServerMessage {
     // =========================================================================
     // Character Stat Updates
     // =========================================================================
-
     /// A character's stat was updated (broadcast to player and DM)
     CharacterStatUpdated {
         character_id: String,
@@ -641,7 +610,6 @@ pub enum ServerMessage {
     // =========================================================================
     // NPC Disposition Updates (P1.4)
     // =========================================================================
-
     /// NPC disposition/relationship changed (sent to DM and optionally PC)
     NpcDispositionChanged {
         npc_id: String,
@@ -662,24 +630,14 @@ pub enum ServerMessage {
     // =========================================================================
     // Actantial Model / Motivations (P1.5)
     // =========================================================================
-
     /// NPC want was created (broadcast to session DMs)
-    NpcWantCreated {
-        npc_id: String,
-        want: WantData,
-    },
+    NpcWantCreated { npc_id: String, want: WantData },
 
     /// NPC want was updated (broadcast to session DMs)
-    NpcWantUpdated {
-        npc_id: String,
-        want: WantData,
-    },
+    NpcWantUpdated { npc_id: String, want: WantData },
 
     /// NPC want was deleted (broadcast to session DMs)
-    NpcWantDeleted {
-        npc_id: String,
-        want_id: String,
-    },
+    NpcWantDeleted { npc_id: String, want_id: String },
 
     /// Want target was set
     WantTargetSet {
@@ -688,9 +646,7 @@ pub enum ServerMessage {
     },
 
     /// Want target was removed
-    WantTargetRemoved {
-        want_id: String,
-    },
+    WantTargetRemoved { want_id: String },
 
     /// Actantial view was added
     ActantialViewAdded {
@@ -719,20 +675,13 @@ pub enum ServerMessage {
     },
 
     /// Goal was created (broadcast to session)
-    GoalCreated {
-        world_id: String,
-        goal: GoalData,
-    },
+    GoalCreated { world_id: String, goal: GoalData },
 
     /// Goal was updated (broadcast to session)
-    GoalUpdated {
-        goal: GoalData,
-    },
+    GoalUpdated { goal: GoalData },
 
     /// Goal was deleted (broadcast to session)
-    GoalDeleted {
-        goal_id: String,
-    },
+    GoalDeleted { goal_id: String },
 
     /// LLM suggestions for deflection behavior
     DeflectionSuggestions {
@@ -766,7 +715,6 @@ pub enum ServerMessage {
     // =========================================================================
     // WebSocket-First Protocol (World-scoped connections)
     // =========================================================================
-
     /// Successfully joined a world
     WorldJoined {
         /// World that was joined

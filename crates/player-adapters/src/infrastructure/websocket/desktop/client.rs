@@ -9,7 +9,9 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
+use wrldbldr_protocol::{
+    ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
+};
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
@@ -113,7 +115,9 @@ impl EngineClient {
                                 match serde_json::from_str::<ServerMessage>(&text) {
                                     Ok(server_msg) => {
                                         // Check if it's a Response and resolve pending request
-                                        if let ServerMessage::Response { request_id, result } = &server_msg {
+                                        if let ServerMessage::Response { request_id, result } =
+                                            &server_msg
+                                        {
                                             let mut pending = pending_requests_clone.lock().await;
                                             if let Some(tx) = pending.remove(request_id) {
                                                 let _ = tx.send(result.clone());
@@ -161,7 +165,7 @@ impl EngineClient {
                             cb(ConnectionState::Disconnected);
                         }
                     }
-                    
+
                     unexpected_close
                 });
 
@@ -216,7 +220,7 @@ impl EngineClient {
                 MAX_RETRY_ATTEMPTS,
                 delay
             );
-            
+
             tokio::time::sleep(Duration::from_millis(delay)).await;
 
             // Check if disconnect was requested during the wait
@@ -236,7 +240,8 @@ impl EngineClient {
                             self.set_state(ConnectionState::Failed).await;
                             return;
                         }
-                        delay = ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
+                        delay = ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64)
+                            as u64;
                         continue;
                     }
                     // Either clean disconnect or intentional - stop reconnecting
@@ -250,7 +255,8 @@ impl EngineClient {
                         return;
                     }
                     tracing::warn!("Reconnection attempt {} failed: {}", attempts, e);
-                    delay = ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
+                    delay =
+                        ((delay as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
                 }
             }
         }
@@ -330,31 +336,39 @@ impl EngineClient {
     pub async fn request(&self, payload: RequestPayload) -> Result<ResponseResult, RequestError> {
         let request_id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
-        
+
         // Register pending request
         {
             let mut pending = self.pending_requests.lock().await;
             pending.insert(request_id.clone(), tx);
         }
-        
+
         // Send the message
-        let msg = ClientMessage::Request { 
-            request_id: request_id.clone(), 
-            payload 
+        let msg = ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload,
         };
-        
-        self.send(msg).await.map_err(|e| RequestError::SendFailed(e.to_string()))?;
-        
+
+        self.send(msg)
+            .await
+            .map_err(|e| RequestError::SendFailed(e.to_string()))?;
+
         // Await response
         rx.await.map_err(|_| RequestError::Cancelled)
     }
 
     /// Send a request with a timeout
-    pub async fn request_with_timeout(&self, payload: RequestPayload, timeout_ms: u64) -> Result<ResponseResult, RequestError> {
+    pub async fn request_with_timeout(
+        &self,
+        payload: RequestPayload,
+        timeout_ms: u64,
+    ) -> Result<ResponseResult, RequestError> {
         tokio::time::timeout(
             std::time::Duration::from_millis(timeout_ms),
-            self.request(payload)
-        ).await.map_err(|_| RequestError::Timeout)?
+            self.request(payload),
+        )
+        .await
+        .map_err(|_| RequestError::Timeout)?
     }
 
     pub async fn disconnect(&self) {

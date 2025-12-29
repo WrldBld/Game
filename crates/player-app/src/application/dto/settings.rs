@@ -65,7 +65,6 @@ pub struct AppSettings {
     // ============================================================================
     // Session & Conversation
     // ============================================================================
-
     /// Maximum number of conversation turns to store in session memory
     pub max_conversation_turns: usize,
 
@@ -76,7 +75,6 @@ pub struct AppSettings {
     // ============================================================================
     // Circuit Breaker & Health
     // ============================================================================
-
     /// Number of consecutive failures before circuit breaker opens
     pub circuit_breaker_failure_threshold: u32,
 
@@ -89,7 +87,6 @@ pub struct AppSettings {
     // ============================================================================
     // Validation Limits
     // ============================================================================
-
     /// Maximum allowed length for name fields
     pub max_name_length: usize,
 
@@ -99,7 +96,6 @@ pub struct AppSettings {
     // ============================================================================
     // Animation
     // ============================================================================
-
     /// Delay (in milliseconds) between sentences in typewriter effect
     pub typewriter_sentence_delay_ms: u64,
 
@@ -112,14 +108,12 @@ pub struct AppSettings {
     // ============================================================================
     // Game Defaults
     // ============================================================================
-
     /// Default maximum value for character stats
     pub default_max_stat_value: i32,
 
     // ============================================================================
     // Challenge System
     // ============================================================================
-
     /// Number of outcome branches to generate for each challenge result tier
     #[serde(default = "default_outcome_branch_count")]
     pub outcome_branch_count: usize,
@@ -135,7 +129,6 @@ pub struct AppSettings {
     // ============================================================================
     // LLM Settings
     // ============================================================================
-
     /// Max tokens per outcome branch when generating suggestions
     #[serde(default = "default_suggestion_tokens_per_branch")]
     pub suggestion_tokens_per_branch: u32,
@@ -147,18 +140,27 @@ pub struct AppSettings {
     // ============================================================================
     // Asset Generation
     // ============================================================================
-
     /// Default style reference asset ID for image generation
     /// When set, new asset generations will use this asset's style by default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_reference_asset_id: Option<String>,
 }
 
-fn default_outcome_branch_count() -> usize { 2 }
-fn default_outcome_branch_min() -> usize { 1 }
-fn default_outcome_branch_max() -> usize { 4 }
-fn default_conversation_history_turns() -> usize { 20 }
-fn default_suggestion_tokens_per_branch() -> u32 { 200 }
+fn default_outcome_branch_count() -> usize {
+    2
+}
+fn default_outcome_branch_min() -> usize {
+    1
+}
+fn default_outcome_branch_max() -> usize {
+    4
+}
+fn default_conversation_history_turns() -> usize {
+    20
+}
+fn default_suggestion_tokens_per_branch() -> u32 {
+    200
+}
 
 impl Default for AppSettings {
     fn default() -> Self {

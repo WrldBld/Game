@@ -10,44 +10,41 @@
 //! - Outbound: Repository ports, services
 //! - Application: This handler orchestrates between them
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
+use wrldbldr_domain::entities::{CharacterSheetData, RegionConnection, RegionExit};
+use wrldbldr_domain::value_objects::RegionShift;
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, ClockPort, GenerationReadKind, GenerationReadStatePort,
-    ObservationRepositoryPort, RegionRepositoryPort,
-    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    ObservationRepositoryPort, RegionRepositoryPort, SuggestionEnqueueContext,
+    SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
-use wrldbldr_protocol::{
-    ErrorCode, RequestPayload, ResponseResult,
-};
-use wrldbldr_domain::entities::{CharacterSheetData, RegionConnection, RegionExit};
-use wrldbldr_domain::value_objects::RegionShift;
+use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 
 // Import common helpers
 use super::common::{
-    parse_world_id, parse_character_id, parse_location_id, parse_skill_id,
-    parse_scene_id, parse_act_id, parse_challenge_id, parse_narrative_event_id,
-    parse_event_chain_id, parse_player_character_id, parse_interaction_id,
-    parse_region_id, parse_item_id, parse_relationship_id, parse_want_id,
-    parse_story_event_id, parse_goal_id,
-    parse_difficulty, parse_disposition_level, parse_relationship_level,
-    convert_actor_type, convert_actantial_role, convert_want_target_type, convert_want_visibility,
+    convert_actantial_role, convert_actor_type, convert_want_target_type, convert_want_visibility,
+    parse_act_id, parse_challenge_id, parse_character_id, parse_difficulty,
+    parse_disposition_level, parse_event_chain_id, parse_goal_id, parse_interaction_id,
+    parse_item_id, parse_location_id, parse_narrative_event_id, parse_player_character_id,
+    parse_region_id, parse_relationship_id, parse_relationship_level, parse_scene_id,
+    parse_skill_id, parse_story_event_id, parse_want_id, parse_world_id,
 };
 
 use crate::application::dto::{
-    ActResponseDto, ChallengeResponseDto, CharacterResponseDto, ChainStatusResponseDto,
+    ActResponseDto, ChainStatusResponseDto, ChallengeResponseDto, CharacterResponseDto,
     ConnectionResponseDto, EventChainResponseDto, InteractionResponseDto, LocationResponseDto,
-    NarrativeEventResponseDto, PlayerCharacterResponseDto, SceneResponseDto, SheetTemplateResponseDto,
-    SkillResponseDto, WorldResponseDto,
+    NarrativeEventResponseDto, PlayerCharacterResponseDto, SceneResponseDto,
+    SheetTemplateResponseDto, SkillResponseDto, WorldResponseDto,
 };
 use crate::application::services::{
-    WorldService, CharacterService, LocationService, SkillService,
-    SceneService, InteractionService, ChallengeService, NarrativeEventService,
-    EventChainService, PlayerCharacterService, RelationshipService,
-    ActantialContextService, DispositionService, StoryEventService, ItemService,
-    RegionService, GenerationQueueProjectionService, SheetTemplateService,
+    ActantialContextService, ChallengeService, CharacterService, DispositionService,
+    EventChainService, GenerationQueueProjectionService, InteractionService, ItemService,
+    LocationService, NarrativeEventService, PlayerCharacterService, RegionService,
+    RelationshipService, SceneService, SheetTemplateService, SkillService, StoryEventService,
+    WorldService,
 };
 
 // =============================================================================
@@ -72,7 +69,7 @@ pub struct AppRequestHandler {
     player_character_service: Arc<dyn PlayerCharacterService>,
     relationship_service: Arc<dyn RelationshipService>,
     actantial_service: Arc<dyn ActantialContextService>,
-        disposition_service: Arc<dyn DispositionService>,
+    disposition_service: Arc<dyn DispositionService>,
     story_event_service: Arc<dyn StoryEventService>,
     item_service: Arc<dyn ItemService>,
     region_service: Arc<dyn RegionService>,
@@ -178,15 +175,14 @@ impl RequestHandler for AppRequestHandler {
             // =================================================================
             // World Operations
             // =================================================================
-            RequestPayload::ListWorlds => {
-                match self.world_service.list_worlds().await {
-                    Ok(worlds) => {
-                        let dtos: Vec<WorldResponseDto> = worlds.into_iter().map(|w| w.into()).collect();
-                        ResponseResult::success(dtos)
-                    }
-                    Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            RequestPayload::ListWorlds => match self.world_service.list_worlds().await {
+                Ok(worlds) => {
+                    let dtos: Vec<WorldResponseDto> =
+                        worlds.into_iter().map(|w| w.into()).collect();
+                    ResponseResult::success(dtos)
                 }
-            }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            },
 
             RequestPayload::GetWorld { world_id } => {
                 let id = match parse_world_id(&world_id) {
@@ -219,7 +215,11 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.sheet_template_service.get_default_for_world(&wid).await {
+                match self
+                    .sheet_template_service
+                    .get_default_for_world(&wid)
+                    .await
+                {
                     Ok(Some(template)) => {
                         let dto: SheetTemplateResponseDto = template.into();
                         ResponseResult::success(dto)
@@ -233,7 +233,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateWorld { data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let request = crate::application::services::CreateWorldRequest {
                     name: data.name,
                     description: data.description.unwrap_or_default(),
@@ -249,7 +251,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateWorld { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -269,7 +273,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteWorld { world_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -290,7 +296,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.character_service.list_characters(id).await {
                     Ok(characters) => {
-                        let dtos: Vec<CharacterResponseDto> = characters.into_iter().map(|c| c.into()).collect();
+                        let dtos: Vec<CharacterResponseDto> =
+                            characters.into_iter().map(|c| c.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -313,7 +320,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteCharacter { character_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -325,17 +334,20 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateCharacter { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Parse archetype (default to Ally if not specified)
-                let archetype = data.archetype
+                let archetype = data
+                    .archetype
                     .as_deref()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(wrldbldr_domain::value_objects::CampbellArchetype::Ally);
-                
+
                 let request = crate::application::services::CreateCharacterRequest {
                     world_id: id,
                     name: data.name,
@@ -356,7 +368,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateCharacter { character_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -380,12 +394,16 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::ChangeArchetype { character_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let archetype = data.new_archetype.parse()
+                let archetype = data
+                    .new_archetype
+                    .parse()
                     .unwrap_or(wrldbldr_domain::value_objects::CampbellArchetype::Ally);
                 let request = crate::application::services::ChangeArchetypeRequest {
                     new_archetype: archetype,
@@ -434,7 +452,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.location_service.list_locations(id).await {
                     Ok(locations) => {
-                        let dtos: Vec<LocationResponseDto> = locations.into_iter().map(|l| l.into()).collect();
+                        let dtos: Vec<LocationResponseDto> =
+                            locations.into_iter().map(|l| l.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -457,7 +476,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteLocation { location_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -469,7 +490,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateLocation { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -495,7 +518,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateLocation { location_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -525,7 +550,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.location_service.get_connections(id).await {
                     Ok(connections) => {
-                        let dtos: Vec<ConnectionResponseDto> = connections.into_iter().map(|c| c.into()).collect();
+                        let dtos: Vec<ConnectionResponseDto> =
+                            connections.into_iter().map(|c| c.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -533,7 +559,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateLocationConnection { data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from_id = match parse_location_id(&data.from_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -562,7 +590,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteLocationConnection { from_id, to_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let fid = match parse_location_id(&from_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -583,23 +613,30 @@ impl RequestHandler for AppRequestHandler {
             // Note: Regions are sub-entities of Locations. Full CRUD requires
             // RegionService which doesn't exist yet. Currently using LocationService
             // for what's available.
-
             RequestPayload::ListRegions { location_id } => {
                 let id = match parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Use location service to get location with regions
-                match self.location_service.get_location_with_connections(id).await {
+                match self
+                    .location_service
+                    .get_location_with_connections(id)
+                    .await
+                {
                     Ok(Some(loc_with_conn)) => {
-                        let dtos: Vec<serde_json::Value> = loc_with_conn.regions.iter().map(|r| {
-                            serde_json::json!({
-                                "id": r.id.to_string(),
-                                "name": r.name,
-                                "description": r.description,
-                                "is_spawn_point": r.is_spawn_point,
+                        let dtos: Vec<serde_json::Value> = loc_with_conn
+                            .regions
+                            .iter()
+                            .map(|r| {
+                                serde_json::json!({
+                                    "id": r.id.to_string(),
+                                    "name": r.name,
+                                    "description": r.description,
+                                    "is_spawn_point": r.is_spawn_point,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Location not found"),
@@ -632,7 +669,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateRegion { location_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let lid = match parse_location_id(&location_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -654,17 +693,18 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateRegion { region_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.region_service.update_region(
-                    id,
-                    data.name,
-                    data.description,
-                    data.is_spawn_point,
-                ).await {
+                match self
+                    .region_service
+                    .update_region(id, data.name, data.description, data.is_spawn_point)
+                    .await
+                {
                     Ok(region) => ResponseResult::success(serde_json::json!({
                         "id": region.id.to_string(),
                         "name": region.name,
@@ -676,7 +716,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteRegion { region_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -694,24 +736,33 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.region_service.get_connections(id).await {
                     Ok(connections) => {
-                        let dtos: Vec<serde_json::Value> = connections.iter().map(|c| {
-                            serde_json::json!({
-                                "from_region": c.from_region.to_string(),
-                                "to_region": c.to_region.to_string(),
-                                "description": c.description,
-                                "bidirectional": c.bidirectional,
-                                "is_locked": c.is_locked,
-                                "lock_description": c.lock_description,
+                        let dtos: Vec<serde_json::Value> = connections
+                            .iter()
+                            .map(|c| {
+                                serde_json::json!({
+                                    "from_region": c.from_region.to_string(),
+                                    "to_region": c.to_region.to_string(),
+                                    "description": c.description,
+                                    "bidirectional": c.bidirectional,
+                                    "is_locked": c.is_locked,
+                                    "lock_description": c.lock_description,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::CreateRegionConnection { from_id, to_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::CreateRegionConnection {
+                from_id,
+                to_id,
+                data,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from = match parse_region_id(&from_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -740,7 +791,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteRegionConnection { from_id, to_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from = match parse_region_id(&from_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -756,7 +809,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UnlockRegionConnection { from_id, to_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from = match parse_region_id(&from_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -778,23 +833,34 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.region_service.get_exits(id).await {
                     Ok(exits) => {
-                        let dtos: Vec<serde_json::Value> = exits.iter().map(|exit| {
-                            serde_json::json!({
-                                "from_region": exit.from_region.to_string(),
-                                "to_location": exit.to_location.to_string(),
-                                "arrival_region_id": exit.arrival_region_id.to_string(),
-                                "description": exit.description,
-                                "bidirectional": exit.bidirectional,
+                        let dtos: Vec<serde_json::Value> = exits
+                            .iter()
+                            .map(|exit| {
+                                serde_json::json!({
+                                    "from_region": exit.from_region.to_string(),
+                                    "to_location": exit.to_location.to_string(),
+                                    "arrival_region_id": exit.arrival_region_id.to_string(),
+                                    "description": exit.description,
+                                    "bidirectional": exit.bidirectional,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::CreateRegionExit { region_id, location_id, arrival_region_id, description, bidirectional } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::CreateRegionExit {
+                region_id,
+                location_id,
+                arrival_region_id,
+                description,
+                bidirectional,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from_region = match parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -822,8 +888,13 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::DeleteRegionExit { region_id, location_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::DeleteRegionExit {
+                region_id,
+                location_id,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from = match parse_region_id(&region_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -845,15 +916,18 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.region_repo.list_spawn_points(id).await {
                     Ok(regions) => {
-                        let dtos: Vec<serde_json::Value> = regions.iter().map(|r| {
-                            serde_json::json!({
-                                "id": r.id.to_string(),
-                                "location_id": r.location_id.to_string(),
-                                "name": r.name,
-                                "description": r.description,
-                                "is_spawn_point": r.is_spawn_point,
+                        let dtos: Vec<serde_json::Value> = regions
+                            .iter()
+                            .map(|r| {
+                                serde_json::json!({
+                                    "id": r.id.to_string(),
+                                    "location_id": r.location_id.to_string(),
+                                    "name": r.name,
+                                    "description": r.description,
+                                    "is_spawn_point": r.is_spawn_point,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -870,7 +944,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.skill_service.list_skills(id).await {
                     Ok(skills) => {
-                        let dtos: Vec<SkillResponseDto> = skills.into_iter().map(|s| s.into()).collect();
+                        let dtos: Vec<SkillResponseDto> =
+                            skills.into_iter().map(|s| s.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -893,7 +968,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteSkill { skill_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_skill_id(&skill_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -905,13 +982,16 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateSkill { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Parse category from string or default to Physical
-                let category = data.category
+                let category = data
+                    .category
                     .as_deref()
                     .and_then(|c| c.parse().ok())
                     .unwrap_or(wrldbldr_domain::entities::SkillCategory::Physical);
@@ -931,15 +1011,15 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateSkill { skill_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_skill_id(&skill_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Parse category from string if provided
-                let category = data.category
-                    .as_deref()
-                    .and_then(|c| c.parse().ok());
+                let category = data.category.as_deref().and_then(|c| c.parse().ok());
                 let request = crate::application::services::UpdateSkillRequest {
                     name: data.name,
                     description: data.description,
@@ -967,7 +1047,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.scene_service.list_scenes_by_act(id).await {
                     Ok(scenes) => {
-                        let dtos: Vec<SceneResponseDto> = scenes.into_iter().map(|s| s.into()).collect();
+                        let dtos: Vec<SceneResponseDto> =
+                            scenes.into_iter().map(|s| s.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -990,7 +1071,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteScene { scene_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_scene_id(&scene_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1002,7 +1085,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateScene { act_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let aid = match parse_act_id(&act_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1041,7 +1126,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateScene { scene_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_scene_id(&scene_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1072,7 +1159,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.world_service.get_acts(id).await {
                     Ok(acts) => {
-                        let dtos: Vec<ActResponseDto> = acts.into_iter().map(|a| a.into()).collect();
+                        let dtos: Vec<ActResponseDto> =
+                            acts.into_iter().map(|a| a.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -1080,7 +1168,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateAct { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1110,7 +1200,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.interaction_service.list_interactions(id).await {
                     Ok(interactions) => {
-                        let dtos: Vec<InteractionResponseDto> = interactions.into_iter().map(|i| i.into()).collect();
+                        let dtos: Vec<InteractionResponseDto> =
+                            interactions.into_iter().map(|i| i.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -1133,7 +1224,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteInteraction { interaction_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_interaction_id(&interaction_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1144,20 +1237,31 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetInteractionAvailability { interaction_id, available } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetInteractionAvailability {
+                interaction_id,
+                available,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_interaction_id(&interaction_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.interaction_service.set_interaction_availability(id, available).await {
+                match self
+                    .interaction_service
+                    .set_interaction_availability(id, available)
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::CreateInteraction { scene_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let sid = match parse_scene_id(&scene_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1170,7 +1274,7 @@ impl RequestHandler for AppRequestHandler {
                     wrldbldr_domain::entities::InteractionTarget::None,
                 )
                 .with_prompt_hints(data.description.unwrap_or_default());
-                
+
                 // Set availability if specified
                 let interaction = if data.available == Some(false) {
                     interaction.disabled()
@@ -1178,7 +1282,11 @@ impl RequestHandler for AppRequestHandler {
                     interaction
                 };
 
-                match self.interaction_service.create_interaction(&interaction).await {
+                match self
+                    .interaction_service
+                    .create_interaction(&interaction)
+                    .await
+                {
                     Ok(()) => {
                         let dto: InteractionResponseDto = interaction.into();
                         ResponseResult::success(dto)
@@ -1187,8 +1295,13 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::UpdateInteraction { interaction_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::UpdateInteraction {
+                interaction_id,
+                data,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_interaction_id(&interaction_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1196,8 +1309,12 @@ impl RequestHandler for AppRequestHandler {
                 // Fetch existing interaction first
                 let existing = match self.interaction_service.get_interaction(id).await {
                     Ok(Some(i)) => i,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(ErrorCode::NotFound, "Interaction not found")
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
                 // Apply updates
                 let mut updated = existing;
@@ -1255,7 +1372,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteChallenge { challenge_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_challenge_id(&challenge_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1266,8 +1385,13 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetChallengeActive { challenge_id, active } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetChallengeActive {
+                challenge_id,
+                active,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_challenge_id(&challenge_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1278,20 +1402,29 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetChallengeFavorite { challenge_id, favorite: _ } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetChallengeFavorite {
+                challenge_id,
+                favorite: _,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_challenge_id(&challenge_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 match self.challenge_service.toggle_favorite(id).await {
-                    Ok(is_favorite) => ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite })),
+                    Ok(is_favorite) => {
+                        ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite }))
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::CreateChallenge { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let wid = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1299,10 +1432,12 @@ impl RequestHandler for AppRequestHandler {
                 // Parse difficulty from string
                 let difficulty = parse_difficulty(&data.difficulty);
                 // Create the challenge entity
-                let challenge = wrldbldr_domain::entities::Challenge::new(wid, data.name, difficulty)
-                    .with_description(data.description.unwrap_or_default());
+                let challenge =
+                    wrldbldr_domain::entities::Challenge::new(wid, data.name, difficulty)
+                        .with_description(data.description.unwrap_or_default());
                 // Set outcomes if provided
-                let challenge = if data.success_outcome.is_some() || data.failure_outcome.is_some() {
+                let challenge = if data.success_outcome.is_some() || data.failure_outcome.is_some()
+                {
                     let outcomes = wrldbldr_domain::entities::ChallengeOutcomes::simple(
                         data.success_outcome.unwrap_or_default(),
                         data.failure_outcome.unwrap_or_default(),
@@ -1311,12 +1446,19 @@ impl RequestHandler for AppRequestHandler {
                 } else {
                     challenge
                 };
-                match self.challenge_service.create_challenge(challenge.clone()).await {
+                match self
+                    .challenge_service
+                    .create_challenge(challenge.clone())
+                    .await
+                {
                     Ok(created) => {
                         // If skill_id was provided, set the required skill relationship
                         if !data.skill_id.is_empty() {
                             if let Ok(skill_id) = parse_skill_id(&data.skill_id) {
-                                let _ = self.challenge_service.set_required_skill(created.id, skill_id).await;
+                                let _ = self
+                                    .challenge_service
+                                    .set_required_skill(created.id, skill_id)
+                                    .await;
                             }
                         }
                         let dto = ChallengeResponseDto::from_challenge_minimal(created);
@@ -1327,7 +1469,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateChallenge { challenge_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_challenge_id(&challenge_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1335,8 +1479,12 @@ impl RequestHandler for AppRequestHandler {
                 // Fetch existing challenge first
                 let existing = match self.challenge_service.get_challenge(id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(ErrorCode::NotFound, "Challenge not found")
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
                 // Apply updates
                 let mut updated = existing;
@@ -1351,17 +1499,26 @@ impl RequestHandler for AppRequestHandler {
                 }
                 if data.success_outcome.is_some() || data.failure_outcome.is_some() {
                     let outcomes = wrldbldr_domain::entities::ChallengeOutcomes::simple(
-                        data.success_outcome.unwrap_or_else(|| updated.outcomes.success.description.clone()),
-                        data.failure_outcome.unwrap_or_else(|| updated.outcomes.failure.description.clone()),
+                        data.success_outcome
+                            .unwrap_or_else(|| updated.outcomes.success.description.clone()),
+                        data.failure_outcome
+                            .unwrap_or_else(|| updated.outcomes.failure.description.clone()),
                     );
                     updated.outcomes = outcomes;
                 }
-                match self.challenge_service.update_challenge(updated.clone()).await {
+                match self
+                    .challenge_service
+                    .update_challenge(updated.clone())
+                    .await
+                {
                     Ok(result) => {
                         // Update skill relationship if provided
                         if let Some(ref skill_id_str) = data.skill_id {
                             if let Ok(skill_id) = parse_skill_id(skill_id_str) {
-                                let _ = self.challenge_service.set_required_skill(result.id, skill_id).await;
+                                let _ = self
+                                    .challenge_service
+                                    .set_required_skill(result.id, skill_id)
+                                    .await;
                             }
                         }
                         let dto = ChallengeResponseDto::from_challenge_minimal(result);
@@ -1381,7 +1538,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.narrative_event_service.list_by_world(id).await {
                     Ok(events) => {
-                        let dtos: Vec<NarrativeEventResponseDto> = events.into_iter().map(|e| e.into()).collect();
+                        let dtos: Vec<NarrativeEventResponseDto> =
+                            events.into_iter().map(|e| e.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -1398,13 +1556,17 @@ impl RequestHandler for AppRequestHandler {
                         let dto: NarrativeEventResponseDto = event.into();
                         ResponseResult::success(dto)
                     }
-                    Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Narrative event not found"),
+                    Ok(None) => {
+                        ResponseResult::error(ErrorCode::NotFound, "Narrative event not found")
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::DeleteNarrativeEvent { event_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1416,7 +1578,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::SetNarrativeEventActive { event_id, active } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1427,20 +1591,29 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetNarrativeEventFavorite { event_id, favorite: _ } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetNarrativeEventFavorite {
+                event_id,
+                favorite: _,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 match self.narrative_event_service.toggle_favorite(id).await {
-                    Ok(is_favorite) => ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite })),
+                    Ok(is_favorite) => {
+                        ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite }))
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::TriggerNarrativeEvent { event_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1452,7 +1625,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::ResetNarrativeEvent { event_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1464,13 +1639,19 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateNarrativeEvent { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let wid = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Create the narrative event entity
-                let mut event = wrldbldr_domain::entities::NarrativeEvent::new(wid, data.name, self.clock.now());
+                let mut event = wrldbldr_domain::entities::NarrativeEvent::new(
+                    wid,
+                    data.name,
+                    self.clock.now(),
+                );
                 event.description = data.description.unwrap_or_default();
                 match self.narrative_event_service.create(event).await {
                     Ok(created) => {
@@ -1482,7 +1663,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateNarrativeEvent { event_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_narrative_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1490,8 +1673,15 @@ impl RequestHandler for AppRequestHandler {
                 // Fetch existing event first
                 let existing = match self.narrative_event_service.get(id).await {
                     Ok(Some(e)) => e,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, "Narrative event not found"),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            "Narrative event not found",
+                        )
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
                 // Apply updates
                 let mut updated = existing;
@@ -1520,7 +1710,8 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.event_chain_service.list_event_chains(id).await {
                     Ok(chains) => {
-                        let dtos: Vec<EventChainResponseDto> = chains.into_iter().map(|c| c.into()).collect();
+                        let dtos: Vec<EventChainResponseDto> =
+                            chains.into_iter().map(|c| c.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -1543,7 +1734,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteEventChain { chain_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1555,13 +1748,16 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateEventChain { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let wid = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 // Create the event chain entity
-                let mut chain = wrldbldr_domain::entities::EventChain::new(wid, data.name, self.clock.now());
+                let mut chain =
+                    wrldbldr_domain::entities::EventChain::new(wid, data.name, self.clock.now());
                 chain.description = data.description.unwrap_or_default();
                 match self.event_chain_service.create_event_chain(chain).await {
                     Ok(created) => {
@@ -1573,7 +1769,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateEventChain { chain_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1581,8 +1779,12 @@ impl RequestHandler for AppRequestHandler {
                 // Fetch existing chain first
                 let existing = match self.event_chain_service.get_event_chain(id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, "Event chain not found"),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(ErrorCode::NotFound, "Event chain not found")
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
                 // Apply updates
                 let mut updated = existing;
@@ -1602,7 +1804,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::SetEventChainActive { chain_id, active } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1613,20 +1817,33 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetEventChainFavorite { chain_id, favorite: _ } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetEventChainFavorite {
+                chain_id,
+                favorite: _,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 match self.event_chain_service.toggle_favorite(id).await {
-                    Ok(is_favorite) => ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite })),
+                    Ok(is_favorite) => {
+                        ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite }))
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::AddEventToChain { chain_id, event_id, position: _ } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::AddEventToChain {
+                chain_id,
+                event_id,
+                position: _,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1642,7 +1859,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::RemoveEventFromChain { chain_id, event_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1651,14 +1870,20 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.event_chain_service.remove_event_from_chain(cid, eid).await {
+                match self
+                    .event_chain_service
+                    .remove_event_from_chain(cid, eid)
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::CompleteChainEvent { chain_id, event_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1674,7 +1899,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::ResetEventChain { chain_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_event_chain_id(&chain_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1708,9 +1935,14 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.player_character_service.get_pcs_by_world(&world_id).await {
+                match self
+                    .player_character_service
+                    .get_pcs_by_world(&world_id)
+                    .await
+                {
                     Ok(pcs) => {
-                        let dtos: Vec<PlayerCharacterResponseDto> = pcs.into_iter().map(|pc| pc.into()).collect();
+                        let dtos: Vec<PlayerCharacterResponseDto> =
+                            pcs.into_iter().map(|pc| pc.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -1727,13 +1959,17 @@ impl RequestHandler for AppRequestHandler {
                         let dto: PlayerCharacterResponseDto = pc.into();
                         ResponseResult::success(dto)
                     }
-                    Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
+                    Ok(None) => {
+                        ResponseResult::error(ErrorCode::NotFound, "Player character not found")
+                    }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::DeletePlayerCharacter { pc_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_player_character_id(&pc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1752,7 +1988,9 @@ impl RequestHandler for AppRequestHandler {
 
                 // If starting_region_id is provided, use it to get the location
                 // Otherwise, we need to find a spawn point or return an error
-                let (starting_location_id, starting_region_id) = if let Some(ref region_id_str) = data.starting_region_id {
+                let (starting_location_id, starting_region_id) = if let Some(ref region_id_str) =
+                    data.starting_region_id
+                {
                     let region_id = match parse_region_id(region_id_str) {
                         Ok(id) => id,
                         Err(e) => return e,
@@ -1760,11 +1998,15 @@ impl RequestHandler for AppRequestHandler {
                     // Fetch the region to get its location_id
                     match self.region_repo.get(region_id).await {
                         Ok(Some(region)) => (region.location_id, Some(region_id)),
-                        Ok(None) => return ResponseResult::error(
-                            ErrorCode::NotFound,
-                            format!("Starting region not found: {}", region_id_str),
-                        ),
-                        Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        Ok(None) => {
+                            return ResponseResult::error(
+                                ErrorCode::NotFound,
+                                format!("Starting region not found: {}", region_id_str),
+                            )
+                        }
+                        Err(e) => {
+                            return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                        }
                     }
                 } else {
                     // No starting region provided - try to find a spawn point in the world
@@ -1779,7 +2021,9 @@ impl RequestHandler for AppRequestHandler {
                                 "No starting_region_id provided and no spawn points found in world",
                             );
                         }
-                        Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        Err(e) => {
+                            return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                        }
                     }
                 };
 
@@ -1788,7 +2032,10 @@ impl RequestHandler for AppRequestHandler {
 
                 // Parse sheet_data if provided
                 let sheet_data = data.sheet_data.as_ref().and_then(|v| {
-                    serde_json::from_value::<wrldbldr_domain::entities::CharacterSheetData>(v.clone()).ok()
+                    serde_json::from_value::<wrldbldr_domain::entities::CharacterSheetData>(
+                        v.clone(),
+                    )
+                    .ok()
                 });
 
                 let request = crate::application::services::CreatePlayerCharacterRequest {
@@ -1806,7 +2053,8 @@ impl RequestHandler for AppRequestHandler {
                     Ok(mut pc) => {
                         // Set the starting region if provided
                         if let Some(region_id) = starting_region_id {
-                            if let Err(e) = self.player_character_service
+                            if let Err(e) = self
+                                .player_character_service
                                 .update_pc_location(pc.id, starting_location_id)
                                 .await
                             {
@@ -1829,15 +2077,16 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 // Parse sheet_data from protocol JSON value
-                let sheet_data = data.sheet_data.as_ref().and_then(|v| {
-                    match serde_json::from_value::<CharacterSheetData>(v.clone()) {
-                        Ok(data) => Some(data),
-                        Err(e) => {
-                            tracing::debug!(error = %e, "Failed to parse sheet_data, ignoring");
-                            None
+                let sheet_data =
+                    data.sheet_data.as_ref().and_then(|v| {
+                        match serde_json::from_value::<CharacterSheetData>(v.clone()) {
+                            Ok(data) => Some(data),
+                            Err(e) => {
+                                tracing::debug!(error = %e, "Failed to parse sheet_data, ignoring");
+                                None
+                            }
                         }
-                    }
-                });
+                    });
                 let request = crate::application::services::UpdatePlayerCharacterRequest {
                     name: data.name,
                     description: None,
@@ -1865,7 +2114,11 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.player_character_service.update_pc_location(pid, lid).await {
+                match self
+                    .player_character_service
+                    .update_pc_location(pid, lid)
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
@@ -1876,7 +2129,11 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.player_character_service.get_pc_by_user_and_world(&user_id, &wid).await {
+                match self
+                    .player_character_service
+                    .get_pc_by_user_and_world(&user_id, &wid)
+                    .await
+                {
                     Ok(Some(pc)) => {
                         let dto: PlayerCharacterResponseDto = pc.into();
                         ResponseResult::success(dto)
@@ -1904,7 +2161,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteRelationship { relationship_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_relationship_id(&relationship_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1916,7 +2175,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateRelationship { data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let from_id = match parse_character_id(&data.from_character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1925,16 +2186,22 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                let relationship_type: wrldbldr_domain::value_objects::RelationshipType = 
+                let relationship_type: wrldbldr_domain::value_objects::RelationshipType =
                     data.relationship_type.parse().unwrap_or_else(|_| {
-                        wrldbldr_domain::value_objects::RelationshipType::Custom(data.relationship_type.clone())
+                        wrldbldr_domain::value_objects::RelationshipType::Custom(
+                            data.relationship_type.clone(),
+                        )
                     });
                 let relationship = wrldbldr_domain::value_objects::Relationship::new(
                     from_id,
                     to_id,
                     relationship_type,
                 );
-                match self.relationship_service.create_relationship(&relationship).await {
+                match self
+                    .relationship_service
+                    .create_relationship(&relationship)
+                    .await
+                {
                     Ok(()) => ResponseResult::success(serde_json::json!({
                         "id": relationship.id.to_string(),
                         "from_character_id": data.from_character_id,
@@ -1959,8 +2226,17 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::AddActantialView { character_id, want_id, target_id, target_type, role, reason } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::AddActantialView {
+                character_id,
+                want_id,
+                target_id,
+                target_type,
+                role,
+                reason,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1971,16 +2247,33 @@ impl RequestHandler for AppRequestHandler {
                 };
                 let target_type_converted = convert_actor_type(target_type);
                 let role_converted = convert_actantial_role(role);
-                match self.actantial_service.add_actantial_view(
-                    cid, wid, &target_id, target_type_converted, role_converted, reason
-                ).await {
+                match self
+                    .actantial_service
+                    .add_actantial_view(
+                        cid,
+                        wid,
+                        &target_id,
+                        target_type_converted,
+                        role_converted,
+                        reason,
+                    )
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::RemoveActantialView { character_id, want_id, target_id, target_type, role } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::RemoveActantialView {
+                character_id,
+                want_id,
+                target_id,
+                target_type,
+                role,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -1991,9 +2284,17 @@ impl RequestHandler for AppRequestHandler {
                 };
                 let target_type_converted = convert_actor_type(target_type);
                 let role_converted = convert_actantial_role(role);
-                match self.actantial_service.remove_actantial_view(
-                    cid, wid, &target_id, target_type_converted, role_converted
-                ).await {
+                match self
+                    .actantial_service
+                    .remove_actantial_view(
+                        cid,
+                        wid,
+                        &target_id,
+                        target_type_converted,
+                        role_converted,
+                    )
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
@@ -2009,18 +2310,23 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.disposition_service.get_all_relationships(id).await {
                     Ok(dispositions) => {
-                        let dtos: Vec<wrldbldr_protocol::NpcDispositionStateDto> = dispositions
-                            .iter()
-                            .map(|d| d.into())
-                            .collect();
+                        let dtos: Vec<wrldbldr_protocol::NpcDispositionStateDto> =
+                            dispositions.iter().map(|d| d.into()).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::SetNpcDisposition { npc_id, pc_id, disposition, reason } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetNpcDisposition {
+                npc_id,
+                pc_id,
+                disposition,
+                reason,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let nid = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2030,7 +2336,11 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 let disposition_level = parse_disposition_level(&disposition);
-                match self.disposition_service.set_disposition(nid, pid, disposition_level, reason).await {
+                match self
+                    .disposition_service
+                    .set_disposition(nid, pid, disposition_level, reason)
+                    .await
+                {
                     Ok(state) => {
                         let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
@@ -2039,8 +2349,14 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetNpcRelationship { npc_id, pc_id, relationship } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetNpcRelationship {
+                npc_id,
+                pc_id,
+                relationship,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let nid = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2050,7 +2366,11 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 let rel_level = parse_relationship_level(&relationship);
-                match self.disposition_service.set_relationship(nid, pid, rel_level).await {
+                match self
+                    .disposition_service
+                    .set_relationship(nid, pid, rel_level)
+                    .await
+                {
                     Ok(state) => {
                         let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
                         ResponseResult::success(dto)
@@ -2062,27 +2382,37 @@ impl RequestHandler for AppRequestHandler {
             // =================================================================
             // Story Event Operations
             // =================================================================
-
-            RequestPayload::ListStoryEvents { world_id, page, page_size } => {
+            RequestPayload::ListStoryEvents {
+                world_id,
+                page,
+                page_size,
+            } => {
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 let page = page.unwrap_or(0);
                 let page_size = page_size.unwrap_or(50);
-                match self.story_event_service.list_by_world_paginated(id, page, page_size).await {
+                match self
+                    .story_event_service
+                    .list_by_world_paginated(id, page, page_size)
+                    .await
+                {
                     Ok(events) => {
-                        let dtos: Vec<serde_json::Value> = events.iter().map(|e| {
-                            serde_json::json!({
-                                "id": e.id.to_string(),
-                                "world_id": e.world_id.to_string(),
-                                "event_type": format!("{:?}", e.event_type),
-                                "summary": e.summary,
-                                "timestamp": e.timestamp.to_rfc3339(),
-                                "game_time": e.game_time,
-                                "is_hidden": e.is_hidden,
+                        let dtos: Vec<serde_json::Value> = events
+                            .iter()
+                            .map(|e| {
+                                serde_json::json!({
+                                    "id": e.id.to_string(),
+                                    "world_id": e.world_id.to_string(),
+                                    "event_type": format!("{:?}", e.event_type),
+                                    "summary": e.summary,
+                                    "timestamp": e.timestamp.to_rfc3339(),
+                                    "game_time": e.game_time,
+                                    "is_hidden": e.is_hidden,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2113,7 +2443,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateStoryEvent { event_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_story_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2134,7 +2466,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::SetStoryEventVisibility { event_id, visible } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_story_event_id(&event_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2146,12 +2480,18 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateDmMarker { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let wid = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.story_event_service.create_dm_marker(wid, data.title, data.content).await {
+                match self
+                    .story_event_service
+                    .create_dm_marker(wid, data.title, data.content)
+                    .await
+                {
                     Ok(event_id) => ResponseResult::success(serde_json::json!({
                         "id": event_id.to_string(),
                     })),
@@ -2163,7 +2503,6 @@ impl RequestHandler for AppRequestHandler {
             // Observation Operations
             // =================================================================
             // Note: Observations track when a PC has seen/met an NPC.
-
             RequestPayload::ListObservations { pc_id } => {
                 let id = match parse_player_character_id(&pc_id) {
                     Ok(id) => id,
@@ -2171,19 +2510,22 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.observation_repo.get_for_pc(id).await {
                     Ok(observations) => {
-                        let dtos: Vec<serde_json::Value> = observations.iter().map(|obs| {
-                            serde_json::json!({
-                                "pc_id": obs.pc_id.to_string(),
-                                "npc_id": obs.npc_id.to_string(),
-                                "location_id": obs.location_id.to_string(),
-                                "region_id": obs.region_id.to_string(),
-                                "game_time": obs.game_time.to_rfc3339(),
-                                "observation_type": obs.observation_type.to_string(),
-                                "is_revealed_to_player": obs.is_revealed_to_player,
-                                "notes": obs.notes,
-                                "created_at": obs.created_at.to_rfc3339(),
+                        let dtos: Vec<serde_json::Value> = observations
+                            .iter()
+                            .map(|obs| {
+                                serde_json::json!({
+                                    "pc_id": obs.pc_id.to_string(),
+                                    "npc_id": obs.npc_id.to_string(),
+                                    "location_id": obs.location_id.to_string(),
+                                    "region_id": obs.region_id.to_string(),
+                                    "game_time": obs.game_time.to_rfc3339(),
+                                    "observation_type": obs.observation_type.to_string(),
+                                    "is_revealed_to_player": obs.is_revealed_to_player,
+                                    "notes": obs.notes,
+                                    "created_at": obs.created_at.to_rfc3339(),
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2191,7 +2533,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateObservation { pc_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let pid = match parse_player_character_id(&pc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2226,7 +2570,9 @@ impl RequestHandler for AppRequestHandler {
                     }
                 };
                 // Parse observation type
-                let observation_type = data.observation_type.parse::<wrldbldr_domain::entities::ObservationType>()
+                let observation_type = data
+                    .observation_type
+                    .parse::<wrldbldr_domain::entities::ObservationType>()
                     .unwrap_or(wrldbldr_domain::entities::ObservationType::Direct);
                 // Use current time as game_time (in a real implementation, this might come from world state)
                 let game_time = self.clock.now();
@@ -2234,13 +2580,36 @@ impl RequestHandler for AppRequestHandler {
                 let now = self.clock.now();
                 let observation = match observation_type {
                     wrldbldr_domain::entities::ObservationType::Direct => {
-                        wrldbldr_domain::entities::NpcObservation::direct(pid, npc_id, location_id, region_id, game_time, now)
+                        wrldbldr_domain::entities::NpcObservation::direct(
+                            pid,
+                            npc_id,
+                            location_id,
+                            region_id,
+                            game_time,
+                            now,
+                        )
                     }
                     wrldbldr_domain::entities::ObservationType::HeardAbout => {
-                        wrldbldr_domain::entities::NpcObservation::heard_about(pid, npc_id, location_id, region_id, game_time, data.notes.clone(), now)
+                        wrldbldr_domain::entities::NpcObservation::heard_about(
+                            pid,
+                            npc_id,
+                            location_id,
+                            region_id,
+                            game_time,
+                            data.notes.clone(),
+                            now,
+                        )
                     }
                     wrldbldr_domain::entities::ObservationType::Deduced => {
-                        wrldbldr_domain::entities::NpcObservation::deduced(pid, npc_id, location_id, region_id, game_time, data.notes.clone(), now)
+                        wrldbldr_domain::entities::NpcObservation::deduced(
+                            pid,
+                            npc_id,
+                            location_id,
+                            region_id,
+                            game_time,
+                            data.notes.clone(),
+                            now,
+                        )
                     }
                 };
                 match self.observation_repo.upsert(&observation).await {
@@ -2256,7 +2625,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteObservation { pc_id, npc_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let pid = match parse_player_character_id(&pc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2275,7 +2646,6 @@ impl RequestHandler for AppRequestHandler {
             // Character-Region Relationship Operations
             // =================================================================
             // Note: These require RegionRepositoryPort or a dedicated service.
-
             RequestPayload::ListCharacterRegionRelationships { character_id } => {
                 let id = match parse_character_id(&character_id) {
                     Ok(id) => id,
@@ -2299,8 +2669,13 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetCharacterHomeRegion { character_id, region_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetCharacterHomeRegion {
+                character_id,
+                region_id,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2315,8 +2690,13 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetCharacterWorkRegion { character_id, region_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetCharacterWorkRegion {
+                character_id,
+                region_id,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2326,14 +2706,24 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 // Default to "always" shift since the protocol doesn't include shift data
-                match self.character_repo.set_work_region(cid, rid, RegionShift::Always).await {
+                match self
+                    .character_repo
+                    .set_work_region(cid, rid, RegionShift::Always)
+                    .await
+                {
                     Ok(_) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::RemoveCharacterRegionRelationship { character_id, region_id, relationship_type } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::RemoveCharacterRegionRelationship {
+                character_id,
+                region_id,
+                relationship_type,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2342,7 +2732,11 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.character_repo.remove_region_relationship(cid, rid, &relationship_type).await {
+                match self
+                    .character_repo
+                    .remove_region_relationship(cid, rid, &relationship_type)
+                    .await
+                {
                     Ok(_) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
@@ -2378,13 +2772,16 @@ impl RequestHandler for AppRequestHandler {
                 };
                 match self.actantial_service.get_world_goals(id).await {
                     Ok(goals) => {
-                        let dtos: Vec<serde_json::Value> = goals.iter().map(|g| {
-                            serde_json::json!({
-                                "id": g.id.to_string(),
-                                "name": g.name,
-                                "description": g.description,
+                        let dtos: Vec<serde_json::Value> = goals
+                            .iter()
+                            .map(|g| {
+                                serde_json::json!({
+                                    "id": g.id.to_string(),
+                                    "name": g.name,
+                                    "description": g.description,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2411,12 +2808,18 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateGoal { world_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let wid = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.actantial_service.create_goal(wid, data.name, data.description).await {
+                match self
+                    .actantial_service
+                    .create_goal(wid, data.name, data.description)
+                    .await
+                {
                     Ok(goal_id) => ResponseResult::success(serde_json::json!({
                         "id": goal_id.to_string(),
                     })),
@@ -2425,19 +2828,27 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateGoal { goal_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_goal_id(&goal_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.actantial_service.update_goal(id, data.name, data.description).await {
+                match self
+                    .actantial_service
+                    .update_goal(id, data.name, data.description)
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::DeleteGoal { goal_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_goal_id(&goal_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2489,7 +2900,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::CreateWant { character_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let cid = match parse_character_id(&character_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2501,7 +2914,9 @@ impl RequestHandler for AppRequestHandler {
                     priority: data.priority,
                     visibility,
                     target_id: data.target_id,
-                    target_type: data.target_type.map(|t| convert_want_target_type(t).to_string()),
+                    target_type: data
+                        .target_type
+                        .map(|t| convert_want_target_type(t).to_string()),
                     deflection_behavior: data.deflection_behavior,
                     tells: data.tells,
                 };
@@ -2514,7 +2929,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::UpdateWant { want_id, data } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2534,7 +2951,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::DeleteWant { want_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2545,21 +2964,33 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SetWantTarget { want_id, target_id, target_type } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SetWantTarget {
+                want_id,
+                target_id,
+                target_type,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 let target_type_str = convert_want_target_type(target_type);
-                match self.actantial_service.set_want_target(id, &target_id, target_type_str).await {
+                match self
+                    .actantial_service
+                    .set_want_target(id, &target_id, target_type_str)
+                    .await
+                {
                     Ok(()) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::RemoveWantTarget { want_id } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_want_id(&want_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2579,23 +3010,25 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 match self.world_service.get_game_time(id).await {
-                    Ok(game_time) => {
-                        ResponseResult::success(wrldbldr_protocol::GameTime::from_domain(&game_time))
-                    }
+                    Ok(game_time) => ResponseResult::success(
+                        wrldbldr_protocol::GameTime::from_domain(&game_time),
+                    ),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
             RequestPayload::AdvanceGameTime { world_id, hours } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let id = match parse_world_id(&world_id) {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
                 match self.world_service.advance_game_time(id, hours).await {
-                    Ok(game_time) => {
-                        ResponseResult::success(wrldbldr_protocol::GameTime::from_domain(&game_time))
-                    }
+                    Ok(game_time) => ResponseResult::success(
+                        wrldbldr_protocol::GameTime::from_domain(&game_time),
+                    ),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
@@ -2604,9 +3037,14 @@ impl RequestHandler for AppRequestHandler {
             // AI Suggestion Operations
             // =================================================================
             // Note: These require LLM integration via suggestion services.
-
-            RequestPayload::SuggestDeflectionBehavior { npc_id, want_id, want_description } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SuggestDeflectionBehavior {
+                npc_id,
+                want_id,
+                want_description,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let char_id = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2619,8 +3057,15 @@ impl RequestHandler for AppRequestHandler {
                 // Get character for context
                 let character = match self.character_service.get_character(char_id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            format!("Character {} not found", npc_id),
+                        )
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
 
                 let suggestion_port = &self.suggestion_enqueue;
@@ -2651,8 +3096,14 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SuggestBehavioralTells { npc_id, want_id, want_description } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SuggestBehavioralTells {
+                npc_id,
+                want_id,
+                want_description,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let char_id = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2665,8 +3116,15 @@ impl RequestHandler for AppRequestHandler {
                 // Get character for context
                 let character = match self.character_service.get_character(char_id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            format!("Character {} not found", npc_id),
+                        )
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
 
                 let suggestion_port = &self.suggestion_enqueue;
@@ -2698,7 +3156,9 @@ impl RequestHandler for AppRequestHandler {
             }
 
             RequestPayload::SuggestWantDescription { npc_id, context } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let char_id = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2707,8 +3167,15 @@ impl RequestHandler for AppRequestHandler {
                 // Get character for context
                 let character = match self.character_service.get_character(char_id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            format!("Character {} not found", npc_id),
+                        )
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
 
                 let suggestion_port = &self.suggestion_enqueue;
@@ -2739,8 +3206,15 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::SuggestActantialReason { npc_id, want_id, target_id, role } => {
-                if let Err(e) = ctx.require_dm() { return e; }
+            RequestPayload::SuggestActantialReason {
+                npc_id,
+                want_id,
+                target_id,
+                role,
+            } => {
+                if let Err(e) = ctx.require_dm() {
+                    return e;
+                }
                 let char_id = match parse_character_id(&npc_id) {
                     Ok(id) => id,
                     Err(e) => return e,
@@ -2753,8 +3227,15 @@ impl RequestHandler for AppRequestHandler {
                 // Get character for context
                 let character = match self.character_service.get_character(char_id).await {
                     Ok(Some(c)) => c,
-                    Ok(None) => return ResponseResult::error(ErrorCode::NotFound, format!("Character {} not found", npc_id)),
-                    Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    Ok(None) => {
+                        return ResponseResult::error(
+                            ErrorCode::NotFound,
+                            format!("Character {} not found", npc_id),
+                        )
+                    }
+                    Err(e) => {
+                        return ResponseResult::error(ErrorCode::InternalError, e.to_string())
+                    }
                 };
 
                 // Try to get target character name
@@ -2816,18 +3297,27 @@ impl RequestHandler for AppRequestHandler {
                 // Use provided user_id or fall back to context user_id
                 let effective_user_id = user_id.as_deref().or(Some(&ctx.user_id));
 
-                match self.generation_queue_projection.project_queue(effective_user_id, wid).await {
+                match self
+                    .generation_queue_projection
+                    .project_queue(effective_user_id, wid)
+                    .await
+                {
                     Ok(snapshot) => ResponseResult::success(snapshot),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
 
-            RequestPayload::SyncGenerationReadState { world_id, read_batches, read_suggestions } => {
+            RequestPayload::SyncGenerationReadState {
+                world_id,
+                read_batches,
+                read_suggestions,
+            } => {
                 let user_id = &ctx.user_id;
-                
+
                 // Mark batches as read
                 for batch_id in &read_batches {
-                    if let Err(e) = self.generation_read_state
+                    if let Err(e) = self
+                        .generation_read_state
                         .mark_read(user_id, &world_id, batch_id, GenerationReadKind::Batch)
                         .await
                     {
@@ -2840,8 +3330,14 @@ impl RequestHandler for AppRequestHandler {
 
                 // Mark suggestions as read
                 for request_id in &read_suggestions {
-                    if let Err(e) = self.generation_read_state
-                        .mark_read(user_id, &world_id, request_id, GenerationReadKind::Suggestion)
+                    if let Err(e) = self
+                        .generation_read_state
+                        .mark_read(
+                            user_id,
+                            &world_id,
+                            request_id,
+                            GenerationReadKind::Suggestion,
+                        )
                         .await
                     {
                         return ResponseResult::error(
@@ -2937,7 +3433,11 @@ impl RequestHandler for AppRequestHandler {
                 }
             }
 
-            RequestPayload::CreateAndPlaceItem { world_id, region_id, data } => {
+            RequestPayload::CreateAndPlaceItem {
+                world_id,
+                region_id,
+                data,
+            } => {
                 if let Err(e) = ctx.require_dm() {
                     return e;
                 }
@@ -2959,7 +3459,11 @@ impl RequestHandler for AppRequestHandler {
                     ..Default::default()
                 };
 
-                match self.item_service.create_and_place_item(wid, rid, request).await {
+                match self
+                    .item_service
+                    .create_and_place_item(wid, rid, request)
+                    .await
+                {
                     Ok(item) => {
                         // Return a simple item response
                         ResponseResult::success(serde_json::json!({

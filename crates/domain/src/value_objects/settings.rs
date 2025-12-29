@@ -30,10 +30,9 @@ pub struct AppSettings {
     // ============================================================================
     // Session & Conversation
     // ============================================================================
-    
     /// Maximum conversation turns to store in session memory
     pub max_conversation_turns: usize,
-    
+
     /// Number of conversation turns to include in LLM prompt context
     #[serde(default = "default_conversation_history_turns")]
     pub conversation_history_turns: usize,
@@ -41,7 +40,6 @@ pub struct AppSettings {
     // ============================================================================
     // Circuit Breaker & Health
     // ============================================================================
-    
     pub circuit_breaker_failure_threshold: u32,
     pub circuit_breaker_open_duration_secs: u64,
     pub health_check_cache_ttl_secs: u64,
@@ -49,7 +47,6 @@ pub struct AppSettings {
     // ============================================================================
     // Validation Limits
     // ============================================================================
-    
     /// Maximum length for entity names (characters, locations, etc.)
     pub max_name_length: usize,
     /// Maximum length for descriptions
@@ -58,7 +55,6 @@ pub struct AppSettings {
     // ============================================================================
     // Animation (synced to Player)
     // ============================================================================
-    
     pub typewriter_sentence_delay_ms: u64,
     pub typewriter_pause_delay_ms: u64,
     pub typewriter_char_delay_ms: u64,
@@ -66,17 +62,15 @@ pub struct AppSettings {
     // ============================================================================
     // Game Defaults
     // ============================================================================
-    
     pub default_max_stat_value: i32,
 
     // ============================================================================
     // Staging System
     // ============================================================================
-    
     /// Default NPC presence cache TTL in game hours for new locations
     #[serde(default = "default_presence_cache_ttl_hours")]
     pub default_presence_cache_ttl_hours: i32,
-    
+
     /// Whether to use LLM for staging decisions by default
     #[serde(default = "default_use_llm_presence")]
     pub default_use_llm_presence: bool,
@@ -84,7 +78,6 @@ pub struct AppSettings {
     // ============================================================================
     // Challenge System
     // ============================================================================
-    
     /// Number of outcome branches to generate for each challenge result tier
     #[serde(default = "default_outcome_branch_count")]
     pub outcome_branch_count: usize,
@@ -98,7 +91,6 @@ pub struct AppSettings {
     // ============================================================================
     // LLM Settings
     // ============================================================================
-    
     /// Max tokens per outcome branch when generating suggestions
     #[serde(default = "default_suggestion_tokens_per_branch")]
     pub suggestion_tokens_per_branch: u32,
@@ -110,20 +102,33 @@ pub struct AppSettings {
     // ============================================================================
     // Asset Generation
     // ============================================================================
-
     /// Default style reference asset ID for image generation
     /// When set, new asset generations will use this asset's style by default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_reference_asset_id: Option<String>,
 }
 
-fn default_outcome_branch_count() -> usize { 2 }
-fn default_outcome_branch_min() -> usize { 1 }
-fn default_outcome_branch_max() -> usize { 4 }
-fn default_conversation_history_turns() -> usize { 20 }
-fn default_suggestion_tokens_per_branch() -> u32 { 200 }
-fn default_presence_cache_ttl_hours() -> i32 { 3 }
-fn default_use_llm_presence() -> bool { true }
+fn default_outcome_branch_count() -> usize {
+    2
+}
+fn default_outcome_branch_min() -> usize {
+    1
+}
+fn default_outcome_branch_max() -> usize {
+    4
+}
+fn default_conversation_history_turns() -> usize {
+    20
+}
+fn default_suggestion_tokens_per_branch() -> u32 {
+    200
+}
+fn default_presence_cache_ttl_hours() -> i32 {
+    3
+}
+fn default_use_llm_presence() -> bool {
+    true
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -171,7 +176,7 @@ impl AppSettings {
         if self.world_id.is_none() {
             return self.clone();
         }
-        
+
         // Start with global, then override with per-world values
         // For now, per-world settings completely override global
         // In the future, we could make this more granular with Option<T> fields

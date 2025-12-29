@@ -126,7 +126,7 @@ pub enum InteractionTargetType {
 }
 
 /// What the interaction targets
-/// 
+///
 /// NOTE: This is kept for backward compatibility during Phase 0.D migration.
 /// New code should use TARGETS_* edges via the repository.
 #[derive(Debug, Clone, Serialize, Deserialize)]

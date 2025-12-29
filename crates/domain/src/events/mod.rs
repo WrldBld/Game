@@ -6,9 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    ChallengeId, CharacterId, NarrativeEventId, StoryEventId, WorldId,
-};
+use crate::{ChallengeId, CharacterId, NarrativeEventId, StoryEventId, WorldId};
 
 /// Domain event for significant state changes
 #[derive(Debug, Clone, Serialize, Deserialize)]

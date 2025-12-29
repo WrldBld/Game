@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use wrldbldr_engine_ports::outbound::{SettingsRepositoryPort, SettingsError};
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{SettingsError, SettingsRepositoryPort};
 
 /// Callback type for loading settings from environment.
 /// This allows the service to remain decoupled from the adapters layer.
@@ -25,7 +25,10 @@ impl SettingsService {
     /// The `settings_loader` should be `load_settings_from_env` from the adapters layer,
     /// wrapped in an Arc. This keeps environment I/O in the adapters layer while allowing
     /// the application service to fall back to environment-based defaults when needed.
-    pub fn new(repository: Arc<dyn SettingsRepositoryPort>, settings_loader: SettingsLoaderFn) -> Self {
+    pub fn new(
+        repository: Arc<dyn SettingsRepositoryPort>,
+        settings_loader: SettingsLoaderFn,
+    ) -> Self {
         Self {
             repository,
             settings_loader,
@@ -83,7 +86,10 @@ impl SettingsService {
         // Load from DB
         match self.repository.get_for_world(world_id).await {
             Ok(settings) => {
-                self.world_cache.write().await.insert(world_id, settings.clone());
+                self.world_cache
+                    .write()
+                    .await
+                    .insert(world_id, settings.clone());
                 settings
             }
             Err(_) => {
@@ -96,7 +102,11 @@ impl SettingsService {
     }
 
     /// Update per-world settings
-    pub async fn update_for_world(&self, world_id: WorldId, mut settings: AppSettings) -> Result<(), SettingsError> {
+    pub async fn update_for_world(
+        &self,
+        world_id: WorldId,
+        mut settings: AppSettings,
+    ) -> Result<(), SettingsError> {
         settings.world_id = Some(world_id.into());
         self.repository.save_for_world(world_id, &settings).await?;
         self.world_cache.write().await.insert(world_id, settings);
@@ -106,7 +116,10 @@ impl SettingsService {
     /// Reset per-world settings to global defaults
     pub async fn reset_for_world(&self, world_id: WorldId) -> Result<AppSettings, SettingsError> {
         let settings = self.repository.reset_for_world(world_id).await?;
-        self.world_cache.write().await.insert(world_id, settings.clone());
+        self.world_cache
+            .write()
+            .await
+            .insert(world_id, settings.clone());
         Ok(settings)
     }
 

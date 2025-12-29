@@ -27,13 +27,25 @@ pub async fn handle_check_comfyui_health(state: &AppState) -> Option<ServerMessa
     tokio::spawn(async move {
         let (state_str, message) = match comfyui_client.health_check().await {
             Ok(true) => ("connected".to_string(), None),
-            Ok(false) => ("disconnected".to_string(), Some("ComfyUI is not responding".to_string())),
-            Err(e) => ("disconnected".to_string(), Some(format!("Health check failed: {}", e))),
+            Ok(false) => (
+                "disconnected".to_string(),
+                Some("ComfyUI is not responding".to_string()),
+            ),
+            Err(e) => (
+                "disconnected".to_string(),
+                Some(format!("Health check failed: {}", e)),
+            ),
         };
 
-        let msg = ServerMessage::ComfyUIStateChanged { state: state_str, message, retry_in_seconds: None };
+        let msg = ServerMessage::ComfyUIStateChanged {
+            state: state_str,
+            message,
+            retry_in_seconds: None,
+        };
         for world_id in world_connection_manager.get_all_world_ids().await {
-            world_connection_manager.broadcast_to_world(world_id, msg.clone()).await;
+            world_connection_manager
+                .broadcast_to_world(world_id, msg.clone())
+                .await;
         }
     });
 
@@ -60,7 +72,12 @@ pub async fn handle_share_npc_location(
         notes,
     };
 
-    match state.use_cases.observation.share_npc_location(ctx, input).await {
+    match state
+        .use_cases
+        .observation
+        .share_npc_location(ctx, input)
+        .await
+    {
         Ok(_) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -84,7 +101,12 @@ pub async fn handle_trigger_approach_event(
         reveal,
     };
 
-    match state.use_cases.observation.trigger_approach_event(ctx, input).await {
+    match state
+        .use_cases
+        .observation
+        .trigger_approach_event(ctx, input)
+        .await
+    {
         Ok(_) => None,
         Err(e) => Some(e.into_server_error()),
     }
@@ -104,7 +126,12 @@ pub async fn handle_trigger_location_event(
         description,
     };
 
-    match state.use_cases.observation.trigger_location_event(ctx, input).await {
+    match state
+        .use_cases
+        .observation
+        .trigger_location_event(ctx, input)
+        .await
+    {
         Ok(_) => None,
         Err(e) => Some(e.into_server_error()),
     }

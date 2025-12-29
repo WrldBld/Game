@@ -127,15 +127,9 @@ impl ActantialTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WantTarget {
     /// Want targets a Character (NPC)
-    Character {
-        id: Uuid,
-        name: String,
-    },
+    Character { id: Uuid, name: String },
     /// Want targets an Item
-    Item {
-        id: Uuid,
-        name: String,
-    },
+    Item { id: Uuid, name: String },
     /// Want targets a Goal (abstract desire)
     Goal {
         id: Uuid,
@@ -177,7 +171,9 @@ impl WantTarget {
         match self {
             WantTarget::Character { name, .. } => format!("the character {}", name),
             WantTarget::Item { name, .. } => format!("the item {}", name),
-            WantTarget::Goal { name, description, .. } => {
+            WantTarget::Goal {
+                name, description, ..
+            } => {
                 if let Some(desc) = description {
                     format!("{} ({})", name, desc)
                 } else {
@@ -207,7 +203,11 @@ pub struct ActantialActor {
 }
 
 impl ActantialActor {
-    pub fn new(target: ActantialTarget, name: impl Into<String>, reason: impl Into<String>) -> Self {
+    pub fn new(
+        target: ActantialTarget,
+        name: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
         Self {
             target,
             name: name.into(),
@@ -259,7 +259,12 @@ pub struct WantContext {
 
 impl WantContext {
     /// Create a new WantContext with minimal data
-    pub fn new(want_id: impl Into<Uuid>, description: impl Into<String>, intensity: f32, priority: u32) -> Self {
+    pub fn new(
+        want_id: impl Into<Uuid>,
+        description: impl Into<String>,
+        intensity: f32,
+        priority: u32,
+    ) -> Self {
         Self {
             want_id: want_id.into(),
             description: description.into(),
@@ -314,10 +319,12 @@ impl WantContext {
         let mut parts = Vec::new();
 
         // Core want description
-        let target_str = self.target.as_ref()
+        let target_str = self
+            .target
+            .as_ref()
             .map(|t| format!(" targeting {}", t.to_context_string()))
             .unwrap_or_default();
-        
+
         parts.push(format!(
             "{} want (priority {}): {}{}",
             self.intensity_description(),
@@ -332,11 +339,18 @@ impl WantContext {
             parts.push(format!("  Sees as helpers: {}", helper_strs.join(", ")));
         }
         if !self.opponents.is_empty() {
-            let opponent_strs: Vec<_> = self.opponents.iter().map(|a| a.to_context_string()).collect();
+            let opponent_strs: Vec<_> = self
+                .opponents
+                .iter()
+                .map(|a| a.to_context_string())
+                .collect();
             parts.push(format!("  Sees as opponents: {}", opponent_strs.join(", ")));
         }
         if let Some(sender) = &self.sender {
-            parts.push(format!("  Sender/motivator: {}", sender.to_context_string()));
+            parts.push(format!(
+                "  Sender/motivator: {}",
+                sender.to_context_string()
+            ));
         }
         if let Some(receiver) = &self.receiver {
             parts.push(format!("  Beneficiary: {}", receiver.to_context_string()));
@@ -344,7 +358,10 @@ impl WantContext {
 
         // Secret guidance (only included for hidden wants when requested)
         if include_secret_guidance && self.is_hidden() {
-            parts.push(format!("  [SECRET - DEFLECTION]: {}", self.effective_deflection()));
+            parts.push(format!(
+                "  [SECRET - DEFLECTION]: {}",
+                self.effective_deflection()
+            ));
             if !self.tells.is_empty() {
                 parts.push(format!("  [SECRET - TELLS]: {}", self.tells.join("; ")));
             }
@@ -408,14 +425,18 @@ impl SocialViewSummary {
         let mut parts = Vec::new();
 
         if !self.allies.is_empty() {
-            let ally_strs: Vec<_> = self.allies.iter()
+            let ally_strs: Vec<_> = self
+                .allies
+                .iter()
                 .map(|(_, name, reasons)| format!("{} ({})", name, reasons.join("; ")))
                 .collect();
             parts.push(format!("Allies: {}", ally_strs.join(", ")));
         }
 
         if !self.enemies.is_empty() {
-            let enemy_strs: Vec<_> = self.enemies.iter()
+            let enemy_strs: Vec<_> = self
+                .enemies
+                .iter()
                 .map(|(_, name, reasons)| format!("{} ({})", name, reasons.join("; ")))
                 .collect();
             parts.push(format!("Enemies: {}", enemy_strs.join(", ")));
@@ -466,7 +487,10 @@ impl ActantialContext {
 
     /// Get known wants (visible to player)
     pub fn known_wants(&self) -> Vec<&WantContext> {
-        self.wants.iter().filter(|w| w.visibility.is_known()).collect()
+        self.wants
+            .iter()
+            .filter(|w| w.visibility.is_known())
+            .collect()
     }
 
     /// Get hidden wants
@@ -498,7 +522,10 @@ impl ActantialContext {
         }
 
         if sections.is_empty() {
-            format!("{} has no defined motivations or social views.", self.character_name)
+            format!(
+                "{} has no defined motivations or social views.",
+                self.character_name
+            )
         } else {
             sections.join("\n\n")
         }
@@ -539,18 +566,22 @@ impl ActantialLLMContext {
     /// Build from full ActantialContext
     pub fn from_context(ctx: &ActantialContext) -> Self {
         let primary_motivation = ctx.primary_want().map(|w| {
-            let target = w.target.as_ref()
+            let target = w
+                .target
+                .as_ref()
                 .map(|t| format!(" (targeting {})", t.name()))
                 .unwrap_or_default();
             format!("{}{}", w.description, target)
         });
 
-        let known_motivations: Vec<String> = ctx.known_wants()
+        let known_motivations: Vec<String> = ctx
+            .known_wants()
             .iter()
             .map(|w| w.description.clone())
             .collect();
 
-        let secret_motivations: Vec<SecretMotivationContext> = ctx.hidden_wants()
+        let secret_motivations: Vec<SecretMotivationContext> = ctx
+            .hidden_wants()
             .iter()
             .map(|w| SecretMotivationContext {
                 want: w.description.clone(),
@@ -578,7 +609,10 @@ impl ActantialLLMContext {
         }
 
         if !self.known_motivations.is_empty() {
-            lines.push(format!("Known goals: {}", self.known_motivations.join(", ")));
+            lines.push(format!(
+                "Known goals: {}",
+                self.known_motivations.join(", ")
+            ));
         }
 
         for secret in &self.secret_motivations {
@@ -586,7 +620,11 @@ impl ActantialLLMContext {
                 "[SECRET] Wants: {} | Deflect: {} | Tells: {}",
                 secret.want,
                 secret.deflection,
-                if secret.tells.is_empty() { "none".to_string() } else { secret.tells.join("; ") }
+                if secret.tells.is_empty() {
+                    "none".to_string()
+                } else {
+                    secret.tells.join("; ")
+                }
             ));
         }
 
@@ -626,12 +664,19 @@ impl ActantialContext {
             }
         }
 
-        MotivationsContext { known, suspected, secret }
+        MotivationsContext {
+            known,
+            suspected,
+            secret,
+        }
     }
 
     /// Convert to LLM-ready SocialStanceContext
     pub fn to_social_stance_context(&self) -> SocialStanceContext {
-        let allies = self.social_views.allies.iter()
+        let allies = self
+            .social_views
+            .allies
+            .iter()
             .map(|(target, name, reasons)| SocialRelationEntry {
                 name: name.clone(),
                 character_type: target.actor_type(),
@@ -639,7 +684,10 @@ impl ActantialContext {
             })
             .collect();
 
-        let enemies = self.social_views.enemies.iter()
+        let enemies = self
+            .social_views
+            .enemies
+            .iter()
             .map(|(target, name, reasons)| SocialRelationEntry {
                 name: name.clone(),
                 character_type: target.actor_type(),

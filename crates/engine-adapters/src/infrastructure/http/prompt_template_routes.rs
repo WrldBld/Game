@@ -6,7 +6,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -26,16 +26,37 @@ pub fn prompt_template_routes() -> Router<Arc<AppState>> {
         .route("/api/prompt-templates", put(update_prompt_templates))
         .route("/api/prompt-templates/reset", post(reset_prompt_templates))
         // Template metadata for UI
-        .route("/api/prompt-templates/metadata", get(get_prompt_template_metadata))
+        .route(
+            "/api/prompt-templates/metadata",
+            get(get_prompt_template_metadata),
+        )
         // Per-world prompt templates
-        .route("/api/worlds/{world_id}/prompt-templates", get(get_world_prompt_templates))
-        .route("/api/worlds/{world_id}/prompt-templates", put(update_world_prompt_templates))
-        .route("/api/worlds/{world_id}/prompt-templates/reset", post(reset_world_prompt_templates))
+        .route(
+            "/api/worlds/{world_id}/prompt-templates",
+            get(get_world_prompt_templates),
+        )
+        .route(
+            "/api/worlds/{world_id}/prompt-templates",
+            put(update_world_prompt_templates),
+        )
+        .route(
+            "/api/worlds/{world_id}/prompt-templates/reset",
+            post(reset_world_prompt_templates),
+        )
         // Single template operations
         .route("/api/prompt-templates/{key}", get(get_prompt_template))
-        .route("/api/prompt-templates/{key}", delete(delete_prompt_template))
-        .route("/api/worlds/{world_id}/prompt-templates/{key}", get(get_world_prompt_template))
-        .route("/api/worlds/{world_id}/prompt-templates/{key}", delete(delete_world_prompt_template))
+        .route(
+            "/api/prompt-templates/{key}",
+            delete(delete_prompt_template),
+        )
+        .route(
+            "/api/worlds/{world_id}/prompt-templates/{key}",
+            get(get_world_prompt_template),
+        )
+        .route(
+            "/api/worlds/{world_id}/prompt-templates/{key}",
+            delete(delete_world_prompt_template),
+        )
 }
 
 // =============================================================================
@@ -116,11 +137,9 @@ pub struct PromptTemplateMetadataDto {
 // =============================================================================
 
 /// Get all prompt templates (global context)
-async fn get_prompt_templates(
-    State(state): State<Arc<AppState>>,
-) -> Json<PromptTemplatesResponse> {
+async fn get_prompt_templates(State(state): State<Arc<AppState>>) -> Json<PromptTemplatesResponse> {
     let resolved = state.prompt_template_service.get_all().await;
-    
+
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -143,14 +162,16 @@ async fn update_prompt_templates(
     for update in &request.templates {
         match &update.value {
             Some(value) => {
-                state.prompt_template_service
+                state
+                    .prompt_template_service
                     .set_global(&update.key, value)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
             }
             None => {
                 // Delete the override
-                state.prompt_template_service
+                state
+                    .prompt_template_service
                     .delete_global(&update.key)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -178,7 +199,8 @@ async fn update_prompt_templates(
 async fn reset_prompt_templates(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
-    state.prompt_template_service
+    state
+        .prompt_template_service
         .reset_global()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -204,8 +226,11 @@ async fn get_prompt_template(
     State(state): State<Arc<AppState>>,
     Path(key): Path<String>,
 ) -> Json<PromptTemplateDto> {
-    let resolved = state.prompt_template_service.resolve_with_source(&key).await;
-    
+    let resolved = state
+        .prompt_template_service
+        .resolve_with_source(&key)
+        .await;
+
     Json(PromptTemplateDto {
         key: resolved.key,
         value: resolved.value,
@@ -220,7 +245,8 @@ async fn delete_prompt_template(
     State(state): State<Arc<AppState>>,
     Path(key): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    state.prompt_template_service
+    state
+        .prompt_template_service
         .delete_global(&key)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -237,11 +263,13 @@ async fn get_prompt_template_metadata(
     State(state): State<Arc<AppState>>,
 ) -> Json<PromptTemplateMetadataResponse> {
     let metadata = state.prompt_template_service.get_metadata();
-    
+
     // Group by category
-    let mut categories: std::collections::HashMap<PromptTemplateCategory, Vec<PromptTemplateMetadataDto>> = 
-        std::collections::HashMap::new();
-    
+    let mut categories: std::collections::HashMap<
+        PromptTemplateCategory,
+        Vec<PromptTemplateMetadataDto>,
+    > = std::collections::HashMap::new();
+
     for m in metadata {
         categories
             .entry(m.category)
@@ -263,15 +291,19 @@ async fn get_prompt_template_metadata(
     ]
     .into_iter()
     .filter_map(|cat| {
-        categories.get(&cat).map(|templates| PromptTemplateCategoryGroup {
-            category: cat.as_str().to_string(),
-            display_name: cat.display_name().to_string(),
-            templates: templates.clone(),
-        })
+        categories
+            .get(&cat)
+            .map(|templates| PromptTemplateCategoryGroup {
+                category: cat.as_str().to_string(),
+                display_name: cat.display_name().to_string(),
+                templates: templates.clone(),
+            })
     })
     .collect();
 
-    Json(PromptTemplateMetadataResponse { categories: category_groups })
+    Json(PromptTemplateMetadataResponse {
+        categories: category_groups,
+    })
 }
 
 // =============================================================================
@@ -283,12 +315,19 @@ async fn get_world_prompt_templates(
     State(state): State<Arc<AppState>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
-    let world_uuid = Uuid::parse_str(&world_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID format".to_string()))?;
+    let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid world ID format".to_string(),
+        )
+    })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    let resolved = state.prompt_template_service.get_all_for_world(world_id).await;
-    
+    let resolved = state
+        .prompt_template_service
+        .get_all_for_world(world_id)
+        .await;
+
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -309,20 +348,26 @@ async fn update_world_prompt_templates(
     Path(world_id): Path<String>,
     Json(request): Json<UpdatePromptTemplatesRequest>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
-    let world_uuid = Uuid::parse_str(&world_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID format".to_string()))?;
+    let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid world ID format".to_string(),
+        )
+    })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
     for update in &request.templates {
         match &update.value {
             Some(value) => {
-                state.prompt_template_service
+                state
+                    .prompt_template_service
                     .set_for_world(world_id, &update.key, value)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
             }
             None => {
-                state.prompt_template_service
+                state
+                    .prompt_template_service
                     .delete_for_world(world_id, &update.key)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -331,7 +376,10 @@ async fn update_world_prompt_templates(
     }
 
     // Return updated templates
-    let resolved = state.prompt_template_service.get_all_for_world(world_id).await;
+    let resolved = state
+        .prompt_template_service
+        .get_all_for_world(world_id)
+        .await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -351,17 +399,25 @@ async fn reset_world_prompt_templates(
     State(state): State<Arc<AppState>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
-    let world_uuid = Uuid::parse_str(&world_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID format".to_string()))?;
+    let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid world ID format".to_string(),
+        )
+    })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    state.prompt_template_service
+    state
+        .prompt_template_service
         .reset_for_world(world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return templates (now global/env/defaults)
-    let resolved = state.prompt_template_service.get_all_for_world(world_id).await;
+    let resolved = state
+        .prompt_template_service
+        .get_all_for_world(world_id)
+        .await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -381,12 +437,19 @@ async fn get_world_prompt_template(
     State(state): State<Arc<AppState>>,
     Path((world_id, key)): Path<(String, String)>,
 ) -> Result<Json<PromptTemplateDto>, (StatusCode, String)> {
-    let world_uuid = Uuid::parse_str(&world_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID format".to_string()))?;
+    let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid world ID format".to_string(),
+        )
+    })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    let resolved = state.prompt_template_service.resolve_for_world_with_source(world_id, &key).await;
-    
+    let resolved = state
+        .prompt_template_service
+        .resolve_for_world_with_source(world_id, &key)
+        .await;
+
     Ok(Json(PromptTemplateDto {
         key: resolved.key,
         value: resolved.value,
@@ -401,11 +464,16 @@ async fn delete_world_prompt_template(
     State(state): State<Arc<AppState>>,
     Path((world_id, key)): Path<(String, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let world_uuid = Uuid::parse_str(&world_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID format".to_string()))?;
+    let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid world ID format".to_string(),
+        )
+    })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    state.prompt_template_service
+    state
+        .prompt_template_service
         .delete_for_world(world_id, &key)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

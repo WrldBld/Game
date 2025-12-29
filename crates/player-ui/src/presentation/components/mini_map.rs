@@ -186,7 +186,7 @@ pub fn MiniMap(props: MiniMapProps) -> Element {
 
                                                 div {
                                                     class: "text-center p-1",
-                                                    
+
                                                     span {
                                                         class: if is_current { "text-white font-bold text-sm" } else { "text-gray-200 text-sm" },
                                                         "{region.name}"

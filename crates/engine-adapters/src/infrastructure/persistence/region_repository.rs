@@ -15,11 +15,13 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_region};
 use std::str::FromStr;
-use wrldbldr_domain::value_objects::CampbellArchetype;
-use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
-use wrldbldr_domain::value_objects::{DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::value_objects::CampbellArchetype;
+use wrldbldr_domain::value_objects::{
+    DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift,
+};
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 
 /// Repository for Region operations
 pub struct Neo4jRegionRepository {
@@ -40,12 +42,15 @@ impl Neo4jRegionRepository {
         let map_bounds_json = region
             .map_bounds
             .as_ref()
-            .map(|b| serde_json::json!({
-                "x": b.x,
-                "y": b.y,
-                "width": b.width,
-                "height": b.height
-            }).to_string())
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
+                })
+                .to_string()
+            })
             .unwrap_or_default();
 
         let q = query(
@@ -68,14 +73,21 @@ impl Neo4jRegionRepository {
         .param("id", region.id.to_string())
         .param("name", region.name.clone())
         .param("description", region.description.clone())
-        .param("backdrop_asset", region.backdrop_asset.clone().unwrap_or_default())
+        .param(
+            "backdrop_asset",
+            region.backdrop_asset.clone().unwrap_or_default(),
+        )
         .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
         .param("map_bounds", map_bounds_json)
         .param("is_spawn_point", region.is_spawn_point)
         .param("order", region.order as i64);
 
         self.connection.graph().run(q).await?;
-        tracing::debug!("Created region {} in location {}", region.id, region.location_id);
+        tracing::debug!(
+            "Created region {} in location {}",
+            region.id,
+            region.location_id
+        );
         Ok(())
     }
 
@@ -140,12 +152,15 @@ impl Neo4jRegionRepository {
         let map_bounds_json = region
             .map_bounds
             .as_ref()
-            .map(|b| serde_json::json!({
-                "x": b.x,
-                "y": b.y,
-                "width": b.width,
-                "height": b.height
-            }).to_string())
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
+                })
+                .to_string()
+            })
             .unwrap_or_default();
 
         let q = query(
@@ -162,7 +177,10 @@ impl Neo4jRegionRepository {
         .param("id", region.id.to_string())
         .param("name", region.name.clone())
         .param("description", region.description.clone())
-        .param("backdrop_asset", region.backdrop_asset.clone().unwrap_or_default())
+        .param(
+            "backdrop_asset",
+            region.backdrop_asset.clone().unwrap_or_default(),
+        )
         .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
         .param("map_bounds", map_bounds_json)
         .param("is_spawn_point", region.is_spawn_point)
@@ -205,10 +223,16 @@ impl Neo4jRegionRepository {
         )
         .param("from_id", connection.from_region.to_string())
         .param("to_id", connection.to_region.to_string())
-        .param("description", connection.description.clone().unwrap_or_default())
+        .param(
+            "description",
+            connection.description.clone().unwrap_or_default(),
+        )
         .param("bidirectional", connection.bidirectional)
         .param("is_locked", connection.is_locked)
-        .param("lock_description", connection.lock_description.clone().unwrap_or_default());
+        .param(
+            "lock_description",
+            connection.lock_description.clone().unwrap_or_default(),
+        );
 
         self.connection.graph().run(q).await?;
 
@@ -227,10 +251,16 @@ impl Neo4jRegionRepository {
             )
             .param("from_id", connection.from_region.to_string())
             .param("to_id", connection.to_region.to_string())
-            .param("description", connection.description.clone().unwrap_or_default())
+            .param(
+                "description",
+                connection.description.clone().unwrap_or_default(),
+            )
             .param("bidirectional", connection.bidirectional)
             .param("is_locked", connection.is_locked)
-            .param("lock_description", connection.lock_description.clone().unwrap_or_default());
+            .param(
+                "lock_description",
+                connection.lock_description.clone().unwrap_or_default(),
+            );
 
             self.connection.graph().run(reverse_q).await?;
         }
@@ -383,10 +413,18 @@ fn row_to_region_connection(row: Row) -> Result<RegionConnection> {
     Ok(RegionConnection {
         from_region: RegionId::from_uuid(from_id),
         to_region: RegionId::from_uuid(to_id),
-        description: if description.is_empty() { None } else { Some(description) },
+        description: if description.is_empty() {
+            None
+        } else {
+            Some(description)
+        },
         bidirectional,
         is_locked,
-        lock_description: if lock_description.is_empty() { None } else { Some(lock_description) },
+        lock_description: if lock_description.is_empty() {
+            None
+        } else {
+            Some(lock_description)
+        },
     })
 }
 
@@ -405,7 +443,11 @@ fn row_to_region_exit(row: Row) -> Result<RegionExit> {
         from_region: RegionId::from_uuid(from_id),
         to_location: LocationId::from_uuid(to_location_id),
         arrival_region_id: RegionId::from_uuid(arrival_region_id),
-        description: if description.is_empty() { None } else { Some(description) },
+        description: if description.is_empty() {
+            None
+        } else {
+            Some(description)
+        },
         bidirectional,
     })
 }
@@ -540,7 +582,10 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
         .param("id", region.id.to_string())
         .param("name", region.name.clone())
         .param("description", region.description.clone())
-        .param("backdrop_asset", region.backdrop_asset.clone().unwrap_or_default())
+        .param(
+            "backdrop_asset",
+            region.backdrop_asset.clone().unwrap_or_default(),
+        )
         .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
         .param("is_spawn_point", region.is_spawn_point)
         .param("order", region.order as i64);
@@ -626,7 +671,9 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     } else {
         CampbellArchetype::from_str(&current_archetype_str).unwrap_or_default()
     };
-    let default_disposition = default_disposition_str.parse().unwrap_or(DispositionLevel::Neutral);
+    let default_disposition = default_disposition_str
+        .parse()
+        .unwrap_or(DispositionLevel::Neutral);
 
     Ok(Character {
         id: CharacterId::from_uuid(id),
@@ -652,5 +699,3 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
         default_disposition,
     })
 }
-
-

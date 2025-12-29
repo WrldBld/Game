@@ -99,10 +99,8 @@ pub trait ApiPort {
     async fn put_empty(&self, path: &str) -> Result<(), ApiError>;
 
     /// PUT request without body, returns deserialized JSON response
-    async fn put_empty_with_response<T: DeserializeOwned>(
-        &self,
-        path: &str,
-    ) -> Result<T, ApiError>;
+    async fn put_empty_with_response<T: DeserializeOwned>(&self, path: &str)
+        -> Result<T, ApiError>;
 
     /// PATCH request with JSON body, returns deserialized JSON response
     async fn patch<T: DeserializeOwned, B: Serialize + Send + Sync>(

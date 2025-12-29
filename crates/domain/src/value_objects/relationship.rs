@@ -112,7 +112,7 @@ impl std::str::FromStr for RelationshipType {
     /// - Unknown values become Custom(original_string)
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let normalized = s.to_lowercase().replace(['_', ' '], "");
-        
+
         Ok(match normalized.as_str() {
             // Basic relationship types
             "romantic" => Self::Romantic,
@@ -121,7 +121,7 @@ impl std::str::FromStr for RelationshipType {
             "friendship" | "friend" => Self::Friendship,
             "mentorship" | "mentor" => Self::Mentorship,
             "enmity" | "enemy" => Self::Enmity,
-            
+
             // Family relations
             "parent" => Self::Family(FamilyRelation::Parent),
             "child" => Self::Family(FamilyRelation::Child),
@@ -132,17 +132,19 @@ impl std::str::FromStr for RelationshipType {
             "aunt" | "uncle" | "auntuncle" => Self::Family(FamilyRelation::AuntUncle),
             "niece" | "nephew" | "niecenephew" => Self::Family(FamilyRelation::NieceNephew),
             "cousin" => Self::Family(FamilyRelation::Cousin),
-            
+
             // Family with explicit prefix (e.g., "family:parent")
             _ if normalized.starts_with("family") => {
-                let rest = normalized.trim_start_matches("family").trim_start_matches(':');
+                let rest = normalized
+                    .trim_start_matches("family")
+                    .trim_start_matches(':');
                 if let Ok(family) = rest.parse::<FamilyRelation>() {
                     Self::Family(family)
                 } else {
                     Self::Custom(s.to_string())
                 }
             }
-            
+
             // Unknown -> Custom
             _ => Self::Custom(s.to_string()),
         })

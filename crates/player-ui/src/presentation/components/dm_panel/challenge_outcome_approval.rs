@@ -3,8 +3,8 @@
 //! DM approval card for pending challenge outcomes. Displays roll results
 //! and allows DM to accept, edit, or request LLM suggestions.
 
-use dioxus::prelude::*;
 use crate::presentation::state::PendingChallengeOutcome;
+use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::ChallengeOutcomeDecision;
 
 /// Props for ChallengeOutcomeApprovalCard

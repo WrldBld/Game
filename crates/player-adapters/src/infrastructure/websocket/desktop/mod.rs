@@ -1,7 +1,7 @@
 //! Desktop WebSocket implementation using tokio-tungstenite
 
-mod client;
 mod adapter;
+mod client;
 
-pub use client::EngineClient;
 pub use adapter::DesktopGameConnection;
+pub use client::EngineClient;

@@ -30,8 +30,8 @@ pub mod queues;
 pub mod repositories;
 pub mod settings_loader;
 pub mod state;
-pub mod suggestion_enqueue_adapter;
 pub mod state_broadcast;
+pub mod suggestion_enqueue_adapter;
 pub mod websocket;
 pub mod websocket_event_subscriber;
 pub mod websocket_helpers;
@@ -43,15 +43,12 @@ pub use clock::SystemClock;
 
 // Re-export world state manager types
 pub use world_state_manager::{
-    WorldStateManager, ConversationEntry, Speaker,
-    PendingApprovalItem, ApprovalType, 
-    WorldPendingStagingApproval, WaitingPc,
+    ApprovalType, ConversationEntry, PendingApprovalItem, Speaker, WaitingPc,
+    WorldPendingStagingApproval, WorldStateManager,
 };
 
 // Re-export world connection manager types
-pub use world_connection_manager::{
-    BroadcastError, DmInfo, WorldConnectionManager,
-};
+pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManager};
 
 // Re-export settings loader
 pub use settings_loader::load_settings_from_env;

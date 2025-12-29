@@ -16,11 +16,11 @@
 //!
 //! This is an accepted exception to the "no serde in domain" rule.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-use wrldbldr_domain::WorldId;
 use crate::value_objects::RuleSystemVariant;
+use wrldbldr_domain::WorldId;
 
 /// Unique identifier for a sheet template
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -389,9 +389,7 @@ impl CharacterSheetData {
         let skill_name_lower = skill_name.to_lowercase();
         for value in self.values.values() {
             if let FieldValue::SkillEntry {
-                skill_id,
-                bonus,
-                ..
+                skill_id, bonus, ..
             } = value
             {
                 // Match if skill_id contains the skill name (case-insensitive)
@@ -413,7 +411,10 @@ pub enum FieldValue {
     Text(String),
     Boolean(bool),
     /// Current and max for resources
-    Resource { current: i32, max: i32 },
+    Resource {
+        current: i32,
+        max: i32,
+    },
     /// List of strings (for item lists)
     List(Vec<String>),
     /// Skill proficiency entry
@@ -455,36 +456,233 @@ impl CharacterSheetTemplate {
                 SheetSection::new("attributes", "Ability Scores")
                     .with_layout(SectionLayout::Grid { columns: 3 })
                     .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(0))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(1))
-                    .with_field(SheetField::new("CON", "Constitution", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(2))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(3))
-                    .with_field(SheetField::new("WIS", "Wisdom", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(4))
-                    .with_field(SheetField::new("CHA", "Charisma", FieldType::Number { min: Some(1), max: Some(30), default: Some(10) }).with_order(5))
+                    .with_field(
+                        SheetField::new(
+                            "STR",
+                            "Strength",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(0),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "DEX",
+                            "Dexterity",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(1),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "CON",
+                            "Constitution",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(2),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "INT",
+                            "Intelligence",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(3),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "WIS",
+                            "Wisdom",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(4),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "CHA",
+                            "Charisma",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: Some(30),
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(5),
+                    ),
             )
             // Modifiers section (derived)
             .with_section(
                 SheetSection::new("modifiers", "Ability Modifiers")
                     .with_layout(SectionLayout::Grid { columns: 3 })
                     .with_order(1)
-                    .with_field(SheetField::new("STR_MOD", "STR Mod", FieldType::Derived { formula: "floor((STR - 10) / 2)".into(), depends_on: vec!["STR".into()] }).read_only().with_order(0))
-                    .with_field(SheetField::new("DEX_MOD", "DEX Mod", FieldType::Derived { formula: "floor((DEX - 10) / 2)".into(), depends_on: vec!["DEX".into()] }).read_only().with_order(1))
-                    .with_field(SheetField::new("CON_MOD", "CON Mod", FieldType::Derived { formula: "floor((CON - 10) / 2)".into(), depends_on: vec!["CON".into()] }).read_only().with_order(2))
-                    .with_field(SheetField::new("INT_MOD", "INT Mod", FieldType::Derived { formula: "floor((INT - 10) / 2)".into(), depends_on: vec!["INT".into()] }).read_only().with_order(3))
-                    .with_field(SheetField::new("WIS_MOD", "WIS Mod", FieldType::Derived { formula: "floor((WIS - 10) / 2)".into(), depends_on: vec!["WIS".into()] }).read_only().with_order(4))
-                    .with_field(SheetField::new("CHA_MOD", "CHA Mod", FieldType::Derived { formula: "floor((CHA - 10) / 2)".into(), depends_on: vec!["CHA".into()] }).read_only().with_order(5))
+                    .with_field(
+                        SheetField::new(
+                            "STR_MOD",
+                            "STR Mod",
+                            FieldType::Derived {
+                                formula: "floor((STR - 10) / 2)".into(),
+                                depends_on: vec!["STR".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(0),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "DEX_MOD",
+                            "DEX Mod",
+                            FieldType::Derived {
+                                formula: "floor((DEX - 10) / 2)".into(),
+                                depends_on: vec!["DEX".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(1),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "CON_MOD",
+                            "CON Mod",
+                            FieldType::Derived {
+                                formula: "floor((CON - 10) / 2)".into(),
+                                depends_on: vec!["CON".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(2),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "INT_MOD",
+                            "INT Mod",
+                            FieldType::Derived {
+                                formula: "floor((INT - 10) / 2)".into(),
+                                depends_on: vec!["INT".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(3),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "WIS_MOD",
+                            "WIS Mod",
+                            FieldType::Derived {
+                                formula: "floor((WIS - 10) / 2)".into(),
+                                depends_on: vec!["WIS".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(4),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "CHA_MOD",
+                            "CHA Mod",
+                            FieldType::Derived {
+                                formula: "floor((CHA - 10) / 2)".into(),
+                                depends_on: vec!["CHA".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(5),
+                    ),
             )
             // Combat section
             .with_section(
                 SheetSection::new("combat", "Combat")
                     .with_layout(SectionLayout::Grid { columns: 2 })
                     .with_order(2)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }).with_order(0))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Number { min: Some(1), max: None, default: Some(10) }).with_order(1))
-                    .with_field(SheetField::new("AC", "Armor Class", FieldType::Number { min: Some(0), max: None, default: Some(10) }).with_order(2))
-                    .with_field(SheetField::new("INITIATIVE", "Initiative", FieldType::Derived { formula: "DEX_MOD".into(), depends_on: vec!["DEX_MOD".into()] }).read_only().with_order(3))
-                    .with_field(SheetField::new("SPEED", "Speed", FieldType::Number { min: Some(0), max: None, default: Some(30) }).with_order(4))
-                    .with_field(SheetField::new("PROF_BONUS", "Proficiency Bonus", FieldType::Number { min: Some(2), max: Some(6), default: Some(2) }).with_order(5))
+                    .with_field(
+                        SheetField::new(
+                            "HP",
+                            "Hit Points",
+                            FieldType::Resource {
+                                max_field: Some("HP_MAX".into()),
+                                default_max: Some(10),
+                            },
+                        )
+                        .with_order(0),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "HP_MAX",
+                            "Max HP",
+                            FieldType::Number {
+                                min: Some(1),
+                                max: None,
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(1),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "AC",
+                            "Armor Class",
+                            FieldType::Number {
+                                min: Some(0),
+                                max: None,
+                                default: Some(10),
+                            },
+                        )
+                        .with_order(2),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "INITIATIVE",
+                            "Initiative",
+                            FieldType::Derived {
+                                formula: "DEX_MOD".into(),
+                                depends_on: vec!["DEX_MOD".into()],
+                            },
+                        )
+                        .read_only()
+                        .with_order(3),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "SPEED",
+                            "Speed",
+                            FieldType::Number {
+                                min: Some(0),
+                                max: None,
+                                default: Some(30),
+                            },
+                        )
+                        .with_order(4),
+                    )
+                    .with_field(
+                        SheetField::new(
+                            "PROF_BONUS",
+                            "Proficiency Bonus",
+                            FieldType::Number {
+                                min: Some(2),
+                                max: Some(6),
+                                default: Some(2),
+                            },
+                        )
+                        .with_order(5),
+                    ),
             )
             // Skills section
             .with_section(
@@ -492,7 +690,14 @@ impl CharacterSheetTemplate {
                     .with_layout(SectionLayout::Vertical)
                     .with_order(3)
                     .collapsible()
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: true, show_proficiency: true }))
+                    .with_field(SheetField::new(
+                        "SKILLS",
+                        "Character Skills",
+                        FieldType::SkillList {
+                            show_modifier: true,
+                            show_proficiency: true,
+                        },
+                    )),
             )
             // Features section
             .with_section(
@@ -501,7 +706,14 @@ impl CharacterSheetTemplate {
                     .with_order(4)
                     .collapsible()
                     .collapsed()
-                    .with_field(SheetField::new("FEATURES", "Features", FieldType::ItemList { item_type: ItemListType::Features, max_items: None }))
+                    .with_field(SheetField::new(
+                        "FEATURES",
+                        "Features",
+                        FieldType::ItemList {
+                            item_type: ItemListType::Features,
+                            max_items: None,
+                        },
+                    )),
             )
             // Inventory section
             .with_section(
@@ -510,183 +722,633 @@ impl CharacterSheetTemplate {
                     .with_order(5)
                     .collapsible()
                     .collapsed()
-                    .with_field(SheetField::new("INVENTORY", "Items", FieldType::ItemList { item_type: ItemListType::Inventory, max_items: None }))
+                    .with_field(SheetField::new(
+                        "INVENTORY",
+                        "Items",
+                        FieldType::ItemList {
+                            item_type: ItemListType::Inventory,
+                            max_items: None,
+                        },
+                    )),
             )
     }
 
     /// Pathfinder 2e template
     fn pathfinder2e_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Pathfinder 2e Character Sheet", RuleSystemVariant::Pathfinder2e)
-            .with_description("Pathfinder 2nd Edition character sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("attributes", "Ability Scores")
-                    .with_layout(SectionLayout::Grid { columns: 3 })
-                    .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("CON", "Constitution", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("WIS", "Wisdom", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("CHA", "Charisma", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("combat", "Combat")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(1)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("AC", "Armor Class", FieldType::Number { min: Some(0), max: None, default: Some(10) }))
-                    .with_field(SheetField::new("PERCEPTION", "Perception", FieldType::Number { min: None, max: None, default: Some(0) }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: true, show_proficiency: true }))
-            )
+        Self::new(
+            world_id,
+            "Pathfinder 2e Character Sheet",
+            RuleSystemVariant::Pathfinder2e,
+        )
+        .with_description("Pathfinder 2nd Edition character sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("attributes", "Ability Scores")
+                .with_layout(SectionLayout::Grid { columns: 3 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "STR",
+                    "Strength",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "DEX",
+                    "Dexterity",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CON",
+                    "Constitution",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "INT",
+                    "Intelligence",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "WIS",
+                    "Wisdom",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CHA",
+                    "Charisma",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("combat", "Combat")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HP",
+                    "Hit Points",
+                    FieldType::Resource {
+                        max_field: Some("HP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HP_MAX",
+                    "Max HP",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "AC",
+                    "Armor Class",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: None,
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "PERCEPTION",
+                    "Perception",
+                    FieldType::Number {
+                        min: None,
+                        max: None,
+                        default: Some(0),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: true,
+                        show_proficiency: true,
+                    },
+                )),
+        )
     }
 
     /// Generic D20 template
     fn generic_d20_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Generic D20 Character Sheet", RuleSystemVariant::GenericD20)
-            .with_description("Simple d20-based character sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("attributes", "Attributes")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-                    .with_field(SheetField::new("CON", "Constitution", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-                    .with_field(SheetField::new("WIS", "Wisdom", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-                    .with_field(SheetField::new("CHA", "Charisma", FieldType::Number { min: Some(1), max: Some(20), default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("vitals", "Vitals")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(1)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: true, show_proficiency: false }))
-            )
+        Self::new(
+            world_id,
+            "Generic D20 Character Sheet",
+            RuleSystemVariant::GenericD20,
+        )
+        .with_description("Simple d20-based character sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("attributes", "Attributes")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "STR",
+                    "Strength",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "DEX",
+                    "Dexterity",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CON",
+                    "Constitution",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "INT",
+                    "Intelligence",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "WIS",
+                    "Wisdom",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CHA",
+                    "Charisma",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(20),
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("vitals", "Vitals")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HP",
+                    "Hit Points",
+                    FieldType::Resource {
+                        max_field: Some("HP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HP_MAX",
+                    "Max HP",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: true,
+                        show_proficiency: false,
+                    },
+                )),
+        )
     }
 
     /// Call of Cthulhu 7e template
     fn coc7e_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Call of Cthulhu 7e Character Sheet", RuleSystemVariant::CallOfCthulhu7e)
-            .with_description("Call of Cthulhu 7th Edition investigator sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("characteristics", "Characteristics")
-                    .with_layout(SectionLayout::Grid { columns: 3 })
-                    .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("CON", "Constitution", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("SIZ", "Size", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("APP", "Appearance", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("POW", "Power", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("EDU", "Education", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-            )
-            .with_section(
-                SheetSection::new("derived", "Derived Attributes")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(1)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Derived { formula: "floor((CON + SIZ) / 10)".into(), depends_on: vec!["CON".into(), "SIZ".into()] }).read_only())
-                    .with_field(SheetField::new("SAN", "Sanity", FieldType::Resource { max_field: Some("SAN_MAX".into()), default_max: Some(50) }))
-                    .with_field(SheetField::new("SAN_MAX", "Max Sanity", FieldType::Number { min: Some(0), max: Some(99), default: Some(99) }))
-                    .with_field(SheetField::new("LUCK", "Luck", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("MP", "Magic Points", FieldType::Resource { max_field: Some("MP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("MP_MAX", "Max MP", FieldType::Derived { formula: "floor(POW / 5)".into(), depends_on: vec!["POW".into()] }).read_only())
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("SKILLS", "Investigator Skills", FieldType::SkillList { show_modifier: false, show_proficiency: false }))
-            )
+        Self::new(
+            world_id,
+            "Call of Cthulhu 7e Character Sheet",
+            RuleSystemVariant::CallOfCthulhu7e,
+        )
+        .with_description("Call of Cthulhu 7th Edition investigator sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("characteristics", "Characteristics")
+                .with_layout(SectionLayout::Grid { columns: 3 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "STR",
+                    "Strength",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CON",
+                    "Constitution",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "SIZ",
+                    "Size",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "DEX",
+                    "Dexterity",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "APP",
+                    "Appearance",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "INT",
+                    "Intelligence",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "POW",
+                    "Power",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "EDU",
+                    "Education",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("derived", "Derived Attributes")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HP",
+                    "Hit Points",
+                    FieldType::Resource {
+                        max_field: Some("HP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(
+                    SheetField::new(
+                        "HP_MAX",
+                        "Max HP",
+                        FieldType::Derived {
+                            formula: "floor((CON + SIZ) / 10)".into(),
+                            depends_on: vec!["CON".into(), "SIZ".into()],
+                        },
+                    )
+                    .read_only(),
+                )
+                .with_field(SheetField::new(
+                    "SAN",
+                    "Sanity",
+                    FieldType::Resource {
+                        max_field: Some("SAN_MAX".into()),
+                        default_max: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "SAN_MAX",
+                    "Max Sanity",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(99),
+                        default: Some(99),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "LUCK",
+                    "Luck",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "MP",
+                    "Magic Points",
+                    FieldType::Resource {
+                        max_field: Some("MP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(
+                    SheetField::new(
+                        "MP_MAX",
+                        "Max MP",
+                        FieldType::Derived {
+                            formula: "floor(POW / 5)".into(),
+                            depends_on: vec!["POW".into()],
+                        },
+                    )
+                    .read_only(),
+                ),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Investigator Skills",
+                    FieldType::SkillList {
+                        show_modifier: false,
+                        show_proficiency: false,
+                    },
+                )),
+        )
     }
 
     /// RuneQuest template
     fn runequest_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "RuneQuest Character Sheet", RuleSystemVariant::RuneQuest)
-            .with_description("RuneQuest percentile character sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("characteristics", "Characteristics")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("CON", "Constitution", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("SIZ", "Size", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("POW", "Power", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-                    .with_field(SheetField::new("CHA", "Charisma", FieldType::Number { min: Some(1), max: Some(21), default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("combat", "Combat")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(1)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: false, show_proficiency: false }))
-            )
+        Self::new(
+            world_id,
+            "RuneQuest Character Sheet",
+            RuleSystemVariant::RuneQuest,
+        )
+        .with_description("RuneQuest percentile character sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("characteristics", "Characteristics")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "STR",
+                    "Strength",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CON",
+                    "Constitution",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "SIZ",
+                    "Size",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "INT",
+                    "Intelligence",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "POW",
+                    "Power",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "DEX",
+                    "Dexterity",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CHA",
+                    "Charisma",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(21),
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("combat", "Combat")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HP",
+                    "Hit Points",
+                    FieldType::Resource {
+                        max_field: Some("HP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HP_MAX",
+                    "Max HP",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: false,
+                        show_proficiency: false,
+                    },
+                )),
+        )
     }
 
     /// Generic D100 template
     fn generic_d100_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Generic D100 Character Sheet", RuleSystemVariant::GenericD100)
-            .with_description("Simple percentile-based character sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("characteristics", "Characteristics")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(0)
-                    .with_field(SheetField::new("STR", "Strength", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("DEX", "Dexterity", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("INT", "Intelligence", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-                    .with_field(SheetField::new("POW", "Power", FieldType::Number { min: Some(0), max: Some(100), default: Some(50) }))
-            )
-            .with_section(
-                SheetSection::new("vitals", "Vitals")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(1)
-                    .with_field(SheetField::new("HP", "Hit Points", FieldType::Resource { max_field: Some("HP_MAX".into()), default_max: Some(10) }))
-                    .with_field(SheetField::new("HP_MAX", "Max HP", FieldType::Number { min: Some(1), max: None, default: Some(10) }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: false, show_proficiency: false }))
-            )
+        Self::new(
+            world_id,
+            "Generic D100 Character Sheet",
+            RuleSystemVariant::GenericD100,
+        )
+        .with_description("Simple percentile-based character sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("characteristics", "Characteristics")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "STR",
+                    "Strength",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "DEX",
+                    "Dexterity",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "INT",
+                    "Intelligence",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "POW",
+                    "Power",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(100),
+                        default: Some(50),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("vitals", "Vitals")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HP",
+                    "Hit Points",
+                    FieldType::Resource {
+                        max_field: Some("HP_MAX".into()),
+                        default_max: Some(10),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HP_MAX",
+                    "Max HP",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: None,
+                        default: Some(10),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: false,
+                        show_proficiency: false,
+                    },
+                )),
+        )
     }
 
     /// Kids on Bikes template
     fn kids_on_bikes_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Kids on Bikes Character Sheet", RuleSystemVariant::KidsOnBikes)
-            .with_description("Kids on Bikes trope-based character sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("stats", "Stats")
-                    .with_layout(SectionLayout::Grid { columns: 2 })
-                    .with_order(0)
-                    .with_field(SheetField::new("BRAINS", "Brains", FieldType::Select {
+        Self::new(
+            world_id,
+            "Kids on Bikes Character Sheet",
+            RuleSystemVariant::KidsOnBikes,
+        )
+        .with_description("Kids on Bikes trope-based character sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("stats", "Stats")
+                .with_layout(SectionLayout::Grid { columns: 2 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "BRAINS",
+                    "Brains",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -694,9 +1356,13 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-                    .with_field(SheetField::new("BRAWN", "Brawn", FieldType::Select {
+                        ],
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "BRAWN",
+                    "Brawn",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -704,9 +1370,13 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-                    .with_field(SheetField::new("FIGHT", "Fight", FieldType::Select {
+                        ],
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "FIGHT",
+                    "Fight",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -714,9 +1384,13 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-                    .with_field(SheetField::new("FLIGHT", "Flight", FieldType::Select {
+                        ],
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "FLIGHT",
+                    "Flight",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -724,9 +1398,13 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-                    .with_field(SheetField::new("CHARM", "Charm", FieldType::Select {
+                        ],
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "CHARM",
+                    "Charm",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -734,9 +1412,13 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-                    .with_field(SheetField::new("GRIT", "Grit", FieldType::Select {
+                        ],
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "GRIT",
+                    "Grit",
+                    FieldType::Select {
                         options: vec![
                             SelectOption::new("d4", "d4"),
                             SelectOption::new("d6", "d6"),
@@ -744,130 +1426,361 @@ impl CharacterSheetTemplate {
                             SelectOption::new("d10", "d10"),
                             SelectOption::new("d12", "d12"),
                             SelectOption::new("d20", "d20"),
-                        ]
-                    }))
-            )
-            .with_section(
-                SheetSection::new("adversity", "Adversity Tokens")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(1)
-                    .with_field(SheetField::new("ADVERSITY", "Tokens", FieldType::Number { min: Some(0), max: Some(10), default: Some(0) }))
-            )
-            .with_section(
-                SheetSection::new("strengths", "Strengths & Flaws")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(2)
-                    .with_field(SheetField::new("STRENGTHS", "Strengths", FieldType::ItemList { item_type: ItemListType::Features, max_items: Some(2) }))
-                    .with_field(SheetField::new("FLAWS", "Flaws", FieldType::ItemList { item_type: ItemListType::Features, max_items: Some(2) }))
-            )
+                        ],
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("adversity", "Adversity Tokens")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "ADVERSITY",
+                    "Tokens",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(10),
+                        default: Some(0),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("strengths", "Strengths & Flaws")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "STRENGTHS",
+                    "Strengths",
+                    FieldType::ItemList {
+                        item_type: ItemListType::Features,
+                        max_items: Some(2),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "FLAWS",
+                    "Flaws",
+                    FieldType::ItemList {
+                        item_type: ItemListType::Features,
+                        max_items: Some(2),
+                    },
+                )),
+        )
     }
 
     /// FATE Core template
     fn fate_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "FATE Core Character Sheet", RuleSystemVariant::FateCore)
-            .with_description("FATE Core character sheet with aspects and stunts")
-            .as_default()
-            .with_section(
-                SheetSection::new("aspects", "Aspects")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(0)
-                    .with_field(SheetField::new("HIGH_CONCEPT", "High Concept", FieldType::Text { multiline: false, max_length: Some(100) }).required())
-                    .with_field(SheetField::new("TROUBLE", "Trouble", FieldType::Text { multiline: false, max_length: Some(100) }).required())
-                    .with_field(SheetField::new("ASPECT_1", "Aspect", FieldType::Text { multiline: false, max_length: Some(100) }))
-                    .with_field(SheetField::new("ASPECT_2", "Aspect", FieldType::Text { multiline: false, max_length: Some(100) }))
-                    .with_field(SheetField::new("ASPECT_3", "Aspect", FieldType::Text { multiline: false, max_length: Some(100) }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(1)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: true, show_proficiency: false }))
-            )
-            .with_section(
-                SheetSection::new("stress", "Stress & Consequences")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(2)
-                    .with_field(SheetField::new("PHYSICAL_STRESS", "Physical Stress", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) }))
-                    .with_field(SheetField::new("MENTAL_STRESS", "Mental Stress", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) }))
-                    .with_field(SheetField::new("MILD", "Mild Consequence", FieldType::Text { multiline: false, max_length: Some(50) }))
-                    .with_field(SheetField::new("MODERATE", "Moderate Consequence", FieldType::Text { multiline: false, max_length: Some(50) }))
-                    .with_field(SheetField::new("SEVERE", "Severe Consequence", FieldType::Text { multiline: false, max_length: Some(50) }))
-            )
-            .with_section(
-                SheetSection::new("refresh", "Refresh & Fate Points")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(3)
-                    .with_field(SheetField::new("REFRESH", "Refresh", FieldType::Number { min: Some(1), max: Some(10), default: Some(3) }))
-                    .with_field(SheetField::new("FATE_POINTS", "Fate Points", FieldType::Number { min: Some(0), max: None, default: Some(3) }))
-            )
-            .with_section(
-                SheetSection::new("stunts", "Stunts")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(4)
-                    .collapsible()
-                    .with_field(SheetField::new("STUNTS", "Stunts", FieldType::ItemList { item_type: ItemListType::Features, max_items: Some(5) }))
-            )
+        Self::new(
+            world_id,
+            "FATE Core Character Sheet",
+            RuleSystemVariant::FateCore,
+        )
+        .with_description("FATE Core character sheet with aspects and stunts")
+        .as_default()
+        .with_section(
+            SheetSection::new("aspects", "Aspects")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(0)
+                .with_field(
+                    SheetField::new(
+                        "HIGH_CONCEPT",
+                        "High Concept",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(100),
+                        },
+                    )
+                    .required(),
+                )
+                .with_field(
+                    SheetField::new(
+                        "TROUBLE",
+                        "Trouble",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(100),
+                        },
+                    )
+                    .required(),
+                )
+                .with_field(SheetField::new(
+                    "ASPECT_1",
+                    "Aspect",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(100),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "ASPECT_2",
+                    "Aspect",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(100),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "ASPECT_3",
+                    "Aspect",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(100),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: true,
+                        show_proficiency: false,
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("stress", "Stress & Consequences")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "PHYSICAL_STRESS",
+                    "Physical Stress",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(4),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "MENTAL_STRESS",
+                    "Mental Stress",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(4),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "MILD",
+                    "Mild Consequence",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "MODERATE",
+                    "Moderate Consequence",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(50),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "SEVERE",
+                    "Severe Consequence",
+                    FieldType::Text {
+                        multiline: false,
+                        max_length: Some(50),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("refresh", "Refresh & Fate Points")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(3)
+                .with_field(SheetField::new(
+                    "REFRESH",
+                    "Refresh",
+                    FieldType::Number {
+                        min: Some(1),
+                        max: Some(10),
+                        default: Some(3),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "FATE_POINTS",
+                    "Fate Points",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: None,
+                        default: Some(3),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("stunts", "Stunts")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(4)
+                .collapsible()
+                .with_field(SheetField::new(
+                    "STUNTS",
+                    "Stunts",
+                    FieldType::ItemList {
+                        item_type: ItemListType::Features,
+                        max_items: Some(5),
+                    },
+                )),
+        )
     }
 
     /// Powered by the Apocalypse template
     fn pbta_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "PbtA Character Sheet", RuleSystemVariant::PoweredByApocalypse)
-            .with_description("Powered by the Apocalypse playbook sheet")
-            .as_default()
-            .with_section(
-                SheetSection::new("stats", "Stats")
-                    .with_layout(SectionLayout::Grid { columns: 3 })
-                    .with_order(0)
-                    .with_field(SheetField::new("COOL", "Cool", FieldType::Number { min: Some(-2), max: Some(3), default: Some(0) }))
-                    .with_field(SheetField::new("HARD", "Hard", FieldType::Number { min: Some(-2), max: Some(3), default: Some(0) }))
-                    .with_field(SheetField::new("HOT", "Hot", FieldType::Number { min: Some(-2), max: Some(3), default: Some(0) }))
-                    .with_field(SheetField::new("SHARP", "Sharp", FieldType::Number { min: Some(-2), max: Some(3), default: Some(0) }))
-                    .with_field(SheetField::new("WEIRD", "Weird", FieldType::Number { min: Some(-2), max: Some(3), default: Some(0) }))
-            )
-            .with_section(
-                SheetSection::new("harm", "Harm")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(1)
-                    .with_field(SheetField::new("HARM", "Harm", FieldType::Number { min: Some(0), max: Some(6), default: Some(0) }))
-                    .with_field(SheetField::new("STABILIZED", "Stabilized", FieldType::Checkbox { default: false }))
-            )
-            .with_section(
-                SheetSection::new("experience", "Experience")
-                    .with_layout(SectionLayout::TwoColumn)
-                    .with_order(2)
-                    .with_field(SheetField::new("XP", "Experience", FieldType::Number { min: Some(0), max: Some(5), default: Some(0) }))
-            )
-            .with_section(
-                SheetSection::new("moves", "Moves")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(3)
-                    .with_field(SheetField::new("SKILLS", "Basic Moves", FieldType::SkillList { show_modifier: false, show_proficiency: false }))
-            )
-            .with_section(
-                SheetSection::new("playbook_moves", "Playbook Moves")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(4)
-                    .collapsible()
-                    .with_field(SheetField::new("PLAYBOOK_MOVES", "Special Moves", FieldType::ItemList { item_type: ItemListType::Features, max_items: None }))
-            )
+        Self::new(
+            world_id,
+            "PbtA Character Sheet",
+            RuleSystemVariant::PoweredByApocalypse,
+        )
+        .with_description("Powered by the Apocalypse playbook sheet")
+        .as_default()
+        .with_section(
+            SheetSection::new("stats", "Stats")
+                .with_layout(SectionLayout::Grid { columns: 3 })
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "COOL",
+                    "Cool",
+                    FieldType::Number {
+                        min: Some(-2),
+                        max: Some(3),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HARD",
+                    "Hard",
+                    FieldType::Number {
+                        min: Some(-2),
+                        max: Some(3),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "HOT",
+                    "Hot",
+                    FieldType::Number {
+                        min: Some(-2),
+                        max: Some(3),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "SHARP",
+                    "Sharp",
+                    FieldType::Number {
+                        min: Some(-2),
+                        max: Some(3),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "WEIRD",
+                    "Weird",
+                    FieldType::Number {
+                        min: Some(-2),
+                        max: Some(3),
+                        default: Some(0),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("harm", "Harm")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "HARM",
+                    "Harm",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(6),
+                        default: Some(0),
+                    },
+                ))
+                .with_field(SheetField::new(
+                    "STABILIZED",
+                    "Stabilized",
+                    FieldType::Checkbox { default: false },
+                )),
+        )
+        .with_section(
+            SheetSection::new("experience", "Experience")
+                .with_layout(SectionLayout::TwoColumn)
+                .with_order(2)
+                .with_field(SheetField::new(
+                    "XP",
+                    "Experience",
+                    FieldType::Number {
+                        min: Some(0),
+                        max: Some(5),
+                        default: Some(0),
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("moves", "Moves")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(3)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Basic Moves",
+                    FieldType::SkillList {
+                        show_modifier: false,
+                        show_proficiency: false,
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("playbook_moves", "Playbook Moves")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(4)
+                .collapsible()
+                .with_field(SheetField::new(
+                    "PLAYBOOK_MOVES",
+                    "Special Moves",
+                    FieldType::ItemList {
+                        item_type: ItemListType::Features,
+                        max_items: None,
+                    },
+                )),
+        )
     }
 
     /// Minimal template for custom systems
     fn minimal_template(world_id: WorldId) -> Self {
-        Self::new(world_id, "Custom Character Sheet", RuleSystemVariant::Custom(String::new()))
-            .with_description("Minimal character sheet for custom rule systems")
-            .as_default()
-            .with_section(
-                SheetSection::new("basic", "Basic Info")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(0)
-                    .with_field(SheetField::new("NOTES", "Character Notes", FieldType::Text { multiline: true, max_length: None }))
-            )
-            .with_section(
-                SheetSection::new("skills", "Skills")
-                    .with_layout(SectionLayout::Vertical)
-                    .with_order(1)
-                    .with_field(SheetField::new("SKILLS", "Character Skills", FieldType::SkillList { show_modifier: false, show_proficiency: false }))
-            )
+        Self::new(
+            world_id,
+            "Custom Character Sheet",
+            RuleSystemVariant::Custom(String::new()),
+        )
+        .with_description("Minimal character sheet for custom rule systems")
+        .as_default()
+        .with_section(
+            SheetSection::new("basic", "Basic Info")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(0)
+                .with_field(SheetField::new(
+                    "NOTES",
+                    "Character Notes",
+                    FieldType::Text {
+                        multiline: true,
+                        max_length: None,
+                    },
+                )),
+        )
+        .with_section(
+            SheetSection::new("skills", "Skills")
+                .with_layout(SectionLayout::Vertical)
+                .with_order(1)
+                .with_field(SheetField::new(
+                    "SKILLS",
+                    "Character Skills",
+                    FieldType::SkillList {
+                        show_modifier: false,
+                        show_proficiency: false,
+                    },
+                )),
+        )
     }
 }

@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
 
 /// Service for managing workflow configuration persistence
 pub struct WorkflowConfigService {

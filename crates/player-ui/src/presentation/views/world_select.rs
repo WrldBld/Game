@@ -7,14 +7,14 @@
 
 use dioxus::prelude::*;
 
+use crate::presentation::services::use_world_service;
+use crate::presentation::state::GameState;
 use wrldbldr_player_app::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::WorldSummary;
 use wrldbldr_player_ports::outbound::Platform;
-use crate::presentation::services::use_world_service;
-use crate::presentation::state::GameState;
 
 /// Props for WorldSelectView
 #[derive(Props, Clone, PartialEq)]
@@ -304,9 +304,15 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
                 is_loading_preset.set(true);
                 // Determine system type for the variant
                 let system_type = match variant {
-                    RuleSystemVariant::Dnd5e | RuleSystemVariant::Pathfinder2e | RuleSystemVariant::GenericD20 => "D20",
-                    RuleSystemVariant::CallOfCthulhu7e | RuleSystemVariant::RuneQuest | RuleSystemVariant::GenericD100 => "D100",
-                    RuleSystemVariant::KidsOnBikes | RuleSystemVariant::FateCore | RuleSystemVariant::PoweredByApocalypse => "Narrative",
+                    RuleSystemVariant::Dnd5e
+                    | RuleSystemVariant::Pathfinder2e
+                    | RuleSystemVariant::GenericD20 => "D20",
+                    RuleSystemVariant::CallOfCthulhu7e
+                    | RuleSystemVariant::RuneQuest
+                    | RuleSystemVariant::GenericD100 => "D100",
+                    RuleSystemVariant::KidsOnBikes
+                    | RuleSystemVariant::FateCore
+                    | RuleSystemVariant::PoweredByApocalypse => "Narrative",
                     RuleSystemVariant::Custom(_) => "Custom",
                 };
                 let variant_str = format!("{:?}", variant);
@@ -381,12 +387,17 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
             // Convert RuleSystemConfig to JSON
             let rule_system_json = config.and_then(|c| serde_json::to_value(c).ok());
 
-            match svc.create_world(
-                &name_val,
-                if desc_val.is_empty() { None } else { Some(&desc_val) },
-                rule_system_json,
-            )
-            .await
+            match svc
+                .create_world(
+                    &name_val,
+                    if desc_val.is_empty() {
+                        None
+                    } else {
+                        Some(&desc_val)
+                    },
+                    rule_system_json,
+                )
+                .await
             {
                 Ok(world_id) => {
                     created_world_id.set(Some(world_id));

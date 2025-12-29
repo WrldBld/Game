@@ -7,11 +7,13 @@ use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
 
+use wrldbldr_domain::value_objects::{
+    FamilyRelation, Relationship, RelationshipEvent, RelationshipType,
+};
+use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     CharacterNode, RelationshipEdge, RelationshipRepositoryPort, SocialNetwork,
 };
-use wrldbldr_domain::value_objects::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};
-use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
 /// Repository for Relationship (character social network) operations
 pub struct Neo4jRelationshipRepository {
@@ -25,8 +27,9 @@ impl Neo4jRelationshipRepository {
 
     /// Create a relationship between two characters
     pub async fn create(&self, relationship: &Relationship) -> Result<()> {
-        let type_json =
-            serde_json::to_string(&RelationshipTypeStored::from(relationship.relationship_type.clone()))?;
+        let type_json = serde_json::to_string(&RelationshipTypeStored::from(
+            relationship.relationship_type.clone(),
+        ))?;
         let history_json = serde_json::to_string(
             &relationship
                 .history
@@ -131,10 +134,7 @@ impl Neo4jRelationshipRepository {
     }
 
     /// Get the social network graph for a world
-    pub async fn get_social_network(
-        &self,
-        world_id: WorldId,
-    ) -> Result<SocialNetwork> {
+    pub async fn get_social_network(&self, world_id: WorldId) -> Result<SocialNetwork> {
         // Get all characters in the world
         let chars_q = query(
             "MATCH (w:World {id: $world_id})-[:CONTAINS_CHARACTER]->(c:Character)
@@ -189,8 +189,9 @@ impl Neo4jRelationshipRepository {
 
     /// Update a relationship
     pub async fn update(&self, relationship: &Relationship) -> Result<()> {
-        let type_json =
-            serde_json::to_string(&RelationshipTypeStored::from(relationship.relationship_type.clone()))?;
+        let type_json = serde_json::to_string(&RelationshipTypeStored::from(
+            relationship.relationship_type.clone(),
+        ))?;
         let history_json = serde_json::to_string(
             &relationship
                 .history
@@ -290,7 +291,7 @@ impl Neo4jRelationshipRepository {
                        rel_type: r.relationship_type,
                        sentiment: r.sentiment
                    }] as rels_json,
-                   size(rs) as path_length"
+                   size(rs) as path_length",
         )
         .param("char_a", char_a.to_string())
         .param("char_b", char_b.to_string());
@@ -314,7 +315,7 @@ impl Neo4jRelationshipRepository {
                     "MATCH (a:Character {id: $from_id})-[r:RELATES_TO]-(b:Character {id: $to_id})
                     RETURN startNode(r).id as from_id, endNode(r).id as to_id,
                            r.relationship_type as rel_type, r.sentiment as sentiment
-                    LIMIT 1"
+                    LIMIT 1",
                 )
                 .param("from_id", from_id.clone())
                 .param("to_id", to_id.clone());

@@ -305,7 +305,11 @@ impl DiceRollResult {
             }
         } else {
             // Multiple dice
-            let rolls_str: Vec<String> = self.individual_rolls.iter().map(|r| r.to_string()).collect();
+            let rolls_str: Vec<String> = self
+                .individual_rolls
+                .iter()
+                .map(|r| r.to_string())
+                .collect();
             if self.modifier_applied == 0 {
                 format!(
                     "{}[{}] = {}",
@@ -373,7 +377,10 @@ impl DiceRollInput {
     }
 
     /// Resolve with an additional modifier (from character skills)
-    pub fn resolve_with_modifier(&self, skill_modifier: i32) -> Result<DiceRollResult, DiceParseError> {
+    pub fn resolve_with_modifier(
+        &self,
+        skill_modifier: i32,
+    ) -> Result<DiceRollResult, DiceParseError> {
         match self {
             Self::Formula(formula_str) => {
                 let mut formula = DiceFormula::parse(formula_str)?;

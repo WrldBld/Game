@@ -12,18 +12,19 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
+use wrldbldr_domain::value_objects::AssetGenerationData;
 use wrldbldr_domain::AssetId;
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ClockPort, ComfyUIPort, ProcessingQueuePort, QueueError, QueueItemId, QueueNotificationPort,
+    AssetRepositoryPort, ClockPort, ComfyUIPort, ProcessingQueuePort, QueueError, QueueItemId,
+    QueueNotificationPort,
 };
-use crate::application::dto::AssetGenerationItem;
 
 /// Priority constants for queue operations
 const PRIORITY_NORMAL: u8 = 0;
 
 /// Service for managing the asset generation queue
 pub struct AssetGenerationQueueService<
-    Q: ProcessingQueuePort<AssetGenerationItem>,
+    Q: ProcessingQueuePort<AssetGenerationData>,
     C: ComfyUIPort,
     N: QueueNotificationPort,
 > {
@@ -36,8 +37,11 @@ pub struct AssetGenerationQueueService<
     notifier: N,
 }
 
-impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'static, N: QueueNotificationPort + 'static>
-    AssetGenerationQueueService<Q, C, N>
+impl<
+        Q: ProcessingQueuePort<AssetGenerationData> + 'static,
+        C: ComfyUIPort + 'static,
+        N: QueueNotificationPort + 'static,
+    > AssetGenerationQueueService<Q, C, N>
 {
     pub fn queue(&self) -> &Arc<Q> {
         &self.queue
@@ -72,7 +76,7 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
     }
 
     /// Enqueue an asset generation request
-    pub async fn enqueue(&self, request: AssetGenerationItem) -> Result<QueueItemId, QueueError> {
+    pub async fn enqueue(&self, request: AssetGenerationData) -> Result<QueueItemId, QueueError> {
         self.queue.enqueue(request, PRIORITY_NORMAL).await
     }
 
@@ -85,7 +89,11 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
     /// # Arguments
     /// * `recovery_interval` - Fallback poll interval for crash recovery
     /// * `cancel_token` - Token to signal graceful shutdown
-    pub async fn run_worker(self: Arc<Self>, recovery_interval: Duration, cancel_token: CancellationToken) {
+    pub async fn run_worker(
+        self: Arc<Self>,
+        recovery_interval: Duration,
+        cancel_token: CancellationToken,
+    ) {
         loop {
             // Check for cancellation
             if cancel_token.is_cancelled() {
@@ -162,7 +170,10 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                     }
                     Err(e) => {
                         tracing::error!("Failed to queue ComfyUI prompt: {}", e);
-                        if let Err(e2) = queue_clone.fail(item_id, &format!("ComfyUI queue error: {}", e)).await {
+                        if let Err(e2) = queue_clone
+                            .fail(item_id, &format!("ComfyUI queue error: {}", e))
+                            .await
+                        {
                             tracing::error!("Failed to mark queue item as failed: {}", e2);
                         }
                         return;
@@ -178,7 +189,10 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 let history_result = loop {
                     if start_time.elapsed() > max_wait {
                         tracing::error!("ComfyUI generation timed out for prompt {}", prompt_id);
-                        if let Err(e) = queue_clone.fail(item_id, "Generation timed out after 5 minutes").await {
+                        if let Err(e) = queue_clone
+                            .fail(item_id, "Generation timed out after 5 minutes")
+                            .await
+                        {
                             tracing::error!("Failed to mark queue item as failed: {}", e);
                         }
                         return;
@@ -188,7 +202,10 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                         Ok(history) => {
                             if let Some(prompt_history) = history.prompts.get(&prompt_id) {
                                 if prompt_history.status.completed {
-                                    tracing::info!("ComfyUI generation completed for prompt {}", prompt_id);
+                                    tracing::info!(
+                                        "ComfyUI generation completed for prompt {}",
+                                        prompt_id
+                                    );
                                     break prompt_history.clone();
                                 }
                             }
@@ -206,7 +223,10 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 for (node_id, output) in &history_result.outputs {
                     if let Some(images) = &output.images {
                         for img in images {
-                            match client.get_image(&img.filename, &img.subfolder, &img.r#type).await {
+                            match client
+                                .get_image(&img.filename, &img.subfolder, &img.r#type)
+                                .await
+                            {
                                 Ok(bytes) => {
                                     tracing::info!(
                                         "Downloaded image {} ({} bytes) from node {}",
@@ -217,7 +237,11 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                                     downloaded_images.push((img.filename.clone(), bytes));
                                 }
                                 Err(e) => {
-                                    tracing::error!("Failed to download image {}: {}", img.filename, e);
+                                    tracing::error!(
+                                        "Failed to download image {}: {}",
+                                        img.filename,
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -247,7 +271,9 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                     AssetType::Sprite
                 } else if request.workflow_id.contains("backdrop") {
                     AssetType::Backdrop
-                } else if request.workflow_id.contains("item") || request.workflow_id.contains("icon") {
+                } else if request.workflow_id.contains("item")
+                    || request.workflow_id.contains("icon")
+                {
                     AssetType::ItemIcon
                 } else {
                     AssetType::Portrait // Default
@@ -257,7 +283,13 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 let assets_dir = PathBuf::from("data/generated_assets");
                 if let Err(e) = tokio::fs::create_dir_all(&assets_dir).await {
                     tracing::error!("Failed to create assets directory: {}", e);
-                    if let Err(e2) = queue_clone.fail(item_id, &format!("Failed to create assets directory: {}", e)).await {
+                    if let Err(e2) = queue_clone
+                        .fail(
+                            item_id,
+                            &format!("Failed to create assets directory: {}", e),
+                        )
+                        .await
+                    {
                         tracing::error!("Failed to mark queue item as failed: {}", e2);
                     }
                     return;
@@ -280,8 +312,8 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                     let metadata = GenerationMetadata {
                         workflow: request.workflow_id.clone(),
                         prompt: request.prompt.clone(),
-                        negative_prompt: None, // Not in AssetGenerationItem currently
-                        seed: 0, // ComfyUI doesn't always return seed in history
+                        negative_prompt: None, // Not in AssetGenerationData currently
+                        seed: 0,               // ComfyUI doesn't always return seed in history
                         style_reference_id: None,
                         batch_id: wrldbldr_domain::BatchId::from_uuid(Uuid::new_v4()),
                     };
@@ -302,7 +334,11 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                         tracing::error!("Failed to create asset record: {}", e);
                     } else {
                         created_assets += 1;
-                        tracing::info!("Created asset record {} for {}", asset_id, request.entity_id);
+                        tracing::info!(
+                            "Created asset record {} for {}",
+                            asset_id,
+                            request.entity_id
+                        );
                     }
                 }
 
@@ -318,7 +354,10 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                         );
                     }
                 } else {
-                    if let Err(e) = queue_clone.fail(item_id, "Failed to create any asset records").await {
+                    if let Err(e) = queue_clone
+                        .fail(item_id, "Failed to create any asset records")
+                        .await
+                    {
                         tracing::error!("Failed to mark queue item as failed: {}", e);
                     }
                 }

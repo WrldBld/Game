@@ -33,7 +33,9 @@ impl DesktopGameConnection {
     pub fn new(client: EngineClient) -> Self {
         Self {
             client,
-            state: Arc::new(AtomicU8::new(state_to_u8(PortConnectionState::Disconnected))),
+            state: Arc::new(AtomicU8::new(state_to_u8(
+                PortConnectionState::Disconnected,
+            ))),
         }
     }
 
@@ -74,7 +76,10 @@ impl GameConnectionPort for DesktopGameConnection {
         let state = Arc::clone(&self.state);
         tokio::spawn(async move {
             client.disconnect().await;
-            state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
+            state.store(
+                state_to_u8(PortConnectionState::Disconnected),
+                Ordering::SeqCst,
+            );
         });
     }
 
@@ -91,13 +96,21 @@ impl GameConnectionPort for DesktopGameConnection {
         Ok(())
     }
 
-    fn send_action(&self, action_type: &str, target: Option<&str>, dialogue: Option<&str>) -> Result<()> {
+    fn send_action(
+        &self,
+        action_type: &str,
+        target: Option<&str>,
+        dialogue: Option<&str>,
+    ) -> Result<()> {
         let client = self.client.clone();
         let action_type = action_type.to_string();
         let target = target.map(|s| s.to_string());
         let dialogue = dialogue.map(|s| s.to_string());
         tokio::spawn(async move {
-            if let Err(e) = client.send_action(&action_type, target.as_deref(), dialogue.as_deref()).await {
+            if let Err(e) = client
+                .send_action(&action_type, target.as_deref(), dialogue.as_deref())
+                .await
+            {
                 tracing::error!("Failed to send action: {}", e);
             }
         });
@@ -105,41 +118,70 @@ impl GameConnectionPort for DesktopGameConnection {
     }
 
     fn request_scene_change(&self, scene_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::request_scene_change(scene_id), "request scene change");
+        self.spawn_send(
+            ClientMessageBuilder::request_scene_change(scene_id),
+            "request scene change",
+        );
         Ok(())
     }
 
     fn send_directorial_update(&self, context: app::DirectorialContext) -> Result<()> {
         let proto_context = directorial_context_to_proto(context);
-        self.spawn_send(ClientMessageBuilder::directorial_update(proto_context), "send directorial update");
+        self.spawn_send(
+            ClientMessageBuilder::directorial_update(proto_context),
+            "send directorial update",
+        );
         Ok(())
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: app::ApprovalDecision) -> Result<()> {
+    fn send_approval_decision(
+        &self,
+        request_id: &str,
+        decision: app::ApprovalDecision,
+    ) -> Result<()> {
         let proto_decision = approval_decision_to_proto(decision);
-        self.spawn_send(ClientMessageBuilder::approval_decision(request_id, proto_decision), "send approval decision");
+        self.spawn_send(
+            ClientMessageBuilder::approval_decision(request_id, proto_decision),
+            "send approval decision",
+        );
         Ok(())
     }
 
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: app::ChallengeOutcomeDecision) -> Result<()> {
+    fn send_challenge_outcome_decision(
+        &self,
+        resolution_id: &str,
+        decision: app::ChallengeOutcomeDecision,
+    ) -> Result<()> {
         let proto_decision = challenge_outcome_decision_to_proto(decision);
-        self.spawn_send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, proto_decision), "send challenge outcome decision");
+        self.spawn_send(
+            ClientMessageBuilder::challenge_outcome_decision(resolution_id, proto_decision),
+            "send challenge outcome decision",
+        );
         Ok(())
     }
 
     fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::trigger_challenge(challenge_id, target_character_id), "trigger challenge");
+        self.spawn_send(
+            ClientMessageBuilder::trigger_challenge(challenge_id, target_character_id),
+            "trigger challenge",
+        );
         Ok(())
     }
 
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::challenge_roll(challenge_id, roll), "submit challenge roll");
+        self.spawn_send(
+            ClientMessageBuilder::challenge_roll(challenge_id, roll),
+            "submit challenge roll",
+        );
         Ok(())
     }
 
     fn submit_challenge_roll_input(&self, challenge_id: &str, input: app::DiceInput) -> Result<()> {
         let proto_input = dice_input_to_proto(input);
-        self.spawn_send(ClientMessageBuilder::challenge_roll_input(challenge_id, proto_input), "submit challenge roll input");
+        self.spawn_send(
+            ClientMessageBuilder::challenge_roll_input(challenge_id, proto_input),
+            "submit challenge roll input",
+        );
         Ok(())
     }
 
@@ -149,12 +191,23 @@ impl GameConnectionPort for DesktopGameConnection {
     }
 
     fn move_to_region(&self, pc_id: &str, region_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::move_to_region(pc_id, region_id), "move to region");
+        self.spawn_send(
+            ClientMessageBuilder::move_to_region(pc_id, region_id),
+            "move to region",
+        );
         Ok(())
     }
 
-    fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::exit_to_location(pc_id, location_id, arrival_region_id), "exit to location");
+    fn exit_to_location(
+        &self,
+        pc_id: &str,
+        location_id: &str,
+        arrival_region_id: Option<&str>,
+    ) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::exit_to_location(pc_id, location_id, arrival_region_id),
+            "exit to location",
+        );
         Ok(())
     }
 
@@ -165,22 +218,38 @@ impl GameConnectionPort for DesktopGameConnection {
         ttl_hours: i32,
         source: &str,
     ) -> Result<()> {
-        let proto_npcs = approved_npcs.into_iter().map(approved_npc_info_to_proto).collect();
+        let proto_npcs = approved_npcs
+            .into_iter()
+            .map(approved_npc_info_to_proto)
+            .collect();
         self.spawn_send(
-            ClientMessageBuilder::staging_approval_response(request_id, proto_npcs, ttl_hours, source),
+            ClientMessageBuilder::staging_approval_response(
+                request_id, proto_npcs, ttl_hours, source,
+            ),
             "send staging approval",
         );
         Ok(())
     }
 
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::staging_regenerate_request(request_id, guidance), "request staging regenerate");
+        self.spawn_send(
+            ClientMessageBuilder::staging_regenerate_request(request_id, guidance),
+            "request staging regenerate",
+        );
         Ok(())
     }
 
-    fn pre_stage_region(&self, region_id: &str, npcs: Vec<app::ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
+    fn pre_stage_region(
+        &self,
+        region_id: &str,
+        npcs: Vec<app::ApprovedNpcInfo>,
+        ttl_hours: i32,
+    ) -> Result<()> {
         let proto_npcs = npcs.into_iter().map(approved_npc_info_to_proto).collect();
-        self.spawn_send(ClientMessageBuilder::pre_stage_region(region_id, proto_npcs, ttl_hours), "pre-stage region");
+        self.spawn_send(
+            ClientMessageBuilder::pre_stage_region(region_id, proto_npcs, ttl_hours),
+            "pre-stage region",
+        );
         Ok(())
     }
 
@@ -194,49 +263,85 @@ impl GameConnectionPort for DesktopGameConnection {
     ) -> Result<()> {
         let proto_outcomes = adhoc_outcomes_to_proto(outcomes);
         self.spawn_send(
-            ClientMessageBuilder::create_adhoc_challenge(challenge_name, skill_name, difficulty, target_pc_id, proto_outcomes),
+            ClientMessageBuilder::create_adhoc_challenge(
+                challenge_name,
+                skill_name,
+                difficulty,
+                target_pc_id,
+                proto_outcomes,
+            ),
             "create ad-hoc challenge",
         );
         Ok(())
     }
 
     fn equip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::equip_item(pc_id, item_id), "equip item");
+        self.spawn_send(
+            ClientMessageBuilder::equip_item(pc_id, item_id),
+            "equip item",
+        );
         Ok(())
     }
 
     fn unequip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::unequip_item(pc_id, item_id), "unequip item");
+        self.spawn_send(
+            ClientMessageBuilder::unequip_item(pc_id, item_id),
+            "unequip item",
+        );
         Ok(())
     }
 
     fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::drop_item(pc_id, item_id, quantity), "drop item");
+        self.spawn_send(
+            ClientMessageBuilder::drop_item(pc_id, item_id, quantity),
+            "drop item",
+        );
         Ok(())
     }
 
     fn pickup_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::pickup_item(pc_id, item_id), "pick up item");
+        self.spawn_send(
+            ClientMessageBuilder::pickup_item(pc_id, item_id),
+            "pick up item",
+        );
         Ok(())
     }
 
     fn check_comfyui_health(&self) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::check_comfyui_health(), "check ComfyUI health");
+        self.spawn_send(
+            ClientMessageBuilder::check_comfyui_health(),
+            "check ComfyUI health",
+        );
         Ok(())
     }
 
-    fn set_npc_disposition(&self, npc_id: &str, pc_id: &str, disposition: &str, reason: Option<&str>) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::set_npc_disposition(npc_id, pc_id, disposition, reason), "set NPC disposition");
+    fn set_npc_disposition(
+        &self,
+        npc_id: &str,
+        pc_id: &str,
+        disposition: &str,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::set_npc_disposition(npc_id, pc_id, disposition, reason),
+            "set NPC disposition",
+        );
         Ok(())
     }
 
     fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::set_npc_relationship(npc_id, pc_id, relationship), "set NPC relationship");
+        self.spawn_send(
+            ClientMessageBuilder::set_npc_relationship(npc_id, pc_id, relationship),
+            "set NPC relationship",
+        );
         Ok(())
     }
 
     fn get_npc_dispositions(&self, pc_id: &str) -> Result<()> {
-        self.spawn_send(ClientMessageBuilder::get_npc_dispositions(pc_id), "get NPC dispositions");
+        self.spawn_send(
+            ClientMessageBuilder::get_npc_dispositions(pc_id),
+            "get NPC dispositions",
+        );
         Ok(())
     }
 

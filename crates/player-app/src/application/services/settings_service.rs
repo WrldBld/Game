@@ -74,7 +74,11 @@ impl<A: ApiPort> SettingsService<A> {
     ///
     /// # Returns
     /// The updated settings as confirmed by the Engine
-    pub async fn update_for_world(&self, world_id: &str, settings: &AppSettings) -> Result<AppSettings, ApiError> {
+    pub async fn update_for_world(
+        &self,
+        world_id: &str,
+        settings: &AppSettings,
+    ) -> Result<AppSettings, ApiError> {
         let path = format!("/api/worlds/{}/settings", world_id);
         self.api.put(&path, settings).await
     }

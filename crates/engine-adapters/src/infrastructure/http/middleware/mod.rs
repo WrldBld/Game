@@ -9,4 +9,4 @@
 
 mod auth;
 
-pub use auth::{AuthenticatedUser, Auth};
+pub use auth::{Auth, AuthenticatedUser};

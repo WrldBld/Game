@@ -15,13 +15,13 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, RelationshipRepositoryPort, WorldRepositoryPort,
-};
 use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
 use wrldbldr_domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
 use wrldbldr_domain::{CharacterId, WantId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    CharacterRepositoryPort, ClockPort, RelationshipRepositoryPort, WorldRepositoryPort,
+};
 
 /// Request to create a new character
 #[derive(Debug, Clone)]
@@ -171,34 +171,52 @@ impl CharacterServiceImpl {
     }
 
     /// Validate a character creation request using settings
-    fn validate_create_request(request: &CreateCharacterRequest, settings: &AppSettings) -> Result<()> {
+    fn validate_create_request(
+        request: &CreateCharacterRequest,
+        settings: &AppSettings,
+    ) -> Result<()> {
         if request.name.trim().is_empty() {
             anyhow::bail!("Character name cannot be empty");
         }
         if request.name.len() > settings.max_name_length {
-            anyhow::bail!("Character name cannot exceed {} characters", settings.max_name_length);
+            anyhow::bail!(
+                "Character name cannot exceed {} characters",
+                settings.max_name_length
+            );
         }
         if let Some(ref description) = request.description {
             if description.len() > settings.max_description_length {
-                anyhow::bail!("Character description cannot exceed {} characters", settings.max_description_length);
+                anyhow::bail!(
+                    "Character description cannot exceed {} characters",
+                    settings.max_description_length
+                );
             }
         }
         Ok(())
     }
 
     /// Validate a character update request using settings
-    fn validate_update_request(request: &UpdateCharacterRequest, settings: &AppSettings) -> Result<()> {
+    fn validate_update_request(
+        request: &UpdateCharacterRequest,
+        settings: &AppSettings,
+    ) -> Result<()> {
         if let Some(ref name) = request.name {
             if name.trim().is_empty() {
                 anyhow::bail!("Character name cannot be empty");
             }
             if name.len() > settings.max_name_length {
-                anyhow::bail!("Character name cannot exceed {} characters", settings.max_name_length);
+                anyhow::bail!(
+                    "Character name cannot exceed {} characters",
+                    settings.max_name_length
+                );
             }
         }
         if let Some(ref description) = request.description {
             if description.len() > settings.max_description_length {
-                anyhow::bail!("Character description cannot exceed {} characters", settings.max_description_length);
+                anyhow::bail!(
+                    "Character description cannot exceed {} characters",
+                    settings.max_description_length
+                );
             }
         }
         Ok(())
@@ -341,7 +359,10 @@ impl CharacterService for CharacterServiceImpl {
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
         // Get settings for the character's world to apply appropriate validation limits
-        let settings = self.settings_service.get_for_world(character.world_id).await;
+        let settings = self
+            .settings_service
+            .get_for_world(character.world_id)
+            .await;
         Self::validate_update_request(&request, &settings)?;
 
         if let Some(name) = request.name {
@@ -488,7 +509,8 @@ impl CharacterService for CharacterServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
-        let want = Want::new(&request.description, self.clock.now()).with_intensity(request.intensity);
+        let want =
+            Want::new(&request.description, self.clock.now()).with_intensity(request.intensity);
         let want = if request.known_to_player {
             want.known()
         } else {

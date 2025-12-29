@@ -1,9 +1,9 @@
 //! World selection and role selection route handlers
 
+use super::Route;
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::ParticipantRole;
-use wrldbldr_player_ports::outbound::{Platform, storage_keys};
-use super::Route;
+use wrldbldr_player_ports::outbound::{storage_keys, Platform};
 
 /// Role selection route
 #[component]

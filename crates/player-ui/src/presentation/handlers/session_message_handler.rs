@@ -4,21 +4,21 @@
 //! presentation state mutations. Keeping this here avoids application→presentation
 //! dependencies and keeps the WebSocket transport parsing separate from UI state.
 
-use wrldbldr_player_ports::outbound::Platform;
+use crate::presentation::state::{
+    approval_state::PendingChallengeOutcome,
+    challenge_state::{ChallengePromptData, ChallengeResultData},
+    game_state::RegionStagingStatus,
+    DialogueState, GameState, GenerationState, PendingApproval, SessionState,
+};
+use dioxus::prelude::{ReadableExt, WritableExt};
 use wrldbldr_player_app::application::dto::{
-    CharacterData, ChallengeSuggestionInfo, ConnectedUser, DialogueChoice, EntityChangedData,
+    ChallengeSuggestionInfo, CharacterData, ConnectedUser, DialogueChoice, EntityChangedData,
     GameTime, InteractionData, NarrativeEventSuggestionInfo, NavigationData, NpcDispositionData,
     NpcPresenceData, OutcomeBranchData, ProposedToolInfo, RegionData, RegionItemData, SceneData,
     SessionWorldSnapshot, SplitPartyLocation, WorldRole,
 };
+use wrldbldr_player_ports::outbound::Platform;
 use wrldbldr_protocol::ServerMessage;
-use dioxus::prelude::{ReadableExt, WritableExt};
-use crate::presentation::state::{
-    DialogueState, GameState, GenerationState, PendingApproval, SessionState,
-    challenge_state::{ChallengePromptData, ChallengeResultData},
-    approval_state::PendingChallengeOutcome,
-    game_state::RegionStagingStatus,
-};
 
 /// Handle an incoming `ServerMessage` and update presentation state.
 pub fn handle_server_message(
@@ -53,7 +53,8 @@ pub fn handle_server_message(
             // Convert protocol types to app DTOs
             let scene: SceneData = scene.into();
             let characters: Vec<CharacterData> = characters.into_iter().map(Into::into).collect();
-            let interactions: Vec<InteractionData> = interactions.into_iter().map(Into::into).collect();
+            let interactions: Vec<InteractionData> =
+                interactions.into_iter().map(Into::into).collect();
             game_state.apply_scene_update(scene, characters, interactions);
         }
 
@@ -92,7 +93,8 @@ pub fn handle_server_message(
             // Convert protocol types to app DTOs
             let tools: Vec<ProposedToolInfo> = proposed_tools.into_iter().map(Into::into).collect();
             let challenge: Option<ChallengeSuggestionInfo> = challenge_suggestion.map(Into::into);
-            let narrative: Option<NarrativeEventSuggestionInfo> = narrative_event_suggestion.map(Into::into);
+            let narrative: Option<NarrativeEventSuggestionInfo> =
+                narrative_event_suggestion.map(Into::into);
             session_state.add_pending_approval(PendingApproval {
                 request_id,
                 npc_name,
@@ -134,13 +136,7 @@ pub fn handle_server_message(
                 asset_type,
                 position
             );
-            generation_state.batch_queued(
-                batch_id,
-                entity_type,
-                entity_id,
-                asset_type,
-                position,
-            );
+            generation_state.batch_queued(batch_id, entity_type, entity_id, asset_type, position);
         }
 
         ServerMessage::GenerationProgress { batch_id, progress } => {
@@ -148,7 +144,10 @@ pub fn handle_server_message(
             generation_state.batch_progress(&batch_id, progress);
         }
 
-        ServerMessage::GenerationComplete { batch_id, asset_count } => {
+        ServerMessage::GenerationComplete {
+            batch_id,
+            asset_count,
+        } => {
             tracing::info!("Generation complete: {} ({} assets)", batch_id, asset_count);
             generation_state.batch_complete(&batch_id, asset_count);
         }
@@ -176,7 +175,11 @@ pub fn handle_server_message(
             request_id,
             suggestions,
         } => {
-            tracing::info!("Suggestion complete: {} ({} suggestions)", request_id, suggestions.len());
+            tracing::info!(
+                "Suggestion complete: {} ({} suggestions)",
+                request_id,
+                suggestions.len()
+            );
             generation_state.suggestion_complete(&request_id, suggestions);
         }
 
@@ -193,7 +196,9 @@ pub fn handle_server_message(
             tracing::info!("ComfyUI state changed: {} - {:?}", state, message);
             session_state.comfyui_state().set(state);
             session_state.comfyui_message().set(message);
-            session_state.comfyui_retry_in_seconds().set(retry_in_seconds);
+            session_state
+                .comfyui_retry_in_seconds()
+                .set(retry_in_seconds);
         }
 
         ServerMessage::ChallengePrompt {
@@ -252,10 +257,10 @@ pub fn handle_server_message(
                 roll_breakdown: roll_breakdown.clone(),
                 individual_rolls: individual_rolls.clone(),
             };
-            
+
             // Add to history
             session_state.add_challenge_result(result.clone());
-            
+
             // Trigger popup display (Phase D)
             session_state.set_result_ready(result);
         }
@@ -281,14 +286,12 @@ pub fn handle_server_message(
             location_count,
             locations,
         } => {
-            tracing::info!(
-                "Party is split across {} locations",
-                location_count
-            );
+            tracing::info!("Party is split across {} locations", location_count);
             // Update UI to show split party warning banner
             if location_count > 1 {
                 // Convert protocol types to app DTOs
-                let locations_dto: Vec<SplitPartyLocation> = locations.into_iter().map(Into::into).collect();
+                let locations_dto: Vec<SplitPartyLocation> =
+                    locations.into_iter().map(Into::into).collect();
                 game_state.set_split_party_locations(locations_dto);
             } else {
                 // Party is together (or only one location)
@@ -328,8 +331,12 @@ pub fn handle_server_message(
                             match outcome_type.as_str() {
                                 "success" => outcomes.success = Some(outcome_text),
                                 "failure" => outcomes.failure = Some(outcome_text),
-                                "critical_success" => outcomes.critical_success = Some(outcome_text),
-                                "critical_failure" => outcomes.critical_failure = Some(outcome_text),
+                                "critical_success" => {
+                                    outcomes.critical_success = Some(outcome_text)
+                                }
+                                "critical_failure" => {
+                                    outcomes.critical_failure = Some(outcome_text)
+                                }
                                 // "all" or unknown: update success/failure as a minimal default
                                 _ => {
                                     outcomes.success = Some(outcome_text.clone());
@@ -432,7 +439,8 @@ pub fn handle_server_message(
             );
 
             // Convert protocol types to app DTOs
-            let triggers: Vec<ProposedToolInfo> = outcome_triggers.into_iter().map(Into::into).collect();
+            let triggers: Vec<ProposedToolInfo> =
+                outcome_triggers.into_iter().map(Into::into).collect();
 
             let timestamp = platform.now_unix_secs();
             let pending = PendingChallengeOutcome {
@@ -488,7 +496,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Phase 23E: DM Event System
         // =========================================================================
-
         ServerMessage::ApproachEvent {
             npc_id,
             npc_name,
@@ -497,7 +504,7 @@ pub fn handle_server_message(
             reveal: _,
         } => {
             tracing::info!("NPC approach event: {} ({})", npc_name, npc_id);
-            
+
             // Add to log
             session_state.add_log_entry(
                 npc_name.clone(),
@@ -505,14 +512,9 @@ pub fn handle_server_message(
                 false,
                 platform,
             );
-            
+
             // Set the approach event for visual overlay
-            game_state.set_approach_event(
-                npc_id,
-                npc_name,
-                npc_sprite,
-                description,
-            );
+            game_state.set_approach_event(npc_id, npc_name, npc_sprite, description);
         }
 
         ServerMessage::LocationEvent {
@@ -520,7 +522,7 @@ pub fn handle_server_message(
             description,
         } => {
             tracing::info!("Location event in region {}: {}", region_id, description);
-            
+
             // Add to log
             session_state.add_log_entry(
                 "Narrator".to_string(),
@@ -528,7 +530,7 @@ pub fn handle_server_message(
                 true,
                 platform,
             );
-            
+
             // Set the location event for visual banner
             game_state.set_location_event(region_id, description);
         }
@@ -541,12 +543,15 @@ pub fn handle_server_message(
         } => {
             tracing::info!("NPC location shared: {} at {}", npc_name, region_name);
             let msg = if let Some(note) = notes {
-                format!("You heard that {} is at {}. {}", npc_name, region_name, note)
+                format!(
+                    "You heard that {} is at {}. {}",
+                    npc_name, region_name, note
+                )
             } else {
                 format!("You heard that {} is at {}.", npc_name, region_name)
             };
             session_state.add_log_entry("System".to_string(), msg, true, platform);
-            
+
             // Trigger observations refresh so UI can reload the updated observation list
             game_state.trigger_observations_refresh();
         }
@@ -554,7 +559,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Phase 23C: Navigation & Scene Updates
         // =========================================================================
-
         ServerMessage::PcSelected {
             pc_id,
             pc_name,
@@ -568,10 +572,10 @@ pub fn handle_server_message(
                 location_id,
                 region_id
             );
-            
+
             // Update selected PC in game state
             game_state.selected_pc_id.set(Some(pc_id.clone()));
-            
+
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Now playing as {}", pc_name),
@@ -597,13 +601,13 @@ pub fn handle_server_message(
                 navigation.exits.len(),
                 region_items.len()
             );
-            
+
             // Convert protocol types to app DTOs
             let region_dto: RegionData = region.clone().into();
             let npcs_dto: Vec<NpcPresenceData> = npcs_present.into_iter().map(Into::into).collect();
             let navigation_dto: NavigationData = navigation.into();
             let items_dto: Vec<RegionItemData> = region_items.into_iter().map(Into::into).collect();
-            
+
             // Update game state with navigation data and region items
             game_state.apply_scene_changed(
                 pc_id.clone(),
@@ -612,7 +616,7 @@ pub fn handle_server_message(
                 navigation_dto,
                 items_dto,
             );
-            
+
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Entered {} ({})", region.name, region.location_name),
@@ -634,7 +638,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Phase 23F: Game Time Control
         // =========================================================================
-
         ServerMessage::GameTimeUpdated { game_time } => {
             // Convert protocol type to app DTO
             let game_time_dto: GameTime = game_time.into();
@@ -661,7 +664,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Queue Status (DM-only, can be ignored by Player view)
         // =========================================================================
-
         ServerMessage::ActionQueued {
             action_id,
             player_name,
@@ -697,7 +699,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Staging System (NPC Presence Approval)
         // =========================================================================
-
         ServerMessage::StagingApprovalRequired {
             request_id,
             region_id,
@@ -721,13 +722,30 @@ pub fn handle_server_message(
 
             // Convert protocol types to presentation types
             use crate::presentation::state::game_state::{
-                StagingApprovalData, StagedNpcData, PreviousStagingData, WaitingPcData,
+                PreviousStagingData, StagedNpcData, StagingApprovalData, WaitingPcData,
             };
 
             let previous = previous_staging.map(|p| PreviousStagingData {
                 staging_id: p.staging_id,
                 approved_at: p.approved_at,
-                npcs: p.npcs.into_iter().map(|n| StagedNpcData {
+                npcs: p
+                    .npcs
+                    .into_iter()
+                    .map(|n| StagedNpcData {
+                        character_id: n.character_id,
+                        name: n.name,
+                        sprite_asset: n.sprite_asset,
+                        portrait_asset: n.portrait_asset,
+                        is_present: n.is_present,
+                        reasoning: n.reasoning,
+                        is_hidden_from_players: n.is_hidden_from_players,
+                    })
+                    .collect(),
+            });
+
+            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs
+                .into_iter()
+                .map(|n| StagedNpcData {
                     character_id: n.character_id,
                     name: n.name,
                     sprite_asset: n.sprite_asset,
@@ -735,34 +753,30 @@ pub fn handle_server_message(
                     is_present: n.is_present,
                     reasoning: n.reasoning,
                     is_hidden_from_players: n.is_hidden_from_players,
-                }).collect(),
-            });
+                })
+                .collect();
 
-            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs.into_iter().map(|n| StagedNpcData {
-                character_id: n.character_id,
-                name: n.name,
-                sprite_asset: n.sprite_asset,
-                portrait_asset: n.portrait_asset,
-                is_present: n.is_present,
-                reasoning: n.reasoning,
-                is_hidden_from_players: n.is_hidden_from_players,
-            }).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(|n| StagedNpcData {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    reasoning: n.reasoning,
+                    is_hidden_from_players: n.is_hidden_from_players,
+                })
+                .collect();
 
-            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs.into_iter().map(|n| StagedNpcData {
-                character_id: n.character_id,
-                name: n.name,
-                sprite_asset: n.sprite_asset,
-                portrait_asset: n.portrait_asset,
-                is_present: n.is_present,
-                reasoning: n.reasoning,
-                is_hidden_from_players: n.is_hidden_from_players,
-            }).collect();
-
-            let waiting: Vec<WaitingPcData> = waiting_pcs.into_iter().map(|p| WaitingPcData {
-                pc_id: p.pc_id,
-                pc_name: p.pc_name,
-                player_id: p.player_id,
-            }).collect();
+            let waiting: Vec<WaitingPcData> = waiting_pcs
+                .into_iter()
+                .map(|p| WaitingPcData {
+                    pc_id: p.pc_id,
+                    pc_name: p.pc_name,
+                    player_id: p.player_id,
+                })
+                .collect();
 
             // Convert protocol GameTime to app DTO
             let game_time_dto: GameTime = game_time.into();
@@ -786,7 +800,10 @@ pub fn handle_server_message(
 
             session_state.add_log_entry(
                 "System".to_string(),
-                format!("Staging approval needed for {} ({})", region_name, location_name),
+                format!(
+                    "Staging approval needed for {} ({})",
+                    region_name, location_name
+                ),
                 true,
                 platform,
             );
@@ -797,10 +814,10 @@ pub fn handle_server_message(
             region_name,
         } => {
             tracing::info!("Staging pending for region {} ({})", region_name, region_id);
-            
+
             // Update region staging status to Pending
             game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
-            
+
             game_state.set_staging_pending(region_id, region_name.clone());
             session_state.add_log_entry(
                 "System".to_string(),
@@ -819,10 +836,10 @@ pub fn handle_server_message(
                 region_id,
                 npcs_present.len()
             );
-            
+
             // Clear the pending staging overlay
             game_state.clear_staging_pending();
-            
+
             // Update region staging status to Active with NPC names
             let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();
             game_state.set_region_staging_status(
@@ -832,7 +849,7 @@ pub fn handle_server_message(
                     npc_names,
                 },
             );
-            
+
             // Update NPCs present (the SceneChanged message will follow with full data)
             let npcs: Vec<NpcPresenceData> = npcs_present
                 .into_iter()
@@ -858,15 +875,18 @@ pub fn handle_server_message(
 
             // Update the LLM suggestions in the pending staging approval
             use crate::presentation::state::game_state::StagedNpcData;
-            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs.into_iter().map(|n| StagedNpcData {
-                character_id: n.character_id,
-                name: n.name,
-                sprite_asset: n.sprite_asset,
-                portrait_asset: n.portrait_asset,
-                is_present: n.is_present,
-                reasoning: n.reasoning,
-                is_hidden_from_players: n.is_hidden_from_players,
-            }).collect();
+            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
+                .into_iter()
+                .map(|n| StagedNpcData {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    reasoning: n.reasoning,
+                    is_hidden_from_players: n.is_hidden_from_players,
+                })
+                .collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
         }
@@ -874,8 +894,11 @@ pub fn handle_server_message(
         // =========================================================================
         // Inventory Updates
         // =========================================================================
-
-        ServerMessage::ItemEquipped { pc_id, item_id: _, item_name } => {
+        ServerMessage::ItemEquipped {
+            pc_id,
+            item_id: _,
+            item_name,
+        } => {
             tracing::info!("Item equipped for PC {}: {}", pc_id, item_name);
             session_state.add_log_entry(
                 "System".to_string(),
@@ -887,7 +910,11 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
-        ServerMessage::ItemUnequipped { pc_id, item_id: _, item_name } => {
+        ServerMessage::ItemUnequipped {
+            pc_id,
+            item_id: _,
+            item_name,
+        } => {
             tracing::info!("Item unequipped for PC {}: {}", pc_id, item_name);
             session_state.add_log_entry(
                 "System".to_string(),
@@ -898,7 +925,12 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
-        ServerMessage::ItemDropped { pc_id, item_id: _, item_name, quantity } => {
+        ServerMessage::ItemDropped {
+            pc_id,
+            item_id: _,
+            item_name,
+            quantity,
+        } => {
             tracing::info!("Item dropped for PC {}: {} x{}", pc_id, item_name, quantity);
             let msg = if quantity > 1 {
                 format!("Dropped {} x{}", item_name, quantity)
@@ -909,7 +941,11 @@ pub fn handle_server_message(
             game_state.trigger_inventory_refresh();
         }
 
-        ServerMessage::ItemPickedUp { pc_id, item_id, item_name } => {
+        ServerMessage::ItemPickedUp {
+            pc_id,
+            item_id,
+            item_name,
+        } => {
             tracing::info!("Item picked up for PC {}: {}", pc_id, item_name);
             let msg = format!("Picked up {}", item_name);
             session_state.add_log_entry("System".to_string(), msg, true, platform);
@@ -926,7 +962,6 @@ pub fn handle_server_message(
         // =========================================================================
         // Character Stat Updates
         // =========================================================================
-
         ServerMessage::CharacterStatUpdated {
             character_id,
             character_name,
@@ -941,7 +976,7 @@ pub fn handle_server_message(
             } else {
                 format!("{}", delta)
             };
-            
+
             tracing::info!(
                 character_id = %character_id,
                 character_name = %character_name,
@@ -969,7 +1004,14 @@ pub fn handle_server_message(
         }
 
         // NPC Disposition messages (P1.4) - Update DM panel state
-        ServerMessage::NpcDispositionChanged { npc_id, npc_name: _, pc_id, disposition, relationship, reason } => {
+        ServerMessage::NpcDispositionChanged {
+            npc_id,
+            npc_name: _,
+            pc_id,
+            disposition,
+            relationship,
+            reason,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 pc_id = %pc_id,
@@ -982,14 +1024,18 @@ pub fn handle_server_message(
             game_state.update_npc_disposition(&npc_id, disposition, relationship, reason);
         }
 
-        ServerMessage::NpcDispositionsResponse { pc_id, dispositions } => {
+        ServerMessage::NpcDispositionsResponse {
+            pc_id,
+            dispositions,
+        } => {
             tracing::info!(
                 pc_id = %pc_id,
                 disposition_count = dispositions.len(),
                 "Received NPC dispositions for PC"
             );
             // Convert protocol types to app DTOs
-            let dispositions_dto: Vec<NpcDispositionData> = dispositions.into_iter().map(Into::into).collect();
+            let dispositions_dto: Vec<NpcDispositionData> =
+                dispositions.into_iter().map(Into::into).collect();
             // Replace entire disposition list for this PC
             game_state.set_npc_dispositions(dispositions_dto);
         }
@@ -998,7 +1044,6 @@ pub fn handle_server_message(
         // Actantial Model / Motivations (P1.5)
         // TODO: Implement in Step 8 of Phase 4
         // =========================================================================
-
         ServerMessage::NpcWantCreated { npc_id, want } => {
             tracing::info!(
                 npc_id = %npc_id,
@@ -1051,7 +1096,12 @@ pub fn handle_server_message(
             game_state.trigger_actantial_refresh();
         }
 
-        ServerMessage::ActantialViewRemoved { npc_id, want_id, target_id, role } => {
+        ServerMessage::ActantialViewRemoved {
+            npc_id,
+            want_id,
+            target_id,
+            role,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 want_id = %want_id,
@@ -1099,7 +1149,11 @@ pub fn handle_server_message(
             game_state.trigger_actantial_refresh();
         }
 
-        ServerMessage::DeflectionSuggestions { npc_id, want_id, suggestions } => {
+        ServerMessage::DeflectionSuggestions {
+            npc_id,
+            want_id,
+            suggestions,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 want_id = %want_id,
@@ -1109,7 +1163,11 @@ pub fn handle_server_message(
             game_state.trigger_actantial_refresh();
         }
 
-        ServerMessage::TellsSuggestions { npc_id, want_id, suggestions } => {
+        ServerMessage::TellsSuggestions {
+            npc_id,
+            want_id,
+            suggestions,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 want_id = %want_id,
@@ -1119,7 +1177,10 @@ pub fn handle_server_message(
             game_state.trigger_actantial_refresh();
         }
 
-        ServerMessage::WantDescriptionSuggestions { npc_id, suggestions } => {
+        ServerMessage::WantDescriptionSuggestions {
+            npc_id,
+            suggestions,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 suggestion_count = suggestions.len(),
@@ -1128,7 +1189,13 @@ pub fn handle_server_message(
             game_state.trigger_actantial_refresh();
         }
 
-        ServerMessage::ActantialReasonSuggestions { npc_id, want_id, target_id, role, suggestions } => {
+        ServerMessage::ActantialReasonSuggestions {
+            npc_id,
+            want_id,
+            target_id,
+            role,
+            suggestions,
+        } => {
             tracing::info!(
                 npc_id = %npc_id,
                 want_id = %want_id,
@@ -1143,8 +1210,13 @@ pub fn handle_server_message(
         // =========================================================================
         // WebSocket-First Protocol Messages (World-scoped connections)
         // =========================================================================
-
-        ServerMessage::WorldJoined { world_id, snapshot, connected_users, your_role, your_pc } => {
+        ServerMessage::WorldJoined {
+            world_id,
+            snapshot,
+            connected_users,
+            your_role,
+            your_pc,
+        } => {
             tracing::info!(
                 world_id = %world_id,
                 user_count = connected_users.len(),
@@ -1154,7 +1226,8 @@ pub fn handle_server_message(
 
             // Convert protocol types to app DTOs
             let role_dto: WorldRole = your_role.clone().into();
-            let users_dto: Vec<ConnectedUser> = connected_users.into_iter().map(Into::into).collect();
+            let users_dto: Vec<ConnectedUser> =
+                connected_users.into_iter().map(Into::into).collect();
 
             // Update connection state with world info
             session_state.set_world_joined(world_id, role_dto, users_dto);
@@ -1164,15 +1237,20 @@ pub fn handle_server_message(
                 Ok(world_snapshot) => {
                     // Try to build an initial scene from the world snapshot
                     if let Some(first_scene) = world_snapshot.scenes.first() {
-                        let location_name = world_snapshot.locations.iter()
+                        let location_name = world_snapshot
+                            .locations
+                            .iter()
                             .find(|l| l.id == first_scene.location_id)
                             .map(|l| l.name.clone())
                             .unwrap_or_else(|| "Unknown".to_string());
-                        
-                        let backdrop_asset = first_scene.backdrop_override.clone()
-                            .or_else(|| world_snapshot.locations.iter()
+
+                        let backdrop_asset = first_scene.backdrop_override.clone().or_else(|| {
+                            world_snapshot
+                                .locations
+                                .iter()
                                 .find(|l| l.id == first_scene.location_id)
-                                .and_then(|l| l.backdrop_asset.clone()));
+                                .and_then(|l| l.backdrop_asset.clone())
+                        });
 
                         // Construct app DTO directly
                         let initial_scene = SceneData {
@@ -1191,8 +1269,11 @@ pub fn handle_server_message(
                             .featured_characters
                             .iter()
                             .filter_map(|char_id| {
-                                world_snapshot.characters.iter().find(|c| &c.id == char_id).map(|c| {
-                                    CharacterData {
+                                world_snapshot
+                                    .characters
+                                    .iter()
+                                    .find(|c| &c.id == char_id)
+                                    .map(|c| CharacterData {
                                         id: c.id.clone(),
                                         name: c.name.clone(),
                                         sprite_asset: c.sprite_asset.clone(),
@@ -1200,13 +1281,15 @@ pub fn handle_server_message(
                                         position: CharacterPosition::Center,
                                         is_speaking: false,
                                         emotion: None,
-                                    }
-                                })
+                                    })
                             })
                             .collect();
 
                         game_state.apply_scene_update(initial_scene, scene_characters, Vec::new());
-                        tracing::info!("Applied initial scene from world snapshot: {}", first_scene.name);
+                        tracing::info!(
+                            "Applied initial scene from world snapshot: {}",
+                            first_scene.name
+                        );
                     }
 
                     game_state.load_world(world_snapshot);
@@ -1244,22 +1327,22 @@ pub fn handle_server_message(
             );
             let error_msg = format!("Failed to join world: {:?}", error);
             session_state.set_failed(error_msg.clone());
-            session_state.add_log_entry(
-                "System".to_string(),
-                error_msg,
-                true,
-                platform,
-            );
+            session_state.add_log_entry("System".to_string(), error_msg, true, platform);
         }
 
-        ServerMessage::UserJoined { user_id, username, role, pc } => {
+        ServerMessage::UserJoined {
+            user_id,
+            username,
+            role,
+            pc,
+        } => {
             tracing::info!(
                 user_id = %user_id,
                 username = ?username,
                 role = ?role,
                 "User joined world"
             );
-            
+
             // Convert protocol WorldRole to string for app DTO
             let role_str = match role {
                 wrldbldr_protocol::responses::WorldRole::Dm => "dm",
@@ -1267,15 +1350,15 @@ pub fn handle_server_message(
                 wrldbldr_protocol::responses::WorldRole::Spectator
                 | wrldbldr_protocol::responses::WorldRole::Unknown => "spectator",
             };
-            
+
             // Add to connected users list
             let new_user = ConnectedUser {
                 user_id: user_id.clone(),
                 username: username.clone(),
                 role: role_str.to_string(),
-                pc_id: pc.as_ref().and_then(|p| {
-                    p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())
-                }),
+                pc_id: pc
+                    .as_ref()
+                    .and_then(|p| p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string())),
                 connection_count: 1,
             };
             session_state.add_connected_user(new_user);
@@ -1348,4 +1431,3 @@ pub fn handle_server_message(
         }
     }
 }
-

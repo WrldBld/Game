@@ -391,9 +391,11 @@ impl ChallengeUseCase {
         ctx: UseCaseContext,
         input: SubmitRollInput,
     ) -> Result<RollResult, ChallengeError> {
-        let pc_id = ctx.pc_id.ok_or(ChallengeError::PcNotFound(
-            PlayerCharacterId::from_uuid(uuid::Uuid::nil()),
-        ))?;
+        let pc_id = ctx
+            .pc_id
+            .ok_or(ChallengeError::PcNotFound(PlayerCharacterId::from_uuid(
+                uuid::Uuid::nil(),
+            )))?;
 
         debug!(
             challenge_id = %input.challenge_id,
@@ -449,9 +451,11 @@ impl ChallengeUseCase {
         ctx: UseCaseContext,
         input: SubmitDiceInputInput,
     ) -> Result<RollResult, ChallengeError> {
-        let pc_id = ctx.pc_id.ok_or(ChallengeError::PcNotFound(
-            PlayerCharacterId::from_uuid(uuid::Uuid::nil()),
-        ))?;
+        let pc_id = ctx
+            .pc_id
+            .ok_or(ChallengeError::PcNotFound(PlayerCharacterId::from_uuid(
+                uuid::Uuid::nil(),
+            )))?;
 
         debug!(
             challenge_id = %input.challenge_id,
@@ -461,7 +465,12 @@ impl ChallengeUseCase {
 
         let result = self
             .resolution_service
-            .handle_roll_input(&ctx.world_id, pc_id, input.challenge_id.clone(), input.input_type)
+            .handle_roll_input(
+                &ctx.world_id,
+                pc_id,
+                input.challenge_id.clone(),
+                input.input_type,
+            )
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e))?;
 
@@ -695,7 +704,7 @@ impl ChallengeUseCase {
             .map_err(|e| ChallengeError::ResolutionFailed(e))?;
 
         Ok(OutcomeDecisionResult {
-            outcome_text: None,      // Resolution broadcast handled by service
+            outcome_text: None, // Resolution broadcast handled by service
             suggestions_pending: false,
         })
     }

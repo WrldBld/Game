@@ -4,11 +4,11 @@
 
 use axum::{extract::Path, http::StatusCode, response::IntoResponse, Json};
 
+use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
 use wrldbldr_engine_app::application::dto::{
     parse_system_type, parse_variant, RuleSystemPresetDetailsDto, RuleSystemPresetSummaryDto,
     RuleSystemSummaryDto, RuleSystemTypeDetailsDto,
 };
-use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
 
 /// List all available rule system types
 pub async fn list_rule_systems() -> impl IntoResponse {
@@ -80,7 +80,8 @@ pub async fn list_rule_systems() -> impl IntoResponse {
 pub async fn get_rule_system(
     Path(system_type): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let system_type = parse_system_type(&system_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let system_type =
+        parse_system_type(&system_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let (name, description, dice_notation) = match system_type {
         RuleSystemType::D20 => (
@@ -105,17 +106,18 @@ pub async fn get_rule_system(
         ),
     };
 
-    let presets: Vec<RuleSystemPresetSummaryDto> = RuleSystemVariant::variants_for_type(system_type)
-        .into_iter()
-        .map(|v| {
-            let config = RuleSystemConfig::from_variant(v.clone());
-            RuleSystemPresetSummaryDto {
-                variant: v,
-                name: config.name,
-                description: config.description,
-            }
-        })
-        .collect();
+    let presets: Vec<RuleSystemPresetSummaryDto> =
+        RuleSystemVariant::variants_for_type(system_type)
+            .into_iter()
+            .map(|v| {
+                let config = RuleSystemConfig::from_variant(v.clone());
+                RuleSystemPresetSummaryDto {
+                    variant: v,
+                    name: config.name,
+                    description: config.description,
+                }
+            })
+            .collect();
 
     Ok(Json(RuleSystemTypeDetailsDto {
         system_type,
@@ -130,15 +132,17 @@ pub async fn get_rule_system(
 pub async fn list_presets(
     Path(system_type): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let system_type = parse_system_type(&system_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
+    let system_type =
+        parse_system_type(&system_type).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
-    let presets: Vec<RuleSystemPresetDetailsDto> = RuleSystemVariant::variants_for_type(system_type)
-        .into_iter()
-        .map(|v| RuleSystemPresetDetailsDto {
-            variant: v.clone(),
-            config: RuleSystemConfig::from_variant(v),
-        })
-        .collect();
+    let presets: Vec<RuleSystemPresetDetailsDto> =
+        RuleSystemVariant::variants_for_type(system_type)
+            .into_iter()
+            .map(|v| RuleSystemPresetDetailsDto {
+                variant: v.clone(),
+                config: RuleSystemConfig::from_variant(v),
+            })
+            .collect();
 
     Ok(Json(presets))
 }
@@ -153,8 +157,5 @@ pub async fn get_preset(
 
     let config = RuleSystemConfig::from_variant(variant.clone());
 
-    Ok(Json(RuleSystemPresetDetailsDto {
-        variant,
-        config,
-    }))
+    Ok(Json(RuleSystemPresetDetailsDto { variant, config }))
 }

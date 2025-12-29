@@ -257,7 +257,14 @@ mod tests {
         let game_time = Utc::now();
         let now = Utc::now();
 
-        let obs = NpcObservation::direct_unrevealed(pc_id, npc_id, location_id, region_id, game_time, now);
+        let obs = NpcObservation::direct_unrevealed(
+            pc_id,
+            npc_id,
+            location_id,
+            region_id,
+            game_time,
+            now,
+        );
 
         assert_eq!(obs.observation_type, ObservationType::Direct);
         assert!(!obs.is_revealed_to_player);

@@ -55,7 +55,12 @@ impl WorldSnapshot {
     pub fn get_child_locations(&self, parent_id: &str) -> Vec<&LocationData> {
         self.locations
             .iter()
-            .filter(|l| l.parent_id.as_ref().map(|p| p == parent_id).unwrap_or(false))
+            .filter(|l| {
+                l.parent_id
+                    .as_ref()
+                    .map(|p| p == parent_id)
+                    .unwrap_or(false)
+            })
             .collect()
     }
 
@@ -492,13 +497,30 @@ pub struct Outcome {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutcomeTrigger {
-    RevealInformation { info: String, persist: bool },
-    EnableChallenge { challenge_id: String },
-    DisableChallenge { challenge_id: String },
-    ModifyCharacterStat { stat: String, modifier: i32 },
-    TriggerScene { scene_id: String },
-    GiveItem { item_name: String, item_description: Option<String> },
-    Custom { description: String },
+    RevealInformation {
+        info: String,
+        persist: bool,
+    },
+    EnableChallenge {
+        challenge_id: String,
+    },
+    DisableChallenge {
+        challenge_id: String,
+    },
+    ModifyCharacterStat {
+        stat: String,
+        modifier: i32,
+    },
+    TriggerScene {
+        scene_id: String,
+    },
+    GiveItem {
+        item_name: String,
+        item_description: Option<String>,
+    },
+    Custom {
+        description: String,
+    },
 }
 
 /// Condition that triggers LLM to suggest a challenge
@@ -514,13 +536,28 @@ pub struct TriggerCondition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TriggerType {
-    ObjectInteraction { keywords: Vec<String> },
-    EnterArea { area_keywords: Vec<String> },
-    DialogueTopic { topic_keywords: Vec<String> },
-    ChallengeComplete { challenge_id: String, requires_success: Option<bool> },
-    TimeBased { turns: u32 },
-    NpcPresent { npc_keywords: Vec<String> },
-    Custom { description: String },
+    ObjectInteraction {
+        keywords: Vec<String>,
+    },
+    EnterArea {
+        area_keywords: Vec<String>,
+    },
+    DialogueTopic {
+        topic_keywords: Vec<String>,
+    },
+    ChallengeComplete {
+        challenge_id: String,
+        requires_success: Option<bool>,
+    },
+    TimeBased {
+        turns: u32,
+    },
+    NpcPresent {
+        npc_keywords: Vec<String>,
+    },
+    Custom {
+        description: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -768,7 +805,10 @@ pub enum FieldValue {
     Number(i32),
     Text(String),
     Boolean(bool),
-    Resource { current: i32, max: i32 },
+    Resource {
+        current: i32,
+        max: i32,
+    },
     List(Vec<String>),
     SkillEntry {
         skill_id: String,
@@ -1073,4 +1113,3 @@ impl InventoryItemData {
         self.item.item_type.as_deref() == Some("Quest")
     }
 }
-

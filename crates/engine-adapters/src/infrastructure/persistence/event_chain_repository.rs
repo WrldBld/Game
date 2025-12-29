@@ -7,9 +7,9 @@ use neo4rs::{query, Row};
 use uuid::Uuid;
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::EventChainRepositoryPort;
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
+use wrldbldr_engine_ports::outbound::EventChainRepositoryPort;
 
 /// Repository for EventChain operations
 pub struct Neo4jEventChainRepository {
@@ -478,15 +478,27 @@ impl EventChainRepositoryPort for Neo4jEventChainRepository {
         self.get_chains_for_event(event_id).await
     }
 
-    async fn add_event_to_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool> {
+    async fn add_event_to_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool> {
         self.add_event_to_chain(chain_id, event_id).await
     }
 
-    async fn remove_event_from_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool> {
+    async fn remove_event_from_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool> {
         self.remove_event_from_chain(chain_id, event_id).await
     }
 
-    async fn complete_event(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool> {
+    async fn complete_event(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool> {
         self.complete_event(chain_id, event_id).await
     }
 

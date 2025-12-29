@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{RelationshipRepositoryPort, SocialNetwork};
+use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
-use wrldbldr_domain::value_objects::{Relationship};
+use wrldbldr_engine_ports::outbound::{RelationshipRepositoryPort, SocialNetwork};
 
 /// Relationship service trait defining the application use cases
 #[async_trait]
@@ -28,7 +28,10 @@ pub trait RelationshipService: Send + Sync {
     async fn delete_relationship(&self, relationship_id: RelationshipId) -> Result<()>;
 
     /// Get a specific relationship by ID
-    async fn get_relationship(&self, relationship_id: RelationshipId) -> Result<Option<Relationship>>;
+    async fn get_relationship(
+        &self,
+        relationship_id: RelationshipId,
+    ) -> Result<Option<Relationship>>;
 
     /// Get the social network graph for a world
     async fn get_social_network(&self, world_id: WorldId) -> Result<SocialNetwork>;
@@ -101,7 +104,10 @@ impl RelationshipService for RelationshipServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn get_relationship(&self, relationship_id: RelationshipId) -> Result<Option<Relationship>> {
+    async fn get_relationship(
+        &self,
+        relationship_id: RelationshipId,
+    ) -> Result<Option<Relationship>> {
         debug!(relationship_id = %relationship_id, "Fetching relationship");
         self.repository
             .get(relationship_id)

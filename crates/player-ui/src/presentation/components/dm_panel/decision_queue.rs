@@ -2,9 +2,9 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::ChallengeOutcomeDecision;
 use crate::presentation::components::dm_panel::challenge_outcome_approval::ChallengeOutcomesSection;
 use crate::presentation::state::use_session_state;
+use wrldbldr_player_app::application::dto::ChallengeOutcomeDecision;
 
 /// Compact decision queue view for Director mode
 #[component]
@@ -148,5 +148,3 @@ pub fn DecisionQueuePanel() -> Element {
         }
     }
 }
-
-

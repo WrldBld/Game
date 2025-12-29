@@ -15,7 +15,9 @@ pub struct LocationNavigatorProps {
 #[component]
 pub fn LocationNavigator(props: LocationNavigatorProps) -> Element {
     let location_service = use_location_service();
-    let mut locations: Signal<Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>> = use_signal(Vec::new);
+    let mut locations: Signal<
+        Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>,
+    > = use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 
@@ -122,4 +124,3 @@ fn LocationCard(props: LocationCardProps) -> Element {
         }
     }
 }
-

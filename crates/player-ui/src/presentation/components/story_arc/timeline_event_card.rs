@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
 use crate::presentation::components::story_arc::timeline_view::get_event_type_icon;
+use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
 
 #[derive(Props, Clone)]
 pub struct TimelineEventCardProps {
@@ -27,7 +27,11 @@ pub fn TimelineEventCard(props: TimelineEventCardProps) -> Element {
     // Parse and format timestamp
     let formatted_time = format_timestamp(&event.timestamp);
 
-    let opacity_class = if event.is_hidden { "opacity-50" } else { "opacity-100" };
+    let opacity_class = if event.is_hidden {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
 
     rsx! {
         div {

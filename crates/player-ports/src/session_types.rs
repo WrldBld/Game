@@ -53,13 +53,9 @@ pub enum ApprovalDecision {
         item_recipients: HashMap<String, Vec<String>>,
     },
     /// Reject the proposal
-    Reject {
-        feedback: String,
-    },
+    Reject { feedback: String },
     /// DM takes over the response
-    TakeOver {
-        dm_response: String,
-    },
+    TakeOver { dm_response: String },
 }
 
 /// Directorial context for scene guidance
@@ -222,9 +218,11 @@ impl From<proto::ChallengeOutcomeDecisionData> for ChallengeOutcomeDecision {
     fn from(proto: proto::ChallengeOutcomeDecisionData) -> Self {
         match proto {
             proto::ChallengeOutcomeDecisionData::Accept => Self::Accept,
-            proto::ChallengeOutcomeDecisionData::Edit { modified_description } => {
-                Self::Edit { modified_description }
-            }
+            proto::ChallengeOutcomeDecisionData::Edit {
+                modified_description,
+            } => Self::Edit {
+                modified_description,
+            },
             proto::ChallengeOutcomeDecisionData::Suggest { guidance } => Self::Suggest { guidance },
             // Unknown falls back to Accept
             proto::ChallengeOutcomeDecisionData::Unknown => Self::Accept,
@@ -327,9 +325,11 @@ impl From<ChallengeOutcomeDecision> for proto::ChallengeOutcomeDecisionData {
     fn from(local: ChallengeOutcomeDecision) -> Self {
         match local {
             ChallengeOutcomeDecision::Accept => Self::Accept,
-            ChallengeOutcomeDecision::Edit { modified_description } => {
-                Self::Edit { modified_description }
-            }
+            ChallengeOutcomeDecision::Edit {
+                modified_description,
+            } => Self::Edit {
+                modified_description,
+            },
             ChallengeOutcomeDecision::Suggest { guidance } => Self::Suggest { guidance },
         }
     }

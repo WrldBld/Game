@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
 use crate::presentation::services::{use_asset_service, use_settings_service};
+use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
 
 /// Asset types that can be generated
 const ASSET_TYPES: &[(&str, &str)] = &[
@@ -414,7 +414,8 @@ fn GenerateAssetModal(
                 // If world has a default style reference, pre-populate it
                 if let Some(ref default_id) = default_ref {
                     // Find the asset label for the default reference
-                    let label = assets.iter()
+                    let label = assets
+                        .iter()
                         .find(|a| &a.id == default_id)
                         .and_then(|a| a.label.clone())
                         .or_else(|| Some(default_id.clone()));
@@ -629,4 +630,3 @@ fn GenerateAssetModal(
         }
     }
 }
-

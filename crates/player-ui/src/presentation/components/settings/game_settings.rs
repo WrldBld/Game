@@ -4,9 +4,9 @@
 //! world-specific settings. It's designed for use during active gameplay
 //! where DMs can tune settings for the current world/session.
 
+use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::AppSettings;
-use crate::presentation::services::use_settings_service;
 
 /// Props for the Game Settings Panel
 #[derive(Props, Clone, PartialEq)]

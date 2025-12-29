@@ -90,8 +90,8 @@ pub use wrldbldr_engine_ports::inbound::UseCaseContext;
 
 // Re-export error types (explicit)
 pub use errors::{
-    ErrorCode, MovementError, StagingError, InventoryError, ChallengeError,
-    ObservationError, SceneError, ConnectionError, NarrativeEventError, ActionError,
+    ActionError, ChallengeError, ConnectionError, ErrorCode, InventoryError, MovementError,
+    NarrativeEventError, ObservationError, SceneError, StagingError,
 };
 
 // Re-export builders (explicit)
@@ -100,12 +100,13 @@ pub use builders::SceneBuilder;
 // Re-export use cases (explicit where possible)
 pub use challenge::{
     AdHocOutcomes, AdHocResult, ApprovalItem, ChallengeOutcomeApprovalPort,
-    ChallengeResolutionPort, ChallengeUseCase, CreateAdHocInput, DiceInputType, DiscardChallengeInput,
-    DiscardResult, DmApprovalQueuePort as ChallengeDmApprovalQueuePort, OutcomeDecision as ChallengeOutcomeDecision,
-    OutcomeDecisionInput, OutcomeDecisionResult, OutcomeDetail, RegenerateOutcomeInput,
-    RegenerateResult as ChallengeRegenerateResult, RequestBranchesInput, RequestSuggestionInput,
-    RollResult, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
-    SuggestionDecisionInput, TriggerChallengeInput, TriggerInfo, TriggerResult,
+    ChallengeResolutionPort, ChallengeUseCase, CreateAdHocInput, DiceInputType,
+    DiscardChallengeInput, DiscardResult, DmApprovalQueuePort as ChallengeDmApprovalQueuePort,
+    OutcomeDecision as ChallengeOutcomeDecision, OutcomeDecisionInput, OutcomeDecisionResult,
+    OutcomeDetail, RegenerateOutcomeInput, RegenerateResult as ChallengeRegenerateResult,
+    RequestBranchesInput, RequestSuggestionInput, RollResult, SelectBranchInput,
+    SubmitDiceInputInput, SubmitRollInput, SuggestionDecisionInput, TriggerChallengeInput,
+    TriggerInfo, TriggerResult,
 };
 
 pub use connection::{
@@ -116,21 +117,21 @@ pub use connection::{
 };
 
 pub use inventory::{
-    EquipInput, UnequipInput, DropInput, PickupInput,
-    EquipResult, UnequipResult, DropResult, PickupResult, InventoryUseCase,
+    DropInput, DropResult, EquipInput, EquipResult, InventoryUseCase, PickupInput, PickupResult,
+    UnequipInput, UnequipResult,
 };
 pub use movement::{
-    MovementResult, SelectCharacterInput, SelectCharacterResult,
-    MoveToRegionInput, ExitToLocationInput, StagingStatePort, PendingStagingData,
-    StagingServicePort, StagingProposalData, MovementUseCase,
+    ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase, PendingStagingData,
+    SelectCharacterInput, SelectCharacterResult, StagingProposalData, StagingServicePort,
+    StagingStatePort,
 };
 pub use observation::{
-    ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
-    ShareNpcLocationResult, TriggerApproachResult, TriggerLocationEventResult,
-    WorldMessagePort, ApproachEventData, LocationEventData, ObservationUseCase,
+    ApproachEventData, LocationEventData, ObservationUseCase, ShareNpcLocationInput,
+    ShareNpcLocationResult, TriggerApproachInput, TriggerApproachResult, TriggerLocationEventInput,
+    TriggerLocationEventResult, WorldMessagePort,
 };
 pub use player_action::{
-    PlayerActionInput, ActionResult, PlayerActionQueuePort, DmNotificationPort, PlayerActionUseCase,
+    ActionResult, DmNotificationPort, PlayerActionInput, PlayerActionQueuePort, PlayerActionUseCase,
 };
 
 pub use scene::{
@@ -140,15 +141,15 @@ pub use scene::{
     DirectorialUpdateResult, DmAction, DmActionQueuePort as SceneDmActionQueuePort,
     InteractionData as SceneInteractionData, InteractionEntity, InteractionServicePort,
     InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput, SceneChangeResult,
-    SceneData, SceneEntity, SceneServicePort, SceneUseCase, SceneWithRelations,
-    TimeContext, UpdateDirectorialInput, WorldStatePort,
+    SceneData, SceneEntity, SceneServicePort, SceneUseCase, SceneWithRelations, TimeContext,
+    UpdateDirectorialInput, WorldStatePort,
 };
 
 pub use staging::{
     ApproveInput, ApproveResult, ApprovedNpc, ApprovedNpcData, PendingStagingInfo, PreStageInput,
     PreStageResult, ProposedNpc, RegenerateInput, RegenerateResult as StagingRegenerateResult,
-    RegeneratedNpc, StagingApprovalSource, StagingApprovalUseCase,
-    StagingServiceExtPort, StagingStateExtPort, WaitingPcInfo,
+    RegeneratedNpc, StagingApprovalSource, StagingApprovalUseCase, StagingServiceExtPort,
+    StagingStateExtPort, WaitingPcInfo,
 };
 
 pub use narrative_event::{

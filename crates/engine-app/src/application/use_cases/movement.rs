@@ -61,8 +61,8 @@ use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId, WorldId
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
-    RegionRepositoryPort, SceneChangedEvent, StagingPendingEvent, StagingRequiredEvent,
-    StagedNpcData, WaitingPcData,
+    RegionRepositoryPort, SceneChangedEvent, StagedNpcData, StagingPendingEvent,
+    StagingRequiredEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
@@ -366,7 +366,11 @@ impl MovementUseCase {
 
         // Update PC position (both location and region)
         self.pc_repo
-            .update_position(input.pc_id, input.target_location_id, Some(arrival_region_id))
+            .update_position(
+                input.pc_id,
+                input.target_location_id,
+                Some(arrival_region_id),
+            )
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?;
 

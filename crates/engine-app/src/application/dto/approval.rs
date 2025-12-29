@@ -4,8 +4,8 @@
 //! by the application layer. Mapping to/from protocol types happens
 //! in the adapters layer.
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Proposed tool call information (app-layer version)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,12 +89,8 @@ pub enum DmApprovalDecision {
     },
 
     /// Reject with feedback
-    Reject {
-        feedback: String,
-    },
+    Reject { feedback: String },
 
     /// DM takes over response
-    TakeOver {
-        dm_response: String,
-    },
+    TakeOver { dm_response: String },
 }

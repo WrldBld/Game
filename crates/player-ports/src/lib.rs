@@ -4,8 +4,8 @@ pub mod session_types;
 
 // Re-export session types at crate root for convenience
 pub use session_types::{
-    ParticipantRole, DiceInput, ApprovalDecision, DirectorialContext,
-    NpcMotivationData, ApprovedNpcInfo, AdHocOutcomes, ChallengeOutcomeDecision,
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
+    DirectorialContext, NpcMotivationData, ParticipantRole,
 };
 
 pub mod config {

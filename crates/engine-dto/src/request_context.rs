@@ -103,9 +103,8 @@ impl RequestContext {
 
     /// Get the world ID, returning an error result if not in a world
     pub fn require_world(&self) -> Result<Uuid, ResponseResult> {
-        self.world_id.ok_or_else(|| {
-            ResponseResult::error(ErrorCode::BadRequest, "Not connected to a world")
-        })
+        self.world_id
+            .ok_or_else(|| ResponseResult::error(ErrorCode::BadRequest, "Not connected to a world"))
     }
 
     /// Require DM role, returning an error result if not DM

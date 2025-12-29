@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::application::services::WorkflowService;
 use wrldbldr_domain::entities::{
-    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis, WorkflowConfiguration,
-    WorkflowInput, WorkflowSlot,
+    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
+    WorkflowConfiguration, WorkflowInput, WorkflowSlot,
 };
 use wrldbldr_domain::WorkflowConfigId;
 
@@ -167,7 +167,11 @@ impl From<WorkflowAnalysis> for WorkflowAnalysisDto {
     fn from(value: WorkflowAnalysis) -> Self {
         Self {
             node_count: value.node_count,
-            inputs: value.inputs.into_iter().map(WorkflowInputDto::from).collect(),
+            inputs: value
+                .inputs
+                .into_iter()
+                .map(WorkflowInputDto::from)
+                .collect(),
             text_inputs: value
                 .text_inputs
                 .into_iter()
@@ -418,4 +422,3 @@ impl TryFrom<WorkflowConfigExportDto> for WorkflowConfiguration {
 pub fn parse_workflow_slot(slot: &str) -> Result<WorkflowSlot, String> {
     WorkflowSlot::from_str(slot)
 }
-

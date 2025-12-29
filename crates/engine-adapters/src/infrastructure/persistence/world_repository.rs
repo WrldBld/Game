@@ -5,10 +5,10 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::RuleSystemConfig;
 use wrldbldr_domain::{ActId, GameTime, WorldId};
+use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
 
 /// Repository for World aggregate operations
 pub struct Neo4jWorldRepository {
@@ -191,7 +191,7 @@ fn row_to_world(row: Row) -> Result<World> {
     let rule_system_json: String = row.get("rule_system")?;
     let created_at_str: String = row.get("created_at")?;
     let updated_at_str: String = row.get("updated_at")?;
-    
+
     // GameTime fields - use defaults for backwards compatibility with existing DBs
     let game_time_str: Option<String> = row.get("game_time").ok();
     let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
@@ -203,7 +203,7 @@ fn row_to_world(row: Row) -> Result<World> {
         chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
     let updated_at =
         chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
-    
+
     // Parse game time or use default
     let mut game_time = if let Some(ref gt_str) = game_time_str {
         if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(gt_str) {

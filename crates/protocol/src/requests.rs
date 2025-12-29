@@ -292,7 +292,10 @@ pub enum RequestPayload {
     SetChallengeActive { challenge_id: String, active: bool },
 
     /// Set challenge favorite state
-    SetChallengeFavorite { challenge_id: String, favorite: bool },
+    SetChallengeFavorite {
+        challenge_id: String,
+        favorite: bool,
+    },
 
     // =========================================================================
     // Narrative Event Operations
@@ -557,10 +560,7 @@ pub enum RequestPayload {
     GetGameTime { world_id: String },
 
     /// Advance the game time
-    AdvanceGameTime {
-        world_id: String,
-        hours: u32,
-    },
+    AdvanceGameTime { world_id: String, hours: u32 },
 
     // =========================================================================
     // Character-Region Relationship Operations
@@ -686,10 +686,7 @@ pub enum RequestPayload {
     // Item Placement Operations (DM only)
     // =========================================================================
     /// Place an existing item into a region (DM only)
-    PlaceItemInRegion {
-        region_id: String,
-        item_id: String,
-    },
+    PlaceItemInRegion { region_id: String, item_id: String },
 
     /// Create a new item and place it in a region (DM only)
     CreateAndPlaceItem {

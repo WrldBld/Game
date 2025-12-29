@@ -5,11 +5,11 @@
 
 use dioxus::prelude::*;
 
+use crate::presentation::services::{use_character_service, use_location_service};
+use crate::presentation::state::game_state::RegionStagingStatus;
+use crate::presentation::state::{use_game_state, use_session_state};
 use wrldbldr_player_app::application::dto::ApprovedNpcInfo;
 use wrldbldr_player_app::application::services::CharacterSummary;
-use crate::presentation::services::{use_character_service, use_location_service};
-use crate::presentation::state::{use_game_state, use_session_state};
-use crate::presentation::state::game_state::RegionStagingStatus;
 
 /// Region staging status
 #[derive(Clone, PartialEq)]
@@ -17,9 +17,15 @@ pub enum StagingStatus {
     /// No staging set - will prompt when player enters
     None,
     /// Staging is active with expiry time
-    Active { expires_in_hours: f32, npc_names: Vec<String> },
+    Active {
+        expires_in_hours: f32,
+        npc_names: Vec<String>,
+    },
     /// Staging expired - can be refreshed
-    Expired { hours_ago: f32, previous_npc_names: Vec<String> },
+    Expired {
+        hours_ago: f32,
+        previous_npc_names: Vec<String>,
+    },
 }
 
 /// Region data with staging info
@@ -54,7 +60,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
     let mut characters: Signal<Vec<CharacterSummary>> = use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Pre-staging modal state
     let mut show_prestage_modal = use_signal(|| false);
     let mut selected_region: Signal<Option<RegionStagingInfo>> = use_signal(|| None);
@@ -65,13 +71,13 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
         let world_id = props.world_id.clone();
         let loc_svc = location_service.clone();
         let char_svc = character_service.clone();
-        
+
         use_effect(move || {
             let lid = location_id.clone();
             let wid = world_id.clone();
             let loc_service = loc_svc.clone();
             let char_service = char_svc.clone();
-            
+
             loading.set(true);
             spawn(async move {
                 // Load regions
@@ -93,7 +99,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                         error.set(Some(format!("Failed to load regions: {}", e)));
                     }
                 }
-                
+
                 // Load NPCs for the world
                 match char_service.list_characters(&wid).await {
                     Ok(char_list) => {
@@ -105,7 +111,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                         tracing::warn!("Failed to load characters: {}", e);
                     }
                 }
-                
+
                 loading.set(false);
             });
         });
@@ -224,7 +230,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                             move |data: PreStageApprovalData| {
                                 tracing::info!("Pre-staging region {} with {} NPCs, TTL {} hours",
                                     region_id, data.approved.len(), data.ttl_hours);
-                                
+
                                 // Send pre-stage request to engine
                                 if let Some(client) = session_state.engine_client().read().as_ref() {
                                     let npcs: Vec<ApprovedNpcInfo> = data.approved
@@ -237,12 +243,12 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                             is_hidden_from_players,
                                         })
                                         .collect();
-                                    
+
                                     if let Err(e) = client.pre_stage_region(&region_id, npcs, data.ttl_hours) {
                                         tracing::error!("Failed to pre-stage region: {}", e);
                                     }
                                 }
-                                
+
                                 show_prestage_modal.set(false);
                                 selected_region.set(None);
                             }
@@ -269,19 +275,29 @@ struct RegionStagingCardProps {
 #[component]
 fn RegionStagingCard(props: RegionStagingCardProps) -> Element {
     let (status_icon, status_text, status_class) = match &props.region.status {
-        StagingStatus::None => (
-            "⚠️",
-            "No staging set".to_string(),
-            "text-yellow-400",
-        ),
-        StagingStatus::Active { expires_in_hours, npc_names } => (
+        StagingStatus::None => ("⚠️", "No staging set".to_string(), "text-yellow-400"),
+        StagingStatus::Active {
+            expires_in_hours,
+            npc_names,
+        } => (
             "✓",
-            format!("Active (expires in {:.1}h) - {} NPCs", expires_in_hours, npc_names.len()),
+            format!(
+                "Active (expires in {:.1}h) - {} NPCs",
+                expires_in_hours,
+                npc_names.len()
+            ),
             "text-green-400",
         ),
-        StagingStatus::Expired { hours_ago, previous_npc_names } => (
+        StagingStatus::Expired {
+            hours_ago,
+            previous_npc_names,
+        } => (
             "⏸️",
-            format!("Expired {:.1}h ago - {} NPCs", hours_ago, previous_npc_names.len()),
+            format!(
+                "Expired {:.1}h ago - {} NPCs",
+                hours_ago,
+                previous_npc_names.len()
+            ),
             "text-gray-400",
         ),
     };
@@ -402,7 +418,11 @@ struct PreStageModalProps {
 fn PreStageModal(props: PreStageModalProps) -> Element {
     // Initialize NPC selections - all NPCs available, none selected by default
     let mut selections: Signal<Vec<(String, String, bool, bool)>> = use_signal(|| {
-        props.npcs.iter().map(|npc| (npc.id.clone(), npc.name.clone(), false, false)).collect()
+        props
+            .npcs
+            .iter()
+            .map(|npc| (npc.id.clone(), npc.name.clone(), false, false))
+            .collect()
     });
     let mut ttl_hours = use_signal(|| 4i32);
 
@@ -412,7 +432,9 @@ fn PreStageModal(props: PreStageModalProps) -> Element {
             let approved: Vec<(String, bool, bool)> = selections
                 .read()
                 .iter()
-                .map(|(id, _, is_present, is_hidden_from_players)| (id.clone(), *is_present, *is_hidden_from_players))
+                .map(|(id, _, is_present, is_hidden_from_players)| {
+                    (id.clone(), *is_present, *is_hidden_from_players)
+                })
                 .collect();
             on_approve.call(PreStageApprovalData {
                 approved,

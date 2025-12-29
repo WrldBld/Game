@@ -7,10 +7,10 @@
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::entities::OutcomeTrigger;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 
 /// Result of executing outcome triggers
 #[derive(Debug, Clone)]
@@ -53,10 +53,7 @@ impl OutcomeTriggerService {
         let mut warnings = Vec::new();
 
         for trigger in triggers {
-            match self
-                .execute_single_trigger(trigger)
-                .await
-            {
+            match self.execute_single_trigger(trigger).await {
                 Ok(changes) => state_changes.extend(changes),
                 Err(e) => {
                     warnings.push(format!("Trigger execution warning: {}", e));
@@ -192,9 +189,7 @@ mod tests {
 
         let triggers = vec![OutcomeTrigger::reveal("A secret passage is revealed!")];
 
-        let result = service
-            .execute_triggers(&triggers, world_id)
-            .await;
+        let result = service.execute_triggers(&triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 1);
         assert_eq!(result.state_changes.len(), 1);
@@ -216,9 +211,7 @@ mod tests {
             item_description: Some("A blade that glows blue".to_string()),
         }];
 
-        let result = service
-            .execute_triggers(&triggers, world_id)
-            .await;
+        let result = service.execute_triggers(&triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 1);
         assert!(matches!(
@@ -242,9 +235,7 @@ mod tests {
             OutcomeTrigger::modify_stat("reputation", 10),
         ];
 
-        let result = service
-            .execute_triggers(&triggers, world_id)
-            .await;
+        let result = service.execute_triggers(&triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 3);
         assert_eq!(result.state_changes.len(), 3);

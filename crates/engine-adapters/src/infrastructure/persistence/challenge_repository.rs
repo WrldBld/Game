@@ -14,13 +14,15 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_dto::persistence::{DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto};
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 use wrldbldr_domain::entities::{
     Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,
     ChallengeType,
 };
 use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
+use wrldbldr_engine_dto::persistence::{
+    DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto,
+};
+use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
 
 /// Repository for Challenge operations
 pub struct Neo4jChallengeRepository {
@@ -299,11 +301,7 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
     // Skill Edge (REQUIRES_SKILL)
     // -------------------------------------------------------------------------
 
-    async fn set_required_skill(
-        &self,
-        challenge_id: ChallengeId,
-        skill_id: SkillId,
-    ) -> Result<()> {
+    async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<()> {
         // Remove existing skill edge first, then create new one
         let q = query(
             "MATCH (c:Challenge {id: $challenge_id})
@@ -374,11 +372,7 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
         .param("scene_id", scene_id.to_string());
 
         self.connection.graph().run(q).await?;
-        tracing::debug!(
-            "Tied challenge {} to scene {}",
-            challenge_id,
-            scene_id
-        );
+        tracing::debug!("Tied challenge {} to scene {}", challenge_id, scene_id);
         Ok(())
     }
 
@@ -795,10 +789,12 @@ fn row_to_challenge(row: Row) -> Result<Challenge> {
         challenge_type: parse_challenge_type(&challenge_type_str),
         difficulty: serde_json::from_str::<DifficultyRequestDto>(&difficulty_json)?.into(),
         outcomes: serde_json::from_str::<OutcomesRequestDto>(&outcomes_json)?.into(),
-        trigger_conditions: serde_json::from_str::<Vec<TriggerConditionRequestDto>>(&triggers_json)?
-            .into_iter()
-            .map(Into::into)
-            .collect(),
+        trigger_conditions: serde_json::from_str::<Vec<TriggerConditionRequestDto>>(
+            &triggers_json,
+        )?
+        .into_iter()
+        .map(Into::into)
+        .collect(),
         active,
         order: order as u32,
         is_favorite,

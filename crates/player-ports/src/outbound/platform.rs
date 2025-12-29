@@ -74,7 +74,10 @@ pub trait ConnectionFactoryProvider: Clone + 'static {
     ///
     /// Returns an Arc-wrapped connection that implements GameConnectionPort.
     /// This abstracts the WebSocket connection creation from the presentation layer.
-    fn create_game_connection(&self, server_url: &str) -> std::sync::Arc<dyn super::GameConnectionPort>;
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> std::sync::Arc<dyn super::GameConnectionPort>;
 }
 
 /// Unified platform services container
@@ -131,7 +134,10 @@ trait EngineConfigProviderDyn: Send + Sync {
 }
 
 trait ConnectionFactoryProviderDyn: Send + Sync {
-    fn create_game_connection(&self, server_url: &str) -> std::sync::Arc<dyn super::GameConnectionPort>;
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> std::sync::Arc<dyn super::GameConnectionPort>;
 }
 
 // Blanket implementations
@@ -203,7 +209,10 @@ impl<T: EngineConfigProvider + Send + Sync> EngineConfigProviderDyn for T {
 }
 
 impl<T: ConnectionFactoryProvider + Send + Sync> ConnectionFactoryProviderDyn for T {
-    fn create_game_connection(&self, server_url: &str) -> std::sync::Arc<dyn super::GameConnectionPort> {
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> std::sync::Arc<dyn super::GameConnectionPort> {
         ConnectionFactoryProvider::create_game_connection(self, server_url)
     }
 }
@@ -332,7 +341,10 @@ impl Platform {
     }
 
     /// Create a game connection to the engine
-    pub fn create_game_connection(&self, server_url: &str) -> std::sync::Arc<dyn super::GameConnectionPort> {
+    pub fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> std::sync::Arc<dyn super::GameConnectionPort> {
         self.connection_factory.create_game_connection(server_url)
     }
 }

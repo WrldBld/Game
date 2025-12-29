@@ -35,13 +35,13 @@ use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 pub enum BroadcastError {
     #[error("World not found: {0}")]
     WorldNotFound(Uuid),
-    
+
     #[error("DM not connected to world: {0}")]
     DmNotConnected(Uuid),
-    
+
     #[error("Player not found for PC: {0}")]
     PlayerNotFound(Uuid),
-    
+
     #[error("User not found: {0}")]
     UserNotFound(String),
 }
@@ -274,10 +274,13 @@ impl WorldConnectionManager {
     ) {
         let info = ConnectionInfo::new(connection_id, user_id, message_sender);
         self.connections.write().await.insert(connection_id, info);
-        
+
         // Store client_id mapping
-        self.client_id_to_connection.write().await.insert(client_id, connection_id);
-        
+        self.client_id_to_connection
+            .write()
+            .await
+            .insert(client_id, connection_id);
+
         tracing::debug!(connection_id = %connection_id, "Registered new connection");
     }
 
@@ -355,7 +358,9 @@ impl WorldConnectionManager {
         // Get or create world state and add connection
         {
             let mut worlds = self.worlds.write().await;
-            let world_state = worlds.entry(world_id).or_insert_with(WorldConnectionState::new);
+            let world_state = worlds
+                .entry(world_id)
+                .or_insert_with(WorldConnectionState::new);
 
             // Check DM availability for DM role
             if role == WorldRole::Dm {
@@ -711,7 +716,7 @@ impl WorldConnectionManager {
         let dm_user_id = world_state.dm_user_id.as_ref()?.clone();
 
         let conns_guard = self.connections.read().await;
-        
+
         // Find a DM connection to get username
         let mut username = None;
         for conn_id in &world_state.dm_connections {
@@ -773,7 +778,7 @@ impl WorldConnectionManager {
             Some(state) => state,
             None => return vec![],
         };
-        
+
         let conns_guard = self.connections.read().await;
         let mut pcs = Vec::new();
 
@@ -825,7 +830,7 @@ impl WorldConnectionManager {
             let client_mapping = self.client_id_to_connection.read().await;
             client_mapping.get(client_id).copied()?
         };
-        
+
         // Get connection info
         self.get_connection(connection_id).await
     }
@@ -867,9 +872,11 @@ impl WorldConnectionManager {
                 return;
             }
         };
-        
+
         // Broadcast except this user
-        let _ = self.broadcast_to_world_except(&world_id, &exclude_user_id, message).await;
+        let _ = self
+            .broadcast_to_world_except(&world_id, &exclude_user_id, message)
+            .await;
     }
 
     /// Get statistics about the connection manager
@@ -961,7 +968,9 @@ mod tests {
         let user_id = "dm_user".to_string();
         let sender = create_test_sender();
 
-        manager.register_connection(conn_id, client_id, user_id, sender).await;
+        manager
+            .register_connection(conn_id, client_id, user_id, sender)
+            .await;
 
         let result = manager
             .join_world(conn_id, world_id, WorldRole::Dm, None, None)
@@ -1015,10 +1024,20 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id1, "client1".to_string(), "dm_user1".to_string(), create_test_sender())
+            .register_connection(
+                conn_id1,
+                "client1".to_string(),
+                "dm_user1".to_string(),
+                create_test_sender(),
+            )
             .await;
         manager
-            .register_connection(conn_id2, "client2".to_string(), "dm_user2".to_string(), create_test_sender())
+            .register_connection(
+                conn_id2,
+                "client2".to_string(),
+                "dm_user2".to_string(),
+                create_test_sender(),
+            )
             .await;
 
         // First join should succeed
@@ -1041,7 +1060,12 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id, "client1".to_string(), "player".to_string(), create_test_sender())
+            .register_connection(
+                conn_id,
+                "client1".to_string(),
+                "player".to_string(),
+                create_test_sender(),
+            )
             .await;
 
         // Join as Player without PC should fail
@@ -1065,7 +1089,12 @@ mod tests {
         let world_id = Uuid::new_v4();
 
         manager
-            .register_connection(conn_id, "client1".to_string(), "user".to_string(), create_test_sender())
+            .register_connection(
+                conn_id,
+                "client1".to_string(),
+                "user".to_string(),
+                create_test_sender(),
+            )
             .await;
         manager
             .join_world(conn_id, world_id, WorldRole::Dm, None, None)

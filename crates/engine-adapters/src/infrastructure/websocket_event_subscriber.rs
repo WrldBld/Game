@@ -9,10 +9,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::DomainEventRepositoryPort;
 use crate::infrastructure::event_bus::InProcessEventNotifier;
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
+use wrldbldr_domain::DomainEvent;
+use wrldbldr_engine_ports::outbound::DomainEventRepositoryPort;
 use wrldbldr_protocol::ServerMessage;
 
 /// WebSocket event subscriber
@@ -128,7 +128,9 @@ impl WebSocketEventSubscriber {
                 asset_type: asset_type.clone(),
                 position: *position,
             }),
-            DomainEvent::GenerationBatchProgress { batch_id, progress, .. } => {
+            DomainEvent::GenerationBatchProgress {
+                batch_id, progress, ..
+            } => {
                 // Convert f32 (0.0-1.0) to u8 (0-100)
                 let progress_percent = (*progress * 100.0).clamp(0.0, 100.0) as u8;
                 Some(ServerMessage::GenerationProgress {
@@ -144,12 +146,12 @@ impl WebSocketEventSubscriber {
                 batch_id: batch_id.to_string(),
                 asset_count: *asset_count,
             }),
-            DomainEvent::GenerationBatchFailed { batch_id, error, .. } => {
-                Some(ServerMessage::GenerationFailed {
-                    batch_id: batch_id.to_string(),
-                    error: error.clone(),
-                })
-            }
+            DomainEvent::GenerationBatchFailed {
+                batch_id, error, ..
+            } => Some(ServerMessage::GenerationFailed {
+                batch_id: batch_id.to_string(),
+                error: error.clone(),
+            }),
             DomainEvent::SuggestionQueued {
                 request_id,
                 field_type,
@@ -160,12 +162,12 @@ impl WebSocketEventSubscriber {
                 field_type: field_type.clone(),
                 entity_id: entity_id.clone(),
             }),
-            DomainEvent::SuggestionProgress { request_id, status, .. } => {
-                Some(ServerMessage::SuggestionProgress {
-                    request_id: request_id.clone(),
-                    status: status.clone(),
-                })
-            }
+            DomainEvent::SuggestionProgress {
+                request_id, status, ..
+            } => Some(ServerMessage::SuggestionProgress {
+                request_id: request_id.clone(),
+                status: status.clone(),
+            }),
             DomainEvent::SuggestionCompleted {
                 request_id,
                 suggestions,
@@ -175,9 +177,7 @@ impl WebSocketEventSubscriber {
                 suggestions: suggestions.clone(),
             }),
             DomainEvent::SuggestionFailed {
-                request_id,
-                error,
-                ..
+                request_id, error, ..
             } => Some(ServerMessage::SuggestionFailed {
                 request_id: request_id.clone(),
                 error: error.clone(),
@@ -190,4 +190,3 @@ impl WebSocketEventSubscriber {
         }
     }
 }
-

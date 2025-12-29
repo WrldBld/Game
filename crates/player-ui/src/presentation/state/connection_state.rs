@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_player_app::application::dto::{ParticipantRole, ConnectedUser, WorldRole};
+use wrldbldr_player_app::application::dto::{ConnectedUser, ParticipantRole, WorldRole};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server
@@ -130,7 +130,12 @@ impl ConnectionState {
     }
 
     /// Set the world as joined (WebSocket-first protocol)
-    pub fn set_world_joined(&mut self, world_id: Uuid, role: WorldRole, connected_users: Vec<ConnectedUser>) {
+    pub fn set_world_joined(
+        &mut self,
+        world_id: Uuid,
+        role: WorldRole,
+        connected_users: Vec<ConnectedUser>,
+    ) {
         self.world_id.set(Some(world_id));
         self.world_role.set(Some(role));
         self.connected_users.set(connected_users);
@@ -149,7 +154,9 @@ impl ConnectionState {
 
     /// Remove a user from the connected users list
     pub fn remove_connected_user(&mut self, user_id: &str) {
-        let users: Vec<_> = self.connected_users.read()
+        let users: Vec<_> = self
+            .connected_users
+            .read()
             .iter()
             .filter(|u| u.user_id != user_id)
             .cloned()

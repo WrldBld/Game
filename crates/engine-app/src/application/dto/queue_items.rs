@@ -7,11 +7,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use wrldbldr_domain::value_objects::GamePromptRequest;
 use super::{
     ChallengeSuggestionInfo, DmApprovalDecision, NarrativeEventSuggestionInfo,
     OutcomeTriggerRequestDto, ProposedToolInfo,
 };
+use wrldbldr_domain::value_objects::GamePromptRequest;
 
 /// Player action waiting to be processed
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,8 +74,13 @@ pub struct LLMRequestItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum LLMRequestType {
-    NPCResponse { action_item_id: Uuid },
-    Suggestion { field_type: String, entity_id: Option<String> },
+    NPCResponse {
+        action_item_id: Uuid,
+    },
+    Suggestion {
+        field_type: String,
+        entity_id: Option<String>,
+    },
 }
 
 /// Asset generation request
@@ -118,7 +123,6 @@ pub struct ApprovalItem {
     // Context for dialogue persistence (P1.2)
     // Populated from GamePromptRequest in LlmQueueService
     // =========================================================================
-
     /// Player's dialogue text (from the original action)
     #[serde(default)]
     pub player_dialogue: Option<String>,

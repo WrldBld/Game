@@ -7,20 +7,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::dto::{
-    SessionWorldSnapshot,
-    CharacterData as SceneCharacterState,
-    GameTime,
-    InteractionData,
-    NavigationData,
-    NpcDispositionData,
-    NpcPresenceData,
-    RegionData as SceneRegionInfo,
-    RegionItemData,
-    SceneData as SceneSnapshot,
-    SplitPartyLocation,
-    EntityChangedData,
+    CharacterData as SceneCharacterState, EntityChangedData, GameTime, InteractionData,
+    NavigationData, NpcDispositionData, NpcPresenceData, RegionData as SceneRegionInfo,
+    RegionItemData, SceneData as SceneSnapshot, SessionWorldSnapshot, SplitPartyLocation,
 };
-
 
 /// Approach event data (NPC approaching player)
 #[derive(Clone, Debug, PartialEq)]
@@ -327,7 +317,8 @@ impl GameState {
     /// Trigger an observations refresh (increments counter to signal UI components)
     pub fn trigger_observations_refresh(&mut self) {
         let current = *self.observations_refresh_counter.read();
-        self.observations_refresh_counter.set(current.wrapping_add(1));
+        self.observations_refresh_counter
+            .set(current.wrapping_add(1));
     }
 
     /// Trigger an actantial/motivations refresh (increments counter to signal UI components)
@@ -366,7 +357,9 @@ impl GameState {
 
     /// Set the staging status for a specific region
     pub fn set_region_staging_status(&mut self, region_id: String, status: RegionStagingStatus) {
-        self.region_staging_statuses.write().insert(region_id, status);
+        self.region_staging_statuses
+            .write()
+            .insert(region_id, status);
     }
 
     /// Get the staging status for a specific region
@@ -399,10 +392,7 @@ impl GameState {
             // For other entity types, we might need to trigger world reload
             // but for now just log them
             other => {
-                tracing::debug!(
-                    "Entity change for {} - no specific refresh handler",
-                    other
-                );
+                tracing::debug!("Entity change for {} - no specific refresh handler", other);
             }
         }
     }

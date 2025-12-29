@@ -136,18 +136,26 @@ impl ChallengeState {
     }
 
     /// Set roll as awaiting DM approval (P3.3/P3.4)
-    pub fn set_awaiting_approval(&mut self, roll: i32, modifier: i32, total: i32, outcome_type: String) {
-        self.roll_status.set(RollSubmissionStatus::AwaitingApproval {
-            roll,
-            modifier,
-            total,
-            outcome_type,
-        });
+    pub fn set_awaiting_approval(
+        &mut self,
+        roll: i32,
+        modifier: i32,
+        total: i32,
+        outcome_type: String,
+    ) {
+        self.roll_status
+            .set(RollSubmissionStatus::AwaitingApproval {
+                roll,
+                modifier,
+                total,
+                outcome_type,
+            });
     }
 
     /// Set result as ready to display (P3.3/P3.4)
     pub fn set_result_ready(&mut self, result: ChallengeResultData) {
-        self.roll_status.set(RollSubmissionStatus::ResultReady(result));
+        self.roll_status
+            .set(RollSubmissionStatus::ResultReady(result));
     }
 
     /// Dismiss the result display (P3.3/P3.4)

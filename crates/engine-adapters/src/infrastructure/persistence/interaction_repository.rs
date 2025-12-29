@@ -6,11 +6,11 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
 use wrldbldr_domain::entities::{
     InteractionCondition, InteractionTarget, InteractionTemplate, InteractionType,
 };
 use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
+use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
 
 /// Repository for InteractionTemplate operations
 pub struct Neo4jInteractionRepository {
@@ -24,10 +24,12 @@ impl Neo4jInteractionRepository {
 
     /// Create a new interaction template
     pub async fn create(&self, interaction: &InteractionTemplate) -> Result<()> {
-        let type_json =
-            serde_json::to_string(&InteractionTypeStored::from(interaction.interaction_type.clone()))?;
-        let target_json =
-            serde_json::to_string(&InteractionTargetStored::try_from(interaction.target.clone())?)?;
+        let type_json = serde_json::to_string(&InteractionTypeStored::from(
+            interaction.interaction_type.clone(),
+        ))?;
+        let target_json = serde_json::to_string(&InteractionTargetStored::try_from(
+            interaction.target.clone(),
+        )?)?;
         let conditions_json = serde_json::to_string(
             &interaction
                 .conditions
@@ -127,10 +129,12 @@ impl Neo4jInteractionRepository {
 
     /// Update an interaction
     pub async fn update(&self, interaction: &InteractionTemplate) -> Result<()> {
-        let type_json =
-            serde_json::to_string(&InteractionTypeStored::from(interaction.interaction_type.clone()))?;
-        let target_json =
-            serde_json::to_string(&InteractionTargetStored::try_from(interaction.target.clone())?)?;
+        let type_json = serde_json::to_string(&InteractionTypeStored::from(
+            interaction.interaction_type.clone(),
+        ))?;
+        let target_json = serde_json::to_string(&InteractionTargetStored::try_from(
+            interaction.target.clone(),
+        )?)?;
         let conditions_json = serde_json::to_string(
             &interaction
                 .conditions
@@ -363,9 +367,11 @@ impl TryFrom<InteractionConditionStored> for InteractionCondition {
             InteractionConditionStored::HasItem(id) => {
                 InteractionCondition::HasItem(ItemId::from_uuid(uuid::Uuid::parse_str(&id)?))
             }
-            InteractionConditionStored::CharacterPresent(id) => InteractionCondition::CharacterPresent(
-                CharacterId::from_uuid(uuid::Uuid::parse_str(&id)?),
-            ),
+            InteractionConditionStored::CharacterPresent(id) => {
+                InteractionCondition::CharacterPresent(CharacterId::from_uuid(
+                    uuid::Uuid::parse_str(&id)?,
+                ))
+            }
             InteractionConditionStored::HasRelationship {
                 with_character,
                 relationship_type,
@@ -428,11 +434,7 @@ impl InteractionRepositoryPort for Neo4jInteractionRepository {
         Ok(())
     }
 
-    async fn set_target_item(
-        &self,
-        interaction_id: InteractionId,
-        item_id: ItemId,
-    ) -> Result<()> {
+    async fn set_target_item(&self, interaction_id: InteractionId, item_id: ItemId) -> Result<()> {
         self.remove_target(interaction_id).await?;
 
         let q = query(

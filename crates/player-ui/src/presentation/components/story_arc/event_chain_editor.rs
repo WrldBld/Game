@@ -1,8 +1,10 @@
 //! Event Chain Editor - Edit chain info and manage events
 
-use dioxus::prelude::*;
-use wrldbldr_player_app::application::services::{EventChainData, CreateEventChainRequest, UpdateEventChainRequest};
 use crate::presentation::services::use_event_chain_service;
+use dioxus::prelude::*;
+use wrldbldr_player_app::application::services::{
+    CreateEventChainRequest, EventChainData, UpdateEventChainRequest,
+};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainEditorProps {
@@ -18,9 +20,27 @@ pub fn EventChainEditor(props: EventChainEditorProps) -> Element {
     let event_chain_service = use_event_chain_service();
     let is_editing = props.chain.is_some();
 
-    let mut name = use_signal(|| props.chain.as_ref().map(|c| c.name.clone()).unwrap_or_default());
-    let mut description = use_signal(|| props.chain.as_ref().map(|c| c.description.clone()).unwrap_or_default());
-    let mut tags = use_signal(|| props.chain.as_ref().map(|c| c.tags.clone()).unwrap_or_default());
+    let mut name = use_signal(|| {
+        props
+            .chain
+            .as_ref()
+            .map(|c| c.name.clone())
+            .unwrap_or_default()
+    });
+    let mut description = use_signal(|| {
+        props
+            .chain
+            .as_ref()
+            .map(|c| c.description.clone())
+            .unwrap_or_default()
+    });
+    let mut tags = use_signal(|| {
+        props
+            .chain
+            .as_ref()
+            .map(|c| c.tags.clone())
+            .unwrap_or_default()
+    });
     let mut color = use_signal(|| props.chain.as_ref().and_then(|c| c.color.clone()));
     let mut is_active = use_signal(|| props.chain.as_ref().map(|c| c.is_active).unwrap_or(true));
     let mut new_tag = use_signal(String::new);
@@ -253,4 +273,3 @@ pub fn EventChainEditor(props: EventChainEditorProps) -> Element {
         }
     }
 }
-

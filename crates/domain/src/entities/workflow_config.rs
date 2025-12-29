@@ -31,7 +31,12 @@ pub struct WorkflowConfiguration {
 
 impl WorkflowConfiguration {
     /// Create a new workflow configuration
-    pub fn new(slot: WorkflowSlot, name: impl Into<String>, workflow_json: serde_json::Value, now: DateTime<Utc>) -> Self {
+    pub fn new(
+        slot: WorkflowSlot,
+        name: impl Into<String>,
+        workflow_json: serde_json::Value,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             id: WorkflowConfigId::new(),
             slot,

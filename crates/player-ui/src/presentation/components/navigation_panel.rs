@@ -7,7 +7,9 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{GameTime, NavigationData, NavigationExit, NavigationTarget};
+use wrldbldr_player_app::application::dto::{
+    GameTime, NavigationData, NavigationExit, NavigationTarget,
+};
 
 use crate::presentation::game_time_format;
 
@@ -284,8 +286,8 @@ pub struct NavigationButtonsProps {
 /// Compact inline navigation buttons (for action panel integration)
 #[component]
 pub fn NavigationButtons(props: NavigationButtonsProps) -> Element {
-    let has_options = !props.navigation.connected_regions.is_empty() 
-        || !props.navigation.exits.is_empty();
+    let has_options =
+        !props.navigation.connected_regions.is_empty() || !props.navigation.exits.is_empty();
 
     if !has_options {
         return rsx! {};

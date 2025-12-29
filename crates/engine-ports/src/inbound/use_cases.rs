@@ -106,7 +106,10 @@ pub struct CharacterSummaryDto {
 #[async_trait]
 pub trait ManageCharacterUseCase: Send + Sync {
     /// List characters in a world
-    async fn list_characters(&self, world_id: WorldId) -> Result<Vec<CharacterSummaryDto>, UseCaseError>;
+    async fn list_characters(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<CharacterSummaryDto>, UseCaseError>;
 
     /// Get a character by ID
     async fn get_character(&self, id: CharacterId) -> Result<CharacterSummaryDto, UseCaseError>;
@@ -143,7 +146,10 @@ pub struct LocationSummaryDto {
 #[async_trait]
 pub trait ManageLocationUseCase: Send + Sync {
     /// List locations in a world
-    async fn list_locations(&self, world_id: WorldId) -> Result<Vec<LocationSummaryDto>, UseCaseError>;
+    async fn list_locations(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<LocationSummaryDto>, UseCaseError>;
 
     /// Get a location by ID
     async fn get_location(&self, id: LocationId) -> Result<LocationSummaryDto, UseCaseError>;

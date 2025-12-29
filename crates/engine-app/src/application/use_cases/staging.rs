@@ -139,13 +139,22 @@ pub struct PreStageResult {
 #[async_trait::async_trait]
 pub trait StagingStateExtPort: StagingStatePort {
     /// Get a pending staging by request ID
-    fn get_pending_staging(&self, world_id: &WorldId, request_id: &str) -> Option<PendingStagingInfo>;
+    fn get_pending_staging(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+    ) -> Option<PendingStagingInfo>;
 
     /// Remove a pending staging
     fn remove_pending_staging(&self, world_id: &WorldId, request_id: &str);
 
     /// Update the LLM suggestions for a pending staging
-    fn update_llm_suggestions(&self, world_id: &WorldId, request_id: &str, npcs: Vec<RegeneratedNpc>);
+    fn update_llm_suggestions(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+        npcs: Vec<RegeneratedNpc>,
+    );
 }
 
 /// Information about a pending staging

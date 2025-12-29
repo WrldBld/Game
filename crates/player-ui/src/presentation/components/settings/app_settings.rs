@@ -4,9 +4,9 @@
 //! the Engine's application settings. Settings are grouped by category
 //! for better organization.
 
+use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::AppSettings;
-use crate::presentation::services::use_settings_service;
 
 /// Application Settings Panel component
 ///

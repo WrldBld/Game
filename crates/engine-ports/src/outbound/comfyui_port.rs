@@ -52,7 +52,12 @@ pub trait ComfyUIPort: Send + Sync {
     async fn get_history(&self, prompt_id: &str) -> Result<HistoryResponse>;
 
     /// Download a generated image
-    async fn get_image(&self, filename: &str, subfolder: &str, folder_type: &str) -> Result<Vec<u8>>;
+    async fn get_image(
+        &self,
+        filename: &str,
+        subfolder: &str,
+        folder_type: &str,
+    ) -> Result<Vec<u8>>;
 
     /// Check if ComfyUI is healthy/reachable
     ///

@@ -6,21 +6,19 @@
 //! - Create, edit, and delete challenges
 //! - Toggle active/favorite status
 
-mod challenge_list;
 mod challenge_editor;
+mod challenge_list;
 mod delete_modal;
 
-pub use challenge_list::ChallengeTypeSection;
 pub use challenge_editor::ChallengeFormModal;
+pub use challenge_list::ChallengeTypeSection;
 pub use delete_modal::ConfirmDeleteChallengeModal;
 
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use wrldbldr_player_app::application::dto::{
-    ChallengeData, ChallengeType, SkillData,
-};
 use crate::presentation::services::use_challenge_service;
+use wrldbldr_player_app::application::dto::{ChallengeData, ChallengeType, SkillData};
 
 /// Props for ChallengeLibrary
 #[derive(Props, Clone, PartialEq)]
@@ -135,7 +133,9 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
         for challenges_vec in grouped.values_mut() {
             challenges_vec.sort_by(|a, b| {
                 // Favorites first, then by order
-                b.is_favorite.cmp(&a.is_favorite).then(a.order.cmp(&b.order))
+                b.is_favorite
+                    .cmp(&a.is_favorite)
+                    .then(a.order.cmp(&b.order))
             });
         }
         grouped
@@ -149,7 +149,10 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
             spawn(async move {
                 // Save original state for rollback
                 let mut challenges_write = challenges.write();
-                let original_state = challenges_write.iter().find(|c| c.id == id).map(|c| c.is_favorite);
+                let original_state = challenges_write
+                    .iter()
+                    .find(|c| c.id == id)
+                    .map(|c| c.is_favorite);
 
                 if let Some(c) = challenges_write.iter_mut().find(|c| c.id == id) {
                     c.is_favorite = !c.is_favorite;
@@ -187,7 +190,10 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
             spawn(async move {
                 // Save original state for rollback
                 let mut challenges_write = challenges.write();
-                let original_active = challenges_write.iter().find(|c| c.id == id).map(|c| c.active);
+                let original_active = challenges_write
+                    .iter()
+                    .find(|c| c.id == id)
+                    .map(|c| c.active);
 
                 if let Some(c) = challenges_write.iter_mut().find(|c| c.id == id) {
                     c.active = !c.active;

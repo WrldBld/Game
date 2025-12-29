@@ -3,9 +3,11 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
-use wrldbldr_player_app::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
 use crate::presentation::services::{use_player_character_service, use_world_service};
+use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
+use wrldbldr_player_app::application::services::{
+    PlayerCharacterData, UpdatePlayerCharacterRequest,
+};
 
 /// Props for EditCharacterModal
 #[derive(Props, Clone, PartialEq)]
@@ -26,7 +28,10 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
     let mut description = use_signal(|| props.pc.description.clone().unwrap_or_default());
     let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
     let mut sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(|| {
-        props.pc.sheet_data.as_ref()
+        props
+            .pc
+            .sheet_data
+            .as_ref()
             .map(|s| s.values.clone())
             .unwrap_or_default()
     });
@@ -208,4 +213,3 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         }
     }
 }
-

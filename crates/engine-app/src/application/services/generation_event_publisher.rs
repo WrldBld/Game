@@ -7,9 +7,9 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Receiver;
 use tokio_util::sync::CancellationToken;
 
+use crate::application::services::generation_service::GenerationEvent;
 use wrldbldr_domain::DomainEvent;
 use wrldbldr_engine_ports::outbound::EventBusPort;
-use crate::application::services::generation_service::GenerationEvent;
 
 /// Publisher that converts GenerationEvents to DomainEvents
 pub struct GenerationEventPublisher {
@@ -29,7 +29,11 @@ impl GenerationEventPublisher {
     /// # Arguments
     /// * `generation_event_rx` - Channel receiver for generation events
     /// * `cancel_token` - Token to signal graceful shutdown
-    pub async fn run(self, mut generation_event_rx: Receiver<GenerationEvent>, cancel_token: CancellationToken) {
+    pub async fn run(
+        self,
+        mut generation_event_rx: Receiver<GenerationEvent>,
+        cancel_token: CancellationToken,
+    ) {
         loop {
             tokio::select! {
                 _ = cancel_token.cancelled() => {
@@ -78,15 +82,14 @@ impl GenerationEventPublisher {
                 position,
                 session_id: None,
             }),
-            GenerationEvent::BatchProgress {
-                batch_id,
-                progress,
-            } => Some(DomainEvent::GenerationBatchProgress {
-                batch_id: batch_id.to_string(),
-                // GenerationEvent uses u8 (0-100), DomainEvent uses f32 (0.0-1.0)
-                progress: progress as f32 / 100.0,
-                session_id: None,
-            }),
+            GenerationEvent::BatchProgress { batch_id, progress } => {
+                Some(DomainEvent::GenerationBatchProgress {
+                    batch_id: batch_id.to_string(),
+                    // GenerationEvent uses u8 (0-100), DomainEvent uses f32 (0.0-1.0)
+                    progress: progress as f32 / 100.0,
+                    session_id: None,
+                })
+            }
             GenerationEvent::BatchComplete {
                 batch_id,
                 entity_type,
@@ -126,13 +129,15 @@ impl GenerationEventPublisher {
                 entity_id,
                 world_id,
             }),
-            GenerationEvent::SuggestionProgress { request_id, status, world_id } => {
-                Some(DomainEvent::SuggestionProgress {
-                    request_id,
-                    status,
-                    world_id,
-                })
-            }
+            GenerationEvent::SuggestionProgress {
+                request_id,
+                status,
+                world_id,
+            } => Some(DomainEvent::SuggestionProgress {
+                request_id,
+                status,
+                world_id,
+            }),
             GenerationEvent::SuggestionComplete {
                 request_id,
                 field_type,
@@ -158,4 +163,3 @@ impl GenerationEventPublisher {
         }
     }
 }
-

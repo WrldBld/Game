@@ -18,7 +18,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::services::{
-    ActantialService, AssetService, CharacterService, ChallengeService, EventChainService,
+    ActantialService, AssetService, ChallengeService, CharacterService, EventChainService,
     GenerationService, LocationService, NarrativeEventService, ObservationService,
     PlayerCharacterService, SettingsService, SkillService, StoryEventService, SuggestionService,
     WorkflowService, WorldService,
@@ -64,7 +64,11 @@ impl<A: ApiPort + Clone> Services<A> {
     /// * `api` - The REST API port for HTTP-based services
     /// * `raw_api` - The raw API port for services that need lower-level access
     /// * `connection` - The WebSocket connection port for real-time services
-    pub fn new(api: A, raw_api: Arc<dyn RawApiPort>, connection: Arc<dyn GameConnectionPort>) -> Self {
+    pub fn new(
+        api: A,
+        raw_api: Arc<dyn RawApiPort>,
+        connection: Arc<dyn GameConnectionPort>,
+    ) -> Self {
         Self {
             // WebSocket-based services
             world: Arc::new(WorldService::new(connection.clone(), raw_api)),
@@ -184,9 +188,11 @@ pub fn use_actantial_service() -> Arc<ActantialService> {
     services.actantial.clone()
 }
 
-use crate::presentation::state::{BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask};
-use wrldbldr_player_ports::outbound::Platform;
+use crate::presentation::state::{
+    BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
+};
 use anyhow::Result;
+use wrldbldr_player_ports::outbound::Platform;
 
 /// Hydrate GenerationState from the Engine's unified generation queue endpoint.
 ///
@@ -302,7 +308,11 @@ pub fn persist_generation_read_state(platform: &Platform, state: &GenerationStat
 #[allow(dead_code)]
 fn apply_generation_read_state(platform: &Platform, state: &mut GenerationState) {
     if let Some(batch_str) = platform.storage_load(STORAGE_KEY_GEN_READ_BATCHES) {
-        for id in batch_str.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        for id in batch_str
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
             state.mark_batch_read(id);
         }
     }
@@ -358,10 +368,7 @@ pub async fn sync_generation_read_state(
 /// View-model helpers for generation queue filtering and actions
 
 /// Get visible batches based on show_read filter
-pub fn visible_batches(
-    state: &GenerationState,
-    show_read: bool,
-) -> Vec<GenerationBatch> {
+pub fn visible_batches(state: &GenerationState, show_read: bool) -> Vec<GenerationBatch> {
     state
         .get_batches()
         .into_iter()
@@ -370,10 +377,7 @@ pub fn visible_batches(
 }
 
 /// Get visible suggestions based on show_read filter
-pub fn visible_suggestions(
-    state: &GenerationState,
-    show_read: bool,
-) -> Vec<SuggestionTask> {
+pub fn visible_suggestions(state: &GenerationState, show_read: bool) -> Vec<SuggestionTask> {
     state
         .get_suggestions()
         .into_iter()

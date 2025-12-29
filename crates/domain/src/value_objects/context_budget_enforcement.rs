@@ -75,7 +75,8 @@ impl EnforcementStats {
 
     /// Returns total tokens saved across all categories
     pub fn total_tokens_saved(&self) -> usize {
-        self.total_original_tokens.saturating_sub(self.total_final_tokens)
+        self.total_original_tokens
+            .saturating_sub(self.total_final_tokens)
     }
 }
 
@@ -292,7 +293,10 @@ mod tests {
         let mut enforcer = ContextBudgetEnforcer::new(config);
 
         // This will be truncated
-        enforcer.enforce(ContextCategory::Scene, "This is a long scene description that exceeds budget");
+        enforcer.enforce(
+            ContextCategory::Scene,
+            "This is a long scene description that exceeds budget",
+        );
         // This won't be truncated
         enforcer.enforce(ContextCategory::Character, "Short");
 

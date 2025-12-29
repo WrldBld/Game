@@ -122,7 +122,12 @@ pub struct SpectateTargetResult {
 #[async_trait::async_trait]
 pub trait ConnectionManagerPort: Send + Sync {
     /// Register a new connection
-    async fn register_connection(&self, connection_id: uuid::Uuid, client_id: String, user_id: String);
+    async fn register_connection(
+        &self,
+        connection_id: uuid::Uuid,
+        client_id: String,
+        user_id: String,
+    );
 
     /// Join a world
     async fn join_world(

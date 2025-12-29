@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::components::creator::CreatorMode;
 use crate::presentation::components::dm_panel::adhoc_challenge_modal::{
-    AdHocChallengeModal, AdHocChallengeData,
+    AdHocChallengeData, AdHocChallengeModal,
 };
 use crate::presentation::components::settings::SettingsView;
 use crate::presentation::views::director::DirectorModeContent;

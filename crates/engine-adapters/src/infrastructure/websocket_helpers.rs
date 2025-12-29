@@ -9,14 +9,13 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::NarrativeEvent;
 use wrldbldr_domain::value_objects::{
     ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, ConversationTurn,
-    GamePromptRequest, MotivationsContext, PlayerActionContext, RegionItemContext, SceneContext,
-    SocialStanceContext,
+    GamePromptRequest, MotivationsContext, PlayerActionContext, PlayerActionData,
+    RegionItemContext, SceneContext, SocialStanceContext,
 };
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_app::application::dto::PlayerActionItem;
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::services::{
-    ActantialContextService, ChallengeService, DispositionService,
-    NarrativeEventService, SettingsService, SkillService, WorldService,
+    ActantialContextService, ChallengeService, DispositionService, NarrativeEventService,
+    SettingsService, SkillService, WorldService,
 };
 use wrldbldr_engine_ports::outbound::{
     CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError, RegionRepositoryPort,
@@ -24,7 +23,7 @@ use wrldbldr_engine_ports::outbound::{
 
 use crate::infrastructure::world_state_manager::{ConversationEntry, Speaker, WorldStateManager};
 
-/// Build a GamePromptRequest from a PlayerActionItem
+/// Build a GamePromptRequest from a PlayerActionData
 ///
 /// This function gathers all necessary context from the world snapshot,
 /// conversation history, and domain services to create a complete prompt
@@ -43,7 +42,7 @@ pub async fn build_prompt_from_action(
     _settings_service: &Arc<SettingsService>,
     _disposition_service: &Arc<dyn DispositionService>,
     _actantial_service: &Arc<dyn ActantialContextService>,
-    action: &PlayerActionItem,
+    action: &PlayerActionData,
 ) -> Result<GamePromptRequest, QueueError> {
     // 1. Get world snapshot for scene and character data
     let snapshot = world_service
@@ -57,12 +56,11 @@ pub async fn build_prompt_from_action(
         .or_else(|| snapshot.current_scene.as_ref().map(|s| s.id.clone()));
 
     // 3. Get PC's current region for item context
-    let region_id = if let Some(pc_uuid) = action.pc_id {
-        let pc_id = PlayerCharacterId::from_uuid(pc_uuid);
+    let region_id = if let Some(pc_id) = action.pc_id {
         match pc_repo.get(pc_id).await {
             Ok(Some(pc)) => pc.current_region_id,
             Ok(None) => {
-                tracing::debug!("PC {} not found for region item context", pc_uuid);
+                tracing::debug!("PC {} not found for region item context", pc_id);
                 None
             }
             Err(e) => {
@@ -96,32 +94,33 @@ pub async fn build_prompt_from_action(
 
     // 5. Build scene context from current scene
     // Also capture IDs for dialogue persistence (P1.2)
-    let (scene_context, scene_id_for_persistence, location_id_for_persistence) = if let Some(scene_id) = &current_scene_id {
-        // Find scene in snapshot
-        let scene = snapshot
-            .scenes
-            .iter()
-            .find(|s| &s.id == scene_id)
-            .or(snapshot.current_scene.as_ref());
+    let (scene_context, scene_id_for_persistence, location_id_for_persistence) =
+        if let Some(scene_id) = &current_scene_id {
+            // Find scene in snapshot
+            let scene = snapshot
+                .scenes
+                .iter()
+                .find(|s| &s.id == scene_id)
+                .or(snapshot.current_scene.as_ref());
 
-        if let Some(scene) = scene {
-            let ctx = SceneContext {
-                scene_name: scene.name.clone(),
-                location_name: scene.location_id.clone(), // SceneData has location_id, not location_name
-                time_context: scene.time_context.clone(),
-                present_characters: scene.featured_characters.clone(), // featured_characters, not characters
-                region_items,
-            };
-            // Capture IDs for persistence
-            let scene_id = Some(scene.id.clone());
-            let location_id = Some(scene.location_id.clone());
-            (ctx, scene_id, location_id)
+            if let Some(scene) = scene {
+                let ctx = SceneContext {
+                    scene_name: scene.name.clone(),
+                    location_name: scene.location_id.clone(), // SceneData has location_id, not location_name
+                    time_context: scene.time_context.clone(),
+                    present_characters: scene.featured_characters.clone(), // featured_characters, not characters
+                    region_items,
+                };
+                // Capture IDs for persistence
+                let scene_id = Some(scene.id.clone());
+                let location_id = Some(scene.location_id.clone());
+                (ctx, scene_id, location_id)
+            } else {
+                (default_scene_context(), None, None)
+            }
         } else {
             (default_scene_context(), None, None)
-        }
-    } else {
-        (default_scene_context(), None, None)
-    };
+        };
 
     // Get game time for dialogue persistence
     let game_time_for_persistence = world_state
@@ -152,27 +151,19 @@ pub async fn build_prompt_from_action(
     let responding_character = find_responding_character(
         &action.target,
         &snapshot.characters,
-        action.pc_id,
+        action.pc_id.map(|id| id.to_uuid()),
         _disposition_service,
         _actantial_service,
     )
     .await;
 
     // 10. Get active challenges for the current scene
-    let active_challenges = get_active_challenges(
-        challenge_service,
-        skill_service,
-        &current_scene_id,
-    )
-    .await;
+    let active_challenges =
+        get_active_challenges(challenge_service, skill_service, &current_scene_id).await;
 
     // 11. Get active narrative events with featured NPC names
-    let active_narrative_events = get_active_narrative_events(
-        narrative_event_service,
-        _character_repo,
-        &world_id,
-    )
-    .await;
+    let active_narrative_events =
+        get_active_narrative_events(narrative_event_service, _character_repo, &world_id).await;
 
     // 12. Build the complete prompt request
     Ok(GamePromptRequest {
@@ -239,17 +230,12 @@ async fn find_responding_character(
 
     if let Some(char_data) = character_data {
         // Try to get disposition if we have both NPC ID and PC ID
-        let current_mood = get_npc_disposition_toward_pc(
-            &char_data.id,
-            pc_id,
-            disposition_service,
-        ).await;
+        let current_mood =
+            get_npc_disposition_toward_pc(&char_data.id, pc_id, disposition_service).await;
 
         // Try to get actantial context (motivations and social stance)
-        let (motivations, social_stance) = get_actantial_context(
-            &char_data.id,
-            actantial_service,
-        ).await;
+        let (motivations, social_stance) =
+            get_actantial_context(&char_data.id, actantial_service).await;
 
         CharacterContext {
             character_id: Some(char_data.id.clone()),
@@ -282,11 +268,11 @@ async fn get_npc_disposition_toward_pc(
 ) -> Option<String> {
     // Need both NPC ID and PC ID to query disposition
     let pc_uuid = pc_id?;
-    
+
     let npc_uuid = Uuid::parse_str(npc_id_str).ok()?;
     let npc_id = wrldbldr_domain::CharacterId::from_uuid(npc_uuid);
     let pc_id = wrldbldr_domain::PlayerCharacterId::from_uuid(pc_uuid);
-    
+
     // Get the disposition state
     match disposition_service.get_disposition(npc_id, pc_id).await {
         Ok(disposition_state) => {
@@ -313,9 +299,9 @@ async fn get_actantial_context(
     let Ok(character_uuid) = Uuid::parse_str(character_id_str) else {
         return (None, None);
     };
-    
+
     let character_id = wrldbldr_domain::CharacterId::from_uuid(character_uuid);
-    
+
     match actantial_service.get_context(character_id).await {
         Ok(context) => {
             let motivations = Some(context.to_motivations_context());
@@ -347,7 +333,7 @@ async fn get_active_challenges(
     };
 
     let scene_id = wrldbldr_domain::SceneId::from_uuid(scene_id);
-    
+
     let challenges = match challenge_service.list_by_scene(scene_id).await {
         Ok(c) => c,
         Err(_) => return Vec::new(),
@@ -356,21 +342,20 @@ async fn get_active_challenges(
     let mut result = Vec::new();
     for challenge in challenges {
         // Get required skill name
-        let skill_name = if let Ok(Some(skill_id)) = challenge_service
-            .get_required_skill(challenge.id)
-            .await
-        {
-            if let Ok(Some(skill)) = skill_service.get_skill(skill_id).await {
-                skill.name
+        let skill_name =
+            if let Ok(Some(skill_id)) = challenge_service.get_required_skill(challenge.id).await {
+                if let Ok(Some(skill)) = skill_service.get_skill(skill_id).await {
+                    skill.name
+                } else {
+                    "Unknown Skill".to_string()
+                }
             } else {
                 "Unknown Skill".to_string()
-            }
-        } else {
-            "Unknown Skill".to_string()
-        };
+            };
 
         // Build trigger hints from trigger condition descriptions
-        let trigger_hints: Vec<String> = challenge.trigger_conditions
+        let trigger_hints: Vec<String> = challenge
+            .trigger_conditions
             .iter()
             .map(|tc| tc.description.clone())
             .collect();
@@ -403,17 +388,15 @@ async fn get_active_narrative_events(
 
     for event in events {
         // Extract trigger hints from trigger conditions
-        let trigger_hints: Vec<String> = event.trigger_conditions
+        let trigger_hints: Vec<String> = event
+            .trigger_conditions
             .iter()
             .map(|t| t.description.clone())
             .collect();
 
         // Fetch featured NPC names
-        let featured_npc_names = get_featured_npc_names(
-            narrative_event_service,
-            character_repo,
-            event.id,
-        ).await;
+        let featured_npc_names =
+            get_featured_npc_names(narrative_event_service, character_repo, event.id).await;
 
         result.push(ActiveNarrativeEventContext {
             id: event.id.to_string(),

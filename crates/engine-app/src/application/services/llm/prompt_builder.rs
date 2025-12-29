@@ -16,14 +16,13 @@
 use std::sync::Arc;
 
 use tracing::{debug, warn};
-use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 use wrldbldr_domain::value_objects::{
-    ActiveChallengeContext, ActiveNarrativeEventContext,
-    CharacterContext, ContextBudgetConfig, ConversationTurn, DirectorialNotes, 
-    GamePromptRequest, MotivationEntry, MotivationsContext, SceneContext, 
-    SecretMotivationEntry, SocialStanceContext, TokenCounter, prompt_keys,
+    prompt_keys, ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext,
+    ContextBudgetConfig, ConversationTurn, DirectorialNotes, GamePromptRequest, MotivationEntry,
+    MotivationsContext, SceneContext, SecretMotivationEntry, SocialStanceContext, TokenCounter,
 };
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 
 use crate::application::services::PromptTemplateService;
 
@@ -38,13 +37,19 @@ pub struct PromptBuilder {
 impl PromptBuilder {
     /// Create a new prompt builder
     pub fn new(prompt_template_service: Arc<PromptTemplateService>) -> Self {
-        Self { prompt_template_service }
+        Self {
+            prompt_template_service,
+        }
     }
 
     /// Resolve a template, using world-specific resolution if world_id is provided
     async fn resolve(&self, world_id: Option<WorldId>, key: &str) -> String {
         match world_id {
-            Some(wid) => self.prompt_template_service.resolve_for_world(wid, key).await,
+            Some(wid) => {
+                self.prompt_template_service
+                    .resolve_for_world(wid, key)
+                    .await
+            }
             None => self.prompt_template_service.resolve(key).await,
         }
     }
@@ -96,7 +101,8 @@ impl PromptBuilder {
         context: &SceneContext,
         character: &CharacterContext,
     ) -> String {
-        self.build_system_prompt_with_notes(world_id, context, character, None, &[], &[]).await
+        self.build_system_prompt_with_notes(world_id, context, character, None, &[], &[])
+            .await
     }
 
     /// Build system prompt with optional directorial notes
@@ -113,9 +119,15 @@ impl PromptBuilder {
         active_narrative_events: &[ActiveNarrativeEventContext],
     ) -> String {
         // Resolve templates
-        let response_format = self.resolve(world_id, prompt_keys::DIALOGUE_RESPONSE_FORMAT).await;
-        let challenge_format = self.resolve(world_id, prompt_keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT).await;
-        let narrative_event_format = self.resolve(world_id, prompt_keys::DIALOGUE_NARRATIVE_EVENT_FORMAT).await;
+        let response_format = self
+            .resolve(world_id, prompt_keys::DIALOGUE_RESPONSE_FORMAT)
+            .await;
+        let challenge_format = self
+            .resolve(world_id, prompt_keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT)
+            .await;
+        let narrative_event_format = self
+            .resolve(world_id, prompt_keys::DIALOGUE_NARRATIVE_EVENT_FORMAT)
+            .await;
 
         let mut prompt = String::new();
 
@@ -141,10 +153,14 @@ impl PromptBuilder {
         if !context.region_items.is_empty() {
             prompt.push_str("\nVISIBLE ITEMS IN AREA:\n");
             for item in &context.region_items {
-                let type_suffix = item.item_type.as_ref()
+                let type_suffix = item
+                    .item_type
+                    .as_ref()
                     .map(|t| format!(" [{}]", t))
                     .unwrap_or_default();
-                let desc_suffix = item.description.as_ref()
+                let desc_suffix = item
+                    .description
+                    .as_ref()
                     .map(|d| format!(" - {}", d))
                     .unwrap_or_default();
                 prompt.push_str(&format!("- {}{}{}\n", item.name, type_suffix, desc_suffix));
@@ -204,7 +220,8 @@ impl PromptBuilder {
         // Active challenges - potential things that might be triggered
         if !active_challenges.is_empty() {
             prompt.push_str("## Active Challenges\n");
-            prompt.push_str("The following challenges may be triggered based on player actions:\n\n");
+            prompt
+                .push_str("The following challenges may be triggered based on player actions:\n\n");
             for (idx, challenge) in active_challenges.iter().enumerate() {
                 prompt.push_str(&format!(
                     "{}. \"{}\" ({} {})\n",
@@ -217,10 +234,7 @@ impl PromptBuilder {
                     "   Triggers: {}\n",
                     challenge.trigger_hints.join(", ")
                 ));
-                prompt.push_str(&format!(
-                    "   Description: {}\n\n",
-                    challenge.description
-                ));
+                prompt.push_str(&format!("   Description: {}\n\n", challenge.description));
             }
 
             // Use configurable challenge suggestion format
@@ -239,10 +253,7 @@ impl PromptBuilder {
                     event.name,
                     event.priority
                 ));
-                prompt.push_str(&format!(
-                    "   Description: {}\n",
-                    event.description
-                ));
+                prompt.push_str(&format!("   Description: {}\n", event.description));
                 if !event.trigger_hints.is_empty() {
                     prompt.push_str(&format!(
                         "   Triggers when: {}\n",
@@ -279,13 +290,15 @@ impl PromptBuilder {
             }
         }
 
-        // Suspected motivations  
+        // Suspected motivations
         if !motivations.suspected.is_empty() {
             prompt.push_str("\n=== SUSPECTED MOTIVATIONS (player senses something) ===\n");
             for m in &motivations.suspected {
                 Self::format_motivation_entry(prompt, m, false);
             }
-            prompt.push_str("The player has noticed your interest but doesn't know why. You may be evasive.\n");
+            prompt.push_str(
+                "The player has noticed your interest but doesn't know why. You may be evasive.\n",
+            );
         }
 
         // Secret motivations with behavioral guidance
@@ -307,13 +320,17 @@ impl PromptBuilder {
             prompt.push_str(&format!("  Target: {}\n", target));
         }
         if !m.helpers.is_empty() {
-            let helpers: Vec<String> = m.helpers.iter()
+            let helpers: Vec<String> = m
+                .helpers
+                .iter()
                 .map(|a| format!("{} ({}): {}", a.name, a.actor_type, a.reason))
                 .collect();
             prompt.push_str(&format!("  Helpers: {}\n", helpers.join("; ")));
         }
         if !m.opponents.is_empty() {
-            let opponents: Vec<String> = m.opponents.iter()
+            let opponents: Vec<String> = m
+                .opponents
+                .iter()
                 .map(|a| format!("{} ({}): {}", a.name, a.actor_type, a.reason))
                 .collect();
             prompt.push_str(&format!("  Opponents: {}\n", opponents.join("; ")));
@@ -330,22 +347,32 @@ impl PromptBuilder {
             prompt.push_str(&format!("  Target: {}\n", target));
         }
         if !s.helpers.is_empty() {
-            let helpers: Vec<String> = s.helpers.iter()
+            let helpers: Vec<String> = s
+                .helpers
+                .iter()
                 .map(|a| format!("{} ({}): {}", a.name, a.actor_type, a.reason))
                 .collect();
             prompt.push_str(&format!("  Helpers: {}\n", helpers.join("; ")));
         }
         if !s.opponents.is_empty() {
-            let opponents: Vec<String> = s.opponents.iter()
+            let opponents: Vec<String> = s
+                .opponents
+                .iter()
                 .map(|a| format!("{} ({}): {}", a.name, a.actor_type, a.reason))
                 .collect();
             prompt.push_str(&format!("  Opponents: {}\n", opponents.join("; ")));
         }
         if let Some(sender) = &s.sender {
-            prompt.push_str(&format!("  Sender/Motivator: {} - {}\n", sender.name, sender.reason));
+            prompt.push_str(&format!(
+                "  Sender/Motivator: {} - {}\n",
+                sender.name, sender.reason
+            ));
         }
         if let Some(receiver) = &s.receiver {
-            prompt.push_str(&format!("  Beneficiary: {} - {}\n", receiver.name, receiver.reason));
+            prompt.push_str(&format!(
+                "  Beneficiary: {} - {}\n",
+                receiver.name, receiver.reason
+            ));
         }
         prompt.push_str("\n  BEHAVIORAL GUIDANCE:\n");
         prompt.push_str(&format!("  - When probed: {}\n", s.deflection_behavior));
@@ -355,7 +382,9 @@ impl PromptBuilder {
                 prompt.push_str(&format!("    * {}\n", tell));
             }
         }
-        prompt.push_str("  DO NOT directly reveal this motivation. Use the behavioral guidance above.\n\n");
+        prompt.push_str(
+            "  DO NOT directly reveal this motivation. Use the behavioral guidance above.\n\n",
+        );
     }
 
     /// Format social stance for LLM prompt
@@ -365,7 +394,7 @@ impl PromptBuilder {
         }
 
         prompt.push_str("\n=== SOCIAL STANCE ===\n");
-        
+
         if !social.allies.is_empty() {
             prompt.push_str("ALLIES (characters you trust/appreciate):\n");
             for ally in &social.allies {
@@ -480,34 +509,69 @@ mod tests {
 
     #[async_trait::async_trait]
     impl PromptTemplateRepositoryPort for MockPromptTemplateRepository {
-        async fn get_global(&self, _key: &str) -> Result<Option<String>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn get_global(
+            &self,
+            _key: &str,
+        ) -> Result<Option<String>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(None) // Always return default
         }
-        async fn get_all_global(&self) -> Result<Vec<(String, String)>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn get_all_global(
+            &self,
+        ) -> Result<Vec<(String, String)>, wrldbldr_engine_ports::outbound::PromptTemplateError>
+        {
             Ok(vec![])
         }
-        async fn set_global(&self, _key: &str, _value: &str) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn set_global(
+            &self,
+            _key: &str,
+            _value: &str,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
-        async fn delete_global(&self, _key: &str) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn delete_global(
+            &self,
+            _key: &str,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
-        async fn delete_all_global(&self) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn delete_all_global(
+            &self,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
-        async fn get_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str) -> Result<Option<String>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn get_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Result<Option<String>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(None)
         }
-        async fn get_all_for_world(&self, _world_id: wrldbldr_domain::WorldId) -> Result<Vec<(String, String)>, wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn get_all_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+        ) -> Result<Vec<(String, String)>, wrldbldr_engine_ports::outbound::PromptTemplateError>
+        {
             Ok(vec![])
         }
-        async fn set_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str, _value: &str) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn set_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+            _value: &str,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
-        async fn delete_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn delete_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
-        async fn delete_all_for_world(&self, _world_id: wrldbldr_domain::WorldId) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
+        async fn delete_all_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+        ) -> Result<(), wrldbldr_engine_ports::outbound::PromptTemplateError> {
             Ok(())
         }
     }
@@ -540,7 +604,9 @@ mod tests {
             relationship_to_player: Some("Acquaintance".to_string()),
         };
 
-        let prompt = builder.build_system_prompt(None, &context, &character).await;
+        let prompt = builder
+            .build_system_prompt(None, &context, &character)
+            .await;
 
         assert!(prompt.contains("Gorm"));
         assert!(prompt.contains("Gruff tavern keeper"));

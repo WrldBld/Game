@@ -219,11 +219,7 @@ impl Neo4jObservationRepository {
     }
 
     /// Delete an observation
-    pub async fn delete(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-    ) -> Result<()> {
+    pub async fn delete(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<()> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
             DELETE r",

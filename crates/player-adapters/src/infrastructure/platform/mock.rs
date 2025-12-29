@@ -3,14 +3,14 @@
 //! Provides controllable implementations of all platform providers
 //! for deterministic testing.
 
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use std::{future::Future, pin::Pin};
 use wrldbldr_player_ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,
 };
 use wrldbldr_player_ports::outbound::Platform;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::{future::Future, pin::Pin};
 
 /// Mock time provider with controllable time
 #[derive(Clone)]
@@ -291,7 +291,10 @@ impl MockConnectionFactoryProvider {
 }
 
 impl ConnectionFactoryProvider for MockConnectionFactoryProvider {
-    fn create_game_connection(&self, _server_url: &str) -> Arc<dyn wrldbldr_player_ports::outbound::GameConnectionPort> {
+    fn create_game_connection(
+        &self,
+        _server_url: &str,
+    ) -> Arc<dyn wrldbldr_player_ports::outbound::GameConnectionPort> {
         // For testing, we would need a mock GameConnectionPort implementation
         // For now, this will panic if called - tests that need connection should mock it separately
         panic!("MockConnectionFactoryProvider::create_game_connection called - this should be mocked in tests that need it")

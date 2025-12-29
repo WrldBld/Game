@@ -144,7 +144,10 @@ impl<A: ApiPort> WorkflowService<A> {
     /// Get workflow configuration for a specific slot
     ///
     /// Returns None if the slot is not configured
-    pub async fn get_workflow_config(&self, slot_id: &str) -> Result<Option<WorkflowConfig>, ApiError> {
+    pub async fn get_workflow_config(
+        &self,
+        slot_id: &str,
+    ) -> Result<Option<WorkflowConfig>, ApiError> {
         let path = format!("/api/workflows/{}", slot_id);
         self.api.get_optional(&path).await
     }

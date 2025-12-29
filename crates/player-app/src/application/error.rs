@@ -12,10 +12,7 @@ pub enum ServiceError {
     /// Request failed to send or was cancelled
     Request(RequestError),
     /// Server returned an error response
-    ServerError {
-        code: ErrorCode,
-        message: String,
-    },
+    ServerError { code: ErrorCode, message: String },
     /// Response was empty when data was expected
     EmptyResponse,
     /// Failed to parse response data
@@ -74,10 +71,10 @@ impl ServiceError {
 pub trait ParseResponse {
     /// Parse a ResponseResult into the expected type
     fn parse<T: DeserializeOwned>(self) -> Result<T, ServiceError>;
-    
+
     /// Parse a ResponseResult that may return no data (for delete operations)
     fn parse_empty(self) -> Result<(), ServiceError>;
-    
+
     /// Parse a ResponseResult that may return Option<T> (for get operations that may 404)
     fn parse_optional<T: DeserializeOwned>(self) -> Result<Option<T>, ServiceError>;
 }
@@ -92,48 +89,43 @@ impl ParseResponse for ResponseResult {
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
             }
-            ResponseResult::Unknown => {
-                Err(ServiceError::ServerError {
-                    code: ErrorCode::InternalError,
-                    message: "Unknown response type".to_string(),
-                })
-            }
+            ResponseResult::Unknown => Err(ServiceError::ServerError {
+                code: ErrorCode::InternalError,
+                message: "Unknown response type".to_string(),
+            }),
         }
     }
-    
+
     fn parse_empty(self) -> Result<(), ServiceError> {
         match self {
             ResponseResult::Success { .. } => Ok(()),
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
             }
-            ResponseResult::Unknown => {
-                Err(ServiceError::ServerError {
-                    code: ErrorCode::InternalError,
-                    message: "Unknown response type".to_string(),
-                })
-            }
+            ResponseResult::Unknown => Err(ServiceError::ServerError {
+                code: ErrorCode::InternalError,
+                message: "Unknown response type".to_string(),
+            }),
         }
     }
-    
+
     fn parse_optional<T: DeserializeOwned>(self) -> Result<Option<T>, ServiceError> {
         match self {
             ResponseResult::Success { data: None } => Ok(None),
-            ResponseResult::Success { data: Some(data) } => {
-                serde_json::from_value(data)
-                    .map(Some)
-                    .map_err(|e| ServiceError::ParseError(e.to_string()))
-            }
-            ResponseResult::Error { code: ErrorCode::NotFound, .. } => Ok(None),
+            ResponseResult::Success { data: Some(data) } => serde_json::from_value(data)
+                .map(Some)
+                .map_err(|e| ServiceError::ParseError(e.to_string())),
+            ResponseResult::Error {
+                code: ErrorCode::NotFound,
+                ..
+            } => Ok(None),
             ResponseResult::Error { code, message, .. } => {
                 Err(ServiceError::ServerError { code, message })
             }
-            ResponseResult::Unknown => {
-                Err(ServiceError::ServerError {
-                    code: ErrorCode::InternalError,
-                    message: "Unknown response type".to_string(),
-                })
-            }
+            ResponseResult::Unknown => Err(ServiceError::ServerError {
+                code: ErrorCode::InternalError,
+                message: "Unknown response type".to_string(),
+            }),
         }
     }
 }

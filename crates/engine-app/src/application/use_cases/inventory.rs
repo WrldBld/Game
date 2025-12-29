@@ -248,7 +248,9 @@ impl InventoryUseCase {
             .map_err(|e| InventoryError::Database(e.to_string()))?
             .ok_or(InventoryError::PcNotFound(input.pc_id))?;
 
-        let current_region_id = pc.current_region_id.ok_or(InventoryError::NoCurrentRegion)?;
+        let current_region_id = pc
+            .current_region_id
+            .ok_or(InventoryError::NoCurrentRegion)?;
 
         let item_name = item.item.name.clone();
         let dropped_quantity = input.quantity.min(item.quantity);
@@ -338,7 +340,9 @@ impl InventoryUseCase {
             .map_err(|e| InventoryError::Database(e.to_string()))?
             .ok_or(InventoryError::PcNotFound(input.pc_id))?;
 
-        let current_region_id = pc.current_region_id.ok_or(InventoryError::NoCurrentRegion)?;
+        let current_region_id = pc
+            .current_region_id
+            .ok_or(InventoryError::NoCurrentRegion)?;
 
         // Get region items to verify item is present
         let region_items = self
@@ -446,10 +450,7 @@ mod tests {
         let pc_id = PlayerCharacterId::from_uuid(Uuid::new_v4());
         let item_id = ItemId::from_uuid(Uuid::new_v4());
 
-        let _ = EquipInput {
-            pc_id,
-            item_id,
-        };
+        let _ = EquipInput { pc_id, item_id };
 
         let _ = DropInput {
             pc_id,

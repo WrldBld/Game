@@ -34,9 +34,9 @@ use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_engine_app::application::use_cases::{
     AdHocOutcomes, ChallengeOutcomeDecision, CreateAdHocInput, DiceInputType,
-    DiscardChallengeInput, OutcomeDecisionInput, RegenerateOutcomeInput,
-    RequestBranchesInput, SelectBranchInput, SubmitDiceInputInput, SubmitRollInput,
-    SuggestionDecisionInput, TriggerChallengeInput, UseCaseContext,
+    DiscardChallengeInput, OutcomeDecisionInput, RegenerateOutcomeInput, RequestBranchesInput,
+    SelectBranchInput, SubmitDiceInputInput, SubmitRollInput, SuggestionDecisionInput,
+    TriggerChallengeInput, UseCaseContext,
 };
 use wrldbldr_protocol::ServerMessage;
 
@@ -101,7 +101,12 @@ pub async fn handle_challenge_roll_input(
         input_type: to_use_case_dice_input(input_type),
     };
 
-    match state.use_cases.challenge.submit_dice_input(ctx, input).await {
+    match state
+        .use_cases
+        .challenge
+        .submit_dice_input(ctx, input)
+        .await
+    {
         Ok(_) => None, // Use case broadcasts to DM + players
         Err(e) => Some(e.into_server_error()),
     }
@@ -128,7 +133,12 @@ pub async fn handle_trigger_challenge(
     // Parse target_character_id to CharacterId
     let target_id = match uuid::Uuid::parse_str(&target_character_id) {
         Ok(uuid) => CharacterId::from_uuid(uuid),
-        Err(_) => return Some(error_msg("INVALID_CHARACTER_ID", "Invalid target character ID")),
+        Err(_) => {
+            return Some(error_msg(
+                "INVALID_CHARACTER_ID",
+                "Invalid target character ID",
+            ))
+        }
     };
 
     let input = TriggerChallengeInput {
@@ -136,7 +146,12 @@ pub async fn handle_trigger_challenge(
         target_character_id: target_id,
     };
 
-    match state.use_cases.challenge.trigger_challenge(ctx, input).await {
+    match state
+        .use_cases
+        .challenge
+        .trigger_challenge(ctx, input)
+        .await
+    {
         Ok(_) => None, // Use case broadcasts ChallengePrompt to world
         Err(e) => Some(e.into_server_error()),
     }
@@ -163,7 +178,12 @@ pub async fn handle_challenge_suggestion_decision(
         modified_difficulty,
     };
 
-    match state.use_cases.challenge.suggestion_decision(ctx, input).await {
+    match state
+        .use_cases
+        .challenge
+        .suggestion_decision(ctx, input)
+        .await
+    {
         Ok(()) => None, // Use case handles broadcasting if approved
         Err(e) => Some(e.into_server_error()),
     }
@@ -189,7 +209,12 @@ pub async fn handle_create_adhoc_challenge(
     // Parse target_pc_id to PlayerCharacterId
     let pc_id = match uuid::Uuid::parse_str(&target_pc_id) {
         Ok(uuid) => PlayerCharacterId::from_uuid(uuid),
-        Err(_) => return Some(error_msg("INVALID_PC_ID", "Invalid target player character ID")),
+        Err(_) => {
+            return Some(error_msg(
+                "INVALID_PC_ID",
+                "Invalid target player character ID",
+            ))
+        }
     };
 
     let input = CreateAdHocInput {
@@ -276,7 +301,10 @@ pub async fn handle_request_outcome_branches(
         Err(e) => return Some(e),
     };
 
-    let input = RequestBranchesInput { resolution_id, guidance };
+    let input = RequestBranchesInput {
+        resolution_id,
+        guidance,
+    };
 
     match state.use_cases.challenge.request_branches(ctx, input).await {
         Ok(()) => None,
@@ -297,7 +325,11 @@ pub async fn handle_select_outcome_branch(
         Err(e) => return Some(e),
     };
 
-    let input = SelectBranchInput { resolution_id, branch_id, modified_description };
+    let input = SelectBranchInput {
+        resolution_id,
+        branch_id,
+        modified_description,
+    };
 
     match state.use_cases.challenge.select_branch(ctx, input).await {
         Ok(()) => None,
@@ -317,9 +349,17 @@ pub async fn handle_discard_challenge(
         Err(e) => return Some(e),
     };
 
-    let input = DiscardChallengeInput { request_id: request_id.clone(), feedback };
+    let input = DiscardChallengeInput {
+        request_id: request_id.clone(),
+        feedback,
+    };
 
-    match state.use_cases.challenge.discard_challenge(ctx, input).await {
+    match state
+        .use_cases
+        .challenge
+        .discard_challenge(ctx, input)
+        .await
+    {
         Ok(_) => Some(ServerMessage::ChallengeDiscarded { request_id }),
         Err(e) => Some(e.into_server_error()),
     }
@@ -338,9 +378,18 @@ pub async fn handle_regenerate_outcome(
         Err(e) => return Some(e),
     };
 
-    let input = RegenerateOutcomeInput { request_id: request_id.clone(), outcome_type, guidance };
+    let input = RegenerateOutcomeInput {
+        request_id: request_id.clone(),
+        outcome_type,
+        guidance,
+    };
 
-    match state.use_cases.challenge.regenerate_outcome(ctx, input).await {
+    match state
+        .use_cases
+        .challenge
+        .regenerate_outcome(ctx, input)
+        .await
+    {
         Ok(result) => Some(ServerMessage::OutcomeRegenerated {
             request_id,
             outcome_type: result.outcome_type,
@@ -358,12 +407,16 @@ pub async fn handle_regenerate_outcome(
 // Conversion Helpers
 // =============================================================================
 
-fn to_use_case_decision(decision: wrldbldr_protocol::ChallengeOutcomeDecisionData) -> ChallengeOutcomeDecision {
+fn to_use_case_decision(
+    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+) -> ChallengeOutcomeDecision {
     match decision {
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => ChallengeOutcomeDecision::Accept,
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
-            ChallengeOutcomeDecision::Edit { modified_text: modified_description }
-        }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit {
+            modified_description,
+        } => ChallengeOutcomeDecision::Edit {
+            modified_text: modified_description,
+        },
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }

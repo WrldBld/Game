@@ -49,13 +49,19 @@ pub struct KnownNpcsPanelProps {
 #[component]
 pub fn KnownNpcsPanel(props: KnownNpcsPanelProps) -> Element {
     // Group observations by observation type for filtering
-    let direct_obs: Vec<_> = props.observations.iter()
+    let direct_obs: Vec<_> = props
+        .observations
+        .iter()
         .filter(|o| o.observation_type == "direct")
         .collect();
-    let heard_obs: Vec<_> = props.observations.iter()
+    let heard_obs: Vec<_> = props
+        .observations
+        .iter()
         .filter(|o| o.observation_type == "heard_about")
         .collect();
-    let deduced_obs: Vec<_> = props.observations.iter()
+    let deduced_obs: Vec<_> = props
+        .observations
+        .iter()
         .filter(|o| o.observation_type == "deduced")
         .collect();
 

@@ -308,7 +308,9 @@ impl RegionService for RegionServiceImpl {
         self.region_repository
             .get(connection.from_region)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Source region not found: {}", connection.from_region))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("Source region not found: {}", connection.from_region)
+            })?;
         self.region_repository
             .get(connection.to_region)
             .await?

@@ -1,8 +1,8 @@
 //! Event Chain Visualizer - Flowchart view of event chains
 
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::services::EventChainData;
 use wrldbldr_player_app::application::dto::NarrativeEventData;
+use wrldbldr_player_app::application::services::EventChainData;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainVisualizerProps {
@@ -24,7 +24,8 @@ pub fn EventChainVisualizer(props: EventChainVisualizerProps) -> Element {
     {
         let chain_events = props.chain.events.clone();
         use_effect(move || {
-            let placeholder_events: Vec<NarrativeEventData> = chain_events.iter()
+            let placeholder_events: Vec<NarrativeEventData> = chain_events
+                .iter()
                 .map(|id| NarrativeEventData {
                     id: id.clone(),
                     world_id: String::new(),
@@ -187,4 +188,3 @@ fn EventNode(
         }
     }
 }
-

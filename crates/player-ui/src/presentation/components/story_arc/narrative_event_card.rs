@@ -43,14 +43,30 @@ pub fn NarrativeEventCard(props: NarrativeEventCardProps) -> Element {
     };
 
     // Conditional classes for card
-    let card_border_class = if event.is_active { "border-gray-700" } else { "border-gray-800" };
-    let card_opacity_class = if event.is_active { "opacity-100" } else { "opacity-70" };
+    let card_border_class = if event.is_active {
+        "border-gray-700"
+    } else {
+        "border-gray-800"
+    };
+    let card_opacity_class = if event.is_active {
+        "opacity-100"
+    } else {
+        "opacity-70"
+    };
 
     // Favorite button conditional classes
-    let favorite_color_class = if event.is_favorite { "text-amber-500" } else { "text-gray-500 opacity-50" };
+    let favorite_color_class = if event.is_favorite {
+        "text-amber-500"
+    } else {
+        "text-gray-500 opacity-50"
+    };
 
     // Active toggle conditional classes
-    let active_toggle_class = if event.is_active { "text-green-500" } else { "text-gray-500" };
+    let active_toggle_class = if event.is_active {
+        "text-green-500"
+    } else {
+        "text-gray-500"
+    };
 
     rsx! {
         div {

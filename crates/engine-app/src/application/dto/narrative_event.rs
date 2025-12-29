@@ -123,4 +123,3 @@ impl From<NarrativeEvent> for NarrativeEventResponseDto {
         }
     }
 }
-

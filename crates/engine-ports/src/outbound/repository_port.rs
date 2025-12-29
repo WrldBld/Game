@@ -7,20 +7,20 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::entities::{
-    Act, ActantialRole, ActantialView, AcquisitionMethod, ChainStatus, Challenge,
+    AcquisitionMethod, Act, ActantialRole, ActantialView, ChainStatus, Challenge,
     ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability, Character,
     CharacterSheetTemplate, CharacterWant, EventChain, EventChainMembership, FeaturedNpc,
     FrequencyLevel, GalleryAsset, GenerationBatch, Goal, InteractionRequirement,
     InteractionTargetType, InteractionTemplate, InventoryItem, InvolvedCharacter, Item, Location,
     LocationConnection, NarrativeEvent, NpcObservation, PlayerCharacter, Region, RegionConnection,
-    RegionExit, Scene, SceneCharacter, SheetTemplateId, Skill, StoryEvent,
-    Want, World, WorkflowConfiguration,
+    RegionExit, Scene, SceneCharacter, SheetTemplateId, Skill, StoryEvent, Want,
+    WorkflowConfiguration, World,
 };
-use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::value_objects::{
-    ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship, RegionRelationshipType,
-    RegionShift, Relationship, WantTarget,
+    ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship,
+    RegionRelationshipType, RegionShift, Relationship, WantTarget,
 };
 use wrldbldr_domain::{
     ActId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, GoalId, GridMapId,
@@ -119,8 +119,12 @@ pub trait CharacterRepositoryPort: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Create a want and attach it to a character
-    async fn create_want(&self, character_id: CharacterId, want: &Want, priority: u32)
-        -> Result<()>;
+    async fn create_want(
+        &self,
+        character_id: CharacterId,
+        want: &Want,
+        priority: u32,
+    ) -> Result<()>;
 
     /// Get all wants for a character
     async fn get_wants(&self, character_id: CharacterId) -> Result<Vec<CharacterWant>>;
@@ -236,11 +240,8 @@ pub trait CharacterRepositoryPort: Send + Sync {
     ) -> Result<()>;
 
     /// Remove an item from inventory
-    async fn remove_inventory_item(
-        &self,
-        character_id: CharacterId,
-        item_id: ItemId,
-    ) -> Result<()>;
+    async fn remove_inventory_item(&self, character_id: CharacterId, item_id: ItemId)
+        -> Result<()>;
 
     // -------------------------------------------------------------------------
     // Character-Location Relationships
@@ -343,7 +344,11 @@ pub trait CharacterRepositoryPort: Send + Sync {
     async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel>;
 
     /// Set the NPC's default/global disposition (on Character node)
-    async fn set_default_disposition(&self, npc_id: CharacterId, disposition: DispositionLevel) -> Result<()>;
+    async fn set_default_disposition(
+        &self,
+        npc_id: CharacterId,
+        disposition: DispositionLevel,
+    ) -> Result<()>;
 
     // -------------------------------------------------------------------------
     // Character-Region Relationships (HOME_REGION, WORKS_AT_REGION, etc.)
@@ -356,11 +361,7 @@ pub trait CharacterRepositoryPort: Send + Sync {
     ) -> Result<Vec<RegionRelationship>>;
 
     /// Set character's home region (creates/replaces HOME_REGION edge)
-    async fn set_home_region(
-        &self,
-        character_id: CharacterId,
-        region_id: RegionId,
-    ) -> Result<()>;
+    async fn set_home_region(&self, character_id: CharacterId, region_id: RegionId) -> Result<()>;
 
     /// Set character's work region with shift (creates/replaces WORKS_AT_REGION edge)
     async fn set_work_region(
@@ -414,18 +415,10 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
     async fn update(&self, pc: &PlayerCharacter) -> Result<()>;
 
     /// Update a player character's location (clears region)
-    async fn update_location(
-        &self,
-        id: PlayerCharacterId,
-        location_id: LocationId,
-    ) -> Result<()>;
+    async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()>;
 
     /// Update a player character's region (within current location)
-    async fn update_region(
-        &self,
-        id: PlayerCharacterId,
-        region_id: RegionId,
-    ) -> Result<()>;
+    async fn update_region(&self, id: PlayerCharacterId, region_id: RegionId) -> Result<()>;
 
     /// Update both location and region at once
     async fn update_position(
@@ -475,11 +468,7 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
     ) -> Result<()>;
 
     /// Remove an item from PC's inventory (deletes POSSESSES edge)
-    async fn remove_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<()>;
+    async fn remove_inventory_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<()>;
 }
 
 // =============================================================================
@@ -650,18 +639,12 @@ pub trait SceneRepositoryPort: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Mark a scene as completed by a player character
-    async fn mark_scene_completed(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<()>;
+    async fn mark_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId)
+        -> Result<()>;
 
     /// Check if a player character has completed a scene
-    async fn is_scene_completed(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<bool>;
+    async fn is_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId)
+        -> Result<bool>;
 
     /// Get all scenes completed by a player character
     async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>>;
@@ -695,7 +678,12 @@ pub trait FlagRepositoryPort: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Set a PC-scoped flag
-    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str, value: bool) -> Result<()>;
+    async fn set_pc_flag(
+        &self,
+        pc_id: PlayerCharacterId,
+        flag_name: &str,
+        value: bool,
+    ) -> Result<()>;
 
     /// Get a PC-scoped flag value (returns false if not set)
     async fn get_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<bool>;
@@ -742,11 +730,7 @@ pub trait InteractionRepositoryPort: Send + Sync {
     ) -> Result<()>;
 
     /// Set interaction target to an item
-    async fn set_target_item(
-        &self,
-        interaction_id: InteractionId,
-        item_id: ItemId,
-    ) -> Result<()>;
+    async fn set_target_item(&self, interaction_id: InteractionId, item_id: ItemId) -> Result<()>;
 
     /// Set interaction target to a backdrop region
     async fn set_target_region(
@@ -823,8 +807,6 @@ pub trait RelationshipRepositoryPort: Send + Sync {
     /// Get the social network graph for a world
     async fn get_social_network(&self, world_id: WorldId) -> Result<SocialNetwork>;
 }
-
-
 
 // =============================================================================
 // Skill Repository Port
@@ -960,7 +942,11 @@ pub trait AssetRepositoryPort: Send + Sync {
     async fn get(&self, id: AssetId) -> Result<Option<GalleryAsset>>;
 
     /// List assets for an entity
-    async fn list_for_entity(&self, entity_type: &str, entity_id: &str) -> Result<Vec<GalleryAsset>>;
+    async fn list_for_entity(
+        &self,
+        entity_type: &str,
+        entity_id: &str,
+    ) -> Result<Vec<GalleryAsset>>;
 
     /// Activate an asset (set as current for its slot)
     async fn activate(&self, id: AssetId) -> Result<()>;
@@ -988,7 +974,8 @@ pub trait AssetRepositoryPort: Send + Sync {
     async fn update_batch_assets(&self, id: BatchId, assets: &[AssetId]) -> Result<()>;
 
     /// List all active (queued or generating) batches for a specific world
-    async fn list_active_batches_by_world(&self, world_id: WorldId) -> Result<Vec<GenerationBatch>>;
+    async fn list_active_batches_by_world(&self, world_id: WorldId)
+        -> Result<Vec<GenerationBatch>>;
 
     /// List batches ready for selection
     async fn list_ready_batches(&self) -> Result<Vec<GenerationBatch>>;
@@ -1047,11 +1034,7 @@ pub trait ChallengeRepositoryPort: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Set the required skill for a challenge (creates REQUIRES_SKILL edge)
-    async fn set_required_skill(
-        &self,
-        challenge_id: ChallengeId,
-        skill_id: SkillId,
-    ) -> Result<()>;
+    async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<()>;
 
     /// Get the required skill for a challenge
     async fn get_required_skill(&self, challenge_id: ChallengeId) -> Result<Option<SkillId>>;
@@ -1097,10 +1080,8 @@ pub trait ChallengeRepositoryPort: Send + Sync {
     ) -> Result<()>;
 
     /// Get challenges that require this challenge as a prerequisite
-    async fn get_dependent_challenges(
-        &self,
-        challenge_id: ChallengeId,
-    ) -> Result<Vec<ChallengeId>>;
+    async fn get_dependent_challenges(&self, challenge_id: ChallengeId)
+        -> Result<Vec<ChallengeId>>;
 
     // -------------------------------------------------------------------------
     // Location Availability Edges (AVAILABLE_AT)
@@ -1203,10 +1184,12 @@ pub trait StoryEventRepositoryPort: Send + Sync {
     async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>>;
 
     /// Search story events by tags
-    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>) -> Result<Vec<StoryEvent>>;
+    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>)
+        -> Result<Vec<StoryEvent>>;
 
     /// Search story events by text in summary
-    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>>;
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str)
+        -> Result<Vec<StoryEvent>>;
 
     /// List events involving a specific character
     async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>>;
@@ -1334,10 +1317,10 @@ pub trait StoryEventRepositoryPort: Send + Sync {
     // =========================================================================
 
     /// Get recent dialogue exchanges with a specific NPC
-    /// 
+    ///
     /// Returns DialogueExchange events involving the specified NPC,
     /// ordered by timestamp descending (most recent first).
-    /// 
+    ///
     /// Used by the Staging System to provide LLM context about
     /// recent conversations with NPCs who might be present.
     async fn get_dialogues_with_npc(
@@ -1398,7 +1381,11 @@ pub trait NarrativeEventRepositoryPort: Send + Sync {
     async fn set_active(&self, id: NarrativeEventId, is_active: bool) -> Result<bool>;
 
     /// Mark event as triggered
-    async fn mark_triggered(&self, id: NarrativeEventId, outcome_name: Option<String>) -> Result<bool>;
+    async fn mark_triggered(
+        &self,
+        id: NarrativeEventId,
+        outcome_name: Option<String>,
+    ) -> Result<bool>;
 
     /// Reset triggered status (for repeatable events)
     async fn reset_triggered(&self, id: NarrativeEventId) -> Result<bool>;
@@ -1534,13 +1521,25 @@ pub trait EventChainRepositoryPort: Send + Sync {
     async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>>;
 
     /// Add an event to a chain
-    async fn add_event_to_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool>;
+    async fn add_event_to_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool>;
 
     /// Remove an event from a chain
-    async fn remove_event_from_chain(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool>;
+    async fn remove_event_from_chain(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool>;
 
     /// Mark an event as completed in a chain
-    async fn complete_event(&self, chain_id: EventChainId, event_id: NarrativeEventId) -> Result<bool>;
+    async fn complete_event(
+        &self,
+        chain_id: EventChainId,
+        event_id: NarrativeEventId,
+    ) -> Result<bool>;
 
     /// Toggle favorite status
     async fn toggle_favorite(&self, id: EventChainId) -> Result<bool>;
@@ -1575,7 +1574,10 @@ pub trait SheetTemplateRepositoryPort: Send + Sync {
     async fn get(&self, id: &SheetTemplateId) -> Result<Option<CharacterSheetTemplate>>;
 
     /// Get the default template for a world
-    async fn get_default_for_world(&self, world_id: &WorldId) -> Result<Option<CharacterSheetTemplate>>;
+    async fn get_default_for_world(
+        &self,
+        world_id: &WorldId,
+    ) -> Result<Option<CharacterSheetTemplate>>;
 
     /// List all templates for a world
     async fn list_by_world(&self, world_id: &WorldId) -> Result<Vec<CharacterSheetTemplate>>;
@@ -1679,21 +1681,27 @@ pub trait RegionRepositoryPort: Send + Sync {
     /// This will create a `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
     /// Future implementation should enforce region.max_items capacity.
     async fn add_item_to_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
-        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+        Err(anyhow::anyhow!(
+            "Region item placement not yet implemented - see US-REGION-ITEMS"
+        ))
     }
 
     /// Get all items in a region (stub - not yet implemented)
     ///
     /// Returns items linked via `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
     async fn get_region_items(&self, _region_id: RegionId) -> Result<Vec<Item>> {
-        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+        Err(anyhow::anyhow!(
+            "Region item placement not yet implemented - see US-REGION-ITEMS"
+        ))
     }
 
     /// Remove an item from a region (stub - not yet implemented)
     ///
     /// Deletes the `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
     async fn remove_item_from_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
-        Err(anyhow::anyhow!("Region item placement not yet implemented - see US-REGION-ITEMS"))
+        Err(anyhow::anyhow!(
+            "Region item placement not yet implemented - see US-REGION-ITEMS"
+        ))
     }
 }
 
@@ -1736,5 +1744,3 @@ pub trait ObservationRepositoryPort: Send + Sync {
 // =============================================================================
 // Repository Provider Port (Facade)
 // =============================================================================
-
-

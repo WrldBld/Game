@@ -9,8 +9,8 @@ pub mod player_events;
 pub mod requests;
 pub mod session_dto;
 pub mod session_types;
-pub mod world_snapshot;
 pub mod settings;
+pub mod world_snapshot;
 
 // Re-export action DTOs
 pub use player_action::{PlayerAction, PlayerActionType};
@@ -21,69 +21,107 @@ pub use player_events::PlayerEvent;
 // Re-export session DTOs
 pub use session_dto::AppConnectionStatus;
 
-
 // Re-export Engine snapshot contracts (application-owned).
 pub use world_snapshot::{
-    // Rule system types (re-exported from protocol/domain)
-    RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType, RuleSystemVariant,
-    StatDefinition, DiceSystem, SuccessComparison,
-    // Rule system extension traits (UI-specific methods)
-    RuleSystemTypeExt, RuleSystemVariantExt,
-    // Skill types
-    SkillData, SkillCategory,
-    // Character sheet types
-    SheetTemplate, SheetSection, SheetField, SectionLayout,
-    FieldType, FieldValue,
     // Challenge types
-    ChallengeData, ChallengeType, ChallengeDifficulty,
-    ChallengeOutcomes, Outcome,
-    // Story arc types
-    StoryEventData, StoryEventTypeData,
-    NarrativeEventData, CreateNarrativeEventRequest,
+    ChallengeData,
+    ChallengeDifficulty,
+    ChallengeOutcomes,
+    ChallengeType,
+    CreateNarrativeEventRequest,
+    DiceSystem,
+    FieldType,
+    FieldValue,
+    InventoryItemData,
+    // Inventory types (Phase 23B)
+    ItemData,
+    NarrativeEventData,
+    Outcome,
+    // Rule system types (re-exported from protocol/domain)
+    RuleSystemConfig,
+    RuleSystemPresetDetails,
+    RuleSystemType,
+    // Rule system extension traits (UI-specific methods)
+    RuleSystemTypeExt,
+    RuleSystemVariant,
+    RuleSystemVariantExt,
+    SectionLayout,
     // Session snapshot types (simplified format from Engine)
     SessionWorldSnapshot,
-    // Inventory types (Phase 23B)
-    ItemData, InventoryItemData,
+    SheetField,
+    SheetSection,
+    // Character sheet types
+    SheetTemplate,
+    SkillCategory,
+    // Skill types
+    SkillData,
+    StatDefinition,
+    // Story arc types
+    StoryEventData,
+    StoryEventTypeData,
+    SuccessComparison,
 };
 
 // Re-export settings DTOs
-pub use settings::{AppSettings, ContextBudgetConfig, SettingsFieldMetadata, SettingsMetadataResponse};
+pub use settings::{
+    AppSettings, ContextBudgetConfig, SettingsFieldMetadata, SettingsMetadataResponse,
+};
 
 // Re-export request DTOs
 pub use requests::{
-    CreateWorldRequest, CreateCharacterRequest, UpdateCharacterRequest,
-    ChangeArchetypeRequest, SuggestionContext,
-    CreateChallengeRequest, UpdateChallengeRequest,
+    ChangeArchetypeRequest, CreateChallengeRequest, CreateCharacterRequest, CreateWorldRequest,
+    SuggestionContext, UpdateChallengeRequest, UpdateCharacterRequest,
 };
 
 // Re-export session types (application-owned DTOs for GameConnectionPort)
 pub use session_types::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
-    DiceInput, DirectorialContext, NpcMotivationData, ParticipantRole,
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
+    DirectorialContext, NpcMotivationData, ParticipantRole,
 };
 
 // Re-export player event types for UI components
 pub use player_events::{
+    ActantialViewData,
+    ChallengeSuggestionInfo,
     // Scene & character display
-    CharacterData, CharacterPosition, SceneData, RegionData,
+    CharacterData,
+    CharacterPosition,
+    // Connection
+    ConnectedUser,
     // Dialogue
     DialogueChoice,
-    // Navigation
-    NavigationData, NavigationTarget, NavigationExit,
-    // Interactions & items
-    InteractionData, RegionItemData,
-    // NPCs & staging
-    NpcPresenceData, SplitPartyLocation, StagedNpcInfo, PreviousStagingInfo,
-    WaitingPcInfo, NpcPresentInfo, NpcDispositionData,
-    // Approval & challenges
-    ProposedToolInfo, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo,
-    OutcomeDetailData, OutcomeBranchData,
+    EntityChangedData,
     // Game time
     GameTime,
-    // Connection
-    ConnectedUser, WorldRole, JoinError, EntityChangedData, ResponseResult,
+    GoalData as PlayerEventGoalData,
+    // Interactions & items
+    InteractionData,
+    JoinError,
+    NarrativeEventSuggestionInfo,
+    // Navigation
+    NavigationData,
+    NavigationExit,
+    NavigationTarget,
+    NpcDispositionData,
+    // NPCs & staging
+    NpcPresenceData,
+    NpcPresentInfo,
+    OutcomeBranchData,
+    OutcomeDetailData,
+    PreviousStagingInfo,
+    // Approval & challenges
+    ProposedToolInfo,
+    RegionData,
+    RegionItemData,
+    ResponseResult,
+    SceneData,
+    SplitPartyLocation,
+    StagedNpcInfo,
+    WaitingPcInfo,
     // Actantial model (from player_events for UI)
-    WantData as PlayerEventWantData, WantTargetData, ActantialViewData, GoalData as PlayerEventGoalData,
+    WantData as PlayerEventWantData,
+    WantTargetData,
+    WorldRole,
 };
 
 // ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
@@ -93,9 +131,8 @@ pub use player_events::{
 // are stable and serialization-ready.
 // See: docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md Appendix B
 pub use wrldbldr_protocol::{
-    WantVisibilityData, ActantialRoleData, WantTargetTypeData,
-    NpcActantialContextData, WantData, GoalData,
-    ActantialActorData, ActorTypeData, SocialRelationData,
+    ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
+    SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
 };
 
 // NOTE: Infrastructure asset loader now depends inward on these DTOs.

@@ -2,9 +2,9 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 use crate::presentation::components::story_arc::narrative_event_card::NarrativeEventCard;
 use crate::presentation::services::use_narrative_event_service;
+use wrldbldr_player_app::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct NarrativeEventLibraryProps {
@@ -50,44 +50,50 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
         let favorites_only = *show_favorites_only.read();
         let all_events = events.read().clone();
 
-        all_events.into_iter().filter(|event| {
-            // Filter by favorites
-            if favorites_only && !event.is_favorite {
-                return false;
-            }
-
-            // Filter by status
-            match status.as_str() {
-                "active" => {
-                    if !event.is_active {
-                        return false;
-                    }
-                }
-                "triggered" => {
-                    if !event.is_triggered {
-                        return false;
-                    }
-                }
-                "pending" => {
-                    if event.is_triggered || !event.is_active {
-                        return false;
-                    }
-                }
-                _ => {}
-            }
-
-            // Filter by search
-            if !search.is_empty() {
-                let matches_name = event.name.to_lowercase().contains(&search);
-                let matches_desc = event.description.to_lowercase().contains(&search);
-                let matches_tags = event.tags.iter().any(|t| t.to_lowercase().contains(&search));
-                if !matches_name && !matches_desc && !matches_tags {
+        all_events
+            .into_iter()
+            .filter(|event| {
+                // Filter by favorites
+                if favorites_only && !event.is_favorite {
                     return false;
                 }
-            }
 
-            true
-        }).collect::<Vec<_>>()
+                // Filter by status
+                match status.as_str() {
+                    "active" => {
+                        if !event.is_active {
+                            return false;
+                        }
+                    }
+                    "triggered" => {
+                        if !event.is_triggered {
+                            return false;
+                        }
+                    }
+                    "pending" => {
+                        if event.is_triggered || !event.is_active {
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+
+                // Filter by search
+                if !search.is_empty() {
+                    let matches_name = event.name.to_lowercase().contains(&search);
+                    let matches_desc = event.description.to_lowercase().contains(&search);
+                    let matches_tags = event
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&search));
+                    if !matches_name && !matches_desc && !matches_tags {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .collect::<Vec<_>>()
     };
 
     rsx! {
@@ -417,4 +423,3 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
         }
     }
 }
-

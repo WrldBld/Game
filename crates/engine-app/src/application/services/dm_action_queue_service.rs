@@ -8,17 +8,18 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use wrldbldr_domain::value_objects::{DmActionData, DmActionType};
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{ClockPort, QueueError, QueueItem, QueueItemId, QueuePort};
-use crate::application::dto::{DMAction, DMActionItem};
 
 /// Service for managing the DM action queue
-pub struct DMActionQueueService<Q: QueuePort<DMActionItem>> {
+pub struct DmActionQueueService<Q: QueuePort<DmActionData>> {
     pub(crate) queue: Arc<Q>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
 
-impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
+impl<Q: QueuePort<DmActionData>> DmActionQueueService<Q> {
     pub fn queue(&self) -> &Arc<Q> {
         &self.queue
     }
@@ -43,12 +44,12 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
     /// before player actions.
     pub async fn enqueue_action(
         &self,
-        world_id: &wrldbldr_domain::WorldId,
+        world_id: &WorldId,
         dm_id: String,
-        action: DMAction,
+        action: DmActionType,
     ) -> Result<QueueItemId, QueueError> {
-        let item = DMActionItem {
-            world_id: (*world_id).into(),
+        let item = DmActionData {
+            world_id: *world_id,
             dm_id,
             action,
             timestamp: self.now(),
@@ -66,7 +67,7 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
         process_action: F,
     ) -> Result<Option<QueueItemId>, QueueError>
     where
-        F: FnOnce(DMActionItem) -> Fut,
+        F: FnOnce(DmActionData) -> Fut,
         Fut: std::future::Future<Output = Result<(), QueueError>>,
     {
         let Some(item) = self.queue.dequeue().await? else {
@@ -93,7 +94,10 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
     }
 
     /// Get a specific action item by ID
-    pub async fn get_action(&self, id: QueueItemId) -> Result<Option<QueueItem<DMActionItem>>, QueueError> {
+    pub async fn get_action(
+        &self,
+        id: QueueItemId,
+    ) -> Result<Option<QueueItem<DmActionData>>, QueueError> {
         self.queue.get(id).await
     }
 }

@@ -1,7 +1,7 @@
 //! Queue health check and status routes
 
 use axum::{
-    extract::{State, Query},
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     routing::get,
     Json, Router,
@@ -10,17 +10,20 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueuePort, QueueItemStatus};
-use wrldbldr_engine_app::application::services::GenerationQueueSnapshot;
-use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
+use wrldbldr_domain::WorldId;
+use wrldbldr_engine_app::application::services::GenerationQueueSnapshot;
+use wrldbldr_engine_ports::outbound::{ProcessingQueuePort, QueueItemStatus, QueuePort};
 
 /// Create queue-related routes
 pub fn create_queue_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/health/queues", get(queue_health_check))
         .route("/generation/queue", get(get_generation_queue))
-        .route("/generation/read-state", axum::routing::post(update_generation_read_state))
+        .route(
+            "/generation/read-state",
+            axum::routing::post(update_generation_read_state),
+        )
 }
 
 /// Health check endpoint for queue status
@@ -28,53 +31,59 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
     use std::collections::HashMap;
 
     let player_action_depth = state
-                .queues.player_action_queue_service
+        .queues
+        .player_action_queue_service
         .depth()
         .await
         .unwrap_or(0);
 
     let llm_pending = state
-                .queues.llm_queue_service
+        .queues
+        .llm_queue_service
         .queue()
         .depth()
         .await
         .unwrap_or(0);
 
     let llm_processing = state
-                .queues.llm_queue_service
+        .queues
+        .llm_queue_service
         .queue()
         .processing_count()
         .await
         .unwrap_or(0);
 
     let approvals_pending = state
-                .queues.dm_approval_queue_service
+        .queues
+        .dm_approval_queue_service
         .queue()
         .depth()
         .await
         .unwrap_or(0);
 
     let asset_pending = state
-        .queues.asset_generation_queue_service
+        .queues
+        .asset_generation_queue_service
         .queue()
         .depth()
         .await
         .unwrap_or(0);
 
     let asset_processing = state
-        .queues.asset_generation_queue_service
+        .queues
+        .asset_generation_queue_service
         .queue()
         .processing_count()
         .await
         .unwrap_or(0);
-
 
     // Compute per-session depths for better observability and future
     // fairness tuning. These are best-effort and should not affect
     // critical-path queue processing.
     let mut player_actions_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-                .queues.player_action_queue_service
+        .queues
+        .player_action_queue_service
         .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
@@ -87,7 +96,8 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
 
     let mut llm_requests_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-                .queues.llm_queue_service
+        .queues
+        .llm_queue_service
         .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
@@ -100,7 +110,8 @@ async fn queue_health_check(State(state): State<Arc<AppState>>) -> Json<serde_js
 
     let mut asset_generation_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-                .queues.asset_generation_queue_service
+        .queues
+        .asset_generation_queue_service
         .queue()
         .list_by_status(QueueItemStatus::Pending)
         .await
@@ -169,17 +180,21 @@ pub async fn get_generation_queue(
         .or_else(|| params.get("user_id").cloned());
 
     // World ID is required for scoping batches
-    let world_id_str = params
-        .get("world_id")
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "world_id query parameter is required".to_string()))?;
-    
+    let world_id_str = params.get("world_id").ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "world_id query parameter is required".to_string(),
+        )
+    })?;
+
     let world_uuid = Uuid::parse_str(world_id_str)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
 
     // Delegate to the application-layer projection service for reconstruction.
     let snapshot = state
-        .assets.generation_queue_projection_service
+        .assets
+        .generation_queue_projection_service
         .project_queue(user_id.as_deref(), world_id)
         .await
         .unwrap_or_else(|e| {
@@ -245,7 +260,8 @@ pub async fn update_generation_read_state(
 
     for batch_id in &body.read_batches {
         if let Err(e) = state
-                .events.generation_read_state_repository
+            .events
+            .generation_read_state_repository
             .mark_read(&user_id, &world_key, batch_id, GenerationReadKind::Batch)
             .await
         {
@@ -258,7 +274,8 @@ pub async fn update_generation_read_state(
 
     for req_id in &body.read_suggestions {
         if let Err(e) = state
-                .events.generation_read_state_repository
+            .events
+            .generation_read_state_repository
             .mark_read(&user_id, &world_key, req_id, GenerationReadKind::Suggestion)
             .await
         {

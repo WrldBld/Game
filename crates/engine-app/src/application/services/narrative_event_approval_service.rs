@@ -133,8 +133,8 @@ where
             narrative_event.outcomes.first().cloned()
         };
 
-        let outcome = outcome
-            .ok_or_else(|| NarrativeEventApprovalError::NoOutcomes(event_id.clone()))?;
+        let outcome =
+            outcome.ok_or_else(|| NarrativeEventApprovalError::NoOutcomes(event_id.clone()))?;
 
         // 3. Mark event as triggered
         self.narrative_event_service
@@ -143,11 +143,7 @@ where
             .map_err(|e| NarrativeEventApprovalError::MarkTriggeredFailed(e.to_string()))?;
 
         // 4. Record a StoryEvent for the timeline
-        let effects: Vec<String> = outcome
-            .effects
-            .iter()
-            .map(|e| format!("{:?}", e))
-            .collect();
+        let effects: Vec<String> = outcome.effects.iter().map(|e| format!("{:?}", e)).collect();
 
         self.story_event_service
             .record_narrative_event_triggered(
@@ -180,5 +176,3 @@ where
         })
     }
 }
-
-

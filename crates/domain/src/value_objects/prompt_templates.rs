@@ -33,7 +33,7 @@ impl PromptTemplateCategory {
             Self::Summarization => "summarization",
         }
     }
-    
+
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Dialogue => "NPC Dialogue",
@@ -71,7 +71,7 @@ pub mod keys {
     pub const DIALOGUE_CHALLENGE_SUGGESTION_FORMAT: &str = "dialogue.challenge_suggestion_format";
     /// Narrative event suggestion format instructions
     pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = "dialogue.narrative_event_format";
-    
+
     // === Staging System ===
     /// System prompt for NPC staging decisions
     pub const STAGING_SYSTEM_PROMPT: &str = "staging.system_prompt";
@@ -79,13 +79,13 @@ pub mod keys {
     pub const STAGING_RESPONSE_FORMAT: &str = "staging.response_format";
     /// Role description for staging LLM
     pub const STAGING_ROLE_INSTRUCTIONS: &str = "staging.role_instructions";
-    
+
     // === Outcome Suggestions ===
     /// System prompt for outcome description generation
     pub const OUTCOME_SYSTEM_PROMPT: &str = "outcome.system_prompt";
     /// System prompt for outcome branch generation
     pub const OUTCOME_BRANCH_SYSTEM_PROMPT: &str = "outcome.branch_system_prompt";
-    
+
     // === Worldbuilding Suggestions ===
     /// Character name generation prompt
     pub const SUGGESTION_CHARACTER_NAME: &str = "suggestion.character_name";
@@ -107,7 +107,7 @@ pub mod keys {
     pub const SUGGESTION_LOCATION_FEATURES: &str = "suggestion.location_features";
     /// Location secrets generation prompt
     pub const SUGGESTION_LOCATION_SECRETS: &str = "suggestion.location_secrets";
-    
+
     // === Actantial Model Suggestions ===
     /// Deflection behavior suggestion prompt
     pub const SUGGESTION_DEFLECTION_BEHAVIOR: &str = "suggestion.deflection_behavior";
@@ -185,7 +185,8 @@ Only propose tool calls when dramatically appropriate. The Game Master will appr
 </narrative_event_suggestion>"#;
 
     /// System prompt for staging decisions
-    pub const STAGING_SYSTEM_PROMPT: &str = "You are a game master assistant helping determine NPC presence.";
+    pub const STAGING_SYSTEM_PROMPT: &str =
+        "You are a game master assistant helping determine NPC presence.";
 
     /// Role instructions for staging
     pub const STAGING_ROLE_INSTRUCTIONS: &str = r#"## Your Role
@@ -309,7 +310,9 @@ pub fn key_to_env_var(key: &str) -> String {
 pub fn get_default(key: &str) -> Option<&'static str> {
     match key {
         keys::DIALOGUE_RESPONSE_FORMAT => Some(defaults::DIALOGUE_RESPONSE_FORMAT),
-        keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT => Some(defaults::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT),
+        keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT => {
+            Some(defaults::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT)
+        }
         keys::DIALOGUE_NARRATIVE_EVENT_FORMAT => Some(defaults::DIALOGUE_NARRATIVE_EVENT_FORMAT),
         keys::STAGING_SYSTEM_PROMPT => Some(defaults::STAGING_SYSTEM_PROMPT),
         keys::STAGING_ROLE_INSTRUCTIONS => Some(defaults::STAGING_ROLE_INSTRUCTIONS),
@@ -342,7 +345,8 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::DIALOGUE_RESPONSE_FORMAT.to_string(),
             label: "Response Format Instructions".to_string(),
-            description: "Instructions shown to the LLM for how to format NPC dialogue responses".to_string(),
+            description: "Instructions shown to the LLM for how to format NPC dialogue responses"
+                .to_string(),
             category: PromptTemplateCategory::Dialogue,
             default_value: defaults::DIALOGUE_RESPONSE_FORMAT.to_string(),
             env_var: key_to_env_var(keys::DIALOGUE_RESPONSE_FORMAT),
@@ -350,7 +354,8 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.to_string(),
             label: "Challenge Suggestion Format".to_string(),
-            description: "Format instructions for suggesting skill challenges during dialogue".to_string(),
+            description: "Format instructions for suggesting skill challenges during dialogue"
+                .to_string(),
             category: PromptTemplateCategory::Dialogue,
             default_value: defaults::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.to_string(),
             env_var: key_to_env_var(keys::DIALOGUE_CHALLENGE_SUGGESTION_FORMAT),
@@ -358,7 +363,8 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::DIALOGUE_NARRATIVE_EVENT_FORMAT.to_string(),
             label: "Narrative Event Suggestion Format".to_string(),
-            description: "Format instructions for suggesting narrative events during dialogue".to_string(),
+            description: "Format instructions for suggesting narrative events during dialogue"
+                .to_string(),
             category: PromptTemplateCategory::Dialogue,
             default_value: defaults::DIALOGUE_NARRATIVE_EVENT_FORMAT.to_string(),
             env_var: key_to_env_var(keys::DIALOGUE_NARRATIVE_EVENT_FORMAT),
@@ -400,7 +406,9 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::OUTCOME_BRANCH_SYSTEM_PROMPT.to_string(),
             label: "Outcome Branch System Prompt".to_string(),
-            description: "System prompt for generating outcome branches (use {branch_count} placeholder)".to_string(),
+            description:
+                "System prompt for generating outcome branches (use {branch_count} placeholder)"
+                    .to_string(),
             category: PromptTemplateCategory::Outcomes,
             default_value: defaults::OUTCOME_BRANCH_SYSTEM_PROMPT.to_string(),
             env_var: key_to_env_var(keys::OUTCOME_BRANCH_SYSTEM_PROMPT),
@@ -490,7 +498,8 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::SUGGESTION_DEFLECTION_BEHAVIOR.to_string(),
             label: "Deflection Behavior Suggestions".to_string(),
-            description: "Prompt for generating NPC deflection behaviors for hidden wants".to_string(),
+            description: "Prompt for generating NPC deflection behaviors for hidden wants"
+                .to_string(),
             category: PromptTemplateCategory::Suggestions,
             default_value: defaults::SUGGESTION_DEFLECTION_BEHAVIOR.to_string(),
             env_var: key_to_env_var(keys::SUGGESTION_DEFLECTION_BEHAVIOR),
@@ -498,7 +507,8 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
         PromptTemplateMetadata {
             key: keys::SUGGESTION_BEHAVIORAL_TELLS.to_string(),
             label: "Behavioral Tells Suggestions".to_string(),
-            description: "Prompt for generating behavioral tells that reveal hidden NPC wants".to_string(),
+            description: "Prompt for generating behavioral tells that reveal hidden NPC wants"
+                .to_string(),
             category: PromptTemplateCategory::Suggestions,
             default_value: defaults::SUGGESTION_BEHAVIORAL_TELLS.to_string(),
             env_var: key_to_env_var(keys::SUGGESTION_BEHAVIORAL_TELLS),

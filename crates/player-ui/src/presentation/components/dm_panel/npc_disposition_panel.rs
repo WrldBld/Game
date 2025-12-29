@@ -115,7 +115,7 @@ pub fn NpcDispositionPanel(props: NpcDispositionPanelProps) -> Element {
 
                             let reason_str = reason.read().clone();
                             let reason_opt = if reason_str.is_empty() { None } else { Some(reason_str) };
-                            
+
                             props.on_disposition_change.call(DispositionChangeEvent {
                                 npc_id: npc_id.clone(),
                                 pc_id: pc_id.clone(),
@@ -151,7 +151,7 @@ pub fn NpcDispositionPanel(props: NpcDispositionPanelProps) -> Element {
                         move |e: Event<FormData>| {
                             let new_rel = e.value();
                             selected_relationship.set(new_rel.clone());
-                            
+
                             props.on_relationship_change.call(RelationshipChangeEvent {
                                 npc_id: npc_id.clone(),
                                 pc_id: pc_id.clone(),

@@ -174,9 +174,7 @@ pub async fn handle_pickup_item(
 // =============================================================================
 
 fn parse_pc_id(id: &str) -> Option<PlayerCharacterId> {
-    Uuid::parse_str(id)
-        .ok()
-        .map(PlayerCharacterId::from_uuid)
+    Uuid::parse_str(id).ok().map(PlayerCharacterId::from_uuid)
 }
 
 fn parse_item_id(id: &str) -> Option<ItemId> {

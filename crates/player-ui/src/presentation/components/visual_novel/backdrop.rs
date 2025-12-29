@@ -28,11 +28,11 @@ pub fn Backdrop(props: BackdropProps) -> Element {
     let (bg_class, bg_style) = match &props.image_url {
         Some(url) => (
             "bg-cover bg-center",
-            format!("background-image: url('{}');", url)
+            format!("background-image: url('{}');", url),
         ),
         None => (
             "bg-gradient-to-b from-dark-surface to-dark-purple-end",
-            String::new()
+            String::new(),
         ),
     };
 
@@ -58,5 +58,3 @@ pub fn Backdrop(props: BackdropProps) -> Element {
         }
     }
 }
-
-

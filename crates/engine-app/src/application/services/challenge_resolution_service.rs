@@ -15,16 +15,17 @@ use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::application::dto::AdHocOutcomesDto;
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, ClockPort};
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
 use crate::application::services::{
     ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
     PlayerCharacterService, SkillService,
 };
-use wrldbldr_domain::entities::OutcomeType;
-use wrldbldr_domain::value_objects::DiceRollInput;
-use wrldbldr_domain::{ChallengeId, PlayerCharacterId, WorldId, SkillId};
 use tracing::{debug, info};
+use wrldbldr_domain::entities::OutcomeType;
+use wrldbldr_domain::value_objects::ApprovalRequestData;
+use wrldbldr_domain::value_objects::DiceRollInput;
+use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, ClockPort};
 
 // ============================================================================
 // Error Types
@@ -182,7 +183,14 @@ use wrldbldr_engine_ports::outbound::LlmPort;
 ///
 /// Generic over `L: LlmPort` for LLM-powered suggestion generation via the approval service.
 /// Generic over `I: ItemService` for item operations in the DM approval queue.
-pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>, P: PlayerCharacterService, L: LlmPort, I: ItemService> {
+pub struct ChallengeResolutionService<
+    S: ChallengeService,
+    K: SkillService,
+    Q: ApprovalQueuePort<ApprovalRequestData>,
+    P: PlayerCharacterService,
+    L: LlmPort,
+    I: ItemService,
+> {
     challenge_service: Arc<S>,
     skill_service: Arc<K>,
     player_character_service: Arc<P>,
@@ -196,7 +204,7 @@ impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
 where
     S: ChallengeService,
     K: SkillService,
-    Q: ApprovalQueuePort<crate::application::dto::ApprovalItem>,
+    Q: ApprovalQueuePort<ApprovalRequestData>,
     P: PlayerCharacterService,
     L: LlmPort + 'static,
     I: ItemService,
@@ -248,13 +256,17 @@ where
         // Parse challenge_id
         let challenge_uuid = uuid::Uuid::parse_str(challenge_id_str)
             .map(ChallengeId::from_uuid)
-            .map_err(|_| ChallengeResolutionError::InvalidChallengeId(challenge_id_str.to_string()))?;
+            .map_err(|_| {
+                ChallengeResolutionError::InvalidChallengeId(challenge_id_str.to_string())
+            })?;
 
         // Load challenge from service
         let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
             Ok(Some(challenge)) => challenge,
             Ok(None) => {
-                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_id_str.to_string()));
+                return Err(ChallengeResolutionError::ChallengeNotFound(
+                    challenge_id_str.to_string(),
+                ));
             }
             Err(e) => {
                 tracing::error!("Failed to load challenge: {}", e);
@@ -263,10 +275,18 @@ where
         };
 
         // Fetch skill_id from REQUIRES_SKILL edge
-        let skill_id = match self.challenge_service.get_required_skill(challenge_uuid).await {
+        let skill_id = match self
+            .challenge_service
+            .get_required_skill(challenge_uuid)
+            .await
+        {
             Ok(skill_id) => skill_id,
             Err(e) => {
-                tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_uuid, e);
+                tracing::warn!(
+                    "Failed to get required skill for challenge {}: {}",
+                    challenge_uuid,
+                    e
+                );
                 None
             }
         };
@@ -279,7 +299,9 @@ where
             }
             Err(e) => {
                 tracing::error!("Failed to load player character: {}", e);
-                return Err(ChallengeResolutionError::PlayerCharacterLoadFailed(e.to_string()));
+                return Err(ChallengeResolutionError::PlayerCharacterLoadFailed(
+                    e.to_string(),
+                ));
             }
         };
 
@@ -362,7 +384,12 @@ where
                     None
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to look up skill {} for challenge {}: {}", sid, challenge_id_str, e);
+                    tracing::warn!(
+                        "Failed to look up skill {} for challenge {}: {}",
+                        sid,
+                        challenge_id_str,
+                        e
+                    );
                     None
                 }
             }
@@ -557,7 +584,9 @@ where
         let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
             Ok(Some(challenge)) => challenge,
             Ok(None) => {
-                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_id_str));
+                return Err(ChallengeResolutionError::ChallengeNotFound(
+                    challenge_id_str,
+                ));
             }
             Err(e) => {
                 tracing::error!("Failed to load challenge: {}", e);
@@ -566,10 +595,18 @@ where
         };
 
         // Fetch skill_id from REQUIRES_SKILL edge
-        let skill_id = match self.challenge_service.get_required_skill(challenge_uuid).await {
+        let skill_id = match self
+            .challenge_service
+            .get_required_skill(challenge_uuid)
+            .await
+        {
             Ok(skill_id) => skill_id,
             Err(e) => {
-                tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_uuid, e);
+                tracing::warn!(
+                    "Failed to get required skill for challenge {}: {}",
+                    challenge_uuid,
+                    e
+                );
                 None
             }
         };
@@ -593,10 +630,11 @@ where
 
         // Look up skill modifier for target character
         let character_modifier = if let Some(ref sid) = skill_id {
-            if let Ok(pc_id) = uuid::Uuid::parse_str(&target_character_id)
-                .map(PlayerCharacterId::from_uuid)
+            if let Ok(pc_id) =
+                uuid::Uuid::parse_str(&target_character_id).map(PlayerCharacterId::from_uuid)
             {
-                match self.player_character_service
+                match self
+                    .player_character_service
                     .get_skill_modifier(pc_id, sid.clone())
                     .await
                 {
@@ -604,7 +642,8 @@ where
                     Err(e) => {
                         tracing::warn!(
                             "Failed to get skill modifier for PC {}: {}, using 0",
-                            target_character_id, e
+                            target_character_id,
+                            e
                         );
                         0
                     }
@@ -657,27 +696,43 @@ where
         }
 
         // Look up the approval item
-        let approval_item = self.dm_approval_queue_service
+        let approval_item = self
+            .dm_approval_queue_service
             .get_by_id(&request_id)
             .await
             .map_err(|e| ChallengeResolutionError::ApprovalLookupError(e.to_string()))?
-            .ok_or_else(|| ChallengeResolutionError::ApprovalLookupError(format!("Approval request {} not found", request_id)))?;
+            .ok_or_else(|| {
+                ChallengeResolutionError::ApprovalLookupError(format!(
+                    "Approval request {} not found",
+                    request_id
+                ))
+            })?;
 
         // Get challenge suggestion from the approval item
-        let challenge_suggestion = approval_item.payload.challenge_suggestion
+        let challenge_suggestion = approval_item
+            .payload
+            .challenge_suggestion
             .as_ref()
-            .ok_or_else(|| ChallengeResolutionError::ChallengeSuggestionNotFound(request_id.clone()))?;
+            .ok_or_else(|| {
+                ChallengeResolutionError::ChallengeSuggestionNotFound(request_id.clone())
+            })?;
 
         // Parse challenge ID
         let challenge_uuid = uuid::Uuid::parse_str(&challenge_suggestion.challenge_id)
             .map(ChallengeId::from_uuid)
-            .map_err(|_| ChallengeResolutionError::InvalidChallengeId(challenge_suggestion.challenge_id.clone()))?;
+            .map_err(|_| {
+                ChallengeResolutionError::InvalidChallengeId(
+                    challenge_suggestion.challenge_id.clone(),
+                )
+            })?;
 
         // Load challenge
         let challenge = match self.challenge_service.get_challenge(challenge_uuid).await {
             Ok(Some(c)) => c,
             Ok(None) => {
-                return Err(ChallengeResolutionError::ChallengeNotFound(challenge_suggestion.challenge_id.clone()));
+                return Err(ChallengeResolutionError::ChallengeNotFound(
+                    challenge_suggestion.challenge_id.clone(),
+                ));
             }
             Err(e) => {
                 return Err(ChallengeResolutionError::ChallengeLoadFailed(e.to_string()));
@@ -685,42 +740,42 @@ where
         };
 
         // Fetch skill_id from REQUIRES_SKILL edge
-        let skill_id = match self.challenge_service.get_required_skill(challenge_uuid).await {
+        let skill_id = match self
+            .challenge_service
+            .get_required_skill(challenge_uuid)
+            .await
+        {
             Ok(skill_id) => skill_id,
             Err(e) => {
-                tracing::warn!("Failed to get required skill for challenge {}: {}", challenge_uuid, e);
+                tracing::warn!(
+                    "Failed to get required skill for challenge {}: {}",
+                    challenge_uuid,
+                    e
+                );
                 None
             }
         };
 
-        let difficulty_display = modified_difficulty
-            .unwrap_or_else(|| challenge.difficulty.display());
+        let difficulty_display =
+            modified_difficulty.unwrap_or_else(|| challenge.difficulty.display());
 
         // Look up skill modifier for target character if available
         let character_modifier = if let Some(ref sid) = skill_id {
-            if let Some(ref pc_id_str) = challenge_suggestion.target_pc_id {
-                if let Ok(pc_id) = uuid::Uuid::parse_str(pc_id_str)
-                    .map(PlayerCharacterId::from_uuid)
+            if let Some(pc_id) = challenge_suggestion.target_pc_id {
+                match self
+                    .player_character_service
+                    .get_skill_modifier(pc_id, sid.clone())
+                    .await
                 {
-                    match self.player_character_service
-                        .get_skill_modifier(pc_id, sid.clone())
-                        .await
-                    {
-                        Ok(modifier) => modifier,
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to get skill modifier for PC {}: {}, using 0",
-                                pc_id_str, e
-                            );
-                            0
-                        }
+                    Ok(modifier) => modifier,
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to get skill modifier for PC {}: {}, using 0",
+                            pc_id,
+                            e
+                        );
+                        0
                     }
-                } else {
-                    tracing::warn!(
-                        "Invalid target_pc_id format: {}, using modifier 0",
-                        pc_id_str
-                    );
-                    0
                 }
             } else {
                 tracing::debug!("No target_pc_id in challenge suggestion, using modifier 0");
@@ -775,11 +830,17 @@ where
 
         // Determine suggested dice from difficulty string
         let (suggested_dice, rule_system_hint) = if difficulty.to_uppercase().starts_with("DC") {
-            ("1d20".to_string(), "Roll 1d20 and add your modifier".to_string())
+            (
+                "1d20".to_string(),
+                "Roll 1d20 and add your modifier".to_string(),
+            )
         } else if difficulty.ends_with('%') {
             ("1d100".to_string(), "Roll percentile dice".to_string())
         } else {
-            ("2d6".to_string(), "Roll 2d6 and add your modifier".to_string())
+            (
+                "2d6".to_string(),
+                "Roll 2d6 and add your modifier".to_string(),
+            )
         };
 
         // Build the ad-hoc challenge result for the DM
@@ -841,10 +902,7 @@ fn get_dice_suggestion_for_challenge(
         }
         wrldbldr_domain::entities::Difficulty::Custom(desc) => {
             // Custom difficulty - let the hint explain
-            (
-                "1d20".to_string(),
-                format!("Custom difficulty: {}", desc),
-            )
+            ("1d20".to_string(), format!("Custom difficulty: {}", desc))
         }
     }
 }
@@ -909,5 +967,3 @@ fn evaluate_challenge_result(
         }
     }
 }
-
-

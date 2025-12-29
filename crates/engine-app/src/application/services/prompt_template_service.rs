@@ -12,14 +12,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use wrldbldr_engine_ports::outbound::{
-    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
-};
 use wrldbldr_domain::value_objects::{
     get_prompt_default, key_to_env_var, prompt_template_keys, prompt_template_metadata,
     PromptTemplateMetadata,
 };
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::outbound::{
+    PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
+};
 
 /// Service for managing prompt templates with priority resolution
 pub struct PromptTemplateService {
@@ -59,7 +59,10 @@ impl PromptTemplateService {
 
         // Resolve and cache
         let resolved = self.do_resolve_global(key).await;
-        self.global_cache.write().await.insert(key.to_string(), resolved.clone());
+        self.global_cache
+            .write()
+            .await
+            .insert(key.to_string(), resolved.clone());
         resolved
     }
 
@@ -67,9 +70,11 @@ impl PromptTemplateService {
     ///
     /// Priority: World DB → Global DB → Env → Default
     pub async fn resolve_for_world(&self, world_id: WorldId, key: &str) -> String {
-        self.resolve_for_world_with_source(world_id, key).await.value
+        self.resolve_for_world_with_source(world_id, key)
+            .await
+            .value
     }
-    
+
     /// Resolve a template, optionally for a specific world
     ///
     /// If world_id is Some, uses world-specific resolution (World DB → Global DB → Env → Default)
@@ -82,7 +87,11 @@ impl PromptTemplateService {
     }
 
     /// Resolve a template for a specific world with source information
-    pub async fn resolve_for_world_with_source(&self, world_id: WorldId, key: &str) -> ResolvedPromptTemplate {
+    pub async fn resolve_for_world_with_source(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> ResolvedPromptTemplate {
         // Check cache first
         {
             let cache = self.world_cache.read().await;
@@ -96,7 +105,8 @@ impl PromptTemplateService {
         // Resolve and cache
         let resolved = self.do_resolve_for_world(world_id, key).await;
         let mut cache = self.world_cache.write().await;
-        cache.entry(world_id)
+        cache
+            .entry(world_id)
             .or_insert_with(HashMap::new)
             .insert(key.to_string(), resolved.clone());
         resolved
@@ -135,7 +145,10 @@ impl PromptTemplateService {
     }
 
     /// Set multiple global template overrides
-    pub async fn set_all_global(&self, templates: &[(String, String)]) -> Result<(), PromptTemplateError> {
+    pub async fn set_all_global(
+        &self,
+        templates: &[(String, String)],
+    ) -> Result<(), PromptTemplateError> {
         for (key, value) in templates {
             self.repository.set_global(key, value).await?;
         }
@@ -162,7 +175,12 @@ impl PromptTemplateService {
     }
 
     /// Set a world-specific template override
-    pub async fn set_for_world(&self, world_id: WorldId, key: &str, value: &str) -> Result<(), PromptTemplateError> {
+    pub async fn set_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+        value: &str,
+    ) -> Result<(), PromptTemplateError> {
         self.repository.set_for_world(world_id, key, value).await?;
         // Invalidate world cache for this key
         if let Some(world_templates) = self.world_cache.write().await.get_mut(&world_id) {
@@ -172,7 +190,11 @@ impl PromptTemplateService {
     }
 
     /// Set multiple world-specific template overrides
-    pub async fn set_all_for_world(&self, world_id: WorldId, templates: &[(String, String)]) -> Result<(), PromptTemplateError> {
+    pub async fn set_all_for_world(
+        &self,
+        world_id: WorldId,
+        templates: &[(String, String)],
+    ) -> Result<(), PromptTemplateError> {
         for (key, value) in templates {
             self.repository.set_for_world(world_id, key, value).await?;
         }
@@ -182,7 +204,11 @@ impl PromptTemplateService {
     }
 
     /// Delete a world-specific template override
-    pub async fn delete_for_world(&self, world_id: WorldId, key: &str) -> Result<(), PromptTemplateError> {
+    pub async fn delete_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> Result<(), PromptTemplateError> {
         self.repository.delete_for_world(world_id, key).await?;
         if let Some(world_templates) = self.world_cache.write().await.get_mut(&world_id) {
             world_templates.remove(key);

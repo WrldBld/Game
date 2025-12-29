@@ -8,13 +8,11 @@ use chrono::{DateTime, Utc};
 use neo4rs::query;
 use uuid::Uuid;
 
-use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
-use wrldbldr_engine_dto::persistence::{InputDefaultDto, PromptMappingDto};
-use wrldbldr_domain::entities::{
-    InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot,
-};
-use wrldbldr_domain::WorkflowConfigId;
 use crate::infrastructure::persistence::Neo4jConnection;
+use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_domain::WorkflowConfigId;
+use wrldbldr_engine_dto::persistence::{InputDefaultDto, PromptMappingDto};
+use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
 
 /// Repository for workflow configuration persistence
 #[derive(Clone)]
@@ -204,22 +202,20 @@ impl Neo4jWorkflowRepository {
             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
         let prompt_mappings_str: String = row.get("prompt_mappings").unwrap_or_default();
-        let prompt_mappings: Vec<PromptMapping> = serde_json::from_str::<Vec<PromptMappingDto>>(
-            &prompt_mappings_str,
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .map(Into::into)
-        .collect();
+        let prompt_mappings: Vec<PromptMapping> =
+            serde_json::from_str::<Vec<PromptMappingDto>>(&prompt_mappings_str)
+                .unwrap_or_default()
+                .into_iter()
+                .map(Into::into)
+                .collect();
 
         let input_defaults_str: String = row.get("input_defaults").unwrap_or_default();
-        let input_defaults: Vec<InputDefault> = serde_json::from_str::<Vec<InputDefaultDto>>(
-            &input_defaults_str,
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .map(Into::into)
-        .collect();
+        let input_defaults: Vec<InputDefault> =
+            serde_json::from_str::<Vec<InputDefaultDto>>(&input_defaults_str)
+                .unwrap_or_default()
+                .into_iter()
+                .map(Into::into)
+                .collect();
 
         let locked_inputs_str: String = row.get("locked_inputs").unwrap_or_default();
         let locked_inputs: Vec<String> =

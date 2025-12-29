@@ -18,7 +18,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use wrldbldr_domain::{ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId,
+};
 
 /// A narrative event that can be triggered when conditions are met
 ///
@@ -177,7 +179,10 @@ pub enum NarrativeTriggerType {
     },
 
     /// Player has specific item
-    HasItem { item_name: String, quantity: Option<u32> },
+    HasItem {
+        item_name: String,
+        quantity: Option<u32>,
+    },
 
     /// Player does NOT have specific item
     MissingItem { item_name: String },
@@ -471,12 +476,11 @@ impl NarrativeEvent {
             NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
                 context.current_location.as_ref() == Some(location_id)
             }
-            NarrativeTriggerType::HasItem { item_name, quantity } => {
-                let count = context
-                    .inventory
-                    .iter()
-                    .filter(|i| i == &item_name)
-                    .count() as u32;
+            NarrativeTriggerType::HasItem {
+                item_name,
+                quantity,
+            } => {
+                let count = context.inventory.iter().filter(|i| i == &item_name).count() as u32;
                 count >= quantity.unwrap_or(1)
             }
             NarrativeTriggerType::MissingItem { item_name } => {

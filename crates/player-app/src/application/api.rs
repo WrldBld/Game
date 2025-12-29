@@ -49,7 +49,8 @@ impl ApiPort for Api {
         path: &str,
         body: &B,
     ) -> Result<T, ApiError> {
-        let body_value = serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
         let value = self.raw.post_json(path, &body_value).await?;
         serde_json::from_value(value).map_err(|e| ApiError::ParseError(e.to_string()))
     }
@@ -59,7 +60,8 @@ impl ApiPort for Api {
         path: &str,
         body: &B,
     ) -> Result<(), ApiError> {
-        let body_value = serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
         self.raw.post_no_response_json(path, &body_value).await
     }
 
@@ -72,7 +74,8 @@ impl ApiPort for Api {
         path: &str,
         body: &B,
     ) -> Result<T, ApiError> {
-        let body_value = serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
         let value = self.raw.put_json(path, &body_value).await?;
         serde_json::from_value(value).map_err(|e| ApiError::ParseError(e.to_string()))
     }
@@ -82,7 +85,8 @@ impl ApiPort for Api {
         path: &str,
         body: &B,
     ) -> Result<(), ApiError> {
-        let body_value = serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
         self.raw.put_no_response_json(path, &body_value).await
     }
 
@@ -90,7 +94,10 @@ impl ApiPort for Api {
         self.raw.put_empty(path).await
     }
 
-    async fn put_empty_with_response<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
+    async fn put_empty_with_response<T: DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<T, ApiError> {
         let value = self.raw.put_empty_with_response_json(path).await?;
         serde_json::from_value(value).map_err(|e| ApiError::ParseError(e.to_string()))
     }
@@ -100,7 +107,8 @@ impl ApiPort for Api {
         path: &str,
         body: &B,
     ) -> Result<T, ApiError> {
-        let body_value = serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
+        let body_value =
+            serde_json::to_value(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
         let value = self.raw.patch_json(path, &body_value).await?;
         serde_json::from_value(value).map_err(|e| ApiError::ParseError(e.to_string()))
     }

@@ -12,23 +12,24 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 
+use crate::application::services::item_service::ItemService;
+use crate::application::services::tool_execution_service::ToolExecutionService;
+use crate::application::services::StoryEventService;
+use std::collections::HashMap;
+use wrldbldr_domain::entities::AcquisitionMethod;
+use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, DmApprovalDecision, GameTool, ProposedTool,
+};
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ClockPort, QueueError, QueueItem, QueueItemId,
 };
-use crate::application::services::tool_execution_service::ToolExecutionService;
-use crate::application::services::item_service::ItemService;
-use crate::application::services::StoryEventService;
-use crate::application::dto::{ApprovalItem, DmApprovalDecision, ProposedToolInfo};
-use wrldbldr_domain::value_objects::GameTool;
-use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
-use std::collections::HashMap;
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
 const MAX_RETRY_COUNT: u32 = 3;
 
 /// Service for managing the DM approval queue
-pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> {
+pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> {
     pub(crate) queue: Arc<Q>,
     tool_execution_service: ToolExecutionService,
     /// Story event service for recording dialogue exchanges
@@ -39,7 +40,7 @@ pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>, I: ItemSer
     clock: Arc<dyn ClockPort>,
 }
 
-impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<Q, I> {
+impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueService<Q, I> {
     pub fn queue(&self) -> &Arc<Q> {
         &self.queue
     }
@@ -70,12 +71,18 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     }
 
     /// Get all pending approvals for a world (for DM UI)
-    pub async fn get_pending(&self, world_id: WorldId) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
+    pub async fn get_pending(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<QueueItem<ApprovalRequestData>>, QueueError> {
         self.queue.list_by_world(world_id).await
     }
 
     /// Get an approval item by its string ID
-    pub async fn get_by_id(&self, id: &str) -> Result<Option<QueueItem<ApprovalItem>>, QueueError> {
+    pub async fn get_by_id(
+        &self,
+        id: &str,
+    ) -> Result<Option<QueueItem<ApprovalRequestData>>, QueueError> {
         let item_id = uuid::Uuid::parse_str(id)
             .map_err(|e| QueueError::Backend(format!("Invalid UUID: {}", e)))?;
         self.queue.get(item_id).await
@@ -104,10 +111,12 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         let outcome = match decision {
             DmApprovalDecision::Accept => {
-                self.handle_accept(world_id, &item.payload, HashMap::new()).await?
+                self.handle_accept(world_id, &item.payload, HashMap::new())
+                    .await?
             }
             DmApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                self.handle_accept(world_id, &item.payload, item_recipients).await?
+                self.handle_accept(world_id, &item.payload, item_recipients)
+                    .await?
             }
             DmApprovalDecision::AcceptWithModification {
                 modified_dialogue,
@@ -115,13 +124,22 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
                 rejected_tools,
                 item_recipients,
             } => {
-                self.handle_accept_modified(world_id, &item.payload, &modified_dialogue, &approved_tools, &rejected_tools, item_recipients).await?
+                self.handle_accept_modified(
+                    world_id,
+                    &item.payload,
+                    &modified_dialogue,
+                    &approved_tools,
+                    &rejected_tools,
+                    item_recipients,
+                )
+                .await?
             }
             DmApprovalDecision::Reject { feedback } => {
                 self.handle_reject(&item.payload, &feedback).await?
             }
             DmApprovalDecision::TakeOver { dm_response } => {
-                self.handle_takeover(world_id, &item.payload, &dm_response).await?
+                self.handle_takeover(world_id, &item.payload, &dm_response)
+                    .await?
             }
         };
 
@@ -161,7 +179,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn handle_accept(
         &self,
         world_id: WorldId,
-        approval: &ApprovalItem,
+        approval: &ApprovalRequestData,
         item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
         // Record dialogue exchange as a story event
@@ -170,28 +188,25 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         // Execute approved tool calls
         let mut executed_tools = Vec::new();
-        for tool_info in &approval.proposed_tools {
+        for tool in &approval.proposed_tools {
             // Check if this is a give_item with DM-specified recipients
-            if tool_info.name == "give_item" {
+            if tool.name == "give_item" {
                 self.execute_give_item_with_recipients(
                     world_id,
-                    tool_info,
-                    item_recipients.get(&tool_info.id),
-                ).await;
-                executed_tools.push(tool_info.name.clone());
+                    tool,
+                    item_recipients.get(&tool.id),
+                )
+                .await;
+                executed_tools.push(tool.name.clone());
             } else {
-                // Convert ProposedToolInfo to GameTool
+                // Convert ProposedTool to GameTool
                 // Parse the tool arguments JSON to determine tool type
-                if let Ok(tool) = self.parse_tool_from_info(tool_info) {
-                    if let Err(e) = self
-                        .tool_execution_service
-                        .execute_tool(&tool)
-                        .await
-                    {
-                        tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
+                    if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
+                        tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
                         // Continue with other tools even if one fails
                     } else {
-                        executed_tools.push(tool_info.name.clone());
+                        executed_tools.push(tool.name.clone());
                     }
                 }
             }
@@ -211,7 +226,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn handle_accept_modified(
         &self,
         world_id: WorldId,
-        approval: &ApprovalItem,
+        approval: &ApprovalRequestData,
         modified_dialogue: &str,
         approved_tools: &[String],
         _rejected_tools: &[String],
@@ -224,27 +239,24 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         // Execute approved tool calls (filter based on approved_tools list)
         // approved_tools contains tool IDs that should be executed
         let mut executed_tools = Vec::new();
-        for tool_info in &approval.proposed_tools {
+        for tool in &approval.proposed_tools {
             // Check if this tool is in the approved list
-            if approved_tools.contains(&tool_info.id) {
+            if approved_tools.contains(&tool.id) {
                 // Check if this is a give_item with DM-specified recipients
-                if tool_info.name == "give_item" {
+                if tool.name == "give_item" {
                     self.execute_give_item_with_recipients(
                         world_id,
-                        tool_info,
-                        item_recipients.get(&tool_info.id),
-                    ).await;
-                    executed_tools.push(tool_info.name.clone());
+                        tool,
+                        item_recipients.get(&tool.id),
+                    )
+                    .await;
+                    executed_tools.push(tool.name.clone());
                 } else {
-                    if let Ok(tool) = self.parse_tool_from_info(tool_info) {
-                        if let Err(e) = self
-                            .tool_execution_service
-                            .execute_tool(&tool)
-                            .await
-                        {
-                            tracing::warn!("Failed to execute tool {}: {}", tool_info.name, e);
+                    if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
+                        if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
+                            tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
                         } else {
-                            executed_tools.push(tool_info.name.clone());
+                            executed_tools.push(tool.name.clone());
                         }
                     }
                 }
@@ -262,7 +274,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     /// Handle rejecting an approval
     async fn handle_reject(
         &self,
-        approval: &ApprovalItem,
+        approval: &ApprovalRequestData,
         feedback: &str,
     ) -> Result<ApprovalOutcome, QueueError> {
         if approval.retry_count >= MAX_RETRY_COUNT {
@@ -293,7 +305,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn handle_takeover(
         &self,
         world_id: WorldId,
-        approval: &ApprovalItem,
+        approval: &ApprovalRequestData,
         dm_response: &str,
     ) -> Result<ApprovalOutcome, QueueError> {
         // Record dialogue exchange as a story event (with DM's response)
@@ -314,18 +326,12 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn record_dialogue_event(
         &self,
         world_id: WorldId,
-        approval: &ApprovalItem,
+        approval: &ApprovalRequestData,
         npc_response: &str,
     ) {
-        // Parse NPC ID from approval item
+        // Get NPC ID from approval item (now a domain type Option<CharacterId>)
         let npc_id = match &approval.npc_id {
-            Some(id_str) => match uuid::Uuid::parse_str(id_str) {
-                Ok(uuid) => CharacterId::from_uuid(uuid),
-                Err(e) => {
-                    tracing::warn!("Cannot record dialogue event: invalid npc_id '{}': {}", id_str, e);
-                    return;
-                }
-            },
+            Some(id) => *id,
             None => {
                 tracing::warn!(
                     "Cannot record dialogue event: npc_id not set in approval for '{}'",
@@ -335,14 +341,11 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             }
         };
 
-        // Record the dialogue exchange with full context from ApprovalItem
-        let scene_id = approval.scene_id.as_ref().and_then(|s| {
-            uuid::Uuid::parse_str(s).ok().map(SceneId::from_uuid)
-        });
-        let location_id = approval.location_id.as_ref().and_then(|s| {
-            uuid::Uuid::parse_str(s).ok().map(LocationId::from_uuid)
-        });
-        
+        // Record the dialogue exchange with full context from ApprovalRequestData
+        // scene_id and location_id are now domain types (Option<SceneId>, Option<LocationId>)
+        let scene_id = approval.scene_id;
+        let location_id = approval.location_id;
+
         if let Err(e) = self
             .story_event_service
             .record_dialogue_exchange(
@@ -354,7 +357,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
                 approval.player_dialogue.clone().unwrap_or_default(),
                 npc_response.to_string(),
                 approval.topics.clone(),
-                None,       // tone
+                None,         // tone
                 vec![npc_id], // involved_characters
                 approval.game_time.clone(),
             )
@@ -375,7 +378,6 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         // Update SPOKE_TO edge if we have both PC and NPC IDs
         if let Some(pc_id) = approval.pc_id {
-            let pc_id: PlayerCharacterId = pc_id.into();
             if let Err(e) = self
                 .story_event_service
                 .update_spoke_to_edge(pc_id, npc_id, None) // topic could be extracted in future
@@ -411,7 +413,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         &self,
         world_id: WorldId,
         limit: usize,
-    ) -> Result<Vec<QueueItem<ApprovalItem>>, QueueError> {
+    ) -> Result<Vec<QueueItem<ApprovalRequestData>>, QueueError> {
         self.queue.get_history_by_world(world_id, limit).await
     }
 
@@ -428,7 +430,6 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     pub async fn discard_challenge(&self, _client_id: &str, request_id: &str) {
         // Parse request_id to item ID
         if let Ok(item_id) = uuid::Uuid::parse_str(request_id) {
-
             // Mark the item as failed since the DM rejected the challenge
             if let Err(e) = self.queue.fail(item_id, "Challenge discarded by DM").await {
                 tracing::warn!("Failed to mark approval as failed: {}", e);
@@ -449,15 +450,12 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         }
     }
 
-    /// Parse ProposedToolInfo into GameTool
-    fn parse_tool_from_info(
-        &self,
-        tool_info: &ProposedToolInfo,
-    ) -> Result<GameTool, QueueError> {
+    /// Parse ProposedTool into GameTool
+    fn parse_tool_from_proposed(&self, tool: &ProposedTool) -> Result<GameTool, QueueError> {
         // Parse tool based on name and arguments (arguments is serde_json::Value)
-        let args = &tool_info.arguments;
-        
-        match tool_info.name.as_str() {
+        let args = &tool.arguments;
+
+        match tool.name.as_str() {
             "give_item" => {
                 let item_name = args
                     .get("item_name")
@@ -548,7 +546,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
                     description,
                 })
             }
-            _ => Err(QueueError::Backend(format!("Unknown tool: {}", tool_info.name))),
+            _ => Err(QueueError::Backend(format!("Unknown tool: {}", tool.name))),
         }
     }
 
@@ -559,10 +557,10 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     async fn execute_give_item_with_recipients(
         &self,
         world_id: WorldId,
-        tool_info: &ProposedToolInfo,
+        tool: &ProposedTool,
         recipients: Option<&Vec<String>>,
     ) {
-        let args = &tool_info.arguments;
+        let args = &tool.arguments;
 
         // Parse item details from tool arguments
         let item_name = match args.get("item_name").and_then(|v| v.as_str()) {
@@ -580,15 +578,14 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
 
         // Check if DM specified recipients
         let recipient_ids: Vec<PlayerCharacterId> = match recipients {
-            Some(ids) if !ids.is_empty() => {
-                ids.iter()
-                    .filter_map(|id| {
-                        uuid::Uuid::parse_str(id)
-                            .ok()
-                            .map(PlayerCharacterId::from_uuid)
-                    })
-                    .collect()
-            }
+            Some(ids) if !ids.is_empty() => ids
+                .iter()
+                .filter_map(|id| {
+                    uuid::Uuid::parse_str(id)
+                        .ok()
+                        .map(PlayerCharacterId::from_uuid)
+                })
+                .collect(),
             _ => {
                 // No recipients means DM chose not to give this item
                 tracing::info!(
@@ -654,7 +651,5 @@ pub enum ApprovalOutcome {
         needs_reprocessing: bool,
     },
     /// Maximum retries exceeded
-    MaxRetriesExceeded {
-        feedback: String,
-    },
+    MaxRetriesExceeded { feedback: String },
 }

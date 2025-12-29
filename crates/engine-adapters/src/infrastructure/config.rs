@@ -96,8 +96,7 @@ impl AppConfig {
                 .collect(),
 
             queue: QueueConfig {
-                backend: env::var("QUEUE_BACKEND")
-                    .unwrap_or_else(|_| "sqlite".to_string()),
+                backend: env::var("QUEUE_BACKEND").unwrap_or_else(|_| "sqlite".to_string()),
                 sqlite_path: env::var("QUEUE_SQLITE_PATH")
                     .unwrap_or_else(|_| "./data/queues.db".to_string()),
                 llm_batch_size: env::var("QUEUE_LLM_BATCH_SIZE")

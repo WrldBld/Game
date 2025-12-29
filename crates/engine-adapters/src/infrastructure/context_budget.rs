@@ -16,8 +16,8 @@ use tracing::{debug, warn};
 
 // Re-export all types from domain
 pub use wrldbldr_domain::value_objects::{
-    ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
-    ContextBudgetConfig, ContextCategory, TokenCounter,
+    ContextBudgetConfig, ContextBudgetEnforcer, ContextBuilder, ContextCategory, EnforcementResult,
+    EnforcementStats, TokenCounter,
 };
 
 /// Extension trait for adapter-specific logging functionality
@@ -117,7 +117,10 @@ mod tests {
         let mut enforcer = ContextBudgetEnforcer::new(config);
 
         // This will be truncated
-        enforcer.enforce(ContextCategory::Scene, "This is a long scene description that exceeds budget");
+        enforcer.enforce(
+            ContextCategory::Scene,
+            "This is a long scene description that exceeds budget",
+        );
         // This won't be truncated
         enforcer.enforce(ContextCategory::Character, "Short");
 
@@ -155,7 +158,7 @@ mod tests {
     fn test_logging_extension() {
         let config = ContextBudgetConfig::default();
         let enforcer = ContextBudgetEnforcer::new(config);
-        
+
         // Verify the extension trait works
         let stats = enforcer.stats();
         stats.log_summary(); // Should not panic

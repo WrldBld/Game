@@ -13,8 +13,8 @@ mod item;
 mod location;
 mod narrative_event;
 mod observation;
-mod region;
 mod player_character;
+mod region;
 mod scene;
 mod sheet_template;
 mod skill;
@@ -27,7 +27,7 @@ mod world;
 pub use challenge::{
     Challenge, ChallengeLocationAvailability, ChallengeOutcomes, ChallengePrerequisite,
     ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor,
-    Outcome, OutcomeType, OutcomeTrigger, TriggerCondition, TriggerType,
+    Outcome, OutcomeTrigger, OutcomeType, TriggerCondition, TriggerType,
 };
 pub use character::{Character, StatBlock};
 pub use event_chain::{ChainStatus, EventChain};
@@ -42,7 +42,6 @@ pub use interaction::{
 };
 pub use item::{AcquisitionMethod, FrequencyLevel, InventoryItem, Item};
 pub use location::{Location, LocationConnection, LocationType};
-pub use region::{MapBounds, Region, RegionConnection, RegionExit};
 pub use narrative_event::{
     ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
     NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation,
@@ -50,18 +49,19 @@ pub use narrative_event::{
 };
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
 pub use player_character::PlayerCharacter;
+pub use region::{MapBounds, Region, RegionConnection, RegionExit};
 pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
 pub use sheet_template::{
-    CharacterSheetData, CharacterSheetTemplate, FieldType, FieldValue, ItemListType,
-    SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId,
+    CharacterSheetData, CharacterSheetTemplate, FieldType, FieldValue, ItemListType, SectionLayout,
+    SelectOption, SheetField, SheetSection, SheetTemplateId,
 };
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
 pub use staging::{StagedNpc, Staging, StagingSource};
-pub use story_event::{
-    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType, InvolvedCharacter,
-    ItemSource, MarkerImportance, StoryEvent, StoryEventType,
-};
 pub use story_event::InfoImportance as StoryEventInfoImportance;
+pub use story_event::{
+    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType,
+    InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
+};
 pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType, WantVisibility};
 pub use workflow_config::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,

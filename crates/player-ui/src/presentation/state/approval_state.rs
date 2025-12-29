@@ -6,8 +6,8 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::dto::{
-    ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo,
-    OutcomeBranchData, ProposedToolInfo,
+    ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeBranchData,
+    ProposedToolInfo,
 };
 use wrldbldr_player_ports::outbound::{GameConnectionPort, Platform};
 
@@ -122,7 +122,9 @@ impl ApprovalState {
 
     /// Remove a pending approval by request_id
     pub fn remove_pending_approval(&mut self, request_id: &str) {
-        self.pending_approvals.write().retain(|a| a.request_id != request_id);
+        self.pending_approvals
+            .write()
+            .retain(|a| a.request_id != request_id);
     }
 
     /// Add an entry to the approval decision history
@@ -136,7 +138,13 @@ impl ApprovalState {
     }
 
     /// Add a conversation log entry
-    pub fn add_log_entry(&mut self, speaker: String, text: String, is_system: bool, platform: &Platform) {
+    pub fn add_log_entry(
+        &mut self,
+        speaker: String,
+        text: String,
+        is_system: bool,
+        platform: &Platform,
+    ) {
         let timestamp = platform.now_unix_secs();
         self.conversation_log.write().push(ConversationLogEntry {
             speaker,
@@ -157,7 +165,9 @@ impl ApprovalState {
     ) {
         // Send to Engine if we have a client
         if let Some(client) = engine_client.as_ref() {
-            let svc = wrldbldr_player_app::application::services::SessionCommandService::new(Arc::clone(client));
+            let svc = wrldbldr_player_app::application::services::SessionCommandService::new(
+                Arc::clone(client),
+            );
             if let Err(e) = svc.send_approval_decision(&request_id, decision.clone()) {
                 tracing::error!("Failed to send approval decision: {}", e);
             }
@@ -220,7 +230,10 @@ impl ApprovalState {
     /// Update suggestions for a pending challenge outcome (P3.3/P3.4)
     pub fn update_challenge_suggestions(&mut self, resolution_id: &str, suggestions: Vec<String>) {
         let mut outcomes = self.pending_challenge_outcomes.write();
-        if let Some(outcome) = outcomes.iter_mut().find(|o| o.resolution_id == resolution_id) {
+        if let Some(outcome) = outcomes
+            .iter_mut()
+            .find(|o| o.resolution_id == resolution_id)
+        {
             outcome.suggestions = Some(suggestions);
             outcome.is_generating_suggestions = false;
         }
@@ -234,7 +247,10 @@ impl ApprovalState {
         branches: Vec<OutcomeBranchData>,
     ) {
         let mut outcomes = self.pending_challenge_outcomes.write();
-        if let Some(outcome) = outcomes.iter_mut().find(|o| o.resolution_id == resolution_id) {
+        if let Some(outcome) = outcomes
+            .iter_mut()
+            .find(|o| o.resolution_id == resolution_id)
+        {
             outcome.branches = Some(branches);
             outcome.is_generating_suggestions = false;
         }
@@ -243,7 +259,10 @@ impl ApprovalState {
     /// Mark a challenge outcome as generating suggestions (P3.3/P3.4)
     pub fn set_challenge_generating_suggestions(&mut self, resolution_id: &str, generating: bool) {
         let mut outcomes = self.pending_challenge_outcomes.write();
-        if let Some(outcome) = outcomes.iter_mut().find(|o| o.resolution_id == resolution_id) {
+        if let Some(outcome) = outcomes
+            .iter_mut()
+            .find(|o| o.resolution_id == resolution_id)
+        {
             outcome.is_generating_suggestions = generating;
         }
     }

@@ -7,21 +7,26 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
+use wrldbldr_domain::value_objects::{
+    GamePromptRequest, LlmRequestData, LlmRequestType, PlayerActionData,
+};
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueuePort,
 };
-use crate::application::dto::{LLMRequestItem, LLMRequestType, PlayerActionItem};
-use wrldbldr_domain::value_objects::GamePromptRequest;
 
 /// Service for managing the player action queue
-pub struct PlayerActionQueueService<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>> {
+pub struct PlayerActionQueueService<
+    Q: QueuePort<PlayerActionData>,
+    LQ: ProcessingQueuePort<LlmRequestData>,
+> {
     pub(crate) queue: Arc<Q>,
     llm_queue: Arc<LQ>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
 
-impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
+impl<Q: QueuePort<PlayerActionData>, LQ: ProcessingQueuePort<LlmRequestData>>
     PlayerActionQueueService<Q, LQ>
 {
     pub fn queue(&self) -> &Arc<Q> {
@@ -34,7 +39,11 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(queue: Arc<Q>, llm_queue: Arc<LQ>, clock: Arc<dyn ClockPort>) -> Self {
-        Self { queue, llm_queue, clock }
+        Self {
+            queue,
+            llm_queue,
+            clock,
+        }
     }
 
     /// Get the current time
@@ -45,17 +54,17 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     /// Enqueue a player action for processing
     pub async fn enqueue_action(
         &self,
-        world_id: &wrldbldr_domain::WorldId,
+        world_id: &WorldId,
         player_id: String,
-        pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
+        pc_id: Option<PlayerCharacterId>,
         action_type: String,
         target: Option<String>,
         dialogue: Option<String>,
     ) -> Result<QueueItemId, QueueError> {
-        let item = PlayerActionItem {
-            world_id: (*world_id).into(),
+        let item = PlayerActionData {
+            world_id: *world_id,
             player_id,
-            pc_id: pc_id.map(Into::into),
+            pc_id,
             action_type,
             target,
             dialogue,
@@ -80,7 +89,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
         build_prompt: F,
     ) -> Result<Option<QueueItemId>, QueueError>
     where
-        F: FnOnce(PlayerActionItem) -> Fut,
+        F: FnOnce(PlayerActionData) -> Fut,
         Fut: std::future::Future<Output = Result<GamePromptRequest, QueueError>>,
     {
         let Some(item) = self.queue.dequeue().await? else {
@@ -97,8 +106,8 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
         let prompt = build_prompt(payload).await?;
 
         // Create LLM request item
-        let llm_request = LLMRequestItem {
-            request_type: LLMRequestType::NPCResponse {
+        let llm_request = LlmRequestData {
+            request_type: LlmRequestType::NpcResponse {
                 action_item_id: item_id,
             },
             world_id,
@@ -123,7 +132,10 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     }
 
     /// Get a specific action item by ID
-    pub async fn get_action(&self, id: QueueItemId) -> Result<Option<QueueItem<PlayerActionItem>>, QueueError> {
+    pub async fn get_action(
+        &self,
+        id: QueueItemId,
+    ) -> Result<Option<QueueItem<PlayerActionData>>, QueueError> {
         self.queue.get(id).await
     }
 }

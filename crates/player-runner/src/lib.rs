@@ -36,7 +36,9 @@ pub fn run(deps: RunnerDeps) {
     builder
         .with_context(platform)
         .with_context(config)
-        .with_context(wrldbldr_player_ui::presentation::Services::new(api, raw_api, connection))
+        .with_context(wrldbldr_player_ui::presentation::Services::new(
+            api, raw_api, connection,
+        ))
         .launch(wrldbldr_player_ui::app);
 }
 

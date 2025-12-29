@@ -9,12 +9,14 @@ use uuid::Uuid;
 
 use super::connection::Neo4jConnection;
 use super::parse_uuid_or_nil;
-use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
 use wrldbldr_domain::entities::{
     ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
     NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerLogic,
 };
-use wrldbldr_domain::{ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId};
+use wrldbldr_domain::{
+    ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId,
+};
+use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
 
 // ============================================================================
 // Storage DTOs for NarrativeTrigger and EventOutcome
@@ -235,105 +237,126 @@ impl From<&NarrativeTrigger> for StoredNarrativeTrigger {
 impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
     fn from(t: &NarrativeTriggerType) -> Self {
         match t {
-            NarrativeTriggerType::NpcAction { npc_id, npc_name, action_keywords, action_description } => {
-                StoredNarrativeTriggerType::NpcAction {
-                    npc_id: npc_id.to_string(),
-                    npc_name: npc_name.clone(),
-                    action_keywords: action_keywords.clone(),
-                    action_description: action_description.clone(),
-                }
-            }
-            NarrativeTriggerType::PlayerEntersLocation { location_id, location_name } => {
-                StoredNarrativeTriggerType::PlayerEntersLocation {
-                    location_id: location_id.to_string(),
-                    location_name: location_name.clone(),
-                }
-            }
-            NarrativeTriggerType::TimeAtLocation { location_id, location_name, time_context } => {
-                StoredNarrativeTriggerType::TimeAtLocation {
-                    location_id: location_id.to_string(),
-                    location_name: location_name.clone(),
-                    time_context: time_context.clone(),
-                }
-            }
-            NarrativeTriggerType::DialogueTopic { keywords, with_npc, npc_name } => {
-                StoredNarrativeTriggerType::DialogueTopic {
-                    keywords: keywords.clone(),
-                    with_npc: with_npc.as_ref().map(|id| id.to_string()),
-                    npc_name: npc_name.clone(),
-                }
-            }
-            NarrativeTriggerType::ChallengeCompleted { challenge_id, challenge_name, requires_success } => {
-                StoredNarrativeTriggerType::ChallengeCompleted {
-                    challenge_id: challenge_id.to_string(),
-                    challenge_name: challenge_name.clone(),
-                    requires_success: *requires_success,
-                }
-            }
-            NarrativeTriggerType::RelationshipThreshold { character_id, character_name, with_character, with_character_name, min_sentiment, max_sentiment } => {
-                StoredNarrativeTriggerType::RelationshipThreshold {
-                    character_id: character_id.to_string(),
-                    character_name: character_name.clone(),
-                    with_character: with_character.to_string(),
-                    with_character_name: with_character_name.clone(),
-                    min_sentiment: *min_sentiment,
-                    max_sentiment: *max_sentiment,
-                }
-            }
-            NarrativeTriggerType::HasItem { item_name, quantity } => {
-                StoredNarrativeTriggerType::HasItem {
-                    item_name: item_name.clone(),
-                    quantity: *quantity,
-                }
-            }
+            NarrativeTriggerType::NpcAction {
+                npc_id,
+                npc_name,
+                action_keywords,
+                action_description,
+            } => StoredNarrativeTriggerType::NpcAction {
+                npc_id: npc_id.to_string(),
+                npc_name: npc_name.clone(),
+                action_keywords: action_keywords.clone(),
+                action_description: action_description.clone(),
+            },
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name,
+            } => StoredNarrativeTriggerType::PlayerEntersLocation {
+                location_id: location_id.to_string(),
+                location_name: location_name.clone(),
+            },
+            NarrativeTriggerType::TimeAtLocation {
+                location_id,
+                location_name,
+                time_context,
+            } => StoredNarrativeTriggerType::TimeAtLocation {
+                location_id: location_id.to_string(),
+                location_name: location_name.clone(),
+                time_context: time_context.clone(),
+            },
+            NarrativeTriggerType::DialogueTopic {
+                keywords,
+                with_npc,
+                npc_name,
+            } => StoredNarrativeTriggerType::DialogueTopic {
+                keywords: keywords.clone(),
+                with_npc: with_npc.as_ref().map(|id| id.to_string()),
+                npc_name: npc_name.clone(),
+            },
+            NarrativeTriggerType::ChallengeCompleted {
+                challenge_id,
+                challenge_name,
+                requires_success,
+            } => StoredNarrativeTriggerType::ChallengeCompleted {
+                challenge_id: challenge_id.to_string(),
+                challenge_name: challenge_name.clone(),
+                requires_success: *requires_success,
+            },
+            NarrativeTriggerType::RelationshipThreshold {
+                character_id,
+                character_name,
+                with_character,
+                with_character_name,
+                min_sentiment,
+                max_sentiment,
+            } => StoredNarrativeTriggerType::RelationshipThreshold {
+                character_id: character_id.to_string(),
+                character_name: character_name.clone(),
+                with_character: with_character.to_string(),
+                with_character_name: with_character_name.clone(),
+                min_sentiment: *min_sentiment,
+                max_sentiment: *max_sentiment,
+            },
+            NarrativeTriggerType::HasItem {
+                item_name,
+                quantity,
+            } => StoredNarrativeTriggerType::HasItem {
+                item_name: item_name.clone(),
+                quantity: *quantity,
+            },
             NarrativeTriggerType::MissingItem { item_name } => {
                 StoredNarrativeTriggerType::MissingItem {
                     item_name: item_name.clone(),
                 }
             }
-            NarrativeTriggerType::EventCompleted { event_id, event_name, outcome_name } => {
-                StoredNarrativeTriggerType::EventCompleted {
-                    event_id: event_id.to_string(),
-                    event_name: event_name.clone(),
-                    outcome_name: outcome_name.clone(),
-                }
-            }
+            NarrativeTriggerType::EventCompleted {
+                event_id,
+                event_name,
+                outcome_name,
+            } => StoredNarrativeTriggerType::EventCompleted {
+                event_id: event_id.to_string(),
+                event_name: event_name.clone(),
+                outcome_name: outcome_name.clone(),
+            },
             NarrativeTriggerType::TurnCount { turns, since_event } => {
                 StoredNarrativeTriggerType::TurnCount {
                     turns: *turns,
                     since_event: since_event.as_ref().map(|id| id.to_string()),
                 }
             }
-            NarrativeTriggerType::FlagSet { flag_name } => {
-                StoredNarrativeTriggerType::FlagSet {
-                    flag_name: flag_name.clone(),
-                }
-            }
+            NarrativeTriggerType::FlagSet { flag_name } => StoredNarrativeTriggerType::FlagSet {
+                flag_name: flag_name.clone(),
+            },
             NarrativeTriggerType::FlagNotSet { flag_name } => {
                 StoredNarrativeTriggerType::FlagNotSet {
                     flag_name: flag_name.clone(),
                 }
             }
-            NarrativeTriggerType::StatThreshold { character_id, stat_name, min_value, max_value } => {
-                StoredNarrativeTriggerType::StatThreshold {
-                    character_id: character_id.to_string(),
-                    stat_name: stat_name.clone(),
-                    min_value: *min_value,
-                    max_value: *max_value,
-                }
-            }
-            NarrativeTriggerType::CombatResult { victory, involved_npc } => {
-                StoredNarrativeTriggerType::CombatResult {
-                    victory: *victory,
-                    involved_npc: involved_npc.as_ref().map(|id| id.to_string()),
-                }
-            }
-            NarrativeTriggerType::Custom { description, llm_evaluation } => {
-                StoredNarrativeTriggerType::Custom {
-                    description: description.clone(),
-                    llm_evaluation: *llm_evaluation,
-                }
-            }
+            NarrativeTriggerType::StatThreshold {
+                character_id,
+                stat_name,
+                min_value,
+                max_value,
+            } => StoredNarrativeTriggerType::StatThreshold {
+                character_id: character_id.to_string(),
+                stat_name: stat_name.clone(),
+                min_value: *min_value,
+                max_value: *max_value,
+            },
+            NarrativeTriggerType::CombatResult {
+                victory,
+                involved_npc,
+            } => StoredNarrativeTriggerType::CombatResult {
+                victory: *victory,
+                involved_npc: involved_npc.as_ref().map(|id| id.to_string()),
+            },
+            NarrativeTriggerType::Custom {
+                description,
+                llm_evaluation,
+            } => StoredNarrativeTriggerType::Custom {
+                description: description.clone(),
+                llm_evaluation: *llm_evaluation,
+            },
         }
     }
 }
@@ -344,9 +367,20 @@ impl From<&EventOutcome> for StoredEventOutcome {
             name: o.name.clone(),
             label: o.label.clone(),
             description: o.description.clone(),
-            condition: o.condition.as_ref().map(|c| StoredOutcomeCondition::from(c)),
-            effects: o.effects.iter().map(|e| StoredEventEffect::from(e)).collect(),
-            chain_events: o.chain_events.iter().map(|c| StoredChainedEvent::from(c)).collect(),
+            condition: o
+                .condition
+                .as_ref()
+                .map(|c| StoredOutcomeCondition::from(c)),
+            effects: o
+                .effects
+                .iter()
+                .map(|e| StoredEventEffect::from(e))
+                .collect(),
+            chain_events: o
+                .chain_events
+                .iter()
+                .map(|c| StoredChainedEvent::from(c))
+                .collect(),
             timeline_summary: o.timeline_summary.clone(),
         }
     }
@@ -356,12 +390,13 @@ impl From<&OutcomeCondition> for StoredOutcomeCondition {
     fn from(c: &OutcomeCondition) -> Self {
         match c {
             OutcomeCondition::DmChoice => StoredOutcomeCondition::DmChoice,
-            OutcomeCondition::ChallengeResult { challenge_id, success_required } => {
-                StoredOutcomeCondition::ChallengeResult {
-                    challenge_id: challenge_id.as_ref().map(|id| id.to_string()),
-                    success_required: *success_required,
-                }
-            }
+            OutcomeCondition::ChallengeResult {
+                challenge_id,
+                success_required,
+            } => StoredOutcomeCondition::ChallengeResult {
+                challenge_id: challenge_id.as_ref().map(|id| id.to_string()),
+                success_required: *success_required,
+            },
             OutcomeCondition::CombatResult { victory_required } => {
                 StoredOutcomeCondition::CombatResult {
                     victory_required: *victory_required,
@@ -377,16 +412,12 @@ impl From<&OutcomeCondition> for StoredOutcomeCondition {
                     action_keywords: action_keywords.clone(),
                 }
             }
-            OutcomeCondition::HasItem { item_name } => {
-                StoredOutcomeCondition::HasItem {
-                    item_name: item_name.clone(),
-                }
-            }
-            OutcomeCondition::Custom { description } => {
-                StoredOutcomeCondition::Custom {
-                    description: description.clone(),
-                }
-            }
+            OutcomeCondition::HasItem { item_name } => StoredOutcomeCondition::HasItem {
+                item_name: item_name.clone(),
+            },
+            OutcomeCondition::Custom { description } => StoredOutcomeCondition::Custom {
+                description: description.clone(),
+            },
         }
     }
 }
@@ -394,101 +425,123 @@ impl From<&OutcomeCondition> for StoredOutcomeCondition {
 impl From<&EventEffect> for StoredEventEffect {
     fn from(e: &EventEffect) -> Self {
         match e {
-            EventEffect::ModifyRelationship { from_character, from_name, to_character, to_name, sentiment_change, reason } => {
-                StoredEventEffect::ModifyRelationship {
-                    from_character: from_character.to_string(),
-                    from_name: from_name.clone(),
-                    to_character: to_character.to_string(),
-                    to_name: to_name.clone(),
-                    sentiment_change: *sentiment_change,
-                    reason: reason.clone(),
-                }
-            }
-            EventEffect::GiveItem { item_name, item_description, quantity } => {
-                StoredEventEffect::GiveItem {
-                    item_name: item_name.clone(),
-                    item_description: item_description.clone(),
-                    quantity: *quantity,
-                }
-            }
-            EventEffect::TakeItem { item_name, quantity } => {
-                StoredEventEffect::TakeItem {
-                    item_name: item_name.clone(),
-                    quantity: *quantity,
-                }
-            }
-            EventEffect::RevealInformation { info_type, title, content, persist_to_journal } => {
-                StoredEventEffect::RevealInformation {
-                    info_type: info_type.clone(),
-                    title: title.clone(),
-                    content: content.clone(),
-                    persist_to_journal: *persist_to_journal,
-                }
-            }
-            EventEffect::SetFlag { flag_name, value } => {
-                StoredEventEffect::SetFlag {
-                    flag_name: flag_name.clone(),
-                    value: *value,
-                }
-            }
-            EventEffect::EnableChallenge { challenge_id, challenge_name } => {
-                StoredEventEffect::EnableChallenge {
-                    challenge_id: challenge_id.to_string(),
-                    challenge_name: challenge_name.clone(),
-                }
-            }
-            EventEffect::DisableChallenge { challenge_id, challenge_name } => {
-                StoredEventEffect::DisableChallenge {
-                    challenge_id: challenge_id.to_string(),
-                    challenge_name: challenge_name.clone(),
-                }
-            }
-            EventEffect::EnableEvent { event_id, event_name } => {
-                StoredEventEffect::EnableEvent {
-                    event_id: event_id.to_string(),
-                    event_name: event_name.clone(),
-                }
-            }
-            EventEffect::DisableEvent { event_id, event_name } => {
-                StoredEventEffect::DisableEvent {
-                    event_id: event_id.to_string(),
-                    event_name: event_name.clone(),
-                }
-            }
-            EventEffect::TriggerScene { scene_id, scene_name } => {
-                StoredEventEffect::TriggerScene {
-                    scene_id: scene_id.to_string(),
-                    scene_name: scene_name.clone(),
-                }
-            }
-            EventEffect::StartCombat { participants, participant_names, combat_description } => {
-                StoredEventEffect::StartCombat {
-                    participants: participants.iter().map(|id| id.to_string()).collect(),
-                    participant_names: participant_names.clone(),
-                    combat_description: combat_description.clone(),
-                }
-            }
-            EventEffect::ModifyStat { character_id, character_name, stat_name, modifier } => {
-                StoredEventEffect::ModifyStat {
-                    character_id: character_id.to_string(),
-                    character_name: character_name.clone(),
-                    stat_name: stat_name.clone(),
-                    modifier: *modifier,
-                }
-            }
-            EventEffect::AddReward { reward_type, amount, description } => {
-                StoredEventEffect::AddReward {
-                    reward_type: reward_type.clone(),
-                    amount: *amount,
-                    description: description.clone(),
-                }
-            }
-            EventEffect::Custom { description, requires_dm_action } => {
-                StoredEventEffect::Custom {
-                    description: description.clone(),
-                    requires_dm_action: *requires_dm_action,
-                }
-            }
+            EventEffect::ModifyRelationship {
+                from_character,
+                from_name,
+                to_character,
+                to_name,
+                sentiment_change,
+                reason,
+            } => StoredEventEffect::ModifyRelationship {
+                from_character: from_character.to_string(),
+                from_name: from_name.clone(),
+                to_character: to_character.to_string(),
+                to_name: to_name.clone(),
+                sentiment_change: *sentiment_change,
+                reason: reason.clone(),
+            },
+            EventEffect::GiveItem {
+                item_name,
+                item_description,
+                quantity,
+            } => StoredEventEffect::GiveItem {
+                item_name: item_name.clone(),
+                item_description: item_description.clone(),
+                quantity: *quantity,
+            },
+            EventEffect::TakeItem {
+                item_name,
+                quantity,
+            } => StoredEventEffect::TakeItem {
+                item_name: item_name.clone(),
+                quantity: *quantity,
+            },
+            EventEffect::RevealInformation {
+                info_type,
+                title,
+                content,
+                persist_to_journal,
+            } => StoredEventEffect::RevealInformation {
+                info_type: info_type.clone(),
+                title: title.clone(),
+                content: content.clone(),
+                persist_to_journal: *persist_to_journal,
+            },
+            EventEffect::SetFlag { flag_name, value } => StoredEventEffect::SetFlag {
+                flag_name: flag_name.clone(),
+                value: *value,
+            },
+            EventEffect::EnableChallenge {
+                challenge_id,
+                challenge_name,
+            } => StoredEventEffect::EnableChallenge {
+                challenge_id: challenge_id.to_string(),
+                challenge_name: challenge_name.clone(),
+            },
+            EventEffect::DisableChallenge {
+                challenge_id,
+                challenge_name,
+            } => StoredEventEffect::DisableChallenge {
+                challenge_id: challenge_id.to_string(),
+                challenge_name: challenge_name.clone(),
+            },
+            EventEffect::EnableEvent {
+                event_id,
+                event_name,
+            } => StoredEventEffect::EnableEvent {
+                event_id: event_id.to_string(),
+                event_name: event_name.clone(),
+            },
+            EventEffect::DisableEvent {
+                event_id,
+                event_name,
+            } => StoredEventEffect::DisableEvent {
+                event_id: event_id.to_string(),
+                event_name: event_name.clone(),
+            },
+            EventEffect::TriggerScene {
+                scene_id,
+                scene_name,
+            } => StoredEventEffect::TriggerScene {
+                scene_id: scene_id.to_string(),
+                scene_name: scene_name.clone(),
+            },
+            EventEffect::StartCombat {
+                participants,
+                participant_names,
+                combat_description,
+            } => StoredEventEffect::StartCombat {
+                participants: participants.iter().map(|id| id.to_string()).collect(),
+                participant_names: participant_names.clone(),
+                combat_description: combat_description.clone(),
+            },
+            EventEffect::ModifyStat {
+                character_id,
+                character_name,
+                stat_name,
+                modifier,
+            } => StoredEventEffect::ModifyStat {
+                character_id: character_id.to_string(),
+                character_name: character_name.clone(),
+                stat_name: stat_name.clone(),
+                modifier: *modifier,
+            },
+            EventEffect::AddReward {
+                reward_type,
+                amount,
+                description,
+            } => StoredEventEffect::AddReward {
+                reward_type: reward_type.clone(),
+                amount: *amount,
+                description: description.clone(),
+            },
+            EventEffect::Custom {
+                description,
+                requires_dm_action,
+            } => StoredEventEffect::Custom {
+                description: description.clone(),
+                requires_dm_action: *requires_dm_action,
+            },
         }
     }
 }
@@ -499,7 +552,10 @@ impl From<&ChainedEvent> for StoredChainedEvent {
             event_id: c.event_id.to_string(),
             event_name: c.event_name.clone(),
             delay_turns: c.delay_turns,
-            additional_trigger: c.additional_trigger.as_ref().map(|t| Box::new(StoredNarrativeTriggerType::from(t))),
+            additional_trigger: c
+                .additional_trigger
+                .as_ref()
+                .map(|t| Box::new(StoredNarrativeTriggerType::from(t))),
             chain_reason: c.chain_reason.clone(),
         }
     }
@@ -520,68 +576,111 @@ impl From<StoredNarrativeTrigger> for NarrativeTrigger {
 impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
     fn from(s: StoredNarrativeTriggerType) -> Self {
         match s {
-            StoredNarrativeTriggerType::NpcAction { npc_id, npc_name, action_keywords, action_description } => {
-                NarrativeTriggerType::NpcAction {
-                    npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "NarrativeTriggerType::NpcAction.npc_id")),
-                    npc_name,
-                    action_keywords,
-                    action_description,
-                }
-            }
-            StoredNarrativeTriggerType::PlayerEntersLocation { location_id, location_name } => {
-                NarrativeTriggerType::PlayerEntersLocation {
-                    location_id: LocationId::from(parse_uuid_or_nil(&location_id, "NarrativeTriggerType::PlayerEntersLocation.location_id")),
-                    location_name,
-                }
-            }
-            StoredNarrativeTriggerType::TimeAtLocation { location_id, location_name, time_context } => {
-                NarrativeTriggerType::TimeAtLocation {
-                    location_id: LocationId::from(parse_uuid_or_nil(&location_id, "NarrativeTriggerType::TimeAtLocation.location_id")),
-                    location_name,
-                    time_context,
-                }
-            }
-            StoredNarrativeTriggerType::DialogueTopic { keywords, with_npc, npc_name } => {
-                NarrativeTriggerType::DialogueTopic {
-                    keywords,
-                    with_npc: with_npc.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                    npc_name,
-                }
-            }
-            StoredNarrativeTriggerType::ChallengeCompleted { challenge_id, challenge_name, requires_success } => {
-                NarrativeTriggerType::ChallengeCompleted {
-                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "NarrativeTriggerType::ChallengeCompleted.challenge_id")),
-                    challenge_name,
-                    requires_success,
-                }
-            }
-            StoredNarrativeTriggerType::RelationshipThreshold { character_id, character_name, with_character, with_character_name, min_sentiment, max_sentiment } => {
-                NarrativeTriggerType::RelationshipThreshold {
-                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "NarrativeTriggerType::RelationshipThreshold.character_id")),
-                    character_name,
-                    with_character: CharacterId::from(parse_uuid_or_nil(&with_character, "NarrativeTriggerType::RelationshipThreshold.with_character")),
-                    with_character_name,
-                    min_sentiment,
-                    max_sentiment,
-                }
-            }
-            StoredNarrativeTriggerType::HasItem { item_name, quantity } => {
-                NarrativeTriggerType::HasItem { item_name, quantity }
-            }
+            StoredNarrativeTriggerType::NpcAction {
+                npc_id,
+                npc_name,
+                action_keywords,
+                action_description,
+            } => NarrativeTriggerType::NpcAction {
+                npc_id: CharacterId::from(parse_uuid_or_nil(
+                    &npc_id,
+                    "NarrativeTriggerType::NpcAction.npc_id",
+                )),
+                npc_name,
+                action_keywords,
+                action_description,
+            },
+            StoredNarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name,
+            } => NarrativeTriggerType::PlayerEntersLocation {
+                location_id: LocationId::from(parse_uuid_or_nil(
+                    &location_id,
+                    "NarrativeTriggerType::PlayerEntersLocation.location_id",
+                )),
+                location_name,
+            },
+            StoredNarrativeTriggerType::TimeAtLocation {
+                location_id,
+                location_name,
+                time_context,
+            } => NarrativeTriggerType::TimeAtLocation {
+                location_id: LocationId::from(parse_uuid_or_nil(
+                    &location_id,
+                    "NarrativeTriggerType::TimeAtLocation.location_id",
+                )),
+                location_name,
+                time_context,
+            },
+            StoredNarrativeTriggerType::DialogueTopic {
+                keywords,
+                with_npc,
+                npc_name,
+            } => NarrativeTriggerType::DialogueTopic {
+                keywords,
+                with_npc: with_npc.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
+                npc_name,
+            },
+            StoredNarrativeTriggerType::ChallengeCompleted {
+                challenge_id,
+                challenge_name,
+                requires_success,
+            } => NarrativeTriggerType::ChallengeCompleted {
+                challenge_id: ChallengeId::from(parse_uuid_or_nil(
+                    &challenge_id,
+                    "NarrativeTriggerType::ChallengeCompleted.challenge_id",
+                )),
+                challenge_name,
+                requires_success,
+            },
+            StoredNarrativeTriggerType::RelationshipThreshold {
+                character_id,
+                character_name,
+                with_character,
+                with_character_name,
+                min_sentiment,
+                max_sentiment,
+            } => NarrativeTriggerType::RelationshipThreshold {
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "NarrativeTriggerType::RelationshipThreshold.character_id",
+                )),
+                character_name,
+                with_character: CharacterId::from(parse_uuid_or_nil(
+                    &with_character,
+                    "NarrativeTriggerType::RelationshipThreshold.with_character",
+                )),
+                with_character_name,
+                min_sentiment,
+                max_sentiment,
+            },
+            StoredNarrativeTriggerType::HasItem {
+                item_name,
+                quantity,
+            } => NarrativeTriggerType::HasItem {
+                item_name,
+                quantity,
+            },
             StoredNarrativeTriggerType::MissingItem { item_name } => {
                 NarrativeTriggerType::MissingItem { item_name }
             }
-            StoredNarrativeTriggerType::EventCompleted { event_id, event_name, outcome_name } => {
-                NarrativeTriggerType::EventCompleted {
-                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "NarrativeTriggerType::EventCompleted.event_id")),
-                    event_name,
-                    outcome_name,
-                }
-            }
+            StoredNarrativeTriggerType::EventCompleted {
+                event_id,
+                event_name,
+                outcome_name,
+            } => NarrativeTriggerType::EventCompleted {
+                event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                    &event_id,
+                    "NarrativeTriggerType::EventCompleted.event_id",
+                )),
+                event_name,
+                outcome_name,
+            },
             StoredNarrativeTriggerType::TurnCount { turns, since_event } => {
                 NarrativeTriggerType::TurnCount {
                     turns,
-                    since_event: since_event.and_then(|id| Uuid::parse_str(&id).ok().map(NarrativeEventId::from)),
+                    since_event: since_event
+                        .and_then(|id| Uuid::parse_str(&id).ok().map(NarrativeEventId::from)),
                 }
             }
             StoredNarrativeTriggerType::FlagSet { flag_name } => {
@@ -590,23 +689,35 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             StoredNarrativeTriggerType::FlagNotSet { flag_name } => {
                 NarrativeTriggerType::FlagNotSet { flag_name }
             }
-            StoredNarrativeTriggerType::StatThreshold { character_id, stat_name, min_value, max_value } => {
-                NarrativeTriggerType::StatThreshold {
-                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "NarrativeTriggerType::StatThreshold.character_id")),
-                    stat_name,
-                    min_value,
-                    max_value,
-                }
-            }
-            StoredNarrativeTriggerType::CombatResult { victory, involved_npc } => {
-                NarrativeTriggerType::CombatResult {
-                    victory,
-                    involved_npc: involved_npc.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                }
-            }
-            StoredNarrativeTriggerType::Custom { description, llm_evaluation } => {
-                NarrativeTriggerType::Custom { description, llm_evaluation }
-            }
+            StoredNarrativeTriggerType::StatThreshold {
+                character_id,
+                stat_name,
+                min_value,
+                max_value,
+            } => NarrativeTriggerType::StatThreshold {
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "NarrativeTriggerType::StatThreshold.character_id",
+                )),
+                stat_name,
+                min_value,
+                max_value,
+            },
+            StoredNarrativeTriggerType::CombatResult {
+                victory,
+                involved_npc,
+            } => NarrativeTriggerType::CombatResult {
+                victory,
+                involved_npc: involved_npc
+                    .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
+            },
+            StoredNarrativeTriggerType::Custom {
+                description,
+                llm_evaluation,
+            } => NarrativeTriggerType::Custom {
+                description,
+                llm_evaluation,
+            },
         }
     }
 }
@@ -618,8 +729,16 @@ impl From<StoredEventOutcome> for EventOutcome {
             label: s.label,
             description: s.description,
             condition: s.condition.map(|c| OutcomeCondition::from(c)),
-            effects: s.effects.into_iter().map(|e| EventEffect::from(e)).collect(),
-            chain_events: s.chain_events.into_iter().map(|c| ChainedEvent::from(c)).collect(),
+            effects: s
+                .effects
+                .into_iter()
+                .map(|e| EventEffect::from(e))
+                .collect(),
+            chain_events: s
+                .chain_events
+                .into_iter()
+                .map(|c| ChainedEvent::from(c))
+                .collect(),
             timeline_summary: s.timeline_summary,
         }
     }
@@ -629,12 +748,14 @@ impl From<StoredOutcomeCondition> for OutcomeCondition {
     fn from(s: StoredOutcomeCondition) -> Self {
         match s {
             StoredOutcomeCondition::DmChoice => OutcomeCondition::DmChoice,
-            StoredOutcomeCondition::ChallengeResult { challenge_id, success_required } => {
-                OutcomeCondition::ChallengeResult {
-                    challenge_id: challenge_id.and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
-                    success_required,
-                }
-            }
+            StoredOutcomeCondition::ChallengeResult {
+                challenge_id,
+                success_required,
+            } => OutcomeCondition::ChallengeResult {
+                challenge_id: challenge_id
+                    .and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
+                success_required,
+            },
             StoredOutcomeCondition::CombatResult { victory_required } => {
                 OutcomeCondition::CombatResult { victory_required }
             }
@@ -657,79 +778,149 @@ impl From<StoredOutcomeCondition> for OutcomeCondition {
 impl From<StoredEventEffect> for EventEffect {
     fn from(s: StoredEventEffect) -> Self {
         match s {
-            StoredEventEffect::ModifyRelationship { from_character, from_name, to_character, to_name, sentiment_change, reason } => {
-                EventEffect::ModifyRelationship {
-                    from_character: CharacterId::from(parse_uuid_or_nil(&from_character, "EventEffect::ModifyRelationship.from_character")),
-                    from_name,
-                    to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "EventEffect::ModifyRelationship.to_character")),
-                    to_name,
-                    sentiment_change,
-                    reason,
-                }
-            }
-            StoredEventEffect::GiveItem { item_name, item_description, quantity } => {
-                EventEffect::GiveItem { item_name, item_description, quantity }
-            }
-            StoredEventEffect::TakeItem { item_name, quantity } => {
-                EventEffect::TakeItem { item_name, quantity }
-            }
-            StoredEventEffect::RevealInformation { info_type, title, content, persist_to_journal } => {
-                EventEffect::RevealInformation { info_type, title, content, persist_to_journal }
-            }
+            StoredEventEffect::ModifyRelationship {
+                from_character,
+                from_name,
+                to_character,
+                to_name,
+                sentiment_change,
+                reason,
+            } => EventEffect::ModifyRelationship {
+                from_character: CharacterId::from(parse_uuid_or_nil(
+                    &from_character,
+                    "EventEffect::ModifyRelationship.from_character",
+                )),
+                from_name,
+                to_character: CharacterId::from(parse_uuid_or_nil(
+                    &to_character,
+                    "EventEffect::ModifyRelationship.to_character",
+                )),
+                to_name,
+                sentiment_change,
+                reason,
+            },
+            StoredEventEffect::GiveItem {
+                item_name,
+                item_description,
+                quantity,
+            } => EventEffect::GiveItem {
+                item_name,
+                item_description,
+                quantity,
+            },
+            StoredEventEffect::TakeItem {
+                item_name,
+                quantity,
+            } => EventEffect::TakeItem {
+                item_name,
+                quantity,
+            },
+            StoredEventEffect::RevealInformation {
+                info_type,
+                title,
+                content,
+                persist_to_journal,
+            } => EventEffect::RevealInformation {
+                info_type,
+                title,
+                content,
+                persist_to_journal,
+            },
             StoredEventEffect::SetFlag { flag_name, value } => {
                 EventEffect::SetFlag { flag_name, value }
             }
-            StoredEventEffect::EnableChallenge { challenge_id, challenge_name } => {
-                EventEffect::EnableChallenge {
-                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "EventEffect::EnableChallenge.challenge_id")),
-                    challenge_name,
-                }
-            }
-            StoredEventEffect::DisableChallenge { challenge_id, challenge_name } => {
-                EventEffect::DisableChallenge {
-                    challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "EventEffect::DisableChallenge.challenge_id")),
-                    challenge_name,
-                }
-            }
-            StoredEventEffect::EnableEvent { event_id, event_name } => {
-                EventEffect::EnableEvent {
-                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "EventEffect::EnableEvent.event_id")),
-                    event_name,
-                }
-            }
-            StoredEventEffect::DisableEvent { event_id, event_name } => {
-                EventEffect::DisableEvent {
-                    event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "EventEffect::DisableEvent.event_id")),
-                    event_name,
-                }
-            }
-            StoredEventEffect::TriggerScene { scene_id, scene_name } => {
-                EventEffect::TriggerScene {
-                    scene_id: SceneId::from(parse_uuid_or_nil(&scene_id, "EventEffect::TriggerScene.scene_id")),
-                    scene_name,
-                }
-            }
-            StoredEventEffect::StartCombat { participants, participant_names, combat_description } => {
-                EventEffect::StartCombat {
-                    participants: participants.into_iter().filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)).collect(),
-                    participant_names,
-                    combat_description,
-                }
-            }
-            StoredEventEffect::ModifyStat { character_id, character_name, stat_name, modifier } => {
-                EventEffect::ModifyStat {
-                    character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "EventEffect::ModifyStat.character_id")),
-                    character_name,
-                    stat_name,
-                    modifier,
-                }
-            }
-            StoredEventEffect::AddReward { reward_type, amount, description } => {
-                EventEffect::AddReward { reward_type, amount, description }
-            }
-            StoredEventEffect::Custom { description, requires_dm_action } => {
-                EventEffect::Custom { description, requires_dm_action }
-            }
+            StoredEventEffect::EnableChallenge {
+                challenge_id,
+                challenge_name,
+            } => EventEffect::EnableChallenge {
+                challenge_id: ChallengeId::from(parse_uuid_or_nil(
+                    &challenge_id,
+                    "EventEffect::EnableChallenge.challenge_id",
+                )),
+                challenge_name,
+            },
+            StoredEventEffect::DisableChallenge {
+                challenge_id,
+                challenge_name,
+            } => EventEffect::DisableChallenge {
+                challenge_id: ChallengeId::from(parse_uuid_or_nil(
+                    &challenge_id,
+                    "EventEffect::DisableChallenge.challenge_id",
+                )),
+                challenge_name,
+            },
+            StoredEventEffect::EnableEvent {
+                event_id,
+                event_name,
+            } => EventEffect::EnableEvent {
+                event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                    &event_id,
+                    "EventEffect::EnableEvent.event_id",
+                )),
+                event_name,
+            },
+            StoredEventEffect::DisableEvent {
+                event_id,
+                event_name,
+            } => EventEffect::DisableEvent {
+                event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                    &event_id,
+                    "EventEffect::DisableEvent.event_id",
+                )),
+                event_name,
+            },
+            StoredEventEffect::TriggerScene {
+                scene_id,
+                scene_name,
+            } => EventEffect::TriggerScene {
+                scene_id: SceneId::from(parse_uuid_or_nil(
+                    &scene_id,
+                    "EventEffect::TriggerScene.scene_id",
+                )),
+                scene_name,
+            },
+            StoredEventEffect::StartCombat {
+                participants,
+                participant_names,
+                combat_description,
+            } => EventEffect::StartCombat {
+                participants: participants
+                    .into_iter()
+                    .filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from))
+                    .collect(),
+                participant_names,
+                combat_description,
+            },
+            StoredEventEffect::ModifyStat {
+                character_id,
+                character_name,
+                stat_name,
+                modifier,
+            } => EventEffect::ModifyStat {
+                character_id: CharacterId::from(parse_uuid_or_nil(
+                    &character_id,
+                    "EventEffect::ModifyStat.character_id",
+                )),
+                character_name,
+                stat_name,
+                modifier,
+            },
+            StoredEventEffect::AddReward {
+                reward_type,
+                amount,
+                description,
+            } => EventEffect::AddReward {
+                reward_type,
+                amount,
+                description,
+            },
+            StoredEventEffect::Custom {
+                description,
+                requires_dm_action,
+            } => EventEffect::Custom {
+                description,
+                requires_dm_action,
+            },
         }
     }
 }
@@ -737,7 +928,10 @@ impl From<StoredEventEffect> for EventEffect {
 impl From<StoredChainedEvent> for ChainedEvent {
     fn from(s: StoredChainedEvent) -> Self {
         Self {
-            event_id: NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "ChainedEvent.event_id")),
+            event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                &s.event_id,
+                "ChainedEvent.event_id",
+            )),
             event_name: s.event_name,
             delay_turns: s.delay_turns,
             additional_trigger: s.additional_trigger.map(|t| NarrativeTriggerType::from(*t)),
@@ -1533,12 +1727,18 @@ fn row_to_narrative_event(row: Row) -> Result<NarrativeEvent> {
     let name: String = node.get("name")?;
     let description: String = node.get("description").unwrap_or_default();
     let tags_json: String = node.get("tags_json").unwrap_or_else(|_| "[]".to_string());
-    let triggers_json: String = node.get("triggers_json").unwrap_or_else(|_| "[]".to_string());
-    let trigger_logic_str: String = node.get("trigger_logic").unwrap_or_else(|_| "All".to_string());
+    let triggers_json: String = node
+        .get("triggers_json")
+        .unwrap_or_else(|_| "[]".to_string());
+    let trigger_logic_str: String = node
+        .get("trigger_logic")
+        .unwrap_or_else(|_| "All".to_string());
     let scene_direction: String = node.get("scene_direction").unwrap_or_default();
     let suggested_opening: String = node.get("suggested_opening").unwrap_or_default();
     // NOTE: featured_npcs moved to FEATURES_NPC edges
-    let outcomes_json: String = node.get("outcomes_json").unwrap_or_else(|_| "[]".to_string());
+    let outcomes_json: String = node
+        .get("outcomes_json")
+        .unwrap_or_else(|_| "[]".to_string());
     let default_outcome: String = node.get("default_outcome").unwrap_or_default();
     let is_active: bool = node.get("is_active").unwrap_or(true);
     let is_triggered: bool = node.get("is_triggered").unwrap_or(false);
@@ -1670,7 +1870,11 @@ impl NarrativeEventRepositoryPort for Neo4jNarrativeEventRepository {
         self.set_active(id, is_active).await
     }
 
-    async fn mark_triggered(&self, id: NarrativeEventId, outcome_name: Option<String>) -> Result<bool> {
+    async fn mark_triggered(
+        &self,
+        id: NarrativeEventId,
+        outcome_name: Option<String>,
+    ) -> Result<bool> {
         self.mark_triggered(id, outcome_name).await
     }
 

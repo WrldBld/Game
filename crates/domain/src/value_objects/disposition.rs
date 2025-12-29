@@ -308,7 +308,12 @@ impl NpcDispositionState {
     }
 
     /// Update the disposition with a reason
-    pub fn set_disposition(&mut self, disposition: DispositionLevel, reason: Option<String>, now: DateTime<Utc>) {
+    pub fn set_disposition(
+        &mut self,
+        disposition: DispositionLevel,
+        reason: Option<String>,
+        now: DateTime<Utc>,
+    ) {
         self.disposition = disposition;
         self.sentiment = disposition.base_sentiment();
         self.disposition_reason = reason;
@@ -356,15 +361,9 @@ impl NpcDispositionState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InteractionOutcome {
     /// Positive interaction
-    Positive {
-        magnitude: f32,
-        reason: String,
-    },
+    Positive { magnitude: f32, reason: String },
     /// Negative interaction
-    Negative {
-        magnitude: f32,
-        reason: String,
-    },
+    Negative { magnitude: f32, reason: String },
     /// Neutral interaction
     Neutral,
     /// Challenge outcome
@@ -437,21 +436,32 @@ mod tests {
 
     #[test]
     fn test_disposition_from_sentiment() {
-        assert_eq!(DispositionLevel::from_sentiment(0.8), DispositionLevel::Grateful);
-        assert_eq!(DispositionLevel::from_sentiment(0.4), DispositionLevel::Friendly);
-        assert_eq!(DispositionLevel::from_sentiment(0.0), DispositionLevel::Neutral);
-        assert_eq!(DispositionLevel::from_sentiment(-0.4), DispositionLevel::Suspicious);
-        assert_eq!(DispositionLevel::from_sentiment(-0.9), DispositionLevel::Hostile);
+        assert_eq!(
+            DispositionLevel::from_sentiment(0.8),
+            DispositionLevel::Grateful
+        );
+        assert_eq!(
+            DispositionLevel::from_sentiment(0.4),
+            DispositionLevel::Friendly
+        );
+        assert_eq!(
+            DispositionLevel::from_sentiment(0.0),
+            DispositionLevel::Neutral
+        );
+        assert_eq!(
+            DispositionLevel::from_sentiment(-0.4),
+            DispositionLevel::Suspicious
+        );
+        assert_eq!(
+            DispositionLevel::from_sentiment(-0.9),
+            DispositionLevel::Hostile
+        );
     }
 
     #[test]
     fn test_relationship_points() {
         let now = Utc::now();
-        let mut state = NpcDispositionState::new(
-            CharacterId::new(),
-            PlayerCharacterId::new(),
-            now,
-        );
+        let mut state = NpcDispositionState::new(CharacterId::new(), PlayerCharacterId::new(), now);
 
         // Starts as Stranger (0 points)
         assert_eq!(state.relationship, RelationshipLevel::Stranger);
@@ -471,10 +481,18 @@ mod tests {
 
     #[test]
     fn test_disposition_parse() {
-        assert_eq!("friendly".parse::<DispositionLevel>().unwrap(), DispositionLevel::Friendly);
-        assert_eq!("HOSTILE".parse::<DispositionLevel>().unwrap(), DispositionLevel::Hostile);
-        assert_eq!("grateful".parse::<DispositionLevel>().unwrap(), DispositionLevel::Grateful);
+        assert_eq!(
+            "friendly".parse::<DispositionLevel>().unwrap(),
+            DispositionLevel::Friendly
+        );
+        assert_eq!(
+            "HOSTILE".parse::<DispositionLevel>().unwrap(),
+            DispositionLevel::Hostile
+        );
+        assert_eq!(
+            "grateful".parse::<DispositionLevel>().unwrap(),
+            DispositionLevel::Grateful
+        );
         assert!("unknown".parse::<DispositionLevel>().is_err());
     }
-
 }

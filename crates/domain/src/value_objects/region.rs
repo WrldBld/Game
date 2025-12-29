@@ -82,7 +82,7 @@ pub enum RegionRelationshipType {
 
 impl RegionRelationshipType {
     /// Determine if an NPC with this relationship would be present at the given time of day.
-    /// 
+    ///
     /// This is the canonical implementation of NPC presence rules:
     /// - Home: present at night/evening (sleeping/resting time)
     /// - WorksAt: depends on shift (day workers in morning/afternoon, night workers evening/night)
@@ -93,35 +93,46 @@ impl RegionRelationshipType {
             RegionRelationshipType::Home => {
                 matches!(time_of_day, TimeOfDay::Night | TimeOfDay::Evening)
             }
-            RegionRelationshipType::WorksAt { shift } => {
-                match shift {
-                    RegionShift::Always => true,
-                    RegionShift::Day => matches!(time_of_day, TimeOfDay::Morning | TimeOfDay::Afternoon),
-                    RegionShift::Night => matches!(time_of_day, TimeOfDay::Evening | TimeOfDay::Night),
+            RegionRelationshipType::WorksAt { shift } => match shift {
+                RegionShift::Always => true,
+                RegionShift::Day => {
+                    matches!(time_of_day, TimeOfDay::Morning | TimeOfDay::Afternoon)
                 }
-            }
-            RegionRelationshipType::Frequents { frequency } => {
-                match frequency {
-                    RegionFrequency::Often => true,
-                    RegionFrequency::Sometimes => matches!(time_of_day, TimeOfDay::Afternoon | TimeOfDay::Evening),
-                    RegionFrequency::Rarely => false,
+                RegionShift::Night => matches!(time_of_day, TimeOfDay::Evening | TimeOfDay::Night),
+            },
+            RegionRelationshipType::Frequents { frequency } => match frequency {
+                RegionFrequency::Often => true,
+                RegionFrequency::Sometimes => {
+                    matches!(time_of_day, TimeOfDay::Afternoon | TimeOfDay::Evening)
                 }
-            }
+                RegionFrequency::Rarely => false,
+            },
             RegionRelationshipType::Avoids { .. } => false,
         }
     }
-    
+
     /// Get a human-readable reasoning for presence at the given time of day.
     pub fn presence_reasoning(&self, time_of_day: TimeOfDay) -> String {
         match self {
             RegionRelationshipType::Home => {
-                format!("Lives here. {} is typically home time.", time_of_day.display_name())
+                format!(
+                    "Lives here. {} is typically home time.",
+                    time_of_day.display_name()
+                )
             }
             RegionRelationshipType::WorksAt { shift } => {
-                format!("Works here ({} shift). Current time: {}", shift, time_of_day.display_name())
+                format!(
+                    "Works here ({} shift). Current time: {}",
+                    shift,
+                    time_of_day.display_name()
+                )
             }
             RegionRelationshipType::Frequents { frequency } => {
-                format!("Frequents here ({}). Current time: {}", frequency, time_of_day.display_name())
+                format!(
+                    "Frequents here ({}). Current time: {}",
+                    frequency,
+                    time_of_day.display_name()
+                )
             }
             RegionRelationshipType::Avoids { reason } => {
                 format!("Avoids this location: {}", reason)

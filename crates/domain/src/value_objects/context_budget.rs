@@ -263,9 +263,9 @@ impl Default for TokenCountMethod {
 }
 
 /// Token counter for estimating LLM token usage
-/// 
+///
 /// # Accuracy Notes
-/// 
+///
 /// These are approximations tuned for typical LLM tokenizers (GPT-style BPE).
 /// Actual token counts may vary by ±10-20% depending on:
 /// - The specific model's tokenizer
@@ -291,9 +291,9 @@ impl Default for TokenCounter {
     fn default() -> Self {
         Self {
             method: TokenCountMethod::Hybrid,
-            chars_per_token: 4.0,      // ~4 characters per token
-            tokens_per_word: 1.33,     // ~1.33 tokens per word (GPT-style)
-            hybrid_threshold: 100,     // Use char counting for very short text
+            chars_per_token: 4.0,  // ~4 characters per token
+            tokens_per_word: 1.33, // ~1.33 tokens per word (GPT-style)
+            hybrid_threshold: 100, // Use char counting for very short text
         }
     }
 }
@@ -347,14 +347,20 @@ impl TokenCounter {
     fn count_by_words(&self, text: &str) -> usize {
         let words = text.split_whitespace().count();
         // Also account for punctuation and special tokens
-        let special_chars = text.chars().filter(|c| {
-            matches!(c, '\n' | '\t' | '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}')
-        }).count();
-        
+        let special_chars = text
+            .chars()
+            .filter(|c| {
+                matches!(
+                    c,
+                    '\n' | '\t' | '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}'
+                )
+            })
+            .count();
+
         let base_tokens = (words as f64 * self.tokens_per_word).ceil() as usize;
         // Add ~0.5 tokens per special character group
         let special_tokens = special_chars / 2;
-        
+
         base_tokens + special_tokens
     }
 
@@ -383,21 +389,22 @@ impl TokenCounter {
 
         // Estimate target word count
         let target_words = self.words_for_budget(budget);
-        
+
         // Take words up to target, leaving room for ellipsis
         let words: Vec<&str> = text.split_whitespace().collect();
         let take_words = target_words.saturating_sub(1); // Leave room for "..."
-        
+
         if take_words == 0 {
             return ("...".to_string(), true);
         }
 
-        let truncated: String = words.iter()
+        let truncated: String = words
+            .iter()
             .take(take_words)
             .copied()
             .collect::<Vec<_>>()
             .join(" ");
-        
+
         (format!("{}...", truncated), true)
     }
 }
@@ -507,7 +514,7 @@ mod tests {
     fn test_token_counter_truncate() {
         let counter = TokenCounter::default();
         let text = "This is a fairly long sentence that we want to truncate to fit within a smaller token budget.";
-        
+
         let (truncated, was_truncated) = counter.truncate_to_budget(text, 10);
         assert!(was_truncated);
         assert!(truncated.ends_with("..."));
@@ -518,7 +525,7 @@ mod tests {
     fn test_token_counter_no_truncate_needed() {
         let counter = TokenCounter::default();
         let text = "Short text";
-        
+
         let (result, was_truncated) = counter.truncate_to_budget(text, 100);
         assert!(!was_truncated);
         assert_eq!(result, text);

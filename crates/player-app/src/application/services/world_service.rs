@@ -96,7 +96,9 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateWorld { data: request.into() },
+                RequestPayload::CreateWorld {
+                    data: request.into(),
+                },
                 get_request_timeout_ms(),
             )
             .await?;
@@ -141,7 +143,10 @@ impl WorldService {
     }
 
     /// Fetch the character sheet template for a world
-    pub async fn get_sheet_template(&self, world_id: &str) -> Result<serde_json::Value, ServiceError> {
+    pub async fn get_sheet_template(
+        &self,
+        world_id: &str,
+    ) -> Result<serde_json::Value, ServiceError> {
         let result = self
             .connection
             .request_with_timeout(

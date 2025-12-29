@@ -5,4 +5,3 @@ pub mod sqlite_generation_read_state_repository;
 
 pub use sqlite_domain_event_repository::SqliteDomainEventRepository;
 pub use sqlite_generation_read_state_repository::SqliteGenerationReadStateRepository;
-

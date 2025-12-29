@@ -167,9 +167,7 @@ async fn extract_context(state: &AppState, client_id: Uuid) -> Option<UseCaseCon
 }
 
 fn parse_pc_id(id: &str) -> Option<PlayerCharacterId> {
-    Uuid::parse_str(id)
-        .ok()
-        .map(PlayerCharacterId::from_uuid)
+    Uuid::parse_str(id).ok().map(PlayerCharacterId::from_uuid)
 }
 
 fn parse_region_id(id: &str) -> Option<RegionId> {

@@ -6,20 +6,32 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use wrldbldr_player_app::application::dto::{DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate};
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
 use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
-use crate::presentation::components::mini_map::{MiniMap, MapRegionData, MapBounds};
+use crate::presentation::components::mini_map::{MapBounds, MapRegionData, MiniMap};
 use crate::presentation::components::navigation_panel::NavigationPanel;
 use crate::presentation::components::region_items_panel::RegionItemsPanel;
-use crate::presentation::components::tactical::{ChallengeRollModal, PlayerSkillData, SkillsDisplay};
-use crate::presentation::components::visual_novel::{Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox};
+use crate::presentation::components::tactical::{
+    ChallengeRollModal, PlayerSkillData, SkillsDisplay,
+};
+use crate::presentation::components::visual_novel::{
+    Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox,
+};
+use crate::presentation::services::{
+    use_character_service, use_location_service, use_observation_service, use_skill_service,
+    use_world_service,
+};
+use crate::presentation::state::{
+    use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
+    RollSubmissionStatus,
+};
 use wrldbldr_player_app::application::dto::InventoryItemData;
-use crate::presentation::services::{use_character_service, use_location_service, use_observation_service, use_skill_service, use_world_service};
-use crate::presentation::state::{use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect, RollSubmissionStatus};
+use wrldbldr_player_app::application::dto::{
+    DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
+};
 
 /// Player Character View - visual novel gameplay interface
 ///
@@ -692,7 +704,7 @@ pub fn PCView() -> Element {
                                 .find(|i| i.item.id == item_id)
                                 .map(|i| i.equipped)
                                 .unwrap_or(false);
-                            
+
                             if is_equipped {
                                 tracing::info!("Unequip item: {}", item_id);
                                 send_unequip_item(&session_state, pc_id, &item_id);
@@ -1008,7 +1020,9 @@ fn send_player_action(
     let engine_client_signal = session_state.engine_client();
     let client_binding = engine_client_signal.read();
     if let Some(ref client) = *client_binding {
-        let svc = wrldbldr_player_app::application::services::ActionService::new(std::sync::Arc::clone(client));
+        let svc = wrldbldr_player_app::application::services::ActionService::new(
+            std::sync::Arc::clone(client),
+        );
         if let Err(e) = svc.send_action(action) {
             tracing::error!("Failed to send action: {}", e);
         }
@@ -1065,19 +1079,17 @@ fn handle_interaction(
     session_state: &crate::presentation::state::SessionState,
     interaction: &InteractionData,
 ) {
-    tracing::info!("Selected interaction: {} ({})", interaction.name, interaction.interaction_type);
+    tracing::info!(
+        "Selected interaction: {} ({})",
+        interaction.name,
+        interaction.interaction_type
+    );
 
     // Convert interaction type to player action
     let action = match interaction.interaction_type.to_lowercase().as_str() {
-        "talk" | "dialogue" | "speak" => {
-            PlayerAction::talk(&interaction.id, None)
-        }
-        "examine" | "look" | "inspect" => {
-            PlayerAction::examine(&interaction.id)
-        }
-        "travel" | "go" | "move" => {
-            PlayerAction::travel(&interaction.id)
-        }
+        "talk" | "dialogue" | "speak" => PlayerAction::talk(&interaction.id, None),
+        "examine" | "look" | "inspect" => PlayerAction::examine(&interaction.id),
+        "travel" | "go" | "move" => PlayerAction::travel(&interaction.id),
         "use" | "interact" => {
             // Use the interaction ID as both item and target for generic "use"
             PlayerAction::use_item(&interaction.id, interaction.target_name.as_deref())
@@ -1100,7 +1112,9 @@ fn send_challenge_roll_input(
     let engine_client_signal = session_state.engine_client();
     let client_binding = engine_client_signal.read();
     if let Some(ref client) = *client_binding {
-        let svc = wrldbldr_player_app::application::services::SessionCommandService::new(std::sync::Arc::clone(client));
+        let svc = wrldbldr_player_app::application::services::SessionCommandService::new(
+            std::sync::Arc::clone(client),
+        );
         if let Err(e) = svc.submit_challenge_roll_input(challenge_id, input) {
             tracing::error!("Failed to send challenge roll input: {}", e);
         }

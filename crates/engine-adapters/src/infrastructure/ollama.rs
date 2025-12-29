@@ -25,7 +25,7 @@ impl OllamaClient {
             .timeout(Duration::from_secs(120))
             .build()
             .unwrap_or_else(|_| Client::new());
-        
+
         Self {
             client,
             base_url: base_url.trim_end_matches('/').to_string(),

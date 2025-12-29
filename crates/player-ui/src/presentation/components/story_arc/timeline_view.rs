@@ -2,12 +2,14 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
 use crate::presentation::components::story_arc::add_dm_marker::AddDmMarkerModal;
 use crate::presentation::components::story_arc::timeline_event_card::TimelineEventCard;
-use crate::presentation::components::story_arc::timeline_filters::{CharacterOption, LocationOption, TimelineFilters};
+use crate::presentation::components::story_arc::timeline_filters::{
+    CharacterOption, LocationOption, TimelineFilters,
+};
 use crate::presentation::services::use_story_event_service;
 use crate::presentation::state::use_game_state;
+use wrldbldr_player_app::application::dto::{StoryEventData, StoryEventTypeData};
 
 /// Filter options for the timeline
 #[derive(Debug, Clone, Default)]
@@ -73,8 +75,10 @@ impl<'a> TimelineViewModel<'a> {
                 if !filter_state.search_text.is_empty() {
                     let search = filter_state.search_text.to_lowercase();
                     let matches_summary = event.summary.to_lowercase().contains(&search);
-                    let matches_tags =
-                        event.tags.iter().any(|t| t.to_lowercase().contains(&search));
+                    let matches_tags = event
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&search));
                     if !matches_summary && !matches_tags {
                         return false;
                     }
@@ -475,4 +479,3 @@ pub fn get_event_type_icon(event_type: &StoryEventTypeData) -> &'static str {
         StoryEventTypeData::Custom { .. } => "📌",
     }
 }
-

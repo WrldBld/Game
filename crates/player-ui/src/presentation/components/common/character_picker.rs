@@ -53,31 +53,31 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
     let character_service = use_character_service();
     let pc_service = use_player_character_service();
     let session_state = use_session_state();
-    
+
     // State for character options
     let mut characters: Signal<Vec<CharacterOption>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut search_text = use_signal(String::new);
     let mut is_open = use_signal(|| false);
-    
+
     // Load characters on mount
     {
         let world_id = props.world_id.clone();
         let exclude_id = props.exclude_id.clone();
         let char_service = character_service.clone();
         let pc_svc = pc_service.clone();
-        
+
         use_effect(move || {
             let world_id = world_id.clone();
             let exclude_id = exclude_id.clone();
             let char_service = char_service.clone();
             let pc_svc = pc_svc.clone();
             let session_id: Option<String> = (*session_state.session_id().read()).clone();
-            
+
             spawn(async move {
                 is_loading.set(true);
                 let mut all_chars: Vec<CharacterOption> = Vec::new();
-                
+
                 // Fetch NPCs
                 match char_service.list_characters(&world_id).await {
                     Ok(npcs) => {
@@ -97,7 +97,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                         tracing::error!("Failed to load NPCs: {:?}", e);
                     }
                 }
-                
+
                 // Fetch PCs if we have a session
                 if let Some(sid) = session_id {
                     match pc_svc.list_pcs(&sid).await {
@@ -115,20 +115,23 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to load PCs (may not have active session): {:?}", e);
+                            tracing::warn!(
+                                "Failed to load PCs (may not have active session): {:?}",
+                                e
+                            );
                         }
                     }
                 }
-                
+
                 // Sort by name
                 all_chars.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-                
+
                 characters.set(all_chars);
                 is_loading.set(false);
             });
         });
     }
-    
+
     // Filter characters by search text
     let filtered_chars: Vec<CharacterOption> = {
         let search = search_text.read().to_lowercase();
@@ -143,7 +146,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                 .collect()
         }
     };
-    
+
     // Find selected character name for display
     let selected_name: Option<String> = {
         let val = props.value.clone();
@@ -152,10 +155,14 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
         } else {
             // Parse "type:id" format
             let id_part = val.split(':').last().unwrap_or("");
-            characters.read().iter().find(|c| c.id == id_part).map(|c| c.name.clone())
+            characters
+                .read()
+                .iter()
+                .find(|c| c.id == id_part)
+                .map(|c| c.name.clone())
         }
     };
-    
+
     // Handle selection
     let on_select = {
         let on_change = props.on_change.clone();
@@ -165,7 +172,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
             search_text.set(String::new());
         }
     };
-    
+
     // Handle clear
     let on_clear = {
         let on_change = props.on_change.clone();
@@ -173,15 +180,15 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
             on_change.call(String::new());
         }
     };
-    
+
     rsx! {
         div {
             class: "character-picker relative",
-            
+
             // Selected value display / trigger button
             div {
                 class: "flex items-center gap-1",
-                
+
                 button {
                     r#type: "button",
                     onclick: move |_| {
@@ -189,7 +196,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                         is_open.set(!current);
                     },
                     class: "flex-1 flex items-center justify-between p-2 bg-dark-bg border border-gray-700 rounded text-left text-sm hover:border-gray-500 transition-colors",
-                    
+
                     if *is_loading.read() {
                         span { class: "text-gray-500", "Loading..." }
                     } else if let Some(name) = &selected_name {
@@ -197,14 +204,14 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                     } else {
                         span { class: "text-gray-500", "{props.placeholder}" }
                     }
-                    
+
                     // Dropdown arrow
                     span {
                         class: "text-gray-500 ml-2",
                         if *is_open.read() { "▲" } else { "▼" }
                     }
                 }
-                
+
                 // Clear button (only show if value is selected)
                 if !props.value.is_empty() {
                     button {
@@ -216,12 +223,12 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                     }
                 }
             }
-            
+
             // Dropdown panel
             if *is_open.read() {
                 div {
                     class: "absolute z-50 mt-1 w-full bg-gray-800 border border-gray-600 rounded shadow-lg max-h-64 overflow-hidden",
-                    
+
                     // Search input
                     div {
                         class: "p-2 border-b border-gray-700",
@@ -234,11 +241,11 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                             autofocus: true,
                         }
                     }
-                    
+
                     // Character list
                     div {
                         class: "overflow-y-auto max-h-48",
-                        
+
                         if filtered_chars.is_empty() {
                             div {
                                 class: "p-3 text-gray-500 text-sm text-center",
@@ -265,7 +272,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                                     } else {
                                         "bg-blue-700 text-blue-100"
                                     };
-                                    
+
                                     rsx! {
                                         button {
                                             r#type: "button",
@@ -273,9 +280,9 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                                             onclick: move |_| on_select(char_clone.clone()),
                                             class: "w-full flex items-center justify-between p-2 text-left text-sm transition-colors {bg_class}",
                                             class: if is_selected { "ring-1 ring-accent-blue" },
-                                            
+
                                             span { class: "text-white truncate", "{char.name}" }
-                                            
+
                                             span {
                                                 class: "ml-2 px-1.5 py-0.5 text-xs rounded {badge_class}",
                                                 "{type_badge}"

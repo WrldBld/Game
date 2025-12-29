@@ -5,16 +5,16 @@
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{
-    ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId,
-    ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
-    RelationshipId, SceneId, SkillId, StoryEventId, WantId, WorldId,
-};
 use wrldbldr_domain::entities::{ActantialRole, Difficulty, WantVisibility};
 use wrldbldr_domain::value_objects::{DispositionLevel, RelationshipLevel};
+use wrldbldr_domain::{
+    ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
+    NarrativeEventId, PlayerCharacterId, RegionId, RelationshipId, SceneId, SkillId, StoryEventId,
+    WantId, WorldId,
+};
 use wrldbldr_protocol::{
-    ActantialRoleData, ActorTypeData, ErrorCode, ResponseResult,
-    WantTargetTypeData, WantVisibilityData,
+    ActantialRoleData, ActorTypeData, ErrorCode, ResponseResult, WantTargetTypeData,
+    WantVisibilityData,
 };
 
 use crate::application::services::ActorTargetType;

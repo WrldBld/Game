@@ -12,9 +12,9 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_region;
-use wrldbldr_engine_ports::outbound::LocationRepositoryPort;
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
 use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::LocationRepositoryPort;
 
 /// Repository for Location operations
 pub struct Neo4jLocationRepository {
@@ -36,12 +36,15 @@ impl Neo4jLocationRepository {
         let map_bounds_json = location
             .parent_map_bounds
             .as_ref()
-            .map(|b| serde_json::json!({
-                "x": b.x,
-                "y": b.y,
-                "width": b.width,
-                "height": b.height
-            }).to_string())
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
+                })
+                .to_string()
+            })
             .unwrap_or_default();
 
         let q = query(
@@ -72,20 +75,23 @@ impl Neo4jLocationRepository {
             "backdrop_asset",
             location.backdrop_asset.clone().unwrap_or_default(),
         )
-        .param(
-            "map_asset",
-            location.map_asset.clone().unwrap_or_default(),
-        )
+        .param("map_asset", location.map_asset.clone().unwrap_or_default())
         .param("parent_map_bounds", map_bounds_json)
         .param(
             "default_region_id",
-            location.default_region_id.map(|id| id.to_string()).unwrap_or_default(),
+            location
+                .default_region_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "atmosphere",
             location.atmosphere.clone().unwrap_or_default(),
         )
-        .param("presence_cache_ttl_hours", location.presence_cache_ttl_hours as i64)
+        .param(
+            "presence_cache_ttl_hours",
+            location.presence_cache_ttl_hours as i64,
+        )
         .param("use_llm_presence", location.use_llm_presence);
 
         self.connection.graph().run(q).await?;
@@ -135,12 +141,15 @@ impl Neo4jLocationRepository {
         let map_bounds_json = location
             .parent_map_bounds
             .as_ref()
-            .map(|b| serde_json::json!({
-                "x": b.x,
-                "y": b.y,
-                "width": b.width,
-                "height": b.height
-            }).to_string())
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
+                })
+                .to_string()
+            })
             .unwrap_or_default();
 
         let q = query(
@@ -165,20 +174,23 @@ impl Neo4jLocationRepository {
             "backdrop_asset",
             location.backdrop_asset.clone().unwrap_or_default(),
         )
-        .param(
-            "map_asset",
-            location.map_asset.clone().unwrap_or_default(),
-        )
+        .param("map_asset", location.map_asset.clone().unwrap_or_default())
         .param("parent_map_bounds", map_bounds_json)
         .param(
             "default_region_id",
-            location.default_region_id.map(|id| id.to_string()).unwrap_or_default(),
+            location
+                .default_region_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "atmosphere",
             location.atmosphere.clone().unwrap_or_default(),
         )
-        .param("presence_cache_ttl_hours", location.presence_cache_ttl_hours as i64)
+        .param(
+            "presence_cache_ttl_hours",
+            location.presence_cache_ttl_hours as i64,
+        )
         .param("use_llm_presence", location.use_llm_presence);
 
         self.connection.graph().run(q).await?;
@@ -321,7 +333,10 @@ impl Neo4jLocationRepository {
     }
 
     /// Get all connections from a location
-    pub async fn get_connections(&self, location_id: LocationId) -> Result<Vec<LocationConnection>> {
+    pub async fn get_connections(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<LocationConnection>> {
         let q = query(
             "MATCH (from:Location {id: $id})-[r:CONNECTED_TO]->(to:Location)
             RETURN from.id as from_id, to.id as to_id, 
@@ -414,7 +429,11 @@ impl Neo4jLocationRepository {
     // =========================================================================
 
     /// Set a location's tactical map
-    pub async fn set_grid_map(&self, location_id: LocationId, grid_map_id: GridMapId) -> Result<()> {
+    pub async fn set_grid_map(
+        &self,
+        location_id: LocationId,
+        grid_map_id: GridMapId,
+    ) -> Result<()> {
         // First remove any existing grid map edge
         let remove_q = query(
             "MATCH (l:Location {id: $location_id})-[r:HAS_TACTICAL_MAP]->()
@@ -480,12 +499,15 @@ impl Neo4jLocationRepository {
         let map_bounds_json = region
             .map_bounds
             .as_ref()
-            .map(|b| serde_json::json!({
-                "x": b.x,
-                "y": b.y,
-                "width": b.width,
-                "height": b.height
-            }).to_string())
+            .map(|b| {
+                serde_json::json!({
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
+                })
+                .to_string()
+            })
             .unwrap_or_default();
 
         let q = query(
@@ -508,7 +530,10 @@ impl Neo4jLocationRepository {
         .param("id", region.id.to_string())
         .param("name", region.name.clone())
         .param("description", region.description.clone())
-        .param("backdrop_asset", region.backdrop_asset.clone().unwrap_or_default())
+        .param(
+            "backdrop_asset",
+            region.backdrop_asset.clone().unwrap_or_default(),
+        )
         .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
         .param("map_bounds", map_bounds_json)
         .param("is_spawn_point", region.is_spawn_point)

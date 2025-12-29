@@ -14,13 +14,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{ClockPort, EventBusPort, StoryEventRepositoryPort};
 use wrldbldr_domain::entities::{
     ChallengeEventOutcome, DmMarkerType, InfoType, InvolvedCharacter, ItemSource, MarkerImportance,
     StoryEvent, StoryEventInfoImportance, StoryEventType,
 };
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId};
+use wrldbldr_domain::DomainEvent;
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
+};
+use wrldbldr_engine_ports::outbound::{ClockPort, EventBusPort, StoryEventRepositoryPort};
 
 /// Service trait for recording gameplay events to the story timeline
 #[async_trait]
@@ -182,14 +184,12 @@ pub trait StoryEventService: Send + Sync {
     async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>>;
 
     /// Search story events by tags
-    async fn search_by_tags(
-        &self,
-        world_id: WorldId,
-        tags: Vec<String>,
-    ) -> Result<Vec<StoryEvent>>;
+    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>)
+        -> Result<Vec<StoryEvent>>;
 
     /// Search story events by text in summary
-    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>>;
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str)
+        -> Result<Vec<StoryEvent>>;
 
     /// List events involving a specific character
     async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>>;
@@ -294,7 +294,11 @@ impl StoryEventServiceImpl {
         event_bus: Arc<dyn EventBusPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
-        Self { repository, event_bus, clock }
+        Self {
+            repository,
+            event_bus,
+            clock,
+        }
     }
 
     /// Helper to publish StoryEventCreated after persisting
@@ -304,9 +308,13 @@ impl StoryEventServiceImpl {
             world_id: event.world_id,
             event_type: format!("{:?}", event.event_type), // Debug format for event type
         };
-        
+
         if let Err(e) = self.event_bus.publish(domain_event).await {
-            tracing::error!("Failed to publish StoryEventCreated for {}: {}", event.id, e);
+            tracing::error!(
+                "Failed to publish StoryEventCreated for {}: {}",
+                event.id,
+                e
+            );
         }
     }
 }
@@ -354,7 +362,9 @@ impl StoryEventService for StoryEventServiceImpl {
             self.repository.set_location(event_id, lid).await?;
         }
         for char_id in involved_characters {
-            self.repository.add_involved_character(event_id, InvolvedCharacter::actor(char_id)).await?;
+            self.repository
+                .add_involved_character(event_id, InvolvedCharacter::actor(char_id))
+                .await?;
         }
 
         self.publish_event_created(&event).await;
@@ -414,9 +424,13 @@ impl StoryEventService for StoryEventServiceImpl {
         if let Some(lid) = location_id {
             self.repository.set_location(event_id, lid).await?;
         }
-        self.repository.add_involved_character(event_id, InvolvedCharacter::actor(character_id)).await?;
+        self.repository
+            .add_involved_character(event_id, InvolvedCharacter::actor(character_id))
+            .await?;
         if let Some(cid) = challenge_id {
-            self.repository.set_recorded_challenge(event_id, cid).await?;
+            self.repository
+                .set_recorded_challenge(event_id, cid)
+                .await?;
         }
 
         self.publish_event_created(&event).await;
@@ -486,8 +500,7 @@ impl StoryEventService for StoryEventServiceImpl {
             marker_type,
         };
 
-        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
-            .with_summary(title);
+        let mut event = StoryEvent::new(world_id, event_type, self.clock.now()).with_summary(title);
 
         if let Some(gt) = game_time {
             event = event.with_game_time(gt);
@@ -557,7 +570,9 @@ impl StoryEventService for StoryEventServiceImpl {
             self.repository.set_location(event_id, lid).await?;
         }
         for char_id in involved_characters {
-            self.repository.add_involved_character(event_id, InvolvedCharacter::witness(char_id)).await?;
+            self.repository
+                .add_involved_character(event_id, InvolvedCharacter::witness(char_id))
+                .await?;
         }
 
         self.publish_event_created(&event).await;
@@ -588,8 +603,8 @@ impl StoryEventService for StoryEventServiceImpl {
             reason: reason.clone(),
         };
 
-        let mut event = StoryEvent::new(world_id, event_type, self.clock.now())
-            .with_summary(reason);
+        let mut event =
+            StoryEvent::new(world_id, event_type, self.clock.now()).with_summary(reason);
 
         if let Some(gt) = game_time {
             event = event.with_game_time(gt);
@@ -602,8 +617,12 @@ impl StoryEventService for StoryEventServiceImpl {
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
-        self.repository.add_involved_character(event_id, InvolvedCharacter::actor(from_character)).await?;
-        self.repository.add_involved_character(event_id, InvolvedCharacter::target(to_character)).await?;
+        self.repository
+            .add_involved_character(event_id, InvolvedCharacter::actor(from_character))
+            .await?;
+        self.repository
+            .add_involved_character(event_id, InvolvedCharacter::target(to_character))
+            .await?;
 
         self.publish_event_created(&event).await;
 
@@ -648,7 +667,9 @@ impl StoryEventService for StoryEventServiceImpl {
         if let Some(lid) = location_id {
             self.repository.set_location(event_id, lid).await?;
         }
-        self.repository.add_involved_character(event_id, InvolvedCharacter::actor(character_id)).await?;
+        self.repository
+            .add_involved_character(event_id, InvolvedCharacter::actor(character_id))
+            .await?;
 
         self.publish_event_created(&event).await;
 
@@ -686,7 +707,9 @@ impl StoryEventService for StoryEventServiceImpl {
         self.repository.create(&event).await?;
 
         // Create edges for relationships
-        self.repository.set_triggered_by(event_id, narrative_event_id).await?;
+        self.repository
+            .set_triggered_by(event_id, narrative_event_id)
+            .await?;
         if let Some(sid) = scene_id {
             self.repository.set_scene(event_id, sid).await?;
         }
@@ -694,7 +717,9 @@ impl StoryEventService for StoryEventServiceImpl {
             self.repository.set_location(event_id, lid).await?;
         }
         for char_id in involved_characters {
-            self.repository.add_involved_character(event_id, InvolvedCharacter::actor(char_id)).await?;
+            self.repository
+                .add_involved_character(event_id, InvolvedCharacter::actor(char_id))
+                .await?;
         }
 
         self.publish_event_created(&event).await;
@@ -785,7 +810,11 @@ impl StoryEventService for StoryEventServiceImpl {
         self.repository.search_by_tags(world_id, tags).await
     }
 
-    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>> {
+    async fn search_by_text(
+        &self,
+        world_id: WorldId,
+        search_text: &str,
+    ) -> Result<Vec<StoryEvent>> {
         self.repository.search_by_text(world_id, search_text).await
     }
 
@@ -827,7 +856,9 @@ impl StoryEventService for StoryEventServiceImpl {
         npc_id: CharacterId,
         limit: u32,
     ) -> Result<Vec<StoryEvent>> {
-        self.repository.get_dialogues_with_npc(world_id, npc_id, limit).await
+        self.repository
+            .get_dialogues_with_npc(world_id, npc_id, limit)
+            .await
     }
 
     async fn get_dialogue_summary_for_npc(
@@ -836,8 +867,11 @@ impl StoryEventService for StoryEventServiceImpl {
         npc_id: CharacterId,
         limit: u32,
     ) -> Result<Option<String>> {
-        let events = self.repository.get_dialogues_with_npc(world_id, npc_id, limit).await?;
-        
+        let events = self
+            .repository
+            .get_dialogues_with_npc(world_id, npc_id, limit)
+            .await?;
+
         if events.is_empty() {
             return Ok(None);
         }
@@ -856,15 +890,13 @@ impl StoryEventService for StoryEventServiceImpl {
                 } else {
                     format!(" (topics: {})", topics_discussed.join(", "))
                 };
-                let tone_str = tone.as_ref().map(|t| format!(" [{}]", t)).unwrap_or_default();
-                
+                let tone_str = tone
+                    .as_ref()
+                    .map(|t| format!(" [{}]", t))
+                    .unwrap_or_default();
+
                 // Format: "Spoke with {name}{topics}{tone} - {summary}"
-                let summary_line = format!(
-                    "• Spoke with {}{}{}",
-                    npc_name,
-                    topics,
-                    tone_str
-                );
+                let summary_line = format!("• Spoke with {}{}{}", npc_name, topics, tone_str);
                 summaries.push(summary_line);
             }
         }
@@ -885,7 +917,9 @@ impl StoryEventService for StoryEventServiceImpl {
         npc_id: CharacterId,
         topic: Option<String>,
     ) -> Result<()> {
-        self.repository.update_spoke_to_edge(pc_id, npc_id, topic).await
+        self.repository
+            .update_spoke_to_edge(pc_id, npc_id, topic)
+            .await
     }
 
     // =========================================================================
@@ -901,7 +935,9 @@ impl StoryEventService for StoryEventServiceImpl {
         let page = page.unwrap_or(1);
         let page_size = page_size.unwrap_or(50);
         let offset = (page.saturating_sub(1)) * page_size;
-        self.repository.list_by_world_paginated(world_id, page_size, offset).await
+        self.repository
+            .list_by_world_paginated(world_id, page_size, offset)
+            .await
     }
 
     async fn update_event(
@@ -934,15 +970,16 @@ impl StoryEventService for StoryEventServiceImpl {
     ) -> Result<StoryEventId> {
         self.record_dm_marker(
             world_id,
-            None,                           // scene_id
-            None,                           // location_id
+            None, // scene_id
+            None, // location_id
             title,
-            content.unwrap_or_default(),    // note
-            MarkerImportance::Minor,        // importance
-            DmMarkerType::Note,             // marker_type
-            false,                          // is_hidden
-            Vec::new(),                     // tags
-            None,                           // game_time
-        ).await
+            content.unwrap_or_default(), // note
+            MarkerImportance::Minor,     // importance
+            DmMarkerType::Note,          // marker_type
+            false,                       // is_hidden
+            Vec::new(),                  // tags
+            None,                        // game_time
+        )
+        .await
     }
 }

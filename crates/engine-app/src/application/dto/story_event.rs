@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::entities::{DmMarkerType, ItemSource, MarkerImportance, StoryEvent, StoryEventType};
+use wrldbldr_domain::entities::{
+    DmMarkerType, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
+};
 
 /// Query parameters for listing story events.
 #[derive(Debug, Deserialize)]
@@ -623,4 +625,3 @@ pub struct PaginatedStoryEventsResponseDto {
     pub limit: u32,
     pub offset: u32,
 }
-

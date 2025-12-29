@@ -82,10 +82,14 @@ impl DmActionProcessorService {
     /// should use to broadcast messages to clients.
     pub async fn process_action_item(&self, action: &DMActionItem) -> Result<DmActionResult> {
         let world_id = WorldId::from(action.world_id);
-        
+
         match &action.action {
-            DMAction::ApprovalDecision { request_id, decision } => {
-                self.process_approval_decision(world_id, request_id, decision.clone()).await
+            DMAction::ApprovalDecision {
+                request_id,
+                decision,
+            } => {
+                self.process_approval_decision(world_id, request_id, decision.clone())
+                    .await
             }
             DMAction::DirectNPCControl { npc_id, dialogue } => {
                 self.process_direct_npc_control(npc_id, dialogue).await
@@ -205,8 +209,8 @@ impl DmActionProcessorService {
         event_id: &str,
     ) -> Result<DmActionResult> {
         // Parse event ID
-        let event_uuid = uuid::Uuid::parse_str(event_id)
-            .context(format!("Invalid event ID: {}", event_id))?;
+        let event_uuid =
+            uuid::Uuid::parse_str(event_id).context(format!("Invalid event ID: {}", event_id))?;
         let narrative_event_id = NarrativeEventId::from_uuid(event_uuid);
 
         // Load the narrative event

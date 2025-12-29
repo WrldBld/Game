@@ -8,8 +8,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{SceneId, WorldId};
 use wrldbldr_domain::value_objects::RuleSystemConfig;
+use wrldbldr_domain::{SceneId, WorldId};
 
 /// Simplified world snapshot for Player clients
 ///

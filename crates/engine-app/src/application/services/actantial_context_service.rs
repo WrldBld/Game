@@ -15,16 +15,16 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort,
-    WantRepositoryPort,
-};
 use wrldbldr_domain::entities::{ActantialRole, ActantialView, Goal, Want, WantVisibility};
 use wrldbldr_domain::value_objects::{
     ActantialActor, ActantialContext, ActantialLLMContext, ActantialTarget, SocialViewSummary,
     WantContext,
 };
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort,
+    WantRepositoryPort,
+};
 
 // =============================================================================
 // Request Types for Mutations
@@ -289,7 +289,10 @@ impl ActantialContextService for ActantialContextServiceImpl {
         let character_wants = self.character_repo.get_wants(character_id).await?;
 
         // Get all actantial views for this character
-        let actantial_views = self.character_repo.get_actantial_views(character_id).await?;
+        let actantial_views = self
+            .character_repo
+            .get_actantial_views(character_id)
+            .await?;
 
         // Collect all view data with resolved names for social summary
         let mut all_views_with_names: Vec<(ActantialRole, ActantialTarget, String, String)> =

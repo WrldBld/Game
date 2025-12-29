@@ -3,10 +3,8 @@
 //! Shows DM approval UI for NPC presence in a region when a player enters.
 //! Displays rule-based and LLM-suggested NPCs with checkboxes for customization.
 
+use crate::presentation::state::game_state::{PreviousStagingData, StagingApprovalData};
 use dioxus::prelude::*;
-use crate::presentation::state::game_state::{
-    StagingApprovalData, PreviousStagingData,
-};
 
 /// NPC selection state for approval
 #[derive(Clone, PartialEq)]
@@ -58,7 +56,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
     // Initialize NPC selections from both rule and LLM sources
     let initial_selections: Vec<NpcSelection> = {
         let mut selections = Vec::new();
-        
+
         // Add rule-based NPCs
         for npc in &props.data.rule_based_npcs {
             selections.push(NpcSelection {
@@ -72,10 +70,13 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                 source: "rule".to_string(),
             });
         }
-        
+
         // Add LLM-based NPCs (that aren't already in rule-based)
         for npc in &props.data.llm_based_npcs {
-            if !selections.iter().any(|s| s.character_id == npc.character_id) {
+            if !selections
+                .iter()
+                .any(|s| s.character_id == npc.character_id)
+            {
                 selections.push(NpcSelection {
                     character_id: npc.character_id.clone(),
                     name: npc.name.clone(),
@@ -88,7 +89,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                 });
             }
         }
-        
+
         selections
     };
 
@@ -103,16 +104,19 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
         let llm_npcs = props.data.llm_based_npcs.clone();
         move || {
             let mut current = selections.read().clone();
-            
+
             // Update LLM-based NPCs
             for npc in &llm_npcs {
-                if let Some(sel) = current.iter_mut().find(|s| s.character_id == npc.character_id && s.source == "llm") {
+                if let Some(sel) = current
+                    .iter_mut()
+                    .find(|s| s.character_id == npc.character_id && s.source == "llm")
+                {
                     sel.is_present = npc.is_present;
                     sel.is_hidden_from_players = npc.is_hidden_from_players;
                     sel.reasoning = npc.reasoning.clone();
                 }
             }
-            
+
             selections.set(current);
         }
     });
@@ -124,9 +128,15 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
             let approved: Vec<(String, bool, bool)> = selections
                 .read()
                 .iter()
-                .map(|s| (s.character_id.clone(), s.is_present, s.is_hidden_from_players))
+                .map(|s| {
+                    (
+                        s.character_id.clone(),
+                        s.is_present,
+                        s.is_hidden_from_players,
+                    )
+                })
                 .collect();
-            
+
             on_approve.call(StagingApprovalResult {
                 request_id: request_id.clone(),
                 approved_npcs: approved,
@@ -142,11 +152,18 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
         let previous = props.data.previous_staging.clone();
         move |_| {
             if let Some(ref prev) = previous {
-                let approved: Vec<(String, bool, bool)> = prev.npcs
+                let approved: Vec<(String, bool, bool)> = prev
+                    .npcs
                     .iter()
-                    .map(|n| (n.character_id.clone(), n.is_present, n.is_hidden_from_players))
+                    .map(|n| {
+                        (
+                            n.character_id.clone(),
+                            n.is_present,
+                            n.is_hidden_from_players,
+                        )
+                    })
                     .collect();
-                
+
                 on_approve.call(StagingApprovalResult {
                     request_id: request_id.clone(),
                     approved_npcs: approved,
@@ -391,12 +408,9 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
 
 /// Section showing previous staging for quick reuse
 #[component]
-fn PreviousStagingSection(
-    previous: PreviousStagingData,
-    on_use: EventHandler<()>,
-) -> Element {
+fn PreviousStagingSection(previous: PreviousStagingData, on_use: EventHandler<()>) -> Element {
     let present_count = previous.npcs.iter().filter(|n| n.is_present).count();
-    
+
     rsx! {
         div {
             class: "mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg",

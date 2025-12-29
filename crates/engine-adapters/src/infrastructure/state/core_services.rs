@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::{
-    CharacterService, InteractionService, ItemService, LocationService,
-    RelationshipService, SceneService, SkillService, WorldService,
+    CharacterService, InteractionService, ItemService, LocationService, RelationshipService,
+    SceneService, SkillService, WorldService,
 };
 
 /// Core services for fundamental world-building entities

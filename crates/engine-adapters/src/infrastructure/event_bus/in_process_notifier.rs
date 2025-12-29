@@ -36,4 +36,3 @@ impl Default for InProcessEventNotifier {
         Self::new()
     }
 }
-

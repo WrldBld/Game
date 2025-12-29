@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
 use wrldbldr_domain::entities::InteractionTemplate;
 use wrldbldr_domain::{InteractionId, SceneId};
+use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
 
 /// Interaction service trait defining the application use cases
 #[async_trait]

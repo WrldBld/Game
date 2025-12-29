@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::NarrativeEventData;
 use crate::presentation::services::use_narrative_event_service;
+use wrldbldr_player_app::application::dto::NarrativeEventData;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct PendingEventsWidgetProps {
@@ -162,4 +162,3 @@ fn PendingEventItem(props: PendingEventItemProps) -> Element {
         }
     }
 }
-

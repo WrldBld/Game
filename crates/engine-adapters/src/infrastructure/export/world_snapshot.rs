@@ -7,12 +7,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::infrastructure::persistence::Neo4jRepository;
+use wrldbldr_domain::{SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     CharacterData, ExportOptions, LocationData, PlayerWorldSnapshot, SceneData, WorldData,
     WorldExporterPort,
 };
-use crate::infrastructure::persistence::Neo4jRepository;
-use wrldbldr_domain::{SceneId, WorldId};
 // Note: Protocol RuleSystemConfig is now a re-export from domain, so they're the same type
 
 /// Load a complete world snapshot for a Player client
@@ -50,8 +50,8 @@ pub async fn load_world_snapshot(
         id: world.id.to_string(),
         name: world.name,
         description: world.description,
-            // Protocol re-exports domain types, so we can clone directly
-            rule_system: world.rule_system.clone(),
+        // Protocol re-exports domain types, so we can clone directly
+        rule_system: world.rule_system.clone(),
         created_at: world.created_at.to_rfc3339(),
         updated_at: world.updated_at.to_rfc3339(),
     };

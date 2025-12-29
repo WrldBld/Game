@@ -25,7 +25,9 @@ fn main() {
 
     let platform = wrldbldr_player_adapters::infrastructure::platform::create_platform();
     let raw_api: std::sync::Arc<dyn wrldbldr_player_ports::outbound::RawApiPort> =
-        std::sync::Arc::new(wrldbldr_player_adapters::infrastructure::http_client::ApiAdapter::new());
+        std::sync::Arc::new(
+            wrldbldr_player_adapters::infrastructure::http_client::ApiAdapter::new(),
+        );
 
     let api = wrldbldr_player_app::application::api::Api::new(raw_api.clone());
 
@@ -60,7 +62,10 @@ fn main() {
     // Get WebSocket URL from environment or use default
     let ws_url = std::env::var("WRLDBLDR_ENGINE_WS_URL")
         .unwrap_or_else(|_| "ws://127.0.0.1:3456/ws".to_string());
-    let connection = wrldbldr_player_adapters::infrastructure::ConnectionFactory::create_game_connection(&ws_url);
+    let connection =
+        wrldbldr_player_adapters::infrastructure::ConnectionFactory::create_game_connection(
+            &ws_url,
+        );
 
     wrldbldr_player_runner::run(wrldbldr_player_runner::RunnerDeps {
         platform,

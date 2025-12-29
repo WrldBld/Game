@@ -8,11 +8,11 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::AssetRepositoryPort;
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
 use wrldbldr_domain::{AssetId, BatchId};
+use wrldbldr_engine_ports::outbound::AssetRepositoryPort;
 
 /// Repository for GalleryAsset operations
 pub struct Neo4jAssetRepository {
@@ -261,7 +261,11 @@ impl Neo4jAssetRepository {
     /// Create a new generation batch
     pub async fn create_batch(&self, batch: &GenerationBatch) -> Result<()> {
         let assets_json = serde_json::to_string(
-            &batch.assets.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+            &batch
+                .assets
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>(),
         )?;
         let status_json = serde_json::to_string(&BatchStatusStored::from(batch.status.clone()))?;
 
@@ -337,7 +341,10 @@ impl Neo4jAssetRepository {
     }
 
     /// List all non-terminal batches for a specific world
-    pub async fn list_active_batches_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<GenerationBatch>> {
+    pub async fn list_active_batches_by_world(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+    ) -> Result<Vec<GenerationBatch>> {
         let q = query(
             "MATCH (b:GenerationBatch)
             WHERE b.world_id = $world_id
@@ -426,9 +433,8 @@ impl Neo4jAssetRepository {
 
     /// Update batch with generated assets
     pub async fn update_batch_assets(&self, id: BatchId, assets: &[AssetId]) -> Result<()> {
-        let assets_json = serde_json::to_string(
-            &assets.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-        )?;
+        let assets_json =
+            serde_json::to_string(&assets.iter().map(|id| id.to_string()).collect::<Vec<_>>())?;
 
         let q = query(
             "MATCH (b:GenerationBatch {id: $id})
@@ -497,7 +503,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset> {
 
 fn row_to_generation_batch(row: Row) -> Result<GenerationBatch> {
     use wrldbldr_domain::WorldId;
-    
+
     let node: neo4rs::Node = row.get("b")?;
 
     let id_str: String = node.get("id")?;
@@ -669,7 +675,11 @@ impl AssetRepositoryPort for Neo4jAssetRepository {
         Neo4jAssetRepository::get_asset(self, id).await
     }
 
-    async fn list_for_entity(&self, entity_type: &str, entity_id: &str) -> Result<Vec<GalleryAsset>> {
+    async fn list_for_entity(
+        &self,
+        entity_type: &str,
+        entity_id: &str,
+    ) -> Result<Vec<GalleryAsset>> {
         let entity_type = parse_entity_type(entity_type);
         Neo4jAssetRepository::list_by_entity(self, entity_type, entity_id).await
     }
@@ -702,7 +712,10 @@ impl AssetRepositoryPort for Neo4jAssetRepository {
         Neo4jAssetRepository::update_batch_assets(self, id, assets).await
     }
 
-    async fn list_active_batches_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<GenerationBatch>> {
+    async fn list_active_batches_by_world(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+    ) -> Result<Vec<GenerationBatch>> {
         Neo4jAssetRepository::list_active_batches_by_world(self, world_id).await
     }
 

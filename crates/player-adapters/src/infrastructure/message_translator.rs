@@ -10,13 +10,13 @@
 //! The Raw variant is available for future extensibility but currently unused.
 
 use wrldbldr_player_app::application::dto::player_events::{
-    ActantialViewData, CharacterData, CharacterPosition, ChallengeSuggestionInfo,
-    ChallengeSuggestionOutcomes, ConnectedUser, DialogueChoice, EntityChangedData, GameTime,
-    GoalData, InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData,
-    NavigationExit, NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo,
-    OutcomeBranchData, OutcomeDetailData, PlayerEvent, PreviousStagingInfo, ProposedToolInfo,
-    RegionData, RegionItemData, ResponseResult, SceneData, SplitPartyLocation, StagedNpcInfo,
-    WaitingPcInfo, WantData, WantTargetData, WorldRole,
+    ActantialViewData, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, CharacterData,
+    CharacterPosition, ConnectedUser, DialogueChoice, EntityChangedData, GameTime, GoalData,
+    InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData, NavigationExit,
+    NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo, OutcomeBranchData,
+    OutcomeDetailData, PlayerEvent, PreviousStagingInfo, ProposedToolInfo, RegionData,
+    RegionItemData, ResponseResult, SceneData, SplitPartyLocation, StagedNpcInfo, WaitingPcInfo,
+    WantData, WantTargetData, WorldRole,
 };
 use wrldbldr_protocol::ServerMessage;
 
@@ -38,7 +38,10 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::WorldJoined {
             world_id,
             snapshot,
-            connected_users: connected_users.into_iter().map(translate_connected_user).collect(),
+            connected_users: connected_users
+                .into_iter()
+                .map(translate_connected_user)
+                .collect(),
             your_role: WorldRole(format!("{:?}", your_role)),
             your_pc,
         },
@@ -76,8 +79,14 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             interactions,
         } => PlayerEvent::SceneUpdate {
             scene: translate_scene_data(scene),
-            characters: characters.into_iter().map(translate_character_data).collect(),
-            interactions: interactions.into_iter().map(translate_interaction_data).collect(),
+            characters: characters
+                .into_iter()
+                .map(translate_character_data)
+                .collect(),
+            interactions: interactions
+                .into_iter()
+                .map(translate_interaction_data)
+                .collect(),
         },
 
         ServerMessage::SceneChanged {
@@ -89,9 +98,15 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::SceneChanged {
             pc_id,
             region: translate_region_data(region),
-            npcs_present: npcs_present.into_iter().map(translate_npc_presence_data).collect(),
+            npcs_present: npcs_present
+                .into_iter()
+                .map(translate_npc_presence_data)
+                .collect(),
             navigation: translate_navigation_data(navigation),
-            region_items: region_items.into_iter().map(translate_region_item_data).collect(),
+            region_items: region_items
+                .into_iter()
+                .map(translate_region_item_data)
+                .collect(),
         },
 
         ServerMessage::PcSelected {
@@ -106,14 +121,19 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_id,
         },
 
-        ServerMessage::MovementBlocked { pc_id, reason } => PlayerEvent::MovementBlocked { pc_id, reason },
+        ServerMessage::MovementBlocked { pc_id, reason } => {
+            PlayerEvent::MovementBlocked { pc_id, reason }
+        }
 
         ServerMessage::SplitPartyNotification {
             location_count,
             locations,
         } => PlayerEvent::SplitPartyNotification {
             location_count,
-            locations: locations.into_iter().map(translate_split_party_location).collect(),
+            locations: locations
+                .into_iter()
+                .map(translate_split_party_location)
+                .collect(),
         },
 
         // =====================================================================
@@ -194,9 +214,13 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             npc_name,
             proposed_dialogue,
             internal_reasoning,
-            proposed_tools: proposed_tools.into_iter().map(translate_proposed_tool_info).collect(),
+            proposed_tools: proposed_tools
+                .into_iter()
+                .map(translate_proposed_tool_info)
+                .collect(),
             challenge_suggestion: challenge_suggestion.map(translate_challenge_suggestion_info),
-            narrative_event_suggestion: narrative_event_suggestion.map(translate_narrative_event_suggestion_info),
+            narrative_event_suggestion: narrative_event_suggestion
+                .map(translate_narrative_event_suggestion_info),
         },
 
         // =====================================================================
@@ -288,7 +312,10 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             total,
             outcome_type,
             outcome_description,
-            outcome_triggers: outcome_triggers.into_iter().map(translate_proposed_tool_info).collect(),
+            outcome_triggers: outcome_triggers
+                .into_iter()
+                .map(translate_proposed_tool_info)
+                .collect(),
             roll_breakdown,
         },
 
@@ -302,7 +329,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             new_outcome: translate_outcome_detail_data(new_outcome),
         },
 
-        ServerMessage::ChallengeDiscarded { request_id } => PlayerEvent::ChallengeDiscarded { request_id },
+        ServerMessage::ChallengeDiscarded { request_id } => {
+            PlayerEvent::ChallengeDiscarded { request_id }
+        }
 
         ServerMessage::AdHocChallengeCreated {
             challenge_id,
@@ -329,7 +358,10 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::OutcomeBranchesReady {
             resolution_id,
             outcome_type,
-            branches: branches.into_iter().map(translate_outcome_branch_data).collect(),
+            branches: branches
+                .into_iter()
+                .map(translate_outcome_branch_data)
+                .collect(),
         },
 
         // =====================================================================
@@ -361,9 +393,13 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             reveal,
         },
 
-        ServerMessage::LocationEvent { region_id, description } => {
-            PlayerEvent::LocationEvent { region_id, description }
-        }
+        ServerMessage::LocationEvent {
+            region_id,
+            description,
+        } => PlayerEvent::LocationEvent {
+            region_id,
+            description,
+        },
 
         ServerMessage::NpcLocationShared {
             npc_id,
@@ -400,19 +436,38 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             location_name,
             game_time: translate_game_time(game_time),
             previous_staging: previous_staging.map(translate_previous_staging_info),
-            rule_based_npcs: rule_based_npcs.into_iter().map(translate_staged_npc_info).collect(),
-            llm_based_npcs: llm_based_npcs.into_iter().map(translate_staged_npc_info).collect(),
+            rule_based_npcs: rule_based_npcs
+                .into_iter()
+                .map(translate_staged_npc_info)
+                .collect(),
+            llm_based_npcs: llm_based_npcs
+                .into_iter()
+                .map(translate_staged_npc_info)
+                .collect(),
             default_ttl_hours,
-            waiting_pcs: waiting_pcs.into_iter().map(translate_waiting_pc_info).collect(),
+            waiting_pcs: waiting_pcs
+                .into_iter()
+                .map(translate_waiting_pc_info)
+                .collect(),
         },
 
-        ServerMessage::StagingPending { region_id, region_name } => {
-            PlayerEvent::StagingPending { region_id, region_name }
-        }
-
-        ServerMessage::StagingReady { region_id, npcs_present } => PlayerEvent::StagingReady {
+        ServerMessage::StagingPending {
             region_id,
-            npcs_present: npcs_present.into_iter().map(translate_npc_present_info).collect(),
+            region_name,
+        } => PlayerEvent::StagingPending {
+            region_id,
+            region_name,
+        },
+
+        ServerMessage::StagingReady {
+            region_id,
+            npcs_present,
+        } => PlayerEvent::StagingReady {
+            region_id,
+            npcs_present: npcs_present
+                .into_iter()
+                .map(translate_npc_present_info)
+                .collect(),
         },
 
         ServerMessage::StagingRegenerated {
@@ -420,7 +475,10 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             llm_based_npcs,
         } => PlayerEvent::StagingRegenerated {
             request_id,
-            llm_based_npcs: llm_based_npcs.into_iter().map(translate_staged_npc_info).collect(),
+            llm_based_npcs: llm_based_npcs
+                .into_iter()
+                .map(translate_staged_npc_info)
+                .collect(),
         },
 
         // =====================================================================
@@ -507,12 +565,16 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             reason,
         },
 
-        ServerMessage::NpcDispositionsResponse { pc_id, dispositions } => {
-            PlayerEvent::NpcDispositionsResponse {
-                pc_id,
-                dispositions: dispositions.into_iter().map(translate_npc_disposition_data).collect(),
-            }
-        }
+        ServerMessage::NpcDispositionsResponse {
+            pc_id,
+            dispositions,
+        } => PlayerEvent::NpcDispositionsResponse {
+            pc_id,
+            dispositions: dispositions
+                .into_iter()
+                .map(translate_npc_disposition_data)
+                .collect(),
+        },
 
         // =====================================================================
         // Actantial Model Events
@@ -527,7 +589,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             want: translate_want_data(want),
         },
 
-        ServerMessage::NpcWantDeleted { npc_id, want_id } => PlayerEvent::NpcWantDeleted { npc_id, want_id },
+        ServerMessage::NpcWantDeleted { npc_id, want_id } => {
+            PlayerEvent::NpcWantDeleted { npc_id, want_id }
+        }
 
         ServerMessage::WantTargetSet { want_id, target } => PlayerEvent::WantTargetSet {
             want_id,
@@ -597,9 +661,13 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             suggestions,
         },
 
-        ServerMessage::WantDescriptionSuggestions { npc_id, suggestions } => {
-            PlayerEvent::WantDescriptionSuggestions { npc_id, suggestions }
-        }
+        ServerMessage::WantDescriptionSuggestions {
+            npc_id,
+            suggestions,
+        } => PlayerEvent::WantDescriptionSuggestions {
+            npc_id,
+            suggestions,
+        },
 
         ServerMessage::ActantialReasonSuggestions {
             npc_id,
@@ -636,11 +704,17 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             PlayerEvent::GenerationProgress { batch_id, progress }
         }
 
-        ServerMessage::GenerationComplete { batch_id, asset_count } => {
-            PlayerEvent::GenerationComplete { batch_id, asset_count }
-        }
+        ServerMessage::GenerationComplete {
+            batch_id,
+            asset_count,
+        } => PlayerEvent::GenerationComplete {
+            batch_id,
+            asset_count,
+        },
 
-        ServerMessage::GenerationFailed { batch_id, error } => PlayerEvent::GenerationFailed { batch_id, error },
+        ServerMessage::GenerationFailed { batch_id, error } => {
+            PlayerEvent::GenerationFailed { batch_id, error }
+        }
 
         ServerMessage::SuggestionQueued {
             request_id,
@@ -693,7 +767,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             result: translate_response_result(result),
         },
 
-        ServerMessage::EntityChanged(data) => PlayerEvent::EntityChanged(translate_entity_changed_data(data)),
+        ServerMessage::EntityChanged(data) => {
+            PlayerEvent::EntityChanged(translate_entity_changed_data(data))
+        }
 
         ServerMessage::SpectateTargetChanged { pc_id, pc_name } => {
             PlayerEvent::SpectateTargetChanged { pc_id, pc_name }
@@ -755,9 +831,8 @@ fn translate_character_position(p: wrldbldr_protocol::CharacterPosition) -> Char
         wrldbldr_protocol::CharacterPosition::Left => CharacterPosition::Left,
         wrldbldr_protocol::CharacterPosition::Center => CharacterPosition::Center,
         wrldbldr_protocol::CharacterPosition::Right => CharacterPosition::Right,
-        wrldbldr_protocol::CharacterPosition::OffScreen | wrldbldr_protocol::CharacterPosition::Unknown => {
-            CharacterPosition::OffScreen
-        }
+        wrldbldr_protocol::CharacterPosition::OffScreen
+        | wrldbldr_protocol::CharacterPosition::Unknown => CharacterPosition::OffScreen,
     }
 }
 
@@ -802,7 +877,11 @@ fn translate_npc_presence_data(n: wrldbldr_protocol::NpcPresenceData) -> NpcPres
 
 fn translate_navigation_data(n: wrldbldr_protocol::NavigationData) -> NavigationData {
     NavigationData {
-        connected_regions: n.connected_regions.into_iter().map(translate_navigation_target).collect(),
+        connected_regions: n
+            .connected_regions
+            .into_iter()
+            .map(translate_navigation_target)
+            .collect(),
         exits: n.exits.into_iter().map(translate_navigation_exit).collect(),
     }
 }
@@ -891,7 +970,11 @@ fn translate_outcome_detail_data(o: wrldbldr_protocol::OutcomeDetailData) -> Out
     OutcomeDetailData {
         flavor_text: o.flavor_text,
         scene_direction: o.scene_direction,
-        proposed_tools: o.proposed_tools.into_iter().map(translate_proposed_tool_info).collect(),
+        proposed_tools: o
+            .proposed_tools
+            .into_iter()
+            .map(translate_proposed_tool_info)
+            .collect(),
     }
 }
 
@@ -913,7 +996,9 @@ fn translate_game_time(t: wrldbldr_protocol::types::GameTime) -> GameTime {
     }
 }
 
-fn translate_previous_staging_info(p: wrldbldr_protocol::PreviousStagingInfo) -> PreviousStagingInfo {
+fn translate_previous_staging_info(
+    p: wrldbldr_protocol::PreviousStagingInfo,
+) -> PreviousStagingInfo {
     PreviousStagingInfo {
         staging_id: p.staging_id,
         approved_at: p.approved_at,
@@ -1013,7 +1098,11 @@ fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) ->
             error_message: None,
             error_details: None,
         },
-        wrldbldr_protocol::responses::ResponseResult::Error { code, message, details } => ResponseResult {
+        wrldbldr_protocol::responses::ResponseResult::Error {
+            code,
+            message,
+            details,
+        } => ResponseResult {
             success: false,
             data: None,
             error_code: Some(format!("{:?}", code)),
@@ -1030,7 +1119,9 @@ fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) ->
     }
 }
 
-fn translate_entity_changed_data(e: wrldbldr_protocol::responses::EntityChangedData) -> EntityChangedData {
+fn translate_entity_changed_data(
+    e: wrldbldr_protocol::responses::EntityChangedData,
+) -> EntityChangedData {
     EntityChangedData {
         entity_type: format!("{:?}", e.entity_type),
         entity_id: e.entity_id,

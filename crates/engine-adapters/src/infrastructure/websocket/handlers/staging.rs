@@ -9,8 +9,7 @@ use crate::infrastructure::state::AppState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, RegionId};
 use wrldbldr_engine_app::application::use_cases::{
-    ApproveInput, ApprovedNpc, PreStageInput, RegenerateInput,
-    StagingApprovalSource,
+    ApproveInput, ApprovedNpc, PreStageInput, RegenerateInput, StagingApprovalSource,
 };
 use wrldbldr_protocol::{ApprovedNpcInfo, ServerMessage, StagedNpcInfo};
 

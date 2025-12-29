@@ -129,7 +129,7 @@ fn RegionItemCard(props: RegionItemCardProps) -> Element {
             // Item details
             div {
                 class: "flex-1 min-w-0",
-                
+
                 // Name and type
                 div {
                     class: "flex items-center gap-2 flex-wrap",

@@ -4,7 +4,9 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{CharacterData as SceneCharacterState, CharacterPosition};
+use wrldbldr_player_app::application::dto::{
+    CharacterData as SceneCharacterState, CharacterPosition,
+};
 
 /// Props for the CharacterSprite component
 #[derive(Props, Clone, PartialEq)]
@@ -45,7 +47,10 @@ pub fn CharacterSprite(props: CharacterSpriteProps) -> Element {
     let character_name = props.character.name.clone();
     let has_click = props.on_click.is_some();
     let cursor_style = if has_click { "pointer" } else { "default" };
-    let full_style = format!("{} transition: filter 0.3s, transform 0.3s; cursor: {};", speaking_style, cursor_style);
+    let full_style = format!(
+        "{} transition: filter 0.3s, transform 0.3s; cursor: {};",
+        speaking_style, cursor_style
+    );
 
     rsx! {
         div {

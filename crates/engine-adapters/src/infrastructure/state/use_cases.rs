@@ -29,8 +29,9 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_app::application::dto::{ApprovalItem, LLMRequestItem, PlayerActionItem};
+use wrldbldr_domain::value_objects::{ApprovalRequestData, LlmRequestData, PlayerActionData};
 use wrldbldr_engine_app::application::services::staging_service::StagingService;
+use wrldbldr_engine_app::application::services::NarrativeEventServiceImpl;
 use wrldbldr_engine_app::application::services::{
     ChallengeOutcomeApprovalService, ChallengeResolutionService, ChallengeService,
     DMApprovalQueueService, InteractionService, ItemService, NarrativeEventApprovalService,
@@ -40,7 +41,6 @@ use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
     ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
 };
-use wrldbldr_engine_app::application::services::NarrativeEventServiceImpl;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, ClockPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, LlmPort,
@@ -53,9 +53,9 @@ use crate::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
     ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
     DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
-    InteractionServiceAdapter, PlayerActionQueueAdapter,
-    PlayerCharacterServiceAdapter, SceneServiceAdapter, SceneWorldStateAdapter,
-    StagingServiceAdapter, StagingStateAdapter, WorldMessageAdapter, WorldServiceAdapter,
+    InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
+    SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
+    WorldMessageAdapter, WorldServiceAdapter,
 };
 use crate::infrastructure::queues::QueueBackendEnum;
 use crate::infrastructure::websocket::WebSocketBroadcastAdapter;
@@ -138,11 +138,15 @@ impl UseCases {
         world_service: Arc<dyn WorldService>,
         pc_service: Arc<dyn PlayerCharacterService>,
         // Challenge dependencies
-        challenge_resolution_service: Arc<ChallengeResolutionService<CS, KS, QueueBackendEnum<ApprovalItem>, PCS, COAL, IS>>,
+        challenge_resolution_service: Arc<
+            ChallengeResolutionService<CS, KS, QueueBackendEnum<ApprovalRequestData>, PCS, COAL, IS>,
+        >,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<COAL>>,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalItem>, IS>>,
+        dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, IS>>,
         // Narrative event dependencies
-        narrative_event_approval_service: Arc<NarrativeEventApprovalService<NarrativeEventServiceImpl>>,
+        narrative_event_approval_service: Arc<
+            NarrativeEventApprovalService<NarrativeEventServiceImpl>,
+        >,
         // Clock for time operations
         clock: Arc<dyn ClockPort>,
     ) -> Self
@@ -151,8 +155,8 @@ impl UseCases {
         R: RegionRepositoryPort + Send + Sync + 'static,
         N: NarrativeEventRepositoryPort + Send + Sync + 'static,
         S: StagingRepositoryPort + Send + Sync + 'static,
-        PAQ: QueuePort<PlayerActionItem> + Send + Sync + 'static,
-        LQ: ProcessingQueuePort<LLMRequestItem> + Send + Sync + 'static,
+        PAQ: QueuePort<PlayerActionData> + Send + Sync + 'static,
+        LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
         COAL: LlmPort + Send + Sync + 'static,
         IS: ItemService + Send + Sync + 'static,
         CS: ChallengeService + Send + Sync + 'static,
@@ -236,12 +240,15 @@ impl UseCases {
         // Challenge Use Case
         // =========================================================================
         // Adapter wraps the ChallengeResolutionService to implement ChallengeResolutionPort
-        let challenge_resolution_adapter =
-            Arc::new(ChallengeResolutionAdapter::new(challenge_resolution_service));
-        let challenge_outcome_adapter =
-            Arc::new(ChallengeOutcomeApprovalAdapter::new(challenge_outcome_approval_service));
-        let challenge_dm_queue_adapter =
-            Arc::new(ChallengeDmApprovalQueueAdapter::new(dm_approval_queue_service));
+        let challenge_resolution_adapter = Arc::new(ChallengeResolutionAdapter::new(
+            challenge_resolution_service,
+        ));
+        let challenge_outcome_adapter = Arc::new(ChallengeOutcomeApprovalAdapter::new(
+            challenge_outcome_approval_service,
+        ));
+        let challenge_dm_queue_adapter = Arc::new(ChallengeDmApprovalQueueAdapter::new(
+            dm_approval_queue_service,
+        ));
 
         let challenge = Arc::new(ChallengeUseCase::new(
             challenge_resolution_adapter,
@@ -254,9 +261,12 @@ impl UseCases {
         // Scene Use Case
         // =========================================================================
         let scene_service_adapter = Arc::new(SceneServiceAdapter::new(scene_service));
-        let interaction_service_adapter = Arc::new(InteractionServiceAdapter::new(interaction_service));
+        let interaction_service_adapter =
+            Arc::new(InteractionServiceAdapter::new(interaction_service));
         let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(world_state.clone()));
-        let scene_directorial_adapter = Arc::new(DirectorialContextAdapter::new(directorial_context_repo.clone()));
+        let scene_directorial_adapter = Arc::new(DirectorialContextAdapter::new(
+            directorial_context_repo.clone(),
+        ));
         let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
 
         let scene = Arc::new(SceneUseCase::new(
@@ -271,12 +281,15 @@ impl UseCases {
         // =========================================================================
         // Connection Use Case
         // =========================================================================
-        let connection_manager_adapter = Arc::new(ConnectionManagerAdapter::new(connection_manager));
+        let connection_manager_adapter =
+            Arc::new(ConnectionManagerAdapter::new(connection_manager));
         let world_service_adapter = Arc::new(WorldServiceAdapter::new(world_service));
         let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(pc_service));
-        let connection_directorial_adapter =
-            Arc::new(ConnectionDirectorialContextAdapter::new(directorial_context_repo));
-        let connection_world_state_adapter = Arc::new(ConnectionWorldStateAdapter::new(world_state));
+        let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
+            directorial_context_repo,
+        ));
+        let connection_world_state_adapter =
+            Arc::new(ConnectionWorldStateAdapter::new(world_state));
 
         let connection = Arc::new(ConnectionUseCase::new(
             connection_manager_adapter,

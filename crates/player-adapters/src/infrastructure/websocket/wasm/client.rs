@@ -12,7 +12,9 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MessageEvent, WebSocket};
 
-use wrldbldr_protocol::{ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage};
+use wrldbldr_protocol::{
+    ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
+};
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
@@ -104,24 +106,29 @@ impl EngineClient {
     }
 
     /// Send a request and get a future that resolves when response arrives
-    pub fn request(&self, payload: RequestPayload) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
+    pub fn request(
+        &self,
+        payload: RequestPayload,
+    ) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
         let request_id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
-        
+
         // Store the sender as a callback
         self.pending_requests.borrow_mut().insert(
             request_id.clone(),
-            Box::new(move |result| { let _ = tx.send(result); })
+            Box::new(move |result| {
+                let _ = tx.send(result);
+            }),
         );
-        
+
         // Send the message
-        let msg = ClientMessage::Request { 
-            request_id: request_id.clone(), 
-            payload 
+        let msg = ClientMessage::Request {
+            request_id: request_id.clone(),
+            payload,
         };
-        
+
         let send_result = self.send(msg);
-        
+
         async move {
             send_result.map_err(|e| RequestError::SendFailed(e.to_string()))?;
             rx.await.map_err(|_| RequestError::Cancelled)
@@ -164,7 +171,9 @@ impl EngineClient {
                 Either::Left((result, _)) => result.map_err(|_| RequestError::Cancelled),
                 Either::Right((_, _)) => {
                     // Timeout - remove from pending requests to prevent leak
-                    pending_requests.borrow_mut().remove(&request_id_for_cleanup);
+                    pending_requests
+                        .borrow_mut()
+                        .remove(&request_id_for_cleanup);
                     tracing::debug!(
                         "Request {} timed out, removed from pending",
                         request_id_for_cleanup
@@ -182,9 +191,8 @@ impl EngineClient {
 
         self.set_state(ConnectionState::Connecting);
 
-        let ws = WebSocket::new(&self.url).map_err(|e| {
-            anyhow::anyhow!("Failed to create WebSocket: {:?}", e)
-        })?;
+        let ws = WebSocket::new(&self.url)
+            .map_err(|e| anyhow::anyhow!("Failed to create WebSocket: {:?}", e))?;
 
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
@@ -233,25 +241,29 @@ impl EngineClient {
         let reconnect_delay = Rc::clone(&self.reconnect_delay);
         let onopen_callback = Closure::<dyn FnMut()>::new(move || {
             *state.borrow_mut() = ConnectionState::Connected;
-            
+
             // Reset reconnection state on successful connection
             *reconnect_attempts.borrow_mut() = 0;
             *reconnect_delay.borrow_mut() = INITIAL_RETRY_DELAY_MS;
-            
+
             if let Some(ref mut cb) = *on_state_change.borrow_mut() {
                 cb(ConnectionState::Connected);
             }
             web_sys::console::log_1(&"WebSocket connected".into());
-            
+
             // Flush buffered messages
             let mut buffer = message_buffer.borrow_mut();
             if !buffer.is_empty() {
-                web_sys::console::log_1(&format!("Flushing {} buffered messages", buffer.len()).into());
+                web_sys::console::log_1(
+                    &format!("Flushing {} buffered messages", buffer.len()).into(),
+                );
                 if let Some(ref ws) = *ws_for_open.borrow() {
                     while let Some(msg) = buffer.pop_front() {
                         if let Ok(json) = serde_json::to_string(&msg) {
                             if let Err(e) = ws.send_with_str(&json) {
-                                web_sys::console::warn_1(&format!("Failed to send buffered message: {:?}", e).into());
+                                web_sys::console::warn_1(
+                                    &format!("Failed to send buffered message: {:?}", e).into(),
+                                );
                                 // Re-add failed message to front of buffer
                                 buffer.push_front(msg);
                                 break;
@@ -270,7 +282,7 @@ impl EngineClient {
         let client_clone = self.clone();
         let onclose_callback = Closure::<dyn FnMut()>::new(move || {
             let intentional = *intentional_disconnect.borrow();
-            
+
             if intentional {
                 *state.borrow_mut() = ConnectionState::Disconnected;
                 if let Some(ref mut cb) = *on_state_change.borrow_mut() {
@@ -278,7 +290,9 @@ impl EngineClient {
                 }
                 web_sys::console::log_1(&"WebSocket closed (intentional)".into());
             } else {
-                web_sys::console::log_1(&"WebSocket closed unexpectedly, attempting reconnection".into());
+                web_sys::console::log_1(
+                    &"WebSocket closed unexpectedly, attempting reconnection".into(),
+                );
                 // Trigger reconnection
                 let client = client_clone.clone();
                 spawn_local(async move {
@@ -351,7 +365,9 @@ impl EngineClient {
 
         // Check again if disconnect was requested during the wait
         if *self.intentional_disconnect.borrow() {
-            web_sys::console::log_1(&"Reconnection cancelled during wait - intentional disconnect".into());
+            web_sys::console::log_1(
+                &"Reconnection cancelled during wait - intentional disconnect".into(),
+            );
             self.set_state(ConnectionState::Disconnected);
             return;
         }
@@ -375,20 +391,20 @@ impl EngineClient {
         // Reset reconnection state
         *self.reconnect_attempts.borrow_mut() = 0;
         *self.reconnect_delay.borrow_mut() = INITIAL_RETRY_DELAY_MS;
-        
+
         self.connect_internal()
     }
 
     pub fn send(&self, message: ClientMessage) -> Result<()> {
         let current_state = self.state();
-        
+
         // Buffer messages during reconnection
         if current_state == ConnectionState::Reconnecting {
             self.message_buffer.borrow_mut().push_back(message);
             web_sys::console::log_1(&"Message buffered during reconnection".into());
             return Ok(());
         }
-        
+
         if let Some(ref ws) = *self.ws.borrow() {
             let json = serde_json::to_string(&message)?;
             ws.send_with_str(&json)
@@ -399,12 +415,7 @@ impl EngineClient {
         }
     }
 
-    pub fn join_world(
-        &self,
-        world_id: &str,
-        _user_id: &str,
-        role: ParticipantRole,
-    ) -> Result<()> {
+    pub fn join_world(&self, world_id: &str, _user_id: &str, role: ParticipantRole) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role);
 
@@ -436,24 +447,28 @@ impl EngineClient {
     pub fn disconnect(&self) {
         // Mark this as intentional to prevent reconnection attempts
         *self.intentional_disconnect.borrow_mut() = true;
-        
+
         // Clear pending requests - dropping callbacks causes Cancelled errors for waiters
         {
             let mut pending = self.pending_requests.borrow_mut();
             let count = pending.len();
             pending.clear();
             if count > 0 {
-                web_sys::console::log_1(&format!("Cleared {} pending requests on disconnect", count).into());
+                web_sys::console::log_1(
+                    &format!("Cleared {} pending requests on disconnect", count).into(),
+                );
             }
         }
-        
+
         // Clear message buffer
         {
             let mut buffer = self.message_buffer.borrow_mut();
             let count = buffer.len();
             buffer.clear();
             if count > 0 {
-                web_sys::console::log_1(&format!("Cleared {} buffered messages on disconnect", count).into());
+                web_sys::console::log_1(
+                    &format!("Cleared {} buffered messages on disconnect", count).into(),
+                );
             }
         }
 

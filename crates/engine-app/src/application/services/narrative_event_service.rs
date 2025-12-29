@@ -18,9 +18,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
 use wrldbldr_domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
+use wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort;
 
 /// NarrativeEvent service trait defining the application use cases
 #[async_trait]
@@ -56,7 +56,11 @@ pub trait NarrativeEventService: Send + Sync {
     async fn set_active(&self, id: NarrativeEventId, is_active: bool) -> Result<bool>;
 
     /// Mark event as triggered
-    async fn mark_triggered(&self, id: NarrativeEventId, outcome_name: Option<String>) -> Result<bool>;
+    async fn mark_triggered(
+        &self,
+        id: NarrativeEventId,
+        outcome_name: Option<String>,
+    ) -> Result<bool>;
 
     /// Reset triggered status (for repeatable events)
     async fn reset_triggered(&self, id: NarrativeEventId) -> Result<bool>;
@@ -79,7 +83,11 @@ pub trait NarrativeEventService: Send + Sync {
     // =========================================================================
 
     /// Tie event to a location (creates TIED_TO_LOCATION edge)
-    async fn tie_to_location(&self, event_id: NarrativeEventId, location_id: LocationId) -> Result<bool>;
+    async fn tie_to_location(
+        &self,
+        event_id: NarrativeEventId,
+        location_id: LocationId,
+    ) -> Result<bool>;
 
     /// Get the location this event is tied to (if any)
     async fn get_tied_location(&self, event_id: NarrativeEventId) -> Result<Option<LocationId>>;
@@ -105,23 +113,39 @@ pub trait NarrativeEventService: Send + Sync {
     // =========================================================================
 
     /// Add a featured NPC to the event (creates FEATURES_NPC edge)
-    async fn add_featured_npc(&self, event_id: NarrativeEventId, featured_npc: FeaturedNpc) -> Result<bool>;
+    async fn add_featured_npc(
+        &self,
+        event_id: NarrativeEventId,
+        featured_npc: FeaturedNpc,
+    ) -> Result<bool>;
 
     /// Get all featured NPCs for an event
     async fn get_featured_npcs(&self, event_id: NarrativeEventId) -> Result<Vec<FeaturedNpc>>;
 
     /// Remove a featured NPC from the event (deletes FEATURES_NPC edge)
-    async fn remove_featured_npc(&self, event_id: NarrativeEventId, character_id: CharacterId) -> Result<bool>;
+    async fn remove_featured_npc(
+        &self,
+        event_id: NarrativeEventId,
+        character_id: CharacterId,
+    ) -> Result<bool>;
 
     /// Update featured NPC role
-    async fn update_featured_npc_role(&self, event_id: NarrativeEventId, character_id: CharacterId, role: Option<String>) -> Result<bool>;
+    async fn update_featured_npc_role(
+        &self,
+        event_id: NarrativeEventId,
+        character_id: CharacterId,
+        role: Option<String>,
+    ) -> Result<bool>;
 
     // =========================================================================
     // Chain Membership Query Methods
     // =========================================================================
 
     /// Get chain membership info for an event
-    async fn get_chain_memberships(&self, event_id: NarrativeEventId) -> Result<Vec<EventChainMembership>>;
+    async fn get_chain_memberships(
+        &self,
+        event_id: NarrativeEventId,
+    ) -> Result<Vec<EventChainMembership>>;
 
     // =========================================================================
     // Query Methods for Events by Edge Relationships
@@ -152,8 +176,14 @@ pub struct NarrativeEventServiceImpl {
 
 impl NarrativeEventServiceImpl {
     /// Create a new NarrativeEventServiceImpl with the given repository
-    pub fn new(repository: Arc<dyn NarrativeEventRepositoryPort>, event_bus: Arc<dyn EventBusPort>) -> Self {
-        Self { repository, event_bus }
+    pub fn new(
+        repository: Arc<dyn NarrativeEventRepositoryPort>,
+        event_bus: Arc<dyn EventBusPort>,
+    ) -> Self {
+        Self {
+            repository,
+            event_bus,
+        }
     }
 }
 
@@ -269,21 +299,26 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn mark_triggered(&self, id: NarrativeEventId, outcome_name: Option<String>) -> Result<bool> {
+    async fn mark_triggered(
+        &self,
+        id: NarrativeEventId,
+        outcome_name: Option<String>,
+    ) -> Result<bool> {
         info!(
             event_id = %id,
             outcome = ?outcome_name,
             "Marking narrative event as triggered"
         );
-        
+
         // Get the event details before marking as triggered
         let event = self.repository.get(id).await?;
-        
-        let result = self.repository
+
+        let result = self
+            .repository
             .mark_triggered(id, outcome_name.clone())
             .await
             .context("Failed to mark narrative event as triggered")?;
-        
+
         // Publish DomainEvent if we have the event details
         if let Some(event) = event {
             let domain_event = DomainEvent::NarrativeEventTriggered {
@@ -298,10 +333,14 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             };
 
             if let Err(e) = self.event_bus.publish(domain_event).await {
-                tracing::error!("Failed to publish NarrativeEventTriggered for {}: {}", id, e);
+                tracing::error!(
+                    "Failed to publish NarrativeEventTriggered for {}: {}",
+                    id,
+                    e
+                );
             }
         }
-        
+
         Ok(result)
     }
 
@@ -350,7 +389,11 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     // =========================================================================
 
     #[instrument(skip(self))]
-    async fn tie_to_location(&self, event_id: NarrativeEventId, location_id: LocationId) -> Result<bool> {
+    async fn tie_to_location(
+        &self,
+        event_id: NarrativeEventId,
+        location_id: LocationId,
+    ) -> Result<bool> {
         debug!(event_id = %event_id, location_id = %location_id, "Tying narrative event to location");
         self.repository
             .tie_to_location(event_id, location_id)
@@ -412,7 +455,11 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     // =========================================================================
 
     #[instrument(skip(self, featured_npc))]
-    async fn add_featured_npc(&self, event_id: NarrativeEventId, featured_npc: FeaturedNpc) -> Result<bool> {
+    async fn add_featured_npc(
+        &self,
+        event_id: NarrativeEventId,
+        featured_npc: FeaturedNpc,
+    ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %featured_npc.character_id, "Adding featured NPC to narrative event");
         self.repository
             .add_featured_npc(event_id, featured_npc)
@@ -430,7 +477,11 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn remove_featured_npc(&self, event_id: NarrativeEventId, character_id: CharacterId) -> Result<bool> {
+    async fn remove_featured_npc(
+        &self,
+        event_id: NarrativeEventId,
+        character_id: CharacterId,
+    ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %character_id, "Removing featured NPC from narrative event");
         self.repository
             .remove_featured_npc(event_id, character_id)
@@ -439,7 +490,12 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn update_featured_npc_role(&self, event_id: NarrativeEventId, character_id: CharacterId, role: Option<String>) -> Result<bool> {
+    async fn update_featured_npc_role(
+        &self,
+        event_id: NarrativeEventId,
+        character_id: CharacterId,
+        role: Option<String>,
+    ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %character_id, role = ?role, "Updating featured NPC role");
         self.repository
             .update_featured_npc_role(event_id, character_id, role)
@@ -452,7 +508,10 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     // =========================================================================
 
     #[instrument(skip(self))]
-    async fn get_chain_memberships(&self, event_id: NarrativeEventId) -> Result<Vec<EventChainMembership>> {
+    async fn get_chain_memberships(
+        &self,
+        event_id: NarrativeEventId,
+    ) -> Result<Vec<EventChainMembership>> {
         debug!(event_id = %event_id, "Getting chain memberships for narrative event");
         self.repository
             .get_chain_memberships(event_id)

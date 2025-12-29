@@ -1,7 +1,7 @@
 //! WASM WebSocket implementation using web-sys
 
-mod client;
 mod adapter;
+mod client;
 
-pub use client::EngineClient;
 pub use adapter::WasmGameConnection;
+pub use client::EngineClient;

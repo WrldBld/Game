@@ -163,12 +163,15 @@ impl WorkflowService {
         for mapping in &config.prompt_mappings {
             let text = match mapping.mapping_type {
                 PromptMappingType::Primary => prompt.to_string(),
-                PromptMappingType::Negative => {
-                    negative_prompt.unwrap_or("").to_string()
-                }
+                PromptMappingType::Negative => negative_prompt.unwrap_or("").to_string(),
             };
 
-            Self::set_input(&mut workflow, &mapping.node_id, &mapping.input_name, text.into())?;
+            Self::set_input(
+                &mut workflow,
+                &mapping.node_id,
+                &mapping.input_name,
+                text.into(),
+            )?;
         }
 
         // Apply defaults (for inputs not in overrides)
@@ -283,14 +286,17 @@ impl WorkflowService {
                 .and_then(|t| t.as_str())
                 .unwrap_or("");
 
-            let is_negative = title.to_lowercase().contains("negative")
-                || title.to_lowercase().contains("neg");
+            let is_negative =
+                title.to_lowercase().contains("negative") || title.to_lowercase().contains("neg");
 
             let mapping_type = if is_negative {
                 PromptMappingType::Negative
             } else {
                 // Default to primary for the first positive prompt found
-                if mappings.iter().any(|m: &PromptMapping| m.mapping_type == PromptMappingType::Primary) {
+                if mappings
+                    .iter()
+                    .any(|m: &PromptMapping| m.mapping_type == PromptMappingType::Primary)
+                {
                     continue; // Skip additional positive prompts
                 }
                 PromptMappingType::Primary
@@ -311,7 +317,10 @@ impl WorkflowService {
     /// # Arguments
     /// * `configs` - The workflow configurations to export
     /// * `exported_at` - The timestamp to record in the export (use clock.now() from caller)
-    pub fn export_configs(configs: &[WorkflowConfiguration], exported_at: chrono::DateTime<chrono::Utc>) -> serde_json::Value {
+    pub fn export_configs(
+        configs: &[WorkflowConfiguration],
+        exported_at: chrono::DateTime<chrono::Utc>,
+    ) -> serde_json::Value {
         let exported: Vec<WorkflowConfigExportDto> =
             configs.iter().cloned().map(Into::into).collect();
         serde_json::json!({

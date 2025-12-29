@@ -2,17 +2,16 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_app::application::dto::{
-    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem, DMActionItem, LLMRequestItem,
-    PlayerActionItem,
-};
-use wrldbldr_engine_app::application::services::{
-    AssetGenerationQueueService, DMActionQueueService, DMApprovalQueueService, ItemServiceImpl, LLMQueueService,
-    PlayerActionQueueService,
-};
 use crate::infrastructure::comfyui::ComfyUIClient;
 use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::queues::QueueBackendEnum;
+use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData, PlayerActionData,
+};
+use wrldbldr_engine_app::application::services::{
+    AssetGenerationQueueService, DMApprovalQueueService, DmActionQueueService, ItemServiceImpl,
+    LLMQueueService, PlayerActionQueueService,
+};
 
 /// Queue processing services for asynchronous operations
 ///
@@ -22,28 +21,29 @@ use crate::infrastructure::queues::QueueBackendEnum;
 pub struct QueueServices {
     pub player_action_queue_service: Arc<
         PlayerActionQueueService<
-            QueueBackendEnum<PlayerActionItem>,
-            QueueBackendEnum<LLMRequestItem>,
+            QueueBackendEnum<PlayerActionData>,
+            QueueBackendEnum<LlmRequestData>,
         >,
     >,
-    pub dm_action_queue_service: Arc<DMActionQueueService<QueueBackendEnum<DMActionItem>>>,
+    pub dm_action_queue_service: Arc<DmActionQueueService<QueueBackendEnum<DmActionData>>>,
     pub llm_queue_service: Arc<
         LLMQueueService<
-            QueueBackendEnum<LLMRequestItem>,
+            QueueBackendEnum<LlmRequestData>,
             OllamaClient,
             crate::infrastructure::queues::InProcessNotifier,
         >,
     >,
     pub asset_generation_queue_service: Arc<
         AssetGenerationQueueService<
-            QueueBackendEnum<AssetGenerationItem>,
+            QueueBackendEnum<AssetGenerationData>,
             ComfyUIClient,
             crate::infrastructure::queues::InProcessNotifier,
         >,
     >,
-    pub dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalItem>, ItemServiceImpl>>,
+    pub dm_approval_queue_service:
+        Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>>,
     /// Queue for challenge outcomes awaiting DM approval
-    pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>,
+    pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
 }
 
 impl QueueServices {
@@ -51,27 +51,29 @@ impl QueueServices {
     pub fn new(
         player_action_queue_service: Arc<
             PlayerActionQueueService<
-                QueueBackendEnum<PlayerActionItem>,
-                QueueBackendEnum<LLMRequestItem>,
+                QueueBackendEnum<PlayerActionData>,
+                QueueBackendEnum<LlmRequestData>,
             >,
         >,
-        dm_action_queue_service: Arc<DMActionQueueService<QueueBackendEnum<DMActionItem>>>,
+        dm_action_queue_service: Arc<DmActionQueueService<QueueBackendEnum<DmActionData>>>,
         llm_queue_service: Arc<
             LLMQueueService<
-                QueueBackendEnum<LLMRequestItem>,
+                QueueBackendEnum<LlmRequestData>,
                 OllamaClient,
                 crate::infrastructure::queues::InProcessNotifier,
             >,
         >,
         asset_generation_queue_service: Arc<
             AssetGenerationQueueService<
-                QueueBackendEnum<AssetGenerationItem>,
+                QueueBackendEnum<AssetGenerationData>,
                 ComfyUIClient,
                 crate::infrastructure::queues::InProcessNotifier,
             >,
         >,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalItem>, ItemServiceImpl>>,
-        challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>,
+        dm_approval_queue_service: Arc<
+            DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>,
+        >,
+        challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
     ) -> Self {
         Self {
             player_action_queue_service,

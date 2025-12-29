@@ -24,12 +24,12 @@ use std::sync::Arc;
 
 use tracing::{debug, info, instrument, warn};
 
+use wrldbldr_domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ChallengeRepositoryPort, CharacterRepositoryPort, NarrativeEventRepositoryPort,
     PlayerCharacterRepositoryPort, StoryEventRepositoryPort,
 };
-use wrldbldr_domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, WorldId};
 
 // =============================================================================
 // Error Types
@@ -113,40 +113,40 @@ impl TriggerEvaluationResult {
 pub struct GameStateSnapshot {
     /// Current player location
     pub current_location_id: Option<LocationId>,
-    
+
     /// Character the player is currently talking to (if any)
     pub talking_to_character_id: Option<CharacterId>,
-    
+
     /// Challenge that was just completed (if any)
     pub just_completed_challenge: Option<CompletedChallenge>,
-    
+
     /// Narrative event that was just completed (if any)
     pub just_completed_event: Option<CompletedNarrativeEvent>,
-    
+
     /// Game flags (boolean flags set during gameplay)
     pub flags: HashMap<String, bool>,
-    
+
     /// Player inventory (item names)
     pub inventory: Vec<String>,
-    
+
     /// IDs of completed narrative events
     pub completed_event_ids: Vec<NarrativeEventId>,
-    
+
     /// Outcomes of completed events (event_id -> outcome_name)
     pub event_outcomes: HashMap<NarrativeEventId, String>,
-    
+
     /// IDs of completed challenges
     pub completed_challenge_ids: Vec<ChallengeId>,
-    
+
     /// Success status of completed challenges
     pub challenge_successes: HashMap<ChallengeId, bool>,
-    
+
     /// Turns elapsed since event (for TurnCount triggers)
     pub turns_since_event: HashMap<NarrativeEventId, u32>,
-    
+
     /// Total turn count for the session
     pub turn_count: u32,
-    
+
     /// Recent dialogue topics (keywords from conversation)
     pub recent_dialogue_topics: Vec<String>,
 }
@@ -287,7 +287,12 @@ impl TriggerEvaluationService {
 
         // Sort by priority (higher priority first)
         ready_to_trigger.sort_by(|a, b| b.event.priority.cmp(&a.event.priority));
-        partially_satisfied.sort_by(|a, b| b.evaluation.confidence.partial_cmp(&a.evaluation.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        partially_satisfied.sort_by(|a, b| {
+            b.evaluation
+                .confidence
+                .partial_cmp(&a.evaluation.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let total = ready_to_trigger.len() + partially_satisfied.len();
 
@@ -406,11 +411,20 @@ impl TriggerEvaluationService {
 
         for story_event in story_events {
             // Check if this story event records a challenge
-            if let Ok(Some(challenge_id)) = self.story_event_repo.get_recorded_challenge(story_event.id).await {
+            if let Ok(Some(challenge_id)) = self
+                .story_event_repo
+                .get_recorded_challenge(story_event.id)
+                .await
+            {
                 snapshot.completed_challenge_ids.push(challenge_id);
                 // Determine success from story event tags or data
-                let was_success = story_event.tags.iter().any(|t| t == "success" || t == "challenge_success");
-                snapshot.challenge_successes.insert(challenge_id, was_success);
+                let was_success = story_event
+                    .tags
+                    .iter()
+                    .any(|t| t == "success" || t == "challenge_success");
+                snapshot
+                    .challenge_successes
+                    .insert(challenge_id, was_success);
             }
         }
 
@@ -419,13 +433,19 @@ impl TriggerEvaluationService {
             if let Some(challenge) = ctx.just_completed_challenge {
                 snapshot.just_completed_challenge = Some(challenge.clone());
                 // Also add to the completed lists
-                snapshot.completed_challenge_ids.push(challenge.challenge_id);
-                snapshot.challenge_successes.insert(challenge.challenge_id, challenge.was_successful);
+                snapshot
+                    .completed_challenge_ids
+                    .push(challenge.challenge_id);
+                snapshot
+                    .challenge_successes
+                    .insert(challenge.challenge_id, challenge.was_successful);
             }
             if let Some(event) = ctx.just_completed_event {
                 snapshot.just_completed_event = Some(event.clone());
                 snapshot.completed_event_ids.push(event.event_id);
-                snapshot.event_outcomes.insert(event.event_id, event.outcome_name.clone());
+                snapshot
+                    .event_outcomes
+                    .insert(event.event_id, event.outcome_name.clone());
             }
             if let Some(char_id) = ctx.talking_to_character_id {
                 snapshot.talking_to_character_id = Some(char_id);
@@ -499,19 +519,19 @@ impl TriggerEvaluationService {
 pub struct ImmediateContext {
     /// Challenge that was just completed this turn
     pub just_completed_challenge: Option<CompletedChallenge>,
-    
+
     /// Narrative event that was just completed this turn
     pub just_completed_event: Option<CompletedNarrativeEvent>,
-    
+
     /// Character being talked to
     pub talking_to_character_id: Option<CharacterId>,
-    
+
     /// Recent dialogue topics from this conversation
     pub recent_dialogue_topics: Vec<String>,
-    
+
     /// Current game flags
     pub game_flags: HashMap<String, bool>,
-    
+
     /// Current turn count
     pub turn_count: u32,
 }

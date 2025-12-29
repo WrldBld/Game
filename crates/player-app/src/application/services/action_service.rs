@@ -8,8 +8,8 @@ use anyhow::Result;
 
 use std::sync::Arc;
 
-use wrldbldr_player_ports::outbound::GameConnectionPort;
 use crate::application::dto::PlayerAction;
+use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Service for sending player actions to the Engine via WebSocket
 ///

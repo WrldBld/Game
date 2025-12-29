@@ -43,7 +43,6 @@ pub struct GamePromptRequest {
     // These fields are populated in build_prompt_from_action and propagated
     // through LLMRequestItem -> ApprovalItem for use in record_dialogue_exchange
     // =========================================================================
-
     /// Current scene ID (UUID string) for story event recording
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene_id: Option<String>,

@@ -364,7 +364,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Connection Events
     // =========================================================================
-
     /// Successfully joined a world
     WorldJoined {
         world_id: Uuid,
@@ -375,10 +374,7 @@ pub enum PlayerEvent {
     },
 
     /// Failed to join a world
-    WorldJoinFailed {
-        world_id: Uuid,
-        error: JoinError,
-    },
+    WorldJoinFailed { world_id: Uuid, error: JoinError },
 
     /// Another user joined the world
     UserJoined {
@@ -389,9 +385,7 @@ pub enum PlayerEvent {
     },
 
     /// A user left the world
-    UserLeft {
-        user_id: String,
-    },
+    UserLeft { user_id: String },
 
     /// Heartbeat response
     Pong,
@@ -399,7 +393,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Scene & Navigation Events
     // =========================================================================
-
     /// Scene update with characters and interactions
     SceneUpdate {
         scene: SceneData,
@@ -425,10 +418,7 @@ pub enum PlayerEvent {
     },
 
     /// Movement was blocked
-    MovementBlocked {
-        pc_id: String,
-        reason: String,
-    },
+    MovementBlocked { pc_id: String, reason: String },
 
     /// Party is split across multiple locations (DM only)
     SplitPartyNotification {
@@ -439,7 +429,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Action & Queue Events
     // =========================================================================
-
     /// Player action was received
     ActionReceived {
         action_id: String,
@@ -456,9 +445,7 @@ pub enum PlayerEvent {
     },
 
     /// LLM is processing (DM only)
-    LLMProcessing {
-        action_id: String,
-    },
+    LLMProcessing { action_id: String },
 
     /// Queue status update (DM only)
     QueueStatus {
@@ -471,7 +458,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Dialogue Events
     // =========================================================================
-
     /// NPC dialogue response
     DialogueResponse {
         speaker_id: String,
@@ -489,7 +475,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Approval Events (DM)
     // =========================================================================
-
     /// Approval required (DM only)
     ApprovalRequired {
         request_id: String,
@@ -504,7 +489,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Challenge Events
     // =========================================================================
-
     /// Challenge prompt sent to player
     ChallengePrompt {
         challenge_id: String,
@@ -566,9 +550,7 @@ pub enum PlayerEvent {
     },
 
     /// Challenge was discarded (DM only)
-    ChallengeDiscarded {
-        request_id: String,
-    },
+    ChallengeDiscarded { request_id: String },
 
     /// Ad-hoc challenge created
     AdHocChallengeCreated {
@@ -593,7 +575,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Narrative Events
     // =========================================================================
-
     /// Narrative event triggered
     NarrativeEventTriggered {
         event_id: String,
@@ -628,7 +609,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Staging Events
     // =========================================================================
-
     /// Staging approval required (DM only)
     StagingApprovalRequired {
         request_id: String,
@@ -665,7 +645,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Inventory Events
     // =========================================================================
-
     /// Item was equipped
     ItemEquipped {
         pc_id: String,
@@ -696,14 +675,11 @@ pub enum PlayerEvent {
     },
 
     /// Inventory was updated (refresh signal)
-    InventoryUpdated {
-        pc_id: String,
-    },
+    InventoryUpdated { pc_id: String },
 
     // =========================================================================
     // Character Events
     // =========================================================================
-
     /// Character stat was updated
     CharacterStatUpdated {
         character_id: String,
@@ -734,24 +710,14 @@ pub enum PlayerEvent {
     // =========================================================================
     // Actantial Model Events
     // =========================================================================
-
     /// NPC want was created
-    NpcWantCreated {
-        npc_id: String,
-        want: WantData,
-    },
+    NpcWantCreated { npc_id: String, want: WantData },
 
     /// NPC want was updated
-    NpcWantUpdated {
-        npc_id: String,
-        want: WantData,
-    },
+    NpcWantUpdated { npc_id: String, want: WantData },
 
     /// NPC want was deleted
-    NpcWantDeleted {
-        npc_id: String,
-        want_id: String,
-    },
+    NpcWantDeleted { npc_id: String, want_id: String },
 
     /// Want target was set
     WantTargetSet {
@@ -760,9 +726,7 @@ pub enum PlayerEvent {
     },
 
     /// Want target was removed
-    WantTargetRemoved {
-        want_id: String,
-    },
+    WantTargetRemoved { want_id: String },
 
     /// Actantial view was added
     ActantialViewAdded {
@@ -791,20 +755,13 @@ pub enum PlayerEvent {
     },
 
     /// Goal was created
-    GoalCreated {
-        world_id: String,
-        goal: GoalData,
-    },
+    GoalCreated { world_id: String, goal: GoalData },
 
     /// Goal was updated
-    GoalUpdated {
-        goal: GoalData,
-    },
+    GoalUpdated { goal: GoalData },
 
     /// Goal was deleted
-    GoalDeleted {
-        goal_id: String,
-    },
+    GoalDeleted { goal_id: String },
 
     /// LLM suggestions for deflection behavior
     DeflectionSuggestions {
@@ -838,7 +795,6 @@ pub enum PlayerEvent {
     // =========================================================================
     // Generation Events
     // =========================================================================
-
     /// Generation batch was queued
     GenerationQueued {
         batch_id: String,
@@ -849,22 +805,13 @@ pub enum PlayerEvent {
     },
 
     /// Generation progress update
-    GenerationProgress {
-        batch_id: String,
-        progress: u8,
-    },
+    GenerationProgress { batch_id: String, progress: u8 },
 
     /// Generation completed
-    GenerationComplete {
-        batch_id: String,
-        asset_count: u32,
-    },
+    GenerationComplete { batch_id: String, asset_count: u32 },
 
     /// Generation failed
-    GenerationFailed {
-        batch_id: String,
-        error: String,
-    },
+    GenerationFailed { batch_id: String, error: String },
 
     /// Suggestion request was queued
     SuggestionQueued {
@@ -874,10 +821,7 @@ pub enum PlayerEvent {
     },
 
     /// Suggestion request is being processed
-    SuggestionProgress {
-        request_id: String,
-        status: String,
-    },
+    SuggestionProgress { request_id: String, status: String },
 
     /// Suggestion request completed
     SuggestionComplete {
@@ -886,10 +830,7 @@ pub enum PlayerEvent {
     },
 
     /// Suggestion request failed
-    SuggestionFailed {
-        request_id: String,
-        error: String,
-    },
+    SuggestionFailed { request_id: String, error: String },
 
     /// ComfyUI connection state changed
     ComfyUIStateChanged {
@@ -901,16 +842,12 @@ pub enum PlayerEvent {
     // =========================================================================
     // Time Events
     // =========================================================================
-
     /// Game time was updated
-    GameTimeUpdated {
-        game_time: GameTime,
-    },
+    GameTimeUpdated { game_time: GameTime },
 
     // =========================================================================
     // Request/Response Events
     // =========================================================================
-
     /// Response to a request message
     Response {
         request_id: String,
@@ -921,25 +858,17 @@ pub enum PlayerEvent {
     EntityChanged(EntityChangedData),
 
     /// Spectate target changed
-    SpectateTargetChanged {
-        pc_id: Uuid,
-        pc_name: String,
-    },
+    SpectateTargetChanged { pc_id: Uuid, pc_name: String },
 
     // =========================================================================
     // Error Events
     // =========================================================================
-
     /// Error message from server
-    Error {
-        code: String,
-        message: String,
-    },
+    Error { code: String, message: String },
 
     // =========================================================================
     // Fallback
     // =========================================================================
-
     /// Raw/unhandled message (catch-all for messages not yet mapped)
     ///
     /// This is used for messages that don't need specific handling or
@@ -1026,7 +955,7 @@ impl PlayerEvent {
             Self::EntityChanged { .. } => "EntityChanged",
             Self::SpectateTargetChanged { .. } => "SpectateTargetChanged",
             Self::Error { .. } => "Error",
-            Self::Raw { .. } => "Raw"
+            Self::Raw { .. } => "Raw",
         }
     }
 }
@@ -1405,7 +1334,11 @@ impl From<wrldbldr_protocol::responses::ResponseResult> for ResponseResult {
                 error_message: None,
                 error_details: None,
             },
-            wrldbldr_protocol::responses::ResponseResult::Error { code, message, details } => ResponseResult {
+            wrldbldr_protocol::responses::ResponseResult::Error {
+                code,
+                message,
+                details,
+            } => ResponseResult {
                 success: false,
                 data: None,
                 error_code: Some(format!("{:?}", code)),

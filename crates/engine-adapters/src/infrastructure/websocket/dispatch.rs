@@ -32,7 +32,10 @@ pub async fn handle_message(
             role,
             pc_id,
             spectate_pc_id,
-        } => connection::handle_join_world(state, client_id, world_id, role, pc_id, spectate_pc_id).await,
+        } => {
+            connection::handle_join_world(state, client_id, world_id, role, pc_id, spectate_pc_id)
+                .await
+        }
 
         ClientMessage::LeaveWorld => connection::handle_leave_world(state, client_id).await,
 
@@ -46,8 +49,15 @@ pub async fn handle_message(
             target,
             dialogue,
         } => {
-            player_action::handle_player_action(state, client_id, action_type, target, dialogue, sender)
-                .await
+            player_action::handle_player_action(
+                state,
+                client_id,
+                action_type,
+                target,
+                dialogue,
+                sender,
+            )
+            .await
         }
 
         // Scene handlers
@@ -72,7 +82,9 @@ pub async fn handle_message(
         ClientMessage::ChallengeRollInput {
             challenge_id,
             input_type,
-        } => challenge::handle_challenge_roll_input(state, client_id, challenge_id, input_type).await,
+        } => {
+            challenge::handle_challenge_roll_input(state, client_id, challenge_id, input_type).await
+        }
 
         ClientMessage::TriggerChallenge {
             challenge_id,
@@ -101,7 +113,16 @@ pub async fn handle_message(
             request_id,
             outcome_type,
             guidance,
-        } => challenge::handle_regenerate_outcome(state, client_id, request_id, outcome_type, guidance).await,
+        } => {
+            challenge::handle_regenerate_outcome(
+                state,
+                client_id,
+                request_id,
+                outcome_type,
+                guidance,
+            )
+            .await
+        }
 
         ClientMessage::DiscardChallenge {
             request_id,
@@ -230,7 +251,9 @@ pub async fn handle_message(
         ClientMessage::StagingRegenerateRequest {
             request_id,
             guidance,
-        } => staging::handle_staging_regenerate_request(state, client_id, request_id, guidance).await,
+        } => {
+            staging::handle_staging_regenerate_request(state, client_id, request_id, guidance).await
+        }
 
         ClientMessage::PreStageRegion {
             region_id,
@@ -258,9 +281,7 @@ pub async fn handle_message(
         }
 
         // Misc handlers
-        ClientMessage::CheckComfyUIHealth => {
-            misc::handle_check_comfyui_health(state).await
-        }
+        ClientMessage::CheckComfyUIHealth => misc::handle_check_comfyui_health(state).await,
 
         ClientMessage::ShareNpcLocation {
             pc_id,
@@ -270,7 +291,13 @@ pub async fn handle_message(
             notes,
         } => {
             misc::handle_share_npc_location(
-                state, client_id, pc_id, npc_id, location_id, region_id, notes,
+                state,
+                client_id,
+                pc_id,
+                npc_id,
+                location_id,
+                region_id,
+                notes,
             )
             .await
         }
@@ -298,9 +325,10 @@ pub async fn handle_message(
         } => misc::handle_trigger_location_event(state, client_id, region_id, description).await,
 
         // Request/Response pattern handler
-        ClientMessage::Request { request_id, payload } => {
-            request::handle_request(state, client_id, request_id, payload).await
-        }
+        ClientMessage::Request {
+            request_id,
+            payload,
+        } => request::handle_request(state, client_id, request_id, payload).await,
 
         // Unknown message types for forward compatibility - log and ignore
         ClientMessage::Unknown => {

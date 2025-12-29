@@ -10,11 +10,13 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use wrldbldr_domain::WorldId;
 use wrldbldr_engine_app::application::services::{
     ChallengeApprovalEventPublisher, GenerationEventPublisher,
 };
-use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueNotificationPort, QueuePort, RegionRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    ApprovalQueuePort, CharacterRepositoryPort, PlayerCharacterRepositoryPort,
+    QueueNotificationPort, QueuePort, RegionRepositoryPort,
+};
 
 use crate::infrastructure;
 use crate::infrastructure::config::AppConfig;
@@ -127,8 +129,7 @@ pub async fn run() -> Result<()> {
             Arc::new(state.repository.characters());
         let pc_repo: Arc<dyn PlayerCharacterRepositoryPort> =
             Arc::new(state.repository.player_characters());
-        let region_repo: Arc<dyn RegionRepositoryPort> =
-            Arc::new(state.repository.regions());
+        let region_repo: Arc<dyn RegionRepositoryPort> = Arc::new(state.repository.regions());
         let settings_service = state.settings_service.clone();
         let disposition_service = state.game.disposition_service.clone();
         let actantial_service = state.game.actantial_context_service.clone();
@@ -169,7 +170,7 @@ pub async fn run() -> Result<()> {
                         let disposition_service = disposition_service_clone.clone();
                         let actantial_service = actantial_service_clone.clone();
                         async move {
-                            let world_id = WorldId::from_uuid(action.world_id);
+                            let world_id = action.world_id;
                             build_prompt_from_action(
                                 world_id,
                                 &world_service,
@@ -220,7 +221,13 @@ pub async fn run() -> Result<()> {
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
-            approval_notification_worker(service, world_connection_manager, recovery_interval_clone, cancel).await;
+            approval_notification_worker(
+                service,
+                world_connection_manager,
+                recovery_interval_clone,
+                cancel,
+            )
+            .await;
         })
     };
 
@@ -300,9 +307,8 @@ pub async fn run() -> Result<()> {
                 let _ = approval_service.queue().expire_old(approval_timeout).await;
 
                 // Run cleanup using configured interval, but check for cancellation
-                let sleep_duration = std::time::Duration::from_secs(
-                    queue_config_clone.cleanup_interval_seconds,
-                );
+                let sleep_duration =
+                    std::time::Duration::from_secs(queue_config_clone.cleanup_interval_seconds);
                 tokio::select! {
                     _ = cancel.cancelled() => {
                         tracing::info!("Cleanup worker shutting down");
@@ -337,8 +343,8 @@ pub async fn run() -> Result<()> {
     };
 
     // Build CORS layer based on configuration
-    let cors_layer = if state.config.cors_allowed_origins.len() == 1 
-        && state.config.cors_allowed_origins[0] == "*" 
+    let cors_layer = if state.config.cors_allowed_origins.len() == 1
+        && state.config.cors_allowed_origins[0] == "*"
     {
         tracing::warn!("CORS configured to allow ANY origin - this is insecure for production!");
         CorsLayer::new()
@@ -346,11 +352,16 @@ pub async fn run() -> Result<()> {
             .allow_methods(Any)
             .allow_headers(Any)
     } else {
-        let origins: Vec<_> = state.config.cors_allowed_origins
+        let origins: Vec<_> = state
+            .config
+            .cors_allowed_origins
             .iter()
             .filter_map(|origin| origin.parse().ok())
             .collect();
-        tracing::info!("CORS configured for origins: {:?}", state.config.cors_allowed_origins);
+        tracing::info!(
+            "CORS configured for origins: {:?}",
+            state.config.cors_allowed_origins
+        );
         CorsLayer::new()
             .allow_origin(AllowOrigin::list(origins))
             .allow_methods(Any)
@@ -382,23 +393,21 @@ pub async fn run() -> Result<()> {
     }
 
     tracing::info!("Waiting for workers to complete...");
-    
+
     // Give workers a chance to finish gracefully
     // JoinHandles will complete when workers check cancellation token
-    let _ = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        async {
-            let _ = llm_worker.await;
-            let _ = asset_worker.await;
-            let _ = player_action_worker.await;
-            let _ = approval_notification_worker_task.await;
-            let _ = dm_action_worker_task.await;
-            let _ = challenge_outcome_worker_task.await;
-            let _ = cleanup_worker.await;
-            let _ = generation_event_worker.await;
-            let _ = challenge_approval_worker.await;
-        }
-    ).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let _ = llm_worker.await;
+        let _ = asset_worker.await;
+        let _ = player_action_worker.await;
+        let _ = approval_notification_worker_task.await;
+        let _ = dm_action_worker_task.await;
+        let _ = challenge_outcome_worker_task.await;
+        let _ = cleanup_worker.await;
+        let _ = generation_event_worker.await;
+        let _ = challenge_approval_worker.await;
+    })
+    .await;
 
     tracing::info!("WrldBldr Engine shutdown complete");
     Ok(())

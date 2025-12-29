@@ -6,15 +6,15 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
+use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::time::Duration;
-use sqlx::{SqlitePool, Row};
 
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
     QueueNotificationPort, QueuePort,
 };
-use wrldbldr_domain::WorldId;
 
 /// SQLite queue implementation
 pub struct SqliteQueue<T, N: QueueNotificationPort> {
@@ -36,9 +36,14 @@ impl<T, N: QueueNotificationPort> SqliteQueue<T, N>
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    pub async fn new(pool: SqlitePool, queue_name: impl Into<String>, batch_size: usize, notifier: N) -> Result<Self, QueueError> {
+    pub async fn new(
+        pool: SqlitePool,
+        queue_name: impl Into<String>,
+        batch_size: usize,
+        notifier: N,
+    ) -> Result<Self, QueueError> {
         let queue_name = queue_name.into();
-        
+
         // Ensure table exists
         sqlx::query(
             r#"
@@ -163,7 +168,8 @@ where
             .map_err(|e| QueueError::Backend(format!("Invalid UUID: {}", e)))?;
 
         let payload_json: String = row.get("payload_json");
-        let payload: T = serde_json::from_str(&payload_json)?;
+        let payload: T = serde_json::from_str(&payload_json)
+            .map_err(|e| QueueError::Backend(format!("Deserialization error: {}", e)))?;
 
         let status_str: String = row.get("status");
         let status = Self::str_to_status(&status_str);
@@ -224,7 +230,8 @@ where
 {
     async fn enqueue(&self, payload: T, priority: u8) -> Result<QueueItemId, QueueError> {
         let id = uuid::Uuid::new_v4();
-        let payload_json = serde_json::to_string(&payload)?;
+        let payload_json = serde_json::to_string(&payload)
+            .map_err(|e| QueueError::Backend(format!("Serialization error: {}", e)))?;
         let now = Utc::now();
         let now_str = now.to_rfc3339();
 
@@ -232,10 +239,12 @@ where
         // Works for both string UUIDs and raw UUID objects
         let world_id: Option<String> = serde_json::from_str::<serde_json::Value>(&payload_json)
             .ok()
-            .and_then(|v| v.get("world_id").and_then(|w| {
-                // Handle both string UUID and quoted UUID format
-                w.as_str().map(String::from)
-            }));
+            .and_then(|v| {
+                v.get("world_id").and_then(|w| {
+                    // Handle both string UUID and quoted UUID format
+                    w.as_str().map(String::from)
+                })
+            });
 
         sqlx::query(
             r#"
@@ -434,7 +443,10 @@ where
         }
     }
 
-    async fn list_by_status(&self, status: QueueItemStatus) -> Result<Vec<QueueItem<T>>, QueueError> {
+    async fn list_by_status(
+        &self,
+        status: QueueItemStatus,
+    ) -> Result<Vec<QueueItem<T>>, QueueError> {
         let status_str = Self::status_to_str(status);
 
         let rows = sqlx::query(

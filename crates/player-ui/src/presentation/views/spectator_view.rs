@@ -40,9 +40,9 @@ pub fn SpectatorView() -> Element {
                 let mut log = conversation_log.write();
 
                 // Check if we should add a new entry (different speaker or new dialogue)
-                let should_add = log.is_empty() ||
-                   log.last().map(|e| &e.speaker) != Some(&current_speaker) ||
-                   log.last().map(|e| &e.text) != Some(&current_text);
+                let should_add = log.is_empty()
+                    || log.last().map(|e| &e.speaker) != Some(&current_speaker)
+                    || log.last().map(|e| &e.text) != Some(&current_text);
 
                 if should_add {
                     log.push(ConversationEntry {

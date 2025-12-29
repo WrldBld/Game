@@ -352,7 +352,9 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             } => {
                 // Suggestions are sent directly to DM via the approval service
                 // This event is for logging/metrics only
-                tracing::debug!("ChallengeSuggestionsReady event - already handled by approval service");
+                tracing::debug!(
+                    "ChallengeSuggestionsReady event - already handled by approval service"
+                );
             }
 
             GameEvent::ChallengeBranchesReady {
@@ -362,7 +364,9 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             } => {
                 // Branches are sent directly to DM via the approval service
                 // This event is for logging/metrics only
-                tracing::debug!("ChallengeBranchesReady event - already handled by approval service");
+                tracing::debug!(
+                    "ChallengeBranchesReady event - already handled by approval service"
+                );
             }
 
             // =====================================================================
@@ -473,10 +477,22 @@ fn convert_staging_required(evt: StagingRequiredEvent) -> ServerMessage {
         location_name: evt.location_name,
         game_time: convert_game_time(evt.game_time),
         previous_staging: evt.previous_staging.map(convert_previous_staging),
-        rule_based_npcs: evt.rule_based_npcs.into_iter().map(convert_staged_npc).collect(),
-        llm_based_npcs: evt.llm_based_npcs.into_iter().map(convert_staged_npc).collect(),
+        rule_based_npcs: evt
+            .rule_based_npcs
+            .into_iter()
+            .map(convert_staged_npc)
+            .collect(),
+        llm_based_npcs: evt
+            .llm_based_npcs
+            .into_iter()
+            .map(convert_staged_npc)
+            .collect(),
         default_ttl_hours: evt.default_ttl_hours,
-        waiting_pcs: evt.waiting_pcs.into_iter().map(convert_waiting_pc).collect(),
+        waiting_pcs: evt
+            .waiting_pcs
+            .into_iter()
+            .map(convert_waiting_pc)
+            .collect(),
     }
 }
 

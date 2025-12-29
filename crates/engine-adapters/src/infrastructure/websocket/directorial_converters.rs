@@ -52,8 +52,8 @@ pub fn directorial_context_to_notes(ctx: DirectorialContext) -> DirectorialNotes
         tone: parse_tone(&ctx.tone),
         npc_motivations,
         forbidden_topics: ctx.forbidden_topics,
-        allowed_tools: Vec::new(),      // Not in protocol
-        suggested_beats: Vec::new(),    // Not in protocol
+        allowed_tools: Vec::new(),       // Not in protocol
+        suggested_beats: Vec::new(),     // Not in protocol
         pacing: PacingGuidance::Natural, // Not in protocol, default to Natural
     }
 }
@@ -116,6 +116,9 @@ mod tests {
         assert_eq!(parse_tone("tense"), ToneGuidance::Tense);
         assert_eq!(parse_tone("TENSE"), ToneGuidance::Tense);
         assert_eq!(parse_tone(""), ToneGuidance::Neutral);
-        assert_eq!(parse_tone("custom vibe"), ToneGuidance::Custom("custom vibe".to_string()));
+        assert_eq!(
+            parse_tone("custom vibe"),
+            ToneGuidance::Custom("custom vibe".to_string())
+        );
     }
 }

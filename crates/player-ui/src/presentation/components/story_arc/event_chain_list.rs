@@ -1,9 +1,9 @@
 //! Event Chain List - Display all event chains with progress indicators
 
+use crate::presentation::services::use_event_chain_service;
 use dioxus::prelude::*;
 use tracing::info;
 use wrldbldr_player_app::application::services::EventChainData;
-use crate::presentation::services::use_event_chain_service;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainListProps {
@@ -47,8 +47,12 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
                     // Apply filter client-side
                     let filtered = match filter_val {
                         ChainFilter::All => all_chains,
-                        ChainFilter::Active => all_chains.into_iter().filter(|c| c.is_active).collect(),
-                        ChainFilter::Favorites => all_chains.into_iter().filter(|c| c.is_favorite).collect(),
+                        ChainFilter::Active => {
+                            all_chains.into_iter().filter(|c| c.is_active).collect()
+                        }
+                        ChainFilter::Favorites => {
+                            all_chains.into_iter().filter(|c| c.is_favorite).collect()
+                        }
                     };
                     chains.set(filtered);
                 }
@@ -196,13 +200,17 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
 
 /// Filter tab component
 #[component]
-fn FilterTab(
-    label: &'static str,
-    is_active: bool,
-    onclick: EventHandler<()>,
-) -> Element {
-    let border_class = if is_active { "border-purple-500" } else { "border-transparent" };
-    let text_class = if is_active { "text-white" } else { "text-gray-400" };
+fn FilterTab(label: &'static str, is_active: bool, onclick: EventHandler<()>) -> Element {
+    let border_class = if is_active {
+        "border-purple-500"
+    } else {
+        "border-transparent"
+    };
+    let text_class = if is_active {
+        "text-white"
+    } else {
+        "text-gray-400"
+    };
 
     rsx! {
         button {
@@ -230,8 +238,16 @@ fn EventChainCard(
         "bg-gray-500"
     };
 
-    let bg_class = if is_selected { "bg-dark-surface" } else { "bg-dark-bg" };
-    let border_class = if is_selected { "border-purple-500" } else { "border-gray-700" };
+    let bg_class = if is_selected {
+        "bg-dark-surface"
+    } else {
+        "bg-dark-bg"
+    };
+    let border_class = if is_selected {
+        "border-purple-500"
+    } else {
+        "border-gray-700"
+    };
 
     rsx! {
         div {
@@ -338,4 +354,3 @@ fn EventChainCard(
         }
     }
 }
-

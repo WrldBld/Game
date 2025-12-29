@@ -1,13 +1,13 @@
-use std::sync::{Arc, Mutex};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 
 use crate::outbound::{ConnectionState, GameConnectionPort};
 use crate::session_types::{
-    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision,
-    DiceInput, DirectorialContext, ParticipantRole,
+    AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
+    DirectorialContext, ParticipantRole,
 };
-use wrldbldr_protocol::{RequestPayload, ResponseResult, RequestError};
+use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
 
 #[derive(Debug, Clone)]
 pub struct SentAction {
@@ -177,7 +177,11 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: ApprovalDecision) -> anyhow::Result<()> {
+    fn send_approval_decision(
+        &self,
+        request_id: &str,
+        decision: ApprovalDecision,
+    ) -> anyhow::Result<()> {
         let mut s = self.state.lock().unwrap();
         s.sent_approvals.push(SentApproval {
             request_id: request_id.to_string(),
@@ -186,12 +190,20 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn send_challenge_outcome_decision(&self, _resolution_id: &str, _decision: ChallengeOutcomeDecision) -> anyhow::Result<()> {
+    fn send_challenge_outcome_decision(
+        &self,
+        _resolution_id: &str,
+        _decision: ChallengeOutcomeDecision,
+    ) -> anyhow::Result<()> {
         // Mock implementation - does nothing for now
         Ok(())
     }
 
-    fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> anyhow::Result<()> {
+    fn trigger_challenge(
+        &self,
+        challenge_id: &str,
+        target_character_id: &str,
+    ) -> anyhow::Result<()> {
         let mut s = self.state.lock().unwrap();
         s.sent_challenge_triggers.push(SentChallengeTrigger {
             challenge_id: challenge_id.to_string(),
@@ -229,11 +241,22 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn exit_to_location(&self, _pc_id: &str, _location_id: &str, _arrival_region_id: Option<&str>) -> anyhow::Result<()> {
+    fn exit_to_location(
+        &self,
+        _pc_id: &str,
+        _location_id: &str,
+        _arrival_region_id: Option<&str>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn send_staging_approval(&self, _request_id: &str, _approved_npcs: Vec<ApprovedNpcInfo>, _ttl_hours: i32, _source: &str) -> anyhow::Result<()> {
+    fn send_staging_approval(
+        &self,
+        _request_id: &str,
+        _approved_npcs: Vec<ApprovedNpcInfo>,
+        _ttl_hours: i32,
+        _source: &str,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -241,7 +264,12 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn pre_stage_region(&self, _region_id: &str, _npcs: Vec<ApprovedNpcInfo>, _ttl_hours: i32) -> anyhow::Result<()> {
+    fn pre_stage_region(
+        &self,
+        _region_id: &str,
+        _npcs: Vec<ApprovedNpcInfo>,
+        _ttl_hours: i32,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -276,11 +304,22 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
-    fn set_npc_disposition(&self, _npc_id: &str, _pc_id: &str, _disposition: &str, _reason: Option<&str>) -> anyhow::Result<()> {
+    fn set_npc_disposition(
+        &self,
+        _npc_id: &str,
+        _pc_id: &str,
+        _disposition: &str,
+        _reason: Option<&str>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn set_npc_relationship(&self, _npc_id: &str, _pc_id: &str, _relationship: &str) -> anyhow::Result<()> {
+    fn set_npc_relationship(
+        &self,
+        _npc_id: &str,
+        _pc_id: &str,
+        _relationship: &str,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -303,9 +342,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         _payload: RequestPayload,
     ) -> Pin<Box<dyn Future<Output = Result<ResponseResult, RequestError>> + Send + '_>> {
         // Mock always returns success with empty data
-        Box::pin(async move {
-            Ok(ResponseResult::Success { data: None })
-        })
+        Box::pin(async move { Ok(ResponseResult::Success { data: None }) })
     }
 
     fn request_with_timeout(

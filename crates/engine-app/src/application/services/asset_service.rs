@@ -8,9 +8,9 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 use wrldbldr_domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 
 /// Request to create a new asset
 #[derive(Debug, Clone)]
@@ -60,7 +60,8 @@ pub trait AssetService: Send + Sync {
     async fn get_batch(&self, batch_id: BatchId) -> Result<Option<GenerationBatch>>;
 
     /// List all active batches (queued or generating) for a specific world
-    async fn list_active_batches_by_world(&self, world_id: WorldId) -> Result<Vec<GenerationBatch>>;
+    async fn list_active_batches_by_world(&self, world_id: WorldId)
+        -> Result<Vec<GenerationBatch>>;
 
     /// List batches ready for selection
     async fn list_ready_batches(&self) -> Result<Vec<GenerationBatch>>;
@@ -242,7 +243,10 @@ impl AssetService for AssetServiceImpl {
     }
 
     #[instrument(skip(self))]
-    async fn list_active_batches_by_world(&self, world_id: WorldId) -> Result<Vec<GenerationBatch>> {
+    async fn list_active_batches_by_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<GenerationBatch>> {
         debug!(%world_id, "Listing active batches for world");
         self.repository
             .list_active_batches_by_world(world_id)

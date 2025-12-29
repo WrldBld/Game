@@ -44,7 +44,9 @@ pub fn to_challenge_outcome_decision(
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
             ChallengeOutcomeDecision::Suggest { guidance }
         }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => ChallengeOutcomeDecision::Accept, // Default unknown to Accept
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
+            ChallengeOutcomeDecision::Accept
+        } // Default unknown to Accept
     }
 }
 
@@ -141,18 +143,17 @@ use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 pub fn movement_result_to_message(result: MovementResult, pc_id: &str) -> ServerMessage {
     match result {
         MovementResult::SceneChanged(event) => scene_changed_event_to_message(event),
-        MovementResult::StagingPending { region_id, region_name } => {
-            ServerMessage::StagingPending {
-                region_id: region_id.to_string(),
-                region_name,
-            }
-        }
-        MovementResult::Blocked { reason } => {
-            ServerMessage::MovementBlocked {
-                pc_id: pc_id.to_string(),
-                reason,
-            }
-        }
+        MovementResult::StagingPending {
+            region_id,
+            region_name,
+        } => ServerMessage::StagingPending {
+            region_id: region_id.to_string(),
+            region_name,
+        },
+        MovementResult::Blocked { reason } => ServerMessage::MovementBlocked {
+            pc_id: pc_id.to_string(),
+            reason,
+        },
     }
 }
 
@@ -179,39 +180,51 @@ pub fn scene_changed_event_to_message(event: SceneChangedEvent) -> ServerMessage
             atmosphere: event.region.atmosphere,
             map_asset: event.region.map_asset,
         },
-        npcs_present: event.npcs_present.into_iter().map(|n| {
-            wrldbldr_protocol::NpcPresenceData {
+        npcs_present: event
+            .npcs_present
+            .into_iter()
+            .map(|n| wrldbldr_protocol::NpcPresenceData {
                 character_id: n.character_id.to_string(),
                 name: n.name,
                 sprite_asset: n.sprite_asset,
                 portrait_asset: n.portrait_asset,
-            }
-        }).collect(),
+            })
+            .collect(),
         navigation: wrldbldr_protocol::NavigationData {
-            connected_regions: event.navigation.connected_regions.into_iter().map(|r| {
-                wrldbldr_protocol::NavigationTarget {
+            connected_regions: event
+                .navigation
+                .connected_regions
+                .into_iter()
+                .map(|r| wrldbldr_protocol::NavigationTarget {
                     region_id: r.region_id.to_string(),
                     name: r.name,
                     is_locked: r.is_locked,
                     lock_description: r.lock_description,
-                }
-            }).collect(),
-            exits: event.navigation.exits.into_iter().map(|e| {
-                wrldbldr_protocol::NavigationExit {
+                })
+                .collect(),
+            exits: event
+                .navigation
+                .exits
+                .into_iter()
+                .map(|e| wrldbldr_protocol::NavigationExit {
                     location_id: e.location_id.to_string(),
                     location_name: e.location_name,
                     arrival_region_id: e.arrival_region_id.to_string(),
                     description: e.description,
-                }
-            }).collect(),
+                })
+                .collect(),
         },
-        region_items: event.region_items.into_iter().map(|i| {
-            wrldbldr_protocol::RegionItemData {
-                id: i.item_id.to_string(),
-                name: i.name,
-                description: i.description,
-                item_type: None, // Port type doesn't have item_type
-            }
-        }).collect(),
+        region_items: event
+            .region_items
+            .into_iter()
+            .map(|i| {
+                wrldbldr_protocol::RegionItemData {
+                    id: i.item_id.to_string(),
+                    name: i.name,
+                    description: i.description,
+                    item_type: None, // Port type doesn't have item_type
+                }
+            })
+            .collect(),
     }
 }

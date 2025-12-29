@@ -64,4 +64,3 @@ pub fn ComfyUIBanner(props: ComfyUIBannerProps) -> Element {
         }
     }
 }
-

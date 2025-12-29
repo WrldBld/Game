@@ -13,8 +13,8 @@ use wrldbldr_player_ports::outbound::GameConnectionPort;
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
 use wrldbldr_protocol::{
-    ActantialRoleData, ActorTypeData, NpcActantialContextData, RequestPayload,
-    WantTargetData, WantTargetTypeData, WantVisibilityData,
+    ActantialRoleData, ActorTypeData, NpcActantialContextData, RequestPayload, WantTargetData,
+    WantTargetTypeData, WantVisibilityData,
 };
 
 /// Request to create a new want
@@ -125,13 +125,11 @@ impl CreateWantRequest {
             priority: self.priority,
             visibility: self.visibility.clone(),
             target_id: self.target_id.clone(),
-            target_type: self.target_type.as_ref().and_then(|t| {
-                match t.as_str() {
-                    "Character" => Some(WantTargetTypeData::Character),
-                    "Item" => Some(WantTargetTypeData::Item),
-                    "Goal" => Some(WantTargetTypeData::Goal),
-                    _ => None,
-                }
+            target_type: self.target_type.as_ref().and_then(|t| match t.as_str() {
+                "Character" => Some(WantTargetTypeData::Character),
+                "Item" => Some(WantTargetTypeData::Item),
+                "Goal" => Some(WantTargetTypeData::Goal),
+                _ => None,
             }),
             deflection_behavior: self.deflection_behavior.clone(),
             tells: self.tells.clone().map(|t| vec![t]).unwrap_or_default(),

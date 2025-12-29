@@ -184,11 +184,7 @@ impl GameTool {
                 importance,
                 info_type,
                 ..
-            } => format!(
-                "Reveal {} {} to the player",
-                importance.as_str(),
-                info_type
-            ),
+            } => format!("Reveal {} {} to the player", importance.as_str(), info_type),
             Self::ChangeRelationship {
                 change,
                 amount,
@@ -260,7 +256,10 @@ impl GameTool {
                 } else {
                     format!("{}", delta)
                 };
-                format!("Update {} {} by {} for {}", stat_name, change, delta, character_id)
+                format!(
+                    "Update {} {} by {} for {}",
+                    stat_name, change, delta, character_id
+                )
             }
         }
     }

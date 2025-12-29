@@ -1,7 +1,7 @@
 //! Story Arc tab link component
 
-use dioxus::prelude::*;
 use crate::routes::Route;
+use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct StoryArcTabLinkProps {

@@ -25,58 +25,58 @@ pub mod types;
 // WebSocket Message Types
 // =============================================================================
 pub use messages::{
-    // Main message enums
-    ClientMessage,
-    ServerMessage,
+    ActantialActorData,
+    ActantialRoleData,
+    ActantialViewData,
+    ActorTypeData,
     // Challenge types
     AdHocOutcomes,
+    // Staging types
+    ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,
+    // Scene types
+    CharacterData,
+    CharacterPosition,
+    // Main message enums
+    ClientMessage,
+    CreateGoalData,
+    CreateWantData,
+    DialogueChoice,
     DiceInputType,
-    OutcomeBranchData,
-    OutcomeDetailData,
+    // Session types
+    DirectorialContext,
+    GoalData,
+    InteractionData,
     // Navigation types
     NavigationData,
     NavigationExit,
     NavigationTarget,
-    NpcPresenceData,
-    RegionData,
-    RegionItemData,
-    // Scene types
-    CharacterData,
-    CharacterPosition,
-    DialogueChoice,
-    InteractionData,
-    SceneData,
-    // Session types
-    DirectorialContext,
-    NpcMotivationData,
-    ParticipantInfo,
-    SplitPartyLocation,
-    // Staging types
-    ApprovedNpcInfo,
-    NpcPresentInfo,
-    PreviousStagingInfo,
-    StagedNpcInfo,
-    WaitingPcInfo,
+    NpcActantialContextData,
     // NPC Disposition types (P1.4)
     NpcDispositionData,
+    NpcMotivationData,
+    NpcPresenceData,
+    NpcPresentInfo,
+    OutcomeBranchData,
+    OutcomeDetailData,
+    ParticipantInfo,
+    PreviousStagingInfo,
+    RegionData,
+    RegionItemData,
+    SceneData,
+    ServerMessage,
+    SocialRelationData,
+    SocialViewsData,
+    SplitPartyLocation,
+    StagedNpcInfo,
+    UpdateGoalData,
+    UpdateWantData,
+    WaitingPcInfo,
     // Actantial Model types (P1.5)
     WantData,
     WantTargetData,
-    CreateWantData,
-    UpdateWantData,
-    ActantialActorData,
-    ActantialViewData,
-    NpcActantialContextData,
-    SocialViewsData,
-    SocialRelationData,
-    GoalData,
-    CreateGoalData,
-    UpdateGoalData,
-    WantVisibilityData,
-    ActorTypeData,
-    ActantialRoleData,
     WantTargetTypeData,
+    WantVisibilityData,
 };
 
 // =============================================================================
@@ -98,38 +98,38 @@ pub use rule_system::{
 pub use types::{
     // Approval types
     ApprovalDecision,
-    ChallengeSuggestionInfo,
-    ChallengeSuggestionOutcomes,
-    NarrativeEventSuggestionInfo,
-    ProposedToolInfo,
     // Character archetypes
     CampbellArchetype,
+    ChallengeSuggestionInfo,
+    ChallengeSuggestionOutcomes,
     // Game time
     GameTime,
     // Monomyth stages
     MonomythStage,
+    NarrativeEventSuggestionInfo,
     // Participant roles
     ParticipantRole,
+    ProposedToolInfo,
 };
 
 // =============================================================================
 // DTOs
 // =============================================================================
 pub use dto::{
-    // NPC Disposition
-    NpcDispositionStateDto,
+    // Export DTOs
+    ExportQueryDto,
     // Asset DTOs
     GalleryAssetResponseDto,
     GenerateAssetRequestDto,
     GenerationBatchResponseDto,
-    SelectFromBatchRequestDto,
-    UpdateAssetLabelRequestDto,
-    UploadAssetRequestDto,
-    // Export DTOs
-    ExportQueryDto,
+    // NPC Disposition
+    NpcDispositionStateDto,
     // Workflow DTOs
     PromptMappingDto,
     PromptMappingTypeDto,
+    SelectFromBatchRequestDto,
+    UpdateAssetLabelRequestDto,
+    UploadAssetRequestDto,
     WorkflowConfigResponseDto,
 };
 
@@ -137,8 +137,6 @@ pub use dto::{
 // Request Types (WebSocket Request/Response Pattern)
 // =============================================================================
 pub use requests::{
-    // Main payload enum
-    RequestPayload,
     // Create data types
     ChangeArchetypeData,
     CreateActData,
@@ -147,6 +145,7 @@ pub use requests::{
     CreateDmMarkerData,
     CreateEventChainData,
     CreateInteractionData,
+    CreateItemData,
     CreateLocationConnectionData,
     CreateLocationData,
     CreateNarrativeEventData,
@@ -158,7 +157,10 @@ pub use requests::{
     CreateSceneData,
     CreateSkillData,
     CreateWorldData,
-    CreateItemData,
+    // Main payload enum
+    RequestPayload,
+    // Suggestion types
+    SuggestionContextData,
     // Update data types
     UpdateChallengeData,
     UpdateCharacterData,
@@ -172,25 +174,23 @@ pub use requests::{
     UpdateSkillData,
     UpdateStoryEventData,
     UpdateWorldData,
-    // Suggestion types
-    SuggestionContextData,
 };
 
 // =============================================================================
 // Response Types (WebSocket Request/Response Pattern)
 // =============================================================================
 pub use responses::{
-    // Response result
-    ResponseResult,
-    ErrorCode,
-    // Request error (client-side)
-    RequestError,
+    ChangeType,
+    ConnectedUser,
     // Entity change broadcasts
     EntityChangedData,
     EntityType,
-    ChangeType,
+    ErrorCode,
+    JoinError,
+    // Request error (client-side)
+    RequestError,
+    // Response result
+    ResponseResult,
     // World connection types
     WorldRole,
-    ConnectedUser,
-    JoinError,
 };

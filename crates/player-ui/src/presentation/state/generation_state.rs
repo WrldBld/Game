@@ -145,7 +145,11 @@ impl GenerationState {
     }
 
     /// Get batches for a specific entity
-    pub fn get_batches_for_entity(&self, entity_type: &str, entity_id: &str) -> Vec<GenerationBatch> {
+    pub fn get_batches_for_entity(
+        &self,
+        entity_type: &str,
+        entity_id: &str,
+    ) -> Vec<GenerationBatch> {
         self.batches
             .read()
             .iter()
@@ -190,7 +194,7 @@ impl GenerationState {
             .iter()
             .any(|b| matches!(b.status, BatchStatus::Ready { .. }));
         self.has_ready_batches.set(has_ready);
-        
+
         let has_ready_suggestions = self
             .suggestions
             .read()
@@ -288,7 +292,9 @@ impl GenerationState {
 
     /// Remove a suggestion task (after selection or dismissal)
     pub fn remove_suggestion(&mut self, request_id: &str) {
-        self.suggestions.write().retain(|s| s.request_id != request_id);
+        self.suggestions
+            .write()
+            .retain(|s| s.request_id != request_id);
         self.update_ready_flag();
     }
 

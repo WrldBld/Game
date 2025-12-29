@@ -48,7 +48,9 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
         .map(|s| s.to_string());
 
     if let Some(user_id) = user_id {
-        request.extensions_mut().insert(AuthenticatedUser { user_id });
+        request
+            .extensions_mut()
+            .insert(AuthenticatedUser { user_id });
     }
     // Note: We don't reject requests without user_id yet
     // Some endpoints may be public
@@ -60,10 +62,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
 ///
 /// Use this for endpoints that must have a user_id.
 /// Returns 401 Unauthorized if X-User-Id header is missing.
-pub async fn require_auth_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn require_auth_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Check if already authenticated by previous middleware
     if request.extensions().get::<AuthenticatedUser>().is_some() {
         return Ok(next.run(request).await);
@@ -123,7 +122,7 @@ mod tests {
     use super::*;
     use axum::{
         body::Body,
-        http::{Request as HttpRequest, header::HeaderValue},
+        http::{header::HeaderValue, Request as HttpRequest},
         routing::get,
         Router,
     };
@@ -163,10 +162,7 @@ mod tests {
     async fn test_auth_extractor_without_header() {
         let app = Router::new().route("/", get(protected_handler));
 
-        let request = HttpRequest::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let request = HttpRequest::builder().uri("/").body(Body::empty()).unwrap();
 
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);

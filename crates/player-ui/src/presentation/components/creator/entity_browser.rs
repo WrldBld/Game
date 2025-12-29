@@ -3,9 +3,9 @@
 use dioxus::prelude::*;
 
 use super::EntityTypeTab;
+use crate::routes::Route;
 use wrldbldr_player_app::application::services::character_service::CharacterSummary;
 use wrldbldr_player_app::application::services::location_service::LocationSummary;
-use crate::routes::Route;
 
 /// Props for the EntityBrowser component
 #[component]
@@ -115,7 +115,11 @@ pub fn EntityBrowser(
 /// Tab link that uses router navigation
 #[component]
 fn EntityTypeTabLink(world_id: String, tab: EntityTypeTab, active: bool) -> Element {
-    let bg_class = if active { "bg-blue-500" } else { "bg-transparent" };
+    let bg_class = if active {
+        "bg-blue-500"
+    } else {
+        "bg-transparent"
+    };
     let short_label = match tab {
         EntityTypeTab::Characters => "Char",
         EntityTypeTab::Locations => "Loc",
@@ -246,8 +250,16 @@ fn EntityListItem(
     selected: bool,
     on_click: EventHandler<()>,
 ) -> Element {
-    let bg_class = if selected { "bg-blue-500 bg-opacity-20" } else { "bg-transparent" };
-    let border_class = if selected { "border border-blue-500" } else { "border border-transparent" };
+    let bg_class = if selected {
+        "bg-blue-500 bg-opacity-20"
+    } else {
+        "bg-transparent"
+    };
+    let border_class = if selected {
+        "border border-blue-500"
+    } else {
+        "border border-transparent"
+    };
 
     rsx! {
         div {

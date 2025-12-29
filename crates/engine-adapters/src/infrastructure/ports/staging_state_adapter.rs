@@ -7,16 +7,18 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
-use wrldbldr_domain::{GameTime, RegionId, WorldId};
 use wrldbldr_domain::value_objects::StagingContext;
-use wrldbldr_engine_app::application::use_cases::{
-    PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc, StagingStatePort,
-    StagingStateExtPort, WaitingPcInfo,
+use wrldbldr_domain::{GameTime, RegionId, WorldId};
+use wrldbldr_engine_app::application::services::staging_service::{
+    StagedNpcProposal, StagingProposal,
 };
-use wrldbldr_engine_app::application::services::staging_service::{StagingProposal, StagedNpcProposal};
+use wrldbldr_engine_app::application::use_cases::{
+    PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc, StagingStateExtPort,
+    StagingStatePort, WaitingPcInfo,
+};
 use wrldbldr_engine_ports::outbound::StagedNpcData;
 
-use crate::infrastructure::{WorldPendingStagingApproval, WorldStateManager, WaitingPc};
+use crate::infrastructure::{WaitingPc, WorldPendingStagingApproval, WorldStateManager};
 
 /// Adapter that implements staging state ports using WorldStateManager
 pub struct StagingStateAdapter {
@@ -115,14 +117,8 @@ impl StagingStatePort for StagingStateAdapter {
         user_id: String,
         client_id: String,
     ) {
-        self.world_state.add_waiting_pc_to_staging(
-            world_id,
-            region_id,
-            pc_id,
-            pc_name,
-            user_id,
-            client_id,
-        );
+        self.world_state
+            .add_waiting_pc_to_staging(world_id, region_id, pc_id, pc_name, user_id, client_id);
     }
 
     fn store_pending_staging(&self, pending: PendingStagingData) {
@@ -167,41 +163,59 @@ impl StagingStatePort for StagingStateAdapter {
             );
         }
 
-        self.world_state.add_pending_staging(&pending.world_id, approval);
+        self.world_state
+            .add_pending_staging(&pending.world_id, approval);
     }
 }
 
 #[async_trait::async_trait]
 impl StagingStateExtPort for StagingStateAdapter {
-    fn get_pending_staging(&self, world_id: &WorldId, request_id: &str) -> Option<PendingStagingInfo> {
+    fn get_pending_staging(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+    ) -> Option<PendingStagingInfo> {
         self.world_state
             .get_pending_staging_by_request_id(world_id, request_id)
             .map(|approval| Self::approval_to_info(&approval))
     }
 
     fn remove_pending_staging(&self, world_id: &WorldId, request_id: &str) {
-        self.world_state.remove_pending_staging(world_id, request_id);
+        self.world_state
+            .remove_pending_staging(world_id, request_id);
     }
 
-    fn update_llm_suggestions(&self, world_id: &WorldId, request_id: &str, npcs: Vec<RegeneratedNpc>) {
+    fn update_llm_suggestions(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+        npcs: Vec<RegeneratedNpc>,
+    ) {
         // Use the mutable accessor to update the LLM suggestions
         // First, find the region ID for this request
-        if let Some(pending) = self.world_state.get_pending_staging_by_request_id(world_id, request_id) {
-            self.world_state.with_pending_staging_for_region_mut(world_id, &pending.region_id, |approval| {
-                // Update the LLM-based NPCs in the proposal
-                approval.proposal.llm_based_npcs = npcs
-                    .iter()
-                    .map(|npc| StagedNpcProposal {
-                        character_id: npc.character_id.clone(),
-                        name: npc.name.clone(),
-                        sprite_asset: npc.sprite_asset.clone(),
-                        portrait_asset: npc.portrait_asset.clone(),
-                        is_present: npc.is_present,
-                        is_hidden_from_players: npc.is_hidden_from_players,
-                        reasoning: npc.reasoning.clone(),
-                    })
-                    .collect();
-            });
+        if let Some(pending) = self
+            .world_state
+            .get_pending_staging_by_request_id(world_id, request_id)
+        {
+            self.world_state.with_pending_staging_for_region_mut(
+                world_id,
+                &pending.region_id,
+                |approval| {
+                    // Update the LLM-based NPCs in the proposal
+                    approval.proposal.llm_based_npcs = npcs
+                        .iter()
+                        .map(|npc| StagedNpcProposal {
+                            character_id: npc.character_id.clone(),
+                            name: npc.name.clone(),
+                            sprite_asset: npc.sprite_asset.clone(),
+                            portrait_asset: npc.portrait_asset.clone(),
+                            is_present: npc.is_present,
+                            is_hidden_from_players: npc.is_hidden_from_players,
+                            reasoning: npc.reasoning.clone(),
+                        })
+                        .collect();
+                },
+            );
         }
     }
 }
@@ -220,7 +234,7 @@ mod tests {
         };
 
         let info = StagingStateAdapter::waiting_pc_to_info(&waiting_pc);
-        
+
         assert_eq!(info.pc_name, "Test PC");
         assert_eq!(info.user_id, "user123");
     }

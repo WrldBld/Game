@@ -29,7 +29,10 @@ impl ChallengeService {
     }
 
     /// List all challenges in a world
-    pub async fn list_challenges(&self, world_id: &str) -> Result<Vec<ChallengeData>, ServiceError> {
+    pub async fn list_challenges(
+        &self,
+        world_id: &str,
+    ) -> Result<Vec<ChallengeData>, ServiceError> {
         let payload = RequestPayload::ListChallenges {
             world_id: world_id.to_string(),
         };

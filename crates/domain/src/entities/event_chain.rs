@@ -73,7 +73,12 @@ impl EventChain {
     }
 
     /// Add an event at a specific position
-    pub fn insert_event(&mut self, position: usize, event_id: NarrativeEventId, now: DateTime<Utc>) {
+    pub fn insert_event(
+        &mut self,
+        position: usize,
+        event_id: NarrativeEventId,
+        now: DateTime<Utc>,
+    ) {
         if position <= self.events.len() {
             self.events.insert(position, event_id);
             self.updated_at = now;

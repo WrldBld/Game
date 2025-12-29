@@ -49,7 +49,12 @@ pub async fn handle_player_action(
         dialogue,
     };
 
-    match state.use_cases.player_action.handle_action(ctx, input).await {
+    match state
+        .use_cases
+        .player_action
+        .handle_action(ctx, input)
+        .await
+    {
         Ok(ActionResult::TravelCompleted { action_id, scene }) => {
             // Send scene update to player
             let scene_msg = scene_changed_event_to_message(scene);
@@ -62,7 +67,11 @@ pub async fn handle_player_action(
                 action_type,
             })
         }
-        Ok(ActionResult::TravelPending { action_id, region_id, region_name }) => {
+        Ok(ActionResult::TravelPending {
+            action_id,
+            region_id,
+            region_name,
+        }) => {
             // Send staging pending
             let _ = sender.try_send(ServerMessage::StagingPending {
                 region_id: region_id.to_string(),
@@ -76,7 +85,10 @@ pub async fn handle_player_action(
                 action_type,
             })
         }
-        Ok(ActionResult::Queued { action_id, queue_depth: _ }) => {
+        Ok(ActionResult::Queued {
+            action_id,
+            queue_depth: _,
+        }) => {
             // Return acknowledgment (DM is notified by the use case via DmNotificationPort)
             Some(ServerMessage::ActionReceived {
                 action_id,

@@ -206,5 +206,3 @@ impl GenerationRequest {
         batch
     }
 }
-
-

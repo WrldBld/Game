@@ -14,9 +14,7 @@ pub enum RuleSystemInputDto {
 impl RuleSystemInputDto {
     pub fn into_domain(self) -> RuleSystemConfig {
         match self {
-            RuleSystemInputDto::VariantOnly { variant } => {
-                RuleSystemConfig::from_variant(variant)
-            }
+            RuleSystemInputDto::VariantOnly { variant } => RuleSystemConfig::from_variant(variant),
             RuleSystemInputDto::Full(config) => config,
         }
     }
@@ -111,4 +109,3 @@ pub fn parse_monomyth_stage(s: &str) -> MonomythStage {
         _ => MonomythStage::OrdinaryWorld,
     }
 }
-

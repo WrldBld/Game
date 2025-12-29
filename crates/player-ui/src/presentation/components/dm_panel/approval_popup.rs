@@ -4,7 +4,9 @@
 //! Supports challenge outcome regeneration and discard functionality.
 
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::dto::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData};
+use wrldbldr_player_app::application::dto::{
+    ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData,
+};
 
 /// A proposed action/tool call from the LLM
 #[derive(Clone, PartialEq)]
@@ -341,10 +343,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
 
 /// Individual action checkbox
 #[component]
-fn ProposedActionCheckbox(
-    action: ProposedAction,
-    on_toggle: EventHandler<()>,
-) -> Element {
+fn ProposedActionCheckbox(action: ProposedAction, on_toggle: EventHandler<()>) -> Element {
     rsx! {
         label {
             class: "flex items-start gap-3 p-3 bg-black bg-opacity-20 rounded-md cursor-pointer transition-colors duration-200",

@@ -1,13 +1,13 @@
 //! DM (Dungeon Master) view route handlers
 
-use dioxus::prelude::*;
-use wrldbldr_player_ports::outbound::{Platform, storage_keys};
-use wrldbldr_player_ports::session_types::ParticipantRole;
-use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
-use crate::presentation::views::dm_view::DMMode;
 use super::connection::handle_disconnect;
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;
+use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
+use crate::presentation::views::dm_view::DMMode;
+use dioxus::prelude::*;
+use wrldbldr_player_ports::outbound::{storage_keys, Platform};
+use wrldbldr_player_ports::session_types::ParticipantRole;
 
 /// DMViewRoute - renders Director tab directly (no redirect needed)
 #[component]
@@ -38,9 +38,27 @@ pub fn DMViewTabRoute(world_id: String, tab: String) -> Element {
     // Determine mode and default subtab based on tab parameter
     let (dm_mode, creator_subtab, settings_subtab, story_arc_subtab, title) = match tab.as_str() {
         "director" => (DMMode::Director, None, None, None, "Director"),
-        "creator" => (DMMode::Creator, Some("characters".to_string()), None, None, "Creator - Characters"),
-        "settings" => (DMMode::Settings, None, Some("workflows".to_string()), None, "Settings - Workflows"),
-        "story-arc" => (DMMode::StoryArc, None, None, Some("timeline".to_string()), "Story Arc - Timeline"),
+        "creator" => (
+            DMMode::Creator,
+            Some("characters".to_string()),
+            None,
+            None,
+            "Creator - Characters",
+        ),
+        "settings" => (
+            DMMode::Settings,
+            None,
+            Some("workflows".to_string()),
+            None,
+            "Settings - Workflows",
+        ),
+        "story-arc" => (
+            DMMode::StoryArc,
+            None,
+            None,
+            Some("timeline".to_string()),
+            "Story Arc - Timeline",
+        ),
         _ => (DMMode::Director, None, None, None, "Director"),
     };
 
@@ -306,7 +324,12 @@ fn DMViewHeader(props: DMViewHeaderProps) -> Element {
 /// Header tab link for DM View - uses router navigation
 /// Links directly to the appropriate subtab route to avoid redirect race conditions
 #[component]
-fn DMHeaderTabLink(label: &'static str, tab: &'static str, world_id: String, active: bool) -> Element {
+fn DMHeaderTabLink(
+    label: &'static str,
+    tab: &'static str,
+    world_id: String,
+    active: bool,
+) -> Element {
     // Get generation state for queue badge (only for Creator tab)
     let generation_state = if tab == "creator" {
         Some(crate::presentation::state::use_generation_state())
@@ -314,9 +337,10 @@ fn DMHeaderTabLink(label: &'static str, tab: &'static str, world_id: String, act
         None
     };
 
-    let queue_badge_count = generation_state.as_ref().map(|gs| {
-        gs.active_count() + gs.active_suggestion_count()
-    }).unwrap_or(0);
+    let queue_badge_count = generation_state
+        .as_ref()
+        .map(|gs| gs.active_count() + gs.active_suggestion_count())
+        .unwrap_or(0);
 
     // Determine the correct route based on tab - link directly to subtab routes
     // to avoid use_effect redirect race conditions

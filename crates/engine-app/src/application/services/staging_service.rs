@@ -7,20 +7,20 @@
 //! - Pre-staging regions
 //! - Managing staging history
 
-use std::sync::Arc;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{
-    ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventRepositoryPort, 
-    RegionRepositoryPort, StagingRepositoryPort,
-};
 use crate::application::services::{
-    StoryEventService, StagingContextProvider, build_staging_prompt, PromptTemplateService,
+    build_staging_prompt, PromptTemplateService, StagingContextProvider, StoryEventService,
 };
-use wrldbldr_domain::entities::{Staging, StagedNpc, StagingSource};
+use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventRepositoryPort,
+    RegionRepositoryPort, StagingRepositoryPort,
+};
 
 /// Configuration for the staging service
 #[derive(Debug, Clone)]
@@ -177,29 +177,26 @@ where
         let request_id = uuid::Uuid::new_v4().to_string();
 
         // Gather context for staging decisions
-        let context = self.context_provider.gather_context(
-            world_id,
-            region_id,
-            location_name,
-            game_time,
-        ).await?;
+        let context = self
+            .context_provider
+            .gather_context(world_id, region_id, location_name, game_time)
+            .await?;
 
         // Generate rule-based suggestions
-        let rule_suggestions = self.context_provider
+        let rule_suggestions = self
+            .context_provider
             .generate_rule_based_suggestions(region_id, game_time)
             .await?;
 
         // Get NPC details for sprites/portraits
-        let npcs_with_relationships = self.context_provider
-            .get_npcs_for_region(region_id)
-            .await?;
+        let npcs_with_relationships = self.context_provider.get_npcs_for_region(region_id).await?;
 
         // Convert rule suggestions to proposals with NPC details
         let rule_based_npcs: Vec<StagedNpcProposal> = rule_suggestions
             .iter()
             .map(|s| {
                 let mut proposal = StagedNpcProposal::from(s.clone());
-                
+
                 // Enrich with sprite/portrait from character data
                 if let Some((character, _)) = npcs_with_relationships
                     .iter()
@@ -208,20 +205,23 @@ where
                     proposal.sprite_asset = character.sprite_asset.clone();
                     proposal.portrait_asset = character.portrait_asset.clone();
                 }
-                
+
                 proposal
             })
             .collect();
 
         // Generate LLM suggestions if enabled
         let llm_based_npcs = if self.config.use_llm && !rule_suggestions.is_empty() {
-            match self.generate_llm_suggestions(
-                world_id,
-                &context,
-                &rule_suggestions,
-                &npcs_with_relationships,
-                dm_guidance,
-            ).await {
+            match self
+                .generate_llm_suggestions(
+                    world_id,
+                    &context,
+                    &rule_suggestions,
+                    &npcs_with_relationships,
+                    dm_guidance,
+                )
+                .await
+            {
                 Ok(npcs) => npcs,
                 Err(e) => {
                     tracing::warn!("LLM staging suggestions failed: {}. Using rules only.", e);
@@ -283,12 +283,8 @@ where
         let staged_npcs: Vec<StagedNpc> = approved_npcs
             .into_iter()
             .map(|npc| {
-                let mut staged = StagedNpc::new(
-                    npc.character_id,
-                    npc.name,
-                    npc.is_present,
-                    npc.reasoning,
-                );
+                let mut staged =
+                    StagedNpc::new(npc.character_id, npc.name, npc.is_present, npc.reasoning);
                 staged.is_hidden_from_players = npc.is_hidden_from_players;
                 if let Some(sprite) = npc.sprite_asset {
                     staged = staged.with_sprite(sprite);
@@ -343,7 +339,8 @@ where
             StagingSource::PreStaged,
             dm_id,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Regenerate LLM suggestions with new guidance
@@ -358,21 +355,18 @@ where
         guidance: &str,
     ) -> Result<Vec<StagedNpcProposal>> {
         // Gather fresh context
-        let context = self.context_provider.gather_context(
-            world_id,
-            region_id,
-            location_name,
-            game_time,
-        ).await?;
+        let context = self
+            .context_provider
+            .gather_context(world_id, region_id, location_name, game_time)
+            .await?;
 
         // Get rule suggestions and NPC data
-        let rule_suggestions = self.context_provider
+        let rule_suggestions = self
+            .context_provider
             .generate_rule_based_suggestions(region_id, game_time)
             .await?;
 
-        let npcs_with_relationships = self.context_provider
-            .get_npcs_for_region(region_id)
-            .await?;
+        let npcs_with_relationships = self.context_provider.get_npcs_for_region(region_id).await?;
 
         // Regenerate with guidance
         self.generate_llm_suggestions(
@@ -381,7 +375,8 @@ where
             &rule_suggestions,
             &npcs_with_relationships,
             Some(guidance),
-        ).await
+        )
+        .await
     }
 
     /// Get previous staging for a region (even if expired)
@@ -402,24 +397,30 @@ where
         world_id: WorldId,
         context: &StagingContext,
         rule_suggestions: &[RuleBasedSuggestion],
-        npcs_with_relationships: &[(wrldbldr_domain::entities::Character, wrldbldr_domain::value_objects::RegionRelationshipType)],
+        npcs_with_relationships: &[(
+            wrldbldr_domain::entities::Character,
+            wrldbldr_domain::value_objects::RegionRelationshipType,
+        )],
         dm_guidance: Option<&str>,
     ) -> Result<Vec<StagedNpcProposal>> {
         // Resolve prompt templates
-        let system_prompt = self.prompt_template_service
+        let system_prompt = self
+            .prompt_template_service
             .resolve_for_world(world_id, prompt_keys::STAGING_SYSTEM_PROMPT)
             .await;
-        let role_instructions = self.prompt_template_service
+        let role_instructions = self
+            .prompt_template_service
             .resolve_for_world(world_id, prompt_keys::STAGING_ROLE_INSTRUCTIONS)
             .await;
-        let response_format = self.prompt_template_service
+        let response_format = self
+            .prompt_template_service
             .resolve_for_world(world_id, prompt_keys::STAGING_RESPONSE_FORMAT)
             .await;
 
         // Build the prompt with configurable templates
         let prompt = build_staging_prompt(
-            context, 
-            rule_suggestions, 
+            context,
+            rule_suggestions,
             dm_guidance,
             &role_instructions,
             &response_format,
@@ -430,7 +431,10 @@ where
             .with_temperature(self.config.llm_temperature);
 
         // Query the LLM
-        let response = self.llm_port.generate(request).await
+        let response = self
+            .llm_port
+            .generate(request)
+            .await
             .map_err(|e| anyhow::anyhow!("LLM staging query failed: {}", e))?;
 
         // Parse the response
@@ -442,7 +446,10 @@ where
         &self,
         response: &str,
         rule_suggestions: &[RuleBasedSuggestion],
-        npcs_with_relationships: &[(wrldbldr_domain::entities::Character, wrldbldr_domain::value_objects::RegionRelationshipType)],
+        npcs_with_relationships: &[(
+            wrldbldr_domain::entities::Character,
+            wrldbldr_domain::value_objects::RegionRelationshipType,
+        )],
     ) -> Result<Vec<StagedNpcProposal>> {
         // Extract JSON from response
         let json_str = extract_json_array(response)
@@ -461,7 +468,7 @@ where
 
         // Map LLM results back to full proposals
         let mut proposals = Vec::new();
-        
+
         for suggestion in rule_suggestions {
             let llm_result = llm_results
                 .iter()
@@ -543,11 +550,7 @@ That's all!"#;
 
     #[test]
     fn test_staged_npc_proposal_from_suggestion() {
-        let suggestion = RuleBasedSuggestion::present(
-            Uuid::new_v4(),
-            "Test NPC",
-            "Test reasoning",
-        );
+        let suggestion = RuleBasedSuggestion::present(Uuid::new_v4(), "Test NPC", "Test reasoning");
 
         let proposal = StagedNpcProposal::from(suggestion);
         assert_eq!(proposal.name, "Test NPC");

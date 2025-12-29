@@ -4,10 +4,10 @@ use dioxus::prelude::*;
 
 use super::asset_gallery::AssetGallery;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
-use wrldbldr_player_app::application::services::SuggestionContext;
-use wrldbldr_player_app::application::services::LocationFormData;
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::use_location_service;
+use wrldbldr_player_app::application::services::LocationFormData;
+use wrldbldr_player_app::application::services::SuggestionContext;
 
 /// Location types
 const LOCATION_TYPES: &[&str] = &[
@@ -30,7 +30,9 @@ const LOCATION_TYPES: &[&str] = &[
 pub fn LocationForm(
     location_id: String,
     world_id: String,
-    locations_signal: Signal<Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>>,
+    locations_signal: Signal<
+        Vec<wrldbldr_player_app::application::services::location_service::LocationSummary>,
+    >,
     on_close: EventHandler<()>,
 ) -> Element {
     let is_new = location_id.is_empty();
@@ -62,34 +64,39 @@ pub fn LocationForm(
             let svc = loc_svc.clone();
 
             spawn(async move {
-                    // Load parent locations list
+                // Load parent locations list
                 if let Ok(parents) = svc.list_locations(&world_id_clone).await {
-                        // Convert LocationSummary to LocationFormData for the dropdown
-                        let parent_data: Vec<LocationFormData> = parents.iter().map(|summary| {
-                            LocationFormData {
-                                id: Some(summary.id.clone()),
-                                name: summary.name.clone(),
-                                description: None,
-                                location_type: summary.location_type.clone(),
-                                atmosphere: None,
-                                notable_features: None,
-                                hidden_secrets: None,
-                                parent_location_id: None,
-                                backdrop_asset: None,
-                                backdrop_regions: Vec::new(),
-                                presence_cache_ttl_hours: None,
-                            }
-                        }).collect();
-                        parent_locations.set(parent_data);
-                    }
+                    // Convert LocationSummary to LocationFormData for the dropdown
+                    let parent_data: Vec<LocationFormData> = parents
+                        .iter()
+                        .map(|summary| LocationFormData {
+                            id: Some(summary.id.clone()),
+                            name: summary.name.clone(),
+                            description: None,
+                            location_type: summary.location_type.clone(),
+                            atmosphere: None,
+                            notable_features: None,
+                            hidden_secrets: None,
+                            parent_location_id: None,
+                            backdrop_asset: None,
+                            backdrop_regions: Vec::new(),
+                            presence_cache_ttl_hours: None,
+                        })
+                        .collect();
+                    parent_locations.set(parent_data);
+                }
 
-                    // Load location data if editing
-                    if load_existing {
-                        match svc.get_location(&loc_id).await {
+                // Load location data if editing
+                if load_existing {
+                    match svc.get_location(&loc_id).await {
                         Ok(loc_data) => {
                             name.set(loc_data.name);
                             description.set(loc_data.description.unwrap_or_default());
-                            location_type.set(loc_data.location_type.unwrap_or_else(|| "Interior".to_string()));
+                            location_type.set(
+                                loc_data
+                                    .location_type
+                                    .unwrap_or_else(|| "Interior".to_string()),
+                            );
                             atmosphere.set(loc_data.atmosphere.unwrap_or_default());
                             notable_features.set(loc_data.notable_features.unwrap_or_default());
                             hidden_secrets.set(loc_data.hidden_secrets.unwrap_or_default());
@@ -103,7 +110,7 @@ pub fn LocationForm(
                     }
                 } else {
                     is_loading.set(false);
-            }
+                }
             });
         });
     }
@@ -442,7 +449,7 @@ pub fn LocationForm(
                                                     }
                                                 }
                                             }
-                                            
+
                                             success_message.set(Some(if is_new {
                                                 "Location created successfully".to_string()
                                             } else {

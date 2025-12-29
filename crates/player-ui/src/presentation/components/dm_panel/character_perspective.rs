@@ -24,8 +24,10 @@ pub struct CharacterPerspectiveViewerProps {
 pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Element {
     let pc_service = use_player_character_service();
     let character_service = use_character_service();
-    let mut pcs: Signal<Vec<wrldbldr_player_app::application::services::PlayerCharacterData>> = use_signal(Vec::new);
-    let mut npcs: Signal<Vec<wrldbldr_player_app::application::services::CharacterSummary>> = use_signal(Vec::new);
+    let mut pcs: Signal<Vec<wrldbldr_player_app::application::services::PlayerCharacterData>> =
+        use_signal(Vec::new);
+    let mut npcs: Signal<Vec<wrldbldr_player_app::application::services::CharacterSummary>> =
+        use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 
@@ -44,7 +46,7 @@ pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Ele
             spawn(async move {
                 // Load PCs
                 let pc_result = pc_svc_clone.list_pcs(&sid).await;
-                
+
                 // Load NPCs
                 let npc_result = char_svc_clone.list_characters(&wid).await;
 
@@ -188,4 +190,3 @@ fn CharacterCard(props: CharacterCardProps) -> Element {
         }
     }
 }
-

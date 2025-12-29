@@ -10,8 +10,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
 
-use wrldbldr_domain::{ItemId, WorldId};
 use wrldbldr_domain::entities::Item;
+use wrldbldr_domain::{ItemId, WorldId};
 use wrldbldr_engine_ports::outbound::ItemRepositoryPort;
 
 use super::converters::row_to_item;
@@ -55,7 +55,10 @@ impl ItemRepositoryPort for Neo4jItemRepository {
         .param("is_unique", item.is_unique)
         .param("properties", item.properties.clone().unwrap_or_default())
         .param("can_contain_items", item.can_contain_items)
-        .param("container_limit", item.container_limit.map(|l| l as i64).unwrap_or(-1));
+        .param(
+            "container_limit",
+            item.container_limit.map(|l| l as i64).unwrap_or(-1),
+        );
 
         self.connection.graph().run(q).await?;
         Ok(())
@@ -115,7 +118,10 @@ impl ItemRepositoryPort for Neo4jItemRepository {
         .param("is_unique", item.is_unique)
         .param("properties", item.properties.clone().unwrap_or_default())
         .param("can_contain_items", item.can_contain_items)
-        .param("container_limit", item.container_limit.map(|l| l as i64).unwrap_or(-1));
+        .param(
+            "container_limit",
+            item.container_limit.map(|l| l as i64).unwrap_or(-1),
+        );
 
         self.connection.graph().run(q).await?;
         Ok(())

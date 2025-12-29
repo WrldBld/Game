@@ -13,8 +13,8 @@ use async_trait::async_trait;
 use neo4rs::query;
 
 use super::connection::Neo4jConnection;
-use wrldbldr_engine_ports::outbound::FlagRepositoryPort;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_engine_ports::outbound::FlagRepositoryPort;
 
 /// Repository for Game Flag operations
 pub struct Neo4jFlagRepository {
@@ -44,7 +44,12 @@ impl FlagRepositoryPort for Neo4jFlagRepository {
         .param("value", value);
 
         self.connection.graph().run(q).await?;
-        tracing::debug!("Set world flag '{}' = {} for world {}", flag_name, value, world_id);
+        tracing::debug!(
+            "Set world flag '{}' = {} for world {}",
+            flag_name,
+            value,
+            world_id
+        );
         Ok(())
     }
 
@@ -87,7 +92,12 @@ impl FlagRepositoryPort for Neo4jFlagRepository {
     // PC-scoped Flags
     // -------------------------------------------------------------------------
 
-    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str, value: bool) -> Result<()> {
+    async fn set_pc_flag(
+        &self,
+        pc_id: PlayerCharacterId,
+        flag_name: &str,
+        value: bool,
+    ) -> Result<()> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})
             MERGE (pc)-[f:HAS_FLAG {name: $flag_name}]->(pc)

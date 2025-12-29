@@ -116,7 +116,12 @@ pub struct MapBounds {
 
 impl MapBounds {
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Check if a pixel position is within these bounds

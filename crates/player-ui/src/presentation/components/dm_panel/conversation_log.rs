@@ -107,9 +107,19 @@ fn ConversationEntry(turn: ConversationTurn) -> Element {
     }
 
     let (bg_class, text_class, border_class, speaker_class) = if turn.is_system {
-        ("bg-blue-500 bg-opacity-10", "text-blue-400", "border-blue-400", "text-blue-400")
+        (
+            "bg-blue-500 bg-opacity-10",
+            "text-blue-400",
+            "border-blue-400",
+            "text-blue-400",
+        )
     } else {
-        ("bg-black bg-opacity-30", "text-white", "border-blue-500", "text-blue-500")
+        (
+            "bg-black bg-opacity-30",
+            "text-white",
+            "border-blue-500",
+            "text-blue-500",
+        )
     };
 
     rsx! {
@@ -214,4 +224,3 @@ fn ChallengeResultEntry(result: ChallengeResultInfo, timestamp: String) -> Eleme
         }
     }
 }
-

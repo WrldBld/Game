@@ -91,12 +91,32 @@ pub fn ChallengeCard(props: ChallengeCardProps) -> Element {
     let challenge_for_edit = challenge.clone();
     let challenge_for_trigger = challenge.clone();
 
-    let opacity_class = if challenge.active { "opacity-100" } else { "opacity-60" };
-    let border_class = if challenge.is_favorite { "border-amber-500" } else { "border-gray-700" };
+    let opacity_class = if challenge.active {
+        "opacity-100"
+    } else {
+        "opacity-60"
+    };
+    let border_class = if challenge.is_favorite {
+        "border-amber-500"
+    } else {
+        "border-gray-700"
+    };
     let star_icon = if challenge.is_favorite { "⭐" } else { "☆" };
-    let active_bg = if challenge.active { "bg-emerald-500" } else { "bg-gray-700" };
-    let active_text = if challenge.active { "Active" } else { "Inactive" };
-    let extra_tags = if challenge.tags.len() > 2 { challenge.tags.len() - 2 } else { 0 };
+    let active_bg = if challenge.active {
+        "bg-emerald-500"
+    } else {
+        "bg-gray-700"
+    };
+    let active_text = if challenge.active {
+        "Active"
+    } else {
+        "Inactive"
+    };
+    let extra_tags = if challenge.tags.len() > 2 {
+        challenge.tags.len() - 2
+    } else {
+        0
+    };
 
     rsx! {
         div {

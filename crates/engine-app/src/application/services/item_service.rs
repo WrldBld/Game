@@ -11,9 +11,11 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_engine_ports::outbound::{ItemRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort};
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::{
+    ItemRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+};
 
 /// Request to create a new item
 #[derive(Debug, Clone)]
@@ -98,7 +100,7 @@ pub trait ItemService: Send + Sync {
     // -------------------------------------------------------------------------
 
     /// Give an item to a player character
-    /// 
+    ///
     /// This is the primary method for the LLM→DM approval→item creation flow.
     /// If `item_id` is None, creates a new item with the given name/description.
     /// If `item_id` is Some, uses the existing item.
@@ -109,7 +111,7 @@ pub trait ItemService: Send + Sync {
     ) -> Result<GiveItemResult>;
 
     /// Give an item to multiple PCs at once
-    /// 
+    ///
     /// Creates one item per recipient (each gets their own instance).
     async fn give_item_to_multiple_pcs(
         &self,

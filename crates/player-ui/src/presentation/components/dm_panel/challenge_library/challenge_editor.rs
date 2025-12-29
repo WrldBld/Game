@@ -1,10 +1,10 @@
 //! Challenge editor form component
 
+use crate::presentation::services::use_challenge_service;
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::{
-    ChallengeData, ChallengeType, ChallengeDifficulty, SkillData, ChallengeOutcomes,
+    ChallengeData, ChallengeDifficulty, ChallengeOutcomes, ChallengeType, SkillData,
 };
-use crate::presentation::services::use_challenge_service;
 
 /// Props for ChallengeFormModal
 #[derive(Props, Clone, PartialEq)]
@@ -20,7 +20,10 @@ pub struct ChallengeFormModalProps {
 #[component]
 pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
     let is_edit = props.challenge.is_some();
-    let initial = props.challenge.clone().unwrap_or_default_challenge(&props.world_id);
+    let initial = props
+        .challenge
+        .clone()
+        .unwrap_or_default_challenge(&props.world_id);
 
     let mut name = use_signal(|| initial.name.clone());
     let mut description = use_signal(|| initial.description.clone());
@@ -139,10 +142,24 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
         });
     };
 
-    let header_text = if is_edit { "Edit Challenge" } else { "New Challenge" };
+    let header_text = if is_edit {
+        "Edit Challenge"
+    } else {
+        "New Challenge"
+    };
     let is_disabled = *is_saving.read() || name.read().is_empty() || skill_id.read().is_empty();
-    let opacity_class = if is_disabled { "opacity-50" } else { "opacity-100" };
-    let button_text = if *is_saving.read() { "Saving..." } else if is_edit { "Update" } else { "Create" };
+    let opacity_class = if is_disabled {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
+    let button_text = if *is_saving.read() {
+        "Saving..."
+    } else if is_edit {
+        "Update"
+    } else {
+        "Create"
+    };
 
     rsx! {
         div {

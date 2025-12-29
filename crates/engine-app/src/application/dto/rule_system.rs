@@ -6,9 +6,7 @@
 
 use serde::Serialize;
 
-use wrldbldr_domain::value_objects::{
-    RuleSystemConfig, RuleSystemType, RuleSystemVariant,
-};
+use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
 
 // ============================================================================
 // Catalog/lookup DTOs (used by rule system routes)

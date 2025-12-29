@@ -5,8 +5,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
 use crate::presentation::services::{use_asset_service, use_settings_service};
+use wrldbldr_player_app::application::services::{Asset, GenerateRequest};
 
 /// Props for DirectorGenerateModal
 #[derive(Props, Clone, PartialEq)]
@@ -67,7 +67,8 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
             if let Ok(assets) = asset_svc.get_assets(&et, &ei).await {
                 // Pre-populate with world default if available
                 if let Some(ref default_id) = world_default_ref {
-                    let label = assets.iter()
+                    let label = assets
+                        .iter()
                         .find(|a| &a.id == default_id)
                         .and_then(|a| a.label.clone())
                         .or_else(|| Some(default_id.clone()));
@@ -80,7 +81,11 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
         });
     });
 
-    let button_text = if *is_generating.read() { "Generating..." } else { "Generate" };
+    let button_text = if *is_generating.read() {
+        "Generating..."
+    } else {
+        "Generate"
+    };
 
     rsx! {
         div {
@@ -297,4 +302,3 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
         }
     }
 }
-

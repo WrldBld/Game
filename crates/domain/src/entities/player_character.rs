@@ -1,8 +1,8 @@
 //! Player Character entity - PCs created by players, distinct from NPCs
 
+use crate::entities::sheet_template::CharacterSheetData;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::entities::sheet_template::CharacterSheetData;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 /// A player character (PC) - distinct from NPCs
@@ -15,26 +15,26 @@ use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 #[serde(rename_all = "camelCase")]
 pub struct PlayerCharacter {
     pub id: PlayerCharacterId,
-    pub user_id: String,  // Anonymous user ID from Player
+    pub user_id: String, // Anonymous user ID from Player
     pub world_id: WorldId,
-    
+
     // Character identity
     pub name: String,
     pub description: Option<String>,
-    
+
     // Character sheet data (matches CharacterSheetData from Phase 14)
     pub sheet_data: Option<CharacterSheetData>,
-    
+
     // Location tracking
     pub current_location_id: LocationId,
     /// The specific region within the location (for JRPG-style navigation)
     pub current_region_id: Option<RegionId>,
-    pub starting_location_id: LocationId,  // For reference/history
-    
+    pub starting_location_id: LocationId, // For reference/history
+
     // Visual assets (optional, can be generated later)
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
-    
+
     // Metadata
     pub created_at: DateTime<Utc>,
     pub last_active_at: DateTime<Utc>,
@@ -99,7 +99,7 @@ impl PlayerCharacter {
     /// Update the character's current location (clears region)
     pub fn update_location(&mut self, location_id: LocationId, now: DateTime<Utc>) {
         self.current_location_id = location_id;
-        self.current_region_id = None;  // Region needs to be set separately
+        self.current_region_id = None; // Region needs to be set separately
         self.last_active_at = now;
     }
 
@@ -110,7 +110,12 @@ impl PlayerCharacter {
     }
 
     /// Update both location and region at once
-    pub fn update_position(&mut self, location_id: LocationId, region_id: Option<RegionId>, now: DateTime<Utc>) {
+    pub fn update_position(
+        &mut self,
+        location_id: LocationId,
+        region_id: Option<RegionId>,
+        now: DateTime<Utc>,
+    ) {
         self.current_location_id = location_id;
         self.current_region_id = region_id;
         self.last_active_at = now;
@@ -129,4 +134,3 @@ impl PlayerCharacter {
         Ok(())
     }
 }
-

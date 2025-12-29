@@ -2,13 +2,11 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
-use wrldbldr_player_ports::outbound::Platform;
-use wrldbldr_player_app::application::services::SessionCommandService;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
-use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
+use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
 use crate::presentation::components::dm_panel::location_preview_modal::LocationPreviewModal;
+use crate::presentation::components::dm_panel::log_entry::DynamicLogEntry;
 use crate::presentation::components::dm_panel::npc_disposition_panel::{
     DispositionChangeEvent, NpcDispositionListPanel, RelationshipChangeEvent, SceneNpcInfo,
 };
@@ -17,12 +15,16 @@ use crate::presentation::components::dm_panel::staging_approval::{
     StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest,
 };
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
-use crate::presentation::components::dm_panel::log_entry::DynamicLogEntry;
 use crate::presentation::services::{use_challenge_service, use_skill_service};
 use crate::presentation::state::{
-    use_game_state, use_session_state, use_generation_state, 
-    GameState, SessionState, PendingApproval, ViewMode,
+    use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
+    SessionState, ViewMode,
 };
+use wrldbldr_player_app::application::dto::{
+    ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
+};
+use wrldbldr_player_app::application::services::SessionCommandService;
+use wrldbldr_player_ports::outbound::Platform;
 
 /// The original Director mode content (directing gameplay)
 #[component]
@@ -71,7 +73,9 @@ pub fn DirectorModeContent() -> Element {
                 if let Ok(challenge_list) = svc.list_challenges(&world_id).await {
                     // Convert service types to DTO types via JSON
                     if let Ok(json) = serde_json::to_value(&challenge_list) {
-                        if let Ok(dto_challenges) = serde_json::from_value::<Vec<ChallengeData>>(json) {
+                        if let Ok(dto_challenges) =
+                            serde_json::from_value::<Vec<ChallengeData>>(json)
+                        {
                             challenges.set(dto_challenges);
                         }
                     }
@@ -91,7 +95,11 @@ pub fn DirectorModeContent() -> Element {
     let view_mode = game_state.view_mode.read().clone();
 
     // If viewing as a character, show the read-only perspective view
-    if let ViewMode::ViewingAsCharacter { character_id, character_name } = view_mode {
+    if let ViewMode::ViewingAsCharacter {
+        character_id,
+        character_name,
+    } = view_mode
+    {
         return rsx! {
             ViewAsCharacterMode {
                 character_id: character_id,
@@ -279,7 +287,7 @@ pub fn DirectorModeContent() -> Element {
                 {
                     let npc_dispositions = game_state.npc_dispositions.read().clone();
                     let selected_pc_id = game_state.selected_pc_id.read().clone();
-                    
+
                     // Only show if we have dispositions data
                     if !npc_dispositions.is_empty() {
                         let pc_name = selected_pc_id.clone().unwrap_or_else(|| "Unknown".to_string());
@@ -291,16 +299,16 @@ pub fn DirectorModeContent() -> Element {
                                 current_relationship: Some(d.relationship.clone()),
                             })
                             .collect();
-                        
+
                         let session_state_disposition = session_state.clone();
                         let session_state_rel = session_state.clone();
-                        
+
                         rsx! {
                             div {
                                 class: "panel-section bg-dark-surface rounded-lg p-4",
-                                
+
                                 h3 { class: "text-gray-400 mb-3 text-sm uppercase", "NPC Dispositions" }
-                                
+
                                 NpcDispositionListPanel {
                                     pc_id: selected_pc_id.clone().unwrap_or_default(),
                                     pc_name: pc_name,
@@ -490,7 +498,7 @@ pub fn DirectorModeContent() -> Element {
                     let mut game_state_for_view = game_state.clone();
                     let session_id = session_state.session_id().read().as_ref().map(|s| s.clone());
                     let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
-                    
+
                     if let (Some(session_id), Some(world_id)) = (session_id, world_id) {
                         rsx! {
                             div {
@@ -614,14 +622,14 @@ pub fn DirectorModeContent() -> Element {
                     let session_state_for_regenerate = use_session_state();
                     let mut game_state_for_approve = game_state.clone();
                     let mut game_state_for_close = game_state.clone();
-                    
+
                     rsx! {
                         StagingApprovalPopup {
                             data: staging_data.clone(),
                             on_approve: move |result: StagingApprovalResult| {
                                 tracing::info!("Staging approved for request {}: {} NPCs, ttl={} hours",
                                     result.request_id, result.approved_npcs.len(), result.ttl_hours);
-                                
+
                                 // Send approval to engine
                                 if let Some(client) = session_state_for_approve.engine_client().read().as_ref() {
                                     let approved_npcs: Vec<ApprovedNpcInfo> = result.approved_npcs
@@ -633,7 +641,7 @@ pub fn DirectorModeContent() -> Element {
                                             is_hidden_from_players,
                                         })
                                         .collect();
-                                    
+
                                     if let Err(e) = client.send_staging_approval(
                                         &result.request_id,
                                         approved_npcs,
@@ -643,14 +651,14 @@ pub fn DirectorModeContent() -> Element {
                                         tracing::error!("Failed to send staging approval: {}", e);
                                     }
                                 }
-                                
+
                                 // Clear the pending approval
                                 game_state_for_approve.clear_pending_staging_approval();
                             },
                             on_regenerate: move |request: StagingRegenerateRequest| {
                                 tracing::info!("Regenerating staging for request {}: {}",
                                     request.request_id, request.guidance);
-                                
+
                                 // Send regenerate request to engine
                                 if let Some(client) = session_state_for_regenerate.engine_client().read().as_ref() {
                                     if let Err(e) = client.request_staging_regenerate(
@@ -690,7 +698,12 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
 
     // Track which tools are approved
     let mut approved_tools = use_signal(|| {
-        props.approval.proposed_tools.iter().map(|t| (t.id.clone(), true)).collect::<std::collections::HashMap<_, _>>()
+        props
+            .approval
+            .proposed_tools
+            .iter()
+            .map(|t| (t.id.clone(), true))
+            .collect::<std::collections::HashMap<_, _>>()
     });
 
     let request_id = props.approval.request_id.clone();

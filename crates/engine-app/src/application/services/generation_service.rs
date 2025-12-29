@@ -12,11 +12,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::{mpsc, RwLock};
 
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort};
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort};
 
 /// Events emitted by the generation service
 #[derive(Debug, Clone)]
@@ -30,10 +30,7 @@ pub enum GenerationEvent {
         position: u32,
     },
     /// A batch is generating (progress update)
-    BatchProgress {
-        batch_id: BatchId,
-        progress: u8,
-    },
+    BatchProgress { batch_id: BatchId, progress: u8 },
     /// A batch has completed
     BatchComplete {
         batch_id: BatchId,
@@ -213,15 +210,16 @@ impl GenerationService {
         let mut prompt_ids = Vec::new();
         for i in 0..batch.count {
             // Modify the workflow with our parameters
-            let workflow = self.prepare_workflow(
-                workflow_template.clone(),
-                &batch.prompt,
-                batch.negative_prompt.as_deref(),
-                i as i64, // Use index as seed variation
-                &batch.asset_type,
-                batch.style_reference_id,
-            )
-            .await?;
+            let workflow = self
+                .prepare_workflow(
+                    workflow_template.clone(),
+                    &batch.prompt,
+                    batch.negative_prompt.as_deref(),
+                    i as i64, // Use index as seed variation
+                    &batch.asset_type,
+                    batch.style_reference_id,
+                )
+                .await?;
 
             // Queue with ComfyUI
             match self.comfyui_client.queue_prompt(workflow).await {
@@ -519,11 +517,13 @@ impl GenerationService {
                 // Try to find IPAdapter node and inject image
                 if let Some(obj) = workflow.as_object_mut() {
                     let mut ipadapter_found = false;
-                    
+
                     // First pass: find IPAdapter nodes
                     for (_node_id, node) in obj.iter() {
                         if let Some(node_obj) = node.as_object() {
-                            if let Some(class_type) = node_obj.get("class_type").and_then(|c| c.as_str()) {
+                            if let Some(class_type) =
+                                node_obj.get("class_type").and_then(|c| c.as_str())
+                            {
                                 if class_type.contains("IPAdapter") {
                                     ipadapter_found = true;
                                     break;
@@ -531,12 +531,14 @@ impl GenerationService {
                             }
                         }
                     }
-                    
+
                     // If IPAdapter found, inject image path
                     if ipadapter_found {
                         for (_node_id, node) in obj.iter_mut() {
                             if let Some(node_obj) = node.as_object_mut() {
-                                if let Some(class_type) = node_obj.get("class_type").and_then(|c| c.as_str()) {
+                                if let Some(class_type) =
+                                    node_obj.get("class_type").and_then(|c| c.as_str())
+                                {
                                     if class_type.contains("IPAdapter") {
                                         if let Some(inputs) = node_obj.get_mut("inputs") {
                                             if let Some(inputs_obj) = inputs.as_object_mut() {
@@ -544,7 +546,9 @@ impl GenerationService {
                                                 // For now, use the file_path from the asset
                                                 inputs_obj.insert(
                                                     "image".to_string(),
-                                                    serde_json::Value::String(ref_asset.file_path.clone()),
+                                                    serde_json::Value::String(
+                                                        ref_asset.file_path.clone(),
+                                                    ),
                                                 );
                                             }
                                         }
@@ -556,8 +560,9 @@ impl GenerationService {
                         // No IPAdapter found - inject style keywords into prompt
                         // This is a simplified approach - in production, you'd extract style keywords
                         // from the reference asset's generation metadata or analyze the image
-                        let enhanced_prompt = format!("{}, in the style of: {}", prompt, "reference style");
-                        
+                        let enhanced_prompt =
+                            format!("{}, in the style of: {}", prompt, "reference style");
+
                         // Update prompt in workflow
                         for (_node_id, node) in obj.iter_mut() {
                             if let Some(node_obj) = node.as_object_mut() {
@@ -574,7 +579,9 @@ impl GenerationService {
                                                 if s.is_string() {
                                                     inputs_obj.insert(
                                                         "positive".to_string(),
-                                                        serde_json::Value::String(enhanced_prompt.clone()),
+                                                        serde_json::Value::String(
+                                                            enhanced_prompt.clone(),
+                                                        ),
                                                     );
                                                 }
                                             }
@@ -633,7 +640,10 @@ impl GenerationService {
     }
 
     /// List all active (queued or generating) batches for a specific world
-    pub async fn list_active_batches_by_world(&self, world_id: WorldId) -> Result<Vec<GenerationBatch>> {
+    pub async fn list_active_batches_by_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<GenerationBatch>> {
         self.repository.list_active_batches_by_world(world_id).await
     }
 

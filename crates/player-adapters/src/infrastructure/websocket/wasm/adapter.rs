@@ -86,13 +86,19 @@ impl GameConnectionPort for WasmGameConnection {
     }
 
     fn connect(&self) -> Result<()> {
-        self.inner.state.store(state_to_u8(PortConnectionState::Connecting), Ordering::SeqCst);
+        self.inner.state.store(
+            state_to_u8(PortConnectionState::Connecting),
+            Ordering::SeqCst,
+        );
         self.inner.client.connect()
     }
 
     fn disconnect(&self) {
         self.inner.client.disconnect();
-        self.inner.state.store(state_to_u8(PortConnectionState::Disconnected), Ordering::SeqCst);
+        self.inner.state.store(
+            state_to_u8(PortConnectionState::Disconnected),
+            Ordering::SeqCst,
+        );
     }
 
     fn join_world(&self, world_id: &str, user_id: &str, role: app::ParticipantRole) -> Result<()> {
@@ -100,40 +106,79 @@ impl GameConnectionPort for WasmGameConnection {
         self.inner.client.join_world(world_id, user_id, proto_role)
     }
 
-    fn send_action(&self, action_type: &str, target: Option<&str>, dialogue: Option<&str>) -> Result<()> {
+    fn send_action(
+        &self,
+        action_type: &str,
+        target: Option<&str>,
+        dialogue: Option<&str>,
+    ) -> Result<()> {
         self.inner.client.send_action(action_type, target, dialogue)
     }
 
     fn request_scene_change(&self, scene_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::request_scene_change(scene_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::request_scene_change(scene_id))
     }
 
     fn send_directorial_update(&self, context: app::DirectorialContext) -> Result<()> {
         let proto_context = directorial_context_to_proto(context);
-        self.inner.client.send(ClientMessageBuilder::directorial_update(proto_context))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::directorial_update(proto_context))
     }
 
-    fn send_approval_decision(&self, request_id: &str, decision: app::ApprovalDecision) -> Result<()> {
+    fn send_approval_decision(
+        &self,
+        request_id: &str,
+        decision: app::ApprovalDecision,
+    ) -> Result<()> {
         let proto_decision = approval_decision_to_proto(decision);
-        self.inner.client.send(ClientMessageBuilder::approval_decision(request_id, proto_decision))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::approval_decision(
+                request_id,
+                proto_decision,
+            ))
     }
 
-    fn send_challenge_outcome_decision(&self, resolution_id: &str, decision: app::ChallengeOutcomeDecision) -> Result<()> {
+    fn send_challenge_outcome_decision(
+        &self,
+        resolution_id: &str,
+        decision: app::ChallengeOutcomeDecision,
+    ) -> Result<()> {
         let proto_decision = challenge_outcome_decision_to_proto(decision);
-        self.inner.client.send(ClientMessageBuilder::challenge_outcome_decision(resolution_id, proto_decision))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::challenge_outcome_decision(
+                resolution_id,
+                proto_decision,
+            ))
     }
 
     fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::trigger_challenge(challenge_id, target_character_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::trigger_challenge(
+                challenge_id,
+                target_character_id,
+            ))
     }
 
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::challenge_roll(challenge_id, roll))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::challenge_roll(challenge_id, roll))
     }
 
     fn submit_challenge_roll_input(&self, challenge_id: &str, input: app::DiceInput) -> Result<()> {
         let proto_input = dice_input_to_proto(input);
-        self.inner.client.send(ClientMessageBuilder::challenge_roll_input(challenge_id, proto_input))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::challenge_roll_input(
+                challenge_id,
+                proto_input,
+            ))
     }
 
     fn heartbeat(&self) -> Result<()> {
@@ -141,11 +186,24 @@ impl GameConnectionPort for WasmGameConnection {
     }
 
     fn move_to_region(&self, pc_id: &str, region_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::move_to_region(pc_id, region_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::move_to_region(pc_id, region_id))
     }
 
-    fn exit_to_location(&self, pc_id: &str, location_id: &str, arrival_region_id: Option<&str>) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::exit_to_location(pc_id, location_id, arrival_region_id))
+    fn exit_to_location(
+        &self,
+        pc_id: &str,
+        location_id: &str,
+        arrival_region_id: Option<&str>,
+    ) -> Result<()> {
+        self.inner
+            .client
+            .send(ClientMessageBuilder::exit_to_location(
+                pc_id,
+                location_id,
+                arrival_region_id,
+            ))
     }
 
     fn send_staging_approval(
@@ -155,17 +213,37 @@ impl GameConnectionPort for WasmGameConnection {
         ttl_hours: i32,
         source: &str,
     ) -> Result<()> {
-        let proto_npcs = approved_npcs.into_iter().map(approved_npc_info_to_proto).collect();
-        self.inner.client.send(ClientMessageBuilder::staging_approval_response(request_id, proto_npcs, ttl_hours, source))
+        let proto_npcs = approved_npcs
+            .into_iter()
+            .map(approved_npc_info_to_proto)
+            .collect();
+        self.inner
+            .client
+            .send(ClientMessageBuilder::staging_approval_response(
+                request_id, proto_npcs, ttl_hours, source,
+            ))
     }
 
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::staging_regenerate_request(request_id, guidance))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::staging_regenerate_request(
+                request_id, guidance,
+            ))
     }
 
-    fn pre_stage_region(&self, region_id: &str, npcs: Vec<app::ApprovedNpcInfo>, ttl_hours: i32) -> Result<()> {
+    fn pre_stage_region(
+        &self,
+        region_id: &str,
+        npcs: Vec<app::ApprovedNpcInfo>,
+        ttl_hours: i32,
+    ) -> Result<()> {
         let proto_npcs = npcs.into_iter().map(approved_npc_info_to_proto).collect();
-        self.inner.client.send(ClientMessageBuilder::pre_stage_region(region_id, proto_npcs, ttl_hours))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::pre_stage_region(
+                region_id, proto_npcs, ttl_hours,
+            ))
     }
 
     fn create_adhoc_challenge(
@@ -177,41 +255,78 @@ impl GameConnectionPort for WasmGameConnection {
         outcomes: app::AdHocOutcomes,
     ) -> Result<()> {
         let proto_outcomes = adhoc_outcomes_to_proto(outcomes);
-        self.inner.client.send(ClientMessageBuilder::create_adhoc_challenge(
-            challenge_name, skill_name, difficulty, target_pc_id, proto_outcomes,
-        ))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::create_adhoc_challenge(
+                challenge_name,
+                skill_name,
+                difficulty,
+                target_pc_id,
+                proto_outcomes,
+            ))
     }
 
     fn equip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::equip_item(pc_id, item_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::equip_item(pc_id, item_id))
     }
 
     fn unequip_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::unequip_item(pc_id, item_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::unequip_item(pc_id, item_id))
     }
 
     fn drop_item(&self, pc_id: &str, item_id: &str, quantity: u32) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::drop_item(pc_id, item_id, quantity))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::drop_item(pc_id, item_id, quantity))
     }
 
     fn pickup_item(&self, pc_id: &str, item_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::pickup_item(pc_id, item_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::pickup_item(pc_id, item_id))
     }
 
     fn check_comfyui_health(&self) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::check_comfyui_health())
+        self.inner
+            .client
+            .send(ClientMessageBuilder::check_comfyui_health())
     }
 
-    fn set_npc_disposition(&self, npc_id: &str, pc_id: &str, disposition: &str, reason: Option<&str>) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::set_npc_disposition(npc_id, pc_id, disposition, reason))
+    fn set_npc_disposition(
+        &self,
+        npc_id: &str,
+        pc_id: &str,
+        disposition: &str,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        self.inner
+            .client
+            .send(ClientMessageBuilder::set_npc_disposition(
+                npc_id,
+                pc_id,
+                disposition,
+                reason,
+            ))
     }
 
     fn set_npc_relationship(&self, npc_id: &str, pc_id: &str, relationship: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::set_npc_relationship(npc_id, pc_id, relationship))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::set_npc_relationship(
+                npc_id,
+                pc_id,
+                relationship,
+            ))
     }
 
     fn get_npc_dispositions(&self, pc_id: &str) -> Result<()> {
-        self.inner.client.send(ClientMessageBuilder::get_npc_dispositions(pc_id))
+        self.inner
+            .client
+            .send(ClientMessageBuilder::get_npc_dispositions(pc_id))
     }
 
     /// Register callback for state changes

@@ -314,12 +314,12 @@ mod tests {
     fn test_npc_presence_filtering() {
         // Create a mock builder just to test the filtering logic
         // We can't easily mock the repos here, but we can test the pure function logic
-        
+
         let staged = vec![
-            make_staged_npc("Alice", true, false),  // Should be included
-            make_staged_npc("Bob", true, true),     // Hidden, should be excluded
+            make_staged_npc("Alice", true, false),    // Should be included
+            make_staged_npc("Bob", true, true),       // Hidden, should be excluded
             make_staged_npc("Charlie", false, false), // Not present, excluded
-            make_staged_npc("Diana", true, false),  // Should be included
+            make_staged_npc("Diana", true, false),    // Should be included
         ];
 
         // Filter like the builder does

@@ -9,9 +9,9 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::presentation::services::use_skill_service;
 use wrldbldr_player_app::application::dto::{SkillCategory, SkillData};
 use wrldbldr_player_app::application::services::{CreateSkillRequest, UpdateSkillRequest};
-use crate::presentation::services::use_skill_service;
 
 /// Props for SkillsPanel
 #[derive(Props, Clone, PartialEq)]
@@ -67,7 +67,10 @@ pub fn SkillsPanel(props: SkillsPanelProps) -> Element {
         let mut grouped: HashMap<SkillCategory, Vec<SkillData>> = HashMap::new();
         for skill in skills_read.iter() {
             if !skill.is_hidden || show_hidden_val {
-                grouped.entry(skill.category).or_default().push(skill.clone());
+                grouped
+                    .entry(skill.category)
+                    .or_default()
+                    .push(skill.clone());
             }
         }
         // Sort skills within each category by order
@@ -267,7 +270,11 @@ fn SkillRow(
     } else {
         "p-1 bg-transparent border-0 text-green-500 cursor-pointer text-sm"
     };
-    let name_class = if skill.is_hidden { "text-gray-500 font-medium" } else { "text-white font-medium" };
+    let name_class = if skill.is_hidden {
+        "text-gray-500 font-medium"
+    } else {
+        "text-white font-medium"
+    };
 
     let handle_toggle = {
         let service = skill_service.clone();
@@ -671,4 +678,3 @@ fn EditSkillForm(
         }
     }
 }
-

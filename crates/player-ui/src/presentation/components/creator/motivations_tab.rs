@@ -12,19 +12,20 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_app::application::dto::{
-    WantVisibilityData, ActantialRoleData, WantTargetTypeData,
-    NpcActantialContextData, WantData, GoalData,
-    ActantialActorData, ActorTypeData, SocialRelationData,
-};
-use wrldbldr_player_app::application::services::{
-    CreateWantRequest, UpdateWantRequest, CreateGoalRequest, SuggestionContext,
-    SetWantTargetRequest, AddActantialViewRequest, RemoveActantialViewRequest,
+use crate::presentation::components::common::CharacterPicker;
+use crate::presentation::components::creator::suggestion_button::{
+    SuggestionButton, SuggestionType,
 };
 use crate::presentation::services::{use_actantial_service, use_character_service};
 use crate::presentation::state::use_game_state;
-use crate::presentation::components::common::CharacterPicker;
-use crate::presentation::components::creator::suggestion_button::{SuggestionButton, SuggestionType};
+use wrldbldr_player_app::application::dto::{
+    ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
+    SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
+};
+use wrldbldr_player_app::application::services::{
+    AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
+    SetWantTargetRequest, SuggestionContext, UpdateWantRequest,
+};
 
 /// Props for the motivations tab
 #[derive(Props, Clone, PartialEq)]
@@ -42,21 +43,21 @@ pub struct MotivationsTabProps {
 pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
     // Get the actantial service
     let actantial_service = use_actantial_service();
-    
+
     // Get game state for WebSocket-triggered refreshes
     let game_state = use_game_state();
-    
+
     // State for actantial context
     let mut context: Signal<Option<NpcActantialContextData>> = use_signal(|| None);
     let mut goals: Signal<Vec<GoalData>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Modal state
     let mut show_want_modal = use_signal(|| false);
     let mut show_goal_modal = use_signal(|| false);
     let mut editing_want_id: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Refresh trigger - increment to trigger a refresh
     let mut refresh_counter = use_signal(|| 0u32);
 
@@ -65,18 +66,18 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
         let char_id = props.character_id.clone();
         let world_id = props.world_id.clone();
         let service = actantial_service.clone();
-        
+
         use_effect(move || {
             let char_id = char_id.clone();
             let world_id = world_id.clone();
             let service = service.clone();
             let _refresh = *refresh_counter.read(); // Subscribe to local refresh counter
             let _global_refresh = *game_state.actantial_refresh_counter.read(); // Subscribe to WebSocket refresh
-            
+
             spawn(async move {
                 is_loading.set(true);
                 error_message.set(None);
-                
+
                 // Fetch actantial context
                 match service.get_actantial_context(&char_id).await {
                     Ok(ctx) => {
@@ -87,17 +88,20 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
                         error_message.set(Some(format!("Failed to load motivations: {}", e)));
                     }
                 }
-                
+
                 // Fetch world goals
                 match service.list_goals(&world_id).await {
                     Ok(goal_list) => {
                         // Convert GoalResponse to GoalData
-                        let goal_data: Vec<GoalData> = goal_list.into_iter().map(|g| GoalData {
-                            id: g.id,
-                            name: g.name,
-                            description: g.description,
-                            usage_count: 0, // Will be populated from context if needed
-                        }).collect();
+                        let goal_data: Vec<GoalData> = goal_list
+                            .into_iter()
+                            .map(|g| GoalData {
+                                id: g.id,
+                                name: g.name,
+                                description: g.description,
+                                usage_count: 0, // Will be populated from context if needed
+                            })
+                            .collect();
                         goals.set(goal_data);
                     }
                     Err(e) => {
@@ -108,12 +112,12 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
                         }
                     }
                 }
-                
+
                 is_loading.set(false);
             });
         });
     }
-    
+
     // Delete want handler
     let delete_want = {
         let service = actantial_service.clone();
@@ -326,13 +330,13 @@ fn WantCard(props: WantCardProps) -> Element {
     let mut expanded = use_signal(|| false);
     let _show_add_view = use_signal(|| false);
     let want = &props.want;
-    
+
     let visibility_badge = match want.visibility {
         WantVisibilityData::Known => ("Known", "bg-green-600"),
         WantVisibilityData::Suspected => ("Suspected", "bg-yellow-600"),
         WantVisibilityData::Hidden | WantVisibilityData::Unknown => ("Hidden", "bg-red-600"),
     };
-    
+
     let intensity_percent = (want.intensity * 100.0) as i32;
 
     rsx! {
@@ -465,34 +469,34 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
     let mut selected_target = use_signal(|| String::new());
     let mut reason = use_signal(|| String::new());
     let mut is_saving = use_signal(|| false);
-    
+
     let want = &props.want;
-    let has_actors = !want.helpers.is_empty() 
-        || !want.opponents.is_empty() 
-        || want.sender.is_some() 
+    let has_actors = !want.helpers.is_empty()
+        || !want.opponents.is_empty()
+        || want.sender.is_some()
         || want.receiver.is_some();
-    
+
     // Add view handler
     let add_view = {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want.id.clone();
         let on_refresh = props.on_refresh.clone();
-        
+
         move |_| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
             let on_refresh = on_refresh.clone();
-            
+
             let role_str = selected_role.read().clone();
             let target_str = selected_target.read().clone();
             let reason_str = reason.read().clone();
-            
+
             if target_str.is_empty() {
                 return;
             }
-            
+
             // Parse target: "npc:{id}" or "pc:{id}"
             let (actor_id, actor_type) = if let Some(id) = target_str.strip_prefix("npc:") {
                 (id.to_string(), ActorTypeData::Npc)
@@ -502,7 +506,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                 // Default to NPC
                 (target_str.clone(), ActorTypeData::Npc)
             };
-            
+
             let role = match role_str.as_str() {
                 "helper" => ActantialRoleData::Helper,
                 "opponent" => ActantialRoleData::Opponent,
@@ -510,18 +514,22 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                 "receiver" => ActantialRoleData::Receiver,
                 _ => ActantialRoleData::Helper,
             };
-            
+
             is_saving.set(true);
-            
+
             spawn(async move {
                 let req = AddActantialViewRequest {
                     want_id: want_id.clone(),
                     actor_id,
                     actor_type,
                     role,
-                    reason: if reason_str.is_empty() { None } else { Some(reason_str) },
+                    reason: if reason_str.is_empty() {
+                        None
+                    } else {
+                        Some(reason_str)
+                    },
                 };
-                
+
                 match service.add_actantial_view(&character_id, &req).await {
                     Ok(_) => {
                         is_saving.set(false);
@@ -538,21 +546,21 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
             });
         }
     };
-    
+
     // Remove view handler - takes actor and role
     let remove_view = {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want.id.clone();
         let on_refresh = props.on_refresh.clone();
-        
+
         move |actor: ActantialActorData, role: ActantialRoleData| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
             let on_refresh = on_refresh.clone();
             let actor_type = actor.actor_type;
-            
+
             spawn(async move {
                 let req = RemoveActantialViewRequest {
                     want_id: want_id.clone(),
@@ -560,7 +568,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     actor_type,
                     role,
                 };
-                
+
                 match service.remove_actantial_view(&character_id, &req).await {
                     Ok(_) => {
                         on_refresh.call(());
@@ -572,14 +580,14 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
             });
         }
     };
-    
+
     // Check if target is empty (for button disabled state)
     let is_target_empty = selected_target.read().is_empty();
 
     rsx! {
         div {
             class: "mb-3",
-            
+
             // Header with add button
             div {
                 class: "flex justify-between items-center mb-2",
@@ -593,12 +601,12 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     if *show_add_form.read() { "Cancel" } else { "+ Add Role" }
                 }
             }
-            
+
             // Add form (shown when toggled)
             if *show_add_form.read() {
                 div {
                     class: "mb-3 p-3 bg-gray-800 rounded border border-gray-600",
-                    
+
                     // Role selector
                     div {
                         class: "mb-2",
@@ -613,7 +621,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             option { value: "receiver", "Receiver - Benefits from success" }
                         }
                     }
-                    
+
                     // Character picker
                     div {
                         class: "mb-2",
@@ -626,7 +634,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             exclude_id: Some(props.character_id.clone()),
                         }
                     }
-                    
+
                     // Reason (optional)
                     div {
                         class: "mb-2",
@@ -639,7 +647,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                             class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
                         }
                     }
-                    
+
                     div {
                         class: "flex items-center gap-2",
                         button {
@@ -651,7 +659,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     }
                 }
             }
-            
+
             // Existing views
             if !has_actors {
                 p { class: "text-gray-500 text-sm italic", "No actantial views defined" }
@@ -784,7 +792,7 @@ struct GoalsSectionProps {
 fn GoalsSection(props: GoalsSectionProps) -> Element {
     let actantial_service = use_actantial_service();
     let mut adding_common = use_signal(|| false);
-    
+
     // Add common goals handler
     let add_common_goals = {
         let service = actantial_service.clone();
@@ -795,13 +803,16 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
             let world_id = world_id.clone();
             let on_refresh = on_refresh.clone();
             adding_common.set(true);
-            
+
             spawn(async move {
                 // Common goals from domain layer
                 let common_goals = vec![
                     ("Power", "Political or personal dominance over others"),
                     ("Wealth", "Accumulation of material resources and riches"),
-                    ("Knowledge", "Understanding of secrets, lore, or hidden truths"),
+                    (
+                        "Knowledge",
+                        "Understanding of secrets, lore, or hidden truths",
+                    ),
                     ("Revenge", "Retribution against those who caused harm"),
                     ("Justice", "Righting wrongs and upholding fairness"),
                     ("Love", "Deep connection and affection with another"),
@@ -809,10 +820,13 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
                     ("Honor", "Maintaining reputation and personal integrity"),
                     ("Survival", "Self-preservation in the face of threats"),
                     ("Peace", "End to conflict and establishment of harmony"),
-                    ("Recognition", "Fame, acknowledgment, or validation from others"),
+                    (
+                        "Recognition",
+                        "Fame, acknowledgment, or validation from others",
+                    ),
                     ("Redemption", "Atonement for past sins or mistakes"),
                 ];
-                
+
                 let mut added = 0;
                 for (name, description) in common_goals {
                     let req = CreateGoalRequest {
@@ -827,14 +841,14 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
                         }
                     }
                 }
-                
+
                 tracing::info!("Added {} common goals", added);
                 adding_common.set(false);
                 on_refresh.call(()); // Trigger refresh in parent
             });
         }
     };
-    
+
     rsx! {
         div {
             class: "goals-section mt-6",
@@ -966,25 +980,47 @@ struct WantEditorModalProps {
 fn WantEditorModal(props: WantEditorModalProps) -> Element {
     let actantial_service = use_actantial_service();
     let is_new = props.want_id.is_none();
-    
+
     // Find existing want if editing
-    let existing_want = props.want_id.as_ref().and_then(|id| {
-        props.existing_wants.iter().find(|w| &w.id == id).cloned()
-    });
-    
+    let existing_want = props
+        .want_id
+        .as_ref()
+        .and_then(|id| props.existing_wants.iter().find(|w| &w.id == id).cloned());
+
     // Form state - initialized from existing want if editing
-    let mut description = use_signal(|| existing_want.as_ref().map(|w| w.description.clone()).unwrap_or_default());
+    let mut description = use_signal(|| {
+        existing_want
+            .as_ref()
+            .map(|w| w.description.clone())
+            .unwrap_or_default()
+    });
     let mut intensity = use_signal(|| existing_want.as_ref().map(|w| w.intensity).unwrap_or(0.5));
     let mut priority = use_signal(|| existing_want.as_ref().map(|w| w.priority).unwrap_or(1));
-    let mut visibility = use_signal(|| existing_want.as_ref().map(|w| w.visibility.clone()).unwrap_or(WantVisibilityData::Known));
-    let mut deflection = use_signal(|| existing_want.as_ref().and_then(|w| w.deflection_behavior.clone()).unwrap_or_default());
-    let mut tells = use_signal(|| existing_want.as_ref().map(|w| w.tells.join(", ")).unwrap_or_default());
+    let mut visibility = use_signal(|| {
+        existing_want
+            .as_ref()
+            .map(|w| w.visibility.clone())
+            .unwrap_or(WantVisibilityData::Known)
+    });
+    let mut deflection = use_signal(|| {
+        existing_want
+            .as_ref()
+            .and_then(|w| w.deflection_behavior.clone())
+            .unwrap_or_default()
+    });
+    let mut tells = use_signal(|| {
+        existing_want
+            .as_ref()
+            .map(|w| w.tells.join(", "))
+            .unwrap_or_default()
+    });
     let mut is_saving = use_signal(|| false);
     let mut error_msg: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Target state - "none", "goal:{id}", "character:{id}", "item:{id}"
     let mut target_selection = use_signal(|| {
-        existing_want.as_ref()
+        existing_want
+            .as_ref()
             .and_then(|w| w.target.as_ref())
             .map(|t| {
                 let type_str = match t.target_type {
@@ -1003,13 +1039,13 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
         let character_id = props.character_id.clone();
         let want_id = props.want_id.clone();
         let on_save = props.on_save.clone();
-        
+
         move |_| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
             let on_save = on_save.clone();
-            
+
             let desc = description.read().clone();
             let int = *intensity.read();
             let pri = *priority.read();
@@ -1017,7 +1053,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
             let defl = deflection.read().clone();
             let tls = tells.read().clone();
             let target_sel = target_selection.read().clone();
-            
+
             // Parse target selection
             let (target_id, target_type) = if target_sel == "none" || target_sel.is_empty() {
                 (None, None)
@@ -1029,10 +1065,10 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                     (None, None)
                 }
             };
-            
+
             is_saving.set(true);
             error_msg.set(None);
-            
+
             spawn(async move {
                 let result = if let Some(want_id) = want_id {
                     // Update existing want
@@ -1045,7 +1081,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                         tells: if tls.is_empty() { None } else { Some(tls) },
                     };
                     let update_result = service.update_want(&want_id, &req).await;
-                    
+
                     // Also update target if changed
                     if update_result.is_ok() {
                         if let (Some(tid), Some(ttype)) = (&target_id, &target_type) {
@@ -1056,10 +1092,15 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                                 "Goal" => WantTargetTypeData::Goal,
                                 _ => WantTargetTypeData::Character, // Default
                             };
-                            let _ = service.set_want_target(&want_id, &SetWantTargetRequest {
-                                target_id: tid.clone(),
-                                target_type: target_type_data,
-                            }).await;
+                            let _ = service
+                                .set_want_target(
+                                    &want_id,
+                                    &SetWantTargetRequest {
+                                        target_id: tid.clone(),
+                                        target_type: target_type_data,
+                                    },
+                                )
+                                .await;
                         } else {
                             // Remove target if set to none
                             let _ = service.remove_want_target(&want_id).await;
@@ -1080,9 +1121,9 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                     };
                     service.create_want(&character_id, &req).await.map(|_| ())
                 };
-                
+
                 is_saving.set(false);
-                
+
                 match result {
                     Ok(_) => {
                         on_save.call(());
@@ -1117,7 +1158,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                         "×"
                     }
                 }
-                
+
                 // Error display
                 if let Some(msg) = error_msg.read().as_ref() {
                     div {
@@ -1361,24 +1402,28 @@ fn GoalEditorModal(props: GoalEditorModalProps) -> Element {
         let service = actantial_service.clone();
         let world_id = props.world_id.clone();
         let on_save = props.on_save.clone();
-        
+
         move |_| {
             let service = service.clone();
             let world_id = world_id.clone();
             let on_save = on_save.clone();
-            
+
             let goal_name = name.read().clone();
             let goal_desc = description.read().clone();
-            
+
             is_saving.set(true);
             error_msg.set(None);
-            
+
             spawn(async move {
                 let req = CreateGoalRequest {
                     name: goal_name,
-                    description: if goal_desc.is_empty() { None } else { Some(goal_desc) },
+                    description: if goal_desc.is_empty() {
+                        None
+                    } else {
+                        Some(goal_desc)
+                    },
                 };
-                
+
                 match service.create_goal(&world_id, &req).await {
                     Ok(_) => {
                         is_saving.set(false);
@@ -1412,7 +1457,7 @@ fn GoalEditorModal(props: GoalEditorModalProps) -> Element {
                         "×"
                     }
                 }
-                
+
                 // Error display
                 if let Some(msg) = error_msg.read().as_ref() {
                     div {

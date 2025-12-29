@@ -59,4 +59,3 @@ impl ComfyUIConfig {
         Ok(())
     }
 }
-

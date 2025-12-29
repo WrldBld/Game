@@ -61,31 +61,47 @@ impl PromptTemplateSource {
 pub trait PromptTemplateRepositoryPort: Send + Sync {
     /// Get a global override for a template key (DB only, no fallback)
     async fn get_global(&self, key: &str) -> Result<Option<String>, PromptTemplateError>;
-    
+
     /// Get all global overrides
     async fn get_all_global(&self) -> Result<Vec<(String, String)>, PromptTemplateError>;
-    
+
     /// Set a global override for a template key
     async fn set_global(&self, key: &str, value: &str) -> Result<(), PromptTemplateError>;
-    
+
     /// Delete a global override (falls back to env/default)
     async fn delete_global(&self, key: &str) -> Result<(), PromptTemplateError>;
-    
+
     /// Delete all global overrides
     async fn delete_all_global(&self) -> Result<(), PromptTemplateError>;
-    
+
     /// Get a world-specific override for a template key (DB only, no fallback)
-    async fn get_for_world(&self, world_id: WorldId, key: &str) -> Result<Option<String>, PromptTemplateError>;
-    
+    async fn get_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> Result<Option<String>, PromptTemplateError>;
+
     /// Get all world-specific overrides
-    async fn get_all_for_world(&self, world_id: WorldId) -> Result<Vec<(String, String)>, PromptTemplateError>;
-    
+    async fn get_all_for_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<(String, String)>, PromptTemplateError>;
+
     /// Set a world-specific override for a template key
-    async fn set_for_world(&self, world_id: WorldId, key: &str, value: &str) -> Result<(), PromptTemplateError>;
-    
+    async fn set_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+        value: &str,
+    ) -> Result<(), PromptTemplateError>;
+
     /// Delete a world-specific override (falls back to global/env/default)
-    async fn delete_for_world(&self, world_id: WorldId, key: &str) -> Result<(), PromptTemplateError>;
-    
+    async fn delete_for_world(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> Result<(), PromptTemplateError>;
+
     /// Delete all world-specific overrides
     async fn delete_all_for_world(&self, world_id: WorldId) -> Result<(), PromptTemplateError>;
 }

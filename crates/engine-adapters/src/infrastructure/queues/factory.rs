@@ -9,12 +9,12 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use sqlx::SqlitePool;
 
-use wrldbldr_engine_app::application::dto::{
-    ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem,
-    DMActionItem, LLMRequestItem, PlayerActionItem,
-};
 use crate::infrastructure::config::QueueConfig;
 use crate::infrastructure::queues::{InMemoryQueue, InProcessNotifier, SqliteQueue};
+use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
+    PlayerActionData,
+};
 
 /// Enum wrapper for queue backends to enable runtime selection
 /// This allows us to use different backends while maintaining type safety
@@ -30,56 +30,96 @@ impl<T> wrldbldr_engine_ports::outbound::QueuePort<T> for QueueBackendEnum<T>
 where
     T: Send + Sync + Clone + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
-    async fn enqueue(&self, payload: T, priority: u8) -> Result<wrldbldr_engine_ports::outbound::QueueItemId, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn enqueue(
+        &self,
+        payload: T,
+        priority: u8,
+    ) -> Result<
+        wrldbldr_engine_ports::outbound::QueueItemId,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.enqueue(payload, priority).await,
             QueueBackendEnum::Sqlite(q) => q.enqueue(payload, priority).await,
         }
     }
 
-    async fn dequeue(&self) -> Result<Option<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn dequeue(
+        &self,
+    ) -> Result<
+        Option<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.dequeue().await,
             QueueBackendEnum::Sqlite(q) => q.dequeue().await,
         }
     }
 
-    async fn peek(&self) -> Result<Option<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn peek(
+        &self,
+    ) -> Result<
+        Option<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.peek().await,
             QueueBackendEnum::Sqlite(q) => q.peek().await,
         }
     }
 
-    async fn complete(&self, id: wrldbldr_engine_ports::outbound::QueueItemId) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
+    async fn complete(
+        &self,
+        id: wrldbldr_engine_ports::outbound::QueueItemId,
+    ) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.complete(id).await,
             QueueBackendEnum::Sqlite(q) => q.complete(id).await,
         }
     }
 
-    async fn fail(&self, id: wrldbldr_engine_ports::outbound::QueueItemId, error: &str) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
+    async fn fail(
+        &self,
+        id: wrldbldr_engine_ports::outbound::QueueItemId,
+        error: &str,
+    ) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.fail(id, error).await,
             QueueBackendEnum::Sqlite(q) => q.fail(id, error).await,
         }
     }
 
-    async fn delay(&self, id: wrldbldr_engine_ports::outbound::QueueItemId, until: chrono::DateTime<chrono::Utc>) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
+    async fn delay(
+        &self,
+        id: wrldbldr_engine_ports::outbound::QueueItemId,
+        until: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), wrldbldr_engine_ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.delay(id, until).await,
             QueueBackendEnum::Sqlite(q) => q.delay(id, until).await,
         }
     }
 
-    async fn get(&self, id: wrldbldr_engine_ports::outbound::QueueItemId) -> Result<Option<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn get(
+        &self,
+        id: wrldbldr_engine_ports::outbound::QueueItemId,
+    ) -> Result<
+        Option<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.get(id).await,
             QueueBackendEnum::Sqlite(q) => q.get(id).await,
         }
     }
 
-    async fn list_by_status(&self, status: wrldbldr_engine_ports::outbound::QueueItemStatus) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn list_by_status(
+        &self,
+        status: wrldbldr_engine_ports::outbound::QueueItemStatus,
+    ) -> Result<
+        Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.list_by_status(status).await,
             QueueBackendEnum::Sqlite(q) => q.list_by_status(status).await,
@@ -93,7 +133,10 @@ where
         }
     }
 
-    async fn cleanup(&self, older_than: std::time::Duration) -> Result<usize, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn cleanup(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<usize, wrldbldr_engine_ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.cleanup(older_than).await,
             QueueBackendEnum::Sqlite(q) => q.cleanup(older_than).await,
@@ -145,28 +188,43 @@ impl<T> wrldbldr_engine_ports::outbound::ApprovalQueuePort<T> for QueueBackendEn
 where
     T: Send + Sync + Clone + serde::Serialize + serde::de::DeserializeOwned + 'static,
 {
-    async fn list_by_world(&self, world_id: wrldbldr_domain::WorldId) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn list_by_world(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+    ) -> Result<
+        Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.list_by_world(world_id).await,
             QueueBackendEnum::Sqlite(q) => q.list_by_world(world_id).await,
         }
     }
 
-    async fn get_history_by_world(&self, world_id: wrldbldr_domain::WorldId, limit: usize) -> Result<Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn get_history_by_world(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        limit: usize,
+    ) -> Result<
+        Vec<wrldbldr_engine_ports::outbound::QueueItem<T>>,
+        wrldbldr_engine_ports::outbound::QueueError,
+    > {
         match self {
             QueueBackendEnum::Memory(q) => q.get_history_by_world(world_id, limit).await,
             QueueBackendEnum::Sqlite(q) => q.get_history_by_world(world_id, limit).await,
         }
     }
 
-    async fn expire_old(&self, older_than: std::time::Duration) -> Result<usize, wrldbldr_engine_ports::outbound::QueueError> {
+    async fn expire_old(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<usize, wrldbldr_engine_ports::outbound::QueueError> {
         match self {
             QueueBackendEnum::Memory(q) => q.expire_old(older_than).await,
             QueueBackendEnum::Sqlite(q) => q.expire_old(older_than).await,
         }
     }
 }
-
 
 /// Queue factory for creating queue instances
 pub struct QueueFactory {
@@ -245,15 +303,24 @@ impl QueueFactory {
     /// Create a player action queue
     pub async fn create_player_action_queue(
         &self,
-    ) -> Result<Arc<QueueBackendEnum<PlayerActionItem>>> {
+    ) -> Result<Arc<QueueBackendEnum<PlayerActionData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new("player_actions", self.player_action_notifier.clone())))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "player_actions",
+                self.player_action_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
                     .as_ref()
                     .context("SQLite pool not initialized")?;
-                let queue = SqliteQueue::new(pool.clone(), "player_actions", 1, self.player_action_notifier.clone()).await?;
+                let queue = SqliteQueue::new(
+                    pool.clone(),
+                    "player_actions",
+                    1,
+                    self.player_action_notifier.clone(),
+                )
+                .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),
@@ -261,11 +328,12 @@ impl QueueFactory {
     }
 
     /// Create an LLM request queue (processing queue)
-    pub async fn create_llm_queue(
-        &self,
-    ) -> Result<Arc<QueueBackendEnum<LLMRequestItem>>> {
+    pub async fn create_llm_queue(&self) -> Result<Arc<QueueBackendEnum<LlmRequestData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new("llm_requests", self.llm_notifier.clone())))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "llm_requests",
+                self.llm_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
@@ -285,17 +353,24 @@ impl QueueFactory {
     }
 
     /// Create a DM action queue
-    pub async fn create_dm_action_queue(
-        &self,
-    ) -> Result<Arc<QueueBackendEnum<DMActionItem>>> {
+    pub async fn create_dm_action_queue(&self) -> Result<Arc<QueueBackendEnum<DmActionData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new("dm_actions", self.dm_action_notifier.clone())))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "dm_actions",
+                self.dm_action_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
                     .as_ref()
                     .context("SQLite pool not initialized")?;
-                let queue = SqliteQueue::new(pool.clone(), "dm_actions", 1, self.dm_action_notifier.clone()).await?;
+                let queue = SqliteQueue::new(
+                    pool.clone(),
+                    "dm_actions",
+                    1,
+                    self.dm_action_notifier.clone(),
+                )
+                .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),
@@ -305,9 +380,12 @@ impl QueueFactory {
     /// Create an asset generation queue (processing queue)
     pub async fn create_asset_generation_queue(
         &self,
-    ) -> Result<Arc<QueueBackendEnum<AssetGenerationItem>>> {
+    ) -> Result<Arc<QueueBackendEnum<AssetGenerationData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new("asset_generation", self.asset_generation_notifier.clone())))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "asset_generation",
+                self.asset_generation_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
@@ -327,17 +405,20 @@ impl QueueFactory {
     }
 
     /// Create an approval queue (approval queue)
-    pub async fn create_approval_queue(
-        &self,
-    ) -> Result<Arc<QueueBackendEnum<ApprovalItem>>> {
+    pub async fn create_approval_queue(&self) -> Result<Arc<QueueBackendEnum<ApprovalRequestData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new("approvals", self.approval_notifier.clone())))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "approvals",
+                self.approval_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
                     .as_ref()
                     .context("SQLite pool not initialized")?;
-                let queue = SqliteQueue::new(pool.clone(), "approvals", 1, self.approval_notifier.clone()).await?;
+                let queue =
+                    SqliteQueue::new(pool.clone(), "approvals", 1, self.approval_notifier.clone())
+                        .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),
@@ -350,11 +431,12 @@ impl QueueFactory {
     /// Uses the same SQLite backend as other queues for persistence.
     pub async fn create_challenge_outcome_queue(
         &self,
-    ) -> Result<Arc<QueueBackendEnum<ChallengeOutcomeApprovalItem>>> {
+    ) -> Result<Arc<QueueBackendEnum<ChallengeOutcomeData>>> {
         match self.config.backend.as_str() {
-            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(
-                InMemoryQueue::new("challenge_outcomes", self.challenge_outcome_notifier.clone())
-            ))),
+            "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
+                "challenge_outcomes",
+                self.challenge_outcome_notifier.clone(),
+            )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
@@ -365,7 +447,8 @@ impl QueueFactory {
                     "challenge_outcomes",
                     1,
                     self.challenge_outcome_notifier.clone(),
-                ).await?;
+                )
+                .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),

@@ -183,14 +183,21 @@ impl PlayerActionUseCase {
                 target_region_id: region_id,
             };
 
-            match self.movement.move_to_region(ctx.clone(), movement_input).await {
+            match self
+                .movement
+                .move_to_region(ctx.clone(), movement_input)
+                .await
+            {
                 Ok(MovementResult::SceneChanged(event)) => {
                     return Ok(ActionResult::TravelCompleted {
                         action_id: action_id.to_string(),
                         scene: event,
                     });
                 }
-                Ok(MovementResult::StagingPending { region_id, region_name }) => {
+                Ok(MovementResult::StagingPending {
+                    region_id,
+                    region_name,
+                }) => {
                     return Ok(ActionResult::TravelPending {
                         action_id: action_id.to_string(),
                         region_id,
@@ -224,7 +231,10 @@ impl PlayerActionUseCase {
                         scene: event,
                     });
                 }
-                Ok(MovementResult::StagingPending { region_id, region_name }) => {
+                Ok(MovementResult::StagingPending {
+                    region_id,
+                    region_name,
+                }) => {
                     return Ok(ActionResult::TravelPending {
                         action_id: action_id.to_string(),
                         region_id,
