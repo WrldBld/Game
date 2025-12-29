@@ -678,29 +678,136 @@ impl StorageProvider for DesktopStorageProvider {
 - `crates/engine-adapters/Cargo.toml:10` - `wrldbldr-engine-app = { workspace = true }`
 - `crates/player-adapters/Cargo.toml:10` - `wrldbldr-player-app = { workspace = true }`
 
-**Severity**: engine-adapters has **73 import statements across 43 files** from engine-app.
+**Severity**: engine-adapters has **72 import statements** from engine-app.
 
-**What's being imported**:
-- Services: ~30 imports (StagingService, ChallengeResolutionService, etc.)
-- DTOs: ~25 imports (ApprovalItem, LLMRequestItem, PlayerActionItem)
-- Use Cases: ~20 imports (ChallengeUseCase, MovementUseCase, etc.)
+##### Import Analysis by Category
 
-**Fix approach**:
-1. Move shared DTOs to `protocol` or `engine-dto` crate
-2. Define service interfaces as port traits
-3. Access services only via ports (inject at composition root)
-4. Remove the Cargo.toml dependency
+| Category | Count | Hexagonal Violation | Fix Strategy |
+|----------|-------|---------------------|--------------|
+| **Services** | 37 | Direct service use instead of port | Create port traits, inject via DI |
+| **Use Cases** | 29 | Use case types in adapters | Move result types to ports |
+| **DTOs** | 25 | App DTOs in adapters | Move to protocol or engine-dto |
+| **Handlers** | 1 | Handler import | Access via port |
+
+##### Services Requiring Port Traits (25 distinct services)
+
+| Service | Current Location | Port to Create |
+|---------|------------------|----------------|
+| `AssetService` | engine-app/services | `AssetServicePort` |
+| `WorkflowService` | engine-app/services | `WorkflowServicePort` |
+| `GenerationService` | engine-app/services | `GenerationServicePort` |
+| `ChallengeService` | engine-app/services | `ChallengeServicePort` |
+| `ChallengeResolutionService` | engine-app/services | `ChallengeResolutionPort` |
+| `ChallengeOutcomeApprovalService` | engine-app/services | `ChallengeApprovalPort` |
+| `SceneService` | engine-app/services | `SceneServicePort` |
+| `InteractionService` | engine-app/services | `InteractionServicePort` |
+| `StagingService` | engine-app/services | `StagingServicePort` (exists, needs expanding) |
+| `LLMQueueService` | engine-app/services | `LlmQueuePort` |
+| `PlayerActionQueueService` | engine-app/services | `PlayerActionQueuePort` (exists) |
+| `DMApprovalQueueService` | engine-app/services | `DmApprovalQueuePort` |
+| `DMActionQueueService` | engine-app/services | `DmActionQueuePort` |
+| `WorldService` | engine-app/services | `WorldServicePort` (exists) |
+| `PlayerCharacterService` | engine-app/services | `PlayerCharacterServicePort` (exists) |
+| `CharacterService` | engine-app/services | `CharacterServicePort` |
+| `ItemService` | engine-app/services | `ItemServicePort` |
+| `NarrativeEventService` | engine-app/services | `NarrativeEventServicePort` |
+| `SkillService` | engine-app/services | `SkillServicePort` |
+| `LocationService` | engine-app/services | `LocationServicePort` |
+| `RegionService` | engine-app/services | `RegionServicePort` |
+| `SettingsService` | engine-app/services | `SettingsServicePort` |
+| `PromptTemplateService` | engine-app/services | `PromptTemplateServicePort` |
+| `GenerationQueueProjectionService` | engine-app/services | `GenerationQueueProjectionPort` |
+| `DispositionService` | engine-app/services | `DispositionServicePort` |
+
+##### DTOs to Move
+
+**To `engine-dto` (internal serialization for persistence/queue):**
+
+| DTO | Current Location | Used By |
+|-----|------------------|---------|
+| `DifficultyRequestDto` | engine-app/dto | challenge_repository.rs (Neo4j JSON) |
+| `OutcomesRequestDto` | engine-app/dto | challenge_repository.rs |
+| `TriggerConditionRequestDto` | engine-app/dto | challenge_repository.rs |
+| `SheetTemplateStorageDto` | engine-app/dto | sheet_template_repository.rs |
+| `InputDefaultDto` | engine-app/dto | workflow_repository.rs |
+| `PromptMappingDto` | engine-app/dto | workflow_repository.rs |
+| `LLMRequestItem` | engine-app/dto | Queue payloads |
+| `PlayerActionItem` | engine-app/dto | Queue payloads |
+| `AssetGenerationItem` | engine-app/dto | Queue payloads |
+| `ApprovalItem` | engine-app/dto | Queue payloads |
+| `DMAction`, `DMActionItem` | engine-app/dto | Queue payloads |
+| `ChallengeOutcomeApprovalItem` | engine-app/dto | Queue payloads |
+
+**To `protocol` (wire format for WebSocket/REST):**
+
+| DTO | Current Location | Used By |
+|-----|------------------|---------|
+| `GalleryAssetResponseDto` | engine-app/dto | REST API |
+| `GenerateAssetRequestDto` | engine-app/dto | REST API |
+| `GenerationBatchResponseDto` | engine-app/dto | REST API |
+| `ExportQueryDto` | engine-app/dto | REST query params |
+| `RuleSystemPresetDetailsDto` | engine-app/dto | REST API |
+| `WorkflowConfigResponseDto` | engine-app/dto | REST API |
+| `AdHocOutcomesDto` | engine-app/dto | WebSocket messages |
+| `ChallengeOutcomeDecision` | engine-app/dto | WebSocket messages |
+| `GenerationQueueSnapshot` | engine-app/services | REST/WS response |
+
+**To `domain` (parser functions):**
+
+| Function | Current Location | Fix |
+|----------|------------------|-----|
+| `parse_archetype` | engine-app/dto | `CampbellArchetype::from_str()` |
+| `parse_asset_type` | engine-app/dto | `AssetType::from_str()` |
+| `parse_entity_type` | engine-app/dto | `EntityType::from_str()` |
+| `parse_system_type` | engine-app/dto | `RuleSystemType::from_str()` |
+| `parse_workflow_slot` | engine-app/dto | `WorkflowSlot::from_str()` |
+
+##### Use Case Types to Move to Ports
+
+| Type | Move To | Used By |
+|------|---------|---------|
+| `RollResult`, `TriggerResult`, `TriggerInfo` | engine-ports | ChallengeResolution adapters |
+| `MovementResult`, `SelectCharacterResult` | engine-ports | Movement handlers |
+| `ErrorCode`, `MovementError` | engine-ports | Error conversion |
+| `ConnectionInfo`, `ConnectedUser` | engine-ports | Connection adapters |
+| `PcData`, `DirectorialContextData` | engine-ports | Scene adapters |
+| `StagingProposalData`, `ApprovedNpcData` | engine-ports | Staging adapters |
+| `SceneWithRelations`, `SceneEntity` | engine-ports | Scene adapters |
+
+##### Files with Most Violations
+
+| File | Import Count | Primary Categories |
+|------|--------------|-------------------|
+| `state/core_services.rs` | 15 | Services |
+| `state/use_cases.rs` | 12 | Services, Use Cases, DTOs |
+| `state/game_services.rs` | 12 | Services, DTOs |
+| `ports/challenge_adapters.rs` | 12 | Services, Use Cases, DTOs |
+| `ports/scene_adapters.rs` | 10 | Services, Use Cases |
+| `http/*.rs` (all) | 10 | Services, DTOs |
+| `websocket/handlers/*.rs` | 15 | Use Cases |
+
+##### Remediation Priority Order
+
+| Phase | Task | Impact | Effort |
+|-------|------|--------|--------|
+| 3.0.1.1 | Move queue DTOs to `engine-dto` | Low risk, isolated | 2h |
+| 3.0.1.2 | Move persistence DTOs to `engine-dto` | Low risk, isolated | 1h |
+| 3.0.1.3 | Move REST/WS DTOs to `protocol` | Medium risk | 2h |
+| 3.0.1.4 | Create port traits for 25 services | High impact | 8h |
+| 3.0.1.5 | Move use case types to `engine-ports` | Medium impact | 3h |
+| 3.0.1.6 | Move parser functions to `domain` | Low impact | 1h |
 
 | Task | Status |
 |------|--------|
-| [ ] Audit all 73 engine-adapters imports from engine-app | Pending |
-| [ ] Move DTOs to protocol or engine-dto | Pending |
-| [ ] Create port traits for services used by adapters | Pending |
-| [ ] Refactor engine-adapters to use only ports | Pending |
+| [x] Audit all 72 engine-adapters imports from engine-app | **DONE** (detailed above) |
+| [ ] Move queue DTOs to engine-dto (12 types) | Pending |
+| [ ] Move persistence DTOs to engine-dto (6 types) | Pending |
+| [ ] Move REST/WS DTOs to protocol (9 types) | Pending |
+| [ ] Create port traits for services (25 traits) | Pending |
+| [ ] Move use case types to engine-ports (15+ types) | Pending |
+| [ ] Move parser functions to domain (5 functions) | Pending |
+| [ ] Refactor adapters to use only ports | Pending |
 | [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
-| [ ] Audit player-adapters (1 file, 33 types) | Pending |
-| [ ] Refactor player-adapters to use only ports | Pending |
-| [ ] Remove `wrldbldr-player-app` from player-adapters/Cargo.toml | Pending |
 
 **Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
 
