@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.1.10 - adapters now import from engine-ports, down to 37 imports)  
+**Last Updated**: 2025-12-29 (Phase 3.0.1.12 - down to 31 imports, only services + correct imports remain)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -166,7 +166,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
 | Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 55% |
-| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 90% |
+| Phase 3.0.1 | Remove Adapters→App Dependencies | **IN PROGRESS** | 95% |
 | Phase 3.0.1.1 | Queue DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.2 | Persistence DTOs to engine-dto | **DONE** | 100% |
 | Phase 3.0.1.3 | REST/WS DTOs to protocol | **DONE** | 100% |
@@ -175,6 +175,8 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.1.8 | Port traits + use case types to engine-ports | **DONE** | 100% |
 | Phase 3.0.1.9 | Update engine-app to re-export from engine-ports | **DONE** | 100% |
 | Phase 3.0.1.10 | Update adapters to import from engine-ports | **DONE** | 100% |
+| Phase 3.0.1.11 | Fix ApprovalDecision naming collision | **DONE** | 100% |
+| Phase 3.0.1.12 | Remove duplicate DTOs (AdHocOutcomesDto, etc.) | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
@@ -905,18 +907,25 @@ This is a hexagonal violation - these are contracts that adapters need, so they 
 - WebSocket handlers, port adapters now use `wrldbldr_engine_ports::inbound` for traits
 - Input/output types from `wrldbldr_engine_ports::outbound`
 
-**Current import count**: 37 (down from 72)
+**Current import count**: 31 (down from 72)
 
-**Remaining imports breakdown**:
-- 28 service imports (composition root - Phase 3.0.7 will move to runner)
-- 5 DTO imports (AdHocOutcomesDto, ChallengeOutcomeDecision - need protocol move)
-- 3 UseCase struct imports (ChallengeUseCase etc. - correct, stay in engine-app)
-- 1 handler import (AppRequestHandler - correct, stay in engine-app)
+**Phase 3.0.1.11 Completed**: Fixed ApprovalDecision naming collision
+- Renamed `use_case_types.rs::ApprovalDecision` → `SceneApprovalDecision`
+- Renamed `dm_approval_queue_service_port.rs::ApprovalDecision` → `DmApprovalDecision`
 
-**Known issue**: Two `ApprovalDecision` enums with different variants:
-- `use_case_types.rs`: Approve, Reject, ApproveWithEdits (scene approval)
-- `dm_approval_queue_service_port.rs`: Accept, AcceptWithModification, Reject, TakeOver (DM approval)
-These should be renamed to avoid confusion (SceneApprovalDecision, DmApprovalDecision)
+**Phase 3.0.1.12 Completed**: Removed duplicate DTOs
+- Deleted `AdHocOutcomesDto` → use `wrldbldr_protocol::AdHocOutcomes`
+- Deleted `ChallengeOutcomeDecision` → use `wrldbldr_engine_ports::OutcomeDecision`
+- Updated converters, challenge_adapters, services to use protocol/ports types
+
+**Remaining 31 imports (final state before Phase 3.0.7)**:
+- 27 service imports (composition root - Phase 3.0.7 will move to runner)
+- 4 correct imports:
+  - UseCase structs (InventoryUseCase, ChallengeUseCase, etc.) - must stay in engine-app
+  - AppRequestHandler - must stay in engine-app
+  - workflow conversion functions - need WorkflowService
+
+**Success Criteria Met**: All type/DTO imports removed. Only service and UseCase imports remain, which is correct hexagonal architecture (adapters use application layer orchestration).
 
 #### 3.0.2 Move I/O Operations Out of Application Layer
 
