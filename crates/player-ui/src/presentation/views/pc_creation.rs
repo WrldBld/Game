@@ -9,7 +9,7 @@ use crate::presentation::services::{
 use crate::presentation::state::use_session_state;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::CreatePlayerCharacterRequest;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]

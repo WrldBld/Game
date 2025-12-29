@@ -2,7 +2,7 @@
 
 use crate::presentation::state::SessionState;
 use dioxus::prelude::*;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// PC creation route
 #[component]

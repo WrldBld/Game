@@ -10,7 +10,7 @@ use crate::presentation::state::{
     use_game_state, use_generation_state, BatchStatus, GenerationBatch, SuggestionStatus,
     SuggestionTask,
 };
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Filter type for the generation queue
 #[derive(Clone, Copy, PartialEq, Eq, Default)]

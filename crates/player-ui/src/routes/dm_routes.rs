@@ -6,7 +6,8 @@ use super::Route;
 use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
 use crate::presentation::views::dm_view::DMMode;
 use dioxus::prelude::*;
-use wrldbldr_player_ports::outbound::{storage_keys, Platform};
+use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_ports::outbound::storage_keys;
 use wrldbldr_player_ports::session_types::ParticipantRole;
 
 /// DMViewRoute - renders Director tab directly (no redirect needed)

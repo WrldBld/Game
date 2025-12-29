@@ -14,7 +14,7 @@ use wrldbldr_player_app::application::dto::{
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use wrldbldr_player_app::application::services::world_service::WorldSummary;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Props for WorldSelectView
 #[derive(Props, Clone, PartialEq)]

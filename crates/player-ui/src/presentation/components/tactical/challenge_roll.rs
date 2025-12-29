@@ -13,7 +13,7 @@ use crate::presentation::state::challenge_state::ChallengeResultData;
 use crate::presentation::state::{use_session_state, RollSubmissionStatus};
 use dioxus::prelude::*;
 use wrldbldr_player_app::application::dto::DiceInput;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Props for the ChallengeRollModal component
 #[derive(Props, Clone, PartialEq)]

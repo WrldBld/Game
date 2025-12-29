@@ -17,7 +17,7 @@ use crate::presentation::services::use_generation_service;
 use crate::presentation::state::use_generation_state;
 use crate::presentation::state::use_session_state;
 use dioxus::prelude::*;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Props for CreatorMode
 #[derive(Props, Clone, PartialEq)]

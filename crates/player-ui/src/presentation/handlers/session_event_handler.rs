@@ -6,7 +6,8 @@
 
 use wrldbldr_player_app::application::services::port_connection_state_to_status;
 use wrldbldr_player_app::application::services::SessionEvent;
-use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, Platform};
+use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_ports::outbound::ConnectionState as PortConnectionState;
 
 use crate::presentation::handlers::handle_server_message;
 use crate::presentation::state::{

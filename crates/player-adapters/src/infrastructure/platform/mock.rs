@@ -10,7 +10,7 @@ use wrldbldr_player_ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,
 };
-use wrldbldr_player_ports::outbound::Platform;
+use crate::state::Platform;
 
 /// Mock time provider with controllable time
 #[derive(Clone)]

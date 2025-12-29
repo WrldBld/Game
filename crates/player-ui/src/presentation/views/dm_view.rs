@@ -93,7 +93,7 @@ pub fn DMView(props: DMViewProps) -> Element {
 fn AdHocChallengeEntryPoint(on_close: EventHandler<()>) -> Element {
     let mut session_state = crate::presentation::state::use_session_state();
     let game_state = use_context::<crate::presentation::state::GameState>();
-    let platform = use_context::<wrldbldr_player_ports::outbound::Platform>();
+    let platform = use_context::<wrldbldr_player_adapters::Platform>();
 
     let player_characters = game_state.scene_characters.read().clone();
 

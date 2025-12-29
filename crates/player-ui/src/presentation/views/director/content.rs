@@ -24,7 +24,7 @@ use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
 use wrldbldr_player_app::application::services::SessionCommandService;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// The original Director mode content (directing gameplay)
 #[component]

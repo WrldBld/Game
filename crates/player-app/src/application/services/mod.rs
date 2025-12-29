@@ -6,6 +6,7 @@
 
 pub mod actantial_service;
 pub mod action_service;
+pub mod user_service;
 pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
@@ -99,3 +100,6 @@ pub use actantial_service::{
     RemoveActantialViewRequest, SetWantTargetRequest, UpdateGoalRequest, UpdateWantRequest,
     WantResponse,
 };
+
+// Re-export user service types
+pub use user_service::UserService;

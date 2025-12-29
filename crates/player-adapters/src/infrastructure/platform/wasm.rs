@@ -8,7 +8,7 @@ use wrldbldr_player_ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,
 };
-use wrldbldr_player_ports::outbound::Platform;
+use crate::state::Platform;
 
 /// WASM time provider using js_sys::Date
 #[derive(Clone, Default)]

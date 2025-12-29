@@ -17,7 +17,7 @@ use wrldbldr_player_app::application::dto::{
     NpcPresenceData, OutcomeBranchData, ProposedToolInfo, RegionData, RegionItemData, SceneData,
     SessionWorldSnapshot, SplitPartyLocation, WorldRole,
 };
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_protocol::ServerMessage;
 
 /// Handle an incoming `ServerMessage` and update presentation state.

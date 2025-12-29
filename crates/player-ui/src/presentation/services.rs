@@ -192,7 +192,7 @@ use crate::presentation::state::{
     BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
 };
 use anyhow::Result;
-use wrldbldr_player_ports::outbound::Platform;
+use wrldbldr_player_adapters::Platform;
 
 /// Hydrate GenerationState from the Engine's unified generation queue endpoint.
 ///

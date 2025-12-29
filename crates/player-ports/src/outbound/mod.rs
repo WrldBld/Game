@@ -12,7 +12,10 @@ pub mod testing;
 
 pub use api_port::{ApiError, ApiPort};
 pub use game_connection_port::{ConnectionState, GameConnectionPort};
-pub use platform::{storage_keys, Platform};
+pub use platform::{
+    storage_keys, ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider,
+    RandomProvider, SleepProvider, StorageProvider, TimeProvider,
+};
 pub use raw_api_port::RawApiPort;
 
 // Re-export mock for convenience (desktop-only)

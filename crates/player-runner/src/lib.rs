@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::api::Api;
+use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_ports::{
     config::RunnerConfig,
-    outbound::{GameConnectionPort, Platform, RawApiPort},
+    outbound::{GameConnectionPort, RawApiPort},
 };
 
 pub struct RunnerDeps {
