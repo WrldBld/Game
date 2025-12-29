@@ -102,6 +102,9 @@ getrandom = { version = "0.2", features = ["js"] }
 # WebSocket client (desktop)
 tokio-tungstenite = "0.24"
 
+# Platform-specific config directories
+directories = "5.0"
+
 # WASM dependencies
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

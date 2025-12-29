@@ -647,11 +647,11 @@ impl StorageProvider for DesktopStorageProvider {
 
 | Task | Status |
 |------|--------|
-| [ ] Add `directories` crate to player-adapters/Cargo.toml | Pending |
-| [ ] Implement file-based storage in DesktopStorageProvider | Pending |
-| [ ] Add error handling for permission issues | Pending |
-| [ ] Add storage path configuration option (env var override) | Pending |
-| [ ] Test persistence across app restarts | Pending |
+| [x] Add `directories` crate to player-adapters/Cargo.toml | **DONE** |
+| [x] Implement file-based storage in DesktopStorageProvider | **DONE** |
+| [x] Add error handling for permission issues | **DONE** (tracing::error on failures) |
+| [ ] Add storage path configuration option (env var override) | Deferred (not critical) |
+| [ ] Test persistence across app restarts | Pending (manual testing) |
 
 ---
 
