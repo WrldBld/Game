@@ -805,7 +805,7 @@ impl StorageProvider for DesktopStorageProvider {
 |------|--------|
 | [x] Audit all 72 engine-adapters imports from engine-app | **DONE** (detailed above) |
 | [x] Move queue DTOs to engine-dto (12 types) | **DONE** - queue.rs created |
-| [ ] Move persistence DTOs to engine-dto (6 types) | Pending |
+| [x] Move persistence DTOs to engine-dto (17 types) | **DONE** - persistence.rs created |
 | [ ] Move REST/WS DTOs to protocol (9 types) | Pending |
 | [ ] Create port traits for services (25 traits) | Pending |
 | [ ] Move use case types to engine-ports (15+ types) | Pending |
@@ -1141,13 +1141,14 @@ pub trait WorldStatePort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | Pending |
-| [ ] Move `PendingApprovalItem`, `WaitingPc` to domain | Pending |
-| [ ] Create `WorldStatePort` trait in engine-ports | Pending |
+| [x] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | **DONE** |
+| [x] Move `PendingApprovalItem` to domain | **DONE** |
+| [x] Create `WorldStatePort` trait in engine-ports | **DONE** |
 | [ ] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Pending |
 | [ ] Implement `WorldStatePort` for adapter | Pending |
 | [ ] Update consumers to use `Arc<dyn WorldStatePort>` | Pending |
 | [ ] Remove engine-app import (`StagingProposal`) | Pending |
+| Note: `WaitingPc` deferred (depends on StagingProposal from engine-app) | |
 
 ##### Summary
 
