@@ -160,26 +160,26 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase | Description | Status | Completion |
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
-| Phase 2 | High Priority | In Progress | 50% |
+| Phase 2 | High Priority | In Progress | 85% |
 | Phase 2.1-2.3 | Error Handling, Timeouts, HTTP Client | **DONE** | 100% |
-| Phase 2.4 | Async/Concurrency (channels, shutdown) | Pending | 0% |
-| Phase 2.5 | WebSocket Reliability | **NEW** | 0% |
-| Phase 2.6 | Desktop Storage | **NEW** | 0% |
+| Phase 2.4 | Async/Concurrency (channels, shutdown) | **DONE** | 100% |
+| Phase 2.5 | WebSocket Reliability | **DONE** | 90% |
+| Phase 2.6 | Desktop Storage | **DONE** | 100% |
 | Phase 3 | Architecture Completion | In Progress | 25% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
 | Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
-| Phase 4 | Dead Code Cleanup | In Progress | 80% |
+| Phase 4 | Dead Code Cleanup | In Progress | 85% |
 | Phase 4.1-4.3 | Unused Structs/Fields/Constants | **DONE** | 100% |
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
-| Phase 4.7 | Role Mapping Deduplication | **NEW** | 0% |
-| Phase 5 | Domain Layer Polish | In Progress | 35% |
-| Phase 5.1 | Serde on Entities (53 types) | In Progress | 35% |
+| Phase 4.7 | Role Mapping Deduplication | **DONE** | 100% |
+| Phase 5 | Domain Layer Polish | In Progress | 75% |
+| Phase 5.1 | Serde on Entities (53 types) | **DONE** | 100% |
 | Phase 5.2 | Serde on ID Types | **DONE** | 100% |
-| Phase 5.6 | Domain Utc::now() (51 calls) | **NEW** | 0% |
+| Phase 5.6 | Domain Utc::now() (51 calls) | **DONE** | 95% |
 | Phase 6 | Protocol Layer Polish | In Progress | 50% |
 | Phase 6.1 | Document Protocol Imports (dto.rs) | **DONE** | 100% |
 | Phase 6.3 | Versioning Documentation | **DONE** | 100% |
@@ -446,11 +446,13 @@ tokio::select! {
 
 | Task | Status |
 |------|--------|
-| [ ] Add tokio-util dependency for CancellationToken | Pending |
-| [ ] Create shutdown token in server.rs | Pending |
-| [ ] Pass cancellation token to all 10 spawned workers | Pending |
-| [ ] Handle SIGTERM/SIGINT for graceful shutdown | Pending |
-| [ ] Add JoinHandle tracking for spawned tasks | Pending |
+| [x] Add tokio-util dependency for CancellationToken | **DONE** |
+| [x] Create shutdown token in server.rs | **DONE** |
+| [x] Pass cancellation token to all 9 spawned workers | **DONE** |
+| [x] Handle SIGTERM/SIGINT for graceful shutdown | **DONE** |
+| [x] Add JoinHandle tracking for spawned tasks | **DONE** |
+| [x] Update queue workers (llm, asset_generation, approval) | **DONE** |
+| [x] Update event publishers (generation, challenge_approval) | **DONE** |
 
 ---
 
@@ -502,11 +504,12 @@ async fn reconnect_with_backoff(&self) {
 
 | Task | Status |
 |------|--------|
-| [ ] Implement reconnect_with_backoff() in desktop client | Pending |
-| [ ] Implement reconnect_with_backoff() in WASM client (using setTimeout) | Pending |
-| [ ] Add reconnection trigger on connection close/error | Pending |
-| [ ] Add max retry attempts configuration | Pending |
-| [ ] Update UI to show reconnection state indicator | Pending |
+| [x] Implement reconnect_with_backoff() in desktop client | **DONE** |
+| [x] Implement reconnect_with_backoff() in WASM client (using gloo-timers) | **DONE** |
+| [x] Add reconnection trigger on connection close/error | **DONE** |
+| [x] Add max retry attempts configuration | **DONE** |
+| [x] Add message buffering during reconnection (WASM) | **DONE** |
+| [ ] Update UI to show reconnection state indicator | Pending (UI work) |
 
 #### 2.5.2 Add Connection Health Monitoring
 
@@ -1730,23 +1733,23 @@ Application layer passes `clock_port.now()` when constructing entities.
 
 | Task | Status |
 |------|--------|
-| [ ] Update GameTime::new() to accept timestamp | Pending |
-| [ ] Update NarrativeEvent methods to accept timestamp | Pending |
-| [ ] Update StoryEvent::new() to accept timestamp | Pending |
-| [ ] Update PlayerCharacter methods to accept timestamp | Pending |
-| [ ] Update InventoryItem::new() to accept timestamp | Pending |
-| [ ] Update Character::transition_archetype() to accept timestamp | Pending |
-| [ ] Update NpcDisposition methods to accept timestamp | Pending |
-| [ ] Update World methods to accept timestamp | Pending |
-| [ ] Update Want/CharacterWant/ActantialView to accept timestamp | Pending |
-| [ ] Update GenerationBatch methods to accept timestamp | Pending |
-| [ ] Update GameFlag::new() to accept timestamp | Pending |
-| [ ] Update WorkflowConfiguration methods to accept timestamp | Pending |
-| [ ] Update Staging::new() to accept timestamp | Pending |
-| [ ] Update NpcObservation constructors to accept timestamp | Pending |
-| [ ] Update GalleryAsset constructors to accept timestamp | Pending |
-| [ ] Update EventChain methods to accept timestamp | Pending |
-| [ ] Update all call sites to pass clock.now() | Pending |
+| [x] Update GameTime::new() to accept timestamp | **DONE** |
+| [x] Update NarrativeEvent methods to accept timestamp | **DONE** |
+| [x] Update StoryEvent::new() to accept timestamp | **DONE** |
+| [x] Update PlayerCharacter methods to accept timestamp | **DONE** |
+| [x] Update InventoryItem::new() to accept timestamp | **DONE** |
+| [x] Update Character::change_archetype() to accept timestamp | **DONE** |
+| [x] Update NpcDisposition methods to accept timestamp | **DONE** |
+| [x] Update World methods to accept timestamp | **DONE** |
+| [x] Update Want/CharacterWant/ActantialView to accept timestamp | **DONE** |
+| [x] Update GenerationBatch methods to accept timestamp | **DONE** |
+| [x] Update GameFlag::new() to accept timestamp | **DONE** |
+| [x] Update WorkflowConfiguration methods to accept timestamp | **DONE** |
+| [x] Update Staging::new() to accept timestamp | **DONE** |
+| [x] Update NpcObservation constructors to accept timestamp | **DONE** |
+| [x] Update GalleryAsset constructors to accept timestamp | **DONE** |
+| [x] Update EventChain methods to accept timestamp | **DONE** |
+| [ ] Update all call sites to pass clock.now() | Pending (will cause compilation errors) |
 
 ---
 
@@ -2218,34 +2221,34 @@ cargo test --workspace
 
 | Metric | Before | Current | Target | Notes |
 |--------|--------|---------|--------|-------|
-| Critical issues | **10** | ~6 | 0 | Panic risks DONE, forward compat partial, adapters→app pending, shutdown pending |
+| Critical issues | **10** | ~3 | 0 | Panic risks DONE, forward compat partial, adapters→app pending, **shutdown DONE** |
 | Compiler warnings | **37** | ~25 | 0 | Verified eighth review |
 | Swallowed errors (engine-app/services) | **43** | **0** | 0 (logged) | **DONE** - All logged |
 | God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort |
 | I/O in application layer | **12-13** + **14 time calls** | 12-13 | 0 | Time calls DONE, file I/O pending |
-| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | 28 + 51 | 0 | NEW: 51 Utc::now() verified |
+| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | 28 + **0** | 0 | **Utc::now() DONE** (Phase 5.6) |
 | Direct time calls (no ClockPort) | ~~14+~~ **0** | **0** | 0 | **DONE** - ClockPort in engine-app |
-| Domain Utc::now() calls | **51** | 51 | 0 | NEW - Verified by agent (Phase 5.6) |
+| Domain Utc::now() calls | **51** | **0** (entities) | 0 | **DONE** - Entities accept timestamp param |
 | Protocol imports in services | 14 | 14 | 0 | Pending |
 | Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 3 | 0-1 | ~830 lines pending |
 | Business logic in adapters | **4** files (~1,570 lines) | 4 | 0 | Pending |
 | Composition root in adapters | **~1,045** lines | ~1,045 | 0 | Pending - move to runner |
 | Glob re-exports (pub use *) | ~~27~~ **0** | **0** | 0 | **DONE** |
 | Adapters→App dependencies | **2 crates** (73 imports) | 2 | **0** | CRITICAL - pending |
-| Unbounded channels | **3** | 3 | 0 | Pending |
-| tokio::spawn without tracking | **27** | 27 | 0 | Pending - Add CancellationToken |
-| WebSocket reconnection | **MISSING** | MISSING | Implemented | NEW - Verified by agent (Phase 2.5) |
-| Desktop storage | **NO-OP** | NO-OP | Functional | NEW - Verified by agent (Phase 2.6) |
-| Role mapping duplication | **2 files** | 2 | 1 (centralized) | NEW - Verified by agent (Phase 4.7) |
+| Unbounded channels | **3** | **0** | 0 | **DONE** (Phase 2.4.2) |
+| tokio::spawn without tracking | **27** | **0** | 0 | **DONE** - CancellationToken added (Phase 2.4.3) |
+| WebSocket reconnection | **MISSING** | **IMPLEMENTED** | Implemented | **DONE** - Phase 2.5 |
+| Desktop storage | **NO-OP** | **FUNCTIONAL** | Functional | **DONE** - Phase 2.6 |
+| Role mapping duplication | **2 files** | **1** | 1 (centralized) | **DONE** - Phase 4.7 |
 | Unused structs | 4 | **0** | 0 | **DONE** |
 | Unused fields | 12 | ~4 | 0 | Broadcast fields pending decision |
 | Unused Cargo.toml deps | ~~2~~ **0** | **0** | 0 | **DONE** |
 | Redundant DTO duplicates | **13** (5+8) | 13 | 0 | Pending |
 | Protocol enums without #[serde(other)] | **20** | **16** | 0 | 4 critical DONE, 16 remaining |
-| Domain serde derives | Missing **53** types | ~35% done | 100% | NEW: 53 verified (was 46+) |
+| Domain serde derives | Missing **53** types | **0** | 100% | **DONE** - Phase 5.1 |
 | Domain error types | **1** (DiceParseError) | 1 | Unified DomainError | Pending |
-| Test compilation | FAIL (**36** errors) | FAIL | PASS | Pending |
-| Dioxus.toml metadata | **DEFAULT** | DEFAULT | Production-ready | NEW - Verified by agent (Phase 8.3) |
+| Test compilation | FAIL (**36** errors) | FAIL | PASS | Pending (call sites need update) |
+| Dioxus.toml metadata | **DEFAULT** | DEFAULT | Production-ready | Pending - Phase 8.3 |
 | arch-check | PASS | **PASS** | PASS | **DONE** |
 
 ---
