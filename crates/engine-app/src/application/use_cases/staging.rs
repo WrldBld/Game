@@ -14,8 +14,8 @@
 use std::sync::Arc;
 use tracing::{info, warn};
 
-use wrldbldr_domain::entities::{StagedNpc, StagingSource};
-use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
+use wrldbldr_domain::entities::StagedNpc;
+use wrldbldr_domain::{CharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterRepositoryPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
@@ -24,7 +24,9 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::builders::SceneBuilder;
 use super::errors::StagingError;
-use super::movement::{StagingServicePort, StagingStatePort};
+
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{StagingServiceExtPort, StagingStateExtPort};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -35,81 +37,6 @@ pub use wrldbldr_engine_ports::outbound::{
 };
 
 // Note: From<StagingApprovalSource> for StagingSource is implemented in engine-ports
-
-// =============================================================================
-// Pending Staging Port Extension
-// =============================================================================
-
-/// Extended port for staging state management (adds operations needed by this use case)
-///
-/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
-/// because it depends on use-case-specific DTOs (PendingStagingInfo, RegeneratedNpc,
-/// WaitingPcInfo, ProposedNpc) that are defined in this crate. Moving to engine-ports
-/// would create circular dependencies. This is an approved deviation from the
-/// standard hexagonal port placement.
-#[async_trait::async_trait]
-pub trait StagingStateExtPort: StagingStatePort {
-    /// Get a pending staging by request ID
-    fn get_pending_staging(
-        &self,
-        world_id: &WorldId,
-        request_id: &str,
-    ) -> Option<PendingStagingInfo>;
-
-    /// Remove a pending staging
-    fn remove_pending_staging(&self, world_id: &WorldId, request_id: &str);
-
-    /// Update the LLM suggestions for a pending staging
-    fn update_llm_suggestions(
-        &self,
-        world_id: &WorldId,
-        request_id: &str,
-        npcs: Vec<RegeneratedNpc>,
-    );
-}
-
-// =============================================================================
-// Staging Service Port Extension
-// =============================================================================
-
-/// Extended staging service port with additional operations
-#[async_trait::async_trait]
-pub trait StagingServiceExtPort: StagingServicePort {
-    /// Approve staging and persist it
-    async fn approve_staging(
-        &self,
-        region_id: RegionId,
-        location_id: LocationId,
-        world_id: WorldId,
-        game_time: &GameTime,
-        approved_npcs: Vec<ApprovedNpcData>,
-        ttl_hours: i32,
-        source: StagingSource,
-        approved_by: &str,
-    ) -> Result<Vec<StagedNpc>, String>;
-
-    /// Regenerate LLM suggestions with guidance
-    async fn regenerate_suggestions(
-        &self,
-        world_id: WorldId,
-        region_id: RegionId,
-        location_name: &str,
-        game_time: &GameTime,
-        guidance: &str,
-    ) -> Result<Vec<RegeneratedNpc>, String>;
-
-    /// Pre-stage a region
-    async fn pre_stage_region(
-        &self,
-        region_id: RegionId,
-        location_id: LocationId,
-        world_id: WorldId,
-        game_time: &GameTime,
-        npcs: Vec<ApprovedNpcData>,
-        ttl_hours: i32,
-        dm_user_id: &str,
-    ) -> Result<Vec<StagedNpc>, String>;
-}
 
 // =============================================================================
 // Staging Approval Use Case

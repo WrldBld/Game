@@ -23,8 +23,12 @@ pub use crate::outbound::{
     // Connection types
     ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent, WorldRole,
     // Scene types
-    ApprovalDecision, CharacterEntity, DirectorialContextData, DmAction, InteractionEntity,
-    InteractionTarget, LocationEntity, NpcMotivation, SceneEntity, SceneWithRelations, TimeContext,
+    ApprovalDecision, CharacterEntity, DirectorialContextData, InteractionEntity,
+    InteractionTarget, LocationEntity, NpcMotivation, SceneEntity, TimeContext,
+    // Note: Use SceneDmAction for the use-case version (enum, not service struct)
+    SceneDmAction as DmAction,
+    // Note: Use UseCaseSceneWithRelations for the use-case version with SceneEntity
+    UseCaseSceneWithRelations as SceneWithRelations,
     // Staging types
     ApprovedNpcData, PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc,
     StagedNpcData, StagingProposalData, WaitingPcData, WaitingPcInfo,

@@ -27,26 +27,15 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::errors::ObservationError;
 
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::WorldMessagePort;
+
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
     ApproachEventData, LocationEventData, ShareNpcLocationInput, ShareNpcLocationResult,
     TriggerApproachInput, TriggerApproachResult, TriggerLocationEventInput,
     TriggerLocationEventResult,
 };
-
-// =============================================================================
-// World Connection Port (for broadcasting)
-// =============================================================================
-
-/// Port for sending messages to specific users
-#[async_trait::async_trait]
-pub trait WorldMessagePort: Send + Sync {
-    /// Send a message to a specific user in a world
-    async fn send_to_user(&self, user_id: &str, world_id: uuid::Uuid, event: ApproachEventData);
-
-    /// Broadcast to all in a world
-    async fn broadcast_to_world(&self, world_id: uuid::Uuid, event: LocationEventData);
-}
 
 // =============================================================================
 // Observation Use Case

@@ -17,11 +17,16 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-use wrldbldr_domain::SceneId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::SceneError;
+
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{
+    DirectorialContextRepositoryPort, InteractionServicePort,
+    SceneDmActionQueuePort as DmActionQueuePort, SceneServicePort, WorldStatePort,
+};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -34,68 +39,6 @@ pub use wrldbldr_engine_ports::outbound::{
     SceneInteractionData as InteractionData, TimeContext, UpdateDirectorialInput,
     UseCaseSceneData as SceneData, UseCaseSceneWithRelations as SceneWithRelations,
 };
-
-// =============================================================================
-// Scene Service Port
-// =============================================================================
-
-/// Port for scene service operations
-#[async_trait::async_trait]
-pub trait SceneServicePort: Send + Sync {
-    /// Get scene with all relations
-    async fn get_scene_with_relations(
-        &self,
-        scene_id: SceneId,
-    ) -> Result<Option<SceneWithRelations>, String>;
-}
-
-/// Port for interaction service
-#[async_trait::async_trait]
-pub trait InteractionServicePort: Send + Sync {
-    /// List interactions for a scene
-    async fn list_interactions(&self, scene_id: SceneId) -> Result<Vec<InteractionEntity>, String>;
-}
-
-/// Port for world state management
-///
-/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
-/// because it depends on use-case-specific DTOs (DirectorialContextData, etc.) that are
-/// defined in this crate. Moving to engine-ports would create circular dependencies.
-/// This is an approved deviation from the standard hexagonal port placement.
-pub trait WorldStatePort: Send + Sync {
-    /// Set the current scene for a world
-    fn set_current_scene(&self, world_id: &wrldbldr_domain::WorldId, scene_id: Option<String>);
-
-    /// Set directorial context for a world
-    fn set_directorial_context(
-        &self,
-        world_id: &wrldbldr_domain::WorldId,
-        context: DirectorialContextData,
-    );
-}
-
-/// Port for directorial context persistence
-#[async_trait::async_trait]
-pub trait DirectorialContextRepositoryPort: Send + Sync {
-    /// Save directorial context
-    async fn save(
-        &self,
-        world_id: &wrldbldr_domain::WorldId,
-        context: &DirectorialContextData,
-    ) -> Result<(), String>;
-}
-
-/// Port for DM action queue
-#[async_trait::async_trait]
-pub trait DmActionQueuePort: Send + Sync {
-    /// Enqueue a DM action
-    async fn enqueue_action(
-        &self,
-        world_id: &wrldbldr_domain::WorldId,
-        dm_id: String,
-        action: DmAction,
-    ) -> Result<(), String>;
-}
 
 // =============================================================================
 // Scene Use Case

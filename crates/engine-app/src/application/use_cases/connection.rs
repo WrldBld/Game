@@ -17,208 +17,22 @@
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ConnectionError;
 
-// =============================================================================
-// Input/Output Types
-// =============================================================================
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{
+    ConnectionManagerPort, DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
+};
 
-/// World role for connection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldRole {
-    DM,
-    Player,
-    Spectator,
-}
+// Import types from engine-ports
+pub use wrldbldr_engine_ports::outbound::{
+    ConnectedUser, ConnectionInfo, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
+    SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent, UserLeftEvent, WorldRole,
+};
 
-/// Input for joining a world
-#[derive(Debug, Clone)]
-pub struct JoinWorldInput {
-    /// World to join
-    pub world_id: WorldId,
-    /// Role to join as
-    pub role: WorldRole,
-    /// PC to use (for Player role)
-    pub pc_id: Option<PlayerCharacterId>,
-    /// PC to spectate (for Spectator role)
-    pub spectate_pc_id: Option<PlayerCharacterId>,
-}
-
-/// Input for setting spectate target
-#[derive(Debug, Clone)]
-pub struct SetSpectateTargetInput {
-    /// PC to spectate
-    pub pc_id: PlayerCharacterId,
-}
-
-/// Connected user information
-#[derive(Debug, Clone)]
-pub struct ConnectedUser {
-    pub user_id: String,
-    pub role: WorldRole,
-    pub pc_id: Option<PlayerCharacterId>,
-    pub pc_name: Option<String>,
-}
-
-/// PC data for responses
-#[derive(Debug, Clone)]
-pub struct PcData {
-    pub id: String,
-    pub name: String,
-    pub user_id: String,
-    pub world_id: String,
-    pub current_location_id: String,
-    pub current_region_id: Option<String>,
-    pub description: Option<String>,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-}
-
-/// Result of joining a world
-#[derive(Debug, Clone)]
-pub struct JoinWorldResult {
-    /// World ID joined
-    pub world_id: WorldId,
-    /// World snapshot (JSON value for now)
-    pub snapshot: serde_json::Value,
-    /// List of connected users
-    pub connected_users: Vec<ConnectedUser>,
-    /// Your role in the world
-    pub your_role: WorldRole,
-    /// Your PC data (if Player role)
-    pub your_pc: Option<PcData>,
-}
-
-/// Result of leaving a world
-#[derive(Debug, Clone)]
-pub struct LeaveWorldResult {
-    /// Successfully left
-    pub left: bool,
-}
-
-/// Result of setting spectate target
-#[derive(Debug, Clone)]
-pub struct SpectateTargetResult {
-    /// Target PC ID
-    pub pc_id: PlayerCharacterId,
-    /// Target PC name
-    pub pc_name: String,
-}
-
-// =============================================================================
-// Connection Manager Port
-// =============================================================================
-
-/// Port for connection management
-///
-/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
-/// because it depends on use-case-specific DTOs (ConnectedUser, ConnectionInfo,
-/// UserJoinedEvent, etc.) that are defined in this crate. Moving to engine-ports
-/// would create circular dependencies. This is an approved deviation from the
-/// standard hexagonal port placement.
-#[async_trait::async_trait]
-pub trait ConnectionManagerPort: Send + Sync {
-    /// Register a new connection
-    async fn register_connection(
-        &self,
-        connection_id: uuid::Uuid,
-        client_id: String,
-        user_id: String,
-    );
-
-    /// Join a world
-    async fn join_world(
-        &self,
-        connection_id: uuid::Uuid,
-        world_id: uuid::Uuid,
-        role: WorldRole,
-        pc_id: Option<uuid::Uuid>,
-        spectate_pc_id: Option<uuid::Uuid>,
-    ) -> Result<Vec<ConnectedUser>, String>;
-
-    /// Leave a world
-    async fn leave_world(&self, connection_id: uuid::Uuid) -> Option<(uuid::Uuid, WorldRole)>;
-
-    /// Get connection info
-    async fn get_connection(&self, connection_id: uuid::Uuid) -> Option<ConnectionInfo>;
-
-    /// Set spectate target
-    async fn set_spectate_target(&self, connection_id: uuid::Uuid, pc_id: Option<uuid::Uuid>);
-
-    /// Get world connections
-    async fn get_world_connections(&self, world_id: uuid::Uuid) -> Vec<uuid::Uuid>;
-
-    /// Send to connection
-    async fn send_to_connection(&self, connection_id: uuid::Uuid, user_joined: UserJoinedEvent);
-
-    /// Broadcast to world
-    async fn broadcast_to_world(&self, world_id: uuid::Uuid, event: UserLeftEvent);
-}
-
-/// Connection info
-#[derive(Debug, Clone)]
-pub struct ConnectionInfo {
-    pub connection_id: uuid::Uuid,
-    pub client_id: String,
-    pub user_id: String,
-    pub world_id: Option<uuid::Uuid>,
-    pub role: Option<WorldRole>,
-    pub pc_id: Option<uuid::Uuid>,
-    pub spectate_pc_id: Option<uuid::Uuid>,
-}
-
-impl ConnectionInfo {
-    pub fn is_spectator(&self) -> bool {
-        matches!(self.role, Some(WorldRole::Spectator))
-    }
-}
-
-/// User joined event
-#[derive(Debug, Clone)]
-pub struct UserJoinedEvent {
-    pub user_id: String,
-    pub role: WorldRole,
-    pub pc: Option<PcData>,
-}
-
-/// User left event
-#[derive(Debug, Clone)]
-pub struct UserLeftEvent {
-    pub user_id: String,
-}
-
-// =============================================================================
-// World Service Port
-// =============================================================================
-
-/// Port for world service operations
-#[async_trait::async_trait]
-pub trait WorldServicePort: Send + Sync {
-    /// Export world snapshot
-    async fn export_world_snapshot(&self, world_id: WorldId) -> Result<serde_json::Value, String>;
-}
-
-/// Port for player character service
-#[async_trait::async_trait]
-pub trait PlayerCharacterServicePort: Send + Sync {
-    /// Get PC by ID
-    async fn get_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<PcData>, String>;
-}
-
-/// Port for directorial context
-#[async_trait::async_trait]
-pub trait DirectorialContextPort: Send + Sync {
-    /// Get directorial context
-    async fn get(
-        &self,
-        world_id: &WorldId,
-    ) -> Result<Option<super::scene::DirectorialContextData>, String>;
-}
-
-// WorldStatePort is defined in scene.rs and re-exported here for convenience
+// WorldStatePort is imported from engine-ports via scene.rs
 pub use super::scene::WorldStatePort;
 
 // =============================================================================

@@ -54,159 +54,26 @@
 
 use std::sync::Arc;
 use tracing::{debug, info, warn};
-use uuid::Uuid;
 
-use wrldbldr_domain::entities::{Location, Region, StagedNpc};
-use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::entities::{Location, Region};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
-    RegionRepositoryPort, SceneChangedEvent, StagedNpcData, StagingPendingEvent,
-    StagingRequiredEvent, WaitingPcData,
+    RegionRepositoryPort, StagingPendingEvent, StagingRequiredEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
 use super::errors::MovementError;
 
-// =============================================================================
-// Result Types
-// =============================================================================
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{StagingServicePort, StagingStatePort};
 
-/// Result of a movement operation
-#[derive(Debug, Clone)]
-pub enum MovementResult {
-    /// Movement succeeded, scene changed
-    SceneChanged(SceneChangedEvent),
-
-    /// Movement is pending staging approval
-    StagingPending {
-        region_id: RegionId,
-        region_name: String,
-    },
-
-    /// Movement was blocked (locked door, etc.)
-    Blocked { reason: String },
-}
-
-/// Input for selecting a player character
-#[derive(Debug, Clone)]
-pub struct SelectCharacterInput {
-    pub pc_id: PlayerCharacterId,
-}
-
-/// Result of selecting a player character
-#[derive(Debug, Clone)]
-pub struct SelectCharacterResult {
-    pub pc_id: PlayerCharacterId,
-    pub pc_name: String,
-    pub location_id: LocationId,
-    pub region_id: Option<RegionId>,
-}
-
-/// Input for moving to a region
-#[derive(Debug, Clone)]
-pub struct MoveToRegionInput {
-    pub pc_id: PlayerCharacterId,
-    pub target_region_id: RegionId,
-}
-
-/// Input for exiting to a location
-#[derive(Debug, Clone)]
-pub struct ExitToLocationInput {
-    pub pc_id: PlayerCharacterId,
-    pub target_location_id: LocationId,
-    pub arrival_region_id: Option<RegionId>,
-}
-
-// =============================================================================
-// Staging State Port
-// =============================================================================
-
-/// Port for managing pending staging state
-///
-/// This abstracts the WorldStateManager which lives in the adapters layer.
-/// The use case interacts with staging state through this interface.
-///
-/// ARCHITECTURE NOTE: This port is defined in engine-app rather than engine-ports
-/// because it depends on use-case-specific DTOs (PendingStagingData, WaitingPcData)
-/// that are defined in this crate. Moving to engine-ports would create circular
-/// dependencies. This is an approved deviation from the standard hexagonal port
-/// placement.
-#[async_trait::async_trait]
-pub trait StagingStatePort: Send + Sync {
-    /// Get current game time for the world
-    fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime>;
-
-    /// Check if there's a pending staging for a region
-    fn has_pending_staging(&self, world_id: &WorldId, region_id: &RegionId) -> bool;
-
-    /// Add a PC to the waiting list for a pending staging
-    fn add_waiting_pc(
-        &self,
-        world_id: &WorldId,
-        region_id: &RegionId,
-        pc_id: Uuid,
-        pc_name: String,
-        user_id: String,
-        client_id: String,
-    );
-
-    /// Store a new pending staging approval
-    fn store_pending_staging(&self, pending: PendingStagingData);
-}
-
-/// Data for a pending staging approval
-#[derive(Debug, Clone)]
-pub struct PendingStagingData {
-    pub request_id: String,
-    pub world_id: WorldId,
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-    pub region_name: String,
-    pub location_name: String,
-    pub game_time: GameTime,
-    pub rule_based_npcs: Vec<StagedNpcData>,
-    pub llm_based_npcs: Vec<StagedNpcData>,
-    pub waiting_pcs: Vec<WaitingPcData>,
-    pub default_ttl_hours: i32,
-}
-
-// =============================================================================
-// Staging Service Port
-// =============================================================================
-
-/// Port for staging service operations
-///
-/// This abstracts the StagingService for use case consumption.
-#[async_trait::async_trait]
-pub trait StagingServicePort: Send + Sync {
-    /// Get current valid staging for a region
-    async fn get_current_staging(
-        &self,
-        region_id: RegionId,
-        game_time: &GameTime,
-    ) -> Result<Option<Vec<StagedNpc>>, String>;
-
-    /// Generate a staging proposal for a region
-    async fn generate_proposal(
-        &self,
-        world_id: WorldId,
-        region_id: RegionId,
-        location_id: LocationId,
-        location_name: &str,
-        game_time: &GameTime,
-        ttl_hours: i32,
-        dm_guidance: Option<&str>,
-    ) -> Result<StagingProposalData, String>;
-}
-
-/// Staging proposal data returned by the service
-#[derive(Debug, Clone)]
-pub struct StagingProposalData {
-    pub request_id: String,
-    pub rule_based_npcs: Vec<StagedNpcData>,
-    pub llm_based_npcs: Vec<StagedNpcData>,
-}
+// Import types from engine-ports
+pub use wrldbldr_engine_ports::outbound::{
+    ExitToLocationInput, MoveToRegionInput, MovementResult, PendingStagingData,
+    SelectCharacterInput, SelectCharacterResult, StagingProposalData,
+};
 
 // =============================================================================
 // Movement Use Case

@@ -18,51 +18,18 @@
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use wrldbldr_domain::{ActionId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{ActionId, LocationId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ActionError;
 use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
 
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{DmNotificationPort, PlayerActionQueuePort};
+
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
-
-// =============================================================================
-// Player Action Queue Port
-// =============================================================================
-
-/// Port for player action queue operations
-#[async_trait::async_trait]
-pub trait PlayerActionQueuePort: Send + Sync {
-    /// Enqueue an action
-    async fn enqueue_action(
-        &self,
-        world_id: &WorldId,
-        player_id: String,
-        pc_id: Option<PlayerCharacterId>,
-        action_type: String,
-        target: Option<String>,
-        dialogue: Option<String>,
-    ) -> Result<ActionId, String>;
-
-    /// Get current queue depth
-    async fn depth(&self) -> Result<usize, String>;
-}
-
-/// Port for sending messages to DM
-#[async_trait::async_trait]
-pub trait DmNotificationPort: Send + Sync {
-    /// Send action queued notification to DM
-    async fn notify_action_queued(
-        &self,
-        world_id: &WorldId,
-        action_id: String,
-        player_name: String,
-        action_type: String,
-        queue_depth: usize,
-    );
-}
 
 // =============================================================================
 // Player Action Use Case

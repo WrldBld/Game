@@ -24,7 +24,7 @@
 use std::sync::Arc;
 use tracing::{debug, info};
 
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo,
@@ -32,144 +32,21 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::errors::ChallengeError;
 
+// Import port traits from engine-ports
+pub use wrldbldr_engine_ports::inbound::{
+    ChallengeDmApprovalQueuePort as DmApprovalQueuePort, ChallengeOutcomeApprovalPort,
+    ChallengeResolutionPort,
+};
+
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem,
     ChallengeSuggestionDecisionInput as SuggestionDecisionInput, CreateAdHocInput, DiceInputType,
     DiscardChallengeInput, DiscardResult, OutcomeDecision, OutcomeDecisionInput,
     OutcomeDecisionResult, OutcomeDetail, RegenerateOutcomeInput, RegenerateResult,
-    RequestBranchesInput, RequestSuggestionInput, SelectBranchInput, SubmitDiceInputInput,
-    SubmitRollInput, TriggerChallengeInput, TriggerInfo, TriggerResult,
+    RequestBranchesInput, RequestSuggestionInput, RollResultData as RollResult, SelectBranchInput,
+    SubmitDiceInputInput, SubmitRollInput, TriggerChallengeInput, TriggerInfo, TriggerResult,
 };
-
-/// Result of submitting a roll
-#[derive(Debug, Clone)]
-pub struct RollResult {
-    /// Resolution ID for tracking this pending approval
-    pub resolution_id: String,
-    /// Challenge ID
-    pub challenge_id: String,
-    /// Challenge name
-    pub challenge_name: String,
-    /// Character ID who rolled
-    pub character_id: String,
-    /// Character name who rolled
-    pub character_name: String,
-    /// The raw roll value
-    pub roll: i32,
-    /// Skill modifier applied
-    pub modifier: i32,
-    /// Total result (roll + modifier)
-    pub total: i32,
-    /// Outcome type (success, failure, etc.)
-    pub outcome_type: String,
-    /// Outcome description text
-    pub outcome_description: String,
-    /// Roll breakdown string (e.g., "1d20+5 = 15 + 5 = 20")
-    pub roll_breakdown: Option<String>,
-    /// Individual dice results
-    pub individual_rolls: Option<Vec<i32>>,
-    /// Triggers to execute on approval
-    pub triggers: Vec<TriggerInfo>,
-    /// Whether outcome requires DM approval
-    pub pending_approval: bool,
-}
-
-// =============================================================================
-// Challenge Resolution Service Port
-// =============================================================================
-
-/// Port for challenge resolution operations
-///
-/// This abstracts the ChallengeResolutionService for use case consumption.
-/// Methods include `world_id` to support world-scoped challenge resolution.
-#[async_trait::async_trait]
-pub trait ChallengeResolutionPort: Send + Sync {
-    /// Handle a dice roll submission
-    async fn handle_roll(
-        &self,
-        world_id: &WorldId,
-        pc_id: PlayerCharacterId,
-        challenge_id: String,
-        roll: i32,
-    ) -> Result<RollResult, String>;
-
-    /// Handle dice input (formula or manual)
-    async fn handle_roll_input(
-        &self,
-        world_id: &WorldId,
-        pc_id: PlayerCharacterId,
-        challenge_id: String,
-        input_type: DiceInputType,
-    ) -> Result<RollResult, String>;
-
-    /// Trigger a challenge against a target
-    async fn trigger_challenge(
-        &self,
-        world_id: &WorldId,
-        challenge_id: String,
-        target_character_id: CharacterId,
-    ) -> Result<TriggerResult, String>;
-
-    /// Handle DM's decision on a suggestion
-    async fn handle_suggestion_decision(
-        &self,
-        world_id: &WorldId,
-        request_id: String,
-        approved: bool,
-        modified_difficulty: Option<String>,
-    ) -> Result<(), String>;
-
-    /// Create an ad-hoc challenge
-    async fn create_adhoc_challenge(
-        &self,
-        world_id: &WorldId,
-        challenge_name: String,
-        skill_name: String,
-        difficulty: String,
-        target_pc_id: PlayerCharacterId,
-        outcomes: AdHocOutcomes,
-    ) -> Result<AdHocResult, String>;
-}
-
-/// Port for challenge outcome approval operations
-#[async_trait::async_trait]
-pub trait ChallengeOutcomeApprovalPort: Send + Sync {
-    /// Process DM's decision on an outcome
-    async fn process_decision(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        decision: OutcomeDecision,
-    ) -> Result<(), String>;
-
-    /// Request outcome branches
-    async fn request_branches(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        guidance: Option<String>,
-    ) -> Result<(), String>;
-
-    /// Select a specific branch
-    async fn select_branch(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        branch_id: &str,
-        modified_description: Option<String>,
-    ) -> Result<(), String>;
-}
-
-/// Port for DM approval queue operations
-#[async_trait::async_trait]
-pub trait DmApprovalQueuePort: Send + Sync {
-    /// Get an approval item by ID
-    async fn get_by_id(&self, request_id: &str) -> Result<Option<ApprovalItem>, String>;
-
-    /// Discard a challenge from the queue
-    async fn discard_challenge(&self, dm_id: &str, request_id: &str);
-}
 
 // =============================================================================
 // Challenge Use Case

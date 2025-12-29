@@ -32,7 +32,7 @@ pub use use_case_ports::{
     TriggerInfo, TriggerResult,
     // Connection types
     ConnectedUser, ConnectionInfo, PcData, UserJoinedEvent, UserLeftEvent, WorldRole,
-    // Scene types
+    // Scene types (DmAction, SceneWithRelations come through aliased from use_case_ports)
     ApprovalDecision, CharacterEntity, DirectorialContextData, DmAction, InteractionEntity,
     InteractionTarget, LocationEntity, NpcMotivation, SceneEntity, SceneWithRelations, TimeContext,
     // Staging types
