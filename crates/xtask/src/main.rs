@@ -121,6 +121,7 @@ fn arch_check() -> anyhow::Result<()> {
     check_engine_ports_protocol_isolation()?;
     check_player_app_protocol_isolation()?;
     check_player_ports_protocol_isolation()?;
+    check_no_glob_reexports()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
@@ -774,6 +775,90 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
         }
         eprintln!("\nNote: GameConnectionPort refactoring is tracked as Phase P2.");
         // Uncomment to enforce: anyhow::bail!("arch-check failed: player-ports imports protocol types");
+    }
+
+    Ok(())
+}
+
+/// Check for glob re-exports (`pub use module::*`) which are prohibited.
+///
+/// Glob re-exports make dependencies implicit, prevent dead code detection,
+/// and hurt IDE navigation. Use explicit exports instead.
+///
+/// NOTE: This check is currently in WARNING mode only. Once existing glob
+/// re-exports are cleaned up (Phase 4.6), change to enforce mode.
+fn check_no_glob_reexports() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    // Directories to check for glob re-exports
+    let check_dirs = [
+        workspace_root.join("crates/domain/src"),
+        workspace_root.join("crates/protocol/src"),
+        workspace_root.join("crates/engine-ports/src"),
+        workspace_root.join("crates/engine-app/src"),
+        workspace_root.join("crates/engine-adapters/src"),
+        workspace_root.join("crates/engine-runner/src"),
+        workspace_root.join("crates/player-ports/src"),
+        workspace_root.join("crates/player-app/src"),
+        workspace_root.join("crates/player-adapters/src"),
+        workspace_root.join("crates/player-ui/src"),
+        workspace_root.join("crates/player-runner/src"),
+    ];
+
+    // Pattern: `pub use something::*;` - captures glob re-exports
+    // Matches: pub use foo::*; pub use self::bar::*; pub use super::baz::*;
+    // Does NOT match: pub use foo::{A, B, C}; (explicit exports are fine)
+    let glob_reexport_re = regex_lite::Regex::new(
+        r"(?m)^\s*pub\s+use\s+[^;]+::\*\s*;"
+    ).context("compiling glob re-export regex")?;
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for dir in check_dirs {
+        if !dir.exists() {
+            continue;
+        }
+
+        for entry in walkdir_rs_files(&dir)? {
+            let contents = std::fs::read_to_string(&entry)
+                .with_context(|| format!("reading {}", entry.display()))?;
+
+            // Find all glob re-exports in file
+            for (line_idx, line) in contents.lines().enumerate() {
+                let trimmed = line.trim();
+
+                // Skip comment lines
+                if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+                    continue;
+                }
+
+                if glob_reexport_re.is_match(line) {
+                    violations.push(format!(
+                        "{}:{}: glob re-export - use explicit exports instead\n    {}",
+                        entry.display(),
+                        line_idx + 1,
+                        trimmed
+                    ));
+                }
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        // WARNING mode: Report but don't fail (until Phase 4.6 cleanup)
+        eprintln!("Glob re-export violations ({} instances):", violations.len());
+        eprintln!("  Architecture rule: No `pub use module::*` - use explicit exports");
+        eprintln!();
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+        eprintln!();
+        eprintln!("Note: This check is in WARNING mode. Fix these in Phase 4.6.");
+        // TODO: Uncomment after Phase 4.6 cleanup:
+        // anyhow::bail!("arch-check failed: glob re-exports found");
     }
 
     Ok(())

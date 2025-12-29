@@ -2,53 +2,103 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28 (Validated and corrected after peer review)  
+**Last Updated**: 2025-12-28 (Sixth comprehensive review - cross-validation)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
-**Estimated Total Effort**: 40-50 hours
+**Estimated Total Effort**: 50-70 hours (implementation) + contingency = 70-95 hours total
 
 ---
 
 ## Validation Notes (2025-12-28)
 
-This plan was validated by two peer review agents. Key corrections applied:
+This plan was validated by six rounds of review. Key corrections applied:
 
 ### First Review
 1. **Phase 1.3 REMOVED** - The `staging_service.rs:535` unwrap is inside `#[cfg(test)]` (test code), not production
-2. **God trait method counts corrected**:
-   - CharacterRepositoryPort: ~35 → **42 methods** (verified)
-   - StoryEventRepositoryPort: ~35 → **34 methods** (verified)
-   - ChallengeRepositoryPort: ~25 → **31 methods** (verified)
+2. **God trait method counts corrected** (initial)
 3. **Swallowed error count verified** - 43 instances confirmed in `services/` directory
 4. **Phase 3.5 warning added** - Splitting god traits will break test compilation until Phase 7
 5. **HTTP timeout/client claims verified** - Confirmed no timeouts, 11 instances of per-request client creation
 
-### Second Review - Additional Issues Found
-6. **File I/O in application layer** - 5 instances of `tokio::fs` in engine-app (architecture violation)
-7. **Environment access in application layer** - 2 instances of `std::env` in prompt_template_service.rs
-8. **Shadow variable bug** - `completed_count` in generation_service.rs is not unused, it has a shadow bug
-9. **Protocol forward compatibility** - No `#[serde(other)]` on any enum (breaks client on new variants)
-10. **Test compilation root cause** - Specific: staging_service_adapter.rs stubs return wrong error types
+### Fifth Review (12 Sub-Agents - Comprehensive Audit)
+
+The fifth review deployed 12 specialized sub-agents to verify every claim in the plan:
+
+#### Verified Accurate:
+- **God trait method counts**: 169 total (42+34+30+31+32) ✓
+- **Swallowed errors in services**: 43 (14+6+3+20 others) ✓
+- **I/O violations in app layer**: 12-13 (close to claimed 11-12) ✓
+- **Unbounded channel in websocket/mod.rs:78** ✓
+- **No graceful shutdown** - confirmed no signal handling, no CancellationToken ✓
+- **tokio in engine-ports Cargo.toml:19** ✓
+- **Platform struct in player-ports**: 347 lines (larger than claimed 250+) ✓
+- **MockGameConnectionPort in player-ports**: 320 lines ✓
+
+#### Corrected:
+- **Test compilation errors**: 36 (not 37)
+- **std::sync::Mutex in comfyui.rs**: Locks NOT held across await points (low risk)
+- **Adapters→App coupling**: 73 import statements across 43 files (worse than implied)
+
+#### NEW Issues Discovered:
+6. **player-ports/session_types.rs duplicates** - 8 types duplicate protocol without From impls
+7. **UseCaseContext in engine-ports** - 166-line concrete struct with implementations
+8. **Additional unbounded channels** - state/mod.rs lines 425, 473 (not just websocket)
+9. **27 tokio::spawn calls** - No JoinHandle tracking, no CancellationToken anywhere
+10. **thiserror declared but unused in domain** - DiceParseError uses manual Display impl
+11. **env::var in domain understated** - AppSettings::from_env() calls env_or() ~20 times
+12. **Forward compatibility on 20 enums** - All protocol enums need #[serde(other)]
+
+### Sixth Review (Cross-Validation Audit)
+
+The sixth review cross-validated findings between two independent agents and resolved all discrepancies:
+
+#### Verified Accurate (No Changes Needed):
+- **God trait method counts**: 169 total (42+34+30+31+32) ✓
+- **Adapters→app imports**: 73 imports in 43 files ✓
+- **I/O violations in app layer**: 12-13 ✓
+- **Unbounded channels**: 3 ✓
+- **tokio::spawn untracked**: 27 ✓
+- **Protocol enums without #[serde(other)]**: 20 ✓
+- **Test compilation errors**: 36 ✓
+- **Platform struct**: 347 lines ✓
+- **MockGameConnectionPort**: 320 lines ✓
+
+#### Discrepancies Resolved:
+| Item | Discrepancy | Verified Result |
+|------|-------------|-----------------|
+| staging_service.rs:535 unwrap | Production vs test code | **Test code** - inside `#[cfg(test)]`, plan is correct |
+| pub use * count | 31 vs 22 | **30** (excluding comments) |
+| Domain env vars | ~20 vs 28 | **28** (all in settings.rs) |
+| request_handler.rs match arms | 308 vs not mentioned | **134** (both were wrong) |
+
+#### NEW Issues Added:
+1. **Phase 3.0.3**: Add `world_state_manager.rs` (484 lines of business logic in adapters)
+2. **Phase 3.0.7**: Move composition root to runner (~1,045 lines in wrong layer)
+3. **Phase 4.6**: Replace 30 glob re-exports + architecture rule against them
+
+#### Corrections Applied:
+- Domain env vars count: ~20 → **28**
+- Business logic in adapters: 3 files (~1,000 lines) → **4 files (~1,570 lines)**
 
 ### Known Limitations (Not in Scope)
-- **Authentication**: X-User-Id header is spoofable - intentional for MVP, production auth is separate work
-- **Rate limiting**: RateLimitExceeded defined but unused - feature work, not remediation
-- **Reconnection logic**: Reconnecting state unused - feature work, not remediation
-- **Protocol versioning**: No version field - would be breaking change, separate effort
+- **Authentication**: X-User-Id header is spoofable - intentional for MVP
+- **Rate limiting**: RateLimitExceeded defined but unused - feature work
+- **Reconnection logic**: Reconnecting state unused - feature work
+- **Protocol versioning**: No version field - would be breaking change
 
 ---
 
 ## Executive Summary
 
-Two comprehensive code reviews identified issues across the WrldBldr codebase. This plan consolidates all findings into a prioritized remediation roadmap organized by severity and effort.
+Six comprehensive code reviews (including cross-validation) identified issues across the WrldBldr codebase. This plan consolidates all findings into a prioritized remediation roadmap organized by severity and effort.
 
 ### Issue Summary
 
 | Severity | Count | Categories |
 |----------|-------|------------|
-| Critical | 2 | Production panic risk, protocol forward compatibility |
-| High | ~65 | Swallowed errors (43), god traits (3), I/O in app layer (7), architecture gaps |
-| Medium | ~80 | Dead code, missing derives, config issues (hardcoded IPs), shadow bugs |
-| Low | ~100+ | Unused variables, documentation, naming |
+| Critical | 12 | Production panic (2), protocol forward compat (20 enums), adapters→app deps (2), no graceful shutdown, composition root in wrong layer |
+| High | ~115 | Swallowed errors (43), god traits (5/**169** methods), I/O in app (**12-13**), unbounded channels (3), spawns without tracking (27), business logic in adapters (4 files/~1,570 lines) |
+| Medium | ~130 | Dead code, missing derives, config issues, DTO duplicates (13 redundant), domain I/O (28 env calls), glob re-exports (30) |
+| Low | ~150+ | Unused variables, documentation, naming |
 
 ### Progress Tracking
 
@@ -137,46 +187,7 @@ comfyui_base_url: env::var("COMFYUI_BASE_URL")
 
 ---
 
-### 1.3 Add Protocol Forward Compatibility
-
-**Priority**: CRITICAL - Without this, adding any new enum variant breaks all existing clients.
-
-**Issue**: No protocol enums have `#[serde(other)]` catch-all variants. When we add a new variant to any enum (e.g., `ServerMessage`), older clients that don't know about it will fail to deserialize the entire message.
-
-**Files to update**:
-- `crates/protocol/src/messages.rs` - ClientMessage, ServerMessage
-- `crates/protocol/src/requests.rs` - RequestPayload
-- `crates/protocol/src/responses.rs` - ResponseResult
-- Other enums as needed (~15 total)
-
-**Pattern to apply**:
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum ServerMessage {
-    // ... existing variants ...
-    
-    /// Unknown message type for forward compatibility
-    /// Older clients will deserialize unknown variants as this
-    #[serde(other)]
-    Unknown,
-}
-```
-
-**Note**: This requires adding a catch-all variant to each enum. Consider whether `Unknown` should carry the raw JSON for debugging.
-
-| Task | Status |
-|------|--------|
-| [ ] Add #[serde(other)] Unknown to ServerMessage | Pending |
-| [ ] Add #[serde(other)] Unknown to ClientMessage | Pending |
-| [ ] Add #[serde(other)] Unknown to RequestPayload | Pending |
-| [ ] Add #[serde(other)] Unknown to ResponseResult | Pending |
-| [ ] Audit remaining protocol enums | Pending |
-| [ ] Add handling for Unknown variants in message processors | Pending |
-
----
-
-### ~~1.4 Fix Production unwrap() in Staging Service~~ REMOVED
+### ~~1.3 Fix Production unwrap() in Staging Service~~ REMOVED
 
 **Status**: ~~INVALID~~ - This item was removed after validation.
 
@@ -194,11 +205,11 @@ pub enum ServerMessage {
 
 **Files to fix**:
 
-| File | Lines | Pattern |
-|------|-------|---------|
-| `llm_queue_service.rs` | 107, 180, 404, 408, 414, 423, 464, 470, 484, 489, 495 | Queue operations |
-| `asset_generation_queue_service.rs` | 144, 158, 204, 233, 292 | Asset failures |
-| `generation_service.rs` | 170, 300, 316 | Event drops |
+| File | Lines | Count | Pattern |
+|------|-------|-------|---------|
+| `llm_queue_service.rs` | 107, 139, 180, 404, 408, 414, 423, 433, 464, 470, 478, 484, 489, 495 | **14** | Queue operations, event sends |
+| `asset_generation_queue_service.rs` | 89, 144, 158, 204, 233, 292 | **6** | Asset failures, notifier waits |
+| `generation_service.rs` | 170, 300, 316 | **3** | Event drops |
 
 **Pattern to apply**:
 ```rust
@@ -213,8 +224,8 @@ if let Err(e) = self.generation_event_tx.send(event) {
 
 | Task | Status |
 |------|--------|
-| [ ] Fix llm_queue_service.rs (11 instances) | Pending |
-| [ ] Fix asset_generation_queue_service.rs (5 instances) | Pending |
+| [ ] Fix llm_queue_service.rs (**14** instances) | Pending |
+| [ ] Fix asset_generation_queue_service.rs (**6** instances) | Pending |
 | [ ] Fix generation_service.rs (3 instances) | Pending |
 | [ ] Audit remaining `let _ =` patterns for intentionality | Pending |
 | [ ] Add comments to intentional `let _ =` patterns | Pending |
@@ -279,22 +290,141 @@ static CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
 
 ---
 
-## Phase 3: Architecture Completion (8-10 hours)
+### 2.4 Fix Async/Concurrency Issues (NEW)
+
+**Issue**: Several concurrency anti-patterns that can cause runtime issues.
+
+#### 2.4.1 std::sync::Mutex in Async Context (LOW PRIORITY)
+
+**File**: `crates/engine-adapters/src/infrastructure/comfyui.rs:52-129`
+
+**Issue**: Uses `std::sync::Mutex` in async code.
+
+**Fifth Review Finding**: The locks are **NOT held across await points** - the pattern used is:
+```rust
+{ let guard = mutex.lock(); /* quick read/write */ } // lock dropped
+async_operation().await; // lock already released
+```
+
+**Verdict**: Low priority - the code is actually safe. Consider replacing with `tokio::sync::Mutex` for clarity but not urgent.
+
+| Task | Status |
+|------|--------|
+| [ ] Consider replacing with tokio::sync::Mutex for clarity | Pending (Low) |
+
+#### 2.4.2 Unbounded WebSocket/Event Channels
+
+**Files with unbounded channels**:
+
+| File | Line | Channel | Risk |
+|------|------|---------|------|
+| `websocket/mod.rs` | 78 | Per-connection message queue | HIGH - no backpressure |
+| `state/mod.rs` | 425 | `generation_event_tx/rx` | MEDIUM |
+| `state/mod.rs` | 473 | `challenge_approval_tx/rx` | MEDIUM |
+
+**Fix**: Replace with bounded channels:
+```rust
+// Before:
+let (tx, rx) = mpsc::unbounded_channel::<ServerMessage>();
+
+// After:
+let (tx, rx) = mpsc::channel::<ServerMessage>(256);
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Replace unbounded_channel in websocket/mod.rs:78 | Pending |
+| [ ] Replace unbounded_channel in state/mod.rs:425 | Pending |
+| [ ] Replace unbounded_channel in state/mod.rs:473 | Pending |
+| [ ] Handle send errors when channels are full | Pending |
+
+#### 2.4.3 Missing Graceful Shutdown
+
+**File**: `crates/engine-adapters/src/run/server.rs:301-314`
+
+**Issue**: Workers spawned without cancellation tokens; no graceful shutdown on SIGTERM/SIGINT.
+
+**Current state**:
+- 27 `tokio::spawn` calls across codebase with no tracking
+- Zero `CancellationToken` usage
+- Zero `JoinHandle` tracking
+- Worker loops are infinite with no exit condition
+
+**Fix**: Add CancellationToken pattern:
+```rust
+use tokio_util::sync::CancellationToken;
+
+let shutdown = CancellationToken::new();
+
+tokio::select! {
+    _ = server => {},
+    _ = tokio::signal::ctrl_c() => {
+        tracing::info!("Shutdown signal received");
+        shutdown.cancel();
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Add tokio-util dependency for CancellationToken | Pending |
+| [ ] Create shutdown token in server.rs | Pending |
+| [ ] Pass cancellation token to all 10 spawned workers | Pending |
+| [ ] Handle SIGTERM/SIGINT for graceful shutdown | Pending |
+| [ ] Add JoinHandle tracking for spawned tasks | Pending |
+
+---
+
+## Phase 3: Architecture Completion (12-15 hours)
 
 **Priority**: HIGH - Complete hexagonal architecture gaps
 
-### 3.0 Move I/O Operations Out of Application Layer
+### 3.0 Fix Hexagonal Architecture Violations (NEW)
 
-**Issue**: Application layer has direct file system and environment variable access, violating hexagonal architecture.
+#### 3.0.1 Remove Adapters→App Cargo Dependencies (CRITICAL)
 
-#### 3.0.1 File System I/O Violations
+**Issue**: Both adapter crates depend on their app crates - a **fundamental hexagonal violation**.
 
-**Files with `tokio::fs` in application layer**:
+**Violations**:
+- `crates/engine-adapters/Cargo.toml:10` - `wrldbldr-engine-app = { workspace = true }`
+- `crates/player-adapters/Cargo.toml:10` - `wrldbldr-player-app = { workspace = true }`
+
+**Severity**: engine-adapters has **73 import statements across 43 files** from engine-app.
+
+**What's being imported**:
+- Services: ~30 imports (StagingService, ChallengeResolutionService, etc.)
+- DTOs: ~25 imports (ApprovalItem, LLMRequestItem, PlayerActionItem)
+- Use Cases: ~20 imports (ChallengeUseCase, MovementUseCase, etc.)
+
+**Fix approach**:
+1. Move shared DTOs to `protocol` or `engine-dto` crate
+2. Define service interfaces as port traits
+3. Access services only via ports (inject at composition root)
+4. Remove the Cargo.toml dependency
+
+| Task | Status |
+|------|--------|
+| [ ] Audit all 73 engine-adapters imports from engine-app | Pending |
+| [ ] Move DTOs to protocol or engine-dto | Pending |
+| [ ] Create port traits for services used by adapters | Pending |
+| [ ] Refactor engine-adapters to use only ports | Pending |
+| [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
+| [ ] Audit player-adapters (1 file, 33 types) | Pending |
+| [ ] Refactor player-adapters to use only ports | Pending |
+| [ ] Remove `wrldbldr-player-app` from player-adapters/Cargo.toml | Pending |
+
+**Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
+
+#### 3.0.2 Move I/O Operations Out of Application Layer
+
+**Files with I/O in engine-app** (12-13 violations):
 
 | File | Lines | Operations |
 |------|-------|------------|
-| `generation_service.rs` | 353, 365, 403 | create_dir_all, write, read_to_string |
-| `asset_generation_queue_service.rs` | 231, 245 | create_dir_all, write |
+| `generation_service.rs` | 103, 109, 353, 357, 365, 402, 403 | PathBuf fields, create_dir_all, Path::new, write, exists, read_to_string |
+| `asset_generation_queue_service.rs` | 230, 231, 245 | PathBuf::from, create_dir_all, write |
+| `prompt_template_service.rs` | 222, 268 | std::env::var |
+| `player-app/error.rs` | 128 | std::env::var |
 
 **Fix**: Create `FileStoragePort` in engine-ports:
 ```rust
@@ -303,6 +433,7 @@ pub trait FileStoragePort: Send + Sync {
     async fn create_dir_all(&self, path: &Path) -> Result<()>;
     async fn write(&self, path: &Path, data: &[u8]) -> Result<()>;
     async fn read_to_string(&self, path: &Path) -> Result<String>;
+    async fn exists(&self, path: &Path) -> Result<bool>;
 }
 ```
 
@@ -311,23 +442,131 @@ pub trait FileStoragePort: Send + Sync {
 | [ ] Create FileStoragePort trait in engine-ports | Pending |
 | [ ] Create TokioFileStorageAdapter in engine-adapters | Pending |
 | [ ] Update generation_service.rs to use FileStoragePort | Pending |
-| [ ] Update asset_generation_queue_service.rs to use FileStoragePort | Pending |
-| [ ] Wire up in runner | Pending |
+| [ ] Update asset_generation_queue_service.rs | Pending |
+| [ ] Move env::var calls to adapter/runner layer | Pending |
 
-#### 3.0.2 Environment Variable Access Violations
+#### 3.0.3 Move Business Logic Out of Adapters
 
-**Files with `std::env` in application layer**:
+**Files with business logic in adapters** (4 files, ~1,570 lines):
 
-| File | Lines | Usage |
-|------|-------|-------|
-| `prompt_template_service.rs` | 222, 268 | Reading template overrides from env |
+| File | Lines | Description |
+|------|-------|-------------|
+| `context_budget.rs` | 369 | Token counting, budget enforcement |
+| `websocket_helpers.rs` | 476 | Prompt building, character selection, context aggregation |
+| `queue_workers.rs` | 241 (process_dm_action) | DM action processing, scene transitions |
+| `world_state_manager.rs` | **484** | Game time, conversation history, approval workflows (NEW - Sixth Review) |
 
-**Fix**: Inject configuration through constructor or config port.
+**Note**: `world_state_manager.rs` also imports from engine-app (`StagingProposal`) - a double violation.
+
+**Fix**: Create services in engine-app:
+- `ContextBudgetService` - move from context_budget.rs
+- `PromptBuilderService` - move from websocket_helpers.rs
+- `DmActionProcessorService` - move from queue_workers.rs
+- `WorldStateService` - move from world_state_manager.rs (NEW)
 
 | Task | Status |
 |------|--------|
-| [ ] Add template override config to PromptTemplateService constructor | Pending |
-| [ ] Move env::var calls to adapter/runner layer | Pending |
+| [ ] Move ContextBudgetEnforcer to engine-app/services | Pending |
+| [ ] Create PromptBuilderService in engine-app | Pending |
+| [ ] Move build_prompt_from_action (162 lines) | Pending |
+| [ ] Move helper functions from websocket_helpers.rs (~300 lines) | Pending |
+| [ ] Create DmActionProcessorService in engine-app | Pending |
+| [ ] Move process_dm_action logic (241 lines) | Pending |
+| [ ] Create WorldStateService in engine-app (NEW) | Pending |
+| [ ] Move world_state_manager.rs logic (484 lines) | Pending |
+| [ ] Remove engine-app import from world_state_manager.rs | Pending |
+
+#### 3.0.4 Fix Ports Layer Violations
+
+**Concrete implementations in ports that should be in adapters**:
+
+| File | Item | Lines | Issue |
+|------|------|-------|-------|
+| `player-ports/platform.rs` | Platform struct | 347 | Full implementation in ports |
+| `player-ports/testing/mock_game_connection.rs` | MockGameConnectionPort | 320 | Mock in ports, not adapters |
+| `engine-ports/use_case_context.rs` | UseCaseContext | 166 | Concrete struct with 8 methods |
+
+**Fix**:
+- Move `Platform` struct to player-adapters, keep only traits in ports
+- Move `MockGameConnectionPort` to player-adapters/testing or use mockall
+- Document `UseCaseContext` as approved exception (it's a DTO/context object)
+
+| Task | Status |
+|------|--------|
+| [ ] Move Platform struct (347 lines) to player-adapters | Pending |
+| [ ] Move blanket *Dyn impls to player-adapters | Pending |
+| [ ] Move MockGameConnectionPort to player-adapters/testing | Pending |
+| [ ] Document UseCaseContext as approved exception | Pending |
+
+#### 3.0.5 Remove Tokio from Ports Layer
+
+**Issue**: `engine-ports/Cargo.toml:19` has tokio dependency but ports should only need `async-trait`.
+
+| Task | Status |
+|------|--------|
+| [ ] Remove tokio from engine-ports/Cargo.toml | Pending |
+| [ ] Verify compilation still works | Pending |
+
+#### 3.0.6 Fix player-ports Session Types Duplicates (NEW)
+
+**File**: `crates/player-ports/src/session_types.rs` (116 lines)
+
+**Issue**: 8 types duplicate protocol types WITHOUT `From` implementations:
+
+| Type | player-ports | protocol | Has From? |
+|------|--------------|----------|-----------|
+| `ParticipantRole` | session_types.rs:11 | types.rs:20 | NO |
+| `DiceInput` | session_types.rs:19 | messages.rs:1001 | NO |
+| `ApprovalDecision` | session_types.rs:28 | types.rs:41 | NO |
+| `DirectorialContext` | session_types.rs:60 | messages.rs:841 | NO |
+| `NpcMotivationData` | session_types.rs:69 | messages.rs:853 | NO |
+| `ApprovedNpcInfo` | session_types.rs:79 | messages.rs:1106 | NO |
+| `AdHocOutcomes` | session_types.rs:92 | messages.rs:1011 | NO |
+| `ChallengeOutcomeDecision` | session_types.rs:103 | messages.rs:1031 | NO |
+
+**Fix**: Either add `From<protocol::Type>` impls or use protocol types directly.
+
+| Task | Status |
+|------|--------|
+| [ ] Audit each duplicate for necessity | Pending |
+| [ ] Add From impls for types that need local representation | Pending |
+| [ ] Replace with protocol types where possible | Pending |
+
+#### 3.0.7 Move Composition Root to Runner (NEW - Sixth Review)
+
+**Issue**: The composition root (wiring of all dependencies) is in the adapters layer instead of the runner layer. This is a significant hexagonal architecture violation.
+
+**Files with composition root logic**:
+
+| File | Lines | Description |
+|------|-------|-------------|
+| `engine-adapters/src/infrastructure/state/mod.rs` | **727** | `AppState::new()` - wires all dependencies |
+| `engine-adapters/src/run/server.rs` | **318** | `run()` - server setup and worker spawning |
+| **Total** | **~1,045** | Lines in wrong layer |
+
+**Current state**: `engine-runner/src/main.rs` is only **9 lines** - an empty shell that delegates everything to adapters.
+
+**What should be in runner**:
+- `AppState` construction (dependency injection)
+- Server binding and listening
+- Worker task spawning
+- Signal handling (graceful shutdown)
+- Configuration loading
+
+**Fix approach**:
+1. Create `engine-runner/src/composition.rs` - move `AppState::new()` logic
+2. Create `engine-runner/src/server.rs` - move server setup
+3. Keep only adapter implementations in engine-adapters
+4. Runner should import adapters and wire them together
+
+| Task | Status |
+|------|--------|
+| [ ] Create engine-runner/src/composition.rs | Pending |
+| [ ] Move AppState::new() logic (~727 lines) to runner | Pending |
+| [ ] Create engine-runner/src/server.rs | Pending |
+| [ ] Move server.rs run() logic (~318 lines) to runner | Pending |
+| [ ] Update engine-adapters to export only adapter types | Pending |
+| [ ] Update main.rs to use new composition module | Pending |
 
 ---
 
@@ -459,55 +698,97 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 ### 3.5 Split God Traits
 
-**Issue**: Several repository traits are too large (35+ methods each).
+**Issue**: 5 repository/port traits are too large (30+ methods each).
 
 > **WARNING**: Splitting these traits will break test compilation until Phase 7 (Test Infrastructure) updates the mock implementations. Consider doing this as the last item in Phase 3, or as a separate PR that includes mock updates.
+
+**VERIFIED COUNTS (Fifth Review)**: 5 god traits with **169** total methods.
 
 **Traits to split**:
 
 #### CharacterRepositoryPort (42 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:94-389`
+**Current**: `engine-ports/src/outbound/repository_port.rs:94-382`
 
 **Split into**:
-- `CharacterCrudPort` - Basic CRUD (5 methods)
-- `CharacterWantsPort` - Want/motivation operations (6 methods)
+- `CharacterCrudPort` - Basic CRUD + get_by_scene (7 methods)
+- `CharacterWantsPort` - Want/motivation operations + get_want_target (7 methods)
 - `CharacterActantialPort` - Actantial views (5 methods)
 - `CharacterInventoryPort` - Inventory operations (5 methods)
 - `CharacterLocationPort` - Location relationships (8 methods)
-- `NpcDispositionPort` - NPC disposition (7 methods)
+- `NpcDispositionPort` - NPC disposition (6 methods)
 - `CharacterRegionPort` - Region relationships (4 methods)
 
 #### StoryEventRepositoryPort (34 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:1184-1371`
+**Current**: `engine-ports/src/outbound/repository_port.rs:1184-1364`
 
 **Split into**:
-- `StoryEventCrudPort` - CRUD and search
-- `StoryEventRelationshipPort` - Edge methods
-- `DialogueHistoryPort` - Dialogue-specific methods
+- `StoryEventCrudPort` - CRUD and search (14 methods)
+- `StoryEventRelationshipPort` - Edge methods (18 methods)
+- `DialogueHistoryPort` - Dialogue-specific methods (2 methods)
+
+#### NarrativeEventRepositoryPort (30 methods - VERIFIED)
+
+**Current**: `engine-ports/src/outbound/repository_port.rs:1372-1506`
+
+**Split into**:
+- `NarrativeEventCrudPort` - CRUD and status (12 methods)
+- `NarrativeEventRelationshipPort` - Scene/location/act edges (9 methods)
+- `NarrativeEventNpcPort` - Featured NPC operations (5 methods)
+- `NarrativeEventQueryPort` - Query by relationships (4 methods)
 
 #### ChallengeRepositoryPort (31 methods - VERIFIED)
 
-**Current**: `engine-ports/src/outbound/repository_port.rs:1007-1183`
+**Current**: `engine-ports/src/outbound/repository_port.rs:1007-1176`
 
 **Split into**:
-- `ChallengeCrudPort` - Basic CRUD
-- `ChallengeSkillPort` - Skill relationships
-- `ChallengeAvailabilityPort` - Availability checks
+- `ChallengeCrudPort` - Basic CRUD (11 methods)
+- `ChallengeSkillPort` - Skill relationships (3 methods)
+- `ChallengeScenePort` - Scene ties (3 methods)
+- `ChallengePrerequisitePort` - Prerequisites (4 methods)
+- `ChallengeAvailabilityPort` - Location/region availability (7 methods)
+- `ChallengeUnlockPort` - Unlock locations (3 methods)
+
+#### GameConnectionPort (32 methods - VERIFIED)
+
+**Current**: `player-ports/src/outbound/game_connection_port.rs:48-188`
+
+**Split into**:
+- `ConnectionStatePort` - Connection lifecycle (4 methods)
+- `PlayerActionPort` - Player actions (3 methods)
+- `DmActionPort` - DM-specific actions (12 methods)
+- `ChallengePort` - Challenge operations (3 methods)
+- `MovementPort` - Movement operations (2 methods)
+- `InventoryPort` - Inventory operations (4 methods)
+- `RequestPort` - Request/callback operations (4 methods)
 
 | Task | Status |
 |------|--------|
 | [ ] Create new trait files in engine-ports/outbound/ | Pending |
 | [ ] Split CharacterRepositoryPort (42 methods) | Pending |
 | [ ] Split StoryEventRepositoryPort (34 methods) | Pending |
+| [ ] Split NarrativeEventRepositoryPort (30 methods) | Pending |
 | [ ] Split ChallengeRepositoryPort (31 methods) | Pending |
+| [ ] Split GameConnectionPort (32 methods) | Pending |
 | [ ] Update all trait implementations in adapters | Pending |
 | [ ] Update all trait usages in app layer | Pending |
 | [ ] Update mock implementations (coordinate with Phase 7) | Pending |
 | [ ] Verify compilation | Pending |
 
-**Note**: This is a significant refactor (~107 methods total). Consider doing in a separate PR that includes mock updates to avoid breaking test compilation.
+**Note**: This is a significant refactor (**169** methods total across 5 traits). Consider doing in a separate PR that includes mock updates to avoid breaking test compilation.
+
+#### Future Candidates (15-29 methods)
+
+These traits are borderline and may benefit from splitting in a future iteration:
+
+| Trait | Methods | Location |
+|-------|---------|----------|
+| LocationRepositoryPort | 19 | engine-ports/repository_port.rs |
+| PlayerCharacterRepositoryPort | 17 | engine-ports/repository_port.rs |
+| SceneRepositoryPort | 17 | engine-ports/repository_port.rs |
+| RegionRepositoryPort | 16 | engine-ports/repository_port.rs |
+| EventChainRepositoryPort | 16 | engine-ports/repository_port.rs |
 
 ---
 
@@ -538,6 +819,7 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 | File | Field | Action |
 |------|-------|--------|
 | `actantial_context_service.rs:198` | `item_repo` | DELETE (injected but unused) |
+| `generation_service.rs:116` | `completed_count` | DELETE |
 | `scene_resolution_service.rs:59` | `character_repository` | DELETE |
 | `trigger_evaluation_service.rs:200` | `challenge_repo` | DELETE |
 | `trigger_evaluation_service.rs:201` | `character_repo` | DELETE |
@@ -554,51 +836,15 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 | Task | Status |
 |------|--------|
 | [ ] Delete item_repo from actantial_context_service.rs | Pending |
+| [ ] Delete completed_count from generation_service.rs | Pending |
 | [ ] Delete character_repository from scene_resolution_service.rs | Pending |
 | [ ] Delete challenge_repo, character_repo from trigger_evaluation_service.rs | Pending |
-
----
-
-### 4.3 Fix Shadow Variable Bug in generation_service.rs
-
-**Issue**: The `completed_count` field in `BatchTracker` struct is never used because a local variable with the same name shadows it.
-
-**Location**: `crates/engine-app/src/application/services/generation_service.rs`
-
-**Lines**:
-- Line 116: `completed_count: u8` - field in BatchTracker struct
-- Line 251: `let mut completed_count = 0u8;` - local variable shadows the field
-
-**Current Code**:
-```rust
-struct BatchTracker {
-    batch: GenerationBatch,
-    prompt_ids: Vec<String>,
-    completed_count: u8,  // Never used - shadowed by local variable
-}
-
-// Later in check_batch_progress():
-let mut completed_count = 0u8;  // Shadows the field!
-for prompt_id in &prompt_ids {
-    // ...
-    completed_count += 1;  // Increments local, not field
-}
-```
-
-**Fix Options**:
-1. Use the field: Replace local with `tracker.completed_count` 
-2. Remove the field: If batch-level tracking isn't needed
-
-| Task | Status |
-|------|--------|
-| [ ] Determine if batch-level completed_count tracking is needed | Pending |
-| [ ] Either use the field or remove it | Pending |
 | [ ] Decide on broadcast fields (implement or delete) | Pending |
 | [ ] Implement or delete broadcast fields based on decision | Pending |
 
 ---
 
-### 4.4 Remove Unused Constants and Imports
+### 4.3 Remove Unused Constants and Imports
 
 | File | Item | Action |
 |------|------|--------|
@@ -615,7 +861,7 @@ for prompt_id in &prompt_ids {
 
 ---
 
-### 4.5 Address #[allow(dead_code)] Suppressions
+### 4.4 Address #[allow(dead_code)] Suppressions
 
 **Suspicious suppressions to audit**:
 
@@ -638,7 +884,7 @@ for prompt_id in &prompt_ids {
 
 ---
 
-### 4.6 Fix Unused Variables in UI Layer
+### 4.5 Fix Unused Variables in UI Layer
 
 | File | Variable | Fix |
 |------|----------|-----|
@@ -654,6 +900,57 @@ for prompt_id in &prompt_ids {
 | Task | Status |
 |------|--------|
 | [ ] Fix all unused UI variables | Pending |
+
+---
+
+### 4.6 Replace Glob Re-exports (NEW - Sixth Review)
+
+**Issue**: **27 `pub use *` patterns** across 12 files (verified by arch-check). Glob re-exports make dependencies implicit, prevent dead code detection, and hurt IDE navigation.
+
+**Files with glob re-exports** (from `cargo xtask arch-check`):
+
+| File | Count | Examples |
+|------|-------|----------|
+| `engine-adapters/src/infrastructure/ports/mod.rs` | **8** | `pub use staging_state_adapter::*`, etc. |
+| `engine-app/src/application/use_cases/mod.rs` | **6** | `pub use errors::*`, `pub use movement::*`, etc. |
+| `domain/src/lib.rs` | **4** | `pub use entities::*`, `pub use value_objects::*`, etc. |
+| `engine-adapters/src/infrastructure/websocket/mod.rs` | **2** | `pub use approval_converters::*`, etc. |
+| `player-adapters/src/infrastructure/platform/mod.rs` | **2** | `pub use wasm::*`, `pub use desktop::*` |
+| Other files | **5** | Various modules |
+
+**Verification**: Run `cargo xtask arch-check` - glob re-exports are now detected (warning mode).
+
+**Fix**: Replace with explicit exports:
+
+```rust
+// Before:
+pub use entities::*;
+
+// After:
+pub use entities::{
+    Character, Challenge, Location, Scene,
+    // ... list all exported types
+};
+```
+
+**Architecture Rule to Add**:
+```
+### Prohibited Patterns
+1. **No glob re-exports**: Use explicit exports instead of `pub use module::*`
+   - Makes dependencies explicit
+   - Enables dead code detection  
+   - Improves IDE navigation
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Replace glob re-exports in engine-adapters/ports/mod.rs (8) | Pending |
+| [ ] Replace glob re-exports in engine-app/use_cases/mod.rs (6) | Pending |
+| [ ] Replace glob re-exports in domain/lib.rs (4) | Pending |
+| [ ] Replace glob re-exports in engine-app/dto/mod.rs (3) | Pending |
+| [ ] Replace glob re-exports in protocol/lib.rs (2) | Pending |
+| [ ] Replace remaining glob re-exports (7) | Pending |
+| [ ] Add "No glob re-exports" rule to CLAUDE.md | Pending |
 
 ---
 
@@ -729,7 +1026,7 @@ pub struct $name(Uuid);
 
 **File**: `crates/domain/src/value_objects/settings.rs:157-196`
 
-**Issue**: `AppSettings::from_env()` reads environment variables in domain layer.
+**Issue**: `AppSettings::from_env()` reads environment variables in domain layer. Calls `env_or()` **28 times** (verified in Sixth Review).
 
 **Fix**: Move to adapters layer.
 
@@ -742,7 +1039,137 @@ pub struct $name(Uuid);
 
 ---
 
-## Phase 6: Protocol Layer Polish (2-3 hours)
+### 5.4 Remove Non-Pure Dependencies from Domain (NEW)
+
+**Issue**: Domain layer has dependencies that perform I/O or use unapproved crates.
+
+#### 5.4.1 Random Number Generation via `rand` crate
+
+**File**: `crates/domain/src/value_objects/dice.rs:199-203`
+
+**Issue**: `rand::thread_rng()` accesses system entropy, which is I/O.
+
+**Current Code**:
+```rust
+use rand::Rng;
+
+impl DiceFormula {
+    pub fn roll(&self) -> DiceRollResult {
+        let mut rng = rand::thread_rng();  // I/O - accesses system entropy
+        // ...
+    }
+}
+```
+
+**Fix**: Create `RandomSource` trait and inject:
+```rust
+pub trait RandomSource {
+    fn gen_range(&mut self, range: std::ops::RangeInclusive<i32>) -> i32;
+}
+
+impl DiceFormula {
+    pub fn roll(&self, rng: &mut impl RandomSource) -> DiceRollResult {
+        // Use injected rng
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create RandomSource trait in engine-ports (or domain) | Pending |
+| [ ] Update DiceFormula::roll() to accept RandomSource | Pending |
+| [ ] Create ThreadRngAdapter in engine-adapters | Pending |
+| [ ] Remove rand from domain Cargo.toml | Pending |
+
+#### 5.4.2 Replace `anyhow::Error` with `thiserror`
+
+**Files**:
+- `domain/src/value_objects/region.rs:29,36,61,68`
+- `domain/src/entities/observation.rs:49,56`
+
+**Issue**: Domain uses `anyhow::Error` for `FromStr` impls.
+
+**Fix**: Create domain-specific error types:
+```rust
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum RegionParseError {
+    #[error("Invalid region shift: {0}")]
+    InvalidShift(String),
+    #[error("Invalid region frequency: {0}")]
+    InvalidFrequency(String),
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create RegionParseError in domain | Pending |
+| [ ] Create ObservationParseError in domain | Pending |
+| [ ] Replace anyhow usage with thiserror types | Pending |
+| [ ] Remove anyhow from domain Cargo.toml | Pending |
+
+#### 5.4.3 Use thiserror for DiceParseError
+
+**File**: `crates/domain/src/value_objects/dice.rs:13-24`
+
+**Issue**: `thiserror` is declared in domain/Cargo.toml but `DiceParseError` uses manual `Display` and `Error` implementations instead.
+
+**Fix**: Convert to derive macro:
+```rust
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum DiceParseError {
+    #[error("Invalid dice formula: {0}")]
+    InvalidFormula(String),
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Convert DiceParseError to use thiserror derive | Pending |
+
+---
+
+### 5.5 Create Unified Domain Error Type (NEW)
+
+**Issue**: Domain layer has only ONE error type (`DiceParseError`). Most domain operations force adapters to use `String` or `anyhow` for errors.
+
+**File to create**: `crates/domain/src/error.rs`
+
+```rust
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum DomainError {
+    #[error("Validation failed: {0}")]
+    Validation(String),
+    
+    #[error("Invalid ID format: {0}")]
+    InvalidId(String),
+    
+    #[error("Entity not found: {entity_type} with id {id}")]
+    NotFound { entity_type: &'static str, id: String },
+    
+    #[error("Constraint violation: {0}")]
+    Constraint(String),
+    
+    #[error("Parse error: {0}")]
+    Parse(String),
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create error.rs in domain | Pending |
+| [ ] Define DomainError enum with variants | Pending |
+| [ ] Update entities to use DomainError | Pending |
+| [ ] Export from domain lib.rs | Pending |
+
+---
+
+## Phase 6: Protocol Layer Polish (3-4 hours)
 
 **Priority**: MEDIUM - Wire format safety
 
@@ -831,38 +1258,129 @@ pub enum RequestError {
 
 ---
 
+### 6.5 Add Protocol Forward Compatibility (CRITICAL - NEW)
+
+**Issue**: **20 enums** across protocol crate have NO `#[serde(other)]` variant. When a newer server sends an enum variant that an older client doesn't recognize, deserialization fails completely.
+
+**Enums needing `#[serde(other)]` Unknown variant**:
+
+| File | Enum | Tag | Priority |
+|------|------|-----|----------|
+| messages.rs | `ClientMessage` | `#[serde(tag = "type")]` | CRITICAL |
+| messages.rs | `ServerMessage` | `#[serde(tag = "type")]` | CRITICAL |
+| messages.rs | `DiceInputType` | `#[serde(tag = "type", content = "value")]` | HIGH |
+| messages.rs | `ChallengeOutcomeDecisionData` | `#[serde(tag = "action")]` | HIGH |
+| messages.rs | `CharacterPosition` | None | MEDIUM |
+| messages.rs | `WantVisibilityData` | None | LOW |
+| messages.rs | `ActorTypeData` | None | LOW |
+| messages.rs | `ActantialRoleData` | None | LOW |
+| messages.rs | `WantTargetTypeData` | None | LOW |
+| requests.rs | `RequestPayload` | `#[serde(tag = "type")]` | CRITICAL |
+| responses.rs | `ResponseResult` | `#[serde(tag = "status")]` | HIGH |
+| responses.rs | `ErrorCode` | None | MEDIUM |
+| responses.rs | `EntityType` | None | LOW |
+| responses.rs | `ChangeType` | None | LOW |
+| responses.rs | `WorldRole` | None | LOW |
+| responses.rs | `JoinError` | `#[serde(tag = "type")]` | MEDIUM |
+| types.rs | `ParticipantRole` | None | MEDIUM |
+| types.rs | `ApprovalDecision` | `#[serde(tag = "decision")]` | HIGH |
+| app_events.rs | `AppEvent` | `#[serde(tag = "type")]` | HIGH |
+
+**Pattern to apply**:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ServerMessage {
+    // ... existing variants ...
+    
+    /// Unknown message type for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Add #[serde(other)] Unknown to ClientMessage | Pending |
+| [ ] Add #[serde(other)] Unknown to ServerMessage | Pending |
+| [ ] Add #[serde(other)] Unknown to RequestPayload | Pending |
+| [ ] Add #[serde(other)] Unknown to ResponseResult | Pending |
+| [ ] Add #[serde(other)] Unknown to remaining 16 enums | Pending |
+| [ ] Add handling for Unknown variants in message processors | Pending |
+
+---
+
+### 6.6 Consolidate Redundant DTOs (UPDATED)
+
+**Issue**: Some DTOs are duplicated without justification.
+
+**Clarification from fifth review**:
+
+| Category | Status | Action |
+|----------|--------|--------|
+| **player-app/dto/player_events.rs** (32 types) | INTENTIONAL | KEEP - Have `From<protocol>` impls, no serde |
+| **engine-app/dto/approval.rs** (5 types) | REDUNDANT | CONSOLIDATE - Exact copies, no From impls |
+| **player-ports/session_types.rs** (8 types) | REDUNDANT | CONSOLIDATE - No From impls (see 3.0.6) |
+
+**Redundant duplicates in engine-app/dto/approval.rs to remove**:
+
+| DTO | engine-app | protocol | Action |
+|-----|------------|----------|--------|
+| `ProposedToolInfo` | approval.rs:12-17 | types.rs:32-38 | DELETE engine-app version |
+| `ChallengeSuggestionInfo` | approval.rs:21-32 | types.rs:76-89 | DELETE engine-app version |
+| `ChallengeSuggestionOutcomes` | approval.rs:35-45 | types.rs:93-102 | DELETE engine-app version |
+| `NarrativeEventSuggestionInfo` | approval.rs:48-60 | types.rs:106-117 | DELETE engine-app version |
+| `DmApprovalDecision` | approval.rs:67-100 | types.rs:41-68 | Use protocol `ApprovalDecision` |
+
+| Task | Status |
+|------|--------|
+| [ ] Remove redundant DTOs from engine-app/dto/approval.rs | Pending |
+| [ ] Update engine-app services to use protocol types directly | Pending |
+| [ ] Verify player-app DTOs have From impls (intentional) | Pending |
+| [ ] Document which duplicates are intentional vs redundant | Pending |
+
+---
+
 ## Phase 7: Test Infrastructure (8-12 hours)
 
 **Priority**: MEDIUM - Enable quality verification
 
 ### 7.1 Fix Test Compilation
 
-**Issue**: Test suite fails to compile with ~36 errors. Root cause identified.
+**Issue**: Test suite fails to compile with **36 errors** (verified in fifth review).
 
-**Root Cause**: `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs:244-335`
+**Root Cause**: `crates/engine-adapters/src/infrastructure/ports/staging_service_adapter.rs:274-335`
 
-The stub implementations return wrong error types:
-- Stubs return `Result<(), String>` 
-- Traits expect `Result<(), anyhow::Error>`
+**Error categories**:
 
-**Specific errors**:
-- Missing trait methods: `is_valid`, `get_staged_npcs`
-- Type mismatches: `Result<(), String>` vs `Result<(), anyhow::Error>`
-- Missing `futures` crate import
+| Category | Count | Examples |
+|----------|-------|----------|
+| Wrong error types | 10 | Stubs return `Result<..., String>` but traits expect `Result<..., anyhow::Error>` |
+| Non-existent trait methods | 10 | `generate_streaming`, `save`, `list_active_for_region` not in traits |
+| Missing trait methods | 2+ | `Error` associated type, `generate_with_tools`, `list_spawn_points` |
+| Type doesn't exist | 1 | `LocationExit` should be `RegionExit` |
 
-**Additional issues**:
-- Duplicated mocks: `MockPromptTemplateRepository` in 3 files, `MockLlm` in 2 files
-- Empty tests: `disposition_service.rs:283`, `actantial_context_service.rs:652` have `assert!(true)`
+**Duplicated mocks (consolidation needed)**:
+
+| Mock | Files | Issue |
+|------|-------|-------|
+| `MockPromptTemplateRepository` | 3 files | Defined in llm/mod.rs, outcome_suggestion_service.rs, prompt_builder.rs |
+| `MockLlm` | 2 files | Different Error types! (std::io::Error vs Infallible) |
+
+**Empty tests**:
+- `disposition_service.rs:283` - `test_disposition_service_created` with `assert!(true)`
+- `actantial_context_service.rs:652` - `test_service_created` with `assert!(true)`
 
 | Task | Status |
 |------|--------|
 | [ ] Fix staging_service_adapter.rs stub error types (root cause) | Pending |
 | [ ] Add missing trait methods to stubs | Pending |
-| [ ] Add futures import | Pending |
-| [ ] Run `cargo test --workspace` and fix remaining errors | Pending |
-| [ ] Consolidate duplicated mock implementations | Pending |
+| [ ] Remove non-existent methods from stubs | Pending |
+| [ ] Fix LocationExit → RegionExit | Pending |
+| [ ] Consolidate MockPromptTemplateRepository (3 → 1) | Pending |
+| [ ] Consolidate MockLlm with consistent Error type | Pending |
 | [ ] Fix or remove empty tests | Pending |
-| [ ] Verify all tests compile | Pending |
+| [ ] Run `cargo test --workspace` and verify | Pending |
 
 ---
 
@@ -1068,21 +1586,31 @@ cargo test --workspace
 
 ## Success Criteria
 
-| Metric | Before | Target |
-|--------|--------|--------|
-| Critical issues | 2 | 0 |
-| Compiler warnings | 51 | 0 |
-| Swallowed errors | 43 | 0 (logged) |
-| God traits (35+ methods) | 3 (107 methods total) | 0 |
-| I/O in application layer | 7 | 0 |
-| Protocol imports in services | 14 | 0 |
-| Unused structs | 4 | 0 |
-| Unused fields | 11 | 0 |
-| Shadow variable bugs | 1 | 0 |
-| Protocol forward compatibility | None | All enums have #[serde(other)] |
-| Test compilation | FAIL (36 errors) | PASS |
-| Protocol test coverage | 0% | 100% |
-| arch-check | PASS | PASS |
+| Metric | Before | Target | Notes |
+|--------|--------|--------|-------|
+| Critical issues | **10** | 0 | Panic risks, forward compat, adapters→app deps, shutdown |
+| Compiler warnings | **37** | 0 | Verified fifth review |
+| Swallowed errors (engine-app/services) | **43** | 0 (logged) | 14+6+3+others |
+| Swallowed errors (total codebase) | **89** | 0 (logged or documented) | |
+| God traits (30+ methods) | 5 (**169** methods total) | 0 | Was 3/107, found 2 more |
+| I/O in application layer | **12-13** | 0 | tokio::fs, std::env |
+| I/O in domain layer | **28** (env calls) + rand | 0 | AppSettings::from_env() (verified sixth review) |
+| Protocol imports in services | 14 | 0 | |
+| Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 0-1 | ~830 lines total |
+| Business logic in adapters | **4** files (~1,570 lines) | 0 | +world_state_manager.rs (484 lines, sixth review) |
+| Composition root in adapters | **~1,045** lines | 0 | Move to runner (sixth review) |
+| Glob re-exports (pub use *) | **27** patterns | 0 | Replace with explicit exports (verified by arch-check) |
+| Adapters→App dependencies | **2 crates** (73 imports) | **0** | CRITICAL |
+| Unbounded channels | **3** | 0 | websocket + 2 in state |
+| tokio::spawn without tracking | **27** | 0 | Add CancellationToken |
+| Unused structs | 4 | 0 | |
+| Unused fields | 12 | 0 | |
+| Redundant DTO duplicates | **13** (5 engine-app + 8 player-ports) | 0 | player-app dups intentional |
+| Protocol enums without #[serde(other)] | **20** | 0 | Forward compatibility |
+| Domain error types | **1** (DiceParseError only) | Unified DomainError | |
+| Test compilation | FAIL (**36** errors) | PASS | |
+| Protocol test coverage | 0% | 100% | |
+| arch-check | PASS | PASS | |
 
 ---
 
@@ -1176,29 +1704,137 @@ Recommended commit sequence:
 ## Appendix D: Dependencies Between Phases
 
 ```
-Phase 1 (Critical) ──┬── Phase 2 (Error Handling)
+Phase 1 (Critical) ──┬── Phase 2 (Error Handling + Async Fixes)
                      │
-                     ├── Phase 3 (Architecture) ──── Phase 3.5 (God Traits)*
-                     │                                      │
-                     │                                      ▼
-                     ├── Phase 4 (Dead Code)          Phase 7 (Tests)**
-                     │                                      │
-                     ├── Phase 5 (Domain) ───────────────────┘
+                     ├── Phase 3.0.1 (Adapters→App)*** ← CRITICAL, do early
+                     │
+                     ├── Phase 3.0.2-3.0.6 (I/O, Business Logic, Ports)
                      │         │
-                     │         └── Phase 6 (Protocol)
+                     │         ├── Phase 3.0.7 (Composition Root)**** ← NEW
+                     │         │
+                     │         ├── Phase 3.1-3.4 (DTOs, Docs)
+                     │         │
+                     │         └── Phase 3.5 (God Traits - 169 methods)*
+                     │                              │
+                     │                              ▼
+                     ├── Phase 4 (Dead Code)   Phase 7 (Tests)**
+                     │         │
+                     │         └── Phase 4.6 (Glob Re-exports) ← NEW
+                     │
+                     ├── Phase 5 (Domain Purity) ───┐
+                     │         │                    │
+                     │         └── Phase 6 (Protocol + Forward Compat)
                      │
                      └── Phase 8 (Docs)
 
-* Phase 3.5 (God Traits) is large (~107 methods) and should be done as separate PR
-** Phase 3.5 will BREAK test compilation until Phase 7 updates mock implementations
+* Phase 3.5 (God Traits) is large (~169 methods across 5 traits) - separate PR
+** Phase 3.5 will BREAK test compilation until Phase 7 updates mocks
+*** Phase 3.0.1 is CRITICAL - 73 imports across 43 files must be refactored
+**** Phase 3.0.7 is NEW - Move ~1,045 lines of composition root to runner
 ```
 
-**Recommended execution order**:
+**Recommended execution order** (updated for sixth review):
 1. Phase 1 (Critical) - Do first
-2. Phases 2, 4, 5 - Can be done in parallel
-3. Phase 3.1-3.4 - Architecture documentation
-4. Phase 6 - Protocol polish
-5. Phase 3.5 + Phase 7 - God traits + test fixes (do together or sequentially)
-6. Phase 8 - Documentation (last)
+2. Phase 2.1-2.3 (Error handling) - Can parallel with Phase 4
+3. Phase 2.4 (Async fixes) - Should be early (graceful shutdown)
+4. **Phase 3.0.1 (Adapters→App deps)** - CRITICAL, significant effort (8-12h)
+5. **Phase 3.0.7 (Composition root)** - Move to runner (4-6h) - NEW
+6. **Phase 4.6 (Glob re-exports)** - Quick win (1-2h) - NEW
+7. Phases 4.1-4.5, 5.1-5.3 - Can be done in parallel
+8. Phase 3.0.2-3.0.6 (I/O violations, business logic, ports)
+9. Phase 5.4-5.5 (Domain purity) - After basic domain polish
+10. Phase 6 (Protocol + Forward Compat) - After domain is stable
+11. Phase 3.5 + Phase 7 - God traits + test fixes (do together)
+12. Phase 8 - Documentation (last)
 
 **Alternative**: Skip Phase 3.5 initially, complete everything else, then do Phase 3.5 + Phase 7 as a dedicated "Interface Segregation" PR.
+
+**Critical Path Items**:
+- Phase 2.4 should be done early as async issues can cause runtime problems
+- Phase 3.0.1 (adapters→app deps) is CRITICAL - 73 imports require significant refactoring
+- Phase 3.0.7 (composition root) - ~1,045 lines in wrong layer (sixth review)
+- Phase 4.6 (glob re-exports) - 30 patterns, quick to fix (sixth review)
+- Phase 5.4-5.5 are new and should be done after basic domain polish
+- Phase 6.5 (forward compatibility) blocks safe protocol updates
+
+---
+
+## Appendix E: Fifth Review Summary (12 Sub-Agents)
+
+The fifth review deployed 12 specialized sub-agents to verify every aspect of the plan:
+
+| Agent | Focus | Key Findings |
+|-------|-------|--------------|
+| Adapters→App | Cargo deps + imports | **73 imports** across 43 files (not just 2 deps) |
+| Domain Purity | Domain violations | rand I/O, anyhow usage, **~22 env calls**, thiserror unused |
+| Ports Layer | Ports violations | Platform (347 lines), MockGameConnection (320), tokio dep |
+| God Traits | Method counts | **169 total** verified (42+34+30+31+32) |
+| I/O Violations | App layer I/O | **12-13** violations (matches plan) |
+| Business Logic | Adapters logic | ~1000 lines in 3 files |
+| Swallowed Errors | let _ = patterns | **43 in services** (14+6+3+20), 89 total |
+| DTO Duplicates | Type duplication | 13 redundant (5 engine-app + 8 player-ports), 32 intentional |
+| Layer Violations | Import direction | Core architecture correct, adapters→app is main issue |
+| Protocol | Forward compat | **20 enums** without #[serde(other)] |
+| Async Issues | Concurrency | **27 spawns** without tracking, **3 unbounded channels** |
+| Test Compilation | Test errors | **36 errors** (not 37), root cause in staging_service_adapter.rs |
+
+### Metrics Verified Accurate
+- God trait counts: 169 ✓
+- Swallowed errors in services: 43 ✓
+- I/O violations: 12-13 ✓
+- Test errors: 36 (minor correction)
+
+### New Issues Added
+- Phase 2.4: Async/concurrency fixes (unbounded channels, graceful shutdown)
+- Phase 3.0.1-3.0.6: Comprehensive architecture fixes
+- Phase 5.4-5.5: Domain purity (rand, anyhow, thiserror, unified error type)
+- Phase 6.5: Protocol forward compatibility (20 enums)
+
+### Severity Downgrade
+- std::sync::Mutex in comfyui.rs: Locks NOT held across await (low priority)
+
+---
+
+## Appendix F: Sixth Review Summary (Cross-Validation)
+
+The sixth review cross-validated findings between two independent review agents and resolved discrepancies through targeted verification:
+
+### Cross-Validation Results
+
+| Item | Agent A | Agent B | Verified Result |
+|------|---------|---------|-----------------|
+| staging_service.rs:535 unwrap | Production risk | Test code | **Test code** ✓ (inside `#[cfg(test)]`) |
+| pub use * patterns | 31 | 22 | **30** (manual count) |
+| Domain env vars | ~20 | 28 | **28** (all in settings.rs) |
+| request_handler.rs match arms | Not mentioned | 308 | **134** (both wrong) |
+
+### NEW Issues Discovered
+
+| Issue | Location | Impact |
+|-------|----------|--------|
+| world_state_manager.rs | engine-adapters (484 lines) | Business logic + engine-app import |
+| Composition root in adapters | state/mod.rs + server.rs (~1,045 lines) | Runner layer should own this |
+| Glob re-exports | 30 patterns across 11 files | Implicit dependencies, no dead code detection |
+
+### Plan Updates Applied
+
+1. **Phase 3.0.3**: Added `world_state_manager.rs` (484 lines)
+2. **Phase 3.0.7**: NEW - Move composition root to runner (~1,045 lines)
+3. **Phase 4.6**: NEW - Replace 30 glob re-exports + architecture rule
+4. **Phase 5.3**: Updated env var count from ~20 to **28**
+5. **Success Criteria**: Updated business logic count (4 files, ~1,570 lines)
+
+### Validation Status
+- All metrics verified against codebase
+- Discrepancies resolved through targeted sub-agent verification
+- Plan is now ready for implementation
+
+### Recommended Execution Order (Updated)
+
+1. **Phase 1** (1h): Critical fixes - unwraps, hardcoded IPs
+2. **Phase 2.1-2.3** (2-3h): Error handling
+3. **Phase 2.4** (2-3h): Async fixes - graceful shutdown
+4. **Phase 3.0.1** (8-12h): CRITICAL - Remove adapters→app dependencies (73 imports)
+5. **Phase 3.0.7** (4-6h): Move composition root to runner (1,045 lines)
+6. **Phase 4.6** (1-2h): Replace glob re-exports (30 patterns)
+7. Remaining phases as prioritized
