@@ -9,7 +9,7 @@
 //! All 65 ServerMessage variants are explicitly handled - none fall through to Raw.
 //! The Raw variant is available for future extensibility but currently unused.
 
-use wrldbldr_player_app::application::dto::player_events::{
+use wrldbldr_player_ports::inbound::{
     ActantialViewData, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, CharacterData,
     CharacterPosition, ConnectedUser, DialogueChoice, EntityChangedData, GameTime, GoalData,
     InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData, NavigationExit,

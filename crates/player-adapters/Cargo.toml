@@ -7,7 +7,6 @@ authors.workspace = true
 description = "WrldBldr Player Adapters - Infrastructure (http/ws/platform)"
 
 [dependencies]
-wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 wrldbldr-domain = { workspace = true }
