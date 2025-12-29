@@ -4,11 +4,14 @@
 //! - Default skills from a rule system preset
 //! - Custom skills created by the DM
 
+use serde::{Deserialize, Serialize};
+
 use wrldbldr_domain::{SkillId, WorldId};
 use crate::value_objects::RuleSystemVariant;
 
 /// A skill that characters can use for challenges
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Skill {
     pub id: SkillId,
     pub world_id: WorldId,
@@ -64,7 +67,8 @@ impl Skill {
 }
 
 /// Skill categories for UI organization
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SkillCategory {
     // D20 style categories
     Physical,

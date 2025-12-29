@@ -5,11 +5,13 @@
 //! enabling mystery/investigation gameplay.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
 /// How the PC learned about an NPC's location
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ObservationType {
     /// PC directly saw the NPC at this location
     Direct,
@@ -61,7 +63,8 @@ impl std::str::FromStr for ObservationType {
 /// A PC's observation of an NPC's location
 ///
 /// Stored as Neo4j edge: `(PlayerCharacter)-[:OBSERVED_NPC {...}]->(Character)`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NpcObservation {
     /// The PC who made the observation
     pub pc_id: PlayerCharacterId,
@@ -179,7 +182,8 @@ impl NpcObservation {
 }
 
 /// Summary of an observation for display purposes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ObservationSummary {
     /// The NPC's ID
     pub npc_id: String,

@@ -4,11 +4,13 @@
 //! with branching paths and progression tracking.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 
 /// A chain of connected narrative events forming a story arc
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventChain {
     pub id: EventChainId,
     pub world_id: WorldId,
@@ -183,7 +185,8 @@ impl EventChain {
 }
 
 /// Summary information about a chain's state
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChainStatus {
     pub chain_id: EventChainId,
     pub chain_name: String,

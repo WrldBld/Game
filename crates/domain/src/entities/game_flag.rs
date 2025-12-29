@@ -15,10 +15,12 @@
 //! - `(PlayerCharacter)-[:HAS_FLAG {value: true}]->(Flag {name: "flag_name"})`
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 /// A game flag with its current value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameFlag {
     /// The flag name (unique within scope)
     pub name: String,
@@ -50,7 +52,8 @@ impl GameFlag {
 }
 
 /// Scope for a game flag
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum FlagScope {
     /// World-scoped flag (shared by all players)
     World(WorldId),

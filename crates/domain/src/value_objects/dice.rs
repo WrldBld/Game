@@ -4,6 +4,7 @@
 //! Also supports manual result input for physical dice rolls.
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
 
@@ -30,7 +31,8 @@ pub enum DiceParseError {
 }
 
 /// A parsed dice formula like "2d6+3"
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiceFormula {
     /// Number of dice to roll (X in XdY)
     pub dice_count: u8,
@@ -237,7 +239,8 @@ impl fmt::Display for DiceFormula {
 }
 
 /// Result of rolling dice
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiceRollResult {
     /// The formula that was rolled
     pub formula: DiceFormula,
@@ -348,7 +351,8 @@ impl DiceRollResult {
 }
 
 /// Input for a dice roll - either a formula to roll or a manual result
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DiceRollInput {
     /// Roll dice using a formula string like "1d20+5"
     Formula(String),

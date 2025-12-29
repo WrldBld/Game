@@ -24,6 +24,7 @@ use wrldbldr_domain::WantId;
 
 /// Visibility level for a Want - how much the player knows
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum WantVisibility {
     /// Player knows this motivation openly
     Known,
@@ -61,7 +62,8 @@ impl WantVisibility {
 /// - Character (wants something from/about a person)
 /// - Item (wants a specific item)
 /// - Goal (wants an abstract outcome)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Want {
     pub id: WantId,
     /// Description of what the character wants
@@ -147,7 +149,8 @@ impl Want {
 }
 
 /// Data for the HAS_WANT edge between Character and Want
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CharacterWant {
     /// The want node
     pub want: Want,
@@ -178,7 +181,8 @@ impl CharacterWant {
 }
 
 /// The type of target a want can have (for querying purposes)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum WantTargetType {
     Character,
     Item,
@@ -186,7 +190,8 @@ pub enum WantTargetType {
 }
 
 /// Actantial role type for character views
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ActantialRole {
     /// Character sees target as helping their want
     Helper,
@@ -199,7 +204,8 @@ pub enum ActantialRole {
 }
 
 /// Data for actantial view edges (VIEWS_AS_HELPER, etc.)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ActantialView {
     /// Which want this relates to
     pub want_id: WantId,

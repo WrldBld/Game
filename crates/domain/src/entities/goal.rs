@@ -10,10 +10,13 @@
 //! (want:Want)-[:TARGETS]->(goal:Goal)
 //! ```
 
+use serde::{Deserialize, Serialize};
+
 use wrldbldr_domain::{GoalId, WorldId};
 
 /// Abstract desire target (for Wants that don't target a Character or Item)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Goal {
     pub id: GoalId,
     pub world_id: WorldId,

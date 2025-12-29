@@ -11,6 +11,7 @@
 //!
 //! Conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
 
 /// A template defining an available interaction within a scene
@@ -18,7 +19,8 @@ use wrldbldr_domain::{CharacterId, InteractionId, ItemId, SceneId};
 /// NOTE: `target` is kept for backward compatibility during Phase 0.D migration.
 /// New code should use TARGETS_* edges via the repository:
 /// - TARGETS_CHARACTER, TARGETS_ITEM, TARGETS_REGION edges
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InteractionTemplate {
     pub id: InteractionId,
     pub scene_id: SceneId,
@@ -86,7 +88,8 @@ impl InteractionTemplate {
 }
 
 /// Types of interactions players can perform
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InteractionType {
     /// Talk to an NPC
     Dialogue,
@@ -107,7 +110,8 @@ pub enum InteractionType {
 }
 
 /// Type of target for an interaction (used for edge queries)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InteractionTargetType {
     /// Target a specific character
     Character,
@@ -125,7 +129,8 @@ pub enum InteractionTargetType {
 /// 
 /// NOTE: This is kept for backward compatibility during Phase 0.D migration.
 /// New code should use TARGETS_* edges via the repository.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InteractionTarget {
     /// Target a specific character
     Character(CharacterId),
@@ -138,7 +143,8 @@ pub enum InteractionTarget {
 }
 
 /// Conditions for an interaction to be available
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InteractionCondition {
     /// Player must have this item
     HasItem(ItemId),
@@ -158,7 +164,8 @@ pub enum InteractionCondition {
 }
 
 /// Data for interaction requirement edges
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InteractionRequirement {
     /// Whether the required item is consumed when the interaction is used
     pub consumed: bool,

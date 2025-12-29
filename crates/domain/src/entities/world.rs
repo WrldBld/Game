@@ -7,7 +7,8 @@ use crate::value_objects::RuleSystemConfig;
 use crate::{GameTime, WorldId};
 
 /// A complete campaign world
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct World {
     pub id: WorldId,
     pub name: String,
@@ -105,7 +106,8 @@ impl MonomythStage {
 }
 
 /// A story arc within a world
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Act {
     pub id: wrldbldr_domain::ActId,
     pub world_id: WorldId,

@@ -23,7 +23,8 @@ use wrldbldr_domain::WorldId;
 use crate::value_objects::RuleSystemVariant;
 
 /// Unique identifier for a sheet template
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SheetTemplateId(pub String);
 
 impl SheetTemplateId {
@@ -43,7 +44,8 @@ impl Default for SheetTemplateId {
 }
 
 /// A character sheet template defining the structure of character data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetTemplate {
     pub id: SheetTemplateId,
     pub world_id: WorldId,
@@ -103,7 +105,8 @@ impl CharacterSheetTemplate {
 }
 
 /// A section of the character sheet (e.g., "Attributes", "Skills", "Combat")
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SheetSection {
     pub id: String,
     pub name: String,
@@ -167,7 +170,8 @@ impl SheetSection {
 }
 
 /// Layout hint for a section
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum SectionLayout {
     /// Fields stack vertically
     Vertical,
@@ -180,7 +184,8 @@ pub enum SectionLayout {
 }
 
 /// A single field in the character sheet
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SheetField {
     pub id: String,
     pub name: String,
@@ -230,7 +235,8 @@ impl SheetField {
 }
 
 /// The type of a field and its specific configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum FieldType {
     /// A numeric value (e.g., attribute score, HP)
     Number {
@@ -281,7 +287,8 @@ pub enum FieldType {
 }
 
 /// Option in a select field
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SelectOption {
     pub value: String,
     pub label: String,
@@ -304,7 +311,8 @@ impl SelectOption {
 }
 
 /// Type of items in an item list field
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ItemListType {
     /// Inventory items
     Inventory,

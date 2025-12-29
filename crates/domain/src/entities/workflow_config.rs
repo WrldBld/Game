@@ -4,11 +4,13 @@
 //! Includes the workflow JSON, prompt mappings, and default values.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::WorkflowConfigId;
 
 /// Workflow configuration for a specific asset generation slot
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfiguration {
     pub id: WorkflowConfigId,
     /// The slot this workflow is configured for
@@ -116,7 +118,8 @@ impl WorkflowConfiguration {
 }
 
 /// Slots for different asset types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum WorkflowSlot {
     /// Character portrait (256x256)
     CharacterPortrait,
@@ -231,7 +234,8 @@ impl WorkflowSlot {
 }
 
 /// Mapping of a text input to prompt injection
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PromptMapping {
     /// The node ID in the workflow
     pub node_id: String,
@@ -260,7 +264,8 @@ impl PromptMapping {
 }
 
 /// Type of prompt mapping
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PromptMappingType {
     /// The main generation prompt
     Primary,
@@ -269,7 +274,8 @@ pub enum PromptMappingType {
 }
 
 /// Default value for a workflow input
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InputDefault {
     /// The node ID in the workflow
     pub node_id: String,
@@ -299,7 +305,8 @@ impl InputDefault {
 }
 
 /// Parsed input from a workflow (for UI display)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowInput {
     /// The node ID this input belongs to
     pub node_id: String,
@@ -332,7 +339,8 @@ impl WorkflowInput {
 }
 
 /// Detected input type
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum InputType {
     /// Text/string input
     Text,
@@ -367,7 +375,8 @@ impl InputType {
 }
 
 /// Result of analyzing a workflow JSON
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowAnalysis {
     /// Total number of nodes in the workflow
     pub node_count: usize,

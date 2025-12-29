@@ -1,9 +1,11 @@
 //! Grid map for tactical combat
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{GridMapId, WorldId};
 
 /// A tactical grid map for combat
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GridMap {
     pub id: GridMapId,
     pub world_id: WorldId,
@@ -76,7 +78,8 @@ impl GridMap {
 }
 
 /// A single tile on the grid map
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Tile {
     pub terrain_type: TerrainType,
     /// Elevation level (supports height differences)
@@ -129,7 +132,8 @@ impl Tile {
 }
 
 /// Types of terrain
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum TerrainType {
     #[default]
     Ground,

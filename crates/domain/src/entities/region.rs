@@ -20,7 +20,8 @@ use wrldbldr_domain::{LocationId, RegionId};
 /// Regions are the leaf nodes of the location hierarchy. Players navigate
 /// between regions, and scenes are derived from the current region's backdrop
 /// plus any NPCs present.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Region {
     pub id: RegionId,
     pub location_id: LocationId,
@@ -127,7 +128,8 @@ impl MapBounds {
 /// A connection between two regions
 ///
 /// Stored as a `CONNECTED_TO_REGION` edge in Neo4j with properties.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegionConnection {
     pub from_region: RegionId,
     pub to_region: RegionId,
@@ -174,7 +176,8 @@ impl RegionConnection {
 ///
 /// Stored as an `EXITS_TO_LOCATION` edge in Neo4j with properties.
 /// Used when leaving a building/area to go to a parent or sibling location.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegionExit {
     pub from_region: RegionId,
     pub to_location: LocationId,

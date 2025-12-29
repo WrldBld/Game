@@ -1,12 +1,14 @@
 //! GenerationBatch entity - Tracks batches of AI-generated assets
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use super::gallery_asset::{AssetType, EntityType};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
 /// Status of a generation batch
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum BatchStatus {
     /// Waiting in queue to be processed
     Queued,
@@ -54,7 +56,8 @@ impl std::fmt::Display for BatchStatus {
 }
 
 /// A batch of assets being generated together
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GenerationBatch {
     pub id: BatchId,
     /// World this batch belongs to
@@ -167,7 +170,8 @@ impl GenerationBatch {
 }
 
 /// Request to create a new generation batch
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GenerationRequest {
     pub world_id: WorldId,
     pub entity_type: EntityType,

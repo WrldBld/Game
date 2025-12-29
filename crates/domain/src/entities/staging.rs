@@ -6,10 +6,12 @@
 //! - `(Staging)-[:INCLUDES_NPC {is_present, reasoning}]->(Character)` - NPCs in staging
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, LocationId, RegionId, StagingId, WorldId};
 
 /// A DM-approved configuration of NPC presence for a region
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Staging {
     pub id: StagingId,
     pub region_id: RegionId,
@@ -34,7 +36,8 @@ pub struct Staging {
 }
 
 /// An NPC with presence status in a staging
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StagedNpc {
     pub character_id: CharacterId,
     /// Denormalized for display
@@ -50,7 +53,8 @@ pub struct StagedNpc {
 }
 
 /// How a staging was created
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum StagingSource {
     /// Created from deterministic rules
     RuleBased,

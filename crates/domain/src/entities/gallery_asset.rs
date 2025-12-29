@@ -1,11 +1,13 @@
 //! GalleryAsset entity - Assets stored in entity galleries with history
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{AssetId, BatchId};
 
 /// Type of entity that owns this asset
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EntityType {
     Character,
     Location,
@@ -34,7 +36,8 @@ impl EntityType {
 }
 
 /// Type of asset (determines which slot it occupies)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum AssetType {
     /// Character face portrait (256x256)
     Portrait,
@@ -109,7 +112,8 @@ impl AssetType {
 }
 
 /// Metadata about how an asset was generated
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GenerationMetadata {
     /// ComfyUI workflow used
     pub workflow: String,
@@ -154,7 +158,8 @@ impl GenerationMetadata {
 }
 
 /// An asset stored in an entity's gallery
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GalleryAsset {
     pub id: AssetId,
     /// Type of entity that owns this asset

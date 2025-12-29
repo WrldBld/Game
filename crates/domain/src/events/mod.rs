@@ -4,12 +4,15 @@
 //! These are the domain's internal events - they get mapped to protocol AppEvent
 //! at the adapter boundary for persistence and cross-system communication.
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     ChallengeId, CharacterId, NarrativeEventId, StoryEventId, WorldId,
 };
 
 /// Domain event for significant state changes
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DomainEvent {
     // Story & Narrative
     StoryEventCreated {
