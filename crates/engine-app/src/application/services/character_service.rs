@@ -20,8 +20,8 @@ use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
 use wrldbldr_domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
 use wrldbldr_domain::{CharacterId, SceneId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, CharacterServicePort, ClockPort, RelationshipRepositoryPort,
-    WorldRepositoryPort,
+    CharacterCrudPort, CharacterServicePort, CharacterWantPort, ClockPort,
+    RelationshipRepositoryPort, WorldRepositoryPort,
 };
 
 /// Request to create a new character
@@ -148,7 +148,8 @@ pub trait CharacterService: Send + Sync {
 #[derive(Clone)]
 pub struct CharacterServiceImpl {
     world_repository: Arc<dyn WorldRepositoryPort>,
-    character_repository: Arc<dyn CharacterRepositoryPort>,
+    character_crud: Arc<dyn CharacterCrudPort>,
+    character_want: Arc<dyn CharacterWantPort>,
     relationship_repository: Arc<dyn RelationshipRepositoryPort>,
     settings_service: Arc<SettingsService>,
     clock: Arc<dyn ClockPort>,
@@ -158,14 +159,16 @@ impl CharacterServiceImpl {
     /// Create a new CharacterServiceImpl with the given repositories
     pub fn new(
         world_repository: Arc<dyn WorldRepositoryPort>,
-        character_repository: Arc<dyn CharacterRepositoryPort>,
+        character_crud: Arc<dyn CharacterCrudPort>,
+        character_want: Arc<dyn CharacterWantPort>,
         relationship_repository: Arc<dyn RelationshipRepositoryPort>,
         settings_service: Arc<SettingsService>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             world_repository,
-            character_repository,
+            character_crud,
+            character_want,
             relationship_repository,
             settings_service,
             clock,
@@ -256,7 +259,7 @@ impl CharacterService for CharacterServiceImpl {
         }
 
         // Create the character first
-        self.character_repository
+        self.character_crud
             .create(&character)
             .await
             .context("Failed to create character in repository")?;
@@ -271,7 +274,7 @@ impl CharacterService for CharacterServiceImpl {
                 want
             };
 
-            self.character_repository
+            self.character_want
                 .create_want(character.id, &want, want_request.priority)
                 .await
                 .context("Failed to create want for character")?;
@@ -290,7 +293,7 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn get_character(&self, id: CharacterId) -> Result<Option<Character>> {
         debug!(character_id = %id, "Fetching character");
-        self.character_repository
+        self.character_crud
             .get(id)
             .await
             .context("Failed to get character from repository")
@@ -303,7 +306,7 @@ impl CharacterService for CharacterServiceImpl {
     ) -> Result<Option<CharacterWithRelationships>> {
         debug!(character_id = %id, "Fetching character with relationships");
 
-        let character = match self.character_repository.get(id).await? {
+        let character = match self.character_crud.get(id).await? {
             Some(c) => c,
             None => return Ok(None),
         };
@@ -315,7 +318,7 @@ impl CharacterService for CharacterServiceImpl {
             .context("Failed to get relationships for character")?;
 
         let wants = self
-            .character_repository
+            .character_want
             .get_wants(id)
             .await
             .context("Failed to get wants for character")?;
@@ -330,7 +333,7 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn list_characters(&self, world_id: WorldId) -> Result<Vec<Character>> {
         debug!(world_id = %world_id, "Listing characters in world");
-        self.character_repository
+        self.character_crud
             .list(world_id)
             .await
             .context("Failed to list characters from repository")
@@ -340,7 +343,7 @@ impl CharacterService for CharacterServiceImpl {
     async fn list_active_characters(&self, world_id: WorldId) -> Result<Vec<Character>> {
         debug!(world_id = %world_id, "Listing active characters in world");
         let characters = self
-            .character_repository
+            .character_crud
             .list(world_id)
             .await
             .context("Failed to list characters from repository")?;
@@ -355,7 +358,7 @@ impl CharacterService for CharacterServiceImpl {
         request: UpdateCharacterRequest,
     ) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
@@ -389,7 +392,7 @@ impl CharacterService for CharacterServiceImpl {
             character.is_active = is_active;
         }
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character in repository")?;
@@ -401,12 +404,12 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn delete_character(&self, id: CharacterId) -> Result<()> {
         let character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
-        self.character_repository
+        self.character_crud
             .delete(id)
             .await
             .context("Failed to delete character from repository")?;
@@ -426,7 +429,7 @@ impl CharacterService for CharacterServiceImpl {
         }
 
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
@@ -434,7 +437,7 @@ impl CharacterService for CharacterServiceImpl {
         let old_archetype = character.current_archetype;
         character.change_archetype(request.new_archetype, &request.reason, self.clock.now());
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character archetype in repository")?;
@@ -457,14 +460,14 @@ impl CharacterService for CharacterServiceImpl {
         archetype: CampbellArchetype,
     ) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
         character.assume_archetype(archetype);
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character temporary archetype")?;
@@ -481,14 +484,14 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn revert_to_base_archetype(&self, id: CharacterId) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
         character.revert_to_base();
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to revert character to base archetype")?;
@@ -506,7 +509,7 @@ impl CharacterService for CharacterServiceImpl {
     async fn add_want(&self, id: CharacterId, request: CreateWantRequest) -> Result<Want> {
         // Verify character exists
         let character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
@@ -519,7 +522,7 @@ impl CharacterService for CharacterServiceImpl {
             want
         };
 
-        self.character_repository
+        self.character_want
             .create_want(id, &want, request.priority)
             .await
             .context("Failed to add want to character")?;
@@ -537,12 +540,12 @@ impl CharacterService for CharacterServiceImpl {
     async fn remove_want(&self, id: CharacterId, want_id: WantId) -> Result<()> {
         // Verify character exists
         let character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
-        self.character_repository
+        self.character_want
             .delete_want(want_id)
             .await
             .context("Failed to remove want from character")?;
@@ -558,7 +561,7 @@ impl CharacterService for CharacterServiceImpl {
 
     #[instrument(skip(self), fields(character_id = %id))]
     async fn get_wants(&self, id: CharacterId) -> Result<Vec<CharacterWant>> {
-        self.character_repository
+        self.character_want
             .get_wants(id)
             .await
             .context("Failed to get wants for character")
@@ -566,7 +569,7 @@ impl CharacterService for CharacterServiceImpl {
 
     #[instrument(skip(self, want))]
     async fn update_want(&self, want: &Want) -> Result<()> {
-        self.character_repository
+        self.character_want
             .update_want(want)
             .await
             .context("Failed to update want")
@@ -575,7 +578,7 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn kill_character(&self, id: CharacterId) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
@@ -586,7 +589,7 @@ impl CharacterService for CharacterServiceImpl {
 
         character.is_alive = false;
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character death status")?;
@@ -598,7 +601,7 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self))]
     async fn resurrect_character(&self, id: CharacterId) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
@@ -609,7 +612,7 @@ impl CharacterService for CharacterServiceImpl {
 
         character.is_alive = true;
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character resurrection status")?;
@@ -621,14 +624,14 @@ impl CharacterService for CharacterServiceImpl {
     #[instrument(skip(self), fields(character_id = %id, active = active))]
     async fn set_active(&self, id: CharacterId, active: bool) -> Result<Character> {
         let mut character = self
-            .character_repository
+            .character_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", id))?;
 
         character.is_active = active;
 
-        self.character_repository
+        self.character_crud
             .update(&character)
             .await
             .context("Failed to update character active status")?;
@@ -658,7 +661,7 @@ impl CharacterServicePort for CharacterServiceImpl {
     }
 
     async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<Character>> {
-        self.character_repository
+        self.character_crud
             .get_by_scene(scene_id)
             .await
             .context("Failed to list characters by scene")

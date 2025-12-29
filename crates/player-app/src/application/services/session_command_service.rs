@@ -11,6 +11,9 @@ use crate::application::dto::{ApprovalDecision, DiceInput, DirectorialContext};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Application service for sending session commands via the game connection.
+///
+/// Uses `GameConnectionPort` which provides `DmControlPort` and `PlayerActionPort`
+/// methods via blanket implementations.
 #[derive(Clone)]
 pub struct SessionCommandService {
     connection: Arc<dyn GameConnectionPort>,

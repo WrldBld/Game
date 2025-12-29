@@ -18,7 +18,7 @@ use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::{CharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterRepositoryPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
+    BroadcastPort, CharacterCrudPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
     RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
 };
 
@@ -48,7 +48,7 @@ pub use wrldbldr_engine_ports::outbound::{
 pub struct StagingApprovalUseCase {
     staging_service: Arc<dyn StagingServiceExtPort>,
     staging_state: Arc<dyn StagingStateExtPort>,
-    character_repo: Arc<dyn CharacterRepositoryPort>,
+    character_crud: Arc<dyn CharacterCrudPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
     location_repo: Arc<dyn LocationRepositoryPort>,
     broadcast: Arc<dyn BroadcastPort>,
@@ -60,7 +60,7 @@ impl StagingApprovalUseCase {
     pub fn new(
         staging_service: Arc<dyn StagingServiceExtPort>,
         staging_state: Arc<dyn StagingStateExtPort>,
-        character_repo: Arc<dyn CharacterRepositoryPort>,
+        character_crud: Arc<dyn CharacterCrudPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
         location_repo: Arc<dyn LocationRepositoryPort>,
         broadcast: Arc<dyn BroadcastPort>,
@@ -69,7 +69,7 @@ impl StagingApprovalUseCase {
         Self {
             staging_service,
             staging_state,
-            character_repo,
+            character_crud,
             region_repo,
             location_repo,
             broadcast,
@@ -360,7 +360,7 @@ impl StagingApprovalUseCase {
         &self,
         character_id: CharacterId,
     ) -> (String, Option<String>, Option<String>) {
-        match self.character_repo.get(character_id).await {
+        match self.character_crud.get(character_id).await {
             Ok(Some(c)) => (c.name, c.sprite_asset, c.portrait_asset),
             _ => ("Unknown".to_string(), None, None),
         }

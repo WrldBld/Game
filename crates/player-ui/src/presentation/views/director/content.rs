@@ -24,7 +24,7 @@ use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
-use wrldbldr_player_app::application::services::SessionCommandService;
+
 
 /// The original Director mode content (directing gameplay)
 #[component]
@@ -581,8 +581,8 @@ pub fn DirectorModeContent() -> Element {
                                 on_trigger: move |(challenge_id, character_id): (String, String)| {
                                     tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
                                     if let Some(client) = session_state.engine_client().read().as_ref() {
-                                        let svc = SessionCommandService::new(std::sync::Arc::clone(client));
-                                        if let Err(e) = svc.trigger_challenge(&challenge_id, &character_id) {
+                                        // Use DmControlPort method directly (available via blanket impl)
+                                        if let Err(e) = client.trigger_challenge(&challenge_id, &character_id) {
                                             tracing::error!("Failed to trigger challenge: {}", e);
                                         }
                                     } else {

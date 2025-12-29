@@ -24,7 +24,7 @@ use wrldbldr_domain::value_objects::{
     DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_ports::outbound::{CharacterRepositoryPort, ClockPort, DispositionServicePort};
+use wrldbldr_engine_ports::outbound::{CharacterDispositionPort, ClockPort, DispositionServicePort};
 
 /// Disposition service trait defining the application use cases
 #[async_trait]
@@ -89,18 +89,18 @@ pub trait DispositionService: Send + Sync {
 /// Default implementation of DispositionService
 #[derive(Clone)]
 pub struct DispositionServiceImpl {
-    character_repo: Arc<dyn CharacterRepositoryPort>,
+    character_disposition: Arc<dyn CharacterDispositionPort>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl DispositionServiceImpl {
     /// Create a new DispositionServiceImpl with the given repository
     pub fn new(
-        character_repo: Arc<dyn CharacterRepositoryPort>,
+        character_disposition: Arc<dyn CharacterDispositionPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            character_repo,
+            character_disposition,
             clock,
         }
     }
@@ -118,7 +118,7 @@ impl DispositionService for DispositionServiceImpl {
 
         // Try to get existing disposition state
         if let Some(disposition_state) = self
-            .character_repo
+            .character_disposition
             .get_disposition_toward_pc(npc_id, pc_id)
             .await?
         {
@@ -126,12 +126,15 @@ impl DispositionService for DispositionServiceImpl {
         }
 
         // No existing disposition - create default from NPC's default_disposition
-        let default_disposition = self.character_repo.get_default_disposition(npc_id).await?;
+        let default_disposition = self
+            .character_disposition
+            .get_default_disposition(npc_id)
+            .await?;
         let disposition_state = NpcDispositionState::new(npc_id, pc_id, self.clock.now())
             .with_disposition(default_disposition);
 
         // Persist the initial state
-        self.character_repo
+        self.character_disposition
             .set_disposition_toward_pc(&disposition_state)
             .await?;
 
@@ -155,7 +158,7 @@ impl DispositionService for DispositionServiceImpl {
         disposition_state.set_disposition(disposition, reason, self.clock.now());
 
         // Persist
-        self.character_repo
+        self.character_disposition
             .set_disposition_toward_pc(&disposition_state)
             .await?;
 
@@ -212,7 +215,7 @@ impl DispositionService for DispositionServiceImpl {
         }
 
         // Persist
-        self.character_repo
+        self.character_disposition
             .set_disposition_toward_pc(&disposition_state)
             .await?;
 
@@ -233,7 +236,7 @@ impl DispositionService for DispositionServiceImpl {
 
         // Get existing dispositions
         let existing_dispositions = self
-            .character_repo
+            .character_disposition
             .get_scene_dispositions(npc_ids, pc_id)
             .await?;
 
@@ -246,8 +249,10 @@ impl DispositionService for DispositionServiceImpl {
         for &npc_id in npc_ids {
             if !existing_npc_ids.contains(&npc_id) {
                 // Get default disposition and create initial state
-                let default_disposition =
-                    self.character_repo.get_default_disposition(npc_id).await?;
+                let default_disposition = self
+                    .character_disposition
+                    .get_default_disposition(npc_id)
+                    .await?;
                 let disposition_state = NpcDispositionState::new(npc_id, pc_id, self.clock.now())
                     .with_disposition(default_disposition);
                 all_dispositions.push(disposition_state);
@@ -263,7 +268,7 @@ impl DispositionService for DispositionServiceImpl {
         pc_id: PlayerCharacterId,
     ) -> Result<Vec<NpcDispositionState>> {
         debug!(pc_id = %pc_id, "Getting all NPC relationships for PC");
-        self.character_repo
+        self.character_disposition
             .get_all_npc_dispositions_for_pc(pc_id)
             .await
     }
@@ -271,7 +276,9 @@ impl DispositionService for DispositionServiceImpl {
     #[instrument(skip(self))]
     async fn get_default_disposition(&self, npc_id: CharacterId) -> Result<DispositionLevel> {
         debug!(npc_id = %npc_id, "Getting NPC default disposition");
-        self.character_repo.get_default_disposition(npc_id).await
+        self.character_disposition
+            .get_default_disposition(npc_id)
+            .await
     }
 
     #[instrument(skip(self))]
@@ -281,7 +288,7 @@ impl DispositionService for DispositionServiceImpl {
         disposition: DispositionLevel,
     ) -> Result<()> {
         debug!(npc_id = %npc_id, disposition = ?disposition, "Setting NPC default disposition");
-        self.character_repo
+        self.character_disposition
             .set_default_disposition(npc_id, disposition)
             .await
     }
@@ -309,7 +316,7 @@ impl DispositionService for DispositionServiceImpl {
             RelationshipLevel::Ally => 60,
         };
 
-        self.character_repo
+        self.character_disposition
             .set_disposition_toward_pc(&disposition_state)
             .await?;
 

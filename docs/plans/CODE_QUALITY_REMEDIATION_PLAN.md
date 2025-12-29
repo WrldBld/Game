@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.3.3 Complete - DmActionProcessorService wired)  
+**Last Updated**: 2025-12-29 (Phase 3.5 COMPLETE - All 5 god traits split into 25 ISP sub-traits)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -189,7 +189,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.2 | Consolidate SuggestionContext | **DONE** | 100% |
 | Phase 3.3 | Document Port Placement | **DONE** | 100% |
 | Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
-| Phase 3.5 | Split God Traits (169 methods → 25) | **PLANNED** | 0% |
+| Phase 3.5 | Split God Traits (169 methods → 25) | **DONE** | 100% (All 5 god traits split - Clean ISP) |
 | Phase 4 | Dead Code Cleanup | In Progress | 85% |
 | Phase 4.1-4.3 | Unused Structs/Fields/Constants | **DONE** | 100% |
 | Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
@@ -2312,19 +2312,88 @@ pub trait GameConnectionPort: ConnectionLifecyclePort + SessionCommandPort +
 
 | Task | Status |
 |------|--------|
-| [ ] Create new trait files in engine-ports/outbound/ | Pending |
-| [ ] Split CharacterRepositoryPort (42 → 6 traits) | Pending |
-| [ ] Split StoryEventRepositoryPort (34 → 4 traits) | Pending |
-| [ ] Split NarrativeEventRepositoryPort (30 → 4 traits) | Pending |
-| [ ] Split ChallengeRepositoryPort (31 → 5 traits) | Pending |
-| [ ] Split GameConnectionPort (32 → 6 traits) | Pending |
-| [ ] Create backward-compat super-traits | Pending |
-| [ ] Update Neo4j implementations | Pending |
-| [ ] Update app layer services | Pending |
-| [ ] Update mock implementations | Pending |
-| [ ] Verify compilation | Pending |
+| [x] Create new trait files in engine-ports/outbound/ | **DONE** (All 5 god traits) |
+| [x] Split CharacterRepositoryPort (42 → 6 traits) | **DONE** (Clean ISP, no super-trait) |
+| [x] Split StoryEventRepositoryPort (34 → 4 traits) | **DONE** (Clean ISP, no super-trait) |
+| [x] Split NarrativeEventRepositoryPort (30 → 4 traits) | **DONE** (Clean ISP, no super-trait) |
+| [x] Split ChallengeRepositoryPort (31 → 5 traits) | **DONE** (Clean ISP, no super-trait) |
+| [x] Split GameConnectionPort (32 → 6 traits) | **DONE** (Clean ISP with blanket impls) |
+| [x] Update Neo4j implementations | **DONE** (all repos implement sub-traits) |
+| [x] Update app layer services | **DONE** (all services use minimal traits) |
+| [x] Update mock implementations | **DONE** (all mocks for all sub-traits) |
+| [x] Update composition root to wire specific traits | **DONE** |
+| [x] Verify compilation | **DONE** (workspace compiles with warnings only) |
 
-**Note**: This is a significant refactor (**169** methods → **25** new traits). Consider incremental migration with super-traits for backward compatibility.
+**Phase 3.5.2 & 3.5.3 Complete (December 29, 2024)**
+
+Successfully implemented **Clean ISP** (Interface Segregation Principle) for NarrativeEvent and StoryEvent repositories:
+
+##### Clean ISP Approach (No Super-Traits)
+
+Instead of backward-compatible super-traits with blanket impls, we use the **cleanest hexagonal architecture**:
+- Each service declares exactly the traits it needs as separate `Arc<dyn Trait>` parameters
+- The composition root passes the same concrete repository to each service
+- Rust coerces to the needed trait interface
+
+##### Services and Their Minimal Trait Dependencies
+
+| Service | NarrativeEvent Traits | StoryEvent Traits |
+|---------|----------------------|-------------------|
+| `NarrativeEventServiceImpl` | All 4 (Crud, Tie, Npc, Query) | - |
+| `StoryEventServiceImpl` | - | All 4 (Crud, Edge, Query, Dialogue) |
+| `StagingService` | CrudPort only | - |
+| `StagingContextProvider` | CrudPort only | - |
+| `TriggerEvaluationService` | CrudPort only | QueryPort + EdgePort |
+| `LlmQueueService` | CrudPort only | - |
+| `EventEffectExecutor` | CrudPort only | - |
+
+##### Files Modified
+
+- `engine-ports/src/outbound/narrative_event_repository/mod.rs` - Removed super-trait
+- `engine-ports/src/outbound/story_event_repository/mod.rs` - Removed super-trait
+- `engine-ports/src/outbound/mod.rs` - Updated exports (only sub-traits)
+- `engine-app/src/application/services/narrative_event_service.rs` - 4 Arc fields
+- `engine-app/src/application/services/story_event_service.rs` - 4 Arc fields
+- `engine-app/src/application/services/staging_service.rs` - NarrativeEventCrudPort
+- `engine-app/src/application/services/staging_context_provider.rs` - NarrativeEventCrudPort
+- `engine-app/src/application/services/trigger_evaluation_service.rs` - Specific traits
+- `engine-app/src/application/services/llm_queue_service.rs` - NarrativeEventCrudPort
+- `engine-app/src/application/services/event_effect_executor.rs` - NarrativeEventCrudPort
+- `engine-runner/src/composition/app_state.rs` - Wire all specific traits
+
+##### Phase 3.5 COMPLETE (December 29, 2024)
+
+All 5 god traits have been successfully split following Clean ISP:
+
+| Original Trait | Methods | New Sub-Traits | Status |
+|----------------|---------|----------------|--------|
+| `NarrativeEventRepositoryPort` | 30 | 4 (Crud, Tie, Npc, Query) | **DONE** |
+| `StoryEventRepositoryPort` | 34 | 4 (Crud, Edge, Query, Dialogue) | **DONE** |
+| `CharacterRepositoryPort` | 42 | 6 (Crud, Want, Actantial, Inventory, Location, Disposition) | **DONE** |
+| `ChallengeRepositoryPort` | 31 | 5 (Crud, Skill, Scene, Prerequisite, Availability) | **DONE** |
+| `GameConnectionPort` | 32 | 6 (Lifecycle, Session, PlayerAction, DmControl, Navigation, Request) | **DONE** |
+| **Total** | **169** | **25** | **100%** |
+
+##### Additional Services Updated for Character/Challenge ISP
+
+| Service | Character Traits | Challenge Traits |
+|---------|-----------------|------------------|
+| `CharacterServiceImpl` | CrudPort + WantPort | - |
+| `DispositionServiceImpl` | DispositionPort | - |
+| `ActantialContextServiceImpl` | CrudPort + WantPort + ActantialPort | - |
+| `SceneServiceImpl` | CrudPort | - |
+| `PromptContextServiceImpl` | CrudPort | - |
+| `StagingApprovalUseCase` | CrudPort | - |
+| `ObservationUseCase` | CrudPort | - |
+| `AppRequestHandler` | LocationPort | - |
+| `ChallengeServiceImpl` | - | All 5 traits |
+| `EventEffectExecutor` | - | CrudPort |
+| `LlmQueueService` | - | CrudPort + SkillPort |
+| `OutcomeTriggerService` | - | CrudPort |
+
+##### GameConnectionPort Note
+
+GameConnectionPort on the player side uses **blanket implementations** where `impl SubTrait for T where T: GameConnectionPort`. This allows the existing `Arc<dyn GameConnectionPort>` to be used while still providing ISP benefits through the sub-trait interfaces. The callback methods (`on_state_change`, `on_message`) remain on the main trait due to mockall limitations with `Fn` objects.
 
 #### Future Candidates (15-29 methods)
 

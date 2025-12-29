@@ -20,7 +20,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
-use wrldbldr_engine_ports::outbound::{NarrativeEventRepositoryPort, NarrativeEventServicePort};
+use wrldbldr_engine_ports::outbound::{
+    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventServicePort,
+    NarrativeEventTiePort,
+};
 
 /// NarrativeEvent service trait defining the application use cases
 #[async_trait]
@@ -167,21 +170,39 @@ pub trait NarrativeEventService: Send + Sync {
 use wrldbldr_domain::DomainEvent;
 use wrldbldr_engine_ports::outbound::EventBusPort;
 
-/// Default implementation of NarrativeEventService using port abstractions
+/// Default implementation of NarrativeEventService using port abstractions.
+///
+/// This service uses Interface Segregation Principle (ISP) with 4 focused repository ports:
+/// - `NarrativeEventCrudPort` - Core CRUD + state management
+/// - `NarrativeEventTiePort` - Scene/Location/Act relationships
+/// - `NarrativeEventNpcPort` - Featured NPC management
+/// - `NarrativeEventQueryPort` - Query by relationships
 #[derive(Clone)]
 pub struct NarrativeEventServiceImpl {
-    repository: Arc<dyn NarrativeEventRepositoryPort>,
+    crud: Arc<dyn NarrativeEventCrudPort>,
+    tie: Arc<dyn NarrativeEventTiePort>,
+    npc: Arc<dyn NarrativeEventNpcPort>,
+    query: Arc<dyn NarrativeEventQueryPort>,
     event_bus: Arc<dyn EventBusPort>,
 }
 
 impl NarrativeEventServiceImpl {
-    /// Create a new NarrativeEventServiceImpl with the given repository
+    /// Create a new NarrativeEventServiceImpl with the given repository ports.
+    ///
+    /// All 4 port parameters typically point to the same concrete repository instance,
+    /// coerced to the specific trait interface by the caller.
     pub fn new(
-        repository: Arc<dyn NarrativeEventRepositoryPort>,
+        crud: Arc<dyn NarrativeEventCrudPort>,
+        tie: Arc<dyn NarrativeEventTiePort>,
+        npc: Arc<dyn NarrativeEventNpcPort>,
+        query: Arc<dyn NarrativeEventQueryPort>,
         event_bus: Arc<dyn EventBusPort>,
     ) -> Self {
         Self {
-            repository,
+            crud,
+            tie,
+            npc,
+            query,
             event_bus,
         }
     }
@@ -192,7 +213,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn get(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>> {
         debug!(event_id = %id, "Fetching narrative event");
-        self.repository
+        self.crud
             .get(id)
             .await
             .context("Failed to get narrative event from repository")
@@ -201,7 +222,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>> {
         debug!(world_id = %world_id, "Listing all narrative events for world");
-        self.repository
+        self.crud
             .list_by_world(world_id)
             .await
             .context("Failed to list narrative events from repository")
@@ -210,7 +231,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_active(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>> {
         debug!(world_id = %world_id, "Listing active narrative events for world");
-        self.repository
+        self.crud
             .list_active(world_id)
             .await
             .context("Failed to list active narrative events from repository")
@@ -219,7 +240,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>> {
         debug!(world_id = %world_id, "Listing favorite narrative events for world");
-        self.repository
+        self.crud
             .list_favorites(world_id)
             .await
             .context("Failed to list favorite narrative events from repository")
@@ -228,7 +249,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_pending(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>> {
         debug!(world_id = %world_id, "Listing pending narrative events for world");
-        self.repository
+        self.crud
             .list_pending(world_id)
             .await
             .context("Failed to list pending narrative events from repository")
@@ -243,7 +264,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             "Creating narrative event"
         );
 
-        self.repository
+        self.crud
             .create(&event)
             .await
             .context("Failed to create narrative event in repository")?;
@@ -259,7 +280,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             "Updating narrative event"
         );
 
-        self.repository
+        self.crud
             .update(&event)
             .await
             .context("Failed to update narrative event in repository")?;
@@ -270,7 +291,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn delete(&self, id: NarrativeEventId) -> Result<bool> {
         info!(event_id = %id, "Deleting narrative event");
-        self.repository
+        self.crud
             .delete(id)
             .await
             .context("Failed to delete narrative event from repository")
@@ -279,7 +300,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn toggle_favorite(&self, id: NarrativeEventId) -> Result<bool> {
         debug!(event_id = %id, "Toggling favorite status for narrative event");
-        self.repository
+        self.crud
             .toggle_favorite(id)
             .await
             .context("Failed to toggle favorite status for narrative event")
@@ -292,7 +313,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
             is_active = is_active,
             "Setting active status for narrative event"
         );
-        self.repository
+        self.crud
             .set_active(id, is_active)
             .await
             .context("Failed to set active status for narrative event")
@@ -311,10 +332,10 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         );
 
         // Get the event details before marking as triggered
-        let event = self.repository.get(id).await?;
+        let event = self.crud.get(id).await?;
 
         let result = self
-            .repository
+            .crud
             .mark_triggered(id, outcome_name.clone())
             .await
             .context("Failed to mark narrative event as triggered")?;
@@ -347,7 +368,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn reset_triggered(&self, id: NarrativeEventId) -> Result<bool> {
         info!(event_id = %id, "Resetting triggered status for narrative event");
-        self.repository
+        self.crud
             .reset_triggered(id)
             .await
             .context("Failed to reset triggered status for narrative event")
@@ -360,7 +381,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn tie_to_scene(&self, event_id: NarrativeEventId, scene_id: SceneId) -> Result<bool> {
         debug!(event_id = %event_id, scene_id = %scene_id, "Tying narrative event to scene");
-        self.repository
+        self.tie
             .tie_to_scene(event_id, scene_id)
             .await
             .context("Failed to tie narrative event to scene")
@@ -369,7 +390,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn get_tied_scene(&self, event_id: NarrativeEventId) -> Result<Option<SceneId>> {
         debug!(event_id = %event_id, "Getting tied scene for narrative event");
-        self.repository
+        self.tie
             .get_tied_scene(event_id)
             .await
             .context("Failed to get tied scene for narrative event")
@@ -378,7 +399,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn untie_from_scene(&self, event_id: NarrativeEventId) -> Result<bool> {
         debug!(event_id = %event_id, "Untying narrative event from scene");
-        self.repository
+        self.tie
             .untie_from_scene(event_id)
             .await
             .context("Failed to untie narrative event from scene")
@@ -395,7 +416,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         location_id: LocationId,
     ) -> Result<bool> {
         debug!(event_id = %event_id, location_id = %location_id, "Tying narrative event to location");
-        self.repository
+        self.tie
             .tie_to_location(event_id, location_id)
             .await
             .context("Failed to tie narrative event to location")
@@ -404,7 +425,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn get_tied_location(&self, event_id: NarrativeEventId) -> Result<Option<LocationId>> {
         debug!(event_id = %event_id, "Getting tied location for narrative event");
-        self.repository
+        self.tie
             .get_tied_location(event_id)
             .await
             .context("Failed to get tied location for narrative event")
@@ -413,7 +434,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn untie_from_location(&self, event_id: NarrativeEventId) -> Result<bool> {
         debug!(event_id = %event_id, "Untying narrative event from location");
-        self.repository
+        self.tie
             .untie_from_location(event_id)
             .await
             .context("Failed to untie narrative event from location")
@@ -426,7 +447,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn assign_to_act(&self, event_id: NarrativeEventId, act_id: ActId) -> Result<bool> {
         debug!(event_id = %event_id, act_id = %act_id, "Assigning narrative event to act");
-        self.repository
+        self.tie
             .assign_to_act(event_id, act_id)
             .await
             .context("Failed to assign narrative event to act")
@@ -435,7 +456,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn get_act(&self, event_id: NarrativeEventId) -> Result<Option<ActId>> {
         debug!(event_id = %event_id, "Getting act for narrative event");
-        self.repository
+        self.tie
             .get_act(event_id)
             .await
             .context("Failed to get act for narrative event")
@@ -444,7 +465,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn unassign_from_act(&self, event_id: NarrativeEventId) -> Result<bool> {
         debug!(event_id = %event_id, "Unassigning narrative event from act");
-        self.repository
+        self.tie
             .unassign_from_act(event_id)
             .await
             .context("Failed to unassign narrative event from act")
@@ -461,7 +482,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         featured_npc: FeaturedNpc,
     ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %featured_npc.character_id, "Adding featured NPC to narrative event");
-        self.repository
+        self.npc
             .add_featured_npc(event_id, featured_npc)
             .await
             .context("Failed to add featured NPC to narrative event")
@@ -470,7 +491,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn get_featured_npcs(&self, event_id: NarrativeEventId) -> Result<Vec<FeaturedNpc>> {
         debug!(event_id = %event_id, "Getting featured NPCs for narrative event");
-        self.repository
+        self.npc
             .get_featured_npcs(event_id)
             .await
             .context("Failed to get featured NPCs for narrative event")
@@ -483,7 +504,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         character_id: CharacterId,
     ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %character_id, "Removing featured NPC from narrative event");
-        self.repository
+        self.npc
             .remove_featured_npc(event_id, character_id)
             .await
             .context("Failed to remove featured NPC from narrative event")
@@ -497,7 +518,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         role: Option<String>,
     ) -> Result<bool> {
         debug!(event_id = %event_id, character_id = %character_id, role = ?role, "Updating featured NPC role");
-        self.repository
+        self.npc
             .update_featured_npc_role(event_id, character_id, role)
             .await
             .context("Failed to update featured NPC role")
@@ -513,7 +534,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
         event_id: NarrativeEventId,
     ) -> Result<Vec<EventChainMembership>> {
         debug!(event_id = %event_id, "Getting chain memberships for narrative event");
-        self.repository
+        self.npc
             .get_chain_memberships(event_id)
             .await
             .context("Failed to get chain memberships for narrative event")
@@ -526,7 +547,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<NarrativeEvent>> {
         debug!(scene_id = %scene_id, "Listing narrative events by scene");
-        self.repository
+        self.query
             .list_by_scene(scene_id)
             .await
             .context("Failed to list narrative events by scene")
@@ -535,7 +556,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<NarrativeEvent>> {
         debug!(location_id = %location_id, "Listing narrative events by location");
-        self.repository
+        self.query
             .list_by_location(location_id)
             .await
             .context("Failed to list narrative events by location")
@@ -544,7 +565,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_act(&self, act_id: ActId) -> Result<Vec<NarrativeEvent>> {
         debug!(act_id = %act_id, "Listing narrative events by act");
-        self.repository
+        self.query
             .list_by_act(act_id)
             .await
             .context("Failed to list narrative events by act")
@@ -553,7 +574,7 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_featured_npc(&self, character_id: CharacterId) -> Result<Vec<NarrativeEvent>> {
         debug!(character_id = %character_id, "Listing narrative events by featured NPC");
-        self.repository
+        self.query
             .list_by_featured_npc(character_id)
             .await
             .context("Failed to list narrative events by featured NPC")

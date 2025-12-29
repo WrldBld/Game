@@ -22,8 +22,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort, CharacterRepositoryPort, ClockPort, GoalRepositoryPort,
-    PlayerCharacterRepositoryPort, WantRepositoryPort,
+    ActantialContextServicePort, CharacterActantialPort, CharacterCrudPort, CharacterWantPort,
+    ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort, WantRepositoryPort,
 };
 
 // =============================================================================
@@ -192,7 +192,9 @@ pub trait ActantialContextService: Send + Sync {
 /// Default implementation of ActantialContextService
 #[derive(Clone)]
 pub struct ActantialContextServiceImpl {
-    character_repo: Arc<dyn CharacterRepositoryPort>,
+    character_crud: Arc<dyn CharacterCrudPort>,
+    character_want: Arc<dyn CharacterWantPort>,
+    character_actantial: Arc<dyn CharacterActantialPort>,
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     goal_repo: Arc<dyn GoalRepositoryPort>,
     want_repo: Arc<dyn WantRepositoryPort>,
@@ -207,14 +209,18 @@ impl ActantialContextServiceImpl {
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
-        character_repo: Arc<dyn CharacterRepositoryPort>,
+        character_crud: Arc<dyn CharacterCrudPort>,
+        character_want: Arc<dyn CharacterWantPort>,
+        character_actantial: Arc<dyn CharacterActantialPort>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         goal_repo: Arc<dyn GoalRepositoryPort>,
         want_repo: Arc<dyn WantRepositoryPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            character_repo,
+            character_crud,
+            character_want,
+            character_actantial,
             pc_repo,
             goal_repo,
             want_repo,
@@ -227,7 +233,7 @@ impl ActantialContextServiceImpl {
         match target {
             ActantialTarget::Npc(id) => {
                 let char_id = CharacterId::from_uuid(*id);
-                if let Some(character) = self.character_repo.get(char_id).await? {
+                if let Some(character) = self.character_crud.get(char_id).await? {
                     Ok(character.name)
                 } else {
                     Ok("Unknown NPC".to_string())
@@ -278,7 +284,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
 
         // Get the character for their name
         let character = self
-            .character_repo
+            .character_crud
             .get(character_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", character_id))?;
@@ -286,11 +292,11 @@ impl ActantialContextService for ActantialContextServiceImpl {
         let mut context = ActantialContext::new(character_id.to_uuid(), &character.name);
 
         // Get all wants for this character
-        let character_wants = self.character_repo.get_wants(character_id).await?;
+        let character_wants = self.character_want.get_wants(character_id).await?;
 
         // Get all actantial views for this character
         let actantial_views = self
-            .character_repo
+            .character_actantial
             .get_actantial_views(character_id)
             .await?;
 
@@ -314,7 +320,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
             want_ctx.tells = want.tells.clone();
 
             // Resolve the want's target
-            if let Some(target) = self.character_repo.get_want_target(want.id).await? {
+            if let Some(target) = self.character_want.get_want_target(want.id).await? {
                 want_ctx.target = Some(target);
             }
 
@@ -401,14 +407,14 @@ impl ActantialContextService for ActantialContextServiceImpl {
         let want_id = want.id;
 
         // Create the want attached to the character
-        self.character_repo
+        self.character_want
             .create_want(character_id, &want, request.priority)
             .await?;
 
         // Set target if provided
         if let (Some(target_id), Some(target_type)) = (&request.target_id, &request.target_type) {
-            self.character_repo
-                .set_want_target(want_id, target_id, target_type)
+            self.character_want
+                .set_want_target(want_id, target_id.clone(), target_type.clone())
                 .await?;
         }
 
@@ -438,7 +444,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
 
         // Note: The repository's update_want should handle partial updates
         // For a full implementation, we'd need to fetch the existing want first
-        self.character_repo.update_want(&want).await?;
+        self.character_want.update_want(&want).await?;
 
         debug!(want_id = %want_id, "Want updated");
         Ok(())
@@ -447,7 +453,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
     #[instrument(skip(self))]
     async fn delete_want(&self, want_id: WantId) -> Result<()> {
         debug!(want_id = %want_id, "Deleting want");
-        self.character_repo.delete_want(want_id).await?;
+        self.character_want.delete_want(want_id).await?;
         debug!(want_id = %want_id, "Want deleted");
         Ok(())
     }
@@ -460,8 +466,8 @@ impl ActantialContextService for ActantialContextServiceImpl {
         target_type: &str,
     ) -> Result<()> {
         debug!(want_id = %want_id, target_id = %target_id, target_type = %target_type, "Setting want target");
-        self.character_repo
-            .set_want_target(want_id, target_id, target_type)
+        self.character_want
+            .set_want_target(want_id, target_id.to_string(), target_type.to_string())
             .await?;
         debug!(want_id = %want_id, "Want target set");
         Ok(())
@@ -470,7 +476,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
     #[instrument(skip(self))]
     async fn remove_want_target(&self, want_id: WantId) -> Result<()> {
         debug!(want_id = %want_id, "Removing want target");
-        self.character_repo.remove_want_target(want_id).await?;
+        self.character_want.remove_want_target(want_id).await?;
         debug!(want_id = %want_id, "Want target removed");
         Ok(())
     }
@@ -501,7 +507,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
                     uuid::Uuid::parse_str(target_id)
                         .map_err(|e| anyhow::anyhow!("Invalid target ID: {}", e))?,
                 );
-                self.character_repo
+                self.character_actantial
                     .add_actantial_view(subject_id, role, target_char_id, &view)
                     .await?;
             }
@@ -510,7 +516,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
                     uuid::Uuid::parse_str(target_id)
                         .map_err(|e| anyhow::anyhow!("Invalid target ID: {}", e))?,
                 );
-                self.character_repo
+                self.character_actantial
                     .add_actantial_view_to_pc(subject_id, role, target_pc_id, &view)
                     .await?;
             }
@@ -543,7 +549,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
                     uuid::Uuid::parse_str(target_id)
                         .map_err(|e| anyhow::anyhow!("Invalid target ID: {}", e))?,
                 );
-                self.character_repo
+                self.character_actantial
                     .remove_actantial_view(subject_id, role, target_char_id, want_id)
                     .await?;
             }
@@ -552,7 +558,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
                     uuid::Uuid::parse_str(target_id)
                         .map_err(|e| anyhow::anyhow!("Invalid target ID: {}", e))?,
                 );
-                self.character_repo
+                self.character_actantial
                     .remove_actantial_view_to_pc(subject_id, role, target_pc_id, want_id)
                     .await?;
             }

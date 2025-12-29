@@ -12,7 +12,7 @@
 //! ## Service Types
 //!
 //! Services are split into two categories:
-//! - **WebSocket services**: Use `GameConnectionPort` for real-time operations
+//! - **WebSocket services**: Use ISP sub-traits (GameRequestPort, PlayerActionPort, etc.) for real-time operations
 //! - **REST services**: Use `ApiPort` for HTTP-based operations (file uploads, large payloads)
 use dioxus::prelude::*;
 use std::sync::Arc;
@@ -33,7 +33,8 @@ pub type UiServices = Services<Api>;
 /// All services wrapped for context provision
 ///
 /// This struct holds both WebSocket-based services and REST-based services.
-/// WebSocket services use `Arc<dyn GameConnectionPort>` directly.
+/// WebSocket services use the `GameConnectionPort` abstraction, which provides
+/// all ISP sub-trait methods via blanket implementations.
 /// REST services still use the generic `A: ApiPort` pattern for file uploads and large payloads.
 #[derive(Clone)]
 pub struct Services<A: ApiPort> {
@@ -63,14 +64,16 @@ impl<A: ApiPort + Clone> Services<A> {
     /// # Arguments
     /// * `api` - The REST API port for HTTP-based services
     /// * `raw_api` - The raw API port for services that need lower-level access
-    /// * `connection` - The WebSocket connection port for real-time services
+    /// * `connection` - The GameConnectionPort for WebSocket operations
+    ///                  (provides all ISP sub-trait methods via blanket impls)
     pub fn new(
         api: A,
         raw_api: Arc<dyn RawApiPort>,
         connection: Arc<dyn GameConnectionPort>,
     ) -> Self {
         Self {
-            // WebSocket-based services
+            // WebSocket-based services use GameConnectionPort which provides
+            // GameRequestPort methods via blanket implementation
             world: Arc::new(WorldService::new(connection.clone(), raw_api)),
             character: Arc::new(CharacterService::new(connection.clone())),
             location: Arc::new(LocationService::new(connection.clone())),

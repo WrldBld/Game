@@ -36,7 +36,7 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterData, CharacterRepositoryPort, PlayerCharacterRepositoryPort, QueueError,
+    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, QueueError,
     RegionRepositoryPort, WorldStatePort,
 };
 
@@ -68,7 +68,7 @@ pub struct PromptContextServiceImpl {
     challenge_service: Arc<dyn ChallengeService>,
     skill_service: Arc<dyn SkillService>,
     narrative_event_service: Arc<dyn NarrativeEventService>,
-    character_repo: Arc<dyn CharacterRepositoryPort>,
+    character_crud: Arc<dyn CharacterCrudPort>,
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
     disposition_service: Arc<dyn DispositionService>,
@@ -84,7 +84,7 @@ impl PromptContextServiceImpl {
         challenge_service: Arc<dyn ChallengeService>,
         skill_service: Arc<dyn SkillService>,
         narrative_event_service: Arc<dyn NarrativeEventService>,
-        character_repo: Arc<dyn CharacterRepositoryPort>,
+        character_crud: Arc<dyn CharacterCrudPort>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
         disposition_service: Arc<dyn DispositionService>,
@@ -96,7 +96,7 @@ impl PromptContextServiceImpl {
             challenge_service,
             skill_service,
             narrative_event_service,
-            character_repo,
+            character_crud,
             pc_repo,
             region_repo,
             disposition_service,
@@ -515,7 +515,7 @@ impl PromptContextServiceImpl {
         // Fetch character names for each featured NPC
         let mut names = Vec::with_capacity(featured_npcs.len());
         for featured_npc in featured_npcs {
-            match self.character_repo.get(featured_npc.character_id).await {
+            match self.character_crud.get(featured_npc.character_id).await {
                 Ok(Some(character)) => {
                     names.push(character.name);
                 }

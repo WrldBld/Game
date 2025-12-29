@@ -120,7 +120,7 @@ mod tests {
         let conn_dyn: Arc<dyn GameConnectionPort> = conn.clone();
         let svc = NarrativeEventService::new(conn_dyn);
 
-        // The mock will return an error by default, but we can still verify the request was sent
+        // The mock will return an empty list
         let _ = svc.list_narrative_events("world-1").await;
 
         // In a real test, we'd verify the payload was correct

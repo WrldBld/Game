@@ -40,6 +40,8 @@ mod location_service_port;
 mod narrative_event_approval_service_port;
 mod narrative_event_repository;
 mod narrative_event_service_port;
+mod challenge_repository;
+mod character_repository;
 mod story_event_repository;
 mod player_action_queue_service_port;
 mod player_character_service_port;
@@ -127,31 +129,73 @@ pub use llm_port::{
 
 pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 
+// Repository ports - Note: CharacterRepositoryPort and ChallengeRepositoryPort have been
+// split into ISP sub-traits (see character_repository/ and challenge_repository/)
 pub use repository_port::{
-    AssetRepositoryPort, ChallengeRepositoryPort, CharacterNode, CharacterRepositoryPort,
-    EventChainRepositoryPort, FlagRepositoryPort, GoalRepositoryPort, InteractionRepositoryPort,
-    ItemRepositoryPort, LocationRepositoryPort, ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort, RegionRepositoryPort, RelationshipEdge,
-    RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
+    AssetRepositoryPort, CharacterNode, EventChainRepositoryPort, FlagRepositoryPort,
+    GoalRepositoryPort, InteractionRepositoryPort, ItemRepositoryPort, LocationRepositoryPort,
+    ObservationRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
     SkillRepositoryPort, SocialNetwork, WantRepositoryPort, WorkflowRepositoryPort,
     WorldRepositoryPort,
 };
 
-// StoryEvent repository ports - split for Interface Segregation Principle
+// StoryEvent repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - StoryEventCrudPort: Core CRUD + state management (7 methods)
+// - StoryEventEdgePort: Edge relationship management (15 methods)
+// - StoryEventQueryPort: Query operations (10 methods)
+// - StoryEventDialoguePort: Dialogue-specific operations (2 methods)
 pub use story_event_repository::{
     StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
-    StoryEventRepositoryPort,
 };
 #[cfg(any(test, feature = "testing"))]
 pub use story_event_repository::MockStoryEventRepository;
 
-// NarrativeEvent repository ports - split for Interface Segregation Principle
+// NarrativeEvent repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - NarrativeEventCrudPort: Core CRUD + state management (12 methods)
+// - NarrativeEventTiePort: Scene/Location/Act relationships (9 methods)
+// - NarrativeEventNpcPort: Featured NPC management (5 methods)
+// - NarrativeEventQueryPort: Query by relationships (4 methods)
 pub use narrative_event_repository::{
-    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort,
-    NarrativeEventRepositoryPort, NarrativeEventTiePort,
+    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
 };
 #[cfg(any(test, feature = "testing"))]
 pub use narrative_event_repository::MockNarrativeEventRepository;
+
+// Character repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - CharacterCrudPort: Core CRUD operations (6 methods)
+// - CharacterWantPort: Want management (7 methods)
+// - CharacterActantialPort: Actantial view management (5 methods)
+// - CharacterInventoryPort: Inventory management (5 methods)
+// - CharacterLocationPort: Location relationships (13 methods)
+// - CharacterDispositionPort: NPC disposition tracking (6 methods)
+pub use character_repository::{
+    CharacterActantialPort, CharacterCrudPort, CharacterDispositionPort, CharacterInventoryPort,
+    CharacterLocationPort, CharacterWantPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use character_repository::{
+    MockCharacterActantialPort, MockCharacterCrudPort, MockCharacterDispositionPort,
+    MockCharacterInventoryPort, MockCharacterLocationPort, MockCharacterRepository,
+    MockCharacterWantPort,
+};
+
+// Challenge repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - ChallengeCrudPort: Core CRUD + state management (12 methods)
+// - ChallengeSkillPort: Skill relationship management (3 methods)
+// - ChallengeScenePort: Scene relationship management (3 methods)
+// - ChallengePrerequisitePort: Prerequisite chain management (4 methods)
+// - ChallengeAvailabilityPort: Location/region availability + unlocks (9 methods)
+pub use challenge_repository::{
+    ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
+    ChallengeSkillPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_repository::MockChallengeRepository;
 
 pub use prompt_template_port::{
     PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,

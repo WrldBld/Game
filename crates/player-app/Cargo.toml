@@ -24,6 +24,7 @@ futures-channel = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
 wrldbldr-player-adapters = { workspace = true }  # For MockGameConnectionPort in tests
+wrldbldr-player-ports = { workspace = true, features = ["testing"] }  # For ISP mock traits
 
 [lints]
 workspace = true

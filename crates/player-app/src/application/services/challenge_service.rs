@@ -16,7 +16,8 @@ use wrldbldr_player_ports::outbound::GameConnectionPort;
 ///
 /// This service provides methods for challenge-related operations
 /// while depending only on the `GameConnectionPort` trait, not concrete
-/// infrastructure implementations.
+/// infrastructure implementations. The `GameRequestPort` methods are
+/// available via blanket implementation.
 #[derive(Clone)]
 pub struct ChallengeService {
     connection: Arc<dyn GameConnectionPort>,

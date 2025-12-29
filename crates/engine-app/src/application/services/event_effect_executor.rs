@@ -31,7 +31,7 @@ use async_trait::async_trait;
 use wrldbldr_domain::entities::EventEffect;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ChallengeRepositoryPort, EventEffectExecutorPort, NarrativeEventRepositoryPort,
+    ChallengeCrudPort, EventEffectExecutorPort, NarrativeEventCrudPort,
     OutcomeExecutionResult as PortOutcomeExecutionResult, RelationshipRepositoryPort,
 };
 
@@ -101,20 +101,20 @@ impl OutcomeExecutionResult {
 /// making the necessary repository calls. Conversation history logging is
 /// handled by the caller via WorldStateManager.
 pub struct EventEffectExecutor {
-    challenge_repo: Arc<dyn ChallengeRepositoryPort>,
-    narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
+    challenge_crud: Arc<dyn ChallengeCrudPort>,
+    narrative_event_repo: Arc<dyn NarrativeEventCrudPort>,
     relationship_repo: Arc<dyn RelationshipRepositoryPort>,
 }
 
 impl EventEffectExecutor {
     /// Create a new EventEffectExecutor
     pub fn new(
-        challenge_repo: Arc<dyn ChallengeRepositoryPort>,
-        narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
+        challenge_crud: Arc<dyn ChallengeCrudPort>,
+        narrative_event_repo: Arc<dyn NarrativeEventCrudPort>,
         relationship_repo: Arc<dyn RelationshipRepositoryPort>,
     ) -> Self {
         Self {
-            challenge_repo,
+            challenge_crud,
             narrative_event_repo,
             relationship_repo,
         }
@@ -346,7 +346,7 @@ impl EventEffectExecutor {
     ) -> EffectExecutionResult {
         debug!(challenge_id = %challenge_id, "Enabling challenge");
 
-        match self.challenge_repo.set_active(challenge_id, true).await {
+        match self.challenge_crud.set_active(challenge_id, true).await {
             Ok(()) => {
                 // Conversation history now managed by caller via WorldStateManager
                 EffectExecutionResult {
@@ -374,7 +374,7 @@ impl EventEffectExecutor {
     ) -> EffectExecutionResult {
         debug!(challenge_id = %challenge_id, "Disabling challenge");
 
-        match self.challenge_repo.set_active(challenge_id, false).await {
+        match self.challenge_crud.set_active(challenge_id, false).await {
             Ok(()) => {
                 // Conversation history now managed by caller via WorldStateManager
                 EffectExecutionResult {

@@ -33,6 +33,7 @@ use wrldbldr_player_app::application::dto::{
     DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
 };
 
+
 /// Player Character View - visual novel gameplay interface
 ///
 /// Connection handling and back navigation are provided by WorldSessionLayout wrapper.
@@ -1020,10 +1021,12 @@ fn send_player_action(
     let engine_client_signal = session_state.engine_client();
     let client_binding = engine_client_signal.read();
     if let Some(ref client) = *client_binding {
-        let svc = wrldbldr_player_app::application::services::ActionService::new(
-            std::sync::Arc::clone(client),
-        );
-        if let Err(e) = svc.send_action(action) {
+        // Use GameConnectionPort::send_action directly
+        if let Err(e) = client.send_action(
+            action.action_type.as_str(),
+            action.target.as_deref(),
+            action.dialogue.as_deref(),
+        ) {
             tracing::error!("Failed to send action: {}", e);
         }
     } else {
@@ -1112,10 +1115,8 @@ fn send_challenge_roll_input(
     let engine_client_signal = session_state.engine_client();
     let client_binding = engine_client_signal.read();
     if let Some(ref client) = *client_binding {
-        let svc = wrldbldr_player_app::application::services::SessionCommandService::new(
-            std::sync::Arc::clone(client),
-        );
-        if let Err(e) = svc.submit_challenge_roll_input(challenge_id, input) {
+        // Use PlayerActionPort method directly (available via blanket impl)
+        if let Err(e) = client.submit_challenge_roll_input(challenge_id, input) {
             tracing::error!("Failed to send challenge roll input: {}", e);
         }
     } else {

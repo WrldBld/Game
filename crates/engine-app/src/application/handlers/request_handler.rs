@@ -17,7 +17,7 @@ use wrldbldr_domain::entities::{CharacterSheetData, RegionConnection, RegionExit
 use wrldbldr_domain::value_objects::RegionShift;
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, GenerationReadKind, GenerationReadStatePort,
+    CharacterLocationPort, ClockPort, GenerationReadKind, GenerationReadStatePort,
     ObservationRepositoryPort, RegionRepositoryPort, SuggestionEnqueueContext,
     SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
@@ -76,7 +76,7 @@ pub struct AppRequestHandler {
     sheet_template_service: Arc<SheetTemplateService>,
 
     // Repository ports (for simple CRUD that doesn't need a full service)
-    character_repo: Arc<dyn CharacterRepositoryPort>,
+    character_location: Arc<dyn CharacterLocationPort>,
     observation_repo: Arc<dyn ObservationRepositoryPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
 
@@ -114,7 +114,7 @@ impl AppRequestHandler {
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
         sheet_template_service: Arc<SheetTemplateService>,
-        character_repo: Arc<dyn CharacterRepositoryPort>,
+        character_location: Arc<dyn CharacterLocationPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
         suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
@@ -140,7 +140,7 @@ impl AppRequestHandler {
             item_service,
             region_service,
             sheet_template_service,
-            character_repo,
+            character_location,
             observation_repo,
             region_repo,
             suggestion_enqueue,
@@ -2651,7 +2651,7 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.character_repo.get_region_relationships(id).await {
+                match self.character_location.get_region_relationships(id).await {
                     Ok(relationships) => {
                         let dtos: Vec<serde_json::Value> = relationships
                             .iter()
@@ -2684,7 +2684,7 @@ impl RequestHandler for AppRequestHandler {
                     Ok(id) => id,
                     Err(e) => return e,
                 };
-                match self.character_repo.set_home_region(cid, rid).await {
+                match self.character_location.set_home_region(cid, rid).await {
                     Ok(_) => ResponseResult::success_empty(),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
@@ -2707,7 +2707,7 @@ impl RequestHandler for AppRequestHandler {
                 };
                 // Default to "always" shift since the protocol doesn't include shift data
                 match self
-                    .character_repo
+                    .character_location
                     .set_work_region(cid, rid, RegionShift::Always)
                     .await
                 {
@@ -2733,8 +2733,8 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 match self
-                    .character_repo
-                    .remove_region_relationship(cid, rid, &relationship_type)
+                    .character_location
+                    .remove_region_relationship(cid, rid, relationship_type)
                     .await
                 {
                     Ok(_) => ResponseResult::success_empty(),

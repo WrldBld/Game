@@ -166,10 +166,8 @@ impl ApprovalState {
     ) {
         // Send to Engine if we have a client
         if let Some(client) = engine_client.as_ref() {
-            let svc = wrldbldr_player_app::application::services::SessionCommandService::new(
-                Arc::clone(client),
-            );
-            if let Err(e) = svc.send_approval_decision(&request_id, decision.clone()) {
+            // Use DmControlPort method directly (available via blanket impl)
+            if let Err(e) = client.send_approval_decision(&request_id, decision.clone()) {
                 tracing::error!("Failed to send approval decision: {}", e);
             }
         }

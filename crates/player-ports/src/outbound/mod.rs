@@ -9,15 +9,27 @@
 //! `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;`
 
 pub mod api_port;
+pub mod game_connection;
 pub mod game_connection_port;
 pub mod platform;
 pub mod raw_api_port;
 pub mod testing;
 
 pub use api_port::{ApiError, ApiPort};
+pub use game_connection::{
+    ConnectionLifecyclePort, DmControlPort, GameRequestPort, NavigationPort, PlayerActionPort,
+    SessionCommandPort,
+};
 pub use game_connection_port::{ConnectionState, GameConnectionPort};
 pub use platform::{
     storage_keys, ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider,
     RandomProvider, SleepProvider, StorageProvider, TimeProvider,
 };
 pub use raw_api_port::RawApiPort;
+
+// Re-export mocks when testing
+#[cfg(any(test, feature = "testing"))]
+pub use game_connection::{
+    mock::CombinedGameConnectionMock, MockConnectionLifecyclePort, MockDmControlPort,
+    MockGameRequestPort, MockNavigationPort, MockPlayerActionPort, MockSessionCommandPort,
+};

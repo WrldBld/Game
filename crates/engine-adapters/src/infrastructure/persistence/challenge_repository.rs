@@ -22,7 +22,10 @@ use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, World
 use wrldbldr_engine_dto::persistence::{
     DifficultyRequestDto, OutcomesRequestDto, TriggerConditionRequestDto,
 };
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
+    ChallengeSkillPort,
+};
 
 /// Repository for Challenge operations
 pub struct Neo4jChallengeRepository {
@@ -36,15 +39,11 @@ impl Neo4jChallengeRepository {
 }
 
 // =============================================================================
-// ChallengeRepositoryPort Implementation
+// ChallengeCrudPort Implementation
 // =============================================================================
 
 #[async_trait]
-impl ChallengeRepositoryPort for Neo4jChallengeRepository {
-    // -------------------------------------------------------------------------
-    // Core CRUD
-    // -------------------------------------------------------------------------
-
+impl ChallengeCrudPort for Neo4jChallengeRepository {
     async fn create(&self, challenge: &Challenge) -> Result<()> {
         // Serialize complex fields as JSON
         let outcomes_json =
@@ -296,11 +295,14 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
             Ok(false)
         }
     }
+}
 
-    // -------------------------------------------------------------------------
-    // Skill Edge (REQUIRES_SKILL)
-    // -------------------------------------------------------------------------
+// =============================================================================
+// ChallengeSkillPort Implementation
+// =============================================================================
 
+#[async_trait]
+impl ChallengeSkillPort for Neo4jChallengeRepository {
     async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<()> {
         // Remove existing skill edge first, then create new one
         let q = query(
@@ -353,11 +355,14 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
         tracing::debug!("Removed required skill from challenge {}", challenge_id);
         Ok(())
     }
+}
 
-    // -------------------------------------------------------------------------
-    // Scene Edge (TIED_TO_SCENE)
-    // -------------------------------------------------------------------------
+// =============================================================================
+// ChallengeScenePort Implementation
+// =============================================================================
 
+#[async_trait]
+impl ChallengeScenePort for Neo4jChallengeRepository {
     async fn tie_to_scene(&self, challenge_id: ChallengeId, scene_id: SceneId) -> Result<()> {
         // Remove existing scene edge first, then create new one
         let q = query(
@@ -406,11 +411,14 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
         tracing::debug!("Untied challenge {} from scene", challenge_id);
         Ok(())
     }
+}
 
-    // -------------------------------------------------------------------------
-    // Prerequisite Edges (REQUIRES_COMPLETION_OF)
-    // -------------------------------------------------------------------------
+// =============================================================================
+// ChallengePrerequisitePort Implementation
+// =============================================================================
 
+#[async_trait]
+impl ChallengePrerequisitePort for Neo4jChallengeRepository {
     async fn add_prerequisite(
         &self,
         challenge_id: ChallengeId,
@@ -503,9 +511,16 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
 
         Ok(dependents)
     }
+}
 
+// =============================================================================
+// ChallengeAvailabilityPort Implementation
+// =============================================================================
+
+#[async_trait]
+impl ChallengeAvailabilityPort for Neo4jChallengeRepository {
     // -------------------------------------------------------------------------
-    // Location Availability Edges (AVAILABLE_AT)
+    // Location Availability (AVAILABLE_AT edges)
     // -------------------------------------------------------------------------
 
     async fn add_location_availability(
@@ -590,7 +605,7 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
     }
 
     // -------------------------------------------------------------------------
-    // Region Availability Edges (AVAILABLE_AT_REGION)
+    // Region Availability (AVAILABLE_AT_REGION edges)
     // -------------------------------------------------------------------------
 
     async fn list_by_region(&self, region_id: RegionId) -> Result<Vec<Challenge>> {
@@ -694,7 +709,7 @@ impl ChallengeRepositoryPort for Neo4jChallengeRepository {
     }
 
     // -------------------------------------------------------------------------
-    // Unlock Edges (ON_SUCCESS_UNLOCKS)
+    // Unlock (ON_SUCCESS_UNLOCKS edges)
     // -------------------------------------------------------------------------
 
     async fn add_unlock_location(

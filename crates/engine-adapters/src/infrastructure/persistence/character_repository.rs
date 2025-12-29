@@ -27,7 +27,10 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
-use wrldbldr_engine_ports::outbound::CharacterRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    CharacterActantialPort, CharacterCrudPort, CharacterDispositionPort, CharacterInventoryPort,
+    CharacterLocationPort, CharacterWantPort,
+};
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {
@@ -1698,11 +1701,15 @@ impl From<ArchetypeChangeStored> for ArchetypeChange {
 }
 
 // =============================================================================
-// CharacterRepositoryPort Implementation
+// ISP Sub-Trait Implementations
 // =============================================================================
 
+// -----------------------------------------------------------------------------
+// CharacterCrudPort - Core CRUD operations
+// -----------------------------------------------------------------------------
+
 #[async_trait]
-impl CharacterRepositoryPort for Neo4jCharacterRepository {
+impl CharacterCrudPort for Neo4jCharacterRepository {
     async fn create(&self, character: &Character) -> Result<()> {
         Neo4jCharacterRepository::create(self, character).await
     }
@@ -1726,8 +1733,14 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     async fn get_by_scene(&self, scene_id: SceneId) -> Result<Vec<Character>> {
         Neo4jCharacterRepository::get_by_scene(self, scene_id).await
     }
+}
 
-    // Wants
+// -----------------------------------------------------------------------------
+// CharacterWantPort - Want management
+// -----------------------------------------------------------------------------
+
+#[async_trait]
+impl CharacterWantPort for Neo4jCharacterRepository {
     async fn create_want(
         &self,
         character_id: CharacterId,
@@ -1752,17 +1765,27 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     async fn set_want_target(
         &self,
         want_id: WantId,
-        target_id: &str,
-        target_type: &str,
+        target_id: String,
+        target_type: String,
     ) -> Result<()> {
-        Neo4jCharacterRepository::set_want_target(self, want_id, target_id, target_type).await
+        Neo4jCharacterRepository::set_want_target(self, want_id, &target_id, &target_type).await
     }
 
     async fn remove_want_target(&self, want_id: WantId) -> Result<()> {
         Neo4jCharacterRepository::remove_want_target(self, want_id).await
     }
 
-    // Actantial Views
+    async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>> {
+        Neo4jCharacterRepository::get_want_target(self, want_id).await
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CharacterActantialPort - Actantial view management
+// -----------------------------------------------------------------------------
+
+#[async_trait]
+impl CharacterActantialPort for Neo4jCharacterRepository {
     async fn add_actantial_view(
         &self,
         subject_id: CharacterId,
@@ -1814,12 +1837,14 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         )
         .await
     }
+}
 
-    async fn get_want_target(&self, want_id: WantId) -> Result<Option<WantTarget>> {
-        Neo4jCharacterRepository::get_want_target(self, want_id).await
-    }
+// -----------------------------------------------------------------------------
+// CharacterInventoryPort - Inventory management
+// -----------------------------------------------------------------------------
 
-    // Inventory
+#[async_trait]
+impl CharacterInventoryPort for Neo4jCharacterRepository {
     async fn add_inventory_item(
         &self,
         character_id: CharacterId,
@@ -1875,8 +1900,14 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     ) -> Result<()> {
         Neo4jCharacterRepository::remove_inventory_item(self, character_id, item_id).await
     }
+}
 
-    // Character-Location Relationships
+// -----------------------------------------------------------------------------
+// CharacterLocationPort - Location relationship management
+// -----------------------------------------------------------------------------
+
+#[async_trait]
+impl CharacterLocationPort for Neo4jCharacterRepository {
     async fn set_home_location(
         &self,
         character_id: CharacterId,
@@ -1956,12 +1987,62 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
     async fn get_npcs_at_location(
         &self,
         location_id: LocationId,
-        time_of_day: Option<&str>,
+        time_of_day: Option<String>,
     ) -> Result<Vec<Character>> {
-        Neo4jCharacterRepository::get_npcs_at_location(self, location_id, time_of_day).await
+        Neo4jCharacterRepository::get_npcs_at_location(self, location_id, time_of_day.as_deref())
+            .await
     }
 
-    // Disposition & Relationship
+    async fn get_region_relationships(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<RegionRelationship>> {
+        Neo4jCharacterRepository::list_region_relationships(self, character_id).await
+    }
+
+    async fn set_home_region(&self, character_id: CharacterId, region_id: RegionId) -> Result<()> {
+        Neo4jCharacterRepository::set_home_region(self, character_id, region_id).await
+    }
+
+    async fn set_work_region(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        shift: RegionShift,
+    ) -> Result<()> {
+        Neo4jCharacterRepository::set_work_region(self, character_id, region_id, shift).await
+    }
+
+    async fn remove_region_relationship(
+        &self,
+        character_id: CharacterId,
+        region_id: RegionId,
+        relationship_type: String,
+    ) -> Result<()> {
+        match relationship_type.to_lowercase().as_str() {
+            "home" => Neo4jCharacterRepository::remove_home_region(self, character_id).await,
+            "work" => Neo4jCharacterRepository::remove_work_region(self, character_id).await,
+            "frequents" => {
+                Neo4jCharacterRepository::remove_frequented_region(self, character_id, region_id)
+                    .await
+            }
+            "avoids" => {
+                Neo4jCharacterRepository::remove_avoided_region(self, character_id, region_id).await
+            }
+            _ => Err(anyhow::anyhow!(
+                "Unknown relationship type: {}. Must be one of: home, work, frequents, avoids",
+                relationship_type
+            )),
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CharacterDispositionPort - NPC disposition tracking
+// -----------------------------------------------------------------------------
+
+#[async_trait]
+impl CharacterDispositionPort for Neo4jCharacterRepository {
     async fn get_disposition_toward_pc(
         &self,
         npc_id: CharacterId,
@@ -2002,49 +2083,5 @@ impl CharacterRepositoryPort for Neo4jCharacterRepository {
         disposition: DispositionLevel,
     ) -> Result<()> {
         Neo4jCharacterRepository::set_default_disposition(self, npc_id, disposition).await
-    }
-
-    // Character-Region Relationships
-    async fn get_region_relationships(
-        &self,
-        character_id: CharacterId,
-    ) -> Result<Vec<RegionRelationship>> {
-        Neo4jCharacterRepository::list_region_relationships(self, character_id).await
-    }
-
-    async fn set_home_region(&self, character_id: CharacterId, region_id: RegionId) -> Result<()> {
-        Neo4jCharacterRepository::set_home_region(self, character_id, region_id).await
-    }
-
-    async fn set_work_region(
-        &self,
-        character_id: CharacterId,
-        region_id: RegionId,
-        shift: RegionShift,
-    ) -> Result<()> {
-        Neo4jCharacterRepository::set_work_region(self, character_id, region_id, shift).await
-    }
-
-    async fn remove_region_relationship(
-        &self,
-        character_id: CharacterId,
-        region_id: RegionId,
-        relationship_type: &str,
-    ) -> Result<()> {
-        match relationship_type.to_lowercase().as_str() {
-            "home" => Neo4jCharacterRepository::remove_home_region(self, character_id).await,
-            "work" => Neo4jCharacterRepository::remove_work_region(self, character_id).await,
-            "frequents" => {
-                Neo4jCharacterRepository::remove_frequented_region(self, character_id, region_id)
-                    .await
-            }
-            "avoids" => {
-                Neo4jCharacterRepository::remove_avoided_region(self, character_id, region_id).await
-            }
-            _ => Err(anyhow::anyhow!(
-                "Unknown relationship type: {}. Must be one of: home, work, frequents, avoids",
-                relationship_type
-            )),
-        }
     }
 }

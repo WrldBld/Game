@@ -21,9 +21,9 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ChallengeRepositoryPort, LlmPort, LlmQueueItem, LlmQueueRequest,
+    ApprovalQueuePort, ChallengeCrudPort, ChallengeSkillPort, LlmPort, LlmQueueItem, LlmQueueRequest,
     LlmQueueResponse, LlmQueueServicePort, LlmRequestType as PortLlmRequestType,
-    LlmSuggestionContext as PortSuggestionContext, NarrativeEventRepositoryPort,
+    LlmSuggestionContext as PortSuggestionContext, NarrativeEventCrudPort,
     ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
     SkillRepositoryPort,
 };
@@ -41,9 +41,10 @@ pub struct LLMQueueService<
     llm_service: Arc<LLMService<L>>,
     llm_client: Arc<L>, // Keep for SuggestionService
     approval_queue: Arc<dyn ApprovalQueuePort<ApprovalRequestData>>,
-    challenge_repo: Arc<dyn ChallengeRepositoryPort>,
+    challenge_crud: Arc<dyn ChallengeCrudPort>,
+    challenge_skill: Arc<dyn ChallengeSkillPort>,
     skill_repo: Arc<dyn SkillRepositoryPort>,
-    narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
+    narrative_event_repo: Arc<dyn NarrativeEventCrudPort>,
     semaphore: Arc<Semaphore>,
     notifier: N,
     generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
@@ -67,7 +68,8 @@ impl<
     /// * `queue` - The LLM request queue
     /// * `llm_client` - The LLM client for processing requests
     /// * `approval_queue` - The approval queue for routing NPC responses
-    /// * `challenge_repo` - Repository for looking up challenge details
+    /// * `challenge_crud` - CRUD port for looking up challenge details
+    /// * `challenge_skill` - Skill port for getting required skills from challenges
     /// * `skill_repo` - Repository for looking up skill details
     /// * `narrative_event_repo` - Repository for looking up narrative event details
     /// * `batch_size` - Maximum concurrent LLM requests (default: 1)
@@ -77,9 +79,10 @@ impl<
         queue: Arc<Q>,
         llm_client: Arc<L>,
         approval_queue: Arc<dyn ApprovalQueuePort<ApprovalRequestData>>,
-        challenge_repo: Arc<dyn ChallengeRepositoryPort>,
+        challenge_crud: Arc<dyn ChallengeCrudPort>,
+        challenge_skill: Arc<dyn ChallengeSkillPort>,
         skill_repo: Arc<dyn SkillRepositoryPort>,
-        narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
+        narrative_event_repo: Arc<dyn NarrativeEventCrudPort>,
         batch_size: usize,
         notifier: N,
         generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
@@ -93,7 +96,8 @@ impl<
             )),
             llm_client,
             approval_queue,
-            challenge_repo,
+            challenge_crud,
+            challenge_skill,
             skill_repo,
             narrative_event_repo,
             semaphore: Arc::new(Semaphore::new(batch_size.max(1))),
@@ -203,7 +207,8 @@ impl<
             let llm_client_clone = self.llm_client.clone();
             let queue_clone = self.queue.clone();
             let approval_queue_clone = self.approval_queue.clone();
-            let challenge_repo_clone = self.challenge_repo.clone();
+            let challenge_crud_clone = self.challenge_crud.clone();
+            let challenge_skill_clone = self.challenge_skill.clone();
             let skill_repo_clone = self.skill_repo.clone();
             let narrative_event_repo_clone = self.narrative_event_repo.clone();
             let generation_event_tx_clone = self.generation_event_tx.clone();
@@ -261,10 +266,10 @@ impl<
                                     match challenge_id_result {
                                         Ok(challenge_id) => {
                                             // Look up challenge details
-                                            match challenge_repo_clone.get(challenge_id).await {
+                                            match challenge_crud_clone.get(challenge_id).await {
                                                 Ok(Some(challenge)) => {
                                                     // Fetch skill_id from REQUIRES_SKILL edge
-                                                    let skill_id = match challenge_repo_clone
+                                                    let skill_id = match challenge_skill_clone
                                                         .get_required_skill(challenge_id)
                                                         .await
                                                     {

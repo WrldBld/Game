@@ -10,7 +10,7 @@ use tracing::{debug, info, instrument};
 use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::entities::OutcomeTrigger;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::ChallengeRepositoryPort;
+use wrldbldr_engine_ports::outbound::ChallengeCrudPort;
 
 /// Result of executing outcome triggers
 #[derive(Debug, Clone)]
@@ -25,15 +25,13 @@ pub struct TriggerExecutionResult {
 
 /// Service for executing outcome triggers
 pub struct OutcomeTriggerService {
-    challenge_repository: Arc<dyn ChallengeRepositoryPort>,
+    challenge_crud: Arc<dyn ChallengeCrudPort>,
 }
 
 impl OutcomeTriggerService {
     /// Create a new OutcomeTriggerService
-    pub fn new(challenge_repository: Arc<dyn ChallengeRepositoryPort>) -> Self {
-        Self {
-            challenge_repository,
-        }
+    pub fn new(challenge_crud: Arc<dyn ChallengeCrudPort>) -> Self {
+        Self { challenge_crud }
     }
 
     /// Execute a list of outcome triggers
@@ -98,11 +96,7 @@ impl OutcomeTriggerService {
                 debug!(challenge_id = %challenge_id, "Enabling challenge");
 
                 // Update the challenge in the repository
-                if let Err(e) = self
-                    .challenge_repository
-                    .set_active(*challenge_id, true)
-                    .await
-                {
+                if let Err(e) = self.challenge_crud.set_active(*challenge_id, true).await {
                     return Err(format!("Failed to enable challenge: {}", e));
                 }
 
@@ -116,11 +110,7 @@ impl OutcomeTriggerService {
                 debug!(challenge_id = %challenge_id, "Disabling challenge");
 
                 // Update the challenge in the repository
-                if let Err(e) = self
-                    .challenge_repository
-                    .set_active(*challenge_id, false)
-                    .await
-                {
+                if let Err(e) = self.challenge_crud.set_active(*challenge_id, false).await {
                     return Err(format!("Failed to disable challenge: {}", e));
                 }
 
@@ -179,11 +169,11 @@ impl OutcomeTriggerService {
 mod tests {
     use super::*;
     use wrldbldr_domain::WorldId;
-    use wrldbldr_engine_ports::outbound::MockChallengeRepositoryPort;
+    use wrldbldr_engine_ports::outbound::MockChallengeRepository;
 
     #[tokio::test]
     async fn test_reveal_information() {
-        let mock = MockChallengeRepositoryPort::new();
+        let mock = MockChallengeRepository::new();
         let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 
@@ -202,7 +192,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_give_item() {
-        let mock = MockChallengeRepositoryPort::new();
+        let mock = MockChallengeRepository::new();
         let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 
@@ -222,7 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_triggers() {
-        let mock = MockChallengeRepositoryPort::new();
+        let mock = MockChallengeRepository::new();
         let service = OutcomeTriggerService::new(Arc::new(mock));
         let world_id = WorldId::new();
 

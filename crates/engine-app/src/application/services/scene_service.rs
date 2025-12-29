@@ -21,7 +21,7 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, LocationRepositoryPort, SceneRepositoryPort, SceneServicePort,
+    CharacterCrudPort, LocationRepositoryPort, SceneRepositoryPort, SceneServicePort,
     SceneWithRelations as PortSceneWithRelations,
 };
 
@@ -111,7 +111,7 @@ pub trait SceneService: Send + Sync {
 pub struct SceneServiceImpl {
     scene_repository: Arc<dyn SceneRepositoryPort>,
     location_repository: Arc<dyn LocationRepositoryPort>,
-    character_repository: Arc<dyn CharacterRepositoryPort>,
+    character_crud: Arc<dyn CharacterCrudPort>,
 }
 
 impl SceneServiceImpl {
@@ -119,12 +119,12 @@ impl SceneServiceImpl {
     pub fn new(
         scene_repository: Arc<dyn SceneRepositoryPort>,
         location_repository: Arc<dyn LocationRepositoryPort>,
-        character_repository: Arc<dyn CharacterRepositoryPort>,
+        character_crud: Arc<dyn CharacterCrudPort>,
     ) -> Self {
         Self {
             scene_repository,
             location_repository,
-            character_repository,
+            character_crud,
         }
     }
 
@@ -174,7 +174,7 @@ impl SceneService for SceneServiceImpl {
         // Verify all featured characters exist
         for char_id in &request.featured_characters {
             let _ = self
-                .character_repository
+                .character_crud
                 .get(*char_id)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Character not found: {}", char_id))?;
@@ -265,14 +265,14 @@ impl SceneService for SceneServiceImpl {
         if !featured_char_edges.is_empty() {
             // Use edge data if available
             for (char_id, _scene_char) in featured_char_edges {
-                if let Some(character) = self.character_repository.get(char_id).await? {
+                if let Some(character) = self.character_crud.get(char_id).await? {
                     featured_characters.push(character);
                 }
             }
         } else {
             // Fallback to embedded field during migration
             for char_id in &scene.featured_characters {
-                if let Some(character) = self.character_repository.get(*char_id).await? {
+                if let Some(character) = self.character_crud.get(*char_id).await? {
                     featured_characters.push(character);
                 }
             }
@@ -377,7 +377,7 @@ impl SceneService for SceneServiceImpl {
     async fn add_character(&self, scene_id: SceneId, character_id: CharacterId) -> Result<Scene> {
         // Verify the character exists
         let _ = self
-            .character_repository
+            .character_crud
             .get(character_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", character_id))?;
@@ -465,7 +465,7 @@ impl SceneService for SceneServiceImpl {
         // Verify all characters exist
         for char_id in &character_ids {
             let _ = self
-                .character_repository
+                .character_crud
                 .get(*char_id)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Character not found: {}", char_id))?;

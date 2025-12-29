@@ -20,9 +20,9 @@ use tracing::{debug, info, instrument, warn};
 use wrldbldr_domain::entities::{Scene, SceneCondition};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, FlagRepositoryPort, ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort, SceneRepositoryPort,
-    SceneResolutionResult as PortSceneResolutionResult, SceneResolutionServicePort,
+    FlagRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
+    SceneRepositoryPort, SceneResolutionResult as PortSceneResolutionResult,
+    SceneResolutionServicePort,
 };
 
 /// Result of scene resolution

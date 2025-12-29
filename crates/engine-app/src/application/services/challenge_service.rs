@@ -19,7 +19,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
 use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
-use wrldbldr_engine_ports::outbound::{ChallengeRepositoryPort, ChallengeServicePort};
+use wrldbldr_engine_ports::outbound::{
+    ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
+    ChallengeServicePort, ChallengeSkillPort,
+};
 
 /// Challenge service trait defining the application use cases
 #[async_trait]
@@ -157,16 +160,35 @@ pub trait ChallengeService: Send + Sync {
     ) -> Result<()>;
 }
 
-/// Default implementation of ChallengeService using port abstractions
+/// Default implementation of ChallengeService using ISP sub-trait abstractions
 #[derive(Clone)]
 pub struct ChallengeServiceImpl {
-    repository: Arc<dyn ChallengeRepositoryPort>,
+    crud: Arc<dyn ChallengeCrudPort>,
+    skill: Arc<dyn ChallengeSkillPort>,
+    scene: Arc<dyn ChallengeScenePort>,
+    prerequisite: Arc<dyn ChallengePrerequisitePort>,
+    availability: Arc<dyn ChallengeAvailabilityPort>,
 }
 
 impl ChallengeServiceImpl {
-    /// Create a new ChallengeServiceImpl with the given repository
-    pub fn new(repository: Arc<dyn ChallengeRepositoryPort>) -> Self {
-        Self { repository }
+    /// Create a new ChallengeServiceImpl with the given ISP sub-trait ports
+    ///
+    /// In typical usage, the composition root passes the same concrete repository
+    /// instance (coerced to each trait) to minimize duplication.
+    pub fn new(
+        crud: Arc<dyn ChallengeCrudPort>,
+        skill: Arc<dyn ChallengeSkillPort>,
+        scene: Arc<dyn ChallengeScenePort>,
+        prerequisite: Arc<dyn ChallengePrerequisitePort>,
+        availability: Arc<dyn ChallengeAvailabilityPort>,
+    ) -> Self {
+        Self {
+            crud,
+            skill,
+            scene,
+            prerequisite,
+            availability,
+        }
     }
 }
 
@@ -179,7 +201,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn get_challenge(&self, id: ChallengeId) -> Result<Option<Challenge>> {
         debug!(challenge_id = %id, "Fetching challenge");
-        self.repository
+        self.crud
             .get(id)
             .await
             .context("Failed to get challenge from repository")
@@ -188,7 +210,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn list_challenges(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
         debug!(world_id = %world_id, "Listing all challenges for world");
-        self.repository
+        self.crud
             .list_by_world(world_id)
             .await
             .context("Failed to list challenges from repository")
@@ -197,7 +219,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn list_active(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
         debug!(world_id = %world_id, "Listing active challenges for world");
-        self.repository
+        self.crud
             .list_active(world_id)
             .await
             .context("Failed to list active challenges from repository")
@@ -206,7 +228,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<Challenge>> {
         debug!(world_id = %world_id, "Listing favorite challenges for world");
-        self.repository
+        self.crud
             .list_favorites(world_id)
             .await
             .context("Failed to list favorite challenges from repository")
@@ -215,7 +237,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>> {
         debug!(scene_id = %scene_id, "Listing challenges for scene");
-        self.repository
+        self.crud
             .list_by_scene(scene_id)
             .await
             .context("Failed to list challenges by scene from repository")
@@ -224,7 +246,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Challenge>> {
         debug!(location_id = %location_id, "Listing challenges for location");
-        self.repository
+        self.crud
             .list_by_location(location_id)
             .await
             .context("Failed to list challenges by location from repository")
@@ -234,7 +256,7 @@ impl ChallengeService for ChallengeServiceImpl {
     async fn create_challenge(&self, challenge: Challenge) -> Result<Challenge> {
         debug!(challenge_id = %challenge.id, "Creating challenge");
 
-        self.repository
+        self.crud
             .create(&challenge)
             .await
             .context("Failed to create challenge in repository")?;
@@ -247,7 +269,7 @@ impl ChallengeService for ChallengeServiceImpl {
     async fn update_challenge(&self, challenge: Challenge) -> Result<Challenge> {
         debug!(challenge_id = %challenge.id, "Updating challenge");
 
-        self.repository
+        self.crud
             .update(&challenge)
             .await
             .context("Failed to update challenge in repository")?;
@@ -260,7 +282,7 @@ impl ChallengeService for ChallengeServiceImpl {
     async fn delete_challenge(&self, id: ChallengeId) -> Result<()> {
         debug!(challenge_id = %id, "Deleting challenge");
 
-        self.repository
+        self.crud
             .delete(id)
             .await
             .context("Failed to delete challenge from repository")?;
@@ -274,7 +296,7 @@ impl ChallengeService for ChallengeServiceImpl {
         debug!(challenge_id = %id, "Toggling favorite status for challenge");
 
         let is_favorite = self
-            .repository
+            .crud
             .toggle_favorite(id)
             .await
             .context("Failed to toggle favorite status")?;
@@ -287,7 +309,7 @@ impl ChallengeService for ChallengeServiceImpl {
     async fn set_active(&self, id: ChallengeId, active: bool) -> Result<()> {
         debug!(challenge_id = %id, active, "Setting active status for challenge");
 
-        self.repository
+        self.crud
             .set_active(id, active)
             .await
             .context("Failed to set active status")?;
@@ -303,7 +325,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn set_required_skill(&self, challenge_id: ChallengeId, skill_id: SkillId) -> Result<()> {
         debug!(challenge_id = %challenge_id, skill_id = %skill_id, "Setting required skill");
-        self.repository
+        self.skill
             .set_required_skill(challenge_id, skill_id)
             .await
             .context("Failed to set required skill")
@@ -312,7 +334,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn get_required_skill(&self, challenge_id: ChallengeId) -> Result<Option<SkillId>> {
         debug!(challenge_id = %challenge_id, "Getting required skill");
-        self.repository
+        self.skill
             .get_required_skill(challenge_id)
             .await
             .context("Failed to get required skill")
@@ -321,7 +343,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn remove_required_skill(&self, challenge_id: ChallengeId) -> Result<()> {
         debug!(challenge_id = %challenge_id, "Removing required skill");
-        self.repository
+        self.skill
             .remove_required_skill(challenge_id)
             .await
             .context("Failed to remove required skill")
@@ -334,7 +356,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn tie_to_scene(&self, challenge_id: ChallengeId, scene_id: SceneId) -> Result<()> {
         debug!(challenge_id = %challenge_id, scene_id = %scene_id, "Tying challenge to scene");
-        self.repository
+        self.scene
             .tie_to_scene(challenge_id, scene_id)
             .await
             .context("Failed to tie challenge to scene")
@@ -343,7 +365,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn get_tied_scene(&self, challenge_id: ChallengeId) -> Result<Option<SceneId>> {
         debug!(challenge_id = %challenge_id, "Getting tied scene");
-        self.repository
+        self.scene
             .get_tied_scene(challenge_id)
             .await
             .context("Failed to get tied scene")
@@ -352,7 +374,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn untie_from_scene(&self, challenge_id: ChallengeId) -> Result<()> {
         debug!(challenge_id = %challenge_id, "Untying challenge from scene");
-        self.repository
+        self.scene
             .untie_from_scene(challenge_id)
             .await
             .context("Failed to untie challenge from scene")
@@ -369,7 +391,7 @@ impl ChallengeService for ChallengeServiceImpl {
         prerequisite: ChallengePrerequisite,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, prereq_id = %prerequisite.challenge_id, "Adding prerequisite");
-        self.repository
+        self.prerequisite
             .add_prerequisite(challenge_id, prerequisite)
             .await
             .context("Failed to add prerequisite")
@@ -381,7 +403,7 @@ impl ChallengeService for ChallengeServiceImpl {
         challenge_id: ChallengeId,
     ) -> Result<Vec<ChallengePrerequisite>> {
         debug!(challenge_id = %challenge_id, "Getting prerequisites");
-        self.repository
+        self.prerequisite
             .get_prerequisites(challenge_id)
             .await
             .context("Failed to get prerequisites")
@@ -394,7 +416,7 @@ impl ChallengeService for ChallengeServiceImpl {
         prerequisite_id: ChallengeId,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, prereq_id = %prerequisite_id, "Removing prerequisite");
-        self.repository
+        self.prerequisite
             .remove_prerequisite(challenge_id, prerequisite_id)
             .await
             .context("Failed to remove prerequisite")
@@ -411,7 +433,7 @@ impl ChallengeService for ChallengeServiceImpl {
         availability: ChallengeLocationAvailability,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %availability.location_id, "Adding location availability");
-        self.repository
+        self.availability
             .add_location_availability(challenge_id, availability)
             .await
             .context("Failed to add location availability")
@@ -423,7 +445,7 @@ impl ChallengeService for ChallengeServiceImpl {
         challenge_id: ChallengeId,
     ) -> Result<Vec<ChallengeLocationAvailability>> {
         debug!(challenge_id = %challenge_id, "Getting location availabilities");
-        self.repository
+        self.availability
             .get_location_availabilities(challenge_id)
             .await
             .context("Failed to get location availabilities")
@@ -436,7 +458,7 @@ impl ChallengeService for ChallengeServiceImpl {
         location_id: LocationId,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %location_id, "Removing location availability");
-        self.repository
+        self.availability
             .remove_location_availability(challenge_id, location_id)
             .await
             .context("Failed to remove location availability")
@@ -453,7 +475,7 @@ impl ChallengeService for ChallengeServiceImpl {
         location_id: LocationId,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %location_id, "Adding unlock location");
-        self.repository
+        self.availability
             .add_unlock_location(challenge_id, location_id)
             .await
             .context("Failed to add unlock location")
@@ -462,7 +484,7 @@ impl ChallengeService for ChallengeServiceImpl {
     #[instrument(skip(self))]
     async fn get_unlock_locations(&self, challenge_id: ChallengeId) -> Result<Vec<LocationId>> {
         debug!(challenge_id = %challenge_id, "Getting unlock locations");
-        self.repository
+        self.availability
             .get_unlock_locations(challenge_id)
             .await
             .context("Failed to get unlock locations")
@@ -475,7 +497,7 @@ impl ChallengeService for ChallengeServiceImpl {
         location_id: LocationId,
     ) -> Result<()> {
         debug!(challenge_id = %challenge_id, location_id = %location_id, "Removing unlock location");
-        self.repository
+        self.availability
             .remove_unlock_location(challenge_id, location_id)
             .await
             .context("Failed to remove unlock location")

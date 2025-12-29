@@ -78,11 +78,23 @@ use wrldbldr_engine_ports::outbound::{
     AssetGenerationQueueServicePort,
     AssetServicePort,
     BroadcastPort,
+    // Challenge repository ports - split for ISP (Clean Interface Segregation)
+    ChallengeAvailabilityPort,
+    ChallengeCrudPort,
     ChallengeOutcomeApprovalServicePort,
+    ChallengePrerequisitePort,
     ChallengeResolutionServicePort,
+    ChallengeScenePort,
     ChallengeServicePort,
-    CharacterRepositoryPort,
+    ChallengeSkillPort,
+    // Character repository ports - split for ISP (Clean Interface Segregation)
+    CharacterActantialPort,
+    CharacterCrudPort,
+    CharacterDispositionPort,
+    CharacterInventoryPort,
+    CharacterLocationPort,
     CharacterServicePort,
+    CharacterWantPort,
     ClockPort,
     ComfyUIPort,
     DispositionServicePort,
@@ -100,12 +112,9 @@ use wrldbldr_engine_ports::outbound::{
     InteractionServicePort,
     ItemServicePort,
     LlmQueueServicePort,
-    LocationRepositoryPort,
     LocationServicePort,
     NarrativeEventApprovalServicePort,
     NarrativeEventServicePort,
-    ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort,
     // Queue service ports
     PlayerActionQueueServicePort,
     PlayerCharacterServicePort,
@@ -341,8 +350,15 @@ pub async fn new_app_state(
     // Create individual repository ports as Arc'd trait objects
     let world_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorldRepositoryPort> =
         Arc::new(repository.worlds());
-    let character_repo: Arc<dyn wrldbldr_engine_ports::outbound::CharacterRepositoryPort> =
-        Arc::new(repository.characters());
+    // Character repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all 6 traits - Rust coerces to needed interface
+    let character_concrete = Arc::new(repository.characters());
+    let character_crud: Arc<dyn CharacterCrudPort> = character_concrete.clone();
+    let character_want: Arc<dyn CharacterWantPort> = character_concrete.clone();
+    let character_actantial: Arc<dyn CharacterActantialPort> = character_concrete.clone();
+    let character_inventory: Arc<dyn CharacterInventoryPort> = character_concrete.clone();
+    let character_location: Arc<dyn CharacterLocationPort> = character_concrete.clone();
+    let character_disposition: Arc<dyn CharacterDispositionPort> = character_concrete.clone();
     let location_repo: Arc<dyn wrldbldr_engine_ports::outbound::LocationRepositoryPort> =
         Arc::new(repository.locations());
     let scene_repo: Arc<dyn wrldbldr_engine_ports::outbound::SceneRepositoryPort> =
@@ -353,19 +369,42 @@ pub async fn new_app_state(
         Arc::new(repository.skills());
     let interaction_repo: Arc<dyn wrldbldr_engine_ports::outbound::InteractionRepositoryPort> =
         Arc::new(repository.interactions());
-    let story_event_repo: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventRepositoryPort> =
-        Arc::new(repository.story_events());
-    let challenge_repo: Arc<dyn wrldbldr_engine_ports::outbound::ChallengeRepositoryPort> =
-        Arc::new(repository.challenges());
+    // StoryEvent repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all 4 traits - Rust coerces to needed interface
+    let story_event_concrete = Arc::new(repository.story_events());
+    let story_event_crud: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventCrudPort> =
+        story_event_concrete.clone();
+    let story_event_edge: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventEdgePort> =
+        story_event_concrete.clone();
+    let story_event_query: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventQueryPort> =
+        story_event_concrete.clone();
+    let story_event_dialogue: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventDialoguePort> =
+        story_event_concrete.clone();
+    // Challenge repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all 5 traits - Rust coerces to needed interface
+    let challenge_concrete = Arc::new(repository.challenges());
+    let challenge_crud: Arc<dyn ChallengeCrudPort> = challenge_concrete.clone();
+    let challenge_skill: Arc<dyn ChallengeSkillPort> = challenge_concrete.clone();
+    let challenge_scene: Arc<dyn ChallengeScenePort> = challenge_concrete.clone();
+    let challenge_prerequisite: Arc<dyn ChallengePrerequisitePort> = challenge_concrete.clone();
+    let challenge_availability: Arc<dyn ChallengeAvailabilityPort> = challenge_concrete.clone();
     let asset_repo: Arc<dyn wrldbldr_engine_ports::outbound::AssetRepositoryPort> =
         Arc::new(repository.assets());
     let workflow_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorkflowRepositoryPort> =
         Arc::new(repository.workflows());
     let sheet_template_repo: Arc<dyn wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort> =
         Arc::new(repository.sheet_templates());
-    let narrative_event_repo: Arc<
-        dyn wrldbldr_engine_ports::outbound::NarrativeEventRepositoryPort,
-    > = Arc::new(repository.narrative_events());
+    // NarrativeEvent repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all 4 traits - Rust coerces to needed interface
+    let narrative_event_concrete = Arc::new(repository.narrative_events());
+    let narrative_event_crud: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventCrudPort> =
+        narrative_event_concrete.clone();
+    let narrative_event_tie: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventTiePort> =
+        narrative_event_concrete.clone();
+    let narrative_event_npc: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventNpcPort> =
+        narrative_event_concrete.clone();
+    let narrative_event_query: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventQueryPort> =
+        narrative_event_concrete.clone();
     let event_chain_repo: Arc<dyn wrldbldr_engine_ports::outbound::EventChainRepositoryPort> =
         Arc::new(repository.event_chains());
     let player_character_repo: Arc<
@@ -404,7 +443,8 @@ pub async fn new_app_state(
 
     let character_service_impl = CharacterServiceImpl::new(
         world_repo.clone(),
-        character_repo.clone(),
+        character_crud.clone(),
+        character_want.clone(),
         relationship_repo.clone(),
         settings_service.clone(),
         clock.clone(),
@@ -431,7 +471,7 @@ pub async fn new_app_state(
     let scene_service_impl = SceneServiceImpl::new(
         scene_repo.clone(),
         location_repo.clone(),
-        character_repo.clone(),
+        character_crud.clone(),
     );
     let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> =
         Arc::new(scene_service_impl.clone());
@@ -449,25 +489,44 @@ pub async fn new_app_state(
     let interaction_service_port: Arc<dyn InteractionServicePort> =
         Arc::new(interaction_service_impl);
 
-    // Temporarily create a simple story event service without event_bus, will update after event_bus is created
-    let story_event_repo_for_service = story_event_repo.clone();
+    // StoryEvent ISP ports needed for services (will be used after event_bus is created)
+    let story_event_crud_for_service = story_event_crud.clone();
+    let story_event_edge_for_service = story_event_edge.clone();
+    let story_event_query_for_service = story_event_query.clone();
+    let story_event_dialogue_for_service = story_event_dialogue.clone();
 
-    let challenge_service_for_port = ChallengeServiceImpl::new(challenge_repo.clone());
+    let challenge_service_for_port = ChallengeServiceImpl::new(
+        challenge_crud.clone(),
+        challenge_skill.clone(),
+        challenge_scene.clone(),
+        challenge_prerequisite.clone(),
+        challenge_availability.clone(),
+    );
     let challenge_service: Arc<dyn wrldbldr_engine_app::application::services::ChallengeService> =
         Arc::new(challenge_service_for_port.clone());
     let challenge_service_port: Arc<dyn ChallengeServicePort> =
         Arc::new(challenge_service_for_port);
     // Keep concrete version for ChallengeResolutionService generics
-    let challenge_service_impl = ChallengeServiceImpl::new(challenge_repo.clone());
+    let challenge_service_impl = ChallengeServiceImpl::new(
+        challenge_crud.clone(),
+        challenge_skill.clone(),
+        challenge_scene.clone(),
+        challenge_prerequisite.clone(),
+        challenge_availability.clone(),
+    );
 
-    // Narrative event service will be created after event_bus
-    let narrative_event_repo_for_service = narrative_event_repo.clone();
-    // Repos needed for trigger evaluation service (Phase 2)
-    let narrative_event_repo_for_triggers = narrative_event_repo.clone();
-    let story_event_repo_for_triggers = story_event_repo.clone();
-    // Repos needed for event effect executor (Phase 2)
-    let narrative_event_repo_for_effects = narrative_event_repo.clone();
-    let challenge_repo_for_effects = challenge_repo.clone();
+    // NarrativeEvent ISP ports needed for services (will be created after event_bus)
+    let narrative_event_crud_for_service = narrative_event_crud.clone();
+    let narrative_event_tie_for_service = narrative_event_tie.clone();
+    let narrative_event_npc_for_service = narrative_event_npc.clone();
+    let narrative_event_query_for_service = narrative_event_query.clone();
+    // Repos needed for trigger evaluation service (Phase 2) - uses only specific ISP traits
+    let narrative_event_crud_for_triggers = narrative_event_crud.clone();
+    let story_event_query_for_triggers = story_event_query.clone();
+    let story_event_edge_for_triggers = story_event_edge.clone();
+    // Repos needed for event effect executor (Phase 2) - uses only NarrativeEventCrudPort and ChallengeCrudPort
+    let narrative_event_crud_for_effects = narrative_event_crud.clone();
+    let challenge_crud_for_effects = challenge_crud.clone();
 
     // Clone event_chain_repo for port version before it's moved
     let event_chain_repo_for_port = event_chain_repo.clone();
@@ -554,7 +613,8 @@ pub async fn new_app_state(
         Arc::new(scene_resolution_service_impl);
 
     // Create outcome trigger service for challenge resolution (Phase 22D)
-    let outcome_trigger_service = Arc::new(OutcomeTriggerService::new(challenge_repo.clone()));
+    // Uses ISP: ChallengeCrudPort only
+    let outcome_trigger_service = Arc::new(OutcomeTriggerService::new(challenge_crud.clone()));
 
     // Create world connection manager for WebSocket-first architecture
     let world_connection_manager = new_shared_manager();
@@ -613,10 +673,12 @@ pub async fn new_app_state(
     ));
 
     // Create story event service with event bus
-    // Clone repo before it's moved so we can create port version
-    let story_event_repo_for_port = story_event_repo_for_service.clone();
+    // Uses ISP sub-traits: crud, edge, query, dialogue
     let story_event_service_impl_for_port = StoryEventServiceImpl::new(
-        story_event_repo_for_service,
+        story_event_crud_for_service.clone(),
+        story_event_edge_for_service.clone(),
+        story_event_query_for_service.clone(),
+        story_event_dialogue_for_service.clone(),
         event_bus.clone(),
         clock.clone(),
     );
@@ -627,12 +689,23 @@ pub async fn new_app_state(
         Arc::new(story_event_service_impl_for_port);
 
     // Create narrative event service with event bus
+    // Uses ISP sub-traits: crud, tie, npc, query
     // Create both trait object and concrete impl (impl needed for NarrativeEventApprovalService generics)
-    let narrative_event_service_impl =
-        NarrativeEventServiceImpl::new(narrative_event_repo_for_service.clone(), event_bus.clone());
+    let narrative_event_service_impl = NarrativeEventServiceImpl::new(
+        narrative_event_crud_for_service.clone(),
+        narrative_event_tie_for_service.clone(),
+        narrative_event_npc_for_service.clone(),
+        narrative_event_query_for_service.clone(),
+        event_bus.clone(),
+    );
     // Clone for port version
-    let narrative_event_service_impl_for_port =
-        NarrativeEventServiceImpl::new(narrative_event_repo_for_service.clone(), event_bus.clone());
+    let narrative_event_service_impl_for_port = NarrativeEventServiceImpl::new(
+        narrative_event_crud_for_service.clone(),
+        narrative_event_tie_for_service.clone(),
+        narrative_event_npc_for_service.clone(),
+        narrative_event_query_for_service.clone(),
+        event_bus.clone(),
+    );
     let narrative_event_service: Arc<
         dyn wrldbldr_engine_app::application::services::NarrativeEventService,
     > = Arc::new(narrative_event_service_impl_for_port.clone());
@@ -659,13 +732,15 @@ pub async fn new_app_state(
     let generation_event_tx_for_llm = generation_event_tx.clone();
 
     let llm_client_arc = Arc::new(llm_client.clone());
+    // LLMQueueService uses ISP: ChallengeCrudPort + ChallengeSkillPort, NarrativeEventCrudPort
     let llm_queue_service = Arc::new(LLMQueueService::new(
         llm_queue.clone(),
         llm_client_arc,
         approval_queue.clone(),
-        challenge_repo.clone(),
+        challenge_crud.clone(),
+        challenge_skill.clone(),
         skill_repo.clone(),
-        narrative_event_repo.clone(),
+        narrative_event_crud.clone(), // ISP: Uses only NarrativeEventCrudPort
         queue_factory.config().llm_batch_size,
         queue_factory.llm_notifier(),
         generation_event_tx_for_llm,
@@ -763,23 +838,28 @@ pub async fn new_app_state(
     ));
 
     // Create trigger evaluation service (Phase 2)
+    // Uses ISP: NarrativeEventCrudPort, StoryEventQueryPort, StoryEventEdgePort
     let trigger_evaluation_service = Arc::new(TriggerEvaluationService::new(
-        narrative_event_repo_for_triggers,
+        narrative_event_crud_for_triggers,
         player_character_repo_for_triggers,
-        story_event_repo_for_triggers,
+        story_event_query_for_triggers,
+        story_event_edge_for_triggers,
     ));
 
     // Create event effect executor (Phase 2)
+    // Uses ISP: ChallengeCrudPort, NarrativeEventCrudPort only
     let event_effect_executor = Arc::new(EventEffectExecutor::new(
-        challenge_repo_for_effects,
-        narrative_event_repo_for_effects,
+        challenge_crud_for_effects,
+        narrative_event_crud_for_effects,
         relationship_repo_for_effects,
     ));
 
     // Create staging service (Staging System)
     // Note: StagingService is generic over concrete types, so we need concrete Arc<...>
+    // Uses ISP: NarrativeEventCrudPort only
     let staging_repo = Arc::new(repository.stagings());
     let region_repo_for_staging = Arc::new(repository.regions());
+    // Create a fresh concrete narrative_event_repo for staging (it only needs CrudPort)
     let narrative_event_repo_for_staging = Arc::new(repository.narrative_events());
     let llm_for_staging = Arc::new(llm_client.clone());
     let staging_service = Arc::new(StagingService::new(
@@ -800,8 +880,9 @@ pub async fn new_app_state(
     ));
 
     // Create disposition service (P1.4)
+    // Uses ISP: CharacterDispositionPort only
     let disposition_service = Arc::new(DispositionServiceImpl::new(
-        character_repo.clone(),
+        character_disposition.clone(),
         clock.clone(),
     ));
 
@@ -813,8 +894,11 @@ pub async fn new_app_state(
         ));
 
     // Create actantial context service (P1.5)
+    // Uses ISP: CharacterCrudPort, CharacterWantPort, CharacterActantialPort
     let actantial_context_service = Arc::new(ActantialContextServiceImpl::new(
-        character_repo.clone(),
+        character_crud.clone(),
+        character_want.clone(),
+        character_actantial.clone(),
         player_character_repo_for_actantial.clone(),
         goal_repo,
         want_repo,
@@ -822,6 +906,7 @@ pub async fn new_app_state(
     ));
 
     // Create prompt context service for building LLM prompts from player actions
+    // Uses ISP: CharacterCrudPort only for character lookups
     let prompt_context_service: Arc<
         dyn wrldbldr_engine_app::application::services::PromptContextService,
     > = Arc::new(PromptContextServiceImpl::new(
@@ -830,7 +915,7 @@ pub async fn new_app_state(
         challenge_service.clone(),
         skill_service.clone(),
         narrative_event_service.clone(),
-        character_repo.clone(),
+        character_crud.clone(),
         player_character_repo_for_actantial,
         region_repo.clone(),
         disposition_service.clone(),
@@ -857,9 +942,10 @@ pub async fn new_app_state(
 
     // Create request handler for WebSocket-first architecture
     // Services are already Arc<dyn Trait>, so just clone them
-    // Clone repos for the handler and use cases
-    let character_repo_for_handler = character_repo.clone();
-    let character_repo_for_use_cases = character_repo.clone();
+    // Clone ISP sub-trait ports for the handler and use cases
+    // AppRequestHandler needs CharacterLocationPort, use cases need CharacterCrudPort
+    let character_location_for_handler = character_location.clone();
+    let character_crud_for_use_cases = character_crud.clone();
     let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
     let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
@@ -882,7 +968,7 @@ pub async fn new_app_state(
         item_service.clone(),
         region_service,
         sheet_template_service.clone(),
-        character_repo_for_handler,
+        character_location_for_handler, // ISP: Uses CharacterLocationPort
         observation_repo_for_handler,
         region_repo.clone(),
         suggestion_enqueue_adapter,
@@ -935,10 +1021,11 @@ pub async fn new_app_state(
     ));
 
     // Create staging approval use case
+    // Uses ISP: CharacterCrudPort for character lookups
     let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
         staging_service_adapter,
         staging_state_adapter,
-        character_repo_for_use_cases.clone(),
+        character_crud_for_use_cases.clone(),
         region_repo.clone(),
         location_repo.clone(),
         broadcast.clone(),
@@ -961,9 +1048,10 @@ pub async fn new_app_state(
     let world_message_adapter = Arc::new(WorldMessageAdapter::new(world_connection_manager.clone()));
 
     // Create observation use case
+    // Uses ISP: CharacterCrudPort for character lookups
     let observation_use_case = Arc::new(ObservationUseCase::new(
         player_character_repo_for_handler.clone(),
-        character_repo_for_use_cases,
+        character_crud_for_use_cases,
         observation_repo_for_use_cases,
         world_message_adapter,
         broadcast.clone(),

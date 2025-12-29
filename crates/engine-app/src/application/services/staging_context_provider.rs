@@ -18,16 +18,16 @@ use wrldbldr_domain::value_objects::{
     StagingContext,
 };
 use wrldbldr_domain::{CharacterId, GameTime, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::{NarrativeEventRepositoryPort, RegionRepositoryPort};
+use wrldbldr_engine_ports::outbound::{NarrativeEventCrudPort, RegionRepositoryPort};
 
 /// Service for gathering context needed for staging decisions
-pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> {
+pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventCrudPort> {
     region_repository: Arc<R>,
     narrative_event_repository: Arc<N>,
     story_event_service: Arc<dyn StoryEventService>,
 }
 
-impl<R: RegionRepositoryPort, N: NarrativeEventRepositoryPort> StagingContextProvider<R, N> {
+impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<R, N> {
     pub fn new(
         region_repository: Arc<R>,
         narrative_event_repository: Arc<N>,

@@ -9,16 +9,16 @@
 //! 3. `NarrativeEventNpcPort` - Featured NPC management (5 methods)
 //! 4. `NarrativeEventQueryPort` - Query by relationships (4 methods)
 //!
-//! # Backward Compatibility
+//! # Clean ISP Design
 //!
-//! `NarrativeEventRepositoryPort` is retained as a super-trait that extends all four.
-//! Existing code using `Arc<dyn NarrativeEventRepositoryPort>` continues to work.
+//! Services should depend only on the traits they actually need:
+//! - Services needing only CRUD operations depend on `NarrativeEventCrudPort`
+//! - Services managing relationships depend on `NarrativeEventTiePort`
+//! - Services managing NPCs depend on `NarrativeEventNpcPort`
+//! - Services performing queries depend on `NarrativeEventQueryPort`
 //!
-//! # Migration Path
-//!
-//! 1. New code can depend on specific smaller traits (e.g., `NarrativeEventCrudPort`)
-//! 2. When migrating, change `NarrativeEventRepositoryPort` to specific trait bounds
-//! 3. Eventually, services can accept only the traits they need
+//! The composition root passes the same concrete repository instance to each service,
+//! and Rust coerces to the needed trait interface.
 
 mod crud_port;
 mod npc_port;
@@ -30,27 +30,10 @@ pub use npc_port::NarrativeEventNpcPort;
 pub use query_port::NarrativeEventQueryPort;
 pub use tie_port::NarrativeEventTiePort;
 
-use async_trait::async_trait;
-
-/// Backward-compatible super-trait combining all NarrativeEvent repository capabilities.
-///
-/// This trait exists for compatibility with code that depends on the full repository interface.
-/// New code should prefer depending on specific smaller traits (e.g., `NarrativeEventCrudPort`).
-#[async_trait]
-pub trait NarrativeEventRepositoryPort:
-    NarrativeEventCrudPort + NarrativeEventTiePort + NarrativeEventNpcPort + NarrativeEventQueryPort
-{
-}
-
-// Blanket implementation: anything that implements all sub-traits is a NarrativeEventRepositoryPort
-impl<T> NarrativeEventRepositoryPort for T where
-    T: NarrativeEventCrudPort + NarrativeEventTiePort + NarrativeEventNpcPort + NarrativeEventQueryPort
-{
-}
-
 #[cfg(any(test, feature = "testing"))]
 mod mock {
     use super::*;
+    use async_trait::async_trait;
     use mockall::mock;
     use wrldbldr_domain::{
         ActId, CharacterId, EventChainMembership, FeaturedNpc, LocationId, NarrativeEvent,

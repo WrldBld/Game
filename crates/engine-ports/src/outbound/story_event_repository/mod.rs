@@ -9,10 +9,16 @@
 //! 3. `StoryEventQueryPort` - Query operations (10 methods)
 //! 4. `StoryEventDialoguePort` - Dialogue-specific operations (2 methods)
 //!
-//! # Backward Compatibility
+//! # Clean ISP Design
 //!
-//! `StoryEventRepositoryPort` is retained as a super-trait that extends all four.
-//! Existing code using `Arc<dyn StoryEventRepositoryPort>` continues to work.
+//! Services should depend only on the traits they actually need:
+//! - Services needing only CRUD operations depend on `StoryEventCrudPort`
+//! - Services managing edges depend on `StoryEventEdgePort`
+//! - Services performing queries depend on `StoryEventQueryPort`
+//! - Services handling dialogues depend on `StoryEventDialoguePort`
+//!
+//! The composition root passes the same concrete repository instance to each service,
+//! and Rust coerces to the needed trait interface.
 
 mod crud_port;
 mod dialogue_port;
@@ -24,24 +30,10 @@ pub use dialogue_port::StoryEventDialoguePort;
 pub use edge_port::StoryEventEdgePort;
 pub use query_port::StoryEventQueryPort;
 
-use async_trait::async_trait;
-
-/// Backward-compatible super-trait combining all StoryEvent repository capabilities.
-#[async_trait]
-pub trait StoryEventRepositoryPort:
-    StoryEventCrudPort + StoryEventEdgePort + StoryEventQueryPort + StoryEventDialoguePort
-{
-}
-
-// Blanket implementation: anything that implements all sub-traits is a StoryEventRepositoryPort
-impl<T> StoryEventRepositoryPort for T where
-    T: StoryEventCrudPort + StoryEventEdgePort + StoryEventQueryPort + StoryEventDialoguePort
-{
-}
-
 #[cfg(any(test, feature = "testing"))]
 mod mock {
     use super::*;
+    use async_trait::async_trait;
     use mockall::mock;
     use wrldbldr_domain::{
         ChallengeId, CharacterId, InvolvedCharacter, LocationId, NarrativeEventId,

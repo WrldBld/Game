@@ -20,7 +20,7 @@ use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingCo
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
-    NarrativeEventRepositoryPort, RegionRepositoryPort, StagedNpcProposal as PortStagedNpcProposal,
+    NarrativeEventCrudPort, RegionRepositoryPort, StagedNpcProposal as PortStagedNpcProposal,
     StagingProposal as PortStagingProposal, StagingRepositoryPort, StagingServicePort,
 };
 
@@ -53,7 +53,7 @@ pub struct StagingService<L, R, N, S>
 where
     L: LlmPort,
     R: RegionRepositoryPort,
-    N: NarrativeEventRepositoryPort,
+    N: NarrativeEventCrudPort,
     S: StagingRepositoryPort,
 {
     staging_repository: Arc<S>,
@@ -68,7 +68,7 @@ impl<L, R, N, S> StagingService<L, R, N, S>
 where
     L: LlmPort,
     R: RegionRepositoryPort,
-    N: NarrativeEventRepositoryPort,
+    N: NarrativeEventCrudPort,
     S: StagingRepositoryPort,
 {
     pub fn new(
@@ -484,7 +484,7 @@ impl<L, R, N, S> StagingServicePort for StagingService<L, R, N, S>
 where
     L: LlmPort + Send + Sync + 'static,
     R: RegionRepositoryPort + Send + Sync + 'static,
-    N: NarrativeEventRepositoryPort + Send + Sync + 'static,
+    N: NarrativeEventCrudPort + Send + Sync + 'static,
     S: StagingRepositoryPort + Send + Sync + 'static,
 {
     async fn get_current_staging(

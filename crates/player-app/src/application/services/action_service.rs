@@ -15,6 +15,7 @@ use wrldbldr_player_ports::outbound::GameConnectionPort;
 ///
 /// This service uses the GameConnectionPort trait to abstract the actual
 /// connection implementation, allowing for different backends or testing.
+/// The PlayerActionPort methods are available via blanket implementation.
 pub struct ActionService {
     connection: Arc<dyn GameConnectionPort>,
 }

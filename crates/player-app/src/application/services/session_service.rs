@@ -56,7 +56,9 @@ pub enum SessionEvent {
 
 /// Session service for managing Engine connection (cross-platform).
 ///
-/// This service depends only on the `GameConnectionPort` abstraction.
+/// This service depends on the `GameConnectionPort` abstraction.
+/// The ISP sub-traits (ConnectionLifecyclePort, SessionCommandPort) are available
+/// via blanket implementations on GameConnectionPort.
 pub struct SessionService {
     connection: Arc<dyn GameConnectionPort>,
 }
