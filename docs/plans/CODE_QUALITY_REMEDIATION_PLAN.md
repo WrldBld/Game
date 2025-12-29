@@ -1515,85 +1515,229 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 ### 3.5 Split God Traits
 
-**Issue**: 5 repository/port traits are too large (30+ methods each).
+**Issue**: 5 repository/port traits are too large (30+ methods each), violating Interface Segregation Principle.
 
 > **WARNING**: Splitting these traits will break test compilation until Phase 7 (Test Infrastructure) updates the mock implementations. Consider doing this as the last item in Phase 3, or as a separate PR that includes mock updates.
 
 **VERIFIED COUNTS (Fifth Review)**: 5 god traits with **169** total methods.
 
-**Traits to split**:
+##### Summary Table
 
-#### CharacterRepositoryPort (42 methods - VERIFIED)
+| Trait | Methods | New Traits | Effort |
+|-------|---------|------------|--------|
+| CharacterRepositoryPort | 42 | 6 | High |
+| StoryEventRepositoryPort | 34 | 4 | Medium |
+| NarrativeEventRepositoryPort | 30 | 4 | Medium |
+| ChallengeRepositoryPort | 31 | 5 | Medium |
+| GameConnectionPort | 32 | 6 | High |
+| **Total** | **169** | **25** | |
+
+#### 3.5.1 CharacterRepositoryPort (42 methods)
 
 **Current**: `engine-ports/src/outbound/repository_port.rs:94-382`
 
-**Split into**:
-- `CharacterCrudPort` - Basic CRUD + get_by_scene (7 methods)
-- `CharacterWantsPort` - Want/motivation operations + get_want_target (7 methods)
-- `CharacterActantialPort` - Actantial views (5 methods)
-- `CharacterInventoryPort` - Inventory operations (5 methods)
-- `CharacterLocationPort` - Location relationships (8 methods)
-- `NpcDispositionPort` - NPC disposition (6 methods)
-- `CharacterRegionPort` - Region relationships (4 methods)
+##### CharacterCrudPort (6 methods)
+**Responsibility**: Core character entity CRUD operations
+- `create(&self, character: &Character) -> Result<()>`
+- `get(&self, id: CharacterId) -> Result<Option<Character>>`
+- `list(&self, world_id: WorldId) -> Result<Vec<Character>>`
+- `update(&self, character: &Character) -> Result<()>`
+- `delete(&self, id: CharacterId) -> Result<()>`
+- `get_by_scene(&self, scene_id: SceneId) -> Result<Vec<Character>>`
 
-#### StoryEventRepositoryPort (34 methods - VERIFIED)
+**Used By**: CharacterServiceImpl, ActantialContextServiceImpl, StagingApprovalUseCase
+
+##### CharacterWantPort (7 methods)
+**Responsibility**: Character wants and motivations management
+- `create_want`, `get_wants`, `update_want`, `delete_want`
+- `set_want_target`, `remove_want_target`, `get_want_target`
+
+**Used By**: CharacterServiceImpl, ActantialContextServiceImpl
+
+##### CharacterActantialPort (5 methods)
+**Responsibility**: Actantial model views (Helper/Opponent/Sender/Receiver)
+- `add_actantial_view`, `add_actantial_view_to_pc`
+- `get_actantial_views`
+- `remove_actantial_view`, `remove_actantial_view_to_pc`
+
+**Used By**: ActantialContextServiceImpl (exclusively)
+
+##### CharacterInventoryPort (5 methods)
+**Responsibility**: NPC inventory management
+- `add_inventory_item`, `get_inventory`, `get_inventory_item`
+- `update_inventory_item`, `remove_inventory_item`
+
+**Used By**: Item-related services
+
+##### CharacterLocationPort (13 methods)
+**Responsibility**: Character location/region relationships and presence queries
+- Home: `set_home_location`, `remove_home_location`
+- Work: `set_work_location`, `remove_work_location`
+- Frequented: `add_frequented_location`, `remove_frequented_location`
+- Avoided: `add_avoided_location`, `remove_avoided_location`
+- Query: `get_npcs_at_location`
+- Region: `get_region_relationships`, `set_home_region`, `set_work_region`, `remove_region_relationship`
+
+**Used By**: Staging services, Scene resolution
+
+##### CharacterDispositionPort (6 methods)
+**Responsibility**: NPC disposition and relationship tracking
+- `get_disposition_toward_pc`, `set_disposition_toward_pc`
+- `get_scene_dispositions`, `get_all_npc_dispositions_for_pc`
+- `get_default_disposition`, `set_default_disposition`
+
+**Used By**: DispositionServiceImpl (exclusively)
+
+##### Migration Notes for CharacterRepositoryPort
+- `CharacterServiceImpl` needs: `CharacterCrudPort + CharacterWantPort`
+- `ActantialContextServiceImpl` needs: `CharacterCrudPort + CharacterWantPort + CharacterActantialPort`
+- `DispositionServiceImpl` needs: `CharacterCrudPort + CharacterDispositionPort`
+
+---
+
+#### 3.5.2 StoryEventRepositoryPort (34 methods)
 
 **Current**: `engine-ports/src/outbound/repository_port.rs:1184-1364`
 
-**Split into**:
-- `StoryEventCrudPort` - CRUD and search (14 methods)
-- `StoryEventRelationshipPort` - Edge methods (18 methods)
-- `DialogueHistoryPort` - Dialogue-specific methods (2 methods)
+##### StoryEventCrudPort (7 methods)
+- `create`, `get`, `update_summary`, `set_hidden`, `update_tags`, `delete`, `count_by_world`
 
-#### NarrativeEventRepositoryPort (30 methods - VERIFIED)
+##### StoryEventEdgePort (15 methods)
+- Location: `set_location`, `get_location`, `remove_location`
+- Scene: `set_scene`, `get_scene`, `remove_scene`
+- Characters: `add_involved_character`, `get_involved_characters`, `remove_involved_character`
+- Narrative: `set_triggered_by`, `get_triggered_by`, `remove_triggered_by`
+- Challenge: `set_recorded_challenge`, `get_recorded_challenge`, `remove_recorded_challenge`
+
+##### StoryEventQueryPort (10 methods)
+- `list_by_world`, `list_by_world_paginated`, `list_visible`
+- `search_by_tags`, `search_by_text`
+- `list_by_character`, `list_by_location`, `list_by_narrative_event`, `list_by_challenge`, `list_by_scene`
+
+##### StoryEventDialoguePort (2 methods)
+- `get_dialogues_with_npc`, `update_spoke_to_edge`
+
+---
+
+#### 3.5.3 NarrativeEventRepositoryPort (30 methods)
 
 **Current**: `engine-ports/src/outbound/repository_port.rs:1372-1506`
 
-**Split into**:
-- `NarrativeEventCrudPort` - CRUD and status (12 methods)
-- `NarrativeEventRelationshipPort` - Scene/location/act edges (9 methods)
-- `NarrativeEventNpcPort` - Featured NPC operations (5 methods)
-- `NarrativeEventQueryPort` - Query by relationships (4 methods)
+##### NarrativeEventCrudPort (12 methods)
+- CRUD: `create`, `get`, `update`, `delete`
+- List: `list_by_world`, `list_active`, `list_favorites`, `list_pending`
+- State: `toggle_favorite`, `set_active`, `mark_triggered`, `reset_triggered`
 
-#### ChallengeRepositoryPort (31 methods - VERIFIED)
+##### NarrativeEventTiePort (9 methods)
+- Scene: `tie_to_scene`, `get_tied_scene`, `untie_from_scene`
+- Location: `tie_to_location`, `get_tied_location`, `untie_from_location`
+- Act: `assign_to_act`, `get_act`, `unassign_from_act`
+
+##### NarrativeEventNpcPort (5 methods)
+- `add_featured_npc`, `get_featured_npcs`, `remove_featured_npc`
+- `update_featured_npc_role`, `get_chain_memberships`
+
+##### NarrativeEventQueryPort (4 methods)
+- `list_by_scene`, `list_by_location`, `list_by_act`, `list_by_featured_npc`
+
+---
+
+#### 3.5.4 ChallengeRepositoryPort (31 methods)
 
 **Current**: `engine-ports/src/outbound/repository_port.rs:1007-1176`
 
-**Split into**:
-- `ChallengeCrudPort` - Basic CRUD (11 methods)
-- `ChallengeSkillPort` - Skill relationships (3 methods)
-- `ChallengeScenePort` - Scene ties (3 methods)
-- `ChallengePrerequisitePort` - Prerequisites (4 methods)
-- `ChallengeAvailabilityPort` - Location/region availability (7 methods)
-- `ChallengeUnlockPort` - Unlock locations (3 methods)
+##### ChallengeCrudPort (12 methods)
+- CRUD: `create`, `get`, `update`, `delete`
+- List: `list_by_world`, `list_by_scene`, `list_by_location`, `list_by_region`
+- State: `list_active`, `list_favorites`, `set_active`, `toggle_favorite`
 
-#### GameConnectionPort (32 methods - VERIFIED)
+##### ChallengeSkillPort (3 methods)
+- `set_required_skill`, `get_required_skill`, `remove_required_skill`
+
+##### ChallengeScenePort (3 methods)
+- `tie_to_scene`, `get_tied_scene`, `untie_from_scene`
+
+##### ChallengePrerequisitePort (4 methods)
+- `add_prerequisite`, `get_prerequisites`, `remove_prerequisite`, `get_dependent_challenges`
+
+##### ChallengeAvailabilityPort (9 methods)
+- Location: `add_location_availability`, `get_location_availabilities`, `remove_location_availability`
+- Region: `add_region_availability`, `get_region_availabilities`, `remove_region_availability`
+- Unlock: `add_unlock_location`, `get_unlock_locations`, `remove_unlock_location`
+
+---
+
+#### 3.5.5 GameConnectionPort (32 methods)
 
 **Current**: `player-ports/src/outbound/game_connection_port.rs:48-188`
 
-**Split into**:
-- `ConnectionStatePort` - Connection lifecycle (4 methods)
-- `PlayerActionPort` - Player actions (3 methods)
-- `DmActionPort` - DM-specific actions (12 methods)
-- `ChallengePort` - Challenge operations (3 methods)
-- `MovementPort` - Movement operations (2 methods)
-- `InventoryPort` - Inventory operations (4 methods)
-- `RequestPort` - Request/callback operations (4 methods)
+##### ConnectionLifecyclePort (5 methods)
+- `state`, `url`, `connect`, `disconnect`, `heartbeat`
+
+##### SessionCommandPort (3 methods)
+- `join_world`, `on_state_change`, `on_message`
+
+##### PlayerActionPort (7 methods)
+- `send_action`, `submit_challenge_roll`, `submit_challenge_roll_input`
+- `equip_item`, `unequip_item`, `drop_item`, `pickup_item`
+
+##### DmControlPort (12 methods)
+- `request_scene_change`, `send_directorial_update`
+- `send_approval_decision`, `send_challenge_outcome_decision`
+- `trigger_challenge`, `create_adhoc_challenge`
+- `set_npc_disposition`, `set_npc_relationship`, `get_npc_dispositions`
+- `send_staging_approval`, `request_staging_regenerate`, `pre_stage_region`
+
+##### NavigationPort (2 methods)
+- `move_to_region`, `exit_to_location`
+
+##### GameRequestPort (3 methods)
+- `request`, `request_with_timeout`, `check_comfyui_health`
+
+##### Backward Compatibility Super-Trait
+```rust
+pub trait GameConnectionPort: ConnectionLifecyclePort + SessionCommandPort + 
+    PlayerActionPort + DmControlPort + NavigationPort + GameRequestPort {}
+```
+
+---
+
+#### Implementation Strategy
+
+**Phase 1**: Define new traits (don't break existing code)
+1. Create new trait files in `*-ports` crates
+2. Define traits with methods as specified
+3. Add super-trait aliases for backward compatibility
+
+**Phase 2**: Update implementations
+1. Have existing repos implement new smaller traits
+2. Keep old trait as super-trait extending new traits
+3. Verify all tests pass
+
+**Phase 3**: Migrate services (incremental)
+1. Start with services using fewest methods
+2. Update constructors to accept `Arc<dyn NewSmallTrait>`
+3. Update DI in adapters layer
+
+**Phase 4**: Remove old traits (optional, low priority)
+1. Deprecate super-traits
+2. Eventually remove
 
 | Task | Status |
 |------|--------|
 | [ ] Create new trait files in engine-ports/outbound/ | Pending |
-| [ ] Split CharacterRepositoryPort (42 methods) | Pending |
-| [ ] Split StoryEventRepositoryPort (34 methods) | Pending |
-| [ ] Split NarrativeEventRepositoryPort (30 methods) | Pending |
-| [ ] Split ChallengeRepositoryPort (31 methods) | Pending |
-| [ ] Split GameConnectionPort (32 methods) | Pending |
-| [ ] Update all trait implementations in adapters | Pending |
-| [ ] Update all trait usages in app layer | Pending |
-| [ ] Update mock implementations (coordinate with Phase 7) | Pending |
+| [ ] Split CharacterRepositoryPort (42 → 6 traits) | Pending |
+| [ ] Split StoryEventRepositoryPort (34 → 4 traits) | Pending |
+| [ ] Split NarrativeEventRepositoryPort (30 → 4 traits) | Pending |
+| [ ] Split ChallengeRepositoryPort (31 → 5 traits) | Pending |
+| [ ] Split GameConnectionPort (32 → 6 traits) | Pending |
+| [ ] Create backward-compat super-traits | Pending |
+| [ ] Update Neo4j implementations | Pending |
+| [ ] Update app layer services | Pending |
+| [ ] Update mock implementations | Pending |
 | [ ] Verify compilation | Pending |
 
-**Note**: This is a significant refactor (**169** methods total across 5 traits). Consider doing in a separate PR that includes mock updates to avoid breaking test compilation.
+**Note**: This is a significant refactor (**169** methods → **25** new traits). Consider incremental migration with super-traits for backward compatibility.
 
 #### Future Candidates (15-29 methods)
 
