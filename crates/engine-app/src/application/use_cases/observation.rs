@@ -22,7 +22,7 @@ use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
+    BroadcastPort, CharacterRepositoryPort, ClockPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
 };
 
 use super::errors::ObservationError;
@@ -135,16 +135,23 @@ pub struct ObservationUseCase {
     observation_repo: Arc<dyn ObservationRepositoryPort>,
     message_port: Arc<dyn WorldMessagePort>,
     broadcast: Arc<dyn BroadcastPort>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ObservationUseCase {
     /// Create a new ObservationUseCase with all dependencies
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         character_repo: Arc<dyn CharacterRepositoryPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         message_port: Arc<dyn WorldMessagePort>,
         broadcast: Arc<dyn BroadcastPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             pc_repo,
@@ -152,6 +159,7 @@ impl ObservationUseCase {
             observation_repo,
             message_port,
             broadcast,
+            clock,
         }
     }
 
@@ -178,7 +186,7 @@ impl ObservationUseCase {
 
         // Get game time - use current time for now
         // TODO: Use world-based game time when migrated
-        let game_time = chrono::Utc::now();
+        let game_time = self.clock.now();
 
         // Create HeardAbout observation
         let observation = NpcObservation::heard_about(
@@ -247,7 +255,7 @@ impl ObservationUseCase {
 
         // Create observation if PC has a current region
         if let Some(region_id) = pc.current_region_id {
-            let game_time = chrono::Utc::now();
+            let game_time = self.clock.now();
 
             let observation = if input.reveal {
                 NpcObservation::direct(

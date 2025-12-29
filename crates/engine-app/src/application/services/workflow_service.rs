@@ -307,12 +307,16 @@ impl WorkflowService {
     }
 
     /// Export all workflow configurations to a single JSON for backup
-    pub fn export_configs(configs: &[WorkflowConfiguration]) -> serde_json::Value {
+    ///
+    /// # Arguments
+    /// * `configs` - The workflow configurations to export
+    /// * `exported_at` - The timestamp to record in the export (use clock.now() from caller)
+    pub fn export_configs(configs: &[WorkflowConfiguration], exported_at: chrono::DateTime<chrono::Utc>) -> serde_json::Value {
         let exported: Vec<WorkflowConfigExportDto> =
             configs.iter().cloned().map(Into::into).collect();
         serde_json::json!({
             "version": "1.0",
-            "exported_at": chrono::Utc::now().to_rfc3339(),
+            "exported_at": exported_at.to_rfc3339(),
             "workflows": exported,
         })
     }

@@ -10,10 +10,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, QueueError, QueueItem, QueueItemId,
+    ApprovalQueuePort, ClockPort, QueueError, QueueItem, QueueItemId,
 };
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use crate::application::services::item_service::ItemService;
@@ -35,6 +35,8 @@ pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalItem>, I: ItemSer
     story_event_service: Arc<dyn StoryEventService>,
     /// Item service for creating items and managing inventory
     item_service: Arc<I>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<Q, I> {
@@ -43,13 +45,28 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
     }
 
     /// Create a new DM approval queue service
-    pub fn new(queue: Arc<Q>, story_event_service: Arc<dyn StoryEventService>, item_service: Arc<I>) -> Self {
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
+    pub fn new(
+        queue: Arc<Q>,
+        story_event_service: Arc<dyn StoryEventService>,
+        item_service: Arc<I>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
         Self {
             queue,
             tool_execution_service: ToolExecutionService::new(),
             story_event_service,
             item_service,
+            clock,
         }
+    }
+
+    /// Get the current time
+    fn now(&self) -> DateTime<Utc> {
+        self.clock.now()
     }
 
     /// Get all pending approvals for a world (for DM UI)
@@ -119,7 +136,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
             } => {
                 // Item stays in queue, will be reprocessed
                 self.queue
-                    .delay(item_id, Utc::now() + Duration::from_secs(1))
+                    .delay(item_id, self.now() + Duration::from_secs(1))
                     .await?;
             }
             ApprovalOutcome::Rejected {
@@ -386,7 +403,7 @@ impl<Q: ApprovalQueuePort<ApprovalItem>, I: ItemService> DMApprovalQueueService<
         item_id: QueueItemId,
         duration: Duration,
     ) -> Result<(), QueueError> {
-        self.queue.delay(item_id, Utc::now() + duration).await
+        self.queue.delay(item_id, self.now() + duration).await
     }
 
     /// Get decision history for a world

@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tracing::{debug, instrument};
 
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, GoalRepositoryPort, ItemRepositoryPort, PlayerCharacterRepositoryPort,
+    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, ItemRepositoryPort, PlayerCharacterRepositoryPort,
     WantRepositoryPort,
 };
 use wrldbldr_domain::entities::{ActantialRole, ActantialView, Goal, Want, WantVisibility};
@@ -197,16 +197,23 @@ pub struct ActantialContextServiceImpl {
     goal_repo: Arc<dyn GoalRepositoryPort>,
     item_repo: Arc<dyn ItemRepositoryPort>,
     want_repo: Arc<dyn WantRepositoryPort>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ActantialContextServiceImpl {
     /// Create a new ActantialContextServiceImpl with the given repositories
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         character_repo: Arc<dyn CharacterRepositoryPort>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         goal_repo: Arc<dyn GoalRepositoryPort>,
         item_repo: Arc<dyn ItemRepositoryPort>,
         want_repo: Arc<dyn WantRepositoryPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             character_repo,
@@ -214,6 +221,7 @@ impl ActantialContextServiceImpl {
             goal_repo,
             item_repo,
             want_repo,
+            clock,
         }
     }
 
@@ -423,7 +431,7 @@ impl ActantialContextService for ActantialContextServiceImpl {
             description: request.description.unwrap_or_default(),
             intensity: request.intensity.unwrap_or(0.5),
             visibility: request.visibility.unwrap_or(WantVisibility::Hidden),
-            created_at: chrono::Utc::now(), // Will be ignored by update
+            created_at: self.clock.now(), // Will be ignored by update
             deflection_behavior: request.deflection_behavior,
             tells: request.tells.unwrap_or_default(),
         };

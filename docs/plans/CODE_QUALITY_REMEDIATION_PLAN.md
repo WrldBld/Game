@@ -132,7 +132,8 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
 | Phase 2 | High Priority | In Progress | 60% |
-| Phase 3 | Architecture Completion | Pending | 0% |
+| Phase 3 | Architecture Completion | In Progress | 15% |
+| Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 4 | Dead Code Cleanup | In Progress | 20% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 5 | Domain Layer Polish | Pending | 0% |
@@ -517,11 +518,25 @@ pub trait ClockPort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Create ClockPort trait in engine-ports | Pending |
-| [ ] Create SystemClockAdapter in engine-adapters | Pending |
-| [ ] Create MockClockAdapter for testing | Pending |
-| [ ] Update 10 services to use ClockPort (14+ call sites) | Pending |
-| [ ] Inject ClockPort at composition root | Pending |
+| [x] Create ClockPort trait in engine-ports | **DONE** |
+| [x] Create SystemClockAdapter in engine-adapters | **DONE** |
+| [x] Create MockClockAdapter for testing | **DONE** (included in ClockPort) |
+| [x] Update 10 services to use ClockPort (14+ call sites) | **DONE** |
+| [ ] Inject ClockPort at composition root | Pending (will cause compilation errors) |
+
+**Services updated to use ClockPort** (clock is now a required constructor parameter):
+- `GenerationService`
+- `AssetGenerationQueueService`
+- `ChallengeOutcomeApprovalService`
+- `DMApprovalQueueService`
+- `ChallengeResolutionService`
+- `DMActionQueueService`
+- `PlayerActionQueueService`
+- `ActantialContextServiceImpl`
+- `WorldServiceImpl`
+- `ObservationUseCase`
+- `AppRequestHandler`
+- `WorkflowService::export_configs()` (now takes timestamp parameter)
 
 #### 3.0.3 Move Business Logic Out of Adapters
 
@@ -1691,7 +1706,7 @@ cargo test --workspace
 | God traits (30+ methods) | 5 (**169** methods total) | 0 | Was 3/107, found 2 more |
 | I/O in application layer | **12-13** + **14 time calls** | 0 | tokio::fs, std::env, Utc::now() |
 | I/O in domain layer | **28** (env calls) + rand | 0 | AppSettings::from_env() (verified sixth review) |
-| Direct time calls (no ClockPort) | **14+** (10 services) | 0 | Create ClockPort (seventh review) |
+| Direct time calls (no ClockPort) | ~~14+~~ **0** | 0 | **DONE** - ClockPort created and injected into 12 services/handlers |
 | Protocol imports in services | 14 | 0 | |
 | Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 0-1 | ~830 lines total |
 | Business logic in adapters | **4** files (~1,570 lines) | 0 | +world_state_manager.rs (484 lines, sixth review) |

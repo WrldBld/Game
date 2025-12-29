@@ -10,10 +10,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use chrono::Utc;
 use tokio::sync::{mpsc, RwLock};
 
-use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ComfyUIPort};
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort, ComfyUIPort};
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
@@ -99,6 +98,8 @@ pub struct GenerationService {
     comfyui_client: Arc<dyn ComfyUIPort>,
     /// Asset repository for persisting results
     repository: Arc<dyn AssetRepositoryPort>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
     /// Directory to save generated assets
     output_dir: PathBuf,
     /// Active batches being processed
@@ -118,9 +119,14 @@ struct BatchTracker {
 
 impl GenerationService {
     /// Create a new generation service
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         comfyui_client: Arc<dyn ComfyUIPort>,
         repository: Arc<dyn AssetRepositoryPort>,
+        clock: Arc<dyn ClockPort>,
         output_dir: PathBuf,
         workflow_dir: PathBuf,
         event_sender: mpsc::UnboundedSender<GenerationEvent>,
@@ -128,6 +134,7 @@ impl GenerationService {
         Self {
             comfyui_client,
             repository,
+            clock,
             output_dir,
             active_batches: RwLock::new(HashMap::new()),
             event_sender,
@@ -154,7 +161,7 @@ impl GenerationService {
             status: BatchStatus::Queued,
             assets: vec![],
             style_reference_id: request.style_reference_id,
-            requested_at: Utc::now(),
+            requested_at: self.clock.now(),
             completed_at: None,
         };
 

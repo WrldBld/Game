@@ -6,12 +6,16 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{QueueError, QueueItem, QueueItemId, QueuePort};
+use chrono::{DateTime, Utc};
+
+use wrldbldr_engine_ports::outbound::{ClockPort, QueueError, QueueItem, QueueItemId, QueuePort};
 use crate::application::dto::{DMAction, DMActionItem};
 
 /// Service for managing the DM action queue
 pub struct DMActionQueueService<Q: QueuePort<DMActionItem>> {
     pub(crate) queue: Arc<Q>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
@@ -20,8 +24,17 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
     }
 
     /// Create a new DM action queue service
-    pub fn new(queue: Arc<Q>) -> Self {
-        Self { queue }
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
+    pub fn new(queue: Arc<Q>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { queue, clock }
+    }
+
+    /// Get the current time
+    fn now(&self) -> DateTime<Utc> {
+        self.clock.now()
     }
 
     /// Enqueue a DM action for processing
@@ -38,7 +51,7 @@ impl<Q: QueuePort<DMActionItem>> DMActionQueueService<Q> {
             world_id: (*world_id).into(),
             dm_id,
             action,
-            timestamp: chrono::Utc::now(),
+            timestamp: self.now(),
         };
 
         // High priority for DM actions

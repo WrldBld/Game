@@ -7,6 +7,7 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod broadcast_port;
+mod clock_port;
 mod comfyui_port;
 mod directorial_context_port;
 mod domain_event_repository_port;
@@ -22,6 +23,11 @@ mod settings_port;
 mod staging_repository_port;
 mod suggestion_enqueue_port;
 mod world_exporter_port;
+
+// Clock port - time abstraction for deterministic testing
+pub use clock_port::ClockPort;
+#[cfg(any(test, feature = "testing"))]
+pub use clock_port::MockClockPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};

@@ -11,10 +11,11 @@
 
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 use crate::application::dto::AdHocOutcomesDto;
-use wrldbldr_engine_ports::outbound::ApprovalQueuePort;
+use wrldbldr_engine_ports::outbound::{ApprovalQueuePort, ClockPort};
 use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
 use crate::application::services::{
     ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
@@ -187,6 +188,8 @@ pub struct ChallengeResolutionService<S: ChallengeService, K: SkillService, Q: A
     player_character_service: Arc<P>,
     dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
     challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
@@ -201,12 +204,17 @@ where
     /// Create a new challenge resolution service
     ///
     /// All challenges are routed through the approval service for DM review.
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         challenge_service: Arc<S>,
         skill_service: Arc<K>,
         player_character_service: Arc<P>,
         dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
         challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             challenge_service,
@@ -214,7 +222,13 @@ where
             player_character_service,
             dm_approval_queue_service,
             challenge_outcome_approval_service,
+            clock,
         }
+    }
+
+    /// Get the current time
+    fn now(&self) -> DateTime<Utc> {
+        self.clock.now()
     }
 
     /// Gather the common preamble data needed for challenge resolution.
@@ -391,7 +405,7 @@ where
                 .collect(),
             roll_breakdown: roll_breakdown.clone(),
             individual_rolls: individual_rolls.clone(),
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: self.now().to_rfc3339(),
         };
 
         // Queue for DM approval

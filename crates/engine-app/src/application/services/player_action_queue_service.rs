@@ -5,8 +5,10 @@
 
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
+
 use wrldbldr_engine_ports::outbound::{
-    ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueuePort,
+    ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueuePort,
 };
 use crate::application::dto::{LLMRequestItem, LLMRequestType, PlayerActionItem};
 use wrldbldr_domain::value_objects::GamePromptRequest;
@@ -15,6 +17,8 @@ use wrldbldr_domain::value_objects::GamePromptRequest;
 pub struct PlayerActionQueueService<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>> {
     pub(crate) queue: Arc<Q>,
     llm_queue: Arc<LQ>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
@@ -25,8 +29,17 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
     }
 
     /// Create a new player action queue service
-    pub fn new(queue: Arc<Q>, llm_queue: Arc<LQ>) -> Self {
-        Self { queue, llm_queue }
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
+    pub fn new(queue: Arc<Q>, llm_queue: Arc<LQ>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { queue, llm_queue, clock }
+    }
+
+    /// Get the current time
+    fn now(&self) -> DateTime<Utc> {
+        self.clock.now()
     }
 
     /// Enqueue a player action for processing
@@ -46,7 +59,7 @@ impl<Q: QueuePort<PlayerActionItem>, LQ: ProcessingQueuePort<LLMRequestItem>>
             action_type,
             target,
             dialogue,
-            timestamp: chrono::Utc::now(),
+            timestamp: self.now(),
         };
 
         // Normal priority for player actions

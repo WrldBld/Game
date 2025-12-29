@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use wrldbldr_engine_ports::outbound::{
-    ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
+    ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
 };
 use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
@@ -99,19 +99,27 @@ pub struct WorldServiceImpl {
     repository: Arc<dyn WorldRepositoryPort>,
     exporter: Arc<dyn WorldExporterPort>,
     settings_service: Arc<SettingsService>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl WorldServiceImpl {
     /// Create a new WorldServiceImpl with the given repository and exporter
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         repository: Arc<dyn WorldRepositoryPort>,
         exporter: Arc<dyn WorldExporterPort>,
         settings_service: Arc<SettingsService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             repository,
             exporter,
             settings_service,
+            clock,
         }
     }
 
@@ -227,7 +235,7 @@ impl WorldService for WorldServiceImpl {
         }
         if let Some(rule_system) = request.rule_system {
             world.rule_system = rule_system;
-            world.updated_at = chrono::Utc::now();
+            world.updated_at = self.clock.now();
         }
 
         self.repository
@@ -348,7 +356,7 @@ impl WorldService for WorldServiceImpl {
             .ok_or_else(|| anyhow::anyhow!("World not found: {}", world_id))?;
         
         world.game_time.advance_hours(hours);
-        world.updated_at = chrono::Utc::now();
+        world.updated_at = self.clock.now();
         
         self.repository
             .update(&world)

@@ -15,7 +15,7 @@ use async_trait::async_trait;
 
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, GenerationReadKind, GenerationReadStatePort,
+    CharacterRepositoryPort, ClockPort, GenerationReadKind, GenerationReadStatePort,
     ObservationRepositoryPort, RegionRepositoryPort,
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
@@ -92,10 +92,17 @@ pub struct AppRequestHandler {
     // Generation queue services (for WebSocket hydration)
     generation_queue_projection: Option<Arc<GenerationQueueProjectionService>>,
     generation_read_state: Option<Arc<dyn GenerationReadStatePort>>,
+
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl AppRequestHandler {
     /// Create a new request handler with all service dependencies
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         world_service: Arc<dyn WorldService>,
@@ -110,7 +117,7 @@ impl AppRequestHandler {
         player_character_service: Arc<dyn PlayerCharacterService>,
         relationship_service: Arc<dyn RelationshipService>,
         actantial_service: Arc<dyn ActantialContextService>,
-    disposition_service: Arc<dyn DispositionService>,
+        disposition_service: Arc<dyn DispositionService>,
         story_event_service: Arc<dyn StoryEventService>,
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
@@ -118,6 +125,7 @@ impl AppRequestHandler {
         character_repo: Arc<dyn CharacterRepositoryPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             world_service,
@@ -144,6 +152,7 @@ impl AppRequestHandler {
             // broadcast_port: None,
             generation_queue_projection: None,
             generation_read_state: None,
+            clock,
         }
     }
 
@@ -2246,7 +2255,7 @@ impl RequestHandler for AppRequestHandler {
                 let observation_type = data.observation_type.parse::<wrldbldr_domain::entities::ObservationType>()
                     .unwrap_or(wrldbldr_domain::entities::ObservationType::Direct);
                 // Use current time as game_time (in a real implementation, this might come from world state)
-                let game_time = chrono::Utc::now();
+                let game_time = self.clock.now();
                 // Create the observation based on type
                 let observation = match observation_type {
                     wrldbldr_domain::entities::ObservationType::Direct => {

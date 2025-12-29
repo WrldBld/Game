@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, RwLock};
 
 use crate::application::dto::{
@@ -29,7 +29,7 @@ use crate::application::services::{
 };
 use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort};
+use wrldbldr_engine_ports::outbound::{ClockPort, ItemRepositoryPort, LlmPort, PlayerCharacterRepositoryPort, QueuePort};
 
 /// Result of challenge approval operations
 ///
@@ -130,6 +130,8 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     settings_service: Option<Arc<SettingsService>>,
     /// Prompt template service for resolving prompt templates
     prompt_template_service: Arc<PromptTemplateService>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
@@ -142,12 +144,18 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// * `pc_repository` - Repository for player character data
     /// * `item_repository` - Repository for item data
     /// * `prompt_template_service` - Service for resolving prompt templates
+    /// Create a new challenge outcome approval service
+    ///
+    /// # Arguments
+    /// * `clock` - Clock for time operations. Use `SystemClock` in production,
+    ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
         prompt_template_service: Arc<PromptTemplateService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
@@ -159,19 +167,13 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             llm_port: None,
             settings_service: None,
             prompt_template_service,
+            clock,
         }
     }
 
-    /// Set a persistent queue for challenge outcomes
-    ///
-    /// When configured, challenge outcomes are persisted to the queue,
-    /// enabling recovery after server restarts.
-    pub fn with_queue<Q: QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync + 'static>(
-        mut self,
-        queue: Arc<Q>,
-    ) -> Self {
-        self.queue = Some(queue);
-        self
+    /// Get the current time
+    fn now(&self) -> DateTime<Utc> {
+        self.clock.now()
     }
 
     /// Set the LLM port for generating outcome suggestions
@@ -223,7 +225,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 .collect(),
             original_triggers: resolution.outcome_triggers,
             roll_breakdown: resolution.roll_breakdown,
-            timestamp: Utc::now(),
+            timestamp: self.now(),
             suggestions: None,
             is_generating_suggestions: false,
         };

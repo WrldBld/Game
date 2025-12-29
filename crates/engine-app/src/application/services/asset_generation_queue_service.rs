@@ -7,14 +7,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 use wrldbldr_domain::AssetId;
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ComfyUIPort, ProcessingQueuePort, QueueError, QueueItemId, QueueNotificationPort,
+    AssetRepositoryPort, ClockPort, ComfyUIPort, ProcessingQueuePort, QueueError, QueueItemId, QueueNotificationPort,
 };
 use crate::application::dto::AssetGenerationItem;
 
@@ -30,6 +29,8 @@ pub struct AssetGenerationQueueService<
     pub(crate) queue: Arc<Q>,
     comfyui_client: Arc<C>,
     asset_repository: Arc<dyn AssetRepositoryPort>,
+    /// Clock for time operations (required for testability)
+    clock: Arc<dyn ClockPort>,
     semaphore: Arc<Semaphore>,
     notifier: N,
 }
@@ -48,12 +49,14 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
     /// * `queue` - The asset generation queue
     /// * `comfyui_client` - The ComfyUI client for processing requests
     /// * `asset_repository` - The asset repository for persisting results
+    /// * `clock` - Clock for time operations
     /// * `batch_size` - Maximum concurrent ComfyUI requests (typically 1)
     /// * `notifier` - The notifier for waking workers
     pub fn new(
         queue: Arc<Q>,
         comfyui_client: Arc<C>,
         asset_repository: Arc<dyn AssetRepositoryPort>,
+        clock: Arc<dyn ClockPort>,
         batch_size: usize,
         notifier: N,
     ) -> Self {
@@ -61,6 +64,7 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
             queue,
             comfyui_client,
             asset_repository,
+            clock,
             semaphore: Arc::new(Semaphore::new(batch_size.max(1))),
             notifier,
         }
@@ -102,6 +106,7 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
             let semaphore = self.semaphore.clone();
             let client = self.comfyui_client.clone();
             let asset_repo = self.asset_repository.clone();
+            let clock = self.clock.clone();
             let queue_clone = self.queue.clone();
             let request = item.payload.clone();
             let item_id = item.id;
@@ -153,7 +158,7 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                 let prompt_id = prompt_response.prompt_id.clone();
                 let max_wait = Duration::from_secs(300); // 5 minutes timeout
                 let poll_interval = Duration::from_secs(2);
-                let start_time = std::time::Instant::now();
+                let start_time = clock.instant_now();
 
                 let history_result = loop {
                     if start_time.elapsed() > max_wait {
@@ -275,7 +280,7 @@ impl<Q: ProcessingQueuePort<AssetGenerationItem> + 'static, C: ComfyUIPort + 'st
                         is_active: created_assets == 0, // First asset is active
                         label: None,
                         generation_metadata: Some(metadata),
-                        created_at: Utc::now(),
+                        created_at: clock.now(),
                     };
 
                     if let Err(e) = asset_repo.create(&asset).await {
