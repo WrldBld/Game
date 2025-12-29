@@ -6,7 +6,7 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort;
-use wrldbldr_engine_app::application::dto::SheetTemplateStorageDto;
+use wrldbldr_engine_dto::SheetTemplateStorageDto;
 use wrldbldr_domain::entities::{CharacterSheetTemplate, SheetTemplateId};
 use wrldbldr_domain::WorldId;
 
@@ -177,7 +177,7 @@ fn row_to_template(row: Row) -> Result<CharacterSheetTemplate> {
 
     let template_data: String = node.get("template_data")?;
     let stored: SheetTemplateStorageDto = serde_json::from_str(&template_data)?;
-    let template: CharacterSheetTemplate = stored.try_into()?;
+    let template: CharacterSheetTemplate = stored.try_into().map_err(|e: String| anyhow::anyhow!(e))?;
 
     Ok(template)
 }

@@ -14,10 +14,9 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_region};
-use wrldbldr_engine_app::application::dto::parse_archetype;
 use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
-use wrldbldr_domain::value_objects::{DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift};
+use wrldbldr_domain::value_objects::{CampbellArchetype, DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift};
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
 
 /// Repository for Region operations
@@ -619,11 +618,11 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
     let id = uuid::Uuid::parse_str(&id_str)?;
     let world_id = uuid::Uuid::parse_str(&world_id_str)?;
 
-    let base_archetype = parse_archetype(&base_archetype_str);
+    let base_archetype: CampbellArchetype = base_archetype_str.parse().unwrap_or(CampbellArchetype::Ally);
     let current_archetype = if current_archetype_str.is_empty() {
         base_archetype
     } else {
-        parse_archetype(&current_archetype_str)
+        current_archetype_str.parse().unwrap_or(CampbellArchetype::Ally)
     };
     let default_disposition = default_disposition_str.parse().unwrap_or(DispositionLevel::Neutral);
 
