@@ -114,7 +114,6 @@ pub struct GenerationService {
 struct BatchTracker {
     batch: GenerationBatch,
     prompt_ids: Vec<String>,
-    completed_count: u8,
 }
 
 impl GenerationService {
@@ -203,7 +202,6 @@ impl GenerationService {
         let tracker = BatchTracker {
             batch: batch.clone(),
             prompt_ids: vec![],
-            completed_count: 0,
         };
 
         self.active_batches.write().await.insert(batch_id, tracker);

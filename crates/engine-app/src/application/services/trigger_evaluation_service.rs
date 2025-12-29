@@ -197,8 +197,6 @@ impl GameStateSnapshot {
 /// for DM approval before being executed.
 pub struct TriggerEvaluationService {
     narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
-    challenge_repo: Arc<dyn ChallengeRepositoryPort>,
-    character_repo: Arc<dyn CharacterRepositoryPort>,
     player_character_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     story_event_repo: Arc<dyn StoryEventRepositoryPort>,
 }
@@ -207,15 +205,11 @@ impl TriggerEvaluationService {
     /// Create a new TriggerEvaluationService
     pub fn new(
         narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
-        challenge_repo: Arc<dyn ChallengeRepositoryPort>,
-        character_repo: Arc<dyn CharacterRepositoryPort>,
         player_character_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         story_event_repo: Arc<dyn StoryEventRepositoryPort>,
     ) -> Self {
         Self {
             narrative_event_repo,
-            challenge_repo,
-            character_repo,
             player_character_repo,
             story_event_repo,
         }

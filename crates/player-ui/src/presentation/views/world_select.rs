@@ -62,8 +62,8 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
         });
     });
 
-    // Get user ID for DM session handling
-    let user_id = platform.get_user_id();
+    // Get user ID for DM session handling (reserved for future use)
+    let _user_id = platform.get_user_id();
 
     // Effect to load world when world_to_load is set
     use_effect(move || {

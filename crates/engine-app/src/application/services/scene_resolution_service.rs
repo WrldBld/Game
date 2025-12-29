@@ -56,7 +56,6 @@ pub trait SceneResolutionService: Send + Sync {
 pub struct SceneResolutionServiceImpl {
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
     scene_repository: Arc<dyn SceneRepositoryPort>,
-    character_repository: Arc<dyn CharacterRepositoryPort>,
     flag_repository: Arc<dyn FlagRepositoryPort>,
     observation_repository: Arc<dyn ObservationRepositoryPort>,
 }
@@ -66,14 +65,12 @@ impl SceneResolutionServiceImpl {
     pub fn new(
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         scene_repository: Arc<dyn SceneRepositoryPort>,
-        character_repository: Arc<dyn CharacterRepositoryPort>,
         flag_repository: Arc<dyn FlagRepositoryPort>,
         observation_repository: Arc<dyn ObservationRepositoryPort>,
     ) -> Self {
         Self {
             pc_repository,
             scene_repository,
-            character_repository,
             flag_repository,
             observation_repository,
         }

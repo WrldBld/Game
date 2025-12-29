@@ -37,7 +37,7 @@ pub fn LocationPreviewModal(props: LocationPreviewModalProps) -> Element {
 
         use_effect(move || {
             let loc_id = loc_id.clone();
-            let world_id = world_id.clone();
+            let _world_id = world_id.clone();
             let svc = svc.clone();
 
             spawn(async move {

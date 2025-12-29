@@ -132,9 +132,10 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
 | Phase 2 | High Priority | In Progress | 60% |
-| Phase 3 | Architecture Completion | In Progress | 15% |
+| Phase 3 | Architecture Completion | In Progress | 20% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
-| Phase 4 | Dead Code Cleanup | In Progress | 20% |
+| Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
+| Phase 4 | Dead Code Cleanup | In Progress | 70% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
 | Phase 5 | Domain Layer Polish | Pending | 0% |
 | Phase 6 | Protocol Layer Polish | Pending | 0% |
@@ -936,9 +937,9 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | Task | Status |
 |------|--------|
-| [ ] Delete ComplexChallengeSettings | Pending |
-| [ ] Delete NarrativeEventDetailResponseDto cluster (~100 lines) | Pending |
-| [ ] Verify no references remain | Pending |
+| [x] Delete ComplexChallengeSettings | **DONE** |
+| [x] Delete NarrativeEventDetailResponseDto cluster (~100 lines) | **DONE** |
+| [x] Verify no references remain | **DONE** |
 
 ---
 
@@ -963,10 +964,10 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | Task | Status |
 |------|--------|
-| [ ] Delete item_repo from actantial_context_service.rs | Pending |
-| [ ] Delete completed_count from generation_service.rs | Pending |
-| [ ] Delete character_repository from scene_resolution_service.rs | Pending |
-| [ ] Delete challenge_repo, character_repo from trigger_evaluation_service.rs | Pending |
+| [x] Delete item_repo from actantial_context_service.rs | **DONE** |
+| [x] Delete completed_count from generation_service.rs | **DONE** |
+| [x] Delete character_repository from scene_resolution_service.rs | **DONE** |
+| [x] Delete challenge_repo, character_repo from trigger_evaluation_service.rs | **DONE** |
 | [ ] Decide on broadcast fields (implement or delete) | Pending |
 | [ ] Implement or delete broadcast fields based on decision | Pending |
 
@@ -989,10 +990,12 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | Task | Status |
 |------|--------|
-| [ ] Run `cargo fix --workspace --allow-dirty` | Pending |
-| [ ] Manually fix remaining unused imports | Pending |
-| [ ] Delete PRIORITY_HIGH constant | Pending |
-| [ ] Remove unused domain dep from player-ui/Cargo.toml | Pending |
+| [ ] Run `cargo fix --workspace --allow-dirty` | Pending (deferred) |
+| [x] Delete PRIORITY_HIGH constant | **DONE** |
+| [x] Delete unused uuid::Uuid import from disposition.rs | **DONE** |
+| [x] Delete unused ApprovalQueuePort import from use_cases.rs | **DONE** |
+| [x] Delete unused WorldService import from export_routes.rs | **DONE** |
+| [x] Remove unused domain dep from player-ui/Cargo.toml | **DONE** (earlier commit) |
 
 ---
 
@@ -1034,7 +1037,9 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | Task | Status |
 |------|--------|
-| [ ] Fix all unused UI variables | Pending |
+| [x] Fix location_preview_modal.rs:40 world_id | **DONE** |
+| [x] Fix world_select.rs:66 user_id | **DONE** |
+| [ ] Fix remaining unused UI variables | Pending (low priority) |
 
 ---
 

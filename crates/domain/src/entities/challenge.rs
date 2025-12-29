@@ -526,30 +526,6 @@ impl OutcomeType {
     }
 }
 
-/// Settings for complex (multi-roll) challenges
-#[derive(Debug, Clone)]
-pub struct ComplexChallengeSettings {
-    /// Number of successes required to complete
-    pub required_successes: u32,
-    /// Number of failures before challenge is failed (0 = unlimited)
-    pub max_failures: u32,
-    /// Whether different skills can be used for each roll
-    pub flexible_skills: bool,
-    /// Skills allowed if flexible_skills is true
-    pub allowed_skills: Vec<SkillId>,
-}
-
-impl Default for ComplexChallengeSettings {
-    fn default() -> Self {
-        Self {
-            required_successes: 3,
-            max_failures: 3,
-            flexible_skills: false,
-            allowed_skills: Vec::new(),
-        }
-    }
-}
-
 // =============================================================================
 // Edge Support Structs (Graph-First Design)
 // =============================================================================

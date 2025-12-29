@@ -27,7 +27,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use uuid::Uuid;
 
 /// Disposition level - how an NPC emotionally feels about a specific PC
 ///

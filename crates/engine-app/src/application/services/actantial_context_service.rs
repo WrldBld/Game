@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tracing::{debug, instrument};
 
 use wrldbldr_engine_ports::outbound::{
-    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, ItemRepositoryPort, PlayerCharacterRepositoryPort,
+    CharacterRepositoryPort, ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort,
     WantRepositoryPort,
 };
 use wrldbldr_domain::entities::{ActantialRole, ActantialView, Goal, Want, WantVisibility};
@@ -195,7 +195,6 @@ pub struct ActantialContextServiceImpl {
     character_repo: Arc<dyn CharacterRepositoryPort>,
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     goal_repo: Arc<dyn GoalRepositoryPort>,
-    item_repo: Arc<dyn ItemRepositoryPort>,
     want_repo: Arc<dyn WantRepositoryPort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
@@ -211,7 +210,6 @@ impl ActantialContextServiceImpl {
         character_repo: Arc<dyn CharacterRepositoryPort>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         goal_repo: Arc<dyn GoalRepositoryPort>,
-        item_repo: Arc<dyn ItemRepositoryPort>,
         want_repo: Arc<dyn WantRepositoryPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -219,7 +217,6 @@ impl ActantialContextServiceImpl {
             character_repo,
             pc_repo,
             goal_repo,
-            item_repo,
             want_repo,
             clock,
         }

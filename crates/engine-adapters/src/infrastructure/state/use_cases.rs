@@ -42,7 +42,7 @@ use wrldbldr_engine_app::application::use_cases::{
 };
 use wrldbldr_engine_app::application::services::NarrativeEventServiceImpl;
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, BroadcastPort, CharacterRepositoryPort, ClockPort,
+    BroadcastPort, CharacterRepositoryPort, ClockPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, LlmPort,
     LocationRepositoryPort, NarrativeEventRepositoryPort, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort, ProcessingQueuePort, QueuePort, RegionRepositoryPort,

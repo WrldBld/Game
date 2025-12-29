@@ -22,9 +22,8 @@ use crate::application::dto::{
 };
 use wrldbldr_domain::WorldId;
 
-/// Priority constants for queue operations
+/// Priority constant for queue operations
 const PRIORITY_NORMAL: u8 = 0;
-const PRIORITY_HIGH: u8 = 1;
 
 /// Service for managing the LLM reasoning queue
 pub struct LLMQueueService<Q: ProcessingQueuePort<LLMRequestItem>, L: LlmPort + Clone, N: QueueNotificationPort> {

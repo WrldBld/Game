@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use wrldbldr_engine_app::application::dto::ExportQueryDto;
 use wrldbldr_engine_ports::outbound::PlayerWorldSnapshot;
-use wrldbldr_engine_app::application::services::WorldService;
 use wrldbldr_domain::WorldId;
 use crate::infrastructure::state::AppState;
 
