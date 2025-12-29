@@ -547,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_triggered_event_candidate_creation() {
-        let mut event = NarrativeEvent::new(WorldId::new(), "Test Event");
+        let mut event = NarrativeEvent::new(WorldId::new(), "Test Event", chrono::Utc::now());
         event.trigger_conditions.push(NarrativeTrigger {
             trigger_type: NarrativeTriggerType::FlagSet {
                 flag_name: "test_flag".to_string(),

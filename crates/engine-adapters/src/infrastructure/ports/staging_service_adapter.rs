@@ -273,63 +273,254 @@ mod tests {
 // Test stubs module for unit tests
 #[cfg(test)]
 mod wrldbldr_engine_adapters_test_stubs {
+    use anyhow::Result;
     use async_trait::async_trait;
-    use wrldbldr_engine_ports::outbound::*;
+    use wrldbldr_domain::entities::{
+        Character, NarrativeEvent, Region, RegionConnection, RegionExit, Staging,
+    };
+    use wrldbldr_domain::value_objects::RegionRelationshipType;
     use wrldbldr_domain::*;
+    use wrldbldr_engine_ports::outbound::*;
 
+    // =========================================================================
+    // StubLlm - Implements LlmPort with associated Error type
+    // =========================================================================
     pub struct StubLlm;
+
+    #[derive(Debug)]
+    pub struct StubLlmError;
+    impl std::fmt::Display for StubLlmError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "StubLlmError")
+        }
+    }
+    impl std::error::Error for StubLlmError {}
+
     #[async_trait]
     impl LlmPort for StubLlm {
-        async fn generate(&self, _: LlmRequest) -> Result<LlmResponse, String> {
-            Ok(LlmResponse { content: "[]".to_string() })
+        type Error = StubLlmError;
+
+        async fn generate(&self, _: LlmRequest) -> std::result::Result<LlmResponse, Self::Error> {
+            Ok(LlmResponse {
+                content: "[]".to_string(),
+                finish_reason: FinishReason::Stop,
+                tool_calls: vec![],
+                usage: None,
+            })
         }
-        async fn generate_streaming(&self, _: LlmRequest) -> Result<std::pin::Pin<Box<dyn futures::Stream<Item = Result<String, String>> + Send>>, String> {
-            unimplemented!()
+
+        async fn generate_with_tools(
+            &self,
+            _: LlmRequest,
+            _: Vec<ToolDefinition>,
+        ) -> std::result::Result<LlmResponse, Self::Error> {
+            Ok(LlmResponse {
+                content: "[]".to_string(),
+                finish_reason: FinishReason::Stop,
+                tool_calls: vec![],
+                usage: None,
+            })
         }
     }
 
+    // =========================================================================
+    // StubRegionRepo - Implements RegionRepositoryPort with anyhow::Result
+    // =========================================================================
     pub struct StubRegionRepo;
+
     #[async_trait]
     impl RegionRepositoryPort for StubRegionRepo {
-        async fn get(&self, _: RegionId) -> Result<Option<wrldbldr_domain::entities::Region>, String> { Ok(None) }
-        async fn list_by_location(&self, _: LocationId) -> Result<Vec<wrldbldr_domain::entities::Region>, String> { Ok(vec![]) }
-        async fn save(&self, _: &wrldbldr_domain::entities::Region) -> Result<RegionId, String> { Ok(RegionId::from_uuid(uuid::Uuid::new_v4())) }
-        async fn update(&self, _: &wrldbldr_domain::entities::Region) -> Result<(), String> { Ok(()) }
-        async fn delete(&self, _: RegionId) -> Result<(), String> { Ok(()) }
-        async fn get_connections(&self, _: RegionId) -> Result<Vec<wrldbldr_domain::entities::RegionConnection>, String> { Ok(vec![]) }
-        async fn add_connection(&self, _: RegionId, _: RegionId, _: Option<String>) -> Result<(), String> { Ok(()) }
-        async fn remove_connection(&self, _: RegionId, _: RegionId) -> Result<(), String> { Ok(()) }
-        async fn update_connection(&self, _: RegionId, _: RegionId, _: bool, _: Option<String>) -> Result<(), String> { Ok(()) }
-        async fn get_exits(&self, _: RegionId) -> Result<Vec<wrldbldr_domain::entities::LocationExit>, String> { Ok(vec![]) }
-        async fn add_exit(&self, _: RegionId, _: LocationId, _: RegionId, _: Option<String>) -> Result<(), String> { Ok(()) }
-        async fn remove_exit(&self, _: RegionId, _: LocationId) -> Result<(), String> { Ok(()) }
-        async fn get_region_items(&self, _: RegionId) -> Result<Vec<wrldbldr_domain::entities::Item>, String> { Ok(vec![]) }
-        async fn add_item_to_region(&self, _: RegionId, _: ItemId) -> Result<(), String> { Ok(()) }
-        async fn remove_item_from_region(&self, _: RegionId, _: ItemId) -> Result<(), String> { Ok(()) }
+        async fn get(&self, _: RegionId) -> Result<Option<Region>> {
+            Ok(None)
+        }
+        async fn list_by_location(&self, _: LocationId) -> Result<Vec<Region>> {
+            Ok(vec![])
+        }
+        async fn list_spawn_points(&self, _: WorldId) -> Result<Vec<Region>> {
+            Ok(vec![])
+        }
+        async fn get_npcs_related_to_region(
+            &self,
+            _: RegionId,
+        ) -> Result<Vec<(Character, RegionRelationshipType)>> {
+            Ok(vec![])
+        }
+        async fn update(&self, _: &Region) -> Result<()> {
+            Ok(())
+        }
+        async fn delete(&self, _: RegionId) -> Result<()> {
+            Ok(())
+        }
+        async fn create_connection(&self, _: &RegionConnection) -> Result<()> {
+            Ok(())
+        }
+        async fn get_connections(&self, _: RegionId) -> Result<Vec<RegionConnection>> {
+            Ok(vec![])
+        }
+        async fn delete_connection(&self, _: RegionId, _: RegionId) -> Result<()> {
+            Ok(())
+        }
+        async fn unlock_connection(&self, _: RegionId, _: RegionId) -> Result<()> {
+            Ok(())
+        }
+        async fn create_exit(&self, _: &RegionExit) -> Result<()> {
+            Ok(())
+        }
+        async fn get_exits(&self, _: RegionId) -> Result<Vec<RegionExit>> {
+            Ok(vec![])
+        }
+        async fn delete_exit(&self, _: RegionId, _: LocationId) -> Result<()> {
+            Ok(())
+        }
     }
 
+    // =========================================================================
+    // StubNarrativeRepo - Implements NarrativeEventRepositoryPort
+    // =========================================================================
     pub struct StubNarrativeRepo;
+
     #[async_trait]
     impl NarrativeEventRepositoryPort for StubNarrativeRepo {
-        async fn get(&self, _: wrldbldr_domain::NarrativeEventId) -> Result<Option<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(None) }
-        async fn list_by_world(&self, _: WorldId) -> Result<Vec<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(vec![]) }
-        async fn list_by_scene(&self, _: SceneId) -> Result<Vec<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(vec![]) }
-        async fn list_active(&self, _: WorldId) -> Result<Vec<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(vec![]) }
-        async fn list_active_for_region(&self, _: RegionId) -> Result<Vec<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(vec![]) }
-        async fn list_triggered_for_pc(&self, _: PlayerCharacterId) -> Result<Vec<wrldbldr_domain::entities::NarrativeEvent>, String> { Ok(vec![]) }
-        async fn save(&self, _: &wrldbldr_domain::entities::NarrativeEvent) -> Result<wrldbldr_domain::NarrativeEventId, String> { Ok(wrldbldr_domain::NarrativeEventId::from_uuid(uuid::Uuid::new_v4())) }
-        async fn update(&self, _: &wrldbldr_domain::entities::NarrativeEvent) -> Result<(), String> { Ok(()) }
-        async fn delete(&self, _: wrldbldr_domain::NarrativeEventId) -> Result<(), String> { Ok(()) }
+        async fn create(&self, _: &NarrativeEvent) -> Result<()> {
+            Ok(())
+        }
+        async fn get(&self, _: NarrativeEventId) -> Result<Option<NarrativeEvent>> {
+            Ok(None)
+        }
+        async fn update(&self, _: &NarrativeEvent) -> Result<bool> {
+            Ok(true)
+        }
+        async fn list_by_world(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_active(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_favorites(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_pending(&self, _: WorldId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn toggle_favorite(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn set_active(&self, _: NarrativeEventId, _: bool) -> Result<bool> {
+            Ok(true)
+        }
+        async fn mark_triggered(&self, _: NarrativeEventId, _: Option<String>) -> Result<bool> {
+            Ok(true)
+        }
+        async fn reset_triggered(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn delete(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn tie_to_scene(&self, _: NarrativeEventId, _: SceneId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_tied_scene(&self, _: NarrativeEventId) -> Result<Option<SceneId>> {
+            Ok(None)
+        }
+        async fn untie_from_scene(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn tie_to_location(&self, _: NarrativeEventId, _: LocationId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_tied_location(&self, _: NarrativeEventId) -> Result<Option<LocationId>> {
+            Ok(None)
+        }
+        async fn untie_from_location(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn assign_to_act(&self, _: NarrativeEventId, _: ActId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_act(&self, _: NarrativeEventId) -> Result<Option<ActId>> {
+            Ok(None)
+        }
+        async fn unassign_from_act(&self, _: NarrativeEventId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn add_featured_npc(
+            &self,
+            _: NarrativeEventId,
+            _: wrldbldr_domain::entities::FeaturedNpc,
+        ) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_featured_npcs(
+            &self,
+            _: NarrativeEventId,
+        ) -> Result<Vec<wrldbldr_domain::entities::FeaturedNpc>> {
+            Ok(vec![])
+        }
+        async fn remove_featured_npc(&self, _: NarrativeEventId, _: CharacterId) -> Result<bool> {
+            Ok(true)
+        }
+        async fn update_featured_npc_role(
+            &self,
+            _: NarrativeEventId,
+            _: CharacterId,
+            _: Option<String>,
+        ) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_chain_memberships(
+            &self,
+            _: NarrativeEventId,
+        ) -> Result<Vec<wrldbldr_domain::entities::EventChainMembership>> {
+            Ok(vec![])
+        }
+        async fn list_by_scene(&self, _: SceneId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_by_location(&self, _: LocationId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_by_act(&self, _: ActId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
+        async fn list_by_featured_npc(&self, _: CharacterId) -> Result<Vec<NarrativeEvent>> {
+            Ok(vec![])
+        }
     }
 
+    // =========================================================================
+    // StubStagingRepo - Implements StagingRepositoryPort
+    // =========================================================================
     pub struct StubStagingRepo;
+
     #[async_trait]
     impl StagingRepositoryPort for StubStagingRepo {
-        async fn save(&self, _: &wrldbldr_domain::entities::Staging) -> Result<wrldbldr_domain::StagingId, String> { Ok(wrldbldr_domain::StagingId::from_uuid(uuid::Uuid::new_v4())) }
-        async fn get(&self, _: wrldbldr_domain::StagingId) -> Result<Option<wrldbldr_domain::entities::Staging>, String> { Ok(None) }
-        async fn get_current(&self, _: RegionId) -> Result<Option<wrldbldr_domain::entities::Staging>, String> { Ok(None) }
-        async fn get_history(&self, _: RegionId, _: u32) -> Result<Vec<wrldbldr_domain::entities::Staging>, String> { Ok(vec![]) }
-        async fn set_current(&self, _: wrldbldr_domain::StagingId) -> Result<(), String> { Ok(()) }
-        async fn invalidate_all(&self, _: RegionId) -> Result<(), String> { Ok(()) }
+        async fn save(&self, _: &Staging) -> Result<StagingId> {
+            Ok(StagingId::from_uuid(uuid::Uuid::new_v4()))
+        }
+        async fn get(&self, _: StagingId) -> Result<Option<Staging>> {
+            Ok(None)
+        }
+        async fn get_current(&self, _: RegionId) -> Result<Option<Staging>> {
+            Ok(None)
+        }
+        async fn get_history(&self, _: RegionId, _: u32) -> Result<Vec<Staging>> {
+            Ok(vec![])
+        }
+        async fn set_current(&self, _: StagingId) -> Result<()> {
+            Ok(())
+        }
+        async fn invalidate_all(&self, _: RegionId) -> Result<()> {
+            Ok(())
+        }
+        async fn is_valid(&self, _: StagingId, _: &wrldbldr_domain::GameTime) -> Result<bool> {
+            Ok(true)
+        }
+        async fn get_staged_npcs(
+            &self,
+            _: StagingId,
+        ) -> Result<Vec<wrldbldr_engine_ports::outbound::StagedNpcRow>> {
+            Ok(vec![])
+        }
     }
 }
