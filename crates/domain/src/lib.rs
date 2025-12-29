@@ -2,6 +2,7 @@ extern crate self as wrldbldr_domain;
 
 pub mod aggregates;
 pub mod entities;
+pub mod error;
 pub mod events;
 pub mod game_time;
 pub mod ids;
@@ -42,6 +43,7 @@ pub use entities::{
     Act, MonomythStage, World,
 };
 
+pub use error::DomainError;
 pub use events::DomainEvent;
 
 // Re-export game time types
