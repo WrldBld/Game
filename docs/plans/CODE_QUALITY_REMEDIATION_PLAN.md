@@ -174,8 +174,9 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.1.6 | Parser functions to domain | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
-| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
+| Phase 3.0.3 | Move Business Logic from Adapters | **DONE** | 100% |
 | Phase 3.0.3.1 | context_budget.rs to domain | **DONE** | 100% |
+| Phase 3.0.3.2 | PromptContextService + delete websocket_helpers.rs | **DONE** | 100% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
 | Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
@@ -989,57 +990,27 @@ pub trait ClockPort: Send + Sync {
 | [ ] Update adapter imports to use domain | Pending |
 | [ ] Delete original file from adapters | Pending |
 
-##### 3.0.3.2 websocket_helpers.rs (476 lines) → Application Layer
+##### 3.0.3.2 websocket_helpers.rs (476 lines) → Application Layer ✅ COMPLETE
 
-**Current Location**: `engine-adapters/src/infrastructure/websocket_helpers.rs`
+**Status**: DONE (commit 9eb6ad1)
 
-**Business Logic Identified**:
-- `build_prompt_from_action()` - **CRITICAL**: Orchestrates building `GamePromptRequest`
-- `find_responding_character()` - identifies NPC to respond
-- `get_npc_disposition_toward_pc()` - retrieves NPC mood/disposition
-- `get_actantial_context()` - builds motivations and social stance context
-- `get_active_challenges()` - gathers active challenges
-- `get_active_narrative_events()` - gathers narrative events
-- `get_featured_npc_names()` - resolves NPC names
-- `conversation_entry_to_turn()` - converts conversation entries
-- `default_scene_context()` - creates fallback context
-
-**Domain Concepts Used**:
-- `GamePromptRequest`, `SceneContext`, `PlayerActionContext`, `CharacterContext`
-- `ConversationTurn`, `ActiveChallengeContext`, `ActiveNarrativeEventContext`
-- `MotivationsContext`, `SocialStanceContext`, `RegionItemContext`
-
-**External Dependencies**: Calls multiple ports/services (no direct I/O)
-
-**Analysis**: **Application-layer orchestration logic** - coordinates multiple services to build prompt.
-
-**Target Location**: `crates/engine-app/src/application/services/prompt_context_service.rs`
-
-**New Port**: `PromptContextServicePort` in `engine-ports/src/outbound/`
-
-```rust
-#[async_trait]
-pub trait PromptContextServicePort: Send + Sync {
-    async fn build_prompt_from_action(
-        &self,
-        world_id: WorldId,
-        pc_id: PlayerCharacterId,
-        action_type: &str,
-        target: Option<&str>,
-        dialogue: Option<&str>,
-    ) -> Result<GamePromptRequest, QueueError>;
-}
-```
+**Changes Made**:
+1. Fixed directorial_notes bug in `PromptContextServiceImpl` (was returning empty string)
+2. Added `PromptContextService` field to `AppState` in engine-adapters/state/mod.rs
+3. Wired `PromptContextServiceImpl` in engine-runner/composition/app_state.rs with all 10 dependencies
+4. Simplified `server.rs` player_action_worker to use single `prompt_context_service.build_prompt_from_action()` instead of 12 individual service clones
+5. Deleted `websocket_helpers.rs` (460 lines removed)
+6. Updated doc comments in `context_budget.rs` and `services/mod.rs`
 
 | Task | Status |
 |------|--------|
-| [ ] Create `PromptContextServicePort` in engine-ports | Pending |
-| [ ] Create `PromptContextServiceImpl` in engine-app | Pending |
-| [ ] Move `build_prompt_from_action()` (~162 lines) | Pending |
-| [ ] Move helper functions (~300 lines) | Pending |
-| [ ] Abstract `WorldStateManager` via `WorldStatePort` | Pending |
-| [ ] Update WebSocket handlers to use new port | Pending |
-| [ ] Delete original file | Pending |
+| [x] Create `PromptContextServicePort` in engine-ports | **DONE** |
+| [x] Create `PromptContextServiceImpl` in engine-app | **DONE** |
+| [x] Move `build_prompt_from_action()` (~162 lines) | **DONE** |
+| [x] Move helper functions (~300 lines) | **DONE** |
+| [x] Abstract `WorldStateManager` via `WorldStatePort` | **DONE** |
+| [x] Update server.rs player_action_worker to use new service | **DONE** |
+| [x] Delete original file | **DONE** |
 
 ##### 3.0.3.3 queue_workers.rs (502 lines) → Split (App + Adapters)
 
