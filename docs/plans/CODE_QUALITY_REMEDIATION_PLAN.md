@@ -179,6 +179,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.3.2 | PromptContextService + delete websocket_helpers.rs | **DONE** | 100% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
 | Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
+| Phase 3.0.4 | Fix Player-Side Hexagonal Architecture | **DONE** | 90% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
 | Phase 3.0.7 | Move Composition Root to Runner | **PLANNED** | 0% |
@@ -1217,19 +1218,20 @@ pub trait WorldStatePort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Create `player-adapters/src/state/` module structure | Pending |
-| [ ] Create `player-adapters/src/state/platform.rs` with Platform struct | Pending |
-| [ ] Move *Dyn traits from player-ports to player-adapters/state/platform.rs | Pending |
-| [ ] Move blanket impls from player-ports to player-adapters/state/platform.rs | Pending |
-| [ ] Move `get_user_id()` to `player-app/services/user_service.rs` | Pending |
-| [ ] Update `player-ports/outbound/platform.rs` to keep only traits + storage_keys | Pending |
-| [ ] Update `player-ports/outbound/mod.rs` exports (remove Platform) | Pending |
-| [ ] Update `player-adapters/infrastructure/platform/mod.rs` to export Platform | Pending |
-| [ ] Add `wrldbldr-player-adapters` dependency to `player-ui/Cargo.toml` | Pending |
-| [ ] Update all Platform imports across codebase (~28 files) | Pending |
+| [x] Create `player-adapters/src/state/` module structure | **DONE** |
+| [x] Create `player-adapters/src/state/platform.rs` with Platform struct | **DONE** |
+| [x] Move *Dyn traits from player-ports to player-adapters/state/platform.rs | **DONE** |
+| [x] Move blanket impls from player-ports to player-adapters/state/platform.rs | **DONE** |
+| [x] Create `UserService` in `player-app/services/user_service.rs` | **DONE** |
+| [x] Create `PlatformStorageAdapter` for application services | **DONE** |
+| [x] Update `player-ports/outbound/platform.rs` to keep only traits + storage_keys | **DONE** |
+| [x] Update `player-ports/outbound/mod.rs` exports (remove Platform, export traits) | **DONE** |
+| [x] Update `player-adapters/infrastructure/platform/*.rs` to import from crate::state | **DONE** |
+| [x] Add `wrldbldr-player-adapters` dependency to `player-ui/Cargo.toml` | **DONE** |
+| [x] Update all Platform imports across codebase (24 files) | **DONE** |
+| [x] Verify compilation | **DONE** (commit 3858f61) |
 | [ ] Move MockGameConnectionPort to player-adapters/infrastructure/testing | Pending |
 | [ ] Remove `wrldbldr-player-app` dependency from player-adapters/Cargo.toml | Pending |
-| [ ] Verify compilation | Pending |
 
 ##### Dioxus Context Handling
 
