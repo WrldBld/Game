@@ -21,53 +21,12 @@
 
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
+use crate::application::dto::requests::SuggestionContext;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::{RequestPayload, SuggestionContextData};
-
-/// Context for generating suggestions
-///
-/// This context is passed to the LLM to help generate relevant suggestions.
-/// Fields can be populated with whatever information is available.
-/// The engine may auto-enrich this context with world data when world_id is provided.
-#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SuggestionContext {
-    /// Type of entity (e.g., "character", "location", "tavern", "forest")
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub entity_type: Option<String>,
-
-    /// Name of the entity (if already set)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub entity_name: Option<String>,
-
-    /// World/setting name or type (e.g., "Dark Fantasy", "Sci-Fi Western")
-    /// If not provided, the engine may auto-populate this from the world record.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub world_setting: Option<String>,
-
-    /// Hints or keywords to guide generation (e.g., archetype, theme)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hints: Option<String>,
-
-    /// Additional context from other fields (e.g., description, backstory)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub additional_context: Option<String>,
-}
-
-impl From<SuggestionContext> for SuggestionContextData {
-    fn from(ctx: SuggestionContext) -> Self {
-        Self {
-            entity_type: ctx.entity_type,
-            entity_name: ctx.entity_name,
-            world_setting: ctx.world_setting,
-            hints: ctx.hints,
-            additional_context: ctx.additional_context,
-        }
-    }
-}
+use wrldbldr_protocol::RequestPayload;
 
 /// Response from queued suggestion (immediate response, results via events)
 #[derive(Clone, Debug, Deserialize)]

@@ -74,7 +74,8 @@ pub use workflow_service::{
 pub use asset_service::{Asset, AssetService, GenerateRequest};
 
 // Re-export suggestion service types
-pub use suggestion_service::{SuggestionContext, SuggestionService};
+pub use crate::application::dto::requests::SuggestionContext;
+pub use suggestion_service::SuggestionService;
 
 // Re-export event chain service types
 pub use event_chain_service::{
