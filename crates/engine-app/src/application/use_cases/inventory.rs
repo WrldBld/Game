@@ -419,6 +419,7 @@ impl InventoryUseCasePort for InventoryUseCase {
 mod tests {
     use super::*;
     use uuid::Uuid;
+    use wrldbldr_domain::{ItemId, PlayerCharacterId};
 
     #[test]
     fn test_insufficient_quantity_error_message() {

@@ -546,6 +546,9 @@ impl MovementUseCasePort for MovementUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
+    use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
+    use wrldbldr_engine_ports::outbound::SceneChangedEvent;
 
     // Unit tests would use mocks for all the ports
     // Example structure:

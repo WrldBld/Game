@@ -456,6 +456,7 @@ impl StagingUseCasePort for StagingApprovalUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain::StagingSource;
 
     #[test]
     fn test_staging_approval_source_conversion() {

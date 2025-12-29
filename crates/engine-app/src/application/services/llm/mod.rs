@@ -343,12 +343,21 @@ pub enum LLMServiceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::value_objects::{CharacterContext, SceneContext};
     use wrldbldr_domain::WorldId;
     use wrldbldr_engine_dto::FinishReason;
     use wrldbldr_engine_ports::outbound::{
-        LlmResponse, PromptTemplateError, PromptTemplateRepositoryPort, ToolDefinition,
+        EnvironmentPort, LlmResponse, PromptTemplateError, PromptTemplateRepositoryPort,
+        ToolDefinition,
     };
+
+    /// Mock environment for tests
+    struct MockEnvironmentPort;
+
+    impl EnvironmentPort for MockEnvironmentPort {
+        fn get_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+    }
 
     /// Mock prompt template repository for tests
     struct MockPromptTemplateRepository;
@@ -433,7 +442,8 @@ mod tests {
 
     fn create_test_service() -> LLMService<MockLlm> {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
-        let prompt_service = Arc::new(PromptTemplateService::new(repo));
+        let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let prompt_service = Arc::new(PromptTemplateService::new(repo, env));
         LLMService::new(Arc::new(MockLlm), prompt_service)
     }
 

@@ -502,7 +502,16 @@ pub fn build_conversation_history(history: &[ConversationTurn]) -> Vec<ChatMessa
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort;
+    use wrldbldr_engine_ports::outbound::{EnvironmentPort, PromptTemplateRepositoryPort};
+
+    // Mock environment for testing
+    struct MockEnvironmentPort;
+
+    impl EnvironmentPort for MockEnvironmentPort {
+        fn get_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+    }
 
     // Mock repository for testing
     struct MockPromptTemplateRepository;
@@ -578,7 +587,8 @@ mod tests {
 
     fn create_test_prompt_builder() -> PromptBuilder {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
-        let service = Arc::new(PromptTemplateService::new(repo));
+        let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let service = Arc::new(PromptTemplateService::new(repo, env));
         PromptBuilder::new(service)
     }
 

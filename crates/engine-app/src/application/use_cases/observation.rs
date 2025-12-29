@@ -309,6 +309,7 @@ impl ObservationUseCasePort for ObservationUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
     #[test]
     fn test_share_npc_location_input() {

@@ -353,12 +353,24 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 mod tests {
     use super::*;
     use wrldbldr_engine_ports::outbound::{
-        FinishReason, PromptTemplateError, PromptTemplateRepositoryPort, ToolDefinition,
+        EnvironmentPort, FinishReason, PromptTemplateError, PromptTemplateRepositoryPort,
+        ToolDefinition,
     };
 
+    /// Mock environment for tests
+    struct MockEnvironmentPort;
+
+    impl EnvironmentPort for MockEnvironmentPort {
+        fn get_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+    }
+
     fn create_test_service() -> OutcomeSuggestionService<MockLlm> {
-        let mock_repo = Arc::new(MockPromptTemplateRepository);
-        let prompt_template_service = Arc::new(PromptTemplateService::new(mock_repo));
+        let mock_repo: Arc<dyn PromptTemplateRepositoryPort> =
+            Arc::new(MockPromptTemplateRepository);
+        let mock_env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let prompt_template_service = Arc::new(PromptTemplateService::new(mock_repo, mock_env));
         OutcomeSuggestionService {
             llm: Arc::new(MockLlm),
             prompt_template_service,
