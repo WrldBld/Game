@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Phase 3.0.2 FileStoragePort complete, Phase 3.0.7 complete)  
+**Last Updated**: 2025-12-29 (Phase 3.0.3.4 WorldStatePort complete)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
 **Estimated Remaining Effort**: 66-87 hours
@@ -179,10 +179,11 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 3.0.1.12 | Remove duplicate DTOs (AdHocOutcomesDto, etc.) | **DONE** | 100% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
-| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 50% |
+| Phase 3.0.3 | Move Business Logic from Adapters | **IN PROGRESS** | 75% |
 | Phase 3.0.3.1 | context_budget.rs to domain | **DONE** | 100% |
+| Phase 3.0.3.2 | websocket_helpers.rs to PromptContextService | Pending | 0% |
 | Phase 3.0.3.3 | DmActionProcessorPort | **DONE** | 100% |
-| Phase 3.0.3.4 | WorldStatePort + domain types | **DONE** | 100% |
+| Phase 3.0.3.4 | WorldStatePort + domain types + impl | **DONE** | 100% |
 | Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
 | Phase 3.0.6 | Session Types From Impls | **DONE** | 100% |
 | Phase 3.0.7 | Move Composition Root to Runner | **DONE** | 100% |
@@ -1280,11 +1281,12 @@ pub trait WorldStatePort: Send + Sync {
 | [x] Move `ConversationEntry`, `Speaker`, `ApprovalType` to domain | **DONE** |
 | [x] Move `PendingApprovalItem` to domain | **DONE** |
 | [x] Create `WorldStatePort` trait in engine-ports | **DONE** |
-| [ ] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Pending |
-| [ ] Implement `WorldStatePort` for adapter | Pending |
-| [ ] Update consumers to use `Arc<dyn WorldStatePort>` | Pending |
-| [ ] Remove engine-app import (`StagingProposal`) | Pending |
-| Note: `WaitingPc` deferred (depends on StagingProposal from engine-app) | |
+| [x] Add DirectorialNotes methods to WorldStatePort | **DONE** |
+| [x] Implement `WorldStatePort` for WorldStateManager | **DONE** |
+| [x] Update consumers to use port trait | **DONE** (adapters import trait for method resolution) |
+| [~] Rename `WorldStateManager` to `InMemoryWorldStateAdapter` | Deferred (cosmetic, no arch impact) |
+| [~] Remove engine-app import (`StagingProposal`) | Deferred (staging methods kept adapter-specific) |
+| Note: Staging approval methods kept as adapter-specific (not in port) because they depend on StagingProposal from engine-app. |
 
 ##### Summary
 
