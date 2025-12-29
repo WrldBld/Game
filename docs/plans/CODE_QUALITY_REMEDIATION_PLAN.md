@@ -824,8 +824,54 @@ impl StorageProvider for DesktopStorageProvider {
 |     - SkillServicePort (7 methods) | **DONE** |
 | [x] Move use case types to engine-ports (50+ types) | **DONE** - use_case_types.rs |
 | [x] Move parser functions to domain (5 functions) | **DONE** - FromStr impls |
-| [ ] Refactor adapters to use only ports | Pending |
+| [~] Refactor adapters to use only ports | **IN PROGRESS** - 6/72 done, blocked |
 | [ ] Remove `wrldbldr-engine-app` from engine-adapters/Cargo.toml | Pending |
+
+#### 3.0.1.7 Queue Architecture Remediation (NEW - 2025-12-29)
+
+**Problem Identified**:
+Queue item types (`PlayerActionItem`, `LLMRequestItem`, `ApprovalItem`, etc.) are serialization 
+DTOs currently defined in engine-app. This is an architecture violation - serialization concerns
+belong in the adapters layer, not application layer.
+
+**Current State (Wrong)**:
+```
+engine-app/dto/queue_items.rs → defines PlayerActionItem, LLMRequestItem, etc.
+engine-app/services/*_queue_service.rs → uses these DTOs directly
+engine-dto/queue.rs → duplicate definitions (created but unused)
+```
+
+**Target State (Correct Hexagonal)**:
+```
+domain/value_objects/ → QueueItemData types (pure domain, no serde)
+engine-ports/outbound/ → QueuePort<T> traits with domain types
+engine-app/services/ → queue services use domain types via ports
+engine-dto/queue.rs → serialization DTOs (serde)
+engine-adapters/ → implements ports, converts domain ↔ DTO
+```
+
+**Remediation Tasks**:
+
+| Task | Description | Status |
+|------|-------------|--------|
+| 3.0.1.7.1 | Define domain queue item value objects | Pending |
+| 3.0.1.7.2 | Update QueuePort traits to use domain types | Pending |
+| 3.0.1.7.3 | Refactor queue services to use domain types | Pending |
+| 3.0.1.7.4 | Delete engine-app/dto/queue_items.rs and approval.rs | Pending |
+| 3.0.1.7.5 | Update adapters to convert domain ↔ DTO | Pending |
+
+**Domain Queue Types to Create** (in `domain/value_objects/queue_data.rs`):
+- `PlayerActionData` - player action request
+- `DmActionData` - DM action request  
+- `LlmRequestData` - LLM processing request
+- `ApprovalRequestData` - pending approval data
+- `ChallengeOutcomeData` - challenge resolution data
+- `AssetGenerationData` - asset generation request
+
+**Completed import fixes (72 → 66)**:
+- Persistence DTOs → engine-dto (3 files)
+- parse_archetype → FromStr (2 files)
+- ExportQueryDto → protocol (1 file)
 
 **Success Criteria**: `grep -r "wrldbldr_engine_app" crates/engine-adapters/src/` returns no results.
 
