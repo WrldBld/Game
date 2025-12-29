@@ -36,7 +36,7 @@ pub struct LLMQueueService<Q: ProcessingQueuePort<LLMRequestItem>, L: LlmPort + 
     narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
     semaphore: Arc<Semaphore>,
     notifier: N,
-    generation_event_tx: tokio::sync::mpsc::UnboundedSender<GenerationEvent>,
+    generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
     prompt_template_service: Arc<PromptTemplateService>,
 }
 
@@ -67,7 +67,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
         narrative_event_repo: Arc<dyn NarrativeEventRepositoryPort>,
         batch_size: usize,
         notifier: N,
-        generation_event_tx: tokio::sync::mpsc::UnboundedSender<GenerationEvent>,
+        generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
         prompt_template_service: Arc<PromptTemplateService>,
     ) -> Self {
         Self {
@@ -102,8 +102,8 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                 // Mark as failed with cancellation message
                 self.queue.fail(item.id, "Cancelled by user").await?;
                 
-                // Emit cancellation event
-                if let Err(e) = self.generation_event_tx.send(GenerationEvent::SuggestionFailed {
+                // Emit cancellation event (non-blocking, logs warning if buffer full)
+                if let Err(e) = self.generation_event_tx.try_send(GenerationEvent::SuggestionFailed {
                     request_id: request_id.to_string(),
                     field_type: match &item.payload.request_type {
                         LLMRequestType::Suggestion { field_type, .. } => field_type.clone(),
@@ -442,7 +442,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         let world_id_clone = request.world_id.clone();
                         
                         // Emit queued event
-                        if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionQueued {
+                        if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionQueued {
                             request_id: request_id.clone(),
                             field_type: field_type_clone.clone(),
                             entity_id: entity_id_clone.clone(),
@@ -475,7 +475,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             _ => {
                                 let error = format!("Unknown suggestion field type: {}", field_type);
                                 tracing::error!("{}", error);
-                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
+                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionFailed {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),
@@ -493,7 +493,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                         match result {
                             Ok(suggestions) => {
                                 tracing::info!("Suggestion request {} completed with {} suggestions", request_id, suggestions.len());
-                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionComplete {
+                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionComplete {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     suggestions,
@@ -508,7 +508,7 @@ impl<Q: ProcessingQueuePort<LLMRequestItem> + 'static, L: LlmPort + Clone + 'sta
                             Err(e) => {
                                 let error = e.to_string();
                                 tracing::error!("Suggestion request {} failed: {}", request_id, error);
-                                if let Err(e) = generation_event_tx_clone.send(GenerationEvent::SuggestionFailed {
+                                if let Err(e) = generation_event_tx_clone.try_send(GenerationEvent::SuggestionFailed {
                                     request_id: request_id.clone(),
                                     field_type: field_type_clone.clone(),
                                     error: error.clone(),

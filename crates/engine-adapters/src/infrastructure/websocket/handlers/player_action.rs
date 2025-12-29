@@ -26,7 +26,7 @@ pub async fn handle_player_action(
     action_type: String,
     target: Option<String>,
     dialogue: Option<String>,
-    sender: mpsc::UnboundedSender<ServerMessage>,
+    sender: mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     tracing::debug!("Received player action: {} -> {:?}", action_type, target);
 
@@ -53,7 +53,7 @@ pub async fn handle_player_action(
         Ok(ActionResult::TravelCompleted { action_id, scene }) => {
             // Send scene update to player
             let scene_msg = scene_changed_event_to_message(scene);
-            let _ = sender.send(scene_msg);
+            let _ = sender.try_send(scene_msg);
 
             // Return acknowledgment
             Some(ServerMessage::ActionReceived {
@@ -64,7 +64,7 @@ pub async fn handle_player_action(
         }
         Ok(ActionResult::TravelPending { action_id, region_id, region_name }) => {
             // Send staging pending
-            let _ = sender.send(ServerMessage::StagingPending {
+            let _ = sender.try_send(ServerMessage::StagingPending {
                 region_id: region_id.to_string(),
                 region_name,
             });

@@ -80,6 +80,10 @@ pub async fn ws_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
+/// Buffer size for per-connection message channel
+/// This provides backpressure when a client is slow to consume messages
+const CONNECTION_CHANNEL_BUFFER: usize = 256;
+
 /// Handle an individual WebSocket connection
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
@@ -87,8 +91,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Create a unique client ID for this connection
     let client_id = Uuid::new_v4();
 
-    // Create a channel for sending messages to this client
-    let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
+    // Create a bounded channel for sending messages to this client
+    // This provides backpressure when client is slow to consume messages
+    let (tx, mut rx) = mpsc::channel::<ServerMessage>(CONNECTION_CHANNEL_BUFFER);
 
     tracing::info!("New WebSocket connection established: {}", client_id);
 
@@ -111,8 +116,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     if let Some(response) =
                         dispatch::handle_message(msg, &state, client_id, tx.clone()).await
                     {
-                        if tx.send(response).is_err() {
-                            break;
+                        match tx.try_send(response) {
+                            Ok(_) => {}
+                            Err(mpsc::error::TrySendError::Full(_)) => {
+                                tracing::warn!("Message buffer full for client {}, dropping message", client_id);
+                            }
+                            Err(mpsc::error::TrySendError::Closed(_)) => {
+                                break;
+                            }
                         }
                     }
                 }
@@ -122,8 +133,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                         code: "PARSE_ERROR".to_string(),
                         message: format!("Invalid message format: {}", e),
                     };
-                    if tx.send(error).is_err() {
-                        break;
+                    match tx.try_send(error) {
+                        Ok(_) => {}
+                        Err(mpsc::error::TrySendError::Full(_)) => {
+                            tracing::warn!("Message buffer full for client {}, dropping error message", client_id);
+                        }
+                        Err(mpsc::error::TrySendError::Closed(_)) => {
+                            break;
+                        }
                     }
                 }
             },
@@ -133,7 +150,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             }
             Ok(Message::Ping(_data)) => {
                 // Ping/Pong is handled by the send task through the channel
-                let _ = tx.send(ServerMessage::Pong);
+                let _ = tx.try_send(ServerMessage::Pong);
             }
             Err(e) => {
                 tracing::error!("WebSocket error for client {}: {}", client_id, e);

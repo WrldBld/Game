@@ -71,7 +71,7 @@ pub async fn handle_move_to_region(
     client_id: Uuid,
     pc_id: String,
     region_id: String,
-    _sender: tokio::sync::mpsc::UnboundedSender<ServerMessage>,
+    _sender: tokio::sync::mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     tracing::debug!(
         pc_id = %pc_id,
@@ -114,7 +114,7 @@ pub async fn handle_exit_to_location(
     pc_id: String,
     location_id: String,
     arrival_region_id: Option<String>,
-    _sender: tokio::sync::mpsc::UnboundedSender<ServerMessage>,
+    _sender: tokio::sync::mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     tracing::debug!(
         pc_id = %pc_id,

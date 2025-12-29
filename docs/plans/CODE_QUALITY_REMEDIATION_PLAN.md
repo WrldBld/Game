@@ -2,9 +2,10 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-28 (Seventh comprehensive review - 10 sub-agents)  
+**Last Updated**: 2025-12-28 (Ninth review - agent verification of new findings)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
-**Estimated Total Effort**: 55-75 hours (implementation) + contingency = 75-100 hours total
+**Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
+**Estimated Remaining Effort**: 66-87 hours
 
 ---
 
@@ -105,10 +106,38 @@ The seventh review deployed 10 specialized sub-agents to check for inconsistenci
 
 **14+ direct `Utc::now()` calls across 10 services** - prevents deterministic testing. Added as Phase 3.0.2.1.
 
+### Eighth Review (Agent Verification - Ninth Update)
+
+The eighth review deployed 8 specialized agents to verify proposed new findings from external analysis:
+
+#### Verified Accurate (Added to Plan):
+
+| Finding | Agent Result | Impact |
+|---------|--------------|--------|
+| **WebSocket reconnection missing** | CONFIRMED - `ConnectionState::Reconnecting` defined but NEVER USED. No backoff, no retry logic. | Add Phase 2.5 |
+| **Desktop storage no-op** | CONFIRMED - All 3 methods in `DesktopStorageProvider` are empty stubs | Add Phase 2.6 |
+| **Session types duplicates** | CONFIRMED - All 8 types with exact line numbers verified | Update Phase 3.0.6 |
+| **Role mapping duplication** | CONFIRMED - Identical code in desktop/client.rs:192-196 and wasm/client.rs:273-277 | Add Phase 4.7 |
+| **Domain Utc::now() calls** | CONFIRMED - **51 occurrences** (48 production, 3 test) across 15 files | Add Phase 5.6 |
+| **Missing serde derives** | CONFIRMED - **53 types** missing (5 false positives in original claim had serde) | Update Phase 5.1 |
+| **Dioxus.toml metadata** | CONFIRMED - Empty icons, default descriptions, non-standard identifier | Add Phase 8.3 |
+
+#### Rejected (NOT Added):
+
+| Finding | Agent Result | Reason |
+|---------|--------------|--------|
+| **Game events DTOs (567 lines)** | INCORRECT - These are **intentionally in ports layer** | Transport-agnostic event contracts using domain ID types. Architecture comments document the design. Correctly placed. |
+
+#### Updated Counts:
+
+| Item | Original Claim | Verified Count |
+|------|----------------|----------------|
+| Missing serde derives | 46+ | **53** |
+| Domain Utc::now() calls | 30+ | **51** |
+
 ### Known Limitations (Not in Scope)
 - **Authentication**: X-User-Id header is spoofable - intentional for MVP
 - **Rate limiting**: RateLimitExceeded defined but unused - feature work
-- **Reconnection logic**: Reconnecting state unused - feature work
 - **Protocol versioning**: No version field - would be breaking change
 
 ---
@@ -131,16 +160,33 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase | Description | Status | Completion |
 |-------|-------------|--------|------------|
 | Phase 1 | Critical Fixes | **DONE** | 100% |
-| Phase 2 | High Priority | In Progress | 60% |
-| Phase 3 | Architecture Completion | In Progress | 20% |
+| Phase 2 | High Priority | In Progress | 50% |
+| Phase 2.1-2.3 | Error Handling, Timeouts, HTTP Client | **DONE** | 100% |
+| Phase 2.4 | Async/Concurrency (channels, shutdown) | Pending | 0% |
+| Phase 2.5 | WebSocket Reliability | **NEW** | 0% |
+| Phase 2.6 | Desktop Storage | **NEW** | 0% |
+| Phase 3 | Architecture Completion | In Progress | 25% |
 | Phase 3.0.2.1 | ClockPort Abstraction | **DONE** | 100% |
 | Phase 3.0.2.2 | Required Dependencies | **DONE** | 100% |
-| Phase 4 | Dead Code Cleanup | In Progress | 70% |
+| Phase 3.0.5 | Remove tokio from engine-ports | **DONE** | 100% |
+| Phase 3.3 | Document Port Placement | **DONE** | 100% |
+| Phase 3.4 | Document Protocol Imports | **DONE** | 100% |
+| Phase 4 | Dead Code Cleanup | In Progress | 80% |
+| Phase 4.1-4.3 | Unused Structs/Fields/Constants | **DONE** | 100% |
+| Phase 4.4-4.5 | #[allow(dead_code)] audit, UI vars | Pending | 0% |
 | Phase 4.6 | Glob Re-exports | **DONE** | 100% |
-| Phase 5 | Domain Layer Polish | In Progress | 50% |
-| Phase 6 | Protocol Layer Polish | In Progress | 40% |
+| Phase 4.7 | Role Mapping Deduplication | **NEW** | 0% |
+| Phase 5 | Domain Layer Polish | In Progress | 35% |
+| Phase 5.1 | Serde on Entities (53 types) | In Progress | 35% |
+| Phase 5.2 | Serde on ID Types | **DONE** | 100% |
+| Phase 5.6 | Domain Utc::now() (51 calls) | **NEW** | 0% |
+| Phase 6 | Protocol Layer Polish | In Progress | 50% |
+| Phase 6.1 | Document Protocol Imports (dto.rs) | **DONE** | 100% |
+| Phase 6.3 | Versioning Documentation | **DONE** | 100% |
+| Phase 6.5 | Forward Compat (critical 4 enums) | **DONE** | 100% |
 | Phase 7 | Test Infrastructure | Pending | 0% |
 | Phase 8 | Documentation | Pending | 0% |
+| Phase 8.3 | Dioxus.toml Metadata | **NEW** | 0% |
 
 ---
 
@@ -291,7 +337,7 @@ let client = reqwest::Client::builder()
 |------|--------|
 | [x] Add 30s timeout to http_client.rs | **DONE** |
 | [x] Add 120s timeout to ollama.rs | **DONE** |
-| [ ] Add timeout to comfyui.rs if missing | Pending |
+| [x] Add timeout to comfyui.rs | **DONE** (configurable via ComfyUIConfig) |
 
 ---
 
@@ -362,10 +408,14 @@ let (tx, rx) = mpsc::channel::<ServerMessage>(256);
 
 | Task | Status |
 |------|--------|
-| [ ] Replace unbounded_channel in websocket/mod.rs:78 | Pending |
-| [ ] Replace unbounded_channel in state/mod.rs:425 | Pending |
-| [ ] Replace unbounded_channel in state/mod.rs:473 | Pending |
-| [ ] Handle send errors when channels are full | Pending |
+| [x] Replace unbounded_channel in websocket/mod.rs:91 | **DONE** (buffer size 256) |
+| [x] Replace unbounded_channel in state/mod.rs:428 (generation_event) | **DONE** (buffer size 256) |
+| [x] Replace unbounded_channel in state/mod.rs:479 (challenge_approval) | **DONE** (buffer size 256) |
+| [x] Handle send errors when channels are full | **DONE** (use try_send with logging) |
+| [x] Update generation_service.rs to use bounded Sender | **DONE** |
+| [x] Update challenge_outcome_approval_service.rs to use bounded Sender | **DONE** |
+| [x] Update llm_queue_service.rs to use bounded Sender | **DONE** |
+| [x] Update dispatch.rs and handlers to use bounded Sender | **DONE** |
 
 #### 2.4.3 Missing Graceful Shutdown
 
@@ -401,6 +451,207 @@ tokio::select! {
 | [ ] Pass cancellation token to all 10 spawned workers | Pending |
 | [ ] Handle SIGTERM/SIGINT for graceful shutdown | Pending |
 | [ ] Add JoinHandle tracking for spawned tasks | Pending |
+
+---
+
+### 2.5 Player WebSocket Reliability (NEW - Eighth Review)
+
+**Priority**: HIGH - Production user experience
+**Estimated Effort**: 4-6 hours
+
+**Issue**: Neither WASM nor Desktop WebSocket clients have automatic reconnection logic. When connection drops, users see disconnects and must manually refresh.
+
+**Agent Verification**: Confirmed `ConnectionState::Reconnecting` variant is defined in `protocol.rs:13` but **NEVER SET** by either client. No backoff, no retry loops, no health monitoring exists.
+
+**Files to modify**:
+- `crates/player-adapters/src/infrastructure/websocket/desktop/client.rs`
+- `crates/player-adapters/src/infrastructure/websocket/wasm/client.rs`
+
+#### 2.5.1 Implement Automatic Reconnection
+
+**Implementation Pattern**:
+```rust
+const INITIAL_RETRY_DELAY_MS: u64 = 1000;
+const MAX_RETRY_DELAY_MS: u64 = 30000;
+const MAX_RETRY_ATTEMPTS: u32 = 10;
+const BACKOFF_MULTIPLIER: f64 = 2.0;
+
+async fn reconnect_with_backoff(&self) {
+    let mut delay = INITIAL_RETRY_DELAY_MS;
+    let mut attempts = 0;
+    
+    loop {
+        self.set_state(ConnectionState::Reconnecting);
+        sleep(Duration::from_millis(delay)).await;
+        
+        match self.connect_internal().await {
+            Ok(_) => break,
+            Err(e) => {
+                attempts += 1;
+                if attempts >= MAX_RETRY_ATTEMPTS {
+                    self.set_state(ConnectionState::Failed);
+                    return;
+                }
+                tracing::warn!("Reconnection attempt {attempts} failed: {e}, retrying in {delay}ms");
+                delay = (delay as f64 * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
+            }
+        }
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Implement reconnect_with_backoff() in desktop client | Pending |
+| [ ] Implement reconnect_with_backoff() in WASM client (using setTimeout) | Pending |
+| [ ] Add reconnection trigger on connection close/error | Pending |
+| [ ] Add max retry attempts configuration | Pending |
+| [ ] Update UI to show reconnection state indicator | Pending |
+
+#### 2.5.2 Add Connection Health Monitoring
+
+**Issue**: No periodic ping/pong to detect silent connection failures. `heartbeat()` method exists but is never called automatically.
+
+**Implementation**:
+```rust
+async fn heartbeat_task(&self, cancel: CancellationToken) {
+    let mut interval = tokio::time::interval(Duration::from_secs(30));
+    let mut missed_pongs = 0;
+    
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                if let Err(_) = self.send_ping().await {
+                    missed_pongs += 1;
+                    if missed_pongs >= 3 {
+                        self.trigger_reconnect();
+                    }
+                } else {
+                    missed_pongs = 0;
+                }
+            }
+            _ = cancel.cancelled() => break,
+        }
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Add Ping/Pong message handling if not exists | Pending |
+| [ ] Implement heartbeat task in desktop client | Pending |
+| [ ] Implement heartbeat task in WASM client (using setInterval) | Pending |
+| [ ] Add timeout detection for pong responses | Pending |
+
+#### 2.5.3 Add Message Buffering During Reconnection
+
+**Issue**: Desktop has 32-message channel buffer, WASM sends directly with no buffering during reconnection.
+
+**File**: `crates/player-adapters/src/infrastructure/websocket/wasm/client.rs`
+
+| Task | Status |
+|------|--------|
+| [ ] Add message queue for WASM client | Pending |
+| [ ] Buffer messages when state is Reconnecting | Pending |
+| [ ] Flush buffer on successful reconnection | Pending |
+| [ ] Add buffer size limit with oldest-message-drop policy | Pending |
+
+---
+
+### 2.6 Desktop Storage Implementation (NEW - Eighth Review)
+
+**Priority**: HIGH - Desktop users cannot persist settings
+**Estimated Effort**: 2-3 hours
+
+**Issue**: `DesktopStorageProvider` in `player-adapters/src/infrastructure/platform/desktop.rs:57-72` is a complete no-op:
+
+```rust
+// Current implementation (lines 57-72)
+impl StorageProvider for DesktopStorageProvider {
+    fn save(&self, _key: &str, _value: &str) {
+        // No-op - does nothing!
+    }
+    fn load(&self, _key: &str) -> Option<String> {
+        None  // Always returns None!
+    }
+    fn remove(&self, _key: &str) {
+        // No-op
+    }
+}
+```
+
+**Impact**: On desktop builds:
+- User ID not persisted (new UUID each launch)
+- Last world not remembered
+- Server URL not saved
+- All user preferences lost on restart
+
+**Implementation using `directories` crate**:
+```rust
+use directories::ProjectDirs;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
+
+pub struct DesktopStorageProvider {
+    storage_path: PathBuf,
+    cache: RwLock<HashMap<String, String>>,
+}
+
+impl DesktopStorageProvider {
+    pub fn new() -> Self {
+        let dirs = ProjectDirs::from("io", "wrldbldr", "player")
+            .expect("Failed to get project directories");
+        let storage_path = dirs.config_dir().join("storage.json");
+        
+        // Load existing data
+        let cache = if storage_path.exists() {
+            let data = fs::read_to_string(&storage_path).unwrap_or_default();
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+        
+        Self {
+            storage_path,
+            cache: RwLock::new(cache),
+        }
+    }
+    
+    fn persist(&self) {
+        let cache = self.cache.read().unwrap();
+        if let Ok(data) = serde_json::to_string_pretty(&*cache) {
+            let _ = fs::create_dir_all(self.storage_path.parent().unwrap());
+            let _ = fs::write(&self.storage_path, data);
+        }
+    }
+}
+
+impl StorageProvider for DesktopStorageProvider {
+    fn load(&self, key: &str) -> Option<String> {
+        self.cache.read().unwrap().get(key).cloned()
+    }
+    
+    fn save(&self, key: &str, value: &str) {
+        self.cache.write().unwrap().insert(key.to_string(), value.to_string());
+        self.persist();
+    }
+    
+    fn remove(&self, key: &str) {
+        self.cache.write().unwrap().remove(key);
+        self.persist();
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Add `directories` crate to player-adapters/Cargo.toml | Pending |
+| [ ] Implement file-based storage in DesktopStorageProvider | Pending |
+| [ ] Add error handling for permission issues | Pending |
+| [ ] Add storage path configuration option (env var override) | Pending |
+| [ ] Test persistence across app restarts | Pending |
 
 ---
 
@@ -566,11 +817,11 @@ pub trait ClockPort: Send + Sync {
 
 | Task | Status |
 |------|--------|
-| [ ] Fix ItemServiceImpl - make region_repository required | Pending |
-| [ ] Fix ChallengeOutcomeApprovalService - make queue, llm_port, settings_service required | Pending |
-| [ ] Fix AppRequestHandler - make all optional deps required | Pending |
-| [ ] Update composition root (AppState::new) to pass all deps | Pending |
-| [ ] Wire ClockPort at composition root (combines with 3.0.2.1) | Pending |
+| [x] Fix ItemServiceImpl - make region_repository required | **DONE** |
+| [x] Fix ChallengeOutcomeApprovalService - make queue, llm_port, settings_service required | **DONE** |
+| [x] Fix AppRequestHandler - make all optional deps required | **DONE** |
+| [x] Update composition root (AppState::new) to pass all deps | **DONE** |
+| [x] Wire ClockPort at composition root (combines with 3.0.2.1) | **DONE** |
 
 #### 3.0.3 Move Business Logic Out of Adapters
 
@@ -634,26 +885,35 @@ pub trait ClockPort: Send + Sync {
 | Task | Status |
 |------|--------|
 | [x] Remove tokio from engine-ports/Cargo.toml | **DONE** |
-| [ ] Verify compilation still works | Pending (deferred to end) |
+| [x] Verify compilation still works | **DONE** (cargo check --workspace passes) |
 
 #### 3.0.6 Fix player-ports Session Types Duplicates (NEW)
 
 **File**: `crates/player-ports/src/session_types.rs` (116 lines)
 
-**Issue**: 8 types duplicate protocol types WITHOUT `From` implementations:
+**Issue**: 8 types duplicate protocol types WITHOUT `From` implementations.
+
+**Verified by agent** (eighth review - exact line numbers):
 
 | Type | player-ports | protocol | Has From? |
 |------|--------------|----------|-----------|
-| `ParticipantRole` | session_types.rs:11 | types.rs:20 | NO |
-| `DiceInput` | session_types.rs:19 | messages.rs:1001 | NO |
-| `ApprovalDecision` | session_types.rs:28 | types.rs:41 | NO |
-| `DirectorialContext` | session_types.rs:60 | messages.rs:841 | NO |
-| `NpcMotivationData` | session_types.rs:69 | messages.rs:853 | NO |
-| `ApprovedNpcInfo` | session_types.rs:79 | messages.rs:1106 | NO |
-| `AdHocOutcomes` | session_types.rs:92 | messages.rs:1011 | NO |
-| `ChallengeOutcomeDecision` | session_types.rs:103 | messages.rs:1031 | NO |
+| `ParticipantRole` | session_types.rs:11-16 | types.rs:19-25 | NO |
+| `DiceInput` | session_types.rs:19-25 | messages.rs:1022-1029 (as `DiceInputType`) | NO |
+| `ApprovalDecision` | session_types.rs:28-57 | types.rs:41-68 | NO |
+| `DirectorialContext` | session_types.rs:60-66 | messages.rs:862-868 | NO |
+| `NpcMotivationData` | session_types.rs:69-76 | messages.rs:874-882 | NO |
+| `ApprovedNpcInfo` | session_types.rs:79-89 | messages.rs:1127-1137 | NO |
+| `AdHocOutcomes` | session_types.rs:92-100 | messages.rs:1032-1040 | NO |
+| `ChallengeOutcomeDecision` | session_types.rs:103-115 | messages.rs:1052-1064 (as `ChallengeOutcomeDecisionData`) | NO |
 
-**Fix**: Either add `From<protocol::Type>` impls or use protocol types directly.
+**Note**: Two types have different names in protocol (`DiceInputType` vs `DiceInput`, `ChallengeOutcomeDecisionData` vs `ChallengeOutcomeDecision`).
+
+**Fix options**:
+1. Add `From<protocol::Type>` impls in player-adapters (maintains ports layer purity)
+2. Remove session_types.rs and use protocol types directly with documented exception
+3. Keep duplicates but add clear documentation explaining why
+
+**Recommended**: Option 1 - Add From impls in player-adapters, keeping session_types.rs as the ports contract.
 
 | Task | Status |
 |------|--------|
@@ -791,10 +1051,10 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 | Task | Status |
 |------|--------|
-| [ ] Add architecture comment to WorldStatePort | Pending |
-| [ ] Add architecture comment to ConnectionManagerPort | Pending |
-| [ ] Add architecture comment to StagingStatePort | Pending |
-| [ ] Add architecture comment to StagingStateExtPort | Pending |
+| [x] Add architecture comment to WorldStatePort | **DONE** |
+| [x] Add architecture comment to ConnectionManagerPort | **DONE** |
+| [x] Add architecture comment to StagingStatePort | **DONE** |
+| [x] Add architecture comment to StagingStateExtPort | **DONE** |
 | [ ] Update HEXAGONAL_GAP_REMEDIATION_PLAN.md to reflect decision | Pending |
 
 ---
@@ -820,8 +1080,8 @@ impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
 
 | Task | Status |
 |------|--------|
-| [ ] Add exception comment to request_handler.rs | Pending |
-| [ ] Add exception comment to game_connection_port.rs | Pending |
+| [x] Add exception comment to request_handler.rs | **DONE** |
+| [x] Add exception comment to game_connection_port.rs | **DONE** |
 
 ---
 
@@ -1016,9 +1276,10 @@ These traits are borderline and may benefit from splitting in a future iteration
 
 | Task | Status |
 |------|--------|
-| [ ] Audit each #[allow(dead_code)] | Pending |
-| [ ] Delete truly dead code | Pending |
-| [ ] Remove #[allow(dead_code)] from used code | Pending |
+| [x] Audit parse_* functions in handlers/common.rs | **DONE** (removed #[allow(dead_code)] - functions ARE used) |
+| [x] Document P1.5 prep functions in websocket/converters.rs | **DONE** (added TODO comment explaining future use) |
+| [ ] Audit services.rs:302 apply_generation_read_state | Pending |
+| [ ] Audit remaining #[allow(dead_code)] in engine-adapters | Pending |
 
 ---
 
@@ -1090,28 +1351,65 @@ pub use entities::{
 | [x] Replace glob re-exports in engine-app/dto/mod.rs (3) | **DONE** |
 | [x] Replace glob re-exports in protocol/lib.rs (2) | **DONE** |
 | [x] Replace remaining glob re-exports (7) | **DONE** |
-| [ ] Add "No glob re-exports" rule to CLAUDE.md | Pending |
+| [x] Add "No glob re-exports" rule to CLAUDE.md | **DONE** (added as constraint #5) |
 
 ---
 
-## Phase 5: Domain Layer Polish (2-3 hours)
+### 4.7 Deduplicate Role Mapping Logic (NEW - Eighth Review)
+
+**Priority**: LOW - Code duplication
+**Estimated Effort**: 30 minutes
+
+**Issue**: `ParticipantRole` → `WorldRole` conversion is duplicated identically in two files.
+
+**Duplicated code**:
+
+**File 1**: `player-adapters/src/infrastructure/websocket/desktop/client.rs:192-196`
+```rust
+let world_role = match role {
+    ParticipantRole::DungeonMaster => WorldRole::Dm,
+    ParticipantRole::Player => WorldRole::Player,
+    ParticipantRole::Spectator => WorldRole::Spectator,
+};
+```
+
+**File 2**: `player-adapters/src/infrastructure/websocket/wasm/client.rs:273-277`
+```rust
+let world_role = match role {
+    ParticipantRole::DungeonMaster => WorldRole::Dm,
+    ParticipantRole::Player => WorldRole::Player,
+    ParticipantRole::Spectator => WorldRole::Spectator,
+};
+```
+
+**Existing converter file**: `player-adapters/src/infrastructure/session_type_converters.rs` already has `participant_role_to_proto()` and `participant_role_from_proto()` but lacks `participant_role_to_world_role()`.
+
+**Fix**: Add to `session_type_converters.rs`:
+```rust
+pub fn participant_role_to_world_role(role: proto::ParticipantRole) -> proto::WorldRole {
+    match role {
+        proto::ParticipantRole::DungeonMaster => proto::WorldRole::Dm,
+        proto::ParticipantRole::Player => proto::WorldRole::Player,
+        proto::ParticipantRole::Spectator => proto::WorldRole::Spectator,
+    }
+}
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Add `participant_role_to_world_role()` to session_type_converters.rs | Pending |
+| [ ] Update desktop/client.rs to use centralized converter | Pending |
+| [ ] Update wasm/client.rs to use centralized converter | Pending |
+
+---
+
+## Phase 5: Domain Layer Polish (6-8 hours)
 
 **Priority**: MEDIUM - Serialization and type safety
 
 ### 5.1 Add Serde Derives to Entities
 
-**Issue**: Core entities lack `Serialize, Deserialize` derives.
-
-**Entities to update**:
-- `Character`
-- `World`
-- `Location`
-- `Scene`
-- `Challenge`
-- `Item`
-- `PlayerCharacter`
-- `StoryEvent`
-- `NarrativeEvent`
+**Issue**: **53 types** across domain layer lack `Serialize, Deserialize` derives (verified by agent).
 
 **Pattern**:
 ```rust
@@ -1122,10 +1420,11 @@ pub struct Character {
 }
 ```
 
+#### Completed (9 types):
+
 | Task | Status |
 |------|--------|
 | [x] Add serde derives to Character | **DONE** |
-| [x] Add serde derives to World | **DONE** (already had serde) |
 | [x] Add serde derives to Location | **DONE** |
 | [x] Add serde derives to Scene | **DONE** |
 | [x] Add serde derives to Challenge | **DONE** |
@@ -1133,6 +1432,59 @@ pub struct Character {
 | [x] Add serde derives to PlayerCharacter | **DONE** |
 | [x] Add serde derives to StoryEvent | **DONE** |
 | [x] Add serde derives to NarrativeEvent | **DONE** |
+| [x] Add serde to ID types macro | **DONE** |
+
+#### Remaining Entities (23 types - verified by agent):
+
+| File | Types Missing Serde |
+|------|---------------------|
+| `region.rs` | `Region`, `RegionConnection`, `RegionExit` |
+| `world.rs` | `World`, `Act` |
+| `event_chain.rs` | `EventChain`, `ChainStatus` |
+| `want.rs` | `Want`, `CharacterWant`, `ActantialView` |
+| `goal.rs` | `Goal` |
+| `game_flag.rs` | `GameFlag` |
+| `generation_batch.rs` | `BatchStatus`, `GenerationBatch`, `GenerationRequest` |
+| `gallery_asset.rs` | `GalleryAsset`, `GenerationMetadata`, `EntityType`, `AssetType` |
+| `interaction.rs` | `InteractionTemplate`, `InteractionType`, `InteractionTarget`, `InteractionCondition` |
+| `skill.rs` | `Skill`, `SkillCategory` |
+| `staging.rs` | `Staging`, `StagedNpc`, `StagingSource` |
+| `observation.rs` | `NpcObservation`, `ObservationType`, `ObservationSummary` |
+
+#### Remaining Value Objects (15 types - verified by agent):
+
+| File | Types Missing Serde |
+|------|---------------------|
+| `dice.rs` | `DiceFormula`, `DiceRollResult`, `DiceRollInput` |
+| `grid_map.rs` | `GridMap`, `Tile`, `TerrainType` |
+| `workflow_config.rs` | `WorkflowConfiguration`, `WorkflowSlot`, `PromptMapping`, `PromptMappingType`, `InputDefault`, `WorkflowInput`, `InputType`, `WorkflowAnalysis` |
+| `sheet_template.rs` | `CharacterSheetTemplate`, `SheetSection`, `SheetField`, `FieldType`, `SectionLayout`, `SelectOption`, `ItemListType`, `SheetTemplateId` |
+
+#### Events (1 type):
+
+| File | Types Missing Serde |
+|------|---------------------|
+| `events/mod.rs` | `DomainEvent` |
+
+| Task | Status |
+|------|--------|
+| [ ] Add serde to Region, RegionConnection, RegionExit | Pending |
+| [ ] Add serde to World, Act | Pending |
+| [ ] Add serde to EventChain, ChainStatus | Pending |
+| [ ] Add serde to Want, CharacterWant, ActantialView | Pending |
+| [ ] Add serde to Goal | Pending |
+| [ ] Add serde to GameFlag | Pending |
+| [ ] Add serde to GenerationBatch cluster (3 types) | Pending |
+| [ ] Add serde to GalleryAsset cluster (4 types) | Pending |
+| [ ] Add serde to Interaction cluster (4 types) | Pending |
+| [ ] Add serde to Skill, SkillCategory | Pending |
+| [ ] Add serde to Staging cluster (3 types) | Pending |
+| [ ] Add serde to Observation cluster (3 types) | Pending |
+| [ ] Add serde to Dice cluster (3 types) | Pending |
+| [ ] Add serde to GridMap cluster (3 types) | Pending |
+| [ ] Add serde to WorkflowConfig cluster (8 types) | Pending |
+| [ ] Add serde to SheetTemplate cluster (8 types) | Pending |
+| [ ] Add serde to DomainEvent | Pending |
 
 ---
 
@@ -1315,6 +1667,86 @@ pub enum DomainError {
 | [ ] Define DomainError enum with variants | Pending |
 | [ ] Update entities to use DomainError | Pending |
 | [ ] Export from domain lib.rs | Pending |
+
+---
+
+### 5.6 Fix Domain Utc::now() Calls (NEW - Eighth Review)
+
+**Priority**: HIGH - Violates hexagonal architecture, prevents deterministic testing
+**Estimated Effort**: 6-8 hours
+
+**Issue**: **51 direct `Utc::now()` calls** in domain entity constructors and methods (verified by agent: 48 production, 3 in tests).
+
+**Contrast with engine-app**: ClockPort was added in Phase 3.0.2.1 for engine-app services, but domain entities still call `Utc::now()` directly in their constructors.
+
+**Affected Files (15 files, 51 occurrences)**:
+
+| File | Lines | Methods Affected |
+|------|-------|------------------|
+| `game_time.rs` | 45 | `GameTime::new()` |
+| `narrative_event.rs` | 387, 547, 550, 563 | `new()`, `trigger()`, `reset()` |
+| `story_event.rs` | 337 | `new()` |
+| `player_character.rs` | 51, 103, 109, 116, 121 | `new()`, `update_location()`, `update_region()`, `update_position()`, `touch()` |
+| `item.rs` | 115 | `InventoryItem::new()` |
+| `character.rs` | 98 | `transition_archetype()` |
+| `disposition.rs` | 291, 315, 323, 329 | `NpcDisposition::new()`, `set_disposition()`, `adjust_sentiment()`, `add_relationship_points()` |
+| `world.rs` | 24, 43, 48 | `new()`, `update_name()`, `update_description()` |
+| `want.rs` | 94, 165, 217 | `Want::new()`, `CharacterWant::new()`, `ActantialView::new()` |
+| `generation_batch.rs` | 112, 143, 150, 159 | `new()`, `complete_generation()`, `finalize()`, `fail()` |
+| `game_flag.rs` | 37 | `new()` |
+| `workflow_config.rs` | 33, 96, 102, 108, 114 | `new()`, update methods |
+| `staging.rs` | 82 | `new()` |
+| `observation.rs` | 126, 148, 170 | `direct()`, `heard_about()`, `deduced()` |
+| `gallery_asset.rs` | 195, 216 | `new()`, `new_generated()` |
+| `event_chain.rs` | 49, 71, 78, 87, 97, 113, 154, 160, 166 | Multiple methods |
+
+**Fix approach**: Change entity constructors to accept `DateTime<Utc>` parameter:
+
+```rust
+// Before
+impl World {
+    pub fn new(name: String, description: Option<String>, creator_id: Option<Uuid>) -> Self {
+        Self {
+            created_at: Utc::now(),  // <-- I/O in domain!
+            updated_at: Some(Utc::now()),
+            // ...
+        }
+    }
+}
+
+// After
+impl World {
+    pub fn new(name: String, description: Option<String>, creator_id: Option<Uuid>, now: DateTime<Utc>) -> Self {
+        Self {
+            created_at: now,
+            updated_at: Some(now),
+            // ...
+        }
+    }
+}
+```
+
+Application layer passes `clock_port.now()` when constructing entities.
+
+| Task | Status |
+|------|--------|
+| [ ] Update GameTime::new() to accept timestamp | Pending |
+| [ ] Update NarrativeEvent methods to accept timestamp | Pending |
+| [ ] Update StoryEvent::new() to accept timestamp | Pending |
+| [ ] Update PlayerCharacter methods to accept timestamp | Pending |
+| [ ] Update InventoryItem::new() to accept timestamp | Pending |
+| [ ] Update Character::transition_archetype() to accept timestamp | Pending |
+| [ ] Update NpcDisposition methods to accept timestamp | Pending |
+| [ ] Update World methods to accept timestamp | Pending |
+| [ ] Update Want/CharacterWant/ActantialView to accept timestamp | Pending |
+| [ ] Update GenerationBatch methods to accept timestamp | Pending |
+| [ ] Update GameFlag::new() to accept timestamp | Pending |
+| [ ] Update WorkflowConfiguration methods to accept timestamp | Pending |
+| [ ] Update Staging::new() to accept timestamp | Pending |
+| [ ] Update NpcObservation constructors to accept timestamp | Pending |
+| [ ] Update GalleryAsset constructors to accept timestamp | Pending |
+| [ ] Update EventChain methods to accept timestamp | Pending |
+| [ ] Update all call sites to pass clock.now() | Pending |
 
 ---
 
@@ -1710,6 +2142,55 @@ pub mod factories {
 
 ---
 
+### 8.3 Fix Dioxus.toml Metadata (NEW - Eighth Review)
+
+**Priority**: LOW - Polish for production release
+**Estimated Effort**: 30 minutes
+
+**File**: `crates/player-runner/Dioxus.toml`
+
+**Issues found** (verified by agent):
+
+| Setting | Current Value | Issue |
+|---------|--------------|-------|
+| `bundle.icon` | `[]` | EMPTY - no app icons |
+| `short_description` | "An amazing dioxus application." | DEFAULT TEXT |
+| `long_description` | "An amazing dioxus application." | DEFAULT TEXT |
+| `bundle.identifier` | `io.github.wrldbldr-player` | Non-standard format (hyphen should be dot) |
+| `wasm_opt.level` | `"4"` | Could use `"z"` for production size optimization |
+
+**Fix**:
+```toml
+[application]
+# ...
+
+[bundle]
+identifier = "io.github.wrldbldr.player"
+icon = ["assets/icons/icon.png"]
+
+[bundle.metadata]
+short_description = "WrldBldr Player - AI-powered TTRPG client"
+long_description = """
+WrldBldr Player is the client application for WrldBldr, an AI-powered 
+tabletop role-playing game engine. Connect to game sessions, control 
+characters, and experience dynamic storytelling.
+"""
+
+[web.wasm_opt]
+level = "z"  # Maximum size optimization for production
+```
+
+| Task | Status |
+|------|--------|
+| [ ] Create app icons and add to assets | Pending |
+| [ ] Configure bundle.icon with icon paths | Pending |
+| [ ] Write proper short_description | Pending |
+| [ ] Write proper long_description | Pending |
+| [ ] Change identifier to io.github.wrldbldr.player | Pending |
+| [ ] Consider wasm_opt.level = "z" for release builds | Pending |
+
+---
+
 ## Verification Commands
 
 Run after each phase:
@@ -1735,33 +2216,37 @@ cargo test --workspace
 
 ## Success Criteria
 
-| Metric | Before | Target | Notes |
-|--------|--------|--------|-------|
-| Critical issues | **10** | 0 | Panic risks, forward compat, adapters→app deps, shutdown |
-| Compiler warnings | **37** | 0 | Verified fifth review |
-| Swallowed errors (engine-app/services) | **43** | 0 (logged) | 14+6+3+others |
-| Swallowed errors (total codebase) | **89** | 0 (logged or documented) | |
-| God traits (30+ methods) | 5 (**169** methods total) | 0 | Was 3/107, found 2 more |
-| I/O in application layer | **12-13** + **14 time calls** | 0 | tokio::fs, std::env, Utc::now() |
-| I/O in domain layer | **28** (env calls) + rand | 0 | AppSettings::from_env() (verified sixth review) |
-| Direct time calls (no ClockPort) | ~~14+~~ **0** | 0 | **DONE** - ClockPort created and injected into 12 services/handlers |
-| Protocol imports in services | 14 | 0 | |
-| Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 0-1 | ~830 lines total |
-| Business logic in adapters | **4** files (~1,570 lines) | 0 | +world_state_manager.rs (484 lines, sixth review) |
-| Composition root in adapters | **~1,045** lines | 0 | Move to runner (sixth review) |
-| Glob re-exports (pub use *) | ~~27~~ **0** | 0 | **DONE** - All replaced with explicit exports |
-| Adapters→App dependencies | **2 crates** (73 imports) | **0** | CRITICAL |
-| Unbounded channels | **3** | 0 | websocket + 2 in state |
-| tokio::spawn without tracking | **27** | 0 | Add CancellationToken |
-| Unused structs | 4 | 0 | |
-| Unused fields | 12 | 0 | |
-| Unused Cargo.toml deps | ~~2~~ **0** | 0 | **DONE** - Removed player-ui→domain, engine-ports→tokio |
-| Redundant DTO duplicates | **13** (5 engine-app + 8 player-ports) | 0 | player-app dups intentional |
-| Protocol enums without #[serde(other)] | **20** | 0 | Forward compatibility |
-| Domain error types | **1** (DiceParseError only) | Unified DomainError | |
-| Test compilation | FAIL (**36** errors) | PASS | |
-| Protocol test coverage | 0% | 100% | |
-| arch-check | PASS | PASS | |
+| Metric | Before | Current | Target | Notes |
+|--------|--------|---------|--------|-------|
+| Critical issues | **10** | ~6 | 0 | Panic risks DONE, forward compat partial, adapters→app pending, shutdown pending |
+| Compiler warnings | **37** | ~25 | 0 | Verified eighth review |
+| Swallowed errors (engine-app/services) | **43** | **0** | 0 (logged) | **DONE** - All logged |
+| God traits (30+ methods) | 5 (**169** methods total) | 5 | 0 | Pending - significant effort |
+| I/O in application layer | **12-13** + **14 time calls** | 12-13 | 0 | Time calls DONE, file I/O pending |
+| I/O in domain layer | **28** (env calls) + rand + **51 Utc::now()** | 28 + 51 | 0 | NEW: 51 Utc::now() verified |
+| Direct time calls (no ClockPort) | ~~14+~~ **0** | **0** | 0 | **DONE** - ClockPort in engine-app |
+| Domain Utc::now() calls | **51** | 51 | 0 | NEW - Verified by agent (Phase 5.6) |
+| Protocol imports in services | 14 | 14 | 0 | Pending |
+| Implementations in ports layer | 3 (Platform, Mock, UseCaseContext) | 3 | 0-1 | ~830 lines pending |
+| Business logic in adapters | **4** files (~1,570 lines) | 4 | 0 | Pending |
+| Composition root in adapters | **~1,045** lines | ~1,045 | 0 | Pending - move to runner |
+| Glob re-exports (pub use *) | ~~27~~ **0** | **0** | 0 | **DONE** |
+| Adapters→App dependencies | **2 crates** (73 imports) | 2 | **0** | CRITICAL - pending |
+| Unbounded channels | **3** | 3 | 0 | Pending |
+| tokio::spawn without tracking | **27** | 27 | 0 | Pending - Add CancellationToken |
+| WebSocket reconnection | **MISSING** | MISSING | Implemented | NEW - Verified by agent (Phase 2.5) |
+| Desktop storage | **NO-OP** | NO-OP | Functional | NEW - Verified by agent (Phase 2.6) |
+| Role mapping duplication | **2 files** | 2 | 1 (centralized) | NEW - Verified by agent (Phase 4.7) |
+| Unused structs | 4 | **0** | 0 | **DONE** |
+| Unused fields | 12 | ~4 | 0 | Broadcast fields pending decision |
+| Unused Cargo.toml deps | ~~2~~ **0** | **0** | 0 | **DONE** |
+| Redundant DTO duplicates | **13** (5+8) | 13 | 0 | Pending |
+| Protocol enums without #[serde(other)] | **20** | **16** | 0 | 4 critical DONE, 16 remaining |
+| Domain serde derives | Missing **53** types | ~35% done | 100% | NEW: 53 verified (was 46+) |
+| Domain error types | **1** (DiceParseError) | 1 | Unified DomainError | Pending |
+| Test compilation | FAIL (**36** errors) | FAIL | PASS | Pending |
+| Dioxus.toml metadata | **DEFAULT** | DEFAULT | Production-ready | NEW - Verified by agent (Phase 8.3) |
+| arch-check | PASS | **PASS** | PASS | **DONE** |
 
 ---
 
@@ -1855,13 +2340,19 @@ Recommended commit sequence:
 ## Appendix D: Dependencies Between Phases
 
 ```
-Phase 1 (Critical) ──┬── Phase 2 (Error Handling + Async Fixes)
+Phase 1 (Critical) ──┬── Phase 2.1-2.3 (Error Handling) [DONE]
+                     │
+                     ├── Phase 2.4 (Async Fixes - graceful shutdown)
+                     │         │
+                     │         └── Phase 2.5 (WebSocket Reliability)★ ← NEW
+                     │
+                     ├── Phase 2.6 (Desktop Storage)★ ← NEW (independent)
                      │
                      ├── Phase 3.0.1 (Adapters→App)*** ← CRITICAL, do early
                      │
                      ├── Phase 3.0.2-3.0.6 (I/O, Business Logic, Ports)
                      │         │
-                     │         ├── Phase 3.0.7 (Composition Root)**** ← NEW
+                     │         ├── Phase 3.0.7 (Composition Root)**** 
                      │         │
                      │         ├── Phase 3.1-3.4 (DTOs, Docs)
                      │         │
@@ -1870,42 +2361,57 @@ Phase 1 (Critical) ──┬── Phase 2 (Error Handling + Async Fixes)
                      │                              ▼
                      ├── Phase 4 (Dead Code)   Phase 7 (Tests)**
                      │         │
-                     │         └── Phase 4.6 (Glob Re-exports) ← NEW
+                     │         ├── Phase 4.6 (Glob Re-exports) [DONE]
+                     │         │
+                     │         └── Phase 4.7 (Role Mapping Dedup)★ ← NEW
                      │
-                     ├── Phase 5 (Domain Purity) ───┐
-                     │         │                    │
+                     ├── Phase 5 (Domain Purity)
+                     │         │
+                     │         ├── Phase 5.1 (Serde - 53 types)
+                     │         │
+                     │         └── Phase 5.6 (Domain Utc::now - 51 calls)★ ← NEW
+                     │         │
                      │         └── Phase 6 (Protocol + Forward Compat)
                      │
                      └── Phase 8 (Docs)
+                               │
+                               └── Phase 8.3 (Dioxus.toml)★ ← NEW
 
+★ NEW phases added in Eighth Review (agent verification)
 * Phase 3.5 (God Traits) is large (~169 methods across 5 traits) - separate PR
 ** Phase 3.5 will BREAK test compilation until Phase 7 updates mocks
 *** Phase 3.0.1 is CRITICAL - 73 imports across 43 files must be refactored
-**** Phase 3.0.7 is NEW - Move ~1,045 lines of composition root to runner
+**** Phase 3.0.7 - Move ~1,045 lines of composition root to runner
 ```
 
-**Recommended execution order** (updated for sixth review):
-1. Phase 1 (Critical) - Do first
-2. Phase 2.1-2.3 (Error handling) - Can parallel with Phase 4
+**Recommended execution order** (updated for eighth review - agent verification):
+1. Phase 1 (Critical) - **DONE**
+2. Phase 2.1-2.3 (Error handling) - **DONE**
 3. Phase 2.4 (Async fixes) - Should be early (graceful shutdown)
-4. **Phase 3.0.1 (Adapters→App deps)** - CRITICAL, significant effort (8-12h)
-5. **Phase 3.0.7 (Composition root)** - Move to runner (4-6h) - NEW
-6. **Phase 4.6 (Glob re-exports)** - Quick win (1-2h) - NEW
-7. Phases 4.1-4.5, 5.1-5.3 - Can be done in parallel
-8. Phase 3.0.2-3.0.6 (I/O violations, business logic, ports)
-9. Phase 5.4-5.5 (Domain purity) - After basic domain polish
-10. Phase 6 (Protocol + Forward Compat) - After domain is stable
-11. Phase 3.5 + Phase 7 - God traits + test fixes (do together)
-12. Phase 8 - Documentation (last)
+4. **Phase 2.5 (WebSocket Reliability)** - NEW, depends on 2.4 (4-6h)
+5. **Phase 2.6 (Desktop Storage)** - NEW, independent (2-3h)
+6. **Phase 3.0.1 (Adapters→App deps)** - CRITICAL, significant effort (8-12h)
+7. **Phase 3.0.7 (Composition root)** - Move to runner (4-6h)
+8. **Phase 4.6 (Glob re-exports)** - **DONE**
+9. **Phase 4.7 (Role mapping dedup)** - NEW, quick win (30min)
+10. Phases 4.1-4.5, 5.1-5.3 - Can be done in parallel
+11. **Phase 5.6 (Domain Utc::now)** - NEW, significant (6-8h), after 5.1
+12. Phase 3.0.2-3.0.6 (I/O violations, business logic, ports)
+13. Phase 5.4-5.5 (Domain purity) - After basic domain polish
+14. Phase 6 (Protocol + Forward Compat) - After domain is stable
+15. Phase 3.5 + Phase 7 - God traits + test fixes (do together)
+16. Phase 8 - Documentation (last)
+17. **Phase 8.3 (Dioxus.toml)** - NEW, polish for release (30min)
 
 **Alternative**: Skip Phase 3.5 initially, complete everything else, then do Phase 3.5 + Phase 7 as a dedicated "Interface Segregation" PR.
 
 **Critical Path Items**:
 - Phase 2.4 should be done early as async issues can cause runtime problems
+- Phase 2.5 (WebSocket reliability) - NEW, high impact on user experience
+- Phase 2.6 (Desktop storage) - NEW, desktop users lose all settings on restart
 - Phase 3.0.1 (adapters→app deps) is CRITICAL - 73 imports require significant refactoring
-- Phase 3.0.7 (composition root) - ~1,045 lines in wrong layer (sixth review)
-- Phase 4.6 (glob re-exports) - 30 patterns, quick to fix (sixth review)
-- Phase 5.4-5.5 are new and should be done after basic domain polish
+- Phase 3.0.7 (composition root) - ~1,045 lines in wrong layer
+- Phase 5.6 (Domain Utc::now) - NEW, 51 calls violate hexagonal architecture
 - Phase 6.5 (forward compatibility) blocks safe protocol updates
 
 ---
@@ -2044,3 +2550,51 @@ pub trait RandomProvider: Clone + 'static {
 3. **Phase 4.3**: Added unused Cargo.toml deps (player-ui→domain)
 4. **Phase 5.4.1**: Updated - reference player-side RandomProvider as model
 5. **Success Criteria**: Added ClockPort metric, unused deps metric
+
+---
+
+## Appendix H: Eighth Review Summary (Agent Verification)
+
+The eighth review deployed 8 specialized agents to verify proposed findings from external analysis:
+
+### Verification Methodology
+
+Each proposed finding was assigned to an agent with specific instructions to:
+1. Verify the claim exists at the stated location
+2. Check exact line numbers and code content
+3. Confirm the severity assessment
+4. Identify any false positives
+
+### Verified and Added to Plan
+
+| Finding | Agent Verification | Phase Added |
+|---------|-------------------|-------------|
+| **WebSocket reconnection missing** | `ConnectionState::Reconnecting` defined at protocol.rs:13 but **never set** by either client. No backoff, retry loops, or health monitoring. | Phase 2.5 |
+| **Desktop storage no-op** | All 3 methods (`save`, `load`, `remove`) in `DesktopStorageProvider` are empty stubs. Comments acknowledge it should use `directories` crate. | Phase 2.6 |
+| **Session types duplicates** | All 8 types verified with exact line numbers. No `From` impls exist between duplicates. | Phase 3.0.6 (updated) |
+| **Role mapping duplication** | Identical match expressions at desktop/client.rs:192-196 and wasm/client.rs:273-277. Centralized converter exists but lacks this function. | Phase 4.7 |
+| **Domain Utc::now() calls** | **51 occurrences** found (exceeds claimed 30+). 48 in production code, 3 in tests. Affects 15 files. | Phase 5.6 |
+| **Missing serde derives** | **53 types** confirmed missing. 5 types claimed to be missing actually had serde (false positives removed). | Phase 5.1 (updated) |
+| **Dioxus.toml metadata** | Empty icon list, default descriptions, non-standard identifier format all confirmed. | Phase 8.3 |
+
+### Rejected After Verification
+
+| Finding | Agent Verification | Reason Rejected |
+|---------|-------------------|-----------------|
+| **Game events DTOs (567 lines)** | File exists but types are **intentionally in ports layer**. Uses domain ID types (non-serializable), has architecture comments documenting design. | Transport-agnostic event contracts correctly placed at port boundary |
+
+### Updated Metrics
+
+| Metric | External Claim | Agent Verification |
+|--------|----------------|-------------------|
+| Missing serde derives | 46+ | **53** (5 false positives removed) |
+| Domain Utc::now() calls | 30+ | **51** (48 production + 3 test) |
+
+### Impact on Effort Estimates
+
+| Phase | Before Eighth Review | After Eighth Review | Change |
+|-------|---------------------|---------------------|--------|
+| Phase 2 (Async/Reliability) | 3-5h | **10-14h** | +7-9h (WebSocket + Desktop storage) |
+| Phase 5 (Domain) | 6h | **12-16h** | +6-10h (Utc::now fixes, more serde) |
+| Phase 8 (Docs) | 2-3h | **2.5-3.5h** | +0.5h (Dioxus metadata) |
+| **Total Remaining** | 52-69h | **66-87h** | +14-18h |

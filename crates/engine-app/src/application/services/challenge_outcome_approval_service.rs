@@ -116,8 +116,8 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     pending: Arc<RwLock<HashMap<String, ChallengeOutcomeApprovalItem>>>,
     /// Persistent queue for challenge outcomes
     queue: Arc<dyn QueuePort<ChallengeOutcomeApprovalItem> + Send + Sync>,
-    /// Event channel sender for broadcasting events
-    event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
+    /// Event channel sender for broadcasting events (bounded channel)
+    event_sender: mpsc::Sender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
     outcome_trigger_service: Arc<OutcomeTriggerService>,
     /// Player Character repository for inventory management
@@ -139,7 +139,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ///
     /// All dependencies are required - there are no optional features.
     pub fn new(
-        event_sender: mpsc::UnboundedSender<ChallengeApprovalEvent>,
+        event_sender: mpsc::Sender<ChallengeApprovalEvent>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
@@ -328,7 +328,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                     resolution_id: resolution_id_owned.clone(),
                                     suggestions,
                                 };
-                                if let Err(e) = event_sender.send(event) {
+                                if let Err(e) = event_sender.try_send(event) {
                                     tracing::error!("Failed to emit SuggestionsReady event: {}", e);
                                 }
                             }
@@ -374,7 +374,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 suggestions,
             };
 
-            if let Err(e) = self.event_sender.send(event) {
+            if let Err(e) = self.event_sender.try_send(event) {
                 tracing::error!("Failed to emit SuggestionsReady event: {}", e);
             }
 
@@ -421,7 +421,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             individual_rolls: None,
         };
 
-        if let Err(e) = self.event_sender.send(event) {
+        if let Err(e) = self.event_sender.try_send(event) {
             tracing::error!("Failed to emit Resolved event: {}", e);
         }
 
@@ -506,7 +506,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 .collect(),
         };
 
-        if let Err(e) = self.event_sender.send(event) {
+        if let Err(e) = self.event_sender.try_send(event) {
             tracing::error!("Failed to emit RollSubmitted event: {}", e);
         }
     }
@@ -631,7 +631,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                 })
                                 .collect(),
                         };
-                        if let Err(e) = event_sender.send(event) {
+                        if let Err(e) = event_sender.try_send(event) {
                             tracing::error!("Failed to emit BranchesReady event: {}", e);
                         }
                     }
@@ -860,7 +860,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         delta: *delta,
                     };
 
-                    if let Err(e) = self.event_sender.send(event) {
+                    if let Err(e) = self.event_sender.try_send(event) {
                         tracing::warn!(
                             character_id = %resolved_character_id,
                             stat_name = %stat_name,

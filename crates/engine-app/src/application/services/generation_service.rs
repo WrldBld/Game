@@ -104,8 +104,8 @@ pub struct GenerationService {
     output_dir: PathBuf,
     /// Active batches being processed
     active_batches: RwLock<HashMap<BatchId, BatchTracker>>,
-    /// Event sender for notifying about generation progress
-    event_sender: mpsc::UnboundedSender<GenerationEvent>,
+    /// Event sender for notifying about generation progress (bounded channel)
+    event_sender: mpsc::Sender<GenerationEvent>,
     /// Workflow templates directory
     workflow_dir: PathBuf,
 }
@@ -128,7 +128,7 @@ impl GenerationService {
         clock: Arc<dyn ClockPort>,
         output_dir: PathBuf,
         workflow_dir: PathBuf,
-        event_sender: mpsc::UnboundedSender<GenerationEvent>,
+        event_sender: mpsc::Sender<GenerationEvent>,
     ) -> Self {
         Self {
             comfyui_client,
@@ -172,8 +172,8 @@ impl GenerationService {
         let position = active_batches.len() as u32 + 1;
         drop(active_batches);
 
-        // Send queued event
-        if let Err(e) = self.event_sender.send(GenerationEvent::BatchQueued {
+        // Send queued event (non-blocking, logs warning if buffer full)
+        if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchQueued {
             batch_id,
             entity_type: batch.entity_type,
             entity_id: batch.entity_id.clone(),
@@ -303,10 +303,10 @@ impl GenerationService {
             ((completed_count as f32 / prompt_ids.len() as f32) * 100.0) as u8
         };
 
-        // Update progress
+        // Update progress (non-blocking, logs warning if buffer full)
         if let Err(e) = self
             .event_sender
-            .send(GenerationEvent::BatchProgress { batch_id, progress })
+            .try_send(GenerationEvent::BatchProgress { batch_id, progress })
         {
             tracing::warn!("Failed to send BatchProgress event: {}", e);
         }
@@ -323,7 +323,7 @@ impl GenerationService {
                 .update_batch_assets(batch_id, &asset_ids)
                 .await?;
 
-            if let Err(e) = self.event_sender.send(GenerationEvent::BatchComplete {
+            if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchComplete {
                 batch_id,
                 entity_type: batch.entity_type,
                 entity_id: batch.entity_id.clone(),

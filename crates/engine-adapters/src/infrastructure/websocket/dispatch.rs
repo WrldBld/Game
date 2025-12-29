@@ -21,7 +21,7 @@ pub async fn handle_message(
     msg: ClientMessage,
     state: &AppState,
     client_id: Uuid,
-    sender: mpsc::UnboundedSender<ServerMessage>,
+    sender: mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     match msg {
         // Connection handlers

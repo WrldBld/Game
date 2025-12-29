@@ -133,6 +133,10 @@ pub struct AppState {
 
 use wrldbldr_engine_app::application::services::ChallengeApprovalEvent;
 
+/// Buffer size for internal event channels
+/// Provides backpressure when consumers are slow
+const EVENT_CHANNEL_BUFFER: usize = 256;
+
 impl AppState {
     /// Creates a new AppState with all services initialized.
     ///
@@ -141,8 +145,8 @@ impl AppState {
     /// - `challenge_approval_rx`: ChallengeApprovalEvent receiver for ChallengeApprovalEventPublisher
     pub async fn new(config: AppConfig) -> Result<(
         Self, 
-        tokio::sync::mpsc::UnboundedReceiver<GenerationEvent>,
-        tokio::sync::mpsc::UnboundedReceiver<ChallengeApprovalEvent>,
+        tokio::sync::mpsc::Receiver<GenerationEvent>,
+        tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,
     )> {
         // Create system clock for all services that need time operations
         let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
@@ -425,7 +429,8 @@ impl AppState {
         let dm_action_queue_service = Arc::new(DMActionQueueService::new(dm_action_queue.clone(), clock.clone()));
 
         // Create event channel for generation service (needed for LLMQueueService suggestions)
-        let (generation_event_tx, generation_event_rx) = tokio::sync::mpsc::unbounded_channel();
+        // Uses bounded channel with backpressure when consumers are slow
+        let (generation_event_tx, generation_event_rx) = tokio::sync::mpsc::channel(EVENT_CHANNEL_BUFFER);
         let generation_event_tx_for_llm = generation_event_tx.clone();
 
         let llm_client_arc = Arc::new(llm_client.clone());
@@ -476,7 +481,9 @@ impl AppState {
         // The service uses an event channel instead of WorldConnectionPort for hexagonal compliance.
         // Events are published by ChallengeApprovalEventPublisher (started in server.rs).
         let llm_for_suggestions = Arc::new(llm_client.clone());
-        let (challenge_approval_tx, challenge_approval_rx) = tokio::sync::mpsc::unbounded_channel();
+        // Create event channel for challenge outcome approval (P3.3)
+        // Uses bounded channel with backpressure when consumers are slow
+        let (challenge_approval_tx, challenge_approval_rx) = tokio::sync::mpsc::channel(EVENT_CHANNEL_BUFFER);
         let challenge_outcome_approval_service = Arc::new(
             ChallengeOutcomeApprovalService::new(
                 challenge_approval_tx,
