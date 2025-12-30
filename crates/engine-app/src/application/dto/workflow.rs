@@ -1,16 +1,15 @@
 //! Workflow DTOs - Application layer extensions
 //!
 //! Wire-format types are defined in `wrldbldr_protocol::dto`.
-//! This module provides conversion functions that require application layer
-//! services (e.g., WorkflowService).
+//! This module provides conversion functions for workflow configurations.
 
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::application::services::WorkflowService;
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_domain_types::analyze_workflow;
 use wrldbldr_domain::WorkflowConfigId;
 use wrldbldr_protocol::{
     WorkflowConfigExportDto, WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
@@ -21,11 +20,10 @@ use wrldbldr_protocol::{
 // ============================================================================
 
 /// Build a WorkflowConfigResponseDto from a WorkflowConfiguration.
-/// This requires WorkflowService to analyze the workflow JSON.
 pub fn workflow_config_to_response_dto(
     config: &WorkflowConfiguration,
 ) -> WorkflowConfigResponseDto {
-    let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
+    let analysis = analyze_workflow(&config.workflow_json);
     WorkflowConfigResponseDto {
         id: config.id.to_string(),
         slot: config.slot.as_str().to_string(),
@@ -47,11 +45,10 @@ pub fn workflow_config_to_response_dto(
 }
 
 /// Build a WorkflowConfigFullResponseDto from a WorkflowConfiguration.
-/// This requires WorkflowService to analyze the workflow JSON.
 pub fn workflow_config_to_full_response_dto(
     config: &WorkflowConfiguration,
 ) -> WorkflowConfigFullResponseDto {
-    let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
+    let analysis = analyze_workflow(&config.workflow_json);
     WorkflowConfigFullResponseDto {
         id: config.id.to_string(),
         slot: config.slot.as_str().to_string(),
