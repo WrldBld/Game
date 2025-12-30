@@ -12,8 +12,9 @@ use wrldbldr_domain::entities::WorkflowConfiguration;
 use wrldbldr_domain_types::{
     analyze_workflow, auto_detect_prompt_mappings, validate_workflow, WorkflowSlot,
 };
-use wrldbldr_engine_app::application::services::WorkflowService;
 use wrldbldr_engine_ports::inbound::AppStatePort;
+
+use super::workflow_helpers::{export_configs, import_configs, prepare_workflow};
 use wrldbldr_protocol::{
     parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
     ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, TestWorkflowRequestDto,
@@ -266,7 +267,7 @@ pub async fn export_workflows(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let export = WorkflowService::export_configs(&configs, chrono::Utc::now());
+    let export = export_configs(&configs, chrono::Utc::now());
     Ok(Json(export))
 }
 
@@ -274,7 +275,7 @@ pub async fn import_workflows(
     State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<ImportWorkflowsRequestDto>,
 ) -> Result<Json<ImportWorkflowsResponseDto>, (StatusCode, String)> {
-    let configs = WorkflowService::import_configs(&req.data)
+    let configs = import_configs(&req.data)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let mut imported = 0;
@@ -324,7 +325,7 @@ pub async fn test_workflow(
         })?;
 
     // Prepare the workflow with the test prompt
-    let prepared_workflow = WorkflowService::prepare_workflow(
+    let prepared_workflow = prepare_workflow(
         &config,
         &req.prompt,
         req.negative_prompt.as_deref(),

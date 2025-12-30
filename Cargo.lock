@@ -7350,7 +7350,6 @@ dependencies = [
  "validator",
  "wrldbldr-domain",
  "wrldbldr-domain-types",
- "wrldbldr-engine-app",
  "wrldbldr-engine-dto",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",

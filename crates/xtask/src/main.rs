@@ -899,6 +899,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
             "wrldbldr-engine-app",
             HashSet::from([
                 "wrldbldr-domain",
+                "wrldbldr-domain-types", // for workflow analysis functions
                 "wrldbldr-protocol",
                 "wrldbldr-engine-ports",
                 "wrldbldr-engine-dto", // for test mocks (dev-dependency)
@@ -926,13 +927,13 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         (
             "wrldbldr-engine-adapters",
             HashSet::from([
-                "wrldbldr-engine-app",
+                // NOTE: engine-app dependency REMOVED - adapters no longer depend on app layer
                 "wrldbldr-engine-ports",
                 "wrldbldr-engine-composition",
                 "wrldbldr-engine-dto",
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
-                "wrldbldr-domain-types", // For DTO conversions (shared vocabulary)
+                "wrldbldr-domain-types", // For DTO conversions and workflow analysis
             ]),
         ),
         (

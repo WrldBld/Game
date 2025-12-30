@@ -26,6 +26,6 @@ pub use disposition_conversions::npc_disposition_to_dto;
 
 // Workflow conversions
 pub use workflow_conversions::{
-    workflow_analysis_to_dto, workflow_config_to_export_dto, workflow_config_to_full_response_dto,
-    workflow_config_to_response_dto,
+    workflow_analysis_to_dto, workflow_config_from_export_dto, workflow_config_to_export_dto,
+    workflow_config_to_full_response_dto, workflow_config_to_response_dto,
 };

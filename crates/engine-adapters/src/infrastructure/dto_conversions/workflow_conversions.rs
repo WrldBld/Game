@@ -108,5 +108,39 @@ pub fn workflow_config_to_export_dto(value: WorkflowConfiguration) -> WorkflowCo
     }
 }
 
-// NOTE: TryFrom<WorkflowConfigExportDto> for WorkflowConfiguration impl
-// is located in engine-app (application/dto/workflow.rs)
+/// Convert WorkflowConfigExportDto to WorkflowConfiguration for import
+pub fn workflow_config_from_export_dto(
+    value: WorkflowConfigExportDto,
+) -> anyhow::Result<WorkflowConfiguration> {
+    use chrono::{DateTime, Utc};
+    use std::str::FromStr;
+    use uuid::Uuid;
+    use wrldbldr_domain::WorkflowConfigId;
+    use wrldbldr_domain::entities::WorkflowSlot;
+
+    let id = Uuid::parse_str(&value.id)
+        .map(WorkflowConfigId::from_uuid)
+        .unwrap_or_else(|_| WorkflowConfigId::new());
+
+    let slot = WorkflowSlot::from_str(&value.slot)
+        .map_err(|_| anyhow::anyhow!("Invalid workflow slot: {}", value.slot))?;
+
+    let created_at = DateTime::parse_from_rfc3339(&value.created_at)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now());
+    let updated_at = DateTime::parse_from_rfc3339(&value.updated_at)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now());
+
+    Ok(WorkflowConfiguration {
+        id,
+        slot,
+        name: value.name,
+        workflow_json: value.workflow_json,
+        prompt_mappings: value.prompt_mappings.into_iter().map(Into::into).collect(),
+        input_defaults: value.input_defaults.into_iter().map(Into::into).collect(),
+        locked_inputs: value.locked_inputs,
+        created_at,
+        updated_at,
+    })
+}

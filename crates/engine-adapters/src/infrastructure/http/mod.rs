@@ -14,6 +14,7 @@ mod prompt_template_routes;
 mod queue_routes;
 mod rule_system_routes;
 mod settings_routes;
+mod workflow_helpers;
 mod workflow_routes;
 
 use axum::{
