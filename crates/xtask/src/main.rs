@@ -426,6 +426,7 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
             // - mod.rs: Module declarations only
             // - request_handler.rs: Documented exemption - implements RequestHandler trait from ports
             // - common.rs: Contains helpers for request_handler.rs
+            // - *_handler.rs: Domain-specific handlers that receive protocol types at the boundary
             // - rule_system.rs: DTO re-exports from protocol (backwards compatibility layer)
             // - workflow.rs: DTO conversion functions using WorkflowService
             // - workflow_service.rs: Uses WorkflowConfigExportDto for import/export
@@ -433,6 +434,7 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
             if file_name == "mod.rs"
                 || file_name == "request_handler.rs"
                 || file_name == "common.rs"
+                || file_name.ends_with("_handler.rs")
                 || file_name == "rule_system.rs"
                 || file_name == "workflow.rs"
                 || file_name == "workflow_service.rs"
