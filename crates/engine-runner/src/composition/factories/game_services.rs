@@ -1,5 +1,14 @@
 //! Game Services Factory
 //!
+//! **NOTE: This factory is NOT currently wired into app_state.rs.**
+//!
+//! The game_services factory was designed to centralize game service construction,
+//! but it creates duplicate instances of services that are already needed earlier
+//! in the wiring order (e.g., StoryEventService is needed by queue_services).
+//!
+//! To wire this factory, it would need to accept pre-constructed services or be
+//! restructured to return services that don't duplicate construction.
+//!
 //! This module provides factory functions for creating game service port trait objects
 //! from their concrete implementations. It reduces boilerplate in the composition root
 //! by centralizing game service construction logic.

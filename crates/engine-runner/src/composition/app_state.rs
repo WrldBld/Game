@@ -270,7 +270,7 @@ pub async fn new_app_state(
     //
     // We also need Arc<dyn *Service> (app-layer traits) for AppRequestHandler, which
     // requires the full service interface. These are created inline below.
-    let scene_repo_for_resolution = scene_repo.clone();
+    // Note: scene_repo available if scene resolution service needs it in the future
     let core_service_ports = create_core_services(CoreServiceDependencies {
         world_repo: world_repo.clone(),
         world_exporter,
@@ -418,12 +418,6 @@ pub async fn new_app_state(
             player_character_repo.clone(),
             region_item.clone(),
         ));
-    // Keep concrete version for DMApprovalQueueService
-    let item_service_impl = ItemServiceImpl::new(
-        item_repo.clone(),
-        player_character_repo.clone(),
-        region_item.clone(),
-    );
 
     let player_character_repo_for_triggers = player_character_repo.clone();
     let player_character_repo_for_actantial = player_character_repo.clone();
