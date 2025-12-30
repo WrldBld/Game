@@ -251,10 +251,10 @@ fn walkdir_rs_files(dir: &std::path::Path) -> anyhow::Result<Vec<std::path::Path
                 continue;
             }
 
-            if metadata.is_file() {
-                if entry_path.extension().and_then(|s| s.to_str()) == Some("rs") {
-                    out.push(entry_path);
-                }
+            if metadata.is_file()
+                && entry_path.extension().and_then(|s| s.to_str()) == Some("rs")
+            {
+                out.push(entry_path);
             }
         }
     }
@@ -511,7 +511,14 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
         // - workflow_service_port.rs: export/import helpers use WorkflowConfigExportDto
         //   TODO: Move export_workflow_configs/import_workflow_configs to engine-app
-        if file_name == "request_handler.rs" || file_name == "workflow_service_port.rs" {
+        // - dm_approval_queue_service_port.rs: Re-exports wire-format types from protocol
+        //   (ProposedToolInfo, ChallengeSuggestionInfo, etc.) - protocol is single source of truth
+        // - mod.rs: Re-exports protocol types for API compatibility
+        if file_name == "request_handler.rs"
+            || file_name == "workflow_service_port.rs"
+            || file_name == "dm_approval_queue_service_port.rs"
+            || file_name == "mod.rs"
+        {
             continue;
         }
 
@@ -717,6 +724,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
         "request_port.rs",          // RequestPort trait uses RequestPayload/ResponseResult
         "game_connection_port.rs",  // WebSocket connection uses protocol message types
         "mock_game_connection.rs",  // Testing infrastructure mirrors connection port
+        "player_events.rs", // Re-exports wire-format types from protocol (single source of truth)
     ]
     .into_iter()
     .collect();

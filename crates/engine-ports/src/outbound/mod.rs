@@ -416,8 +416,12 @@ pub use player_action_queue_service_port::{
 pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
 pub use dm_approval_queue_service_port::{
     ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency,
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, DmApprovalDecision,
-    DmApprovalQueueServicePort, NarrativeEventSuggestionInfo, ProposedToolInfo,
+    DmApprovalDecision, DmApprovalQueueServicePort,
+};
+// Re-export protocol types for API compatibility
+pub use wrldbldr_protocol::{
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
+    ProposedToolInfo,
 };
 
 // DM action queue service port - interface for DM action queue operations

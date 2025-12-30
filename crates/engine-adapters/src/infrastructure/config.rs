@@ -35,6 +35,18 @@ pub struct AppConfig {
 
     /// Session configuration
     pub session: SessionConfig,
+
+    /// Server bind host (env: SERVER_HOST, default: 0.0.0.0)
+    pub server_host: String,
+
+    /// Base path for asset storage (env: ASSET_BASE_PATH, default: ./data/assets)
+    pub asset_base_path: String,
+
+    /// Path for generated assets (env: GENERATED_ASSETS_PATH, default: ./data/generated_assets)
+    pub generated_assets_path: String,
+
+    /// Path for workflow configuration files (env: WORKFLOW_PATH, default: ./workflows)
+    pub workflow_path: String,
 }
 
 /// Queue system configuration
@@ -131,6 +143,15 @@ impl AppConfig {
                     .parse()
                     .unwrap_or(30),
             },
+
+            server_host: std::env::var("SERVER_HOST")
+                .unwrap_or_else(|_| "0.0.0.0".to_string()),
+            asset_base_path: std::env::var("ASSET_BASE_PATH")
+                .unwrap_or_else(|_| "./data/assets".to_string()),
+            generated_assets_path: std::env::var("GENERATED_ASSETS_PATH")
+                .unwrap_or_else(|_| "./data/generated_assets".to_string()),
+            workflow_path: std::env::var("WORKFLOW_PATH")
+                .unwrap_or_else(|_| "./workflows".to_string()),
         })
     }
 }

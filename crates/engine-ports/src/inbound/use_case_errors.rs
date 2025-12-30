@@ -21,68 +21,8 @@
 use thiserror::Error;
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId};
 
-// Re-export ErrorCode and ConnectionError from within the crate
-pub use crate::outbound::{ConnectionError, ErrorCode};
-
-// =============================================================================
-// Movement Errors
-// =============================================================================
-
-/// Errors that can occur during movement operations
-#[derive(Debug, Error)]
-pub enum MovementError {
-    /// Player character not found in database
-    #[error("Player character not found: {0}")]
-    PcNotFound(PlayerCharacterId),
-
-    /// Target region not found
-    #[error("Region not found: {0}")]
-    RegionNotFound(RegionId),
-
-    /// Target location not found
-    #[error("Location not found: {0}")]
-    LocationNotFound(LocationId),
-
-    /// Region connection is locked
-    #[error("Connection is locked: {0}")]
-    ConnectionLocked(String),
-
-    /// Location has no arrival region (no default, no spawn points)
-    #[error("No arrival region available for location")]
-    NoArrivalRegion,
-
-    /// Specified arrival region doesn't belong to target location
-    #[error("Region does not belong to target location")]
-    RegionLocationMismatch,
-
-    /// PC not connected to a world
-    #[error("Not connected to a world")]
-    NotConnected,
-
-    /// Database operation failed
-    #[error("Database error: {0}")]
-    Database(String),
-
-    /// Staging system error
-    #[error("Staging error: {0}")]
-    Staging(String),
-}
-
-impl ErrorCode for MovementError {
-    fn code(&self) -> &'static str {
-        match self {
-            Self::PcNotFound(_) => "PC_NOT_FOUND",
-            Self::RegionNotFound(_) => "REGION_NOT_FOUND",
-            Self::LocationNotFound(_) => "LOCATION_NOT_FOUND",
-            Self::ConnectionLocked(_) => "CONNECTION_LOCKED",
-            Self::NoArrivalRegion => "NO_ARRIVAL_REGION",
-            Self::RegionLocationMismatch => "REGION_MISMATCH",
-            Self::NotConnected => "NOT_CONNECTED",
-            Self::Database(_) => "DATABASE_ERROR",
-            Self::Staging(_) => "STAGING_ERROR",
-        }
-    }
-}
+// Re-export ErrorCode, ConnectionError, and MovementError from within the crate
+pub use crate::outbound::{ConnectionError, ErrorCode, MovementError};
 
 // =============================================================================
 // Staging Errors

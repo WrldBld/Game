@@ -10,14 +10,15 @@
 //! The Raw variant is available for future extensibility but currently unused.
 
 use wrldbldr_player_ports::inbound::{
-    ActantialViewData, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, CharacterData,
-    CharacterPosition, ConnectedUser, DialogueChoice, EntityChangedData, GameTime, GoalData,
-    InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData, NavigationExit,
-    NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo, OutcomeBranchData,
-    OutcomeDetailData, PlayerEvent, PreviousStagingInfo, ProposedToolInfo, RegionData,
+    ActantialViewData, CharacterData, CharacterPosition, ConnectedUser, DialogueChoice,
+    EntityChangedData, GameTime, GoalData, InteractionData, JoinError, NavigationData,
+    NavigationExit, NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo,
+    OutcomeBranchData, OutcomeDetailData, PlayerEvent, PreviousStagingInfo, RegionData,
     RegionItemData, ResponseResult, SceneData, SplitPartyLocation, StagedNpcInfo, WaitingPcInfo,
     WantData, WantTargetData, WorldRole,
 };
+// Note: ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
+// and ProposedToolInfo are now used directly from protocol (same types as in player-ports)
 use wrldbldr_protocol::ServerMessage;
 
 /// Translate a ServerMessage into a PlayerEvent
@@ -214,13 +215,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             npc_name,
             proposed_dialogue,
             internal_reasoning,
-            proposed_tools: proposed_tools
-                .into_iter()
-                .map(translate_proposed_tool_info)
-                .collect(),
-            challenge_suggestion: challenge_suggestion.map(translate_challenge_suggestion_info),
-            narrative_event_suggestion: narrative_event_suggestion
-                .map(translate_narrative_event_suggestion_info),
+            proposed_tools, // Direct assignment - same type now
+            challenge_suggestion,
+            narrative_event_suggestion,
         },
 
         // =====================================================================
@@ -312,10 +309,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             total,
             outcome_type,
             outcome_description,
-            outcome_triggers: outcome_triggers
-                .into_iter()
-                .map(translate_proposed_tool_info)
-                .collect(),
+            outcome_triggers, // Direct assignment - same type now
             roll_breakdown,
         },
 
@@ -922,59 +916,15 @@ fn translate_split_party_location(l: wrldbldr_protocol::SplitPartyLocation) -> S
     }
 }
 
-fn translate_proposed_tool_info(t: wrldbldr_protocol::types::ProposedToolInfo) -> ProposedToolInfo {
-    ProposedToolInfo {
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        arguments: t.arguments,
-    }
-}
-
-fn translate_challenge_suggestion_info(
-    c: wrldbldr_protocol::types::ChallengeSuggestionInfo,
-) -> ChallengeSuggestionInfo {
-    ChallengeSuggestionInfo {
-        challenge_id: c.challenge_id,
-        challenge_name: c.challenge_name,
-        skill_name: c.skill_name,
-        difficulty_display: c.difficulty_display,
-        confidence: c.confidence,
-        reasoning: c.reasoning,
-        target_pc_id: c.target_pc_id,
-        outcomes: c.outcomes.map(|o| ChallengeSuggestionOutcomes {
-            success: o.success,
-            failure: o.failure,
-            critical_success: o.critical_success,
-            critical_failure: o.critical_failure,
-        }),
-    }
-}
-
-fn translate_narrative_event_suggestion_info(
-    n: wrldbldr_protocol::types::NarrativeEventSuggestionInfo,
-) -> NarrativeEventSuggestionInfo {
-    NarrativeEventSuggestionInfo {
-        event_id: n.event_id,
-        event_name: n.event_name,
-        description: n.description,
-        scene_direction: n.scene_direction,
-        confidence: n.confidence,
-        reasoning: n.reasoning,
-        matched_triggers: n.matched_triggers,
-        suggested_outcome: n.suggested_outcome,
-    }
-}
+// NOTE: translate_proposed_tool_info, translate_challenge_suggestion_info, and
+// translate_narrative_event_suggestion_info have been removed because player-ports
+// now re-exports protocol types directly - no translation needed.
 
 fn translate_outcome_detail_data(o: wrldbldr_protocol::OutcomeDetailData) -> OutcomeDetailData {
     OutcomeDetailData {
         flavor_text: o.flavor_text,
         scene_direction: o.scene_direction,
-        proposed_tools: o
-            .proposed_tools
-            .into_iter()
-            .map(translate_proposed_tool_info)
-            .collect(),
+        proposed_tools: o.proposed_tools, // Direct assignment - same type now
     }
 }
 

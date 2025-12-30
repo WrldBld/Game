@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+// Re-export wire-format types from protocol (single source of truth)
+pub use wrldbldr_protocol::{
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
+    ProposedToolInfo,
+};
+
 pub type QueueItemId = Uuid;
 
 // ============================================================================
@@ -363,57 +369,9 @@ pub struct OutcomeDetail {
 // Approval-related Types (needed by queue items)
 // ============================================================================
 
-/// Proposed tool call information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProposedToolInfo {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub arguments: serde_json::Value,
-}
-
-/// Challenge suggestion information for DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChallengeSuggestionInfo {
-    pub challenge_id: String,
-    pub challenge_name: String,
-    pub skill_name: String,
-    pub difficulty_display: String,
-    pub confidence: String,
-    pub reasoning: String,
-    #[serde(default)]
-    pub target_pc_id: Option<String>,
-    #[serde(default)]
-    pub outcomes: Option<ChallengeSuggestionOutcomes>,
-}
-
-/// Challenge suggestion outcomes
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ChallengeSuggestionOutcomes {
-    #[serde(default)]
-    pub success: Option<String>,
-    #[serde(default)]
-    pub failure: Option<String>,
-    #[serde(default)]
-    pub critical_success: Option<String>,
-    #[serde(default)]
-    pub critical_failure: Option<String>,
-}
-
-/// Narrative event suggestion information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NarrativeEventSuggestionInfo {
-    pub event_id: String,
-    pub event_name: String,
-    pub description: String,
-    pub scene_direction: String,
-    pub confidence: String,
-    pub reasoning: String,
-    pub matched_triggers: Vec<String>,
-    /// Suggested outcome (can be cleared/modified by DM)
-    #[serde(default)]
-    pub suggested_outcome: Option<String>,
-}
+// NOTE: ProposedToolInfo, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes,
+// and NarrativeEventSuggestionInfo are re-exported from wrldbldr_protocol
+// at the top of this file. Protocol is the single source of truth.
 
 /// DM's decision on an approval request
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -791,10 +749,16 @@ impl From<ApprovalRequestData> for ApprovalItem {
             npc_name: data.npc_name,
             proposed_dialogue: data.proposed_dialogue,
             internal_reasoning: data.internal_reasoning,
-            proposed_tools: data.proposed_tools.into_iter().map(Into::into).collect(),
+            proposed_tools: data
+                .proposed_tools
+                .into_iter()
+                .map(proposed_tool_to_info)
+                .collect(),
             retry_count: data.retry_count,
-            challenge_suggestion: data.challenge_suggestion.map(Into::into),
-            narrative_event_suggestion: data.narrative_event_suggestion.map(Into::into),
+            challenge_suggestion: data.challenge_suggestion.map(challenge_suggestion_to_info),
+            narrative_event_suggestion: data
+                .narrative_event_suggestion
+                .map(narrative_event_suggestion_to_info),
             player_dialogue: data.player_dialogue,
             scene_id: data.scene_id.map(|id| id.to_string()),
             location_id: data.location_id.map(|id| id.to_string()),
@@ -819,10 +783,16 @@ impl From<ApprovalItem> for ApprovalRequestData {
             npc_name: dto.npc_name,
             proposed_dialogue: dto.proposed_dialogue,
             internal_reasoning: dto.internal_reasoning,
-            proposed_tools: dto.proposed_tools.into_iter().map(Into::into).collect(),
+            proposed_tools: dto
+                .proposed_tools
+                .into_iter()
+                .map(info_to_proposed_tool)
+                .collect(),
             retry_count: dto.retry_count,
-            challenge_suggestion: dto.challenge_suggestion.map(Into::into),
-            narrative_event_suggestion: dto.narrative_event_suggestion.map(Into::into),
+            challenge_suggestion: dto.challenge_suggestion.map(info_to_challenge_suggestion),
+            narrative_event_suggestion: dto
+                .narrative_event_suggestion
+                .map(info_to_narrative_event_suggestion),
             player_dialogue: dto.player_dialogue,
             scene_id: dto
                 .scene_id
@@ -891,125 +861,110 @@ impl From<DecisionUrgency> for DomainApprovalUrgency {
 }
 
 // ----------------------------------------------------------------------------
-// ProposedToolInfo <-> ProposedTool
+// Standalone conversion functions (required due to orphan rule)
+// These convert between domain types and protocol types
 // ----------------------------------------------------------------------------
 
-impl From<ProposedTool> for ProposedToolInfo {
-    fn from(tool: ProposedTool) -> Self {
-        Self {
-            id: tool.id,
-            name: tool.name,
-            description: tool.description,
-            arguments: tool.arguments,
-        }
+/// Convert domain ProposedTool to protocol ProposedToolInfo
+pub fn proposed_tool_to_info(tool: ProposedTool) -> ProposedToolInfo {
+    ProposedToolInfo {
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        arguments: tool.arguments,
     }
 }
 
-impl From<ProposedToolInfo> for ProposedTool {
-    fn from(dto: ProposedToolInfo) -> Self {
-        Self {
-            id: dto.id,
-            name: dto.name,
-            description: dto.description,
-            arguments: dto.arguments,
-        }
+/// Convert protocol ProposedToolInfo to domain ProposedTool
+pub fn info_to_proposed_tool(info: ProposedToolInfo) -> ProposedTool {
+    ProposedTool {
+        id: info.id,
+        name: info.name,
+        description: info.description,
+        arguments: info.arguments,
     }
 }
 
-// ----------------------------------------------------------------------------
-// ChallengeSuggestionInfo <-> ChallengeSuggestion
-// ----------------------------------------------------------------------------
-
-impl From<ChallengeSuggestion> for ChallengeSuggestionInfo {
-    fn from(suggestion: ChallengeSuggestion) -> Self {
-        Self {
-            challenge_id: suggestion.challenge_id,
-            challenge_name: suggestion.challenge_name,
-            skill_name: suggestion.skill_name,
-            difficulty_display: suggestion.difficulty_display,
-            confidence: suggestion.confidence,
-            reasoning: suggestion.reasoning,
-            target_pc_id: suggestion.target_pc_id.map(|id| id.to_string()),
-            outcomes: suggestion.outcomes.map(Into::into),
-        }
+/// Convert domain ChallengeSuggestion to protocol ChallengeSuggestionInfo
+pub fn challenge_suggestion_to_info(suggestion: ChallengeSuggestion) -> ChallengeSuggestionInfo {
+    ChallengeSuggestionInfo {
+        challenge_id: suggestion.challenge_id,
+        challenge_name: suggestion.challenge_name,
+        skill_name: suggestion.skill_name,
+        difficulty_display: suggestion.difficulty_display,
+        confidence: suggestion.confidence,
+        reasoning: suggestion.reasoning,
+        target_pc_id: suggestion.target_pc_id.map(|id| id.to_string()),
+        outcomes: suggestion.outcomes.map(outcomes_to_info),
     }
 }
 
-impl From<ChallengeSuggestionInfo> for ChallengeSuggestion {
-    fn from(dto: ChallengeSuggestionInfo) -> Self {
-        Self {
-            challenge_id: dto.challenge_id,
-            challenge_name: dto.challenge_name,
-            skill_name: dto.skill_name,
-            difficulty_display: dto.difficulty_display,
-            confidence: dto.confidence,
-            reasoning: dto.reasoning,
-            target_pc_id: dto
-                .target_pc_id
-                .and_then(|s| Uuid::parse_str(&s).ok())
-                .map(PlayerCharacterId::from),
-            outcomes: dto.outcomes.map(Into::into),
-        }
+/// Convert protocol ChallengeSuggestionInfo to domain ChallengeSuggestion
+pub fn info_to_challenge_suggestion(info: ChallengeSuggestionInfo) -> ChallengeSuggestion {
+    ChallengeSuggestion {
+        challenge_id: info.challenge_id,
+        challenge_name: info.challenge_name,
+        skill_name: info.skill_name,
+        difficulty_display: info.difficulty_display,
+        confidence: info.confidence,
+        reasoning: info.reasoning,
+        target_pc_id: info
+            .target_pc_id
+            .and_then(|s| Uuid::parse_str(&s).ok())
+            .map(PlayerCharacterId::from),
+        outcomes: info.outcomes.map(info_to_outcomes),
     }
 }
 
-// ----------------------------------------------------------------------------
-// ChallengeSuggestionOutcomes (DTO) <-> ChallengeSuggestionOutcomes (domain)
-// ----------------------------------------------------------------------------
-
-impl From<DomainChallengeSuggestionOutcomes> for ChallengeSuggestionOutcomes {
-    fn from(outcomes: DomainChallengeSuggestionOutcomes) -> Self {
-        Self {
-            success: outcomes.success,
-            failure: outcomes.failure,
-            critical_success: outcomes.critical_success,
-            critical_failure: outcomes.critical_failure,
-        }
+/// Convert domain ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
+pub fn outcomes_to_info(outcomes: DomainChallengeSuggestionOutcomes) -> ChallengeSuggestionOutcomes {
+    ChallengeSuggestionOutcomes {
+        success: outcomes.success,
+        failure: outcomes.failure,
+        critical_success: outcomes.critical_success,
+        critical_failure: outcomes.critical_failure,
     }
 }
 
-impl From<ChallengeSuggestionOutcomes> for DomainChallengeSuggestionOutcomes {
-    fn from(dto: ChallengeSuggestionOutcomes) -> Self {
-        Self {
-            success: dto.success,
-            failure: dto.failure,
-            critical_success: dto.critical_success,
-            critical_failure: dto.critical_failure,
-        }
+/// Convert protocol ChallengeSuggestionOutcomes to domain ChallengeSuggestionOutcomes
+pub fn info_to_outcomes(info: ChallengeSuggestionOutcomes) -> DomainChallengeSuggestionOutcomes {
+    DomainChallengeSuggestionOutcomes {
+        success: info.success,
+        failure: info.failure,
+        critical_success: info.critical_success,
+        critical_failure: info.critical_failure,
     }
 }
 
-// ----------------------------------------------------------------------------
-// NarrativeEventSuggestionInfo <-> NarrativeEventSuggestion
-// ----------------------------------------------------------------------------
-
-impl From<NarrativeEventSuggestion> for NarrativeEventSuggestionInfo {
-    fn from(suggestion: NarrativeEventSuggestion) -> Self {
-        Self {
-            event_id: suggestion.event_id,
-            event_name: suggestion.event_name,
-            description: suggestion.description,
-            scene_direction: suggestion.scene_direction,
-            confidence: suggestion.confidence,
-            reasoning: suggestion.reasoning,
-            matched_triggers: suggestion.matched_triggers,
-            suggested_outcome: suggestion.suggested_outcome,
-        }
+/// Convert domain NarrativeEventSuggestion to protocol NarrativeEventSuggestionInfo
+pub fn narrative_event_suggestion_to_info(
+    suggestion: NarrativeEventSuggestion,
+) -> NarrativeEventSuggestionInfo {
+    NarrativeEventSuggestionInfo {
+        event_id: suggestion.event_id,
+        event_name: suggestion.event_name,
+        description: suggestion.description,
+        scene_direction: suggestion.scene_direction,
+        confidence: suggestion.confidence,
+        reasoning: suggestion.reasoning,
+        matched_triggers: suggestion.matched_triggers,
+        suggested_outcome: suggestion.suggested_outcome,
     }
 }
 
-impl From<NarrativeEventSuggestionInfo> for NarrativeEventSuggestion {
-    fn from(dto: NarrativeEventSuggestionInfo) -> Self {
-        Self {
-            event_id: dto.event_id,
-            event_name: dto.event_name,
-            description: dto.description,
-            scene_direction: dto.scene_direction,
-            confidence: dto.confidence,
-            reasoning: dto.reasoning,
-            matched_triggers: dto.matched_triggers,
-            suggested_outcome: dto.suggested_outcome,
-        }
+/// Convert protocol NarrativeEventSuggestionInfo to domain NarrativeEventSuggestion
+pub fn info_to_narrative_event_suggestion(
+    info: NarrativeEventSuggestionInfo,
+) -> NarrativeEventSuggestion {
+    NarrativeEventSuggestion {
+        event_id: info.event_id,
+        event_name: info.event_name,
+        description: info.description,
+        scene_direction: info.scene_direction,
+        confidence: info.confidence,
+        reasoning: info.reasoning,
+        matched_triggers: info.matched_triggers,
+        suggested_outcome: info.suggested_outcome,
     }
 }
 
@@ -1033,7 +988,11 @@ impl From<ChallengeOutcomeData> for ChallengeOutcomeApprovalItem {
             total: data.total,
             outcome_type: data.outcome_type,
             outcome_description: data.outcome_description,
-            outcome_triggers: data.outcome_triggers.into_iter().map(Into::into).collect(),
+            outcome_triggers: data
+                .outcome_triggers
+                .into_iter()
+                .map(proposed_tool_to_info)
+                .collect(),
             original_triggers: Vec::new(), // Not available in domain type
             roll_breakdown: data.roll_breakdown,
             timestamp: data.timestamp,
@@ -1061,7 +1020,11 @@ impl From<ChallengeOutcomeApprovalItem> for ChallengeOutcomeData {
             total: dto.total,
             outcome_type: dto.outcome_type,
             outcome_description: dto.outcome_description,
-            outcome_triggers: dto.outcome_triggers.into_iter().map(Into::into).collect(),
+            outcome_triggers: dto
+                .outcome_triggers
+                .into_iter()
+                .map(info_to_proposed_tool)
+                .collect(),
             roll_breakdown: dto.roll_breakdown,
             timestamp: dto.timestamp,
             suggestions: dto.suggestions,

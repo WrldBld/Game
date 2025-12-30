@@ -15,6 +15,9 @@ use mockall::automock;
 use crate::outbound::queue_port::QueueItemStatus;
 use wrldbldr_domain::WorldId;
 
+// Re-export wire-format types from protocol (single source of truth)
+use wrldbldr_protocol::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo};
+
 // ============================================================================
 // Request/Response Types
 // ============================================================================
@@ -90,56 +93,9 @@ pub enum ApprovalUrgency {
     SceneCritical = 2,
 }
 
-/// Proposed tool call information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProposedToolInfo {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub arguments: serde_json::Value,
-}
-
-/// Challenge suggestion information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChallengeSuggestionInfo {
-    pub challenge_id: String,
-    pub challenge_name: String,
-    pub skill_name: String,
-    pub difficulty_display: String,
-    pub confidence: String,
-    pub reasoning: String,
-    #[serde(default)]
-    pub target_pc_id: Option<String>,
-    #[serde(default)]
-    pub outcomes: Option<ChallengeSuggestionOutcomes>,
-}
-
-/// Challenge suggestion outcomes
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ChallengeSuggestionOutcomes {
-    #[serde(default)]
-    pub success: Option<String>,
-    #[serde(default)]
-    pub failure: Option<String>,
-    #[serde(default)]
-    pub critical_success: Option<String>,
-    #[serde(default)]
-    pub critical_failure: Option<String>,
-}
-
-/// Narrative event suggestion information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NarrativeEventSuggestionInfo {
-    pub event_id: String,
-    pub event_name: String,
-    pub description: String,
-    pub scene_direction: String,
-    pub confidence: String,
-    pub reasoning: String,
-    pub matched_triggers: Vec<String>,
-    #[serde(default)]
-    pub suggested_outcome: Option<String>,
-}
+// NOTE: ProposedToolInfo, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes,
+// and NarrativeEventSuggestionInfo are imported from wrldbldr_protocol
+// at the top of this file. Protocol is the single source of truth.
 
 /// Approval queue item - wraps a request with queue metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]

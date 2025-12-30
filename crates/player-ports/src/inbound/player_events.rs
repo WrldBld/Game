@@ -20,6 +20,12 @@
 use serde_json;
 use uuid::Uuid;
 
+// Re-export wire-format types from protocol (single source of truth)
+pub use wrldbldr_protocol::{
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
+    ProposedToolInfo,
+};
+
 // ============================================================================
 // Supporting Types
 // ============================================================================
@@ -141,50 +147,9 @@ pub struct SplitPartyLocation {
     pub pc_names: Vec<String>,
 }
 
-/// Proposed tool info for DM approval
-#[derive(Debug, Clone, PartialEq)]
-pub struct ProposedToolInfo {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub arguments: serde_json::Value,
-}
-
-/// Challenge suggestion info for DM approval
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChallengeSuggestionInfo {
-    pub challenge_id: String,
-    pub challenge_name: String,
-    pub skill_name: String,
-    pub difficulty_display: String,
-    pub confidence: String,
-    pub reasoning: String,
-    pub target_pc_id: Option<String>,
-    /// Optional editable outcomes for DM modification
-    pub outcomes: Option<ChallengeSuggestionOutcomes>,
-}
-
-/// Editable challenge outcomes for DM modification
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ChallengeSuggestionOutcomes {
-    pub success: Option<String>,
-    pub failure: Option<String>,
-    pub critical_success: Option<String>,
-    pub critical_failure: Option<String>,
-}
-
-/// Narrative event suggestion info
-#[derive(Debug, Clone, PartialEq)]
-pub struct NarrativeEventSuggestionInfo {
-    pub event_id: String,
-    pub event_name: String,
-    pub description: String,
-    pub scene_direction: String,
-    pub confidence: String,
-    pub reasoning: String,
-    pub matched_triggers: Vec<String>,
-    pub suggested_outcome: Option<String>,
-}
+// NOTE: ProposedToolInfo, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes,
+// and NarrativeEventSuggestionInfo are re-exported from wrldbldr_protocol
+// at the top of this file. Protocol is the single source of truth.
 
 /// Outcome detail data
 #[derive(Debug, Clone, PartialEq)]

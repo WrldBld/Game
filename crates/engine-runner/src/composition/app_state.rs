@@ -742,7 +742,7 @@ pub async fn new_app_state(
         asset_repo_for_queue,
         clock.clone(),
         file_storage_for_asset_queue,
-        "./data/generated_assets".to_string(),
+        config.generated_assets_path.clone(),
         queue_factory.config().asset_batch_size,
         queue_factory.asset_generation_notifier(),
     ));
@@ -776,8 +776,8 @@ pub async fn new_app_state(
         asset_repo.clone(),
         clock.clone(),
         file_storage,
-        "./data/assets".to_string(),
-        "./workflows".to_string(),
+        config.asset_base_path.clone(),
+        config.workflow_path.clone(),
         generation_event_tx,
     ));
 
@@ -1238,9 +1238,8 @@ pub async fn new_app_state(
     // ===========================================================================
     // Create composition-layer AppConfig
     // ===========================================================================
-    // Note: adapter's AppConfig doesn't have server_host, use default "0.0.0.0"
     let composition_config = CompositionAppConfig::new(
-        "0.0.0.0".to_string(), // server_host not in adapter config, use default
+        config.server_host.clone(),
         config.server_port,
         config.neo4j_uri.clone(),
         config.ollama_base_url.clone(),
