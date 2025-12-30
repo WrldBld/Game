@@ -10,15 +10,25 @@
 //! This module provides thin wrappers for backwards compatibility.
 
 use anyhow::{anyhow, Result};
-use rand::Rng;
+use std::sync::Arc;
 
 use crate::application::dto::{workflow_config_from_export_dto, workflow_config_to_export_dto};
 use wrldbldr_domain::entities::{InputDefault, PromptMappingType, WorkflowConfiguration};
 use wrldbldr_domain_types::{PromptMapping, WorkflowAnalysis};
+use wrldbldr_engine_ports::outbound::RandomPort;
 use wrldbldr_protocol::WorkflowConfigExportDto;
 
 /// Service for working with ComfyUI workflows
-pub struct WorkflowService;
+pub struct WorkflowService {
+    random_port: Arc<dyn RandomPort>,
+}
+
+impl WorkflowService {
+    /// Create a new WorkflowService with the given random port.
+    pub fn new(random_port: Arc<dyn RandomPort>) -> Self {
+        Self { random_port }
+    }
+}
 
 impl WorkflowService {
     /// Analyze a ComfyUI API format workflow JSON
@@ -44,6 +54,7 @@ impl WorkflowService {
     /// - Override values applied
     /// - Random seed generated (if seed input exists)
     pub fn prepare_workflow(
+        &self,
         config: &WorkflowConfiguration,
         prompt: &str,
         negative_prompt: Option<&str>,
@@ -93,7 +104,7 @@ impl WorkflowService {
         }
 
         // Randomize seed inputs
-        Self::randomize_seeds(&mut workflow);
+        self.randomize_seeds(&mut workflow);
 
         Ok(workflow)
     }
@@ -121,9 +132,7 @@ impl WorkflowService {
     ///
     /// ComfyUI won't generate new images if the seed hasn't changed,
     /// so we randomize seeds to ensure unique outputs.
-    fn randomize_seeds(workflow: &mut serde_json::Value) {
-        let mut rng = rand::thread_rng();
-
+    fn randomize_seeds(&self, workflow: &mut serde_json::Value) {
         if let Some(nodes) = workflow.as_object_mut() {
             for (_node_id, node) in nodes {
                 if let Some(inputs) = node.get_mut("inputs").and_then(|i| i.as_object_mut()) {
@@ -131,7 +140,7 @@ impl WorkflowService {
                     for seed_name in ["seed", "noise_seed", "random_seed"] {
                         if inputs.contains_key(seed_name) {
                             // Generate a random i64 seed
-                            let new_seed: i64 = rng.gen();
+                            let new_seed: i64 = self.random_port.random_i64();
                             inputs.insert(
                                 seed_name.to_string(),
                                 serde_json::Value::Number(new_seed.into()),

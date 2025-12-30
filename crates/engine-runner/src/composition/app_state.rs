@@ -527,7 +527,7 @@ pub async fn new_app_state(
     let asset_service = AssetServiceImpl::new(asset_repo_for_service, clock.clone());
     // Clone workflow_repo before creating service (we'll need it for composition layer too)
     let workflow_repo_for_composition = workflow_repo.clone();
-    let _workflow_config_service = WorkflowConfigService::new(workflow_repo);
+    let _workflow_config_service = WorkflowConfigService::new(workflow_repo, clock.clone());
     let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
 
     let item_service_for_port = ItemServiceImpl::new(
@@ -763,6 +763,7 @@ pub async fn new_app_state(
             narrative_event_service.clone(),
             scene_service.clone(),
             interaction_service.clone(),
+            clock.clone(),
         ));
     tracing::info!("Initialized DM action processor service");
 
@@ -1206,7 +1207,7 @@ pub async fn new_app_state(
     // ===========================================================================
     // Create a new WorkflowConfigService for composition layer (uses cloned repo)
     let workflow_config_service_for_composition =
-        Arc::new(WorkflowConfigService::new(workflow_repo_for_composition));
+        Arc::new(WorkflowConfigService::new(workflow_repo_for_composition, clock.clone()));
     let composition_assets = AssetServices::new(
         Arc::new(asset_service.clone()) as Arc<dyn AssetServicePort>,
         workflow_config_service_for_composition as Arc<dyn WorkflowServicePort>,

@@ -33,4 +33,7 @@ pub trait RandomPort: Send + Sync {
 
     /// Generate a random i32 in range [min, max] (inclusive on both ends)
     fn random_range(&self, min: i32, max: i32) -> i32;
+
+    /// Generate a random i64 (full range)
+    fn random_i64(&self) -> i64;
 }

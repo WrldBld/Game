@@ -60,6 +60,14 @@ impl RandomPort for FixedRandomPort {
         // Clamp to the requested range
         value.clamp(min, max)
     }
+
+    fn random_i64(&self) -> i64 {
+        let idx = self
+            .index
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let value = self.values[idx % self.values.len()];
+        value as i64
+    }
 }
 
 #[cfg(test)]

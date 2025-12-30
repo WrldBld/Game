@@ -25,7 +25,7 @@ use crate::application::services::{
 use wrldbldr_domain::entities::{InteractionTarget, TimeContext};
 use wrldbldr_domain::value_objects::{DmActionData, DmActionType, DmApprovalDecision};
 use wrldbldr_domain::{CharacterId, NarrativeEventId, SceneId, WorldId};
-use wrldbldr_engine_ports::outbound::{DmActionProcessorPort, DmActionResult, QueueError};
+use wrldbldr_engine_ports::outbound::{ClockPort, DmActionProcessorPort, DmActionResult, QueueError};
 
 /// Port for processing approval decisions
 ///
@@ -56,6 +56,8 @@ pub struct DmActionProcessorService {
     scene_service: Arc<dyn SceneService>,
     /// Interaction service for loading scene interactions
     interaction_service: Arc<dyn InteractionService>,
+    /// Clock for time operations
+    clock: Arc<dyn ClockPort>,
 }
 
 impl DmActionProcessorService {
@@ -65,12 +67,14 @@ impl DmActionProcessorService {
         narrative_event_service: Arc<dyn NarrativeEventService>,
         scene_service: Arc<dyn SceneService>,
         interaction_service: Arc<dyn InteractionService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             approval_processor,
             narrative_event_service,
             scene_service,
             interaction_service,
+            clock,
         }
     }
 
@@ -357,7 +361,7 @@ impl DmActionProcessorPort for DmActionProcessorService {
             world_id,
             dm_id: dm_user_id.to_string(),
             action,
-            timestamp: chrono::Utc::now(),
+            timestamp: self.clock.now(),
         };
 
         // Process using the existing method

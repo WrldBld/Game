@@ -7,21 +7,21 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use chrono::Utc;
 
 use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::{WorkflowConfigId, WorldId};
-use wrldbldr_engine_ports::outbound::{WorkflowRepositoryPort, WorkflowServicePort};
+use wrldbldr_engine_ports::outbound::{ClockPort, WorkflowRepositoryPort, WorkflowServicePort};
 
 /// Service for managing workflow configuration persistence
 pub struct WorkflowConfigService {
     repository: Arc<dyn WorkflowRepositoryPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl WorkflowConfigService {
     /// Create a new workflow configuration service
-    pub fn new(repository: Arc<dyn WorkflowRepositoryPort>) -> Self {
-        Self { repository }
+    pub fn new(repository: Arc<dyn WorkflowRepositoryPort>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { repository, clock }
     }
 
     /// Get a workflow configuration by slot
@@ -94,7 +94,7 @@ impl WorkflowConfigService {
     ) -> Result<(WorkflowConfiguration, bool)> {
         let existing = self.repository.get_by_slot(slot).await?;
         let is_update = existing.is_some();
-        let now = Utc::now();
+        let now = self.clock.now();
 
         let config = if let Some(mut existing_config) = existing {
             // Update existing
@@ -132,7 +132,7 @@ impl WorkflowConfigService {
             .await?
             .ok_or_else(|| anyhow!("No workflow configured for slot: {}", slot.as_str()))?;
 
-        let now = Utc::now();
+        let now = self.clock.now();
         config.set_input_defaults(input_defaults, now);
 
         if let Some(locked) = locked_inputs {

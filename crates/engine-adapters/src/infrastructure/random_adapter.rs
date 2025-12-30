@@ -28,6 +28,10 @@ impl RandomPort for ThreadRngAdapter {
     fn random_range(&self, min: i32, max: i32) -> i32 {
         rand::thread_rng().gen_range(min..=max)
     }
+
+    fn random_i64(&self) -> i64 {
+        rand::thread_rng().gen()
+    }
 }
 
 #[cfg(test)]
