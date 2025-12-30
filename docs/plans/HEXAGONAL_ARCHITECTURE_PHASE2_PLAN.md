@@ -11,17 +11,17 @@
 
 Phase 1 of hexagonal remediation achieved 100% compliance at the **code level** (zero warnings, zero arch-check violations). However, a subsequent review revealed **structural issues in the dependency graph** that undermine the architecture at the crate level.
 
-### Current Score: 90/100 (Updated 2025-12-30)
+### Current Score: 92/100 (Updated 2025-12-30)
 
-**Completed - All Critical Issues Resolved**:
+**Completed - All Critical Issues + M1 Resolved**:
 - ✅ C1+C2: AdapterState eliminated, AppStatePort created
 - ✅ C3: PlatformPort created, player-ui → player-adapters dependency removed
 - ✅ C4: FixedRandomPort moved to adapters layer
+- ✅ M1: Unused business logic removed from protocol crate
 - ✅ No backwards dependencies in any layer
 - ✅ arch-check passes with zero violations
 
 **Remaining Medium Priority issues**:
-- M1: Business logic leakage into protocol crate
 - M2: God traits still present (7 with 15+ methods)
 - M3: God object (request_handler.rs at 3,497 lines)
 
@@ -242,23 +242,20 @@ async fn handle_foo(state: &AppState, ...) {
 
 ## Medium Priority Issues
 
-### M1: Business Logic in Protocol Crate
+### M1: Business Logic in Protocol Crate - COMPLETED
 
-**Locations**:
-| File | Line | Method | Fix Location |
-|------|------|--------|--------------|
-| responses.rs | 125 | `ErrorCode::to_http_status()` | Move to engine-adapters HTTP layer |
-| responses.rs | 310 | `WorldRole::can_modify()` | Move to domain layer |
-| responses.rs | 315 | `WorldRole::is_dm()` | Move to domain layer |
-| responses.rs | 320 | `WorldRole::is_spectator()` | Move to domain layer |
-| types.rs | 177 | `GameTime::from_domain()` | Move to engine-app (conversion belongs in app layer) |
-| dto.rs | 65 | `NpcDispositionStateDto::to_domain()` | Move to engine-app |
+**Status**: ✅ DONE (2025-12-30)
 
-**Fix Strategy**:
-1. Create domain WorldRole enum with permission methods
-2. Move HTTP status mapping to adapter layer
-3. Move DTO conversion methods to application layer
-4. Protocol should only have struct definitions + serde
+**Analysis Results**:
+- `ErrorCode::to_http_status()` - **REMOVED** (was unused, HTTP is adapter concern)
+- `NpcDispositionStateDto::to_domain()` - **REMOVED** (was unused)
+- `WorldRole::can_modify()/is_dm()/is_spectator()` - **KEPT** (acceptable as simple enum predicates)
+- `GameTime::from_domain()` - **KEPT** (converts TO wire format, which is protocol's responsibility)
+
+**Changes Made**:
+- Removed `ErrorCode::to_http_status()` from responses.rs
+- Removed `NpcDispositionStateDto::to_domain()` from dto.rs
+- Removed unused `CharacterId`/`PlayerCharacterId` imports
 
 ---
 
@@ -335,10 +332,10 @@ handlers/
    - [x] Update all 23 player-ui files to use Arc<dyn PlatformPort>
    - [x] Remove player-adapters dependency from player-ui
 
-### Phase 2.2: Protocol Cleanup (2-3 hours)
-1. [ ] M1: Move WorldRole methods to domain
-2. [ ] M1: Move ErrorCode::to_http_status to adapters
-3. [ ] M1: Move DTO conversion methods to app layer
+### Phase 2.2: Protocol Cleanup (2-3 hours) - COMPLETED
+1. [x] M1: Removed unused ErrorCode::to_http_status (was dead code)
+2. [x] M1: Removed unused NpcDispositionStateDto::to_domain (was dead code)
+3. [x] M1: Kept WorldRole predicates and GameTime::from_domain (acceptable in protocol)
 
 ### Phase 2.3: God Trait Splitting (8-12 hours)
 1. [ ] M2: Split LocationRepositoryPort (27 methods)
