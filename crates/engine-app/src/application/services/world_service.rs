@@ -8,14 +8,13 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use crate::application::services::SettingsService;
 use wrldbldr_domain::entities::Location;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 use wrldbldr_domain::{GameTime, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
-    WorldServicePort,
+    ClockPort, ExportOptions, PlayerWorldSnapshot, SettingsServicePort, WorldExporterPort,
+    WorldRepositoryPort, WorldServicePort,
 };
 
 /// Request to create a new world
@@ -100,7 +99,7 @@ pub trait WorldService: Send + Sync {
 pub struct WorldServiceImpl {
     repository: Arc<dyn WorldRepositoryPort>,
     exporter: Arc<dyn WorldExporterPort>,
-    settings_service: Arc<SettingsService>,
+    settings_service: Arc<dyn SettingsServicePort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
@@ -114,7 +113,7 @@ impl WorldServiceImpl {
     pub fn new(
         repository: Arc<dyn WorldRepositoryPort>,
         exporter: Arc<dyn WorldExporterPort>,
-        settings_service: Arc<SettingsService>,
+        settings_service: Arc<dyn SettingsServicePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
