@@ -120,23 +120,9 @@ pub enum ErrorCode {
     Unknown,
 }
 
-impl ErrorCode {
-    /// Convert to HTTP status code equivalent
-    pub fn to_http_status(&self) -> u16 {
-        match self {
-            ErrorCode::BadRequest => 400,
-            ErrorCode::Unauthorized => 401,
-            ErrorCode::Forbidden => 403,
-            ErrorCode::NotFound => 404,
-            ErrorCode::Conflict => 409,
-            ErrorCode::ValidationError => 422,
-            ErrorCode::RateLimitExceeded => 429,
-            ErrorCode::InternalError | ErrorCode::Unknown => 500,
-            ErrorCode::ServiceUnavailable => 503,
-            ErrorCode::Timeout => 504,
-        }
-    }
-}
+// NOTE: ErrorCode::to_http_status() was removed as it was unused and violates
+// hexagonal architecture (HTTP is adapter-layer concern, not protocol).
+// If needed, implement in engine-adapters HTTP layer.
 
 // =============================================================================
 // Request Error (Client-Side)

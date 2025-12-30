@@ -8,13 +8,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
-// Uses domain ID types for DTO conversion methods only.
-// Wire format uses raw Uuid; these imports enable to_domain() conversion.
+// Uses domain types for DTO conversion methods only.
+// Wire format uses raw Uuid; these imports enable From trait conversions.
 use wrldbldr_domain::entities::{
     BatchStatus, GalleryAsset, GenerationBatch, WorkflowAnalysis, WorkflowConfiguration,
 };
 use wrldbldr_domain::value_objects::{DispositionLevel, NpcDispositionState, RelationshipLevel};
-use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 // =============================================================================
 // NPC Disposition DTOs
@@ -60,24 +59,8 @@ impl From<&NpcDispositionState> for NpcDispositionStateDto {
     }
 }
 
-impl NpcDispositionStateDto {
-    /// Convert back to domain type
-    pub fn to_domain(&self) -> NpcDispositionState {
-        use chrono::Utc;
-        NpcDispositionState {
-            npc_id: CharacterId::from_uuid(self.npc_id),
-            pc_id: PlayerCharacterId::from_uuid(self.pc_id),
-            disposition: self.disposition,
-            relationship: self.relationship,
-            sentiment: self.sentiment,
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
-            disposition_reason: self.disposition_reason.clone(),
-            relationship_points: self.relationship_points,
-        }
-    }
-}
+// NOTE: NpcDispositionStateDto::to_domain() was removed as it was unused.
+// If needed, implement conversion in engine-app layer where domain types are used.
 
 // =============================================================================
 // Asset DTOs (REST API)
