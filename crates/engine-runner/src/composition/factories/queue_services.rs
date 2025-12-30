@@ -122,8 +122,8 @@ pub struct QueueServiceDependencies<'a> {
     pub infra: &'a InfrastructureContext,
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
-    pub story_event_service:
-        Arc<dyn wrldbldr_engine_app::application::services::StoryEventService>,
+    /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
+    pub dialogue_context_service: Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort>,
     pub generation_event_tx: mpsc::Sender<GenerationEvent>,
     // App-layer services needed for DmActionProcessorService
     pub narrative_event_service: Arc<dyn NarrativeEventService>,
@@ -131,14 +131,14 @@ pub struct QueueServiceDependencies<'a> {
     pub interaction_service: Arc<dyn InteractionService>,
 }
 
-/// Creates queue services (needs story_event_service from core services).
+/// Creates queue services (needs dialogue_context_service from core services).
 pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<QueueServiceContext> {
     let QueueServiceDependencies {
         config,
         infra,
         repos,
         queue_backends,
-        story_event_service,
+        dialogue_context_service,
         generation_event_tx,
         narrative_event_service,
         scene_service,
@@ -197,7 +197,7 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
 
     let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(
         queue_backends.approval_queue.clone(),
-        story_event_service,
+        dialogue_context_service,
         Arc::new(item_service_impl),
         infra.clock.clone(),
     ));

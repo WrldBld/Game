@@ -16,6 +16,7 @@ mod challenge_service_port;
 mod character_service_port;
 mod clock_port;
 mod comfyui_port;
+mod dialogue_context_service_port;
 mod directorial_context_port;
 mod disposition_service_port;
 mod dm_action_processor_port;
@@ -67,6 +68,9 @@ mod sheet_template_service_port;
 mod skill_service_port;
 mod staging_repository_port;
 mod staging_service_port;
+mod story_event_admin_service_port;
+mod story_event_query_service_port;
+mod story_event_recording_service_port;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
 mod trigger_evaluation_service_port;
@@ -304,6 +308,11 @@ pub use world_exporter_port::{
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
 
+// Dialogue context service port - interface for dialogue context operations (LLM/staging)
+pub use dialogue_context_service_port::DialogueContextServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use dialogue_context_service_port::MockDialogueContextServicePort;
+
 // Narrative event service port - interface for narrative event operations
 pub use narrative_event_service_port::NarrativeEventServicePort;
 
@@ -407,6 +416,22 @@ pub use player_character_service_port::PlayerCharacterServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use story_event_service_port::MockStoryEventServicePort;
 pub use story_event_service_port::StoryEventServicePort;
+
+// Story event admin service port - interface for DM/admin story event operations
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_admin_service_port::MockStoryEventAdminServicePort;
+pub use story_event_admin_service_port::StoryEventAdminServicePort;
+
+// Story event query service port - interface for read-only story event queries
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_query_service_port::MockStoryEventQueryServicePort;
+pub use story_event_query_service_port::StoryEventQueryServicePort;
+
+// Story event recording service port - interface for recording gameplay events
+// Part of ISP split: records dialogue, challenges, scene transitions, etc.
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_recording_service_port::MockStoryEventRecordingServicePort;
+pub use story_event_recording_service_port::StoryEventRecordingServicePort;
 
 // Settings service port - interface for settings operations
 #[cfg(any(test, feature = "testing"))]

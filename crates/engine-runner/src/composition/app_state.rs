@@ -660,19 +660,22 @@ pub async fn new_app_state(
 
     // Create story event service with event bus
     // Uses ISP sub-traits: crud, edge, query, dialogue
-    let story_event_service_impl_for_port = StoryEventServiceImpl::new(
+    let story_event_service_impl = Arc::new(StoryEventServiceImpl::new(
         story_event_crud_for_service.clone(),
         story_event_edge_for_service.clone(),
         story_event_query_for_service.clone(),
         story_event_dialogue_for_service.clone(),
         event_bus.clone(),
         clock.clone(),
-    );
+    ));
+    // Cast to various ISP ports - StoryEventServiceImpl implements all of them
     let story_event_service: Arc<
         dyn wrldbldr_engine_app::application::services::StoryEventService,
-    > = Arc::new(story_event_service_impl_for_port.clone());
+    > = story_event_service_impl.clone();
     let story_event_service_port: Arc<dyn StoryEventServicePort> =
-        Arc::new(story_event_service_impl_for_port);
+        story_event_service_impl.clone();
+    let dialogue_context_service: Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort> =
+        story_event_service_impl.clone();
 
     // Create narrative event service with event bus
     // Uses ISP sub-traits: crud, tie, npc, query
@@ -749,7 +752,7 @@ pub async fn new_app_state(
 
     let dm_approval_queue_service = Arc::new(DMApprovalQueueService::new(
         approval_queue.clone(),
-        story_event_service.clone(),
+        dialogue_context_service.clone(),
         Arc::new(item_service_impl.clone()),
         clock.clone(),
     ));

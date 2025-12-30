@@ -16,7 +16,6 @@ use chrono::{DateTime, Utc};
 use crate::application::services::dm_action_processor_service::ApprovalProcessorPort;
 use crate::application::services::item_service::ItemService;
 use crate::application::services::tool_execution_service::ToolExecutionService;
-use crate::application::services::StoryEventService;
 use std::collections::HashMap;
 use wrldbldr_domain::entities::AcquisitionMethod;
 use wrldbldr_domain::value_objects::{
@@ -27,9 +26,9 @@ use wrldbldr_engine_ports::outbound::{
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
     ApprovalQueuePort, ApprovalRequest, ApprovalUrgency as PortApprovalUrgency,
     ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, ClockPort,
-    DmApprovalDecision as PortDmApprovalDecision, DmApprovalQueueServicePort,
-    NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError, QueueItem, QueueItemId,
-    QueueItemStatus,
+    DialogueContextServicePort, DmApprovalDecision as PortDmApprovalDecision,
+    DmApprovalQueueServicePort, NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError,
+    QueueItem, QueueItemId, QueueItemStatus,
 };
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
@@ -39,8 +38,8 @@ const MAX_RETRY_COUNT: u32 = 3;
 pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> {
     pub(crate) queue: Arc<Q>,
     tool_execution_service: ToolExecutionService,
-    /// Story event service for recording dialogue exchanges
-    story_event_service: Arc<dyn StoryEventService>,
+    /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
+    dialogue_context_service: Arc<dyn DialogueContextServicePort>,
     /// Item service for creating items and managing inventory
     item_service: Arc<I>,
     /// Clock for time operations (required for testability)
@@ -55,18 +54,21 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
     /// Create a new DM approval queue service
     ///
     /// # Arguments
+    /// * `queue` - The underlying approval queue backend
+    /// * `dialogue_context_service` - Service for recording dialogue exchanges (ISP-split from StoryEventService)
+    /// * `item_service` - Service for item creation and inventory management
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
         queue: Arc<Q>,
-        story_event_service: Arc<dyn StoryEventService>,
+        dialogue_context_service: Arc<dyn DialogueContextServicePort>,
         item_service: Arc<I>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             queue,
             tool_execution_service: ToolExecutionService::new(),
-            story_event_service,
+            dialogue_context_service,
             item_service,
             clock,
         }
@@ -352,7 +354,7 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
         let location_id = approval.location_id;
 
         if let Err(e) = self
-            .story_event_service
+            .dialogue_context_service
             .record_dialogue_exchange(
                 world_id,
                 scene_id,
@@ -384,7 +386,7 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
         // Update SPOKE_TO edge if we have both PC and NPC IDs
         if let Some(pc_id) = approval.pc_id {
             if let Err(e) = self
-                .story_event_service
+                .dialogue_context_service
                 .update_spoke_to_edge(pc_id, npc_id, None) // topic could be extracted in future
                 .await
             {
