@@ -58,7 +58,7 @@ use wrldbldr_engine_ports::outbound::{
     RelationshipRepositoryPort, SkillRepositoryPort, InteractionRepositoryPort,
     AssetRepositoryPort, WorkflowRepositoryPort, SheetTemplateRepositoryPort,
     ItemRepositoryPort, GoalRepositoryPort, WantRepositoryPort, FlagRepositoryPort,
-    ObservationRepositoryPort, StagingRepositoryPort,
+    ObservationRepositoryPort, StagingRepositoryPort, SceneRepositoryPort,
 };
 
 /// Macro to reduce boilerplate when coercing a concrete repository to multiple ISP trait objects.
@@ -281,6 +281,9 @@ pub struct RepositoryPorts {
     pub flag: Arc<dyn FlagRepositoryPort>,
     pub observation: Arc<dyn ObservationRepositoryPort>,
     pub staging: Arc<dyn StagingRepositoryPort>,
+    /// Scene god trait - for services that need the full interface.
+    /// The ISP-split traits are available via `scene: ScenePorts`.
+    pub scene_repo: Arc<dyn SceneRepositoryPort>,
 }
 
 /// Creates all repository ports from a Neo4j repository instance.
@@ -389,7 +392,7 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         dyn PlayerCharacterRepositoryPort => player_character_god,
     );
 
-    // Scene repository - ISP split into 5 traits
+    // Scene repository - ISP split into 5 traits + god trait
     let scene_concrete = Arc::new(repository.scenes());
     coerce_isp!(
         scene_concrete,
@@ -398,6 +401,7 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         dyn SceneLocationPort => scene_location,
         dyn SceneFeaturedCharacterPort => scene_featured_character,
         dyn SceneCompletionPort => scene_completion,
+        dyn SceneRepositoryPort => scene_god,
     );
 
     // EventChain repository - ISP split into 4 traits
@@ -499,6 +503,7 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         flag,
         observation,
         staging,
+        scene_repo: scene_god,
     }
 }
 
@@ -674,6 +679,7 @@ mod tests {
             let _ = &ports.flag;
             let _ = &ports.observation;
             let _ = &ports.staging;
+            let _ = &ports.scene_repo;
         }
         
         // The existence of this function proves the types are correct at compile time

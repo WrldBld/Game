@@ -84,8 +84,11 @@ pub struct InfrastructureContext {
     /// Settings repository
     pub settings_repository: Arc<dyn SettingsRepositoryPort>,
 
-    /// Settings service
+    /// Settings service (port version for general use)
     pub settings_service: Arc<dyn SettingsServicePort>,
+
+    /// Settings service (concrete version for services needing direct access)
+    pub settings_service_concrete: Arc<SettingsService>,
 
     /// Prompt template repository
     pub prompt_template_repository: Arc<dyn PromptTemplateRepositoryPort>,
@@ -180,8 +183,11 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
 
     let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn =
         Arc::new(load_settings_from_env);
-    let settings_service: Arc<dyn SettingsServicePort> =
-        Arc::new(SettingsService::new(settings_repository.clone(), settings_loader));
+    let settings_service_concrete = Arc::new(SettingsService::new(
+        settings_repository.clone(),
+        settings_loader,
+    ));
+    let settings_service: Arc<dyn SettingsServicePort> = settings_service_concrete.clone();
 
     // =========================================================================
     // Prompt template service
@@ -229,6 +235,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         settings_pool,
         settings_repository,
         settings_service,
+        settings_service_concrete,
         prompt_template_repository,
         prompt_template_service,
         prompt_template_service_concrete,
