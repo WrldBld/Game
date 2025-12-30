@@ -12,11 +12,12 @@
 use anyhow::{anyhow, Result};
 use std::sync::Arc;
 
-use crate::application::dto::{workflow_config_from_export_dto, workflow_config_to_export_dto};
+use crate::application::dto::{
+    workflow_config_from_export_dto, workflow_config_to_export_dto, WorkflowConfigExportDto,
+};
 use wrldbldr_domain::entities::{InputDefault, PromptMappingType, WorkflowConfiguration};
 use wrldbldr_domain_types::{PromptMapping, WorkflowAnalysis};
 use wrldbldr_engine_ports::outbound::RandomPort;
-use wrldbldr_protocol::WorkflowConfigExportDto;
 
 /// Service for working with ComfyUI workflows
 pub struct WorkflowService {

@@ -18,7 +18,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
-regex-lite = { workspace = true }
 futures-channel = { workspace = true }
 
 [dev-dependencies]

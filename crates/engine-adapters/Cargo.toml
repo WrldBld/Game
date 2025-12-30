@@ -21,7 +21,6 @@ wrldbldr-domain-types = { workspace = true }
 # Engine adapter deps
 axum = { workspace = true }
 tower = { workspace = true }
-tower-http = { workspace = true }
 neo4rs = { workspace = true }
 reqwest = { workspace = true }
 
@@ -41,25 +40,17 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 
 # SQLite
 sqlx = { workspace = true }
 
-# Validation
-validator = { workspace = true }
-
 # Async utilities
 futures-util = { workspace = true }
-futures-channel = { workspace = true }
-tokio-util = { workspace = true }
 
 # Concurrent collections
 dashmap = { workspace = true }
 
 rand = { workspace = true }
-config = { workspace = true }
-dotenvy = { workspace = true }
 
 [lints]
 workspace = true

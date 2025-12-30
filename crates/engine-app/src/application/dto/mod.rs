@@ -55,6 +55,8 @@ pub use workflow::{
     workflow_config_from_export_dto, workflow_config_to_export_dto,
     workflow_config_to_full_response_dto, workflow_config_to_response_dto,
 };
+// Re-export WorkflowConfigExportDto for service-layer use (avoids direct protocol import)
+pub use wrldbldr_protocol::WorkflowConfigExportDto;
 
 // Scene DTOs
 pub use scene::{CreateSceneRequestDto, SceneResponseDto, UpdateNotesRequestDto};

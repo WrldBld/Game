@@ -509,13 +509,10 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
 
         // Exempt files:
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
-        // - workflow_service_port.rs: export/import helpers use WorkflowConfigExportDto
-        //   TODO: Move export_workflow_configs/import_workflow_configs to engine-app
         // - dm_approval_queue_service_port.rs: Re-exports wire-format types from protocol
         //   (ProposedToolInfo, ChallengeSuggestionInfo, etc.) - protocol is single source of truth
         // - mod.rs: Re-exports protocol types for API compatibility
         if file_name == "request_handler.rs"
-            || file_name == "workflow_service_port.rs"
             || file_name == "dm_approval_queue_service_port.rs"
             || file_name == "mod.rs"
         {

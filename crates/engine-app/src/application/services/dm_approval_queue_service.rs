@@ -924,6 +924,9 @@ fn convert_port_decision(decision: PortDmApprovalDecision) -> DmApprovalDecision
         PortDmApprovalDecision::TakeOver { dm_response } => {
             DmApprovalDecision::TakeOver { dm_response }
         }
+        PortDmApprovalDecision::Unknown => DmApprovalDecision::Reject {
+            feedback: "Unknown decision type".to_string(),
+        },
     }
 }
 

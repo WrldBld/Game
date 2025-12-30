@@ -120,8 +120,10 @@ pub use challenge_service::{ChallengeService, ChallengeServiceImpl};
 // Re-export challenge resolution service types
 pub use challenge_resolution_service::{
     AdHocChallengeResult, ChallengeResolutionError, ChallengeResolutionService,
-    ChallengeTriggerResult, DiceInputType, OutcomeTriggerInfo, RollSubmissionResult,
+    ChallengeTriggerResult, OutcomeTriggerInfo, RollSubmissionResult,
 };
+// DiceInputType comes from engine-ports (canonical internal definition)
+pub use wrldbldr_engine_ports::outbound::DiceInputType;
 
 // Re-export relationship service types
 pub use relationship_service::{RelationshipService, RelationshipServiceImpl};

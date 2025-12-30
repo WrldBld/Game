@@ -20,10 +20,27 @@ use wrldbldr_engine_ports::outbound::{
     GenerationReadKind, GenerationReadStatePort,
     SuggestionTaskSnapshot as PortSuggestionTaskSnapshot,
 };
-use wrldbldr_protocol::GenerationBatchResponseDto;
+/// App-layer DTO for generation batches (avoids protocol dependency)
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerationBatchDto {
+    pub id: String,
+    pub world_id: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub asset_type: String,
+    pub workflow: String,
+    pub prompt: String,
+    pub count: u8,
+    pub status: String,
+    pub progress: Option<u8>,
+    pub asset_count: usize,
+    pub requested_at: String,
+    pub completed_at: Option<String>,
+}
 
-/// Convert GenerationBatch to GenerationBatchResponseDto
-fn generation_batch_to_dto(b: GenerationBatch) -> GenerationBatchResponseDto {
+/// Convert GenerationBatch to GenerationBatchDto
+fn generation_batch_to_dto(b: GenerationBatch) -> GenerationBatchDto {
     let (status, progress) = match &b.status {
         BatchStatus::Queued => ("Queued".to_string(), None),
         BatchStatus::Generating { progress } => ("Generating".to_string(), Some(*progress)),
@@ -32,7 +49,7 @@ fn generation_batch_to_dto(b: GenerationBatch) -> GenerationBatchResponseDto {
         BatchStatus::Failed { error } => (format!("Failed: {}", error), None),
     };
 
-    GenerationBatchResponseDto {
+    GenerationBatchDto {
         id: b.id.to_string(),
         world_id: b.world_id.to_string(),
         entity_type: b.entity_type.to_string(),
@@ -74,7 +91,7 @@ pub struct GenerationQueueSnapshot {
 #[derive(Debug, serde::Serialize)]
 pub struct GenerationBatchResponseDtoWithRead {
     #[serde(flatten)]
-    pub batch: GenerationBatchResponseDto,
+    pub batch: GenerationBatchDto,
     pub is_read: bool,
 }
 

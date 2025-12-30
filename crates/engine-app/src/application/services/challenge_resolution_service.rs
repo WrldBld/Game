@@ -24,8 +24,9 @@ use wrldbldr_domain::entities::{Difficulty, OutcomeType};
 use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRollInput};
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceRoll as PortDiceRoll,
-    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
+    ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceInputType,
+    DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution, RandomPort,
+    RollResult as PortRollResult,
 };
 
 // ============================================================================
@@ -143,15 +144,7 @@ pub struct AdHocChallengeResult {
     pub outcomes: AdHocOutcomes,
 }
 
-/// Dice input type for challenge rolls
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type")]
-pub enum DiceInputType {
-    #[serde(rename = "formula")]
-    Formula(String),
-    #[serde(rename = "manual")]
-    Manual(i32),
-}
+// DiceInputType is imported from engine-ports
 
 /// Preamble data gathered for challenge resolution.
 /// This struct holds the common data needed by both `handle_roll` and `handle_roll_input`.

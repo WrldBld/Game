@@ -134,6 +134,7 @@ fn build_messages(request: &LlmRequest) -> Vec<OpenAIMessage> {
                 MessageRole::User => "user",
                 MessageRole::Assistant => "assistant",
                 MessageRole::System => "system",
+                MessageRole::Unknown => "user", // Default unknown roles to user
             }
             .to_string(),
             content: Some(msg.content.clone()),

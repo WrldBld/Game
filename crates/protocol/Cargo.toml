@@ -24,8 +24,5 @@ uuid = { workspace = true }
 # Date/time handling
 chrono = { workspace = true }
 
-# Error handling
-anyhow = { workspace = true }
-
 [lints]
 workspace = true

@@ -88,6 +88,8 @@ pub enum MessageRole {
     User,
     Assistant,
     System,
+    #[serde(other)]
+    Unknown,
 }
 
 /// Image data for multimodal requests
@@ -136,6 +138,8 @@ pub enum FinishReason {
     Length,
     ToolCalls,
     ContentFilter,
+    #[serde(other)]
+    Unknown,
 }
 
 /// Token usage information

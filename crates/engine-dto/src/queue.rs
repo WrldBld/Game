@@ -67,6 +67,8 @@ pub enum QueueItemStatus {
     Failed,
     Delayed,
     Expired,
+    #[serde(other)]
+    Unknown,
 }
 
 impl QueueItemStatus {
@@ -78,34 +80,14 @@ impl QueueItemStatus {
             QueueItemStatus::Failed => "failed",
             QueueItemStatus::Delayed => "delayed",
             QueueItemStatus::Expired => "expired",
+            QueueItemStatus::Unknown => "unknown",
         }
     }
 }
 
-/// Errors that can occur during queue operations
-#[derive(Debug, thiserror::Error)]
-pub enum QueueError {
-    #[error("Queue item not found: {0}")]
-    NotFound(String),
-
-    #[error("Serialization error: {0}")]
-    Serialization(#[from] serde_json::Error),
-
-    #[error("Backend error: {0}")]
-    Backend(String),
-
-    #[error("Queue is full")]
-    QueueFull,
-
-    #[error("Invalid operation for current status")]
-    InvalidStatus,
-
-    #[error("Max attempts exceeded")]
-    MaxAttemptsExceeded,
-
-    #[error("Database error: {0}")]
-    Database(String),
-}
+// NOTE: QueueError is defined in wrldbldr_engine_ports::outbound::queue_port
+// and should be imported from there. This avoids duplication and keeps
+// error types with their port definitions.
 
 // ============================================================================
 // Queue Payload DTOs
@@ -152,6 +134,8 @@ pub enum DMAction {
     TransitionScene {
         scene_id: Uuid,
     },
+    #[serde(other)]
+    Unknown,
 }
 
 /// LLM request waiting to be processed
@@ -181,6 +165,8 @@ pub enum LLMRequestType {
         field_type: String,
         entity_id: Option<String>,
     },
+    #[serde(other)]
+    Unknown,
 }
 
 /// Asset generation request
@@ -302,6 +288,8 @@ pub enum DecisionType {
     SceneTransition,
     /// Challenge outcome pending DM approval (P3.3)
     ChallengeOutcome,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -310,6 +298,8 @@ pub enum DecisionUrgency {
     Normal = 0,
     AwaitingPlayer = 1,
     SceneCritical = 2,
+    #[serde(other)]
+    Unknown = 3,
 }
 
 // ============================================================================
@@ -403,6 +393,10 @@ pub enum DmApprovalDecision {
 
     /// DM takes over response
     TakeOver { dm_response: String },
+
+    /// Unknown decision type for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 // ============================================================================
@@ -568,6 +562,10 @@ impl From<DMAction> for DmActionType {
             DMAction::TransitionScene { scene_id } => DmActionType::TransitionScene {
                 scene_id: SceneId::from(scene_id),
             },
+            // Unknown variants are treated as no-op trigger events
+            DMAction::Unknown => DmActionType::TriggerEvent {
+                event_id: String::new(),
+            },
         }
     }
 }
@@ -628,6 +626,10 @@ impl From<DmApprovalDecision> for DomainDmApprovalDecision {
             DmApprovalDecision::TakeOver { dm_response } => {
                 DomainDmApprovalDecision::TakeOver { dm_response }
             }
+            // Unknown decisions are rejected with feedback
+            DmApprovalDecision::Unknown => DomainDmApprovalDecision::Reject {
+                feedback: "Unknown decision type".to_string(),
+            },
         }
     }
 }
@@ -695,6 +697,11 @@ impl From<LLMRequestType> for DomainLlmRequestType {
             } => DomainLlmRequestType::Suggestion {
                 field_type,
                 entity_id,
+            },
+            // Unknown request types are treated as empty suggestions
+            LLMRequestType::Unknown => DomainLlmRequestType::Suggestion {
+                field_type: String::new(),
+                entity_id: None,
             },
         }
     }
@@ -832,6 +839,8 @@ impl From<DecisionType> for ApprovalDecisionType {
             DecisionType::ChallengeSuggestion => ApprovalDecisionType::ChallengeSuggestion,
             DecisionType::SceneTransition => ApprovalDecisionType::SceneTransition,
             DecisionType::ChallengeOutcome => ApprovalDecisionType::ChallengeOutcome,
+            // Unknown decision types default to NpcResponse
+            DecisionType::Unknown => ApprovalDecisionType::NpcResponse,
         }
     }
 }
@@ -856,6 +865,7 @@ impl From<DecisionUrgency> for DomainApprovalUrgency {
             DecisionUrgency::Normal => DomainApprovalUrgency::Normal,
             DecisionUrgency::AwaitingPlayer => DomainApprovalUrgency::AwaitingPlayer,
             DecisionUrgency::SceneCritical => DomainApprovalUrgency::SceneCritical,
+            DecisionUrgency::Unknown => DomainApprovalUrgency::Normal,
         }
     }
 }

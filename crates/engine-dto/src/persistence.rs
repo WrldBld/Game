@@ -27,6 +27,8 @@ pub enum DifficultyRequestDto {
     Descriptor { value: String },
     Opposed,
     Custom { value: String },
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<DifficultyRequestDto> for Difficulty {
@@ -53,6 +55,7 @@ impl From<DifficultyRequestDto> for Difficulty {
             }
             DifficultyRequestDto::Opposed => Difficulty::Opposed,
             DifficultyRequestDto::Custom { value } => Difficulty::Custom(value),
+            DifficultyRequestDto::Unknown => Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         }
     }
 }
@@ -163,6 +166,8 @@ pub enum OutcomeTriggerRequestDto {
     Custom {
         description: String,
     },
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<OutcomeTriggerRequestDto> for OutcomeTrigger {
@@ -202,6 +207,9 @@ impl From<OutcomeTriggerRequestDto> for OutcomeTrigger {
             OutcomeTriggerRequestDto::Custom { description } => {
                 OutcomeTrigger::Custom { description }
             }
+            OutcomeTriggerRequestDto::Unknown => OutcomeTrigger::Custom {
+                description: "Unknown trigger type".to_string(),
+            },
         }
     }
 }
@@ -297,6 +305,8 @@ pub enum TriggerTypeRequestDto {
     Custom {
         description: String,
     },
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<TriggerTypeRequestDto> for TriggerType {
@@ -328,6 +338,9 @@ impl From<TriggerTypeRequestDto> for TriggerType {
                 npc_keywords: keywords,
             },
             TriggerTypeRequestDto::Custom { description } => TriggerType::Custom { description },
+            TriggerTypeRequestDto::Unknown => TriggerType::Custom {
+                description: "Unknown trigger type".to_string(),
+            },
         }
     }
 }
@@ -670,6 +683,8 @@ pub enum FieldTypeDto {
         show_modifier: bool,
         show_proficiency: bool,
     },
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<FieldType> for FieldTypeDto {
@@ -776,6 +791,11 @@ impl From<FieldTypeDto> for FieldType {
                 show_modifier,
                 show_proficiency,
             },
+            // Unknown field types default to a text field
+            FieldTypeDto::Unknown => Self::Text {
+                multiline: false,
+                max_length: None,
+            },
         }
     }
 }
@@ -846,6 +866,8 @@ impl From<PromptMappingDto> for PromptMapping {
 pub enum PromptMappingTypeDto {
     Primary,
     Negative,
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<PromptMappingType> for PromptMappingTypeDto {
@@ -862,6 +884,7 @@ impl From<PromptMappingTypeDto> for PromptMappingType {
         match value {
             PromptMappingTypeDto::Primary => Self::Primary,
             PromptMappingTypeDto::Negative => Self::Negative,
+            PromptMappingTypeDto::Unknown => Self::Primary,
         }
     }
 }
