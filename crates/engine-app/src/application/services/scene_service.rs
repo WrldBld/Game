@@ -21,7 +21,7 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, LocationRepositoryPort, SceneRepositoryPort, SceneServicePort,
+    CharacterCrudPort, LocationCrudPort, SceneRepositoryPort, SceneServicePort,
     SceneWithRelations as PortSceneWithRelations,
 };
 
@@ -110,7 +110,7 @@ pub trait SceneService: Send + Sync {
 #[derive(Clone)]
 pub struct SceneServiceImpl {
     scene_repository: Arc<dyn SceneRepositoryPort>,
-    location_repository: Arc<dyn LocationRepositoryPort>,
+    location_repository: Arc<dyn LocationCrudPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
 }
 
@@ -118,7 +118,7 @@ impl SceneServiceImpl {
     /// Create a new SceneServiceImpl with the given repositories
     pub fn new(
         scene_repository: Arc<dyn SceneRepositoryPort>,
-        location_repository: Arc<dyn LocationRepositoryPort>,
+        location_repository: Arc<dyn LocationCrudPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
     ) -> Self {
         Self {

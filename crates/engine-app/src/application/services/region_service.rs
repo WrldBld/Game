@@ -12,7 +12,7 @@ use wrldbldr_domain::entities::{Character, Region, RegionConnection, RegionExit}
 use wrldbldr_domain::value_objects::RegionRelationshipType;
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    LocationRepositoryPort, RegionRepositoryPort, RegionServicePort,
+    LocationCrudPort, LocationMapPort, RegionRepositoryPort, RegionServicePort,
 };
 
 // Validation constants
@@ -91,18 +91,24 @@ pub trait RegionService: Send + Sync {
 /// Default implementation of RegionService using port abstractions
 pub struct RegionServiceImpl {
     region_repository: Arc<dyn RegionRepositoryPort>,
-    location_repository: Arc<dyn LocationRepositoryPort>,
+    location_crud: Arc<dyn LocationCrudPort>,
+    location_map: Arc<dyn LocationMapPort>,
 }
 
 impl RegionServiceImpl {
     /// Create a new RegionServiceImpl with the given repositories
+    ///
+    /// Note: `location_crud` and `location_map` can be clones of the same underlying
+    /// Arc if the concrete type implements both traits (e.g., Neo4jLocationRepository).
     pub fn new(
         region_repository: Arc<dyn RegionRepositoryPort>,
-        location_repository: Arc<dyn LocationRepositoryPort>,
+        location_crud: Arc<dyn LocationCrudPort>,
+        location_map: Arc<dyn LocationMapPort>,
     ) -> Self {
         Self {
             region_repository,
-            location_repository,
+            location_crud,
+            location_map,
         }
     }
 
@@ -175,7 +181,7 @@ impl RegionService for RegionServiceImpl {
 
         // Verify the location exists
         let _ = self
-            .location_repository
+            .location_crud
             .get(location_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", location_id))?;
@@ -187,8 +193,8 @@ impl RegionService for RegionServiceImpl {
             region = region.as_spawn_point();
         }
 
-        // Create the region via the location repository
-        self.location_repository
+        // Create the region via the location map port
+        self.location_map
             .create_region(location_id, &region)
             .await
             .context("Failed to create region in repository")?;
@@ -370,7 +376,7 @@ impl RegionService for RegionServiceImpl {
             .ok_or_else(|| anyhow::anyhow!("Source region not found: {}", exit.from_region))?;
 
         // Verify target location exists
-        self.location_repository
+        self.location_crud
             .get(exit.to_location)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Target location not found: {}", exit.to_location))?;

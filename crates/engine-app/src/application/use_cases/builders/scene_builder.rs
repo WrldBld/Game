@@ -23,7 +23,7 @@ use tracing::{debug, warn};
 use wrldbldr_domain::entities::{Location, Region, StagedNpc};
 use wrldbldr_domain::{PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::outbound::{
-    LocationRepositoryPort, NavigationExit, NavigationInfo, NavigationTarget, NpcPresenceData,
+    LocationCrudPort, NavigationExit, NavigationInfo, NavigationTarget, NpcPresenceData,
     RegionInfo, RegionItemData, RegionRepositoryPort, SceneChangedEvent,
 };
 
@@ -40,14 +40,14 @@ use crate::application::use_cases::errors::MovementError;
 #[derive(Clone)]
 pub struct SceneBuilder {
     region_repo: Arc<dyn RegionRepositoryPort>,
-    location_repo: Arc<dyn LocationRepositoryPort>,
+    location_repo: Arc<dyn LocationCrudPort>,
 }
 
 impl SceneBuilder {
     /// Create a new SceneBuilder with required repository dependencies
     pub fn new(
         region_repo: Arc<dyn RegionRepositoryPort>,
-        location_repo: Arc<dyn LocationRepositoryPort>,
+        location_repo: Arc<dyn LocationCrudPort>,
     ) -> Self {
         Self {
             region_repo,

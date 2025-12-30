@@ -11,7 +11,8 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, Region};
 use wrldbldr_domain::{GridMapId, LocationId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    LocationRepositoryPort, LocationServicePort, WorldRepositoryPort,
+    LocationConnectionPort, LocationCrudPort, LocationHierarchyPort, LocationMapPort,
+    LocationServicePort, WorldRepositoryPort,
 };
 
 // Validation constants
@@ -159,18 +160,27 @@ pub trait LocationService: Send + Sync {
 #[derive(Clone)]
 pub struct LocationServiceImpl {
     world_repository: Arc<dyn WorldRepositoryPort>,
-    location_repository: Arc<dyn LocationRepositoryPort>,
+    location_crud: Arc<dyn LocationCrudPort>,
+    location_hierarchy: Arc<dyn LocationHierarchyPort>,
+    location_connection: Arc<dyn LocationConnectionPort>,
+    location_map: Arc<dyn LocationMapPort>,
 }
 
 impl LocationServiceImpl {
     /// Create a new LocationServiceImpl with the given repositories
     pub fn new(
         world_repository: Arc<dyn WorldRepositoryPort>,
-        location_repository: Arc<dyn LocationRepositoryPort>,
+        location_crud: Arc<dyn LocationCrudPort>,
+        location_hierarchy: Arc<dyn LocationHierarchyPort>,
+        location_connection: Arc<dyn LocationConnectionPort>,
+        location_map: Arc<dyn LocationMapPort>,
     ) -> Self {
         Self {
             world_repository,
-            location_repository,
+            location_crud,
+            location_hierarchy,
+            location_connection,
+            location_map,
         }
     }
 
@@ -211,7 +221,7 @@ impl LocationServiceImpl {
     /// Build hierarchy tree by querying parent/child edges
     async fn build_hierarchy_from_repo(&self, world_id: WorldId) -> Result<Vec<LocationHierarchy>> {
         // Get all locations in the world
-        let locations = self.location_repository.list(world_id).await?;
+        let locations = self.location_crud.list(world_id).await?;
 
         // Build a map of location_id -> Location
         let _location_map: std::collections::HashMap<LocationId, Location> =
@@ -223,7 +233,7 @@ impl LocationServiceImpl {
         let mut root_locations = Vec::new();
 
         for location in &locations {
-            let parent = self.location_repository.get_parent(location.id).await?;
+            let parent = self.location_hierarchy.get_parent(location.id).await?;
             if let Some(parent_loc) = parent {
                 children_map
                     .entry(parent_loc.id)
@@ -274,7 +284,7 @@ impl LocationService for LocationServiceImpl {
         // Verify parent exists if specified
         if let Some(parent_id) = request.parent_id {
             let _ = self
-                .location_repository
+                .location_crud
                 .get(parent_id)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Parent location not found: {}", parent_id))?;
@@ -299,14 +309,14 @@ impl LocationService for LocationServiceImpl {
         }
 
         // Create the location node
-        self.location_repository
+        self.location_crud
             .create(&location)
             .await
             .context("Failed to create location in repository")?;
 
         // Set parent if specified (creates CONTAINS_LOCATION edge)
         if let Some(parent_id) = request.parent_id {
-            self.location_repository
+            self.location_hierarchy
                 .set_parent(location.id, parent_id)
                 .await
                 .context("Failed to set location parent")?;
@@ -325,7 +335,7 @@ impl LocationService for LocationServiceImpl {
     #[instrument(skip(self))]
     async fn get_location(&self, id: LocationId) -> Result<Option<Location>> {
         debug!(location_id = %id, "Fetching location");
-        self.location_repository
+        self.location_crud
             .get(id)
             .await
             .context("Failed to get location from repository")
@@ -338,31 +348,31 @@ impl LocationService for LocationServiceImpl {
     ) -> Result<Option<LocationWithConnections>> {
         debug!(location_id = %id, "Fetching location with connections");
 
-        let location = match self.location_repository.get(id).await? {
+        let location = match self.location_crud.get(id).await? {
             Some(l) => l,
             None => return Ok(None),
         };
 
         let connections = self
-            .location_repository
+            .location_connection
             .get_connections(id)
             .await
             .context("Failed to get connections for location")?;
 
         let parent = self
-            .location_repository
+            .location_hierarchy
             .get_parent(id)
             .await
             .context("Failed to get parent location")?;
 
         let children = self
-            .location_repository
+            .location_hierarchy
             .get_children(id)
             .await
             .context("Failed to get child locations")?;
 
         let regions = self
-            .location_repository
+            .location_map
             .get_regions(id)
             .await
             .context("Failed to get backdrop regions")?;
@@ -379,7 +389,7 @@ impl LocationService for LocationServiceImpl {
     #[instrument(skip(self))]
     async fn list_locations(&self, world_id: WorldId) -> Result<Vec<Location>> {
         debug!(world_id = %world_id, "Listing locations in world");
-        self.location_repository
+        self.location_crud
             .list(world_id)
             .await
             .context("Failed to list locations from repository")
@@ -400,7 +410,7 @@ impl LocationService for LocationServiceImpl {
         Self::validate_update_request(&request)?;
 
         let mut location = self
-            .location_repository
+            .location_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", id))?;
@@ -427,7 +437,7 @@ impl LocationService for LocationServiceImpl {
             location.use_llm_presence = use_llm;
         }
 
-        self.location_repository
+        self.location_crud
             .update(&location)
             .await
             .context("Failed to update location in repository")?;
@@ -439,13 +449,13 @@ impl LocationService for LocationServiceImpl {
     #[instrument(skip(self))]
     async fn delete_location(&self, id: LocationId) -> Result<()> {
         let location = self
-            .location_repository
+            .location_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", id))?;
 
         // Check for child locations
-        let children = self.location_repository.get_children(id).await?;
+        let children = self.location_hierarchy.get_children(id).await?;
         if !children.is_empty() {
             anyhow::bail!(
                 "Cannot delete location '{}' because it has {} child location(s). Delete children first.",
@@ -454,7 +464,7 @@ impl LocationService for LocationServiceImpl {
             );
         }
 
-        self.location_repository
+        self.location_crud
             .delete(id)
             .await
             .context("Failed to delete location from repository")?;
@@ -470,7 +480,7 @@ impl LocationService for LocationServiceImpl {
         parent_id: Option<LocationId>,
     ) -> Result<()> {
         let location = self
-            .location_repository
+            .location_crud
             .get(location_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", location_id))?;
@@ -482,7 +492,7 @@ impl LocationService for LocationServiceImpl {
             }
 
             let parent = self
-                .location_repository
+                .location_crud
                 .get(pid)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Parent location not found: {}", pid))?;
@@ -499,18 +509,18 @@ impl LocationService for LocationServiceImpl {
                     anyhow::bail!("Cannot set parent: would create circular reference");
                 }
                 current_parent_id = self
-                    .location_repository
+                    .location_hierarchy
                     .get_parent(cpid)
                     .await?
                     .map(|p| p.id);
             }
 
-            self.location_repository
+            self.location_hierarchy
                 .set_parent(location_id, pid)
                 .await
                 .context("Failed to set location parent")?;
         } else {
-            self.location_repository
+            self.location_hierarchy
                 .remove_parent(location_id)
                 .await
                 .context("Failed to remove location parent")?;
@@ -527,7 +537,7 @@ impl LocationService for LocationServiceImpl {
 
     #[instrument(skip(self))]
     async fn get_children(&self, location_id: LocationId) -> Result<Vec<Location>> {
-        self.location_repository
+        self.location_hierarchy
             .get_children(location_id)
             .await
             .context("Failed to get child locations")
@@ -537,13 +547,13 @@ impl LocationService for LocationServiceImpl {
     async fn create_connection(&self, request: CreateConnectionRequest) -> Result<()> {
         // Verify both locations exist
         let from = self
-            .location_repository
+            .location_crud
             .get(request.from_location)
             .await?
             .ok_or_else(|| anyhow::anyhow!("From location not found: {}", request.from_location))?;
 
         let to = self
-            .location_repository
+            .location_crud
             .get(request.to_location)
             .await?
             .ok_or_else(|| anyhow::anyhow!("To location not found: {}", request.to_location))?;
@@ -577,7 +587,7 @@ impl LocationService for LocationServiceImpl {
             }
         }
 
-        self.location_repository
+        self.location_connection
             .create_connection(&connection)
             .await
             .context("Failed to create connection in repository")?;
@@ -596,7 +606,7 @@ impl LocationService for LocationServiceImpl {
     #[instrument(skip(self))]
     async fn get_connections(&self, location_id: LocationId) -> Result<Vec<LocationConnection>> {
         debug!(location_id = %location_id, "Getting connections for location");
-        self.location_repository
+        self.location_connection
             .get_connections(location_id)
             .await
             .context("Failed to get connections from repository")
@@ -604,7 +614,7 @@ impl LocationService for LocationServiceImpl {
 
     #[instrument(skip(self))]
     async fn delete_connection(&self, from: LocationId, to: LocationId) -> Result<()> {
-        self.location_repository
+        self.location_connection
             .delete_connection(from, to)
             .await
             .context("Failed to delete connection from repository")?;
@@ -615,7 +625,7 @@ impl LocationService for LocationServiceImpl {
 
     #[instrument(skip(self))]
     async fn unlock_connection(&self, from: LocationId, to: LocationId) -> Result<()> {
-        self.location_repository
+        self.location_connection
             .unlock_connection(from, to)
             .await
             .context("Failed to unlock connection")?;
@@ -628,12 +638,12 @@ impl LocationService for LocationServiceImpl {
     async fn add_region(&self, location_id: LocationId, region: Region) -> Result<()> {
         // Verify location exists
         let location = self
-            .location_repository
+            .location_crud
             .get(location_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", location_id))?;
 
-        self.location_repository
+        self.location_map
             .create_region(location_id, &region)
             .await
             .context("Failed to add region")?;
@@ -651,12 +661,12 @@ impl LocationService for LocationServiceImpl {
     async fn set_grid_map(&self, location_id: LocationId, grid_map_id: GridMapId) -> Result<()> {
         // Verify location exists
         let _ = self
-            .location_repository
+            .location_crud
             .get(location_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Location not found: {}", location_id))?;
 
-        self.location_repository
+        self.location_map
             .set_grid_map(location_id, grid_map_id)
             .await
             .context("Failed to set grid map")?;
@@ -667,7 +677,7 @@ impl LocationService for LocationServiceImpl {
 
     #[instrument(skip(self))]
     async fn remove_grid_map(&self, location_id: LocationId) -> Result<()> {
-        self.location_repository
+        self.location_map
             .remove_grid_map(location_id)
             .await
             .context("Failed to remove grid map")?;

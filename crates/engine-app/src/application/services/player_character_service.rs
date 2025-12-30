@@ -12,7 +12,7 @@ use wrldbldr_domain::entities::CharacterSheetData;
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, LocationRepositoryPort, PlayerCharacterRepositoryPort, PlayerCharacterServicePort,
+    ClockPort, LocationCrudPort, PlayerCharacterRepositoryPort, PlayerCharacterServicePort,
     WorldRepositoryPort,
 };
 
@@ -84,7 +84,7 @@ pub trait PlayerCharacterService: Send + Sync {
 #[derive(Clone)]
 pub struct PlayerCharacterServiceImpl {
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-    location_repository: Arc<dyn LocationRepositoryPort>,
+    location_repository: Arc<dyn LocationCrudPort>,
     world_repository: Arc<dyn WorldRepositoryPort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -93,7 +93,7 @@ impl PlayerCharacterServiceImpl {
     /// Create a new PlayerCharacterServiceImpl with the given repositories
     pub fn new(
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-        location_repository: Arc<dyn LocationRepositoryPort>,
+        location_repository: Arc<dyn LocationCrudPort>,
         world_repository: Arc<dyn WorldRepositoryPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {

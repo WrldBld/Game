@@ -60,8 +60,9 @@ use wrldbldr_domain::entities::{Location, Region};
 use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, ClockPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
-    RegionRepositoryPort, StagingPendingEvent, StagingRequiredEvent, WaitingPcData,
+    BroadcastPort, ClockPort, GameEvent, LocationCrudPort, LocationMapPort,
+    PlayerCharacterRepositoryPort, RegionRepositoryPort, StagingPendingEvent,
+    StagingRequiredEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
@@ -87,7 +88,8 @@ pub use wrldbldr_engine_ports::outbound::{
 pub struct MovementUseCase {
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
-    location_repo: Arc<dyn LocationRepositoryPort>,
+    location_crud: Arc<dyn LocationCrudPort>,
+    location_map: Arc<dyn LocationMapPort>,
     staging_service: Arc<dyn StagingServicePort>,
     staging_state: Arc<dyn StagingStatePort>,
     broadcast: Arc<dyn BroadcastPort>,
@@ -100,7 +102,8 @@ impl MovementUseCase {
     pub fn new(
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
-        location_repo: Arc<dyn LocationRepositoryPort>,
+        location_crud: Arc<dyn LocationCrudPort>,
+        location_map: Arc<dyn LocationMapPort>,
         staging_service: Arc<dyn StagingServicePort>,
         staging_state: Arc<dyn StagingStatePort>,
         broadcast: Arc<dyn BroadcastPort>,
@@ -110,7 +113,8 @@ impl MovementUseCase {
         Self {
             pc_repo,
             region_repo,
-            location_repo,
+            location_crud,
+            location_map,
             staging_service,
             staging_state,
             broadcast,
@@ -172,7 +176,7 @@ impl MovementUseCase {
 
         // Get location
         let location = self
-            .location_repo
+            .location_crud
             .get(region.location_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -222,7 +226,7 @@ impl MovementUseCase {
 
         // Get target location
         let location = self
-            .location_repo
+            .location_crud
             .get(input.target_location_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -303,7 +307,7 @@ impl MovementUseCase {
 
         // Try location's default arrival region
         let location = self
-            .location_repo
+            .location_crud
             .get(location_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -317,7 +321,7 @@ impl MovementUseCase {
 
         // Fall back to first spawn point
         let regions = self
-            .location_repo
+            .location_map
             .get_regions(location_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?;

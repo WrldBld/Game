@@ -42,6 +42,7 @@ mod narrative_event_repository;
 mod narrative_event_service_port;
 mod challenge_repository;
 mod character_repository;
+mod location_repository;
 mod story_event_repository;
 mod player_action_queue_service_port;
 mod player_character_service_port;
@@ -202,6 +203,21 @@ pub use challenge_repository::{
 };
 #[cfg(any(test, feature = "testing"))]
 pub use challenge_repository::MockChallengeRepository;
+
+// Location repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - LocationCrudPort: Core CRUD operations (5 methods)
+// - LocationHierarchyPort: Parent-child relationships (4 methods)
+// - LocationConnectionPort: Navigation connections (5 methods)
+// - LocationMapPort: Grid maps and regions (5 methods)
+pub use location_repository::{
+    LocationConnectionPort, LocationCrudPort, LocationHierarchyPort, LocationMapPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use location_repository::{
+    MockLocationConnectionPort, MockLocationCrudPort, MockLocationHierarchyPort,
+    MockLocationMapPort, MockLocationRepository,
+};
 
 pub use prompt_template_port::{
     PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,

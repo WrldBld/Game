@@ -115,6 +115,11 @@ use wrldbldr_engine_ports::outbound::{
     InteractionServicePort,
     ItemServicePort,
     LlmQueueServicePort,
+    // Location repository ports - split for ISP (Clean Interface Segregation)
+    LocationConnectionPort,
+    LocationCrudPort,
+    LocationHierarchyPort,
+    LocationMapPort,
     LocationServicePort,
     NarrativeEventApprovalServicePort,
     NarrativeEventServicePort,
@@ -371,8 +376,13 @@ pub async fn new_app_state(
     let _character_inventory: Arc<dyn CharacterInventoryPort> = character_concrete.clone();
     let character_location: Arc<dyn CharacterLocationPort> = character_concrete.clone();
     let character_disposition: Arc<dyn CharacterDispositionPort> = character_concrete.clone();
-    let location_repo: Arc<dyn wrldbldr_engine_ports::outbound::LocationRepositoryPort> =
-        Arc::new(repository.locations());
+    // Location repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all traits - Rust coerces to needed interface
+    let location_concrete = Arc::new(repository.locations());
+    let location_crud: Arc<dyn LocationCrudPort> = location_concrete.clone();
+    let location_hierarchy: Arc<dyn LocationHierarchyPort> = location_concrete.clone();
+    let location_connection: Arc<dyn LocationConnectionPort> = location_concrete.clone();
+    let location_map: Arc<dyn LocationMapPort> = location_concrete.clone();
     let scene_repo: Arc<dyn wrldbldr_engine_ports::outbound::SceneRepositoryPort> =
         Arc::new(repository.scenes());
     let relationship_repo: Arc<dyn wrldbldr_engine_ports::outbound::RelationshipRepositoryPort> =
@@ -465,7 +475,13 @@ pub async fn new_app_state(
         Arc::new(character_service_impl.clone());
     let character_service_port: Arc<dyn CharacterServicePort> = Arc::new(character_service_impl);
 
-    let location_service_impl = LocationServiceImpl::new(world_repo.clone(), location_repo.clone());
+    let location_service_impl = LocationServiceImpl::new(
+        world_repo.clone(),
+        location_crud.clone(),
+        location_hierarchy.clone(),
+        location_connection.clone(),
+        location_map.clone(),
+    );
     let location_service: Arc<dyn wrldbldr_engine_app::application::services::LocationService> =
         Arc::new(location_service_impl.clone());
     let location_service_port: Arc<dyn LocationServicePort> = Arc::new(location_service_impl);
@@ -482,7 +498,7 @@ pub async fn new_app_state(
 
     let scene_service_impl = SceneServiceImpl::new(
         scene_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
         character_crud.clone(),
     );
     let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> =
@@ -577,7 +593,7 @@ pub async fn new_app_state(
 
     let player_character_service_for_port = PlayerCharacterServiceImpl::new(
         player_character_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
         world_repo.clone(),
         clock.clone(),
     );
@@ -589,7 +605,7 @@ pub async fn new_app_state(
     // Keep concrete version for ChallengeResolutionService generics
     let player_character_service_impl = PlayerCharacterServiceImpl::new(
         player_character_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
         world_repo.clone(),
         clock.clone(),
     );
@@ -904,10 +920,12 @@ pub async fn new_app_state(
     ));
 
     // Create region service
+    // Uses ISP: LocationCrudPort, LocationMapPort
     let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> =
         Arc::new(RegionServiceImpl::new(
             region_repo.clone(),
-            location_repo.clone(),
+            location_crud.clone(),
+            location_map.clone(),
         ));
 
     // Create actantial context service (P1.5)
@@ -1016,14 +1034,15 @@ pub async fn new_app_state(
     // Create shared scene builder
     let scene_builder = Arc::new(SceneBuilder::new(
         region_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
     ));
 
     // Create movement use case
     let movement_use_case = Arc::new(MovementUseCase::new(
         player_character_repo_for_handler.clone(),
         region_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
+        location_map.clone(),
         staging_service_adapter.clone(),
         staging_state_adapter.clone(),
         broadcast.clone(),
@@ -1045,7 +1064,7 @@ pub async fn new_app_state(
         staging_state_adapter,
         character_crud_for_use_cases.clone(),
         region_repo.clone(),
-        location_repo.clone(),
+        location_crud.clone(),
         broadcast.clone(),
         scene_builder,
         clock.clone(),

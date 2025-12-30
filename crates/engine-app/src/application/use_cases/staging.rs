@@ -18,7 +18,7 @@ use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::{CharacterId, GameTime, WorldId};
 use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationRepositoryPort,
+    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationCrudPort,
     NpcPresenceData, RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
 };
 
@@ -50,7 +50,7 @@ pub struct StagingApprovalUseCase {
     staging_state: Arc<dyn StagingStateExtPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
     region_repo: Arc<dyn RegionRepositoryPort>,
-    location_repo: Arc<dyn LocationRepositoryPort>,
+        location_repo: Arc<dyn LocationCrudPort>,
     broadcast: Arc<dyn BroadcastPort>,
     scene_builder: Arc<SceneBuilder>,
     clock: Arc<dyn ClockPort>,
@@ -63,7 +63,7 @@ impl StagingApprovalUseCase {
         staging_state: Arc<dyn StagingStateExtPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
         region_repo: Arc<dyn RegionRepositoryPort>,
-        location_repo: Arc<dyn LocationRepositoryPort>,
+    location_repo: Arc<dyn LocationCrudPort>,
         broadcast: Arc<dyn BroadcastPort>,
         scene_builder: Arc<SceneBuilder>,
         clock: Arc<dyn ClockPort>,

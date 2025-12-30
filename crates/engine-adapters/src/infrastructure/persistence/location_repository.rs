@@ -14,7 +14,9 @@ use super::connection::Neo4jConnection;
 use super::converters::row_to_region;
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
 use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::LocationRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    LocationConnectionPort, LocationCrudPort, LocationHierarchyPort, LocationMapPort,
+};
 
 /// Repository for Location operations
 pub struct Neo4jLocationRepository {
@@ -681,11 +683,11 @@ fn row_to_connection(row: Row) -> Result<LocationConnection> {
 }
 
 // =============================================================================
-// LocationRepositoryPort Implementation
+// ISP Trait Implementations
 // =============================================================================
 
 #[async_trait]
-impl LocationRepositoryPort for Neo4jLocationRepository {
+impl LocationCrudPort for Neo4jLocationRepository {
     async fn create(&self, location: &Location) -> Result<()> {
         Neo4jLocationRepository::create(self, location).await
     }
@@ -705,7 +707,10 @@ impl LocationRepositoryPort for Neo4jLocationRepository {
     async fn delete(&self, id: LocationId) -> Result<()> {
         Neo4jLocationRepository::delete(self, id).await
     }
+}
 
+#[async_trait]
+impl LocationHierarchyPort for Neo4jLocationRepository {
     async fn set_parent(&self, child_id: LocationId, parent_id: LocationId) -> Result<()> {
         Neo4jLocationRepository::set_parent(self, child_id, parent_id).await
     }
@@ -721,7 +726,10 @@ impl LocationRepositoryPort for Neo4jLocationRepository {
     async fn get_children(&self, location_id: LocationId) -> Result<Vec<Location>> {
         Neo4jLocationRepository::get_children(self, location_id).await
     }
+}
 
+#[async_trait]
+impl LocationConnectionPort for Neo4jLocationRepository {
     async fn create_connection(&self, connection: &LocationConnection) -> Result<()> {
         Neo4jLocationRepository::create_connection(self, connection).await
     }
@@ -741,7 +749,10 @@ impl LocationRepositoryPort for Neo4jLocationRepository {
     async fn unlock_connection(&self, from: LocationId, to: LocationId) -> Result<()> {
         Neo4jLocationRepository::unlock_connection(self, from, to).await
     }
+}
 
+#[async_trait]
+impl LocationMapPort for Neo4jLocationRepository {
     async fn set_grid_map(&self, location_id: LocationId, grid_map_id: GridMapId) -> Result<()> {
         Neo4jLocationRepository::set_grid_map(self, location_id, grid_map_id).await
     }
