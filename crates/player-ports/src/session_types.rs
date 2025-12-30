@@ -11,7 +11,13 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wrldbldr_protocol as proto;
+use wrldbldr_protocol::{
+    AdHocOutcomes as ProtoAdHocOutcomes, ApprovalDecision as ProtoApprovalDecision,
+    ApprovedNpcInfo as ProtoApprovedNpcInfo,
+    ChallengeOutcomeDecisionData as ProtoChallengeOutcomeDecisionData,
+    DiceInputType as ProtoDiceInputType, DirectorialContext as ProtoDirectorialContext,
+    NpcMotivationData as ProtoNpcMotivationData, ParticipantRole as ProtoParticipantRole,
+};
 
 /// Role of a participant in a game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,36 +126,36 @@ pub enum ChallengeOutcomeDecision {
 // From Trait Implementations: proto -> session_types
 // =============================================================================
 
-impl From<proto::ParticipantRole> for ParticipantRole {
-    fn from(proto: proto::ParticipantRole) -> Self {
+impl From<ProtoParticipantRole> for ParticipantRole {
+    fn from(proto: ProtoParticipantRole) -> Self {
         match proto {
-            proto::ParticipantRole::Player => Self::Player,
-            proto::ParticipantRole::DungeonMaster => Self::DungeonMaster,
+            ProtoParticipantRole::Player => Self::Player,
+            ProtoParticipantRole::DungeonMaster => Self::DungeonMaster,
             // Unknown falls back to Spectator (least privileged)
-            proto::ParticipantRole::Spectator | proto::ParticipantRole::Unknown => Self::Spectator,
+            ProtoParticipantRole::Spectator | ProtoParticipantRole::Unknown => Self::Spectator,
         }
     }
 }
 
-impl From<proto::DiceInputType> for DiceInput {
-    fn from(proto: proto::DiceInputType) -> Self {
+impl From<ProtoDiceInputType> for DiceInput {
+    fn from(proto: ProtoDiceInputType) -> Self {
         match proto {
-            proto::DiceInputType::Formula(formula) => Self::Formula(formula),
-            proto::DiceInputType::Manual(value) => Self::Manual(value),
+            ProtoDiceInputType::Formula(formula) => Self::Formula(formula),
+            ProtoDiceInputType::Manual(value) => Self::Manual(value),
             // Unknown falls back to Manual(0)
-            proto::DiceInputType::Unknown => Self::Manual(0),
+            ProtoDiceInputType::Unknown => Self::Manual(0),
         }
     }
 }
 
-impl From<proto::ApprovalDecision> for ApprovalDecision {
-    fn from(proto: proto::ApprovalDecision) -> Self {
+impl From<ProtoApprovalDecision> for ApprovalDecision {
+    fn from(proto: ProtoApprovalDecision) -> Self {
         match proto {
-            proto::ApprovalDecision::Accept => Self::Accept,
-            proto::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            ProtoApprovalDecision::Accept => Self::Accept,
+            ProtoApprovalDecision::AcceptWithRecipients { item_recipients } => {
                 Self::AcceptWithRecipients { item_recipients }
             }
-            proto::ApprovalDecision::AcceptWithModification {
+            ProtoApprovalDecision::AcceptWithModification {
                 modified_dialogue,
                 approved_tools,
                 rejected_tools,
@@ -160,18 +166,18 @@ impl From<proto::ApprovalDecision> for ApprovalDecision {
                 rejected_tools,
                 item_recipients,
             },
-            proto::ApprovalDecision::Reject { feedback } => Self::Reject { feedback },
-            proto::ApprovalDecision::TakeOver { dm_response } => Self::TakeOver { dm_response },
+            ProtoApprovalDecision::Reject { feedback } => Self::Reject { feedback },
+            ProtoApprovalDecision::TakeOver { dm_response } => Self::TakeOver { dm_response },
             // Unknown falls back to Reject with explanation
-            proto::ApprovalDecision::Unknown => Self::Reject {
+            ProtoApprovalDecision::Unknown => Self::Reject {
                 feedback: "Unknown approval decision received".to_string(),
             },
         }
     }
 }
 
-impl From<proto::NpcMotivationData> for NpcMotivationData {
-    fn from(proto: proto::NpcMotivationData) -> Self {
+impl From<ProtoNpcMotivationData> for NpcMotivationData {
+    fn from(proto: ProtoNpcMotivationData) -> Self {
         Self {
             character_id: proto.character_id,
             emotional_guidance: proto.emotional_guidance,
@@ -181,8 +187,8 @@ impl From<proto::NpcMotivationData> for NpcMotivationData {
     }
 }
 
-impl From<proto::DirectorialContext> for DirectorialContext {
-    fn from(proto: proto::DirectorialContext) -> Self {
+impl From<ProtoDirectorialContext> for DirectorialContext {
+    fn from(proto: ProtoDirectorialContext) -> Self {
         Self {
             scene_notes: proto.scene_notes,
             tone: proto.tone,
@@ -192,8 +198,8 @@ impl From<proto::DirectorialContext> for DirectorialContext {
     }
 }
 
-impl From<proto::ApprovedNpcInfo> for ApprovedNpcInfo {
-    fn from(proto: proto::ApprovedNpcInfo) -> Self {
+impl From<ProtoApprovedNpcInfo> for ApprovedNpcInfo {
+    fn from(proto: ProtoApprovedNpcInfo) -> Self {
         Self {
             character_id: proto.character_id,
             is_present: proto.is_present,
@@ -203,8 +209,8 @@ impl From<proto::ApprovedNpcInfo> for ApprovedNpcInfo {
     }
 }
 
-impl From<proto::AdHocOutcomes> for AdHocOutcomes {
-    fn from(proto: proto::AdHocOutcomes) -> Self {
+impl From<ProtoAdHocOutcomes> for AdHocOutcomes {
+    fn from(proto: ProtoAdHocOutcomes) -> Self {
         Self {
             success: proto.success,
             failure: proto.failure,
@@ -214,18 +220,18 @@ impl From<proto::AdHocOutcomes> for AdHocOutcomes {
     }
 }
 
-impl From<proto::ChallengeOutcomeDecisionData> for ChallengeOutcomeDecision {
-    fn from(proto: proto::ChallengeOutcomeDecisionData) -> Self {
+impl From<ProtoChallengeOutcomeDecisionData> for ChallengeOutcomeDecision {
+    fn from(proto: ProtoChallengeOutcomeDecisionData) -> Self {
         match proto {
-            proto::ChallengeOutcomeDecisionData::Accept => Self::Accept,
-            proto::ChallengeOutcomeDecisionData::Edit {
+            ProtoChallengeOutcomeDecisionData::Accept => Self::Accept,
+            ProtoChallengeOutcomeDecisionData::Edit {
                 modified_description,
             } => Self::Edit {
                 modified_description,
             },
-            proto::ChallengeOutcomeDecisionData::Suggest { guidance } => Self::Suggest { guidance },
+            ProtoChallengeOutcomeDecisionData::Suggest { guidance } => Self::Suggest { guidance },
             // Unknown falls back to Accept
-            proto::ChallengeOutcomeDecisionData::Unknown => Self::Accept,
+            ProtoChallengeOutcomeDecisionData::Unknown => Self::Accept,
         }
     }
 }
@@ -234,7 +240,7 @@ impl From<proto::ChallengeOutcomeDecisionData> for ChallengeOutcomeDecision {
 // From Trait Implementations: session_types -> proto
 // =============================================================================
 
-impl From<ParticipantRole> for proto::ParticipantRole {
+impl From<ParticipantRole> for ProtoParticipantRole {
     fn from(local: ParticipantRole) -> Self {
         match local {
             ParticipantRole::Player => Self::Player,
@@ -244,7 +250,7 @@ impl From<ParticipantRole> for proto::ParticipantRole {
     }
 }
 
-impl From<DiceInput> for proto::DiceInputType {
+impl From<DiceInput> for ProtoDiceInputType {
     fn from(local: DiceInput) -> Self {
         match local {
             DiceInput::Formula(formula) => Self::Formula(formula),
@@ -253,7 +259,7 @@ impl From<DiceInput> for proto::DiceInputType {
     }
 }
 
-impl From<ApprovalDecision> for proto::ApprovalDecision {
+impl From<ApprovalDecision> for ProtoApprovalDecision {
     fn from(local: ApprovalDecision) -> Self {
         match local {
             ApprovalDecision::Accept => Self::Accept,
@@ -277,7 +283,7 @@ impl From<ApprovalDecision> for proto::ApprovalDecision {
     }
 }
 
-impl From<NpcMotivationData> for proto::NpcMotivationData {
+impl From<NpcMotivationData> for ProtoNpcMotivationData {
     fn from(local: NpcMotivationData) -> Self {
         Self {
             character_id: local.character_id,
@@ -288,7 +294,7 @@ impl From<NpcMotivationData> for proto::NpcMotivationData {
     }
 }
 
-impl From<DirectorialContext> for proto::DirectorialContext {
+impl From<DirectorialContext> for ProtoDirectorialContext {
     fn from(local: DirectorialContext) -> Self {
         Self {
             scene_notes: local.scene_notes,
@@ -299,7 +305,7 @@ impl From<DirectorialContext> for proto::DirectorialContext {
     }
 }
 
-impl From<ApprovedNpcInfo> for proto::ApprovedNpcInfo {
+impl From<ApprovedNpcInfo> for ProtoApprovedNpcInfo {
     fn from(local: ApprovedNpcInfo) -> Self {
         Self {
             character_id: local.character_id,
@@ -310,7 +316,7 @@ impl From<ApprovedNpcInfo> for proto::ApprovedNpcInfo {
     }
 }
 
-impl From<AdHocOutcomes> for proto::AdHocOutcomes {
+impl From<AdHocOutcomes> for ProtoAdHocOutcomes {
     fn from(local: AdHocOutcomes) -> Self {
         Self {
             success: local.success,
@@ -321,7 +327,7 @@ impl From<AdHocOutcomes> for proto::AdHocOutcomes {
     }
 }
 
-impl From<ChallengeOutcomeDecision> for proto::ChallengeOutcomeDecisionData {
+impl From<ChallengeOutcomeDecision> for ProtoChallengeOutcomeDecisionData {
     fn from(local: ChallengeOutcomeDecision) -> Self {
         match local {
             ChallengeOutcomeDecision::Accept => Self::Accept,
@@ -352,7 +358,7 @@ mod tests {
         ];
 
         for role in roles {
-            let proto_role: proto::ParticipantRole = role.into();
+            let proto_role: ProtoParticipantRole = role.into();
             let back: ParticipantRole = proto_role.into();
             assert_eq!(role, back);
         }
@@ -360,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_participant_role_unknown_fallback() {
-        let unknown: ParticipantRole = proto::ParticipantRole::Unknown.into();
+        let unknown: ParticipantRole = ProtoParticipantRole::Unknown.into();
         assert_eq!(unknown, ParticipantRole::Spectator);
     }
 
@@ -372,7 +378,7 @@ mod tests {
         ];
 
         for input in inputs {
-            let proto_input: proto::DiceInputType = input.clone().into();
+            let proto_input: ProtoDiceInputType = input.clone().into();
             let back: DiceInput = proto_input.into();
             assert_eq!(input, back);
         }
@@ -380,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_dice_input_unknown_fallback() {
-        let unknown: DiceInput = proto::DiceInputType::Unknown.into();
+        let unknown: DiceInput = ProtoDiceInputType::Unknown.into();
         assert_eq!(unknown, DiceInput::Manual(0));
     }
 
@@ -406,7 +412,7 @@ mod tests {
         ];
 
         for decision in decisions {
-            let proto_decision: proto::ApprovalDecision = decision.clone().into();
+            let proto_decision: ProtoApprovalDecision = decision.clone().into();
             let back: ApprovalDecision = proto_decision.into();
             assert_eq!(decision, back);
         }
@@ -414,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_approval_decision_unknown_fallback() {
-        let unknown: ApprovalDecision = proto::ApprovalDecision::Unknown.into();
+        let unknown: ApprovalDecision = ProtoApprovalDecision::Unknown.into();
         match unknown {
             ApprovalDecision::Reject { feedback } => {
                 assert!(feedback.contains("Unknown"));
@@ -432,7 +438,7 @@ mod tests {
             secret_agenda: Some("Betray the party".to_string()),
         };
 
-        let proto_motivation: proto::NpcMotivationData = motivation.clone().into();
+        let proto_motivation: ProtoNpcMotivationData = motivation.clone().into();
         let back: NpcMotivationData = proto_motivation.into();
         assert_eq!(motivation, back);
     }
@@ -451,7 +457,7 @@ mod tests {
             forbidden_topics: vec!["meta-gaming".to_string()],
         };
 
-        let proto_context: proto::DirectorialContext = context.clone().into();
+        let proto_context: ProtoDirectorialContext = context.clone().into();
         let back: DirectorialContext = proto_context.into();
         assert_eq!(context, back);
     }
@@ -474,7 +480,7 @@ mod tests {
         ];
 
         for info in infos {
-            let proto_info: proto::ApprovedNpcInfo = info.clone().into();
+            let proto_info: ProtoApprovedNpcInfo = info.clone().into();
             let back: ApprovedNpcInfo = proto_info.into();
             assert_eq!(info, back);
         }
@@ -498,7 +504,7 @@ mod tests {
         ];
 
         for outcome in outcomes {
-            let proto_outcome: proto::AdHocOutcomes = outcome.clone().into();
+            let proto_outcome: ProtoAdHocOutcomes = outcome.clone().into();
             let back: AdHocOutcomes = proto_outcome.into();
             assert_eq!(outcome, back);
         }
@@ -518,7 +524,7 @@ mod tests {
         ];
 
         for decision in decisions {
-            let proto_decision: proto::ChallengeOutcomeDecisionData = decision.clone().into();
+            let proto_decision: ProtoChallengeOutcomeDecisionData = decision.clone().into();
             let back: ChallengeOutcomeDecision = proto_decision.into();
             assert_eq!(decision, back);
         }
@@ -526,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_challenge_outcome_decision_unknown_fallback() {
-        let unknown: ChallengeOutcomeDecision = proto::ChallengeOutcomeDecisionData::Unknown.into();
+        let unknown: ChallengeOutcomeDecision = ProtoChallengeOutcomeDecisionData::Unknown.into();
         assert_eq!(unknown, ChallengeOutcomeDecision::Accept);
     }
 }

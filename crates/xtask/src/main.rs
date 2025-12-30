@@ -725,6 +725,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
         "game_connection_port.rs",  // WebSocket connection uses protocol message types
         "mock_game_connection.rs",  // Testing infrastructure mirrors connection port
         "player_events.rs", // Re-exports wire-format types from protocol (single source of truth)
+        "session_types.rs", // Ports-layer types with bidirectional protocol conversions
     ]
     .into_iter()
     .collect();

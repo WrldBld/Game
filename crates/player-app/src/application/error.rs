@@ -133,10 +133,11 @@ impl ParseResponse for ResponseResult {
 /// Default request timeout in milliseconds (2 minutes)
 pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 120_000;
 
-/// Get the request timeout from environment variable or use default
+/// Get the request timeout in milliseconds
+///
+/// Returns the default timeout value. If environment-based configuration
+/// is needed, it should be handled at the adapter/runner layer through
+/// dependency injection.
 pub fn get_request_timeout_ms() -> u64 {
-    std::env::var("WRLDBLDR_REQUEST_TIMEOUT_MS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_REQUEST_TIMEOUT_MS)
+    DEFAULT_REQUEST_TIMEOUT_MS
 }
