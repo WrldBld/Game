@@ -101,6 +101,85 @@ impl Challenge {
             .iter()
             .any(|tc| tc.matches(action, context))
     }
+
+    /// Evaluate a dice roll against this challenge's difficulty.
+    ///
+    /// Takes the raw roll (before modifiers) and the total modifier to apply.
+    /// Returns the outcome type and a reference to the corresponding outcome.
+    ///
+    /// # Rule System Support
+    /// - DC-based (D20 systems): Natural 20 = crit success, Natural 1 = crit failure,
+    ///   total >= DC = success
+    /// - Percentage-based (D100): Roll 1 = crit success, Roll 100 = crit failure,
+    ///   roll <= target = success (lower is better)
+    /// - Descriptor-based (Narrative): Roll >= 11 on 2d6 = success
+    /// - Opposed: Always returns success (actual comparison done elsewhere)
+    /// - Custom: Always returns success (DM adjudicates)
+    pub fn evaluate_roll(&self, roll: i32, modifier: i32) -> (OutcomeType, &Outcome) {
+        let outcome_type = match &self.difficulty {
+            Difficulty::DC(dc) => {
+                // D20 system: Natural 20 = crit success, Natural 1 = crit failure
+                if roll == 20 && self.outcomes.critical_success.is_some() {
+                    OutcomeType::CriticalSuccess
+                } else if roll == 1 && self.outcomes.critical_failure.is_some() {
+                    OutcomeType::CriticalFailure
+                } else if (roll + modifier) >= *dc as i32 {
+                    OutcomeType::Success
+                } else {
+                    OutcomeType::Failure
+                }
+            }
+            Difficulty::Percentage(target) => {
+                // D100 system: Roll 1 = crit success, Roll 100 = crit failure
+                // Lower is better - roll must be <= target to succeed
+                if roll == 1 && self.outcomes.critical_success.is_some() {
+                    OutcomeType::CriticalSuccess
+                } else if roll == 100 && self.outcomes.critical_failure.is_some() {
+                    OutcomeType::CriticalFailure
+                } else if roll <= *target as i32 {
+                    OutcomeType::Success
+                } else {
+                    OutcomeType::Failure
+                }
+            }
+            Difficulty::Descriptor(_) => {
+                // Narrative systems: 2d6 + modifier >= 11 = success
+                if (roll + modifier) >= 11 {
+                    OutcomeType::Success
+                } else {
+                    OutcomeType::Failure
+                }
+            }
+            Difficulty::Opposed | Difficulty::Custom(_) => {
+                // Opposed/Custom: Always return success as placeholder
+                // Actual resolution happens elsewhere (DM or opposed roll comparison)
+                OutcomeType::Success
+            }
+        };
+
+        // Return the appropriate outcome reference based on outcome type
+        let outcome = match outcome_type {
+            OutcomeType::CriticalSuccess => self
+                .outcomes
+                .critical_success
+                .as_ref()
+                .unwrap_or(&self.outcomes.success),
+            OutcomeType::Success => &self.outcomes.success,
+            OutcomeType::Partial => self
+                .outcomes
+                .partial
+                .as_ref()
+                .unwrap_or(&self.outcomes.success),
+            OutcomeType::Failure => &self.outcomes.failure,
+            OutcomeType::CriticalFailure => self
+                .outcomes
+                .critical_failure
+                .as_ref()
+                .unwrap_or(&self.outcomes.failure),
+        };
+
+        (outcome_type, outcome)
+    }
 }
 
 /// Types of challenges
@@ -194,6 +273,40 @@ impl Difficulty {
     }
     pub fn d100_extreme() -> Self {
         Self::Percentage(20)
+    }
+
+    /// Get the suggested dice formula and hint text for this difficulty type.
+    ///
+    /// Returns (dice_formula, hint_text) tuple.
+    pub fn dice_suggestion(&self) -> (&'static str, &'static str) {
+        match self {
+            Self::DC(_) => ("1d20", "Roll 1d20 and add your skill modifier"),
+            Self::Percentage(_) => ("1d100", "Roll percentile dice (1d100), lower is better"),
+            Self::Descriptor(_) => ("2d6", "Roll 2d6 and add your modifier"),
+            Self::Opposed => ("1d20", "Opposed roll - both parties roll and compare"),
+            Self::Custom(_) => ("1d20", "Custom difficulty - follow DM instructions"),
+        }
+    }
+
+    /// Parse a difficulty string into a Difficulty variant.
+    ///
+    /// Supports formats:
+    /// - "DC 15" or "DC15" -> Difficulty::DC(15)
+    /// - "45%" -> Difficulty::Percentage(45)
+    /// - Other strings -> Difficulty::Custom(string)
+    pub fn parse(s: &str) -> Self {
+        let s = s.trim();
+        if s.to_uppercase().starts_with("DC") {
+            if let Ok(dc) = s[2..].trim().parse::<u32>() {
+                return Self::DC(dc);
+            }
+        }
+        if s.ends_with('%') {
+            if let Ok(pct) = s[..s.len() - 1].trim().parse::<u32>() {
+                return Self::Percentage(pct);
+            }
+        }
+        Self::Custom(s.to_string())
     }
 }
 
@@ -675,5 +788,102 @@ mod tests {
             .with_trigger(OutcomeTrigger::enable(ChallengeId::new()));
 
         assert_eq!(outcome.triggers.len(), 2);
+    }
+
+    #[test]
+    fn test_evaluate_roll_dc_success() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(world_id, "Test", Difficulty::DC(15))
+            .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+
+        // Roll 10 + modifier 5 = 15, meets DC 15
+        let (outcome_type, outcome) = challenge.evaluate_roll(10, 5);
+        assert_eq!(outcome_type, OutcomeType::Success);
+        assert_eq!(outcome.description, "Success!");
+
+        // Roll 10 + modifier 3 = 13, below DC 15
+        let (outcome_type, outcome) = challenge.evaluate_roll(10, 3);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+        assert_eq!(outcome.description, "Failure!");
+    }
+
+    #[test]
+    fn test_evaluate_roll_dc_critical() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(world_id, "Test", Difficulty::DC(15)).with_outcomes(
+            ChallengeOutcomes::simple("Success!", "Failure!")
+                .with_critical_success("Critical!")
+                .with_critical_failure("Fumble!"),
+        );
+
+        // Natural 20 = critical success
+        let (outcome_type, outcome) = challenge.evaluate_roll(20, 0);
+        assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
+        assert_eq!(outcome.description, "Critical!");
+
+        // Natural 1 = critical failure
+        let (outcome_type, outcome) = challenge.evaluate_roll(1, 10);
+        assert_eq!(outcome_type, OutcomeType::CriticalFailure);
+        assert_eq!(outcome.description, "Fumble!");
+    }
+
+    #[test]
+    fn test_evaluate_roll_percentage() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(world_id, "Test", Difficulty::Percentage(45))
+            .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+
+        // Roll 30 <= 45 = success (lower is better)
+        let (outcome_type, _) = challenge.evaluate_roll(30, 0);
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Roll 50 > 45 = failure
+        let (outcome_type, _) = challenge.evaluate_roll(50, 0);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+    }
+
+    #[test]
+    fn test_evaluate_roll_descriptor() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(
+            world_id,
+            "Test",
+            Difficulty::Descriptor(DifficultyDescriptor::Moderate),
+        )
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+
+        // Roll 8 + modifier 3 = 11, meets threshold
+        let (outcome_type, _) = challenge.evaluate_roll(8, 3);
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Roll 6 + modifier 2 = 8, below threshold
+        let (outcome_type, _) = challenge.evaluate_roll(6, 2);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+    }
+
+    #[test]
+    fn test_difficulty_dice_suggestion() {
+        assert_eq!(Difficulty::DC(15).dice_suggestion().0, "1d20");
+        assert_eq!(Difficulty::Percentage(50).dice_suggestion().0, "1d100");
+        assert_eq!(
+            Difficulty::Descriptor(DifficultyDescriptor::Hard)
+                .dice_suggestion()
+                .0,
+            "2d6"
+        );
+        assert_eq!(Difficulty::Opposed.dice_suggestion().0, "1d20");
+    }
+
+    #[test]
+    fn test_difficulty_parse() {
+        assert_eq!(Difficulty::parse("DC 15"), Difficulty::DC(15));
+        assert_eq!(Difficulty::parse("DC15"), Difficulty::DC(15));
+        assert_eq!(Difficulty::parse("dc 20"), Difficulty::DC(20));
+        assert_eq!(Difficulty::parse("45%"), Difficulty::Percentage(45));
+        assert_eq!(Difficulty::parse(" 80% "), Difficulty::Percentage(80));
+        assert_eq!(
+            Difficulty::parse("Very Hard"),
+            Difficulty::Custom("Very Hard".to_string())
+        );
     }
 }

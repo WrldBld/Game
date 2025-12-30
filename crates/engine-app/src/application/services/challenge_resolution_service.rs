@@ -20,7 +20,7 @@ use crate::application::services::{
     PlayerCharacterService, SkillService,
 };
 use tracing::{debug, info};
-use wrldbldr_domain::entities::OutcomeType;
+use wrldbldr_domain::entities::{Difficulty, OutcomeType};
 use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRollInput};
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
@@ -489,9 +489,9 @@ where
             .gather_challenge_preamble(world_id, pc_id, &challenge_id_str, "legacy roll")
             .await?;
 
-        // Evaluate challenge result
+        // Evaluate challenge result using domain method
         let (outcome_type, outcome) =
-            evaluate_challenge_result(&preamble.challenge, roll, preamble.character_modifier);
+            preamble.challenge.evaluate_roll(roll, preamble.character_modifier);
 
         // Queue for DM approval and return result
         self.queue_for_approval(
@@ -549,9 +549,9 @@ where
             roll_result.dice_total // For formula, use just the dice total
         };
 
-        // Evaluate challenge result
+        // Evaluate challenge result using domain method
         let (outcome_type, outcome) =
-            evaluate_challenge_result(&preamble.challenge, raw_roll, preamble.character_modifier);
+            preamble.challenge.evaluate_roll(raw_roll, preamble.character_modifier);
 
         // Queue for DM approval and return result
         self.queue_for_approval(
@@ -669,8 +669,9 @@ where
             0
         };
 
-        // Get suggested dice based on difficulty type
-        let (suggested_dice, rule_system_hint) = get_dice_suggestion_for_challenge(&challenge);
+        // Get suggested dice based on difficulty type using domain method
+        let (dice, hint) = challenge.difficulty.dice_suggestion();
+        let (suggested_dice, rule_system_hint) = (dice.to_string(), hint.to_string());
 
         info!(
             challenge_id = %challenge_id_str,
@@ -795,8 +796,9 @@ where
             0
         };
 
-        // Get suggested dice based on difficulty type
-        let (suggested_dice, rule_system_hint) = get_dice_suggestion_for_challenge(&challenge);
+        // Get suggested dice based on difficulty type using domain method
+        let (dice, hint) = challenge.difficulty.dice_suggestion();
+        let (suggested_dice, rule_system_hint) = (dice.to_string(), hint.to_string());
 
         info!(
             challenge_name = %challenge.name,
@@ -838,20 +840,10 @@ where
             "DM created ad-hoc challenge"
         );
 
-        // Determine suggested dice from difficulty string
-        let (suggested_dice, rule_system_hint) = if difficulty.to_uppercase().starts_with("DC") {
-            (
-                "1d20".to_string(),
-                "Roll 1d20 and add your modifier".to_string(),
-            )
-        } else if difficulty.ends_with('%') {
-            ("1d100".to_string(), "Roll percentile dice".to_string())
-        } else {
-            (
-                "2d6".to_string(),
-                "Roll 2d6 and add your modifier".to_string(),
-            )
-        };
+        // Parse difficulty string using domain logic
+        let parsed_difficulty = Difficulty::parse(&difficulty);
+        let (dice, hint) = parsed_difficulty.dice_suggestion();
+        let (suggested_dice, rule_system_hint) = (dice.to_string(), hint.to_string());
 
         // Build the ad-hoc challenge result for the DM
         let adhoc_result = AdHocChallengeResult {
@@ -874,107 +866,6 @@ where
         };
 
         Ok((adhoc_result, trigger_result))
-    }
-}
-
-/// Get suggested dice and rule system hint based on challenge difficulty type.
-fn get_dice_suggestion_for_challenge(
-    challenge: &wrldbldr_domain::entities::Challenge,
-) -> (String, String) {
-    match &challenge.difficulty {
-        wrldbldr_domain::entities::Difficulty::DC(_) => {
-            // D20 systems (D&D, Pathfinder, etc.)
-            (
-                "1d20".to_string(),
-                "Roll 1d20 and add your skill modifier".to_string(),
-            )
-        }
-        wrldbldr_domain::entities::Difficulty::Percentage(_) => {
-            // Percentile systems (Call of Cthulhu, etc.)
-            (
-                "1d100".to_string(),
-                "Roll percentile dice (1d100), lower is better".to_string(),
-            )
-        }
-        wrldbldr_domain::entities::Difficulty::Descriptor(desc) => {
-            // Narrative systems - suggest 2d6 for PbtA-style games
-            (
-                "2d6".to_string(),
-                format!("Roll 2d6 for {} difficulty", desc.display_name()),
-            )
-        }
-        wrldbldr_domain::entities::Difficulty::Opposed => {
-            // Opposed rolls - both parties roll
-            (
-                "1d20".to_string(),
-                "Opposed roll - both parties roll and compare".to_string(),
-            )
-        }
-        wrldbldr_domain::entities::Difficulty::Custom(desc) => {
-            // Custom difficulty - let the hint explain
-            ("1d20".to_string(), format!("Custom difficulty: {}", desc))
-        }
-    }
-}
-
-/// Evaluate a challenge roll result (moved from websocket.rs)
-fn evaluate_challenge_result(
-    challenge: &wrldbldr_domain::entities::Challenge,
-    roll: i32,
-    modifier: i32,
-) -> (OutcomeType, &wrldbldr_domain::entities::Outcome) {
-    let total = roll + modifier;
-
-    match &challenge.difficulty {
-        wrldbldr_domain::entities::Difficulty::DC(dc) => {
-            if roll == 20 {
-                if let Some(ref critical_success) = challenge.outcomes.critical_success {
-                    return (OutcomeType::CriticalSuccess, critical_success);
-                }
-            }
-            if roll == 1 {
-                if let Some(ref critical_failure) = challenge.outcomes.critical_failure {
-                    return (OutcomeType::CriticalFailure, critical_failure);
-                }
-            }
-
-            if total >= *dc as i32 {
-                (OutcomeType::Success, &challenge.outcomes.success)
-            } else {
-                (OutcomeType::Failure, &challenge.outcomes.failure)
-            }
-        }
-        wrldbldr_domain::entities::Difficulty::Percentage(target) => {
-            if roll == 1 {
-                if let Some(ref critical_success) = challenge.outcomes.critical_success {
-                    return (OutcomeType::CriticalSuccess, critical_success);
-                }
-            }
-            if roll == 100 {
-                if let Some(ref critical_failure) = challenge.outcomes.critical_failure {
-                    return (OutcomeType::CriticalFailure, critical_failure);
-                }
-            }
-
-            if roll <= *target as i32 {
-                (OutcomeType::Success, &challenge.outcomes.success)
-            } else {
-                (OutcomeType::Failure, &challenge.outcomes.failure)
-            }
-        }
-        wrldbldr_domain::entities::Difficulty::Descriptor(_) => {
-            if roll >= 11 {
-                (OutcomeType::Success, &challenge.outcomes.success)
-            } else {
-                (OutcomeType::Failure, &challenge.outcomes.failure)
-            }
-        }
-        wrldbldr_domain::entities::Difficulty::Opposed => {
-            (OutcomeType::Success, &challenge.outcomes.success)
-        }
-        wrldbldr_domain::entities::Difficulty::Custom(_) => {
-            (OutcomeType::Success, &challenge.outcomes.success)
-        }
     }
 }
 
