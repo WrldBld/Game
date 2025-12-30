@@ -14,7 +14,7 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ItemRepositoryPort, ItemServicePort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    ItemRepositoryPort, ItemServicePort, PlayerCharacterRepositoryPort, RegionItemPort,
 };
 
 /// Request to create a new item
@@ -153,7 +153,7 @@ pub trait ItemService: Send + Sync {
 pub struct ItemServiceImpl {
     item_repository: Arc<dyn ItemRepositoryPort>,
     pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repository: Arc<dyn RegionRepositoryPort>,
+    region_item: Arc<dyn RegionItemPort>,
 }
 
 impl ItemServiceImpl {
@@ -161,12 +161,12 @@ impl ItemServiceImpl {
     pub fn new(
         item_repository: Arc<dyn ItemRepositoryPort>,
         pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-        region_repository: Arc<dyn RegionRepositoryPort>,
+        region_item: Arc<dyn RegionItemPort>,
     ) -> Self {
         Self {
             item_repository,
             pc_repository,
-            region_repository,
+            region_item,
         }
     }
 
@@ -347,7 +347,7 @@ impl ItemService for ItemServiceImpl {
 
     #[instrument(skip(self))]
     async fn place_item_in_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
-        self.region_repository
+        self.region_item
             .add_item_to_region(region_id, item_id)
             .await
             .context("Failed to place item in region")?;
@@ -395,7 +395,7 @@ impl ItemServicePort for ItemServiceImpl {
     }
 
     async fn list_by_region(&self, region_id: RegionId) -> Result<Vec<Item>> {
-        self.region_repository
+        self.region_item
             .get_region_items(region_id)
             .await
             .context("Failed to list items by region")

@@ -20,7 +20,7 @@ use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingCo
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
-    NarrativeEventCrudPort, RegionRepositoryPort, StagedNpcProposal as PortStagedNpcProposal,
+    NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort, StagedNpcProposal as PortStagedNpcProposal,
     StagingProposal as PortStagingProposal, StagingRepositoryPort, StagingServicePort,
 };
 
@@ -49,31 +49,34 @@ impl Default for StagingServiceConfig {
 }
 
 /// Service for managing NPC staging in regions
-pub struct StagingService<L, R, N, S>
+pub struct StagingService<L, RC, RN, N, S>
 where
     L: LlmPort,
-    R: RegionRepositoryPort,
+    RC: RegionCrudPort,
+    RN: RegionNpcPort,
     N: NarrativeEventCrudPort,
     S: StagingRepositoryPort,
 {
     staging_repository: Arc<S>,
-    context_provider: StagingContextProvider<R, N>,
+    context_provider: StagingContextProvider<RC, RN, N>,
     llm_port: Arc<L>,
     prompt_template_service: Arc<PromptTemplateService>,
     clock: Arc<dyn ClockPort>,
     config: StagingServiceConfig,
 }
 
-impl<L, R, N, S> StagingService<L, R, N, S>
+impl<L, RC, RN, N, S> StagingService<L, RC, RN, N, S>
 where
     L: LlmPort,
-    R: RegionRepositoryPort,
+    RC: RegionCrudPort,
+    RN: RegionNpcPort,
     N: NarrativeEventCrudPort,
     S: StagingRepositoryPort,
 {
     pub fn new(
         staging_repository: Arc<S>,
-        region_repository: Arc<R>,
+        region_crud: Arc<RC>,
+        region_npc: Arc<RN>,
         narrative_event_repository: Arc<N>,
         story_event_service: Arc<dyn StoryEventService>,
         llm_port: Arc<L>,
@@ -81,7 +84,8 @@ where
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         let context_provider = StagingContextProvider::new(
-            region_repository,
+            region_crud,
+            region_npc,
             narrative_event_repository,
             story_event_service,
         );
@@ -480,10 +484,11 @@ fn extract_json_array(text: &str) -> Option<String> {
 // =============================================================================
 
 #[async_trait]
-impl<L, R, N, S> StagingServicePort for StagingService<L, R, N, S>
+impl<L, RC, RN, N, S> StagingServicePort for StagingService<L, RC, RN, N, S>
 where
     L: LlmPort + Send + Sync + 'static,
-    R: RegionRepositoryPort + Send + Sync + 'static,
+    RC: RegionCrudPort + Send + Sync + 'static,
+    RN: RegionNpcPort + Send + Sync + 'static,
     N: NarrativeEventCrudPort + Send + Sync + 'static,
     S: StagingRepositoryPort + Send + Sync + 'static,
 {

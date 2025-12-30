@@ -19,7 +19,7 @@ use wrldbldr_domain::{CharacterId, GameTime, WorldId};
 use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationCrudPort,
-    NpcPresenceData, RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
+    NpcPresenceData, RegionCrudPort, StagingReadyEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
@@ -49,8 +49,8 @@ pub struct StagingApprovalUseCase {
     staging_service: Arc<dyn StagingServiceExtPort>,
     staging_state: Arc<dyn StagingStateExtPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
-    region_repo: Arc<dyn RegionRepositoryPort>,
-        location_repo: Arc<dyn LocationCrudPort>,
+    region_crud: Arc<dyn RegionCrudPort>,
+    location_repo: Arc<dyn LocationCrudPort>,
     broadcast: Arc<dyn BroadcastPort>,
     scene_builder: Arc<SceneBuilder>,
     clock: Arc<dyn ClockPort>,
@@ -62,8 +62,8 @@ impl StagingApprovalUseCase {
         staging_service: Arc<dyn StagingServiceExtPort>,
         staging_state: Arc<dyn StagingStateExtPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
-    location_repo: Arc<dyn LocationCrudPort>,
+        region_crud: Arc<dyn RegionCrudPort>,
+        location_repo: Arc<dyn LocationCrudPort>,
         broadcast: Arc<dyn BroadcastPort>,
         scene_builder: Arc<SceneBuilder>,
         clock: Arc<dyn ClockPort>,
@@ -72,7 +72,7 @@ impl StagingApprovalUseCase {
             staging_service,
             staging_state,
             character_crud,
-            region_repo,
+            region_crud,
             location_repo,
             broadcast,
             scene_builder,
@@ -231,7 +231,7 @@ impl StagingApprovalUseCase {
     ) -> Result<PreStageResult, StagingError> {
         // Get region and location
         let region = self
-            .region_repo
+            .region_crud
             .get(input.region_id)
             .await
             .map_err(|e| StagingError::Database(e.to_string()))?
@@ -379,7 +379,7 @@ impl StagingApprovalUseCase {
         let mut notified = 0;
 
         // Get region and location for scene building
-        let region = match self.region_repo.get(pending.region_id).await {
+        let region = match self.region_crud.get(pending.region_id).await {
             Ok(Some(r)) => r,
             _ => {
                 warn!(

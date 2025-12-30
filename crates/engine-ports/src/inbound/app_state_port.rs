@@ -49,7 +49,7 @@ use crate::outbound::{
     AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
     DmApprovalQueueServicePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
     GenerationServicePort, LlmQueueServicePort, PlayerActionQueueServicePort,
-    PromptTemplateServicePort, RegionRepositoryPort, SettingsServicePort, WorkflowServicePort,
+    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, WorkflowServicePort,
     WorldConnectionManagerPort, WorldServicePort,
 };
 
@@ -122,8 +122,8 @@ pub trait AppStatePort: Send + Sync {
     /// Get the ComfyUI port for image generation and health checks
     fn comfyui(&self) -> Arc<dyn ComfyUIPort>;
 
-    /// Get the region repository for entity conversion
-    fn region_repo(&self) -> Arc<dyn RegionRepositoryPort>;
+    /// Get the region item port for entity conversion (fetching region items)
+    fn region_item(&self) -> Arc<dyn RegionItemPort>;
 
     /// Get the settings service for runtime configuration
     fn settings_service(&self) -> Arc<dyn SettingsServicePort>;

@@ -129,7 +129,12 @@ use wrldbldr_engine_ports::outbound::{
     PromptContextServicePort,
     PromptTemplateServicePort,
     QueuePort,
-    RegionRepositoryPort,
+    // Region repository ports - split for ISP (Clean Interface Segregation)
+    RegionConnectionPort,
+    RegionCrudPort,
+    RegionExitPort,
+    RegionItemPort,
+    RegionNpcPort,
     RelationshipServicePort,
     SceneResolutionServicePort,
     SceneServicePort,
@@ -438,8 +443,16 @@ pub async fn new_app_state(
         Arc::new(repository.goals());
     let want_repo: Arc<dyn wrldbldr_engine_ports::outbound::WantRepositoryPort> =
         Arc::new(repository.wants());
-    let region_repo: Arc<dyn wrldbldr_engine_ports::outbound::RegionRepositoryPort> =
-        Arc::new(repository.regions());
+    // Region repository ports - split for ISP (Clean Interface Segregation)
+    // The same concrete repository implements all traits - Rust coerces to needed interface
+    let region_concrete = Arc::new(repository.regions());
+    let region_crud: Arc<dyn RegionCrudPort> = region_concrete.clone();
+    let region_connection: Arc<dyn RegionConnectionPort> = region_concrete.clone();
+    let region_exit: Arc<dyn RegionExitPort> = region_concrete.clone();
+    let region_npc: Arc<dyn RegionNpcPort> = region_concrete.clone();
+    let region_item: Arc<dyn RegionItemPort> = region_concrete.clone();
+    // Note: RegionRepositoryPort has been fully replaced by ISP traits
+    // All consumers now use the specific ISP traits they need
 
     // Create world exporter
     let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
@@ -575,7 +588,7 @@ pub async fn new_app_state(
     let item_service_for_port = ItemServiceImpl::new(
         item_repo.clone(),
         player_character_repo.clone(),
-        region_repo.clone(),
+        region_item.clone(),
     );
     let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> =
         Arc::new(item_service_for_port.clone());
@@ -584,7 +597,7 @@ pub async fn new_app_state(
     let item_service_impl = ItemServiceImpl::new(
         item_repo.clone(),
         player_character_repo.clone(),
-        region_repo.clone(),
+        region_item.clone(),
     );
 
     let player_character_repo_for_triggers = player_character_repo.clone();
@@ -889,15 +902,17 @@ pub async fn new_app_state(
 
     // Create staging service (Staging System)
     // Note: StagingService is generic over concrete types, so we need concrete Arc<...>
-    // Uses ISP: NarrativeEventCrudPort only
+    // Uses ISP: RegionCrudPort, RegionNpcPort, NarrativeEventCrudPort
     let staging_repo = Arc::new(repository.stagings());
-    let region_repo_for_staging = Arc::new(repository.regions());
+    let region_crud_for_staging = Arc::new(repository.regions());
+    let region_npc_for_staging = Arc::new(repository.regions());
     // Create a fresh concrete narrative_event_repo for staging (it only needs CrudPort)
     let narrative_event_repo_for_staging = Arc::new(repository.narrative_events());
     let llm_for_staging = Arc::new(llm_client.clone());
     let staging_service = Arc::new(StagingService::new(
         staging_repo,
-        region_repo_for_staging,
+        region_crud_for_staging,
+        region_npc_for_staging,
         narrative_event_repo_for_staging,
         story_event_service.clone(),
         llm_for_staging,
@@ -920,10 +935,13 @@ pub async fn new_app_state(
     ));
 
     // Create region service
-    // Uses ISP: LocationCrudPort, LocationMapPort
+    // Uses ISP: RegionCrudPort, RegionConnectionPort, RegionExitPort, RegionNpcPort, LocationCrudPort, LocationMapPort
     let region_service: Arc<dyn wrldbldr_engine_app::application::services::RegionService> =
         Arc::new(RegionServiceImpl::new(
-            region_repo.clone(),
+            region_crud.clone(),
+            region_connection.clone(),
+            region_exit.clone(),
+            region_npc.clone(),
             location_crud.clone(),
             location_map.clone(),
         ));
@@ -941,7 +959,7 @@ pub async fn new_app_state(
     ));
 
     // Create prompt context service for building LLM prompts from player actions
-    // Uses ISP: CharacterCrudPort only for character lookups
+    // Uses ISP: CharacterCrudPort, RegionItemPort
     let prompt_context_service: Arc<
         dyn wrldbldr_engine_app::application::services::PromptContextService,
     > = Arc::new(PromptContextServiceImpl::new(
@@ -952,7 +970,7 @@ pub async fn new_app_state(
         narrative_event_service.clone(),
         character_crud.clone(),
         player_character_repo_for_actantial,
-        region_repo.clone(),
+        region_item.clone(),
         disposition_service.clone(),
         actantial_context_service.clone()
             as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
@@ -1005,7 +1023,7 @@ pub async fn new_app_state(
         sheet_template_service.clone(),
         character_location_for_handler, // ISP: Uses CharacterLocationPort
         observation_repo_for_handler,
-        region_repo.clone(),
+        region_crud.clone(), // ISP: Uses RegionCrudPort
         suggestion_enqueue_adapter,
         generation_queue_projection_for_handler,
         generation_read_state_for_handler,
@@ -1032,15 +1050,21 @@ pub async fn new_app_state(
     let staging_service_adapter = Arc::new(StagingServiceAdapter::new(staging_service.clone()));
 
     // Create shared scene builder
+    // Uses ISP: RegionCrudPort, RegionConnectionPort, RegionExitPort, RegionItemPort
     let scene_builder = Arc::new(SceneBuilder::new(
-        region_repo.clone(),
+        region_crud.clone(),
+        region_connection.clone(),
+        region_exit.clone(),
+        region_item.clone(),
         location_crud.clone(),
     ));
 
     // Create movement use case
+    // Uses ISP: RegionCrudPort, RegionConnectionPort
     let movement_use_case = Arc::new(MovementUseCase::new(
         player_character_repo_for_handler.clone(),
-        region_repo.clone(),
+        region_crud.clone(),
+        region_connection.clone(),
         location_crud.clone(),
         location_map.clone(),
         staging_service_adapter.clone(),
@@ -1051,19 +1075,20 @@ pub async fn new_app_state(
     ));
 
     // Create inventory use case
+    // Uses ISP: RegionItemPort
     let inventory_use_case = Arc::new(InventoryUseCase::new(
         player_character_repo_for_handler.clone(),
-        region_repo.clone(),
+        region_item.clone(),
         broadcast.clone(),
     ));
 
     // Create staging approval use case
-    // Uses ISP: CharacterCrudPort for character lookups
+    // Uses ISP: CharacterCrudPort, RegionCrudPort
     let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
         staging_service_adapter,
         staging_state_adapter,
         character_crud_for_use_cases.clone(),
-        region_repo.clone(),
+        region_crud.clone(),
         location_crud.clone(),
         broadcast.clone(),
         scene_builder,
@@ -1278,7 +1303,7 @@ pub async fn new_app_state(
         composition_config,
         Arc::new(llm_client.clone()) as Arc<dyn LlmPortDyn>,
         Arc::new(comfyui_client.clone()) as Arc<dyn ComfyUIPort>,
-        region_repo.clone() as Arc<dyn RegionRepositoryPort>,
+        region_item.clone() as Arc<dyn RegionItemPort>,
         composition_core,
         composition_game,
         composition_queues,

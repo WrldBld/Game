@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use wrldbldr_domain::entities::AcquisitionMethod;
 use wrldbldr_engine_ports::inbound::{InventoryUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionItemPort,
 };
 
 use super::errors::InventoryError;
@@ -38,7 +38,7 @@ pub use wrldbldr_engine_ports::outbound::{
 /// validation and rollback on failures.
 pub struct InventoryUseCase {
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repo: Arc<dyn RegionRepositoryPort>,
+    region_item: Arc<dyn RegionItemPort>,
     broadcast: Arc<dyn BroadcastPort>,
 }
 
@@ -46,12 +46,12 @@ impl InventoryUseCase {
     /// Create a new InventoryUseCase with all dependencies
     pub fn new(
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_item: Arc<dyn RegionItemPort>,
         broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {
         Self {
             pc_repo,
-            region_repo,
+            region_item,
             broadcast,
         }
     }
@@ -210,7 +210,7 @@ impl InventoryUseCase {
         }
 
         // Place the item in the region
-        self.region_repo
+        self.region_item
             .add_item_to_region(current_region_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?;
@@ -233,7 +233,7 @@ impl InventoryUseCase {
         if let Err(e) = remove_result {
             // Try to undo the region placement
             let _ = self
-                .region_repo
+                .region_item
                 .remove_item_from_region(current_region_id, input.item_id)
                 .await;
             return Err(InventoryError::Database(e.to_string()));
@@ -292,7 +292,7 @@ impl InventoryUseCase {
 
         // Get region items to verify item is present
         let region_items = self
-            .region_repo
+            .region_item
             .get_region_items(current_region_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?;
@@ -321,7 +321,7 @@ impl InventoryUseCase {
         }
 
         // Remove from region first
-        self.region_repo
+        self.region_item
             .remove_item_from_region(current_region_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?;
@@ -342,7 +342,7 @@ impl InventoryUseCase {
         if let Err(e) = add_result {
             // Rollback: put item back in region
             let _ = self
-                .region_repo
+                .region_item
                 .add_item_to_region(current_region_id, input.item_id)
                 .await;
             return Err(InventoryError::Database(e.to_string()));

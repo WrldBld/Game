@@ -85,7 +85,7 @@ use wrldbldr_engine_ports::outbound::{
     DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort,
     LlmPort, LlmQueueServicePort, PlayerActionQueueServicePort, PromptContextServicePort,
-    PromptTemplateServicePort, RegionRepositoryPort, SettingsServicePort, StagingServicePort,
+    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
     WorkflowServicePort, WorldConnectionManagerPort, WorldServicePort, WorldStatePort,
 };
 
@@ -322,11 +322,11 @@ pub struct AppState {
     /// Used for character portraits, location images, and other visual assets.
     pub comfyui: Arc<dyn ComfyUIPort>,
 
-    /// Region repository for entity converters.
+    /// Region item port for entity converters (fetching region items).
     ///
-    /// Provides direct repository access needed by entity conversion utilities
-    /// (e.g., `converters.rs` for resolving region references).
-    pub region_repo: Arc<dyn RegionRepositoryPort>,
+    /// Uses ISP: Only RegionItemPort needed for region item lookups.
+    /// Used by entity conversion utilities (e.g., `converters.rs`).
+    pub region_item: Arc<dyn RegionItemPort>,
 
     /// Core domain services (worlds, characters, locations, scenes, etc.)
     pub core: CoreServices,
@@ -413,7 +413,7 @@ impl AppState {
     /// * `config` - Application configuration
     /// * `llm` - LLM service implementation
     /// * `comfyui` - ComfyUI service implementation
-    /// * `region_repo` - Region repository implementation
+    /// * `region_item` - Region item port implementation (ISP)
     /// * `core` - Core domain services container
     /// * `game` - Game mechanics services container
     /// * `queues` - Queue processing services container
@@ -438,7 +438,7 @@ impl AppState {
     ///     config,
     ///     Arc::new(ollama_client) as Arc<dyn LlmPortDyn>,
     ///     Arc::new(comfyui_client) as Arc<dyn ComfyUIPort>,
-    ///     Arc::new(neo4j_region_repo) as Arc<dyn RegionRepositoryPort>,
+    ///     Arc::new(neo4j_region_repo) as Arc<dyn RegionItemPort>,
     ///     core_services,
     ///     game_services,
     ///     queue_services,
@@ -461,7 +461,7 @@ impl AppState {
         config: AppConfig,
         llm: Arc<dyn LlmPortDyn>,
         comfyui: Arc<dyn ComfyUIPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_item: Arc<dyn RegionItemPort>,
         core: CoreServices,
         game: GameServices,
         queues: QueueServices,
@@ -482,7 +482,7 @@ impl AppState {
             config,
             llm,
             comfyui,
-            region_repo,
+            region_item,
             core,
             game,
             queues,
@@ -557,8 +557,8 @@ impl AppStatePort for AppState {
         self.comfyui.clone()
     }
 
-    fn region_repo(&self) -> Arc<dyn RegionRepositoryPort> {
-        self.region_repo.clone()
+    fn region_item(&self) -> Arc<dyn RegionItemPort> {
+        self.region_item.clone()
     }
 
     fn settings_service(&self) -> Arc<dyn SettingsServicePort> {
@@ -625,7 +625,7 @@ impl std::fmt::Debug for AppState {
             .field("config", &self.config)
             .field("llm", &"Arc<dyn LlmPortDyn>")
             .field("comfyui", &"Arc<dyn ComfyUIPort>")
-            .field("region_repo", &"Arc<dyn RegionRepositoryPort>")
+            .field("region_item", &"Arc<dyn RegionItemPort>")
             .field("core", &self.core)
             .field("game", &"GameServices")
             .field("queues", &self.queues)

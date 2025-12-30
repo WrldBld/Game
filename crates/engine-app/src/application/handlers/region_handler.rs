@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::entities::{Region, RegionConnection, RegionExit};
 use wrldbldr_engine_ports::inbound::RequestContext;
-use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
+use wrldbldr_engine_ports::outbound::RegionCrudPort;
 use wrldbldr_protocol::{
     CreateRegionConnectionData, CreateRegionData, ErrorCode, ResponseResult, UpdateRegionData,
 };
@@ -47,14 +47,14 @@ pub async fn list_regions(
 
 /// Handle GetRegion request
 pub async fn get_region(
-    region_repo: &Arc<dyn RegionRepositoryPort>,
+    region_crud: &Arc<dyn RegionCrudPort>,
     region_id: &str,
 ) -> ResponseResult {
     let id = match parse_region_id(region_id) {
         Ok(id) => id,
         Err(e) => return e,
     };
-    match region_repo.get(id).await {
+    match region_crud.get(id).await {
         Ok(Some(region)) => {
             let dto = serde_json::json!({
                 "id": region.id.to_string(),
@@ -360,14 +360,14 @@ pub async fn delete_region_exit(
 
 /// Handle ListSpawnPoints request
 pub async fn list_spawn_points(
-    region_repo: &Arc<dyn RegionRepositoryPort>,
+    region_crud: &Arc<dyn RegionCrudPort>,
     world_id: &str,
 ) -> ResponseResult {
     let id = match parse_world_id(world_id) {
         Ok(id) => id,
         Err(e) => return e,
     };
-    match region_repo.list_spawn_points(id).await {
+    match region_crud.list_spawn_points(id).await {
         Ok(regions) => {
             let dtos: Vec<serde_json::Value> = regions
                 .iter()

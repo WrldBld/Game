@@ -36,8 +36,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, QueueError,
-    RegionRepositoryPort, WorldStatePort,
+    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, QueueError, RegionItemPort,
+    WorldStatePort,
 };
 
 use super::{
@@ -70,7 +70,7 @@ pub struct PromptContextServiceImpl {
     narrative_event_service: Arc<dyn NarrativeEventService>,
     character_crud: Arc<dyn CharacterCrudPort>,
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repo: Arc<dyn RegionRepositoryPort>,
+    region_item: Arc<dyn RegionItemPort>,
     disposition_service: Arc<dyn DispositionService>,
     actantial_service: Arc<dyn ActantialContextService>,
 }
@@ -86,7 +86,7 @@ impl PromptContextServiceImpl {
         narrative_event_service: Arc<dyn NarrativeEventService>,
         character_crud: Arc<dyn CharacterCrudPort>,
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_item: Arc<dyn RegionItemPort>,
         disposition_service: Arc<dyn DispositionService>,
         actantial_service: Arc<dyn ActantialContextService>,
     ) -> Self {
@@ -98,7 +98,7 @@ impl PromptContextServiceImpl {
             narrative_event_service,
             character_crud,
             pc_repo,
-            region_repo,
+            region_item,
             disposition_service,
             actantial_service,
         }
@@ -144,7 +144,7 @@ impl PromptContextService for PromptContextServiceImpl {
 
         // 4. Fetch items in the PC's current region for LLM context
         let region_items: Vec<RegionItemContext> = if let Some(rid) = region_id {
-            match self.region_repo.get_region_items(rid).await {
+            match self.region_item.get_region_items(rid).await {
                 Ok(items) => items
                     .into_iter()
                     .map(|item| RegionItemContext {

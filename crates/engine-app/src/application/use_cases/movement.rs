@@ -61,7 +61,7 @@ use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ClockPort, GameEvent, LocationCrudPort, LocationMapPort,
-    PlayerCharacterRepositoryPort, RegionRepositoryPort, StagingPendingEvent,
+    PlayerCharacterRepositoryPort, RegionConnectionPort, RegionCrudPort, StagingPendingEvent,
     StagingRequiredEvent, WaitingPcData,
 };
 
@@ -87,7 +87,8 @@ pub use wrldbldr_engine_ports::outbound::{
 /// the staging system for NPC presence management.
 pub struct MovementUseCase {
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-    region_repo: Arc<dyn RegionRepositoryPort>,
+    region_crud: Arc<dyn RegionCrudPort>,
+    region_connection: Arc<dyn RegionConnectionPort>,
     location_crud: Arc<dyn LocationCrudPort>,
     location_map: Arc<dyn LocationMapPort>,
     staging_service: Arc<dyn StagingServicePort>,
@@ -101,7 +102,8 @@ impl MovementUseCase {
     /// Create a new MovementUseCase with all dependencies
     pub fn new(
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_crud: Arc<dyn RegionCrudPort>,
+        region_connection: Arc<dyn RegionConnectionPort>,
         location_crud: Arc<dyn LocationCrudPort>,
         location_map: Arc<dyn LocationMapPort>,
         staging_service: Arc<dyn StagingServicePort>,
@@ -112,7 +114,8 @@ impl MovementUseCase {
     ) -> Self {
         Self {
             pc_repo,
-            region_repo,
+            region_crud,
+            region_connection,
             location_crud,
             location_map,
             staging_service,
@@ -168,7 +171,7 @@ impl MovementUseCase {
 
         // Get target region
         let region = self
-            .region_repo
+            .region_crud
             .get(input.target_region_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -268,7 +271,7 @@ impl MovementUseCase {
         to_region_id: RegionId,
     ) -> Option<String> {
         let connections = self
-            .region_repo
+            .region_connection
             .get_connections(from_region_id)
             .await
             .ok()?;
@@ -292,7 +295,7 @@ impl MovementUseCase {
         // If a specific region was specified, verify it
         if let Some(region_id) = specified_region_id {
             let region = self
-                .region_repo
+                .region_crud
                 .get(region_id)
                 .await
                 .map_err(|e| MovementError::Database(e.to_string()))?
@@ -314,7 +317,7 @@ impl MovementUseCase {
             .ok_or(MovementError::LocationNotFound(location_id))?;
 
         if let Some(default_region_id) = location.default_region_id {
-            if let Ok(Some(region)) = self.region_repo.get(default_region_id).await {
+            if let Ok(Some(region)) = self.region_crud.get(default_region_id).await {
                 return Ok(region);
             }
         }

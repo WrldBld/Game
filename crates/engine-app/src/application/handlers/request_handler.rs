@@ -29,7 +29,7 @@ use std::sync::Arc;
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
     CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
-    RegionRepositoryPort, SuggestionEnqueuePort,
+    RegionCrudPort, SuggestionEnqueuePort,
 };
 use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 
@@ -77,7 +77,7 @@ pub struct AppRequestHandler {
     // Repository ports (for simple CRUD that doesn't need a full service)
     character_location: Arc<dyn CharacterLocationPort>,
     observation_repo: Arc<dyn ObservationRepositoryPort>,
-    region_repo: Arc<dyn RegionRepositoryPort>,
+    region_crud: Arc<dyn RegionCrudPort>,
 
     // AI suggestion enqueue port (for async LLM suggestions)
     suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
@@ -115,7 +115,7 @@ impl AppRequestHandler {
         sheet_template_service: Arc<SheetTemplateService>,
         character_location: Arc<dyn CharacterLocationPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_crud: Arc<dyn RegionCrudPort>,
         suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
         generation_queue_projection: Arc<GenerationQueueProjectionService>,
         generation_read_state: Arc<dyn GenerationReadStatePort>,
@@ -141,7 +141,7 @@ impl AppRequestHandler {
             sheet_template_service,
             character_location,
             observation_repo,
-            region_repo,
+            region_crud,
             suggestion_enqueue,
             generation_queue_projection,
             generation_read_state,
@@ -285,7 +285,7 @@ impl RequestHandler for AppRequestHandler {
                 region_handler::list_regions(&self.location_service, &location_id).await
             }
             RequestPayload::GetRegion { region_id } => {
-                region_handler::get_region(&self.region_repo, &region_id).await
+                region_handler::get_region(&self.region_crud, &region_id).await
             }
             RequestPayload::CreateRegion { location_id, data } => {
                 region_handler::create_region(&self.location_service, &ctx, &location_id, data)
@@ -351,7 +351,7 @@ impl RequestHandler for AppRequestHandler {
                     .await
             }
             RequestPayload::ListSpawnPoints { world_id } => {
-                region_handler::list_spawn_points(&self.region_repo, &world_id).await
+                region_handler::list_spawn_points(&self.region_crud, &world_id).await
             }
             RequestPayload::ListRegionNpcs { region_id } => {
                 region_handler::list_region_npcs(&self.region_service, &region_id).await
@@ -650,7 +650,7 @@ impl RequestHandler for AppRequestHandler {
             RequestPayload::CreatePlayerCharacter { world_id, data } => {
                 player_handler::create_player_character(
                     &self.player_character_service,
-                    &self.region_repo,
+                    &self.region_crud,
                     &ctx,
                     &world_id,
                     data,

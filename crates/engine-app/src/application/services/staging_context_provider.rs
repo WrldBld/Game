@@ -18,23 +18,29 @@ use wrldbldr_domain::value_objects::{
     StagingContext,
 };
 use wrldbldr_domain::{CharacterId, GameTime, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::{NarrativeEventCrudPort, RegionRepositoryPort};
+use wrldbldr_engine_ports::outbound::{NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort};
 
 /// Service for gathering context needed for staging decisions
-pub struct StagingContextProvider<R: RegionRepositoryPort, N: NarrativeEventCrudPort> {
-    region_repository: Arc<R>,
+pub struct StagingContextProvider<RC: RegionCrudPort, RN: RegionNpcPort, N: NarrativeEventCrudPort>
+{
+    region_crud: Arc<RC>,
+    region_npc: Arc<RN>,
     narrative_event_repository: Arc<N>,
     story_event_service: Arc<dyn StoryEventService>,
 }
 
-impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<R, N> {
+impl<RC: RegionCrudPort, RN: RegionNpcPort, N: NarrativeEventCrudPort>
+    StagingContextProvider<RC, RN, N>
+{
     pub fn new(
-        region_repository: Arc<R>,
+        region_crud: Arc<RC>,
+        region_npc: Arc<RN>,
         narrative_event_repository: Arc<N>,
         story_event_service: Arc<dyn StoryEventService>,
     ) -> Self {
         Self {
-            region_repository,
+            region_crud,
+            region_npc,
             narrative_event_repository,
             story_event_service,
         }
@@ -53,7 +59,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<
     ) -> Result<StagingContext> {
         // Get region information
         let region = self
-            .region_repository
+            .region_crud
             .get(region_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Region not found: {}", region_id))?;
@@ -65,7 +71,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<
 
         // Get NPC relationships to this region (for gathering dialogue context)
         let npc_relationships = self
-            .region_repository
+            .region_npc
             .get_npcs_related_to_region(region_id)
             .await?;
 
@@ -102,7 +108,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<
         game_time: &GameTime,
     ) -> Result<Vec<RuleBasedSuggestion>> {
         let npc_relationships = self
-            .region_repository
+            .region_npc
             .get_npcs_related_to_region(region_id)
             .await?;
 
@@ -136,7 +142,7 @@ impl<R: RegionRepositoryPort, N: NarrativeEventCrudPort> StagingContextProvider<
         &self,
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>> {
-        self.region_repository
+        self.region_npc
             .get_npcs_related_to_region(region_id)
             .await
     }

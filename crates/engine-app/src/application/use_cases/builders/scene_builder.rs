@@ -24,7 +24,8 @@ use wrldbldr_domain::entities::{Location, Region, StagedNpc};
 use wrldbldr_domain::{PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::outbound::{
     LocationCrudPort, NavigationExit, NavigationInfo, NavigationTarget, NpcPresenceData,
-    RegionInfo, RegionItemData, RegionRepositoryPort, SceneChangedEvent,
+    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionInfo, RegionItemData,
+    RegionItemPort, SceneChangedEvent,
 };
 
 use crate::application::use_cases::errors::MovementError;
@@ -34,23 +35,32 @@ use crate::application::use_cases::errors::MovementError;
 /// # Usage
 ///
 /// ```rust,ignore
-/// let builder = SceneBuilder::new(region_repo, location_repo);
+/// let builder = SceneBuilder::new(region_crud, region_connection, region_exit, region_item, location_repo);
 /// let event = builder.build(pc_id, region_id, staged_npcs).await?;
 /// ```
 #[derive(Clone)]
 pub struct SceneBuilder {
-    region_repo: Arc<dyn RegionRepositoryPort>,
+    region_crud: Arc<dyn RegionCrudPort>,
+    region_connection: Arc<dyn RegionConnectionPort>,
+    region_exit: Arc<dyn RegionExitPort>,
+    region_item: Arc<dyn RegionItemPort>,
     location_repo: Arc<dyn LocationCrudPort>,
 }
 
 impl SceneBuilder {
     /// Create a new SceneBuilder with required repository dependencies
     pub fn new(
-        region_repo: Arc<dyn RegionRepositoryPort>,
+        region_crud: Arc<dyn RegionCrudPort>,
+        region_connection: Arc<dyn RegionConnectionPort>,
+        region_exit: Arc<dyn RegionExitPort>,
+        region_item: Arc<dyn RegionItemPort>,
         location_repo: Arc<dyn LocationCrudPort>,
     ) -> Self {
         Self {
-            region_repo,
+            region_crud,
+            region_connection,
+            region_exit,
+            region_item,
             location_repo,
         }
     }
@@ -78,7 +88,7 @@ impl SceneBuilder {
     ) -> Result<SceneChangedEvent, MovementError> {
         // Get region
         let region = self
-            .region_repo
+            .region_crud
             .get(region_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -180,7 +190,7 @@ impl SceneBuilder {
 
     /// Build list of connected regions within the same location
     async fn build_connected_regions(&self, region_id: RegionId) -> Vec<NavigationTarget> {
-        let connections = match self.region_repo.get_connections(region_id).await {
+        let connections = match self.region_connection.get_connections(region_id).await {
             Ok(conns) => conns,
             Err(e) => {
                 warn!(error = %e, region_id = %region_id, "Failed to fetch region connections");
@@ -191,7 +201,7 @@ impl SceneBuilder {
         let mut targets = Vec::new();
         for conn in connections {
             // Get target region name
-            match self.region_repo.get(conn.to_region).await {
+            match self.region_crud.get(conn.to_region).await {
                 Ok(Some(target_region)) => {
                     targets.push(NavigationTarget {
                         region_id: conn.to_region,
@@ -222,7 +232,7 @@ impl SceneBuilder {
 
     /// Build list of exits to other locations
     async fn build_exits(&self, region_id: RegionId) -> Vec<NavigationExit> {
-        let region_exits = match self.region_repo.get_exits(region_id).await {
+        let region_exits = match self.region_exit.get_exits(region_id).await {
             Ok(exits) => exits,
             Err(e) => {
                 warn!(error = %e, region_id = %region_id, "Failed to fetch region exits");
@@ -270,11 +280,11 @@ impl SceneBuilder {
     /// Build list of items in the region
     ///
     /// Currently returns empty list - region items not yet implemented.
-    /// When US-REGION-ITEMS is complete, this will call region_repo.get_region_items()
+    /// When US-REGION-ITEMS is complete, this will call region_item.get_region_items()
     async fn build_region_items(&self, region_id: RegionId) -> Vec<RegionItemData> {
         // TODO: Implement when region item system is ready
         // For now, try to get items but handle the not-implemented error gracefully
-        match self.region_repo.get_region_items(region_id).await {
+        match self.region_item.get_region_items(region_id).await {
             Ok(items) => items
                 .into_iter()
                 .map(|item| RegionItemData {

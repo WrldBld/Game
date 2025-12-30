@@ -19,7 +19,9 @@ use wrldbldr_domain::value_objects::{
     CampbellArchetype, DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift,
 };
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::RegionRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionItemPort, RegionNpcPort,
+};
 
 /// Repository for Region operations
 pub struct Neo4jRegionRepository {
@@ -451,13 +453,54 @@ fn row_to_region_exit(row: Row) -> Result<RegionExit> {
 }
 
 // =============================================================================
-// RegionRepositoryPort Implementation
+// ISP Trait Implementations
 // =============================================================================
 
 #[async_trait]
-impl RegionRepositoryPort for Neo4jRegionRepository {
+impl RegionCrudPort for Neo4jRegionRepository {
     async fn get(&self, id: RegionId) -> Result<Option<Region>> {
         Neo4jRegionRepository::get(self, id).await
+    }
+
+    async fn update(&self, region: &Region) -> Result<()> {
+        let q = query(
+            "MATCH (r:Region {id: $id})
+             SET r.name = $name,
+                 r.description = $description,
+                 r.backdrop_asset = $backdrop_asset,
+                 r.atmosphere = $atmosphere,
+                 r.is_spawn_point = $is_spawn_point,
+                 r.`order` = $order
+             RETURN r.id as id",
+        )
+        .param("id", region.id.to_string())
+        .param("name", region.name.clone())
+        .param("description", region.description.clone())
+        .param(
+            "backdrop_asset",
+            region.backdrop_asset.clone().unwrap_or_default(),
+        )
+        .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
+        .param("is_spawn_point", region.is_spawn_point)
+        .param("order", region.order as i64);
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(region_id = %region.id, "Updated region");
+        Ok(())
+    }
+
+    async fn delete(&self, id: RegionId) -> Result<()> {
+        // Delete the region and all its relationships
+        let q = query(
+            "MATCH (r:Region {id: $id})
+             DETACH DELETE r
+             RETURN count(r) as deleted",
+        )
+        .param("id", id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!(region_id = %id, "Deleted region");
+        Ok(())
     }
 
     async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Region>> {
@@ -467,7 +510,89 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
     async fn list_spawn_points(&self, world_id: WorldId) -> Result<Vec<Region>> {
         Neo4jRegionRepository::list_spawn_points(self, world_id).await
     }
+}
 
+#[async_trait]
+impl RegionConnectionPort for Neo4jRegionRepository {
+    async fn create_connection(&self, connection: &RegionConnection) -> Result<()> {
+        Neo4jRegionRepository::create_connection(self, connection).await
+    }
+
+    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>> {
+        Neo4jRegionRepository::get_connections(self, region_id).await
+    }
+
+    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        Neo4jRegionRepository::delete_connection(self, from, to).await
+    }
+
+    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
+        Neo4jRegionRepository::unlock_connection(self, from, to).await
+    }
+}
+
+#[async_trait]
+impl RegionExitPort for Neo4jRegionRepository {
+    async fn create_exit(&self, exit: &RegionExit) -> Result<()> {
+        Neo4jRegionRepository::create_exit(self, exit).await
+    }
+
+    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>> {
+        Neo4jRegionRepository::get_exits(self, region_id).await
+    }
+
+    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()> {
+        Neo4jRegionRepository::delete_exit(self, from_region, to_location).await
+    }
+}
+
+#[async_trait]
+impl RegionNpcPort for Neo4jRegionRepository {
+    async fn get_npcs_related_to_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<(Character, RegionRelationshipType)>> {
+        let q = query(
+            "MATCH (c:Character)-[r]->(reg:Region {id: $region_id})
+            WHERE type(r) IN ['HOME_REGION', 'WORKS_AT_REGION', 'FREQUENTS_REGION', 'AVOIDS_REGION']
+            RETURN c, type(r) as rel_type, r.shift as shift, r.frequency as frequency, r.reason as reason",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut npcs = Vec::new();
+
+        while let Some(row) = result.next().await? {
+            // Extract relationship data first (before consuming row for character)
+            let rel_type: String = row.get("rel_type")?;
+            let shift_str: String = row.get("shift").unwrap_or_default();
+            let freq_str: String = row.get("frequency").unwrap_or_default();
+            let reason: String = row.get("reason").unwrap_or_default();
+
+            let relationship_type = match rel_type.as_str() {
+                "HOME_REGION" => RegionRelationshipType::Home,
+                "WORKS_AT_REGION" => {
+                    let shift = shift_str.parse().unwrap_or(RegionShift::Always);
+                    RegionRelationshipType::WorksAt { shift }
+                }
+                "FREQUENTS_REGION" => {
+                    let frequency = freq_str.parse().unwrap_or(RegionFrequency::Sometimes);
+                    RegionRelationshipType::Frequents { frequency }
+                }
+                "AVOIDS_REGION" => RegionRelationshipType::Avoids { reason },
+                _ => continue,
+            };
+
+            let character = row_to_character_for_presence(row)?;
+            npcs.push((character, relationship_type));
+        }
+
+        Ok(npcs)
+    }
+}
+
+#[async_trait]
+impl RegionItemPort for Neo4jRegionRepository {
     async fn add_item_to_region(&self, region_id: RegionId, item_id: ItemId) -> Result<()> {
         let q = query(
             "MATCH (r:Region {id: $region_id}), (i:Item {id: $item_id})
@@ -522,125 +647,6 @@ impl RegionRepositoryPort for Neo4jRegionRepository {
             "Removed item from region"
         );
         Ok(())
-    }
-
-    async fn get_npcs_related_to_region(
-        &self,
-        region_id: RegionId,
-    ) -> Result<Vec<(Character, RegionRelationshipType)>> {
-        let q = query(
-            "MATCH (c:Character)-[r]->(reg:Region {id: $region_id})
-            WHERE type(r) IN ['HOME_REGION', 'WORKS_AT_REGION', 'FREQUENTS_REGION', 'AVOIDS_REGION']
-            RETURN c, type(r) as rel_type, r.shift as shift, r.frequency as frequency, r.reason as reason",
-        )
-        .param("region_id", region_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut npcs = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            // Extract relationship data first (before consuming row for character)
-            let rel_type: String = row.get("rel_type")?;
-            let shift_str: String = row.get("shift").unwrap_or_default();
-            let freq_str: String = row.get("frequency").unwrap_or_default();
-            let reason: String = row.get("reason").unwrap_or_default();
-
-            let relationship_type = match rel_type.as_str() {
-                "HOME_REGION" => RegionRelationshipType::Home,
-                "WORKS_AT_REGION" => {
-                    let shift = shift_str.parse().unwrap_or(RegionShift::Always);
-                    RegionRelationshipType::WorksAt { shift }
-                }
-                "FREQUENTS_REGION" => {
-                    let frequency = freq_str.parse().unwrap_or(RegionFrequency::Sometimes);
-                    RegionRelationshipType::Frequents { frequency }
-                }
-                "AVOIDS_REGION" => RegionRelationshipType::Avoids { reason },
-                _ => continue,
-            };
-
-            let character = row_to_character_for_presence(row)?;
-            npcs.push((character, relationship_type));
-        }
-
-        Ok(npcs)
-    }
-
-    async fn update(&self, region: &Region) -> Result<()> {
-        let q = query(
-            "MATCH (r:Region {id: $id})
-             SET r.name = $name,
-                 r.description = $description,
-                 r.backdrop_asset = $backdrop_asset,
-                 r.atmosphere = $atmosphere,
-                 r.is_spawn_point = $is_spawn_point,
-                 r.`order` = $order
-             RETURN r.id as id",
-        )
-        .param("id", region.id.to_string())
-        .param("name", region.name.clone())
-        .param("description", region.description.clone())
-        .param(
-            "backdrop_asset",
-            region.backdrop_asset.clone().unwrap_or_default(),
-        )
-        .param("atmosphere", region.atmosphere.clone().unwrap_or_default())
-        .param("is_spawn_point", region.is_spawn_point)
-        .param("order", region.order as i64);
-
-        self.connection.graph().run(q).await?;
-        tracing::debug!(region_id = %region.id, "Updated region");
-        Ok(())
-    }
-
-    async fn delete(&self, id: RegionId) -> Result<()> {
-        // Delete the region and all its relationships
-        let q = query(
-            "MATCH (r:Region {id: $id})
-             DETACH DELETE r
-             RETURN count(r) as deleted",
-        )
-        .param("id", id.to_string());
-
-        self.connection.graph().run(q).await?;
-        tracing::debug!(region_id = %id, "Deleted region");
-        Ok(())
-    }
-
-    // -------------------------------------------------------------------------
-    // Region Connections
-    // -------------------------------------------------------------------------
-
-    async fn create_connection(&self, connection: &RegionConnection) -> Result<()> {
-        Neo4jRegionRepository::create_connection(self, connection).await
-    }
-
-    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>> {
-        Neo4jRegionRepository::get_connections(self, region_id).await
-    }
-
-    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
-        Neo4jRegionRepository::delete_connection(self, from, to).await
-    }
-
-    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
-        Neo4jRegionRepository::unlock_connection(self, from, to).await
-    }
-
-    // -------------------------------------------------------------------------
-    // Region Exits
-    // -------------------------------------------------------------------------
-
-    async fn create_exit(&self, exit: &RegionExit) -> Result<()> {
-        Neo4jRegionRepository::create_exit(self, exit).await
-    }
-
-    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>> {
-        Neo4jRegionRepository::get_exits(self, region_id).await
-    }
-
-    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()> {
-        Neo4jRegionRepository::delete_exit(self, from_region, to_location).await
     }
 }
 

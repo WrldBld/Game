@@ -8,7 +8,7 @@ use wrldbldr_domain::entities::{CharacterSheetData, NpcObservation, ObservationT
 use wrldbldr_domain::value_objects::RegionShift;
 use wrldbldr_engine_ports::inbound::RequestContext;
 use wrldbldr_engine_ports::outbound::{
-    CharacterLocationPort, ClockPort, ObservationRepositoryPort, RegionRepositoryPort,
+    CharacterLocationPort, ClockPort, ObservationRepositoryPort, RegionCrudPort,
 };
 use wrldbldr_protocol::{
     CreateObservationData, CreatePlayerCharacterData, ErrorCode, ResponseResult,
@@ -88,7 +88,7 @@ pub async fn delete_player_character(
 /// Handle CreatePlayerCharacter request
 pub async fn create_player_character(
     player_character_service: &Arc<dyn PlayerCharacterService>,
-    region_repo: &Arc<dyn RegionRepositoryPort>,
+    region_crud: &Arc<dyn RegionCrudPort>,
     ctx: &RequestContext,
     world_id: &str,
     data: CreatePlayerCharacterData,
@@ -108,7 +108,7 @@ pub async fn create_player_character(
             Err(e) => return e,
         };
         // Fetch the region to get its location_id
-        match region_repo.get(region_id).await {
+        match region_crud.get(region_id).await {
             Ok(Some(region)) => (region.location_id, Some(region_id)),
             Ok(None) => {
                 return ResponseResult::error(
@@ -120,7 +120,7 @@ pub async fn create_player_character(
         }
     } else {
         // No starting region provided - try to find a spawn point in the world
-        match region_repo.list_spawn_points(wid).await {
+        match region_crud.list_spawn_points(wid).await {
             Ok(spawn_points) if !spawn_points.is_empty() => {
                 let spawn = &spawn_points[0];
                 (spawn.location_id, Some(spawn.id))

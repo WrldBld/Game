@@ -93,7 +93,7 @@ pub async fn fetch_region_items(
     state: &dyn AppStatePort,
     region_id: wrldbldr_domain::RegionId,
 ) -> Vec<wrldbldr_protocol::RegionItemData> {
-    match state.region_repo().get_region_items(region_id).await {
+    match state.region_item().get_region_items(region_id).await {
         Ok(items) => items
             .into_iter()
             .map(|item| wrldbldr_protocol::RegionItemData {

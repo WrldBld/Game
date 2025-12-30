@@ -12,7 +12,8 @@ use wrldbldr_domain::entities::{Character, Region, RegionConnection, RegionExit}
 use wrldbldr_domain::value_objects::RegionRelationshipType;
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    LocationCrudPort, LocationMapPort, RegionRepositoryPort, RegionServicePort,
+    LocationCrudPort, LocationMapPort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
+    RegionNpcPort, RegionServicePort,
 };
 
 // Validation constants
@@ -90,7 +91,10 @@ pub trait RegionService: Send + Sync {
 
 /// Default implementation of RegionService using port abstractions
 pub struct RegionServiceImpl {
-    region_repository: Arc<dyn RegionRepositoryPort>,
+    region_crud: Arc<dyn RegionCrudPort>,
+    region_connection: Arc<dyn RegionConnectionPort>,
+    region_exit: Arc<dyn RegionExitPort>,
+    region_npc: Arc<dyn RegionNpcPort>,
     location_crud: Arc<dyn LocationCrudPort>,
     location_map: Arc<dyn LocationMapPort>,
 }
@@ -100,13 +104,21 @@ impl RegionServiceImpl {
     ///
     /// Note: `location_crud` and `location_map` can be clones of the same underlying
     /// Arc if the concrete type implements both traits (e.g., Neo4jLocationRepository).
+    /// Similarly, region_crud, region_connection, region_exit, and region_npc can all
+    /// be clones of the same Arc if the concrete type implements all traits.
     pub fn new(
-        region_repository: Arc<dyn RegionRepositoryPort>,
+        region_crud: Arc<dyn RegionCrudPort>,
+        region_connection: Arc<dyn RegionConnectionPort>,
+        region_exit: Arc<dyn RegionExitPort>,
+        region_npc: Arc<dyn RegionNpcPort>,
         location_crud: Arc<dyn LocationCrudPort>,
         location_map: Arc<dyn LocationMapPort>,
     ) -> Self {
         Self {
-            region_repository,
+            region_crud,
+            region_connection,
+            region_exit,
+            region_npc,
             location_crud,
             location_map,
         }
@@ -143,7 +155,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn get_region(&self, id: RegionId) -> Result<Option<Region>> {
         debug!(region_id = %id, "Fetching region");
-        self.region_repository
+        self.region_crud
             .get(id)
             .await
             .context("Failed to get region from repository")
@@ -152,7 +164,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn list_regions(&self, location_id: LocationId) -> Result<Vec<Region>> {
         debug!(location_id = %location_id, "Listing regions in location");
-        self.region_repository
+        self.region_crud
             .list_by_location(location_id)
             .await
             .context("Failed to list regions from repository")
@@ -161,7 +173,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn list_spawn_points(&self, world_id: WorldId) -> Result<Vec<Region>> {
         debug!(world_id = %world_id, "Listing spawn point regions in world");
-        self.region_repository
+        self.region_crud
             .list_spawn_points(world_id)
             .await
             .context("Failed to list spawn points from repository")
@@ -227,7 +239,7 @@ impl RegionService for RegionServiceImpl {
 
         // Get existing region
         let mut region = self
-            .region_repository
+            .region_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Region not found: {}", id))?;
@@ -244,11 +256,7 @@ impl RegionService for RegionServiceImpl {
         }
 
         // Update in repository
-        // Note: RegionRepositoryPort currently doesn't have an update method.
-        // This will need to be added to the port interface. For now, we use
-        // a pattern similar to other services that delegate to the repository.
-        // The repository implementation will need to provide this method.
-        self.region_repository
+        self.region_crud
             .update(&region)
             .await
             .context("Failed to update region in repository")?;
@@ -262,15 +270,13 @@ impl RegionService for RegionServiceImpl {
     async fn delete_region(&self, id: RegionId) -> Result<()> {
         // Verify region exists
         let region = self
-            .region_repository
+            .region_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Region not found: {}", id))?;
 
         // Delete the region
-        // Note: RegionRepositoryPort currently doesn't have a delete method.
-        // This will need to be added to the port interface.
-        self.region_repository
+        self.region_crud
             .delete(id)
             .await
             .context("Failed to delete region from repository")?;
@@ -289,12 +295,12 @@ impl RegionService for RegionServiceImpl {
 
         // Verify region exists
         let _ = self
-            .region_repository
+            .region_crud
             .get(region_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Region not found: {}", region_id))?;
 
-        self.region_repository
+        self.region_npc
             .get_npcs_related_to_region(region_id)
             .await
             .context("Failed to get NPCs for region from repository")
@@ -313,18 +319,18 @@ impl RegionService for RegionServiceImpl {
         );
 
         // Verify both regions exist
-        self.region_repository
+        self.region_crud
             .get(connection.from_region)
             .await?
             .ok_or_else(|| {
                 anyhow::anyhow!("Source region not found: {}", connection.from_region)
             })?;
-        self.region_repository
+        self.region_crud
             .get(connection.to_region)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Target region not found: {}", connection.to_region))?;
 
-        self.region_repository
+        self.region_connection
             .create_connection(&connection)
             .await
             .context("Failed to create region connection")
@@ -333,7 +339,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>> {
         debug!(region_id = %region_id, "Getting region connections");
-        self.region_repository
+        self.region_connection
             .get_connections(region_id)
             .await
             .context("Failed to get region connections")
@@ -342,7 +348,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
         debug!(from = %from, to = %to, "Deleting region connection");
-        self.region_repository
+        self.region_connection
             .delete_connection(from, to)
             .await
             .context("Failed to delete region connection")
@@ -351,7 +357,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()> {
         debug!(from = %from, to = %to, "Unlocking region connection");
-        self.region_repository
+        self.region_connection
             .unlock_connection(from, to)
             .await
             .context("Failed to unlock region connection")
@@ -370,7 +376,7 @@ impl RegionService for RegionServiceImpl {
         );
 
         // Verify region exists
-        self.region_repository
+        self.region_crud
             .get(exit.from_region)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Source region not found: {}", exit.from_region))?;
@@ -381,7 +387,7 @@ impl RegionService for RegionServiceImpl {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Target location not found: {}", exit.to_location))?;
 
-        self.region_repository
+        self.region_exit
             .create_exit(&exit)
             .await
             .context("Failed to create region exit")
@@ -390,7 +396,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>> {
         debug!(region_id = %region_id, "Getting region exits");
-        self.region_repository
+        self.region_exit
             .get_exits(region_id)
             .await
             .context("Failed to get region exits")
@@ -399,7 +405,7 @@ impl RegionService for RegionServiceImpl {
     #[instrument(skip(self))]
     async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()> {
         debug!(from = %from_region, to = %to_location, "Deleting region exit");
-        self.region_repository
+        self.region_exit
             .delete_exit(from_region, to_location)
             .await
             .context("Failed to delete region exit")
