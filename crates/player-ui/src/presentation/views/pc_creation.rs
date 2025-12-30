@@ -7,7 +7,7 @@ use crate::presentation::services::{
     use_location_service, use_player_character_service, use_world_service,
 };
 use crate::presentation::state::use_session_state;
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::CreatePlayerCharacterRequest;
 
@@ -32,7 +32,7 @@ pub struct PCCreationProps {
 #[component]
 pub fn PCCreationView(props: PCCreationProps) -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let _session_state = use_session_state();
     let pc_service = use_player_character_service();
     let location_service = use_location_service();

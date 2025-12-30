@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_app::application::dto::DialogueChoice;
 
 /// Dialogue state for the visual novel UI
@@ -151,7 +151,7 @@ impl Default for DialogueState {
 /// Call this in a component to drive the typewriter animation.
 /// Returns true while typing is in progress.
 pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let is_typing = *dialogue_state.is_typing.read();
     let full_text = dialogue_state.full_text.clone();
     let displayed_text = dialogue_state.displayed_text.clone();

@@ -9,7 +9,7 @@ use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};
@@ -37,7 +37,7 @@ pub fn CharacterForm(
     on_close: EventHandler<()>,
 ) -> Element {
     let is_new = character_id.is_empty();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let char_service = use_character_service();
     let world_service = use_world_service();
 

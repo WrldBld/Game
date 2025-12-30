@@ -11,7 +11,7 @@ use dioxus::prelude::*;
 use crate::presentation::state::{
     ConnectionStatus, DialogueState, GameState, GenerationState, SessionState,
 };
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_ports::outbound::storage_keys;
 use wrldbldr_player_ports::session_types::ParticipantRole;
 
@@ -46,7 +46,7 @@ pub struct WorldSessionLayoutProps {
 #[component]
 pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let session_state = use_context::<SessionState>();
     let game_state = use_context::<GameState>();
     let dialogue_state = use_context::<DialogueState>();

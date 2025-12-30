@@ -11,11 +11,11 @@ use crate::presentation::state::{
     DialogueState, GameState, GenerationState, PendingApproval, SessionState,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
 use wrldbldr_player_ports::inbound::{
     CharacterData, CharacterPosition, ConnectedUser, NpcPresenceData, PlayerEvent, SceneData,
 };
+use wrldbldr_player_ports::outbound::PlatformPort;
 
 /// Handle an incoming `PlayerEvent` and update presentation state.
 pub fn handle_server_message(
@@ -24,7 +24,7 @@ pub fn handle_server_message(
     game_state: &mut GameState,
     dialogue_state: &mut DialogueState,
     generation_state: &mut GenerationState,
-    platform: &Platform,
+    platform: &dyn PlatformPort,
 ) {
     match message {
         PlayerEvent::ActionReceived {

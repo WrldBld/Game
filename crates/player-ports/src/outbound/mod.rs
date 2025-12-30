@@ -12,6 +12,7 @@ pub mod api_port;
 pub mod game_connection;
 pub mod game_connection_port;
 pub mod platform;
+pub mod platform_port;
 pub mod raw_api_port;
 pub mod testing;
 
@@ -25,6 +26,7 @@ pub use platform::{
     storage_keys, ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider,
     RandomProvider, SleepProvider, StorageProvider, TimeProvider,
 };
+pub use platform_port::PlatformPort;
 pub use raw_api_port::RawApiPort;
 
 // Re-export mocks when testing

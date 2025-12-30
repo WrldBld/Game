@@ -4,10 +4,9 @@
 //! presentation state accordingly. This is where the application-to-presentation
 //! boundary is properly maintained.
 
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::services::port_connection_state_to_status;
 use wrldbldr_player_app::application::services::SessionEvent;
-use wrldbldr_player_ports::outbound::ConnectionState as PortConnectionState;
+use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, PlatformPort};
 
 use crate::presentation::handlers::handle_server_message;
 use crate::presentation::state::{
@@ -25,7 +24,7 @@ pub fn handle_session_event(
     game_state: &mut GameState,
     dialogue_state: &mut DialogueState,
     generation_state: &mut GenerationState,
-    platform: &Platform,
+    platform: &dyn PlatformPort,
 ) {
     match event {
         SessionEvent::StateChanged(state) => {

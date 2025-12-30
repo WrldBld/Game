@@ -10,7 +10,7 @@ use crate::presentation::state::{
     use_game_state, use_generation_state, BatchStatus, GenerationBatch, SuggestionStatus,
     SuggestionTask,
 };
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 
 /// Filter type for the generation queue
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -46,7 +46,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
     let generation_state = use_generation_state();
     let game_state = use_game_state();
     let _generation_service = use_generation_service();
-    let _platform = use_context::<Platform>();
+    let _platform = use_platform();
     let mut selected_suggestion: Signal<Option<SuggestionTask>> = use_signal(|| None);
     let mut show_read: Signal<bool> = use_signal(|| false);
     let mut active_filter: Signal<QueueFilter> = use_signal(|| QueueFilter::All);
@@ -344,7 +344,7 @@ fn QueueItemRow(
     #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
     let generation_service = use_generation_service();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let mut expanded_details: Signal<bool> = use_signal(|| false);
     let batch_id = batch.batch_id.clone();
@@ -480,7 +480,7 @@ fn QueueItemRow(
                                         let svc = gen_svc.clone();
                                         let plat = plat_clone.clone();
                                     spawn(async move {
-                                            if let Err(e) = mark_batch_read_and_sync(&svc, &mut gen_state, &bid, wid.as_deref(), &plat).await {
+                                            if let Err(e) = mark_batch_read_and_sync(&svc, &mut gen_state, &bid, wid.as_deref(), plat.as_ref()).await {
                                             tracing::error!("Failed to mark batch read and sync: {}", e);
                                         }
                                     });
@@ -627,7 +627,7 @@ fn SuggestionQueueRow(
     #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
     let generation_service = use_generation_service();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let (status_icon, status_color, status_text) = match &suggestion.status {
         SuggestionStatus::Queued => ("💭", "#9ca3af", "Queued".to_string()),
@@ -690,7 +690,7 @@ fn SuggestionQueueRow(
                                     let svc = gen_svc.clone();
                                     let plat = plat_clone.clone();
                                 spawn(async move {
-                                        if let Err(e) = mark_suggestion_read_and_sync(&svc, &mut gen_state, &req_id_clone, wid.as_deref(), &plat).await {
+                                        if let Err(e) = mark_suggestion_read_and_sync(&svc, &mut gen_state, &req_id_clone, wid.as_deref(), plat.as_ref()).await {
                                         tracing::error!("Failed to mark suggestion read and sync: {}", e);
                                     }
                                 });

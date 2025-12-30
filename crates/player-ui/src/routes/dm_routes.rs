@@ -5,8 +5,8 @@ use super::world_session_layout::WorldSessionLayout;
 use super::Route;
 use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
 use crate::presentation::views::dm_view::DMMode;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_ports::outbound::storage_keys;
 use wrldbldr_player_ports::session_types::ParticipantRole;
 
@@ -182,7 +182,7 @@ struct DMViewContentProps {
 #[component]
 fn DMViewContent(props: DMViewContentProps) -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let session_state = use_context::<SessionState>();
     let game_state = use_context::<GameState>();
     let dialogue_state = use_context::<DialogueState>();

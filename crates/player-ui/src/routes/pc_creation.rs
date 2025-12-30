@@ -1,14 +1,14 @@
 //! PC (Player Character) creation route handler
 
 use crate::presentation::state::SessionState;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 
 /// PC creation route
 #[component]
 pub fn PCCreationRoute(world_id: String) -> Element {
     let _navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let session_state = use_context::<SessionState>();
 
     // Set page title

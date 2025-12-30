@@ -16,8 +16,8 @@ pub mod suggestion_button;
 use crate::presentation::services::use_generation_service;
 use crate::presentation::state::use_generation_state;
 use crate::presentation::state::use_session_state;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 
 /// Props for CreatorMode
 #[derive(Props, Clone, PartialEq)]
@@ -101,7 +101,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
     });
 
     // Hydrate generation queue from Engine on mount
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let generation_service = use_generation_service();
     let mut generation_state = use_generation_state();
     let session_state = use_session_state();

@@ -3,8 +3,8 @@
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;
 use crate::presentation::state::SessionState;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_ports::session_types::ParticipantRole;
 
 /// PC (Player Character) view route
@@ -12,7 +12,7 @@ use wrldbldr_player_ports::session_types::ParticipantRole;
 pub fn PCViewRoute(world_id: String) -> Element {
     let navigator = use_navigator();
     let _session_state = use_context::<SessionState>();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let pc_service = crate::presentation::services::use_player_character_service();
 
     // Check for existing PC on mount - redirect to creation if none exists

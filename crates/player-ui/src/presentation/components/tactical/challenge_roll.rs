@@ -11,8 +11,8 @@
 
 use crate::presentation::state::challenge_state::ChallengeResultData;
 use crate::presentation::state::{use_session_state, RollSubmissionStatus};
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::DiceInput;
 
 /// Props for the ChallengeRollModal component
@@ -178,7 +178,7 @@ fn RollInputPhase(
     let mut is_rolling = use_signal(|| false);
     let mut error_message = use_signal(|| None::<String>);
 
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
 
     // Parse dice formula (simple XdY+Z pattern)
     let parse_formula = |formula: &str| -> Result<(u8, u8, i32), String> {

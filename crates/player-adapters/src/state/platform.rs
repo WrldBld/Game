@@ -379,3 +379,79 @@ impl StorageProvider for PlatformStorageAdapter {
         self.platform.storage_remove(key)
     }
 }
+
+// =============================================================================
+// PlatformPort implementation - enables player-ui to use trait abstraction
+// =============================================================================
+
+use wrldbldr_player_ports::outbound::PlatformPort;
+
+impl PlatformPort for Platform {
+    fn now_unix_secs(&self) -> u64 {
+        self.time.now_unix_secs()
+    }
+
+    fn now_millis(&self) -> u64 {
+        self.time.now_millis()
+    }
+
+    fn sleep_ms(&self, ms: u64) -> Pin<Box<dyn Future<Output = ()> + 'static>> {
+        self.sleep.sleep_ms(ms)
+    }
+
+    fn random_f64(&self) -> f64 {
+        self.random.random_f64()
+    }
+
+    fn random_range(&self, min: i32, max: i32) -> i32 {
+        self.random.random_range(min, max)
+    }
+
+    fn storage_save(&self, key: &str, value: &str) {
+        self.storage.save(key, value)
+    }
+
+    fn storage_load(&self, key: &str) -> Option<String> {
+        self.storage.load(key)
+    }
+
+    fn storage_remove(&self, key: &str) {
+        self.storage.remove(key)
+    }
+
+    fn get_user_id(&self) -> String {
+        Platform::get_user_id(self)
+    }
+
+    fn log_info(&self, msg: &str) {
+        self.log.info(msg)
+    }
+
+    fn log_error(&self, msg: &str) {
+        self.log.error(msg)
+    }
+
+    fn log_debug(&self, msg: &str) {
+        self.log.debug(msg)
+    }
+
+    fn log_warn(&self, msg: &str) {
+        self.log.warn(msg)
+    }
+
+    fn set_page_title(&self, title: &str) {
+        self.document.set_page_title(title)
+    }
+
+    fn configure_engine_url(&self, ws_url: &str) {
+        self.engine_config.configure_engine_url(ws_url)
+    }
+
+    fn ws_to_http(&self, ws_url: &str) -> String {
+        self.engine_config.ws_to_http(ws_url)
+    }
+
+    fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort> {
+        self.connection_factory.create_game_connection(server_url)
+    }
+}

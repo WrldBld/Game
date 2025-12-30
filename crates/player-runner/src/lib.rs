@@ -4,7 +4,7 @@ use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::api::Api;
 use wrldbldr_player_ports::{
     config::RunnerConfig,
-    outbound::{GameConnectionPort, RawApiPort},
+    outbound::{GameConnectionPort, PlatformPort, RawApiPort},
 };
 
 pub struct RunnerDeps {
@@ -24,6 +24,9 @@ pub fn run(deps: RunnerDeps) {
         config,
     } = deps;
 
+    // Wrap Platform in Arc<dyn PlatformPort> for UI layer abstraction
+    let platform_port: Arc<dyn PlatformPort> = Arc::new(platform);
+
     let mut builder = dioxus::LaunchBuilder::new();
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -35,7 +38,7 @@ pub fn run(deps: RunnerDeps) {
     }
 
     builder
-        .with_context(platform)
+        .with_context(platform_port)
         .with_context(config)
         .with_context(wrldbldr_player_ui::presentation::Services::new(
             api, raw_api, connection,

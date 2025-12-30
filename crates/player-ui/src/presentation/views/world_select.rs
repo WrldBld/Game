@@ -9,7 +9,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_world_service;
 use crate::presentation::state::GameState;
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_app::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
@@ -31,7 +31,7 @@ pub struct WorldSelectViewProps {
 #[component]
 pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     let game_state = use_context::<GameState>();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let world_service = use_world_service();
     let mut worlds: Signal<Vec<WorldSummary>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);

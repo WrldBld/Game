@@ -1,8 +1,8 @@
 //! World selection and role selection route handlers
 
 use super::Route;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::ParticipantRole;
 use wrldbldr_player_ports::outbound::storage_keys;
 
@@ -10,7 +10,7 @@ use wrldbldr_player_ports::outbound::storage_keys;
 #[component]
 pub fn RoleSelectRoute() -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
 
     // Clone platform for different closures
     let platform_title = platform.clone();
@@ -41,7 +41,7 @@ pub fn RoleSelectRoute() -> Element {
 #[component]
 pub fn WorldSelectRoute() -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
 
     // Clone platform for different closures
     let platform_title = platform.clone();
@@ -53,7 +53,7 @@ pub fn WorldSelectRoute() -> Element {
     });
 
     // Load selected role from localStorage
-    let role = load_role_from_storage(&platform);
+    let role = load_role_from_storage(platform.as_ref());
 
     // Ensure an anonymous user ID exists early in the flow
     let _ = platform.get_user_id();
@@ -91,7 +91,7 @@ pub fn WorldSelectRoute() -> Element {
 }
 
 /// Load user role from localStorage, defaults to Player
-fn load_role_from_storage(platform: &Platform) -> ParticipantRole {
+fn load_role_from_storage(platform: &dyn wrldbldr_player_ports::outbound::PlatformPort) -> ParticipantRole {
     if let Some(role_str) = platform.storage_load(storage_keys::ROLE) {
         match role_str.as_str() {
             "DungeonMaster" => return ParticipantRole::DungeonMaster,

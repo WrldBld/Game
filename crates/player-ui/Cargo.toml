@@ -7,12 +7,11 @@ authors.workspace = true
 description = "WrldBldr Player UI - Presentation and routing"
 
 [dependencies]
-wrldbldr-player-adapters = { workspace = true }
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 # Note: wrldbldr-domain not needed - UI uses protocol types, not domain types
-# Note: wrldbldr-player-adapters is needed for Platform DI container (composition root concern)
+# Note: wrldbldr-player-adapters dependency removed - UI now uses PlatformPort trait from ports
 
 # Dioxus
 dioxus = { workspace = true }

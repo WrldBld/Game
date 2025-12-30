@@ -5,7 +5,6 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
 
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeBranchData,
     ProposedToolInfo,
@@ -144,7 +143,7 @@ impl ApprovalState {
         speaker: String,
         text: String,
         is_system: bool,
-        platform: &Platform,
+        platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
     ) {
         let timestamp = platform.now_unix_secs();
         self.conversation_log.write().push(ConversationLogEntry {
@@ -161,7 +160,7 @@ impl ApprovalState {
         &mut self,
         request_id: String,
         decision: &ApprovalDecision,
-        platform: &Platform,
+        platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
         engine_client: &Option<Arc<dyn GameConnectionPort>>,
     ) {
         // Send to Engine if we have a client

@@ -93,7 +93,7 @@ pub fn DMView(props: DMViewProps) -> Element {
 fn AdHocChallengeEntryPoint(on_close: EventHandler<()>) -> Element {
     let mut session_state = crate::presentation::state::use_session_state();
     let game_state = use_context::<crate::presentation::state::GameState>();
-    let platform = use_context::<wrldbldr_player_adapters::Platform>();
+    let platform = crate::use_platform();
 
     let player_characters = game_state.scene_characters.read().clone();
 
@@ -133,7 +133,7 @@ fn AdHocChallengeEntryPoint(on_close: EventHandler<()>) -> Element {
                         data.challenge_name, data.target_pc_id
                     ),
                     true,
-                    &platform,
+                    platform.as_ref(),
                 );
 
                 on_close.call(());

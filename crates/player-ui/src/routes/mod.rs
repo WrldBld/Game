@@ -92,7 +92,7 @@ pub enum Route {
 #[component]
 pub fn NotFoundRoute(route: Vec<String>) -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<wrldbldr_player_adapters::Platform>();
+    let platform = crate::use_platform();
 
     // Set page title for this view
     use_effect(move || {

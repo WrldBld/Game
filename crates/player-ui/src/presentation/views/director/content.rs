@@ -20,7 +20,6 @@ use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
 };
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
@@ -690,7 +689,7 @@ struct ApprovalPopupProps {
 #[component]
 fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
     let session_state = use_session_state();
-    let platform = use_context::<Platform>();
+    let platform = crate::use_platform();
     let mut modified_dialogue = use_signal(|| props.approval.proposed_dialogue.clone());
     let mut show_reasoning = use_signal(|| false);
     let mut rejection_feedback = use_signal(|| String::new());
@@ -847,7 +846,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                             &ApprovalDecision::Reject {
                                                 feedback: feedback.clone(),
                                             },
-                                            &platform_reject,
+                                            platform_reject.as_ref(),
                                         );
                                     },
                                     class: "flex-1 p-2 bg-red-500 text-white border-none rounded-lg cursor-pointer",
@@ -885,7 +884,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                     session_state_accept.record_approval_decision(
                                         request_id_accept.clone(),
                                         &ApprovalDecision::Accept,
-                                        &platform_accept,
+                                        platform_accept.as_ref(),
                                     );
                                 },
                                 class: "flex-1 p-3 bg-green-500 text-white border-none rounded-lg cursor-pointer font-semibold",
@@ -919,13 +918,13 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                                     rejected_tools: rejected_list,
                                                     item_recipients: std::collections::HashMap::new(),
                                                 },
-                                                &platform,
+                                                platform.as_ref(),
                                             );
                                         } else {
                                             session_state.record_approval_decision(
                                                 request_id.clone(),
                                                 &ApprovalDecision::Accept,
-                                                &platform,
+                                                platform.as_ref(),
                                             );
                                         }
                                     }

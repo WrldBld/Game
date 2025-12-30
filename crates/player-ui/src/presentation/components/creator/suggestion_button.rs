@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::services::use_suggestion_service;
 use crate::presentation::state::use_generation_state;
-use wrldbldr_player_adapters::Platform;
+use crate::use_platform;
 use wrldbldr_player_app::application::services::SuggestionContext;
 
 /// Types of suggestions that can be requested
@@ -65,7 +65,7 @@ pub fn SuggestionButton(
     context: SuggestionContext,
     on_select: EventHandler<String>,
 ) -> Element {
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
     let suggestion_service = use_suggestion_service();
     let mut generation_state = use_generation_state();
     let mut loading = use_signal(|| false);

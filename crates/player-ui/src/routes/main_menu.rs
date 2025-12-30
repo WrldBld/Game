@@ -1,8 +1,8 @@
 //! Main menu route handler
 
 use super::Route;
+use crate::use_platform;
 use dioxus::prelude::*;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::services::DEFAULT_ENGINE_URL;
 use wrldbldr_player_ports::outbound::storage_keys;
 
@@ -10,7 +10,7 @@ use wrldbldr_player_ports::outbound::storage_keys;
 #[component]
 pub fn MainMenuRoute() -> Element {
     let navigator = use_navigator();
-    let platform = use_context::<Platform>();
+    let platform = use_platform();
 
     // On web, automatically connect to the default (or last-used) server and
     // skip the manual "Connect to Server" modal. This keeps the flow:

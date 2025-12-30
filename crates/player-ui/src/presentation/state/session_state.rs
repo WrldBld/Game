@@ -9,7 +9,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::presentation::components::tactical::PlayerSkillData;
-use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ConnectedUser, OutcomeBranchData, ParticipantRole, WorldRole,
 };
@@ -234,7 +233,7 @@ impl SessionState {
         speaker: String,
         text: String,
         is_system: bool,
-        platform: &Platform,
+        platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
     ) {
         self.approval
             .add_log_entry(speaker, text, is_system, platform);
@@ -286,7 +285,7 @@ impl SessionState {
         &mut self,
         request_id: String,
         decision: &ApprovalDecision,
-        platform: &Platform,
+        platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
     ) {
         let engine_client = self.connection.engine_client.read().clone();
         self.approval

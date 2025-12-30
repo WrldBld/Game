@@ -1,9 +1,19 @@
 use dioxus::prelude::*;
+use std::sync::Arc;
+use wrldbldr_player_ports::outbound::PlatformPort;
 
 pub mod presentation;
 pub mod routes;
 
 pub use routes::Route;
+
+/// Type alias for the platform port used throughout the UI
+pub type Platform = Arc<dyn PlatformPort>;
+
+/// Hook to access the Platform from Dioxus context
+pub fn use_platform() -> Platform {
+    use_context::<Platform>()
+}
 
 pub fn app() -> Element {
     rsx! {

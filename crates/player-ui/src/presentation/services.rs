@@ -195,7 +195,7 @@ use crate::presentation::state::{
     BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
 };
 use anyhow::Result;
-use wrldbldr_player_adapters::Platform;
+use wrldbldr_player_ports::outbound::PlatformPort;
 
 /// Hydrate GenerationState from the Engine's unified generation queue endpoint.
 ///
@@ -285,7 +285,7 @@ const STORAGE_KEY_GEN_READ_BATCHES: &str = "wrldbldr_gen_read_batches";
 const STORAGE_KEY_GEN_READ_SUGGESTIONS: &str = "wrldbldr_gen_read_suggestions";
 
 /// Persist the read/unread state of generation queue items to local storage
-pub fn persist_generation_read_state(platform: &Platform, state: &GenerationState) {
+pub fn persist_generation_read_state(platform: &dyn PlatformPort, state: &GenerationState) {
     // Persist read batch IDs
     let read_batch_ids: Vec<String> = state
         .get_batches()
@@ -309,7 +309,7 @@ pub fn persist_generation_read_state(platform: &Platform, state: &GenerationStat
 
 /// Apply persisted read/unread state from local storage to the current GenerationState
 #[allow(dead_code)]
-fn apply_generation_read_state(platform: &Platform, state: &mut GenerationState) {
+fn apply_generation_read_state(platform: &dyn PlatformPort, state: &mut GenerationState) {
     if let Some(batch_str) = platform.storage_load(STORAGE_KEY_GEN_READ_BATCHES) {
         for id in batch_str
             .split(',')
@@ -401,7 +401,7 @@ pub async fn mark_batch_read_and_sync(
     state: &mut GenerationState,
     batch_id: &str,
     world_id: Option<&str>,
-    platform: &Platform,
+    platform: &dyn PlatformPort,
 ) -> Result<()> {
     state.mark_batch_read(batch_id);
     persist_generation_read_state(platform, state);
@@ -421,7 +421,7 @@ pub async fn mark_suggestion_read_and_sync(
     state: &mut GenerationState,
     request_id: &str,
     world_id: Option<&str>,
-    platform: &Platform,
+    platform: &dyn PlatformPort,
 ) -> Result<()> {
     state.mark_suggestion_read(request_id);
     persist_generation_read_state(platform, state);
