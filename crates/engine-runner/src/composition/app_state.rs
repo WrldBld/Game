@@ -8,22 +8,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use wrldbldr_engine_adapters::infrastructure::clock::SystemClock;
-use wrldbldr_engine_adapters::infrastructure::random_adapter::ThreadRngAdapter;
-use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
-use wrldbldr_engine_adapters::infrastructure::event_bus::{InProcessEventNotifier, SqliteEventBus};
 use wrldbldr_engine_adapters::infrastructure::export::Neo4jWorldExporter;
-use wrldbldr_engine_adapters::infrastructure::ollama::OllamaClient;
-use wrldbldr_engine_adapters::infrastructure::persistence::{
-    Neo4jRepository, SqliteDirectorialContextRepository, SqlitePromptTemplateRepository,
-    SqliteSettingsRepository,
-};
-use wrldbldr_engine_adapters::infrastructure::queues::QueueFactory;
-use wrldbldr_engine_adapters::infrastructure::repositories::{
-    SqliteDomainEventRepository, SqliteGenerationReadStateRepository,
-};
-use wrldbldr_engine_adapters::infrastructure::settings_loader::load_settings_from_env;
 // Import port adapters for use case construction (replaces OldUseCases::new())
 use wrldbldr_engine_adapters::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
@@ -35,12 +21,8 @@ use wrldbldr_engine_adapters::infrastructure::ports::{
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
-use wrldbldr_engine_adapters::infrastructure::world_connection_manager::{
-    new_shared_manager, SharedWorldConnectionManager,
-};
-use wrldbldr_engine_adapters::infrastructure::SystemEnvironmentAdapter;
+use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
-use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
 
 use wrldbldr_engine_app::application::handlers::AppRequestHandler;
 use wrldbldr_engine_app::application::services::generation_service::{
@@ -55,8 +37,8 @@ use wrldbldr_engine_app::application::services::{
     GenerationQueueProjectionService, InteractionServiceImpl, ItemServiceImpl, LLMQueueService,
     LocationServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
     OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
-    PromptContextServiceImpl, PromptTemplateService, RegionServiceImpl, RelationshipServiceImpl,
-    SceneResolutionServiceImpl, SceneServiceImpl, SettingsService, SheetTemplateService,
+    PromptContextServiceImpl, RegionServiceImpl, RelationshipServiceImpl,
+    SceneResolutionServiceImpl, SceneServiceImpl, SheetTemplateService,
     SkillServiceImpl, StoryEventServiceImpl, TriggerEvaluationService, WorkflowConfigService,
     WorldServiceImpl,
 };
@@ -81,31 +63,17 @@ use wrldbldr_engine_ports::outbound::{
     AssetGenerationQueueServicePort,
     AssetServicePort,
     BroadcastPort,
-    EventBusPort,
-    // Challenge repository ports - split for ISP (Clean Interface Segregation)
-    ChallengeAvailabilityPort,
-    ChallengeCrudPort,
     ChallengeOutcomeApprovalServicePort,
-    ChallengePrerequisitePort,
     ChallengeResolutionServicePort,
-    ChallengeScenePort,
     ChallengeServicePort,
-    ChallengeSkillPort,
-    // Character repository ports - split for ISP (Clean Interface Segregation)
-    CharacterActantialPort,
-    CharacterCrudPort,
-    CharacterDispositionPort,
-    CharacterInventoryPort,
-    CharacterLocationPort,
     CharacterServicePort,
-    CharacterWantPort,
-    ClockPort,
     ComfyUIPort,
     DispositionServicePort,
     DmActionProcessorPort,
     DmActionQueueServicePort,
     DmApprovalQueueServicePort,
     DomainEventRepositoryPort,
+    EventBusPort,
     EventChainServicePort,
     EventEffectExecutorPort,
     EventNotifierPort,
@@ -115,26 +83,15 @@ use wrldbldr_engine_ports::outbound::{
     InteractionServicePort,
     ItemServicePort,
     LlmQueueServicePort,
-    // Location repository ports - split for ISP (Clean Interface Segregation)
-    LocationConnectionPort,
-    LocationCrudPort,
-    LocationHierarchyPort,
-    LocationMapPort,
     LocationServicePort,
     NarrativeEventApprovalServicePort,
     NarrativeEventServicePort,
-    // Queue service ports
     PlayerActionQueueServicePort,
     PlayerCharacterServicePort,
     PromptContextServicePort,
     PromptTemplateServicePort,
     QueuePort,
-    // Region repository ports - split for ISP (Clean Interface Segregation)
-    RegionConnectionPort,
-    RegionCrudPort,
-    RegionExitPort,
     RegionItemPort,
-    RegionNpcPort,
     RelationshipServicePort,
     SceneResolutionServicePort,
     SceneServicePort,
@@ -228,9 +185,7 @@ pub struct WorkerServices {
     pub broadcast: Arc<dyn BroadcastPort>,
 }
 
-/// Buffer size for internal event channels
-/// Provides backpressure when consumers are slow
-const EVENT_CHANNEL_BUFFER: usize = 256;
+
 
 /// Creates a new AppState with all services initialized.
 ///
@@ -247,157 +202,89 @@ pub async fn new_app_state(
     tokio::sync::mpsc::Receiver<GenerationEvent>,
     tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,
 )> {
-    // Create system clock for all services that need time operations
-    let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
+    // ===========================================================================
+    // Level 0: Infrastructure
+    // ===========================================================================
+    // Use infrastructure factory to create all foundational dependencies
+    let infra = super::factories::create_infrastructure(&config).await?;
 
-    // Create environment adapter for services that need environment variable access
-    let environment_adapter: Arc<dyn wrldbldr_engine_ports::outbound::EnvironmentPort> =
-        Arc::new(SystemEnvironmentAdapter::new());
+    // Extract fields for use in remaining code
+    let clock = infra.clock.clone();
+    let rng = infra.rng.clone();
+    let repository = infra.neo4j.clone();
+    let llm_client = infra.llm_client.clone();
+    let comfyui_client = infra.comfyui_client.clone();
+    let settings_service = infra.settings_service_concrete.clone();
+    let prompt_template_service = infra.prompt_template_service_concrete.clone();
+    let directorial_context_repo = infra.directorial_context_repo.clone();
+    let world_connection_manager = infra.world_connection_manager.clone();
+    let world_state = infra.world_state.clone();
 
-    // Initialize Neo4j repository
-    let repository = Neo4jRepository::new(
-        &config.neo4j_uri,
-        &config.neo4j_user,
-        &config.neo4j_password,
-        &config.neo4j_database,
-    )
-    .await?;
+    // ===========================================================================
+    // Level 1: Repository Ports
+    // ===========================================================================
+    // Use repository factory to create all ISP-compliant repository ports
+    let repos = super::factories::create_repository_ports(&repository);
 
-    // Initialize Ollama client
-    let llm_client = OllamaClient::new(&config.ollama_base_url, &config.ollama_model);
+    // Extract commonly used ports from the RepositoryPorts struct
+    // Non-ISP repositories
+    let world_repo = repos.world.clone();
+    let relationship_repo = repos.relationship.clone();
+    let skill_repo = repos.skill.clone();
+    let interaction_repo = repos.interaction.clone();
+    let asset_repo = repos.asset.clone();
+    let workflow_repo = repos.workflow.clone();
+    let sheet_template_repo = repos.sheet_template.clone();
+    let item_repo = repos.item.clone();
+    let goal_repo = repos.goal.clone();
+    let want_repo = repos.want.clone();
+    let scene_repo = repos.scene_repo.clone();
 
-    // Initialize ComfyUI client
-    let comfyui_client = ComfyUIClient::new(&config.comfyui_base_url);
+    // Character ISP ports
+    let character_crud = repos.character.crud.clone();
+    let character_want = repos.character.want.clone();
+    let character_actantial = repos.character.actantial.clone();
+    let character_location = repos.character.location.clone();
+    let character_disposition = repos.character.disposition.clone();
 
-    // Initialize settings service early (needed by other services for validation)
-    let settings_db_path = config.queue.sqlite_path.replace(".db", "_settings.db");
-    if let Some(parent) = std::path::Path::new(&settings_db_path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| anyhow::anyhow!("Failed to create settings database directory: {}", e))?;
-    }
-    let settings_pool = sqlx::SqlitePool::connect(&format!("sqlite:{}?mode=rwc", settings_db_path))
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to connect to settings database: {}", e))?;
-    tracing::info!("Connected to settings database: {}", settings_db_path);
+    // Location ISP ports
+    let location_crud = repos.location.crud.clone();
+    let location_hierarchy = repos.location.hierarchy.clone();
+    let location_connection = repos.location.connection.clone();
+    let location_map = repos.location.map.clone();
 
-    let settings_repository = SqliteSettingsRepository::new(settings_pool.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialize settings repository: {}", e))?;
-    let settings_repository: Arc<dyn wrldbldr_engine_ports::outbound::SettingsRepositoryPort> =
-        Arc::new(settings_repository);
-    // Inject the settings loader function (from adapters layer) into the service
-    let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn =
-        Arc::new(load_settings_from_env);
-    let settings_service = Arc::new(SettingsService::new(settings_repository, settings_loader));
+    // Region ISP ports
+    let region_crud = repos.region.crud.clone();
+    let region_connection = repos.region.connection.clone();
+    let region_exit = repos.region.exit.clone();
+    let region_npc = repos.region.npc.clone();
+    let region_item = repos.region.item.clone();
 
-    // Initialize prompt template service (uses same pool as settings - they share the DB file)
-    let prompt_template_repository = SqlitePromptTemplateRepository::new(settings_pool.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialize prompt template repository: {}", e))?;
-    let prompt_template_repository: Arc<
-        dyn wrldbldr_engine_ports::outbound::PromptTemplateRepositoryPort,
-    > = Arc::new(prompt_template_repository);
-    let prompt_template_service = Arc::new(PromptTemplateService::new(
-        prompt_template_repository,
-        environment_adapter.clone(),
-    ));
-    tracing::info!("Initialized prompt template service");
+    // Challenge ISP ports
+    let challenge_crud = repos.challenge.crud.clone();
+    let challenge_skill = repos.challenge.skill.clone();
+    let challenge_scene = repos.challenge.scene.clone();
+    let challenge_prerequisite = repos.challenge.prerequisite.clone();
+    let challenge_availability = repos.challenge.availability.clone();
 
-    // Initialize directorial context repository (shares same SQLite pool)
-    let directorial_context_repo = SqliteDirectorialContextRepository::new(settings_pool)
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!("Failed to initialize directorial context repository: {}", e)
-        })?;
-    let directorial_context_repo: Arc<
-        dyn wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort,
-    > = Arc::new(directorial_context_repo);
-    tracing::info!("Initialized directorial context repository");
+    // StoryEvent ISP ports
+    let story_event_crud = repos.story_event.crud.clone();
+    let story_event_edge = repos.story_event.edge.clone();
+    let story_event_query = repos.story_event.query.clone();
+    let story_event_dialogue = repos.story_event.dialogue.clone();
 
-    // Create individual repository ports as Arc'd trait objects
-    let world_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorldRepositoryPort> =
-        Arc::new(repository.worlds());
-    // Character repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all 6 traits - Rust coerces to needed interface
-    let character_concrete = Arc::new(repository.characters());
-    let character_crud: Arc<dyn CharacterCrudPort> = character_concrete.clone();
-    let character_want: Arc<dyn CharacterWantPort> = character_concrete.clone();
-    let character_actantial: Arc<dyn CharacterActantialPort> = character_concrete.clone();
-    let _character_inventory: Arc<dyn CharacterInventoryPort> = character_concrete.clone();
-    let character_location: Arc<dyn CharacterLocationPort> = character_concrete.clone();
-    let character_disposition: Arc<dyn CharacterDispositionPort> = character_concrete.clone();
-    // Location repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all traits - Rust coerces to needed interface
-    let location_concrete = Arc::new(repository.locations());
-    let location_crud: Arc<dyn LocationCrudPort> = location_concrete.clone();
-    let location_hierarchy: Arc<dyn LocationHierarchyPort> = location_concrete.clone();
-    let location_connection: Arc<dyn LocationConnectionPort> = location_concrete.clone();
-    let location_map: Arc<dyn LocationMapPort> = location_concrete.clone();
-    let scene_repo: Arc<dyn wrldbldr_engine_ports::outbound::SceneRepositoryPort> =
-        Arc::new(repository.scenes());
-    let relationship_repo: Arc<dyn wrldbldr_engine_ports::outbound::RelationshipRepositoryPort> =
-        Arc::new(repository.relationships());
-    let skill_repo: Arc<dyn wrldbldr_engine_ports::outbound::SkillRepositoryPort> =
-        Arc::new(repository.skills());
-    let interaction_repo: Arc<dyn wrldbldr_engine_ports::outbound::InteractionRepositoryPort> =
-        Arc::new(repository.interactions());
-    // StoryEvent repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all 4 traits - Rust coerces to needed interface
-    let story_event_concrete = Arc::new(repository.story_events());
-    let story_event_crud: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventCrudPort> =
-        story_event_concrete.clone();
-    let story_event_edge: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventEdgePort> =
-        story_event_concrete.clone();
-    let story_event_query: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventQueryPort> =
-        story_event_concrete.clone();
-    let story_event_dialogue: Arc<dyn wrldbldr_engine_ports::outbound::StoryEventDialoguePort> =
-        story_event_concrete.clone();
-    // Challenge repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all 5 traits - Rust coerces to needed interface
-    let challenge_concrete = Arc::new(repository.challenges());
-    let challenge_crud: Arc<dyn ChallengeCrudPort> = challenge_concrete.clone();
-    let challenge_skill: Arc<dyn ChallengeSkillPort> = challenge_concrete.clone();
-    let challenge_scene: Arc<dyn ChallengeScenePort> = challenge_concrete.clone();
-    let challenge_prerequisite: Arc<dyn ChallengePrerequisitePort> = challenge_concrete.clone();
-    let challenge_availability: Arc<dyn ChallengeAvailabilityPort> = challenge_concrete.clone();
-    let asset_repo: Arc<dyn wrldbldr_engine_ports::outbound::AssetRepositoryPort> =
-        Arc::new(repository.assets());
-    let workflow_repo: Arc<dyn wrldbldr_engine_ports::outbound::WorkflowRepositoryPort> =
-        Arc::new(repository.workflows());
-    let sheet_template_repo: Arc<dyn wrldbldr_engine_ports::outbound::SheetTemplateRepositoryPort> =
-        Arc::new(repository.sheet_templates());
-    // NarrativeEvent repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all 4 traits - Rust coerces to needed interface
-    let narrative_event_concrete = Arc::new(repository.narrative_events());
-    let narrative_event_crud: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventCrudPort> =
-        narrative_event_concrete.clone();
-    let narrative_event_tie: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventTiePort> =
-        narrative_event_concrete.clone();
-    let narrative_event_npc: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventNpcPort> =
-        narrative_event_concrete.clone();
-    let narrative_event_query: Arc<dyn wrldbldr_engine_ports::outbound::NarrativeEventQueryPort> =
-        narrative_event_concrete.clone();
+    // NarrativeEvent ISP ports
+    let narrative_event_crud = repos.narrative_event.crud.clone();
+    let narrative_event_tie = repos.narrative_event.tie.clone();
+    let narrative_event_npc = repos.narrative_event.npc.clone();
+    let narrative_event_query = repos.narrative_event.query.clone();
+
+    // EventChain ISP ports - extract god trait for now (services use full interface)
     let event_chain_repo: Arc<dyn wrldbldr_engine_ports::outbound::EventChainRepositoryPort> =
         Arc::new(repository.event_chains());
-    let player_character_repo: Arc<
-        dyn wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort,
-    > = Arc::new(repository.player_characters());
-    let item_repo: Arc<dyn wrldbldr_engine_ports::outbound::ItemRepositoryPort> =
-        Arc::new(repository.items());
-    let goal_repo: Arc<dyn wrldbldr_engine_ports::outbound::GoalRepositoryPort> =
-        Arc::new(repository.goals());
-    let want_repo: Arc<dyn wrldbldr_engine_ports::outbound::WantRepositoryPort> =
-        Arc::new(repository.wants());
-    // Region repository ports - split for ISP (Clean Interface Segregation)
-    // The same concrete repository implements all traits - Rust coerces to needed interface
-    let region_concrete = Arc::new(repository.regions());
-    let region_crud: Arc<dyn RegionCrudPort> = region_concrete.clone();
-    let region_connection: Arc<dyn RegionConnectionPort> = region_concrete.clone();
-    let region_exit: Arc<dyn RegionExitPort> = region_concrete.clone();
-    let region_npc: Arc<dyn RegionNpcPort> = region_concrete.clone();
-    let region_item: Arc<dyn RegionItemPort> = region_concrete.clone();
-    // Note: RegionRepositoryPort has been fully replaced by ISP traits
-    // All consumers now use the specific ISP traits they need
+
+    // PlayerCharacter - extract god trait (services use full interface)
+    let player_character_repo = repos.player_character.god.clone();
 
     // Create world exporter
     let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
@@ -602,61 +489,34 @@ pub async fn new_app_state(
     // Uses ISP: ChallengeCrudPort only
     let outcome_trigger_service = Arc::new(OutcomeTriggerService::new(challenge_crud.clone()));
 
-    // Create world connection manager for WebSocket-first architecture
-    let world_connection_manager = new_shared_manager();
-    tracing::info!("Initialized world connection manager for WebSocket-first architecture");
+    // Note: world_connection_manager and world_state are already extracted from infra above
 
-    // Create world state manager for per-world state (game time, conversation, approvals)
-    let world_state = Arc::new(WorldStateManager::new());
-    tracing::info!("Initialized world state manager for per-world state");
+    // ===========================================================================
+    // Level 2: Event Infrastructure + Queue Backends (parallel)
+    // ===========================================================================
+    let (event_infra, queue_backends) = tokio::try_join!(
+        super::factories::create_event_infrastructure(&config),
+        super::factories::queue_services::create_queue_backends(&config),
+    )?;
 
-    // Initialize queue infrastructure using factory
-    let queue_factory = QueueFactory::new(config.queue.clone()).await?;
-    tracing::info!("Queue backend: {}", queue_factory.config().backend);
+    // Extract event infrastructure components
+    let event_bus = event_infra.event_bus;
+    let event_notifier = event_infra.event_notifier_concrete;
+    let domain_event_repository = event_infra.domain_event_repository;
+    let generation_read_state_repository = event_infra.generation_read_state_repository;
+    let generation_event_tx = event_infra.generation_event_tx;
+    let generation_event_rx = event_infra.generation_event_rx;
+    let challenge_approval_tx = event_infra.challenge_approval_tx;
+    let challenge_approval_rx = event_infra.challenge_approval_rx;
 
-    let player_action_queue = queue_factory.create_player_action_queue().await?;
-    let llm_queue = queue_factory.create_llm_queue().await?;
-    let dm_action_queue = queue_factory.create_dm_action_queue().await?;
-    let asset_generation_queue = queue_factory.create_asset_generation_queue().await?;
-    let approval_queue = queue_factory.create_approval_queue().await?;
-    let challenge_outcome_queue = queue_factory.create_challenge_outcome_queue().await?;
-
-    // Initialize event bus infrastructure
-    // For now, use a separate SQLite database for events
-    // In production, this could share the queue pool or use Redis
-    let event_db_path = config.queue.sqlite_path.replace(".db", "_events.db");
-    if let Some(parent) = std::path::Path::new(&event_db_path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| anyhow::anyhow!("Failed to create event database directory: {}", e))?;
-    }
-    let event_pool = sqlx::SqlitePool::connect(&format!("sqlite:{}?mode=rwc", event_db_path))
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to connect to event database: {}", e))?;
-    tracing::info!("Connected to event database: {}", event_db_path);
-
-    // Note: settings_service was initialized earlier (needed by services for validation)
-
-    // Domain event repository - the only event repository needed
-    // Handles conversion to/from wire format (AppEvent) internally
-    let domain_event_repository_impl = SqliteDomainEventRepository::new(event_pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialize domain event repository: {}", e))?;
-
-    // Generation read-state repository shares the same SQLite pool as domain events
-    let generation_read_state_repository =
-        SqliteGenerationReadStateRepository::new(domain_event_repository_impl.pool().clone());
-    generation_read_state_repository.init_schema().await?;
-    let generation_read_state_repository: Arc<dyn GenerationReadStatePort> =
-        Arc::new(generation_read_state_repository);
-
-    let domain_event_repository: Arc<dyn DomainEventRepositoryPort> =
-        Arc::new(domain_event_repository_impl);
-
-    let event_notifier = InProcessEventNotifier::new();
-    let event_bus: Arc<dyn EventBusPort> = Arc::new(SqliteEventBus::new(
-        domain_event_repository.clone(),
-        event_notifier.clone(),
-    ));
+    // Extract queue backends
+    let player_action_queue = queue_backends.player_action_queue;
+    let llm_queue = queue_backends.llm_queue;
+    let dm_action_queue = queue_backends.dm_action_queue;
+    let asset_generation_queue = queue_backends.asset_generation_queue;
+    let approval_queue = queue_backends.approval_queue;
+    let challenge_outcome_queue = queue_backends.challenge_outcome_queue;
+    let queue_factory = queue_backends.queue_factory;
 
     // Create story event service with event bus
     // Uses ISP sub-traits: crud, edge, query, dialogue
@@ -714,10 +574,7 @@ pub async fn new_app_state(
         clock.clone(),
     ));
 
-    // Create event channel for generation service (needed for LLMQueueService suggestions)
-    // Uses bounded channel with backpressure when consumers are slow
-    let (generation_event_tx, generation_event_rx) =
-        tokio::sync::mpsc::channel(EVENT_CHANNEL_BUFFER);
+    // generation_event_tx/rx already extracted from event_infra above
     let generation_event_tx_for_llm = generation_event_tx.clone();
 
     let llm_client_arc = Arc::new(llm_client.clone());
@@ -791,11 +648,8 @@ pub async fn new_app_state(
     //
     // The service uses an event channel instead of WorldConnectionPort for hexagonal compliance.
     // Events are published by ChallengeApprovalEventPublisher (started in server.rs).
+    // challenge_approval_tx/rx already extracted from event_infra above
     let llm_for_suggestions = Arc::new(llm_client.clone());
-    // Create event channel for challenge outcome approval (P3.3)
-    // Uses bounded channel with backpressure when consumers are slow
-    let (challenge_approval_tx, challenge_approval_rx) =
-        tokio::sync::mpsc::channel(EVENT_CHANNEL_BUFFER);
     let challenge_outcome_approval_service = Arc::new(ChallengeOutcomeApprovalService::new(
         challenge_approval_tx,
         outcome_trigger_service.clone(),
@@ -811,10 +665,7 @@ pub async fn new_app_state(
     // Create challenge resolution service with required approval service
     // Uses concrete service impls for generics compatibility
     // Note: No longer takes WorldConnectionPort - returns typed results for use case layer to broadcast
-    // Create RNG adapter for dice rolls
-    let rng: Arc<dyn wrldbldr_engine_ports::outbound::RandomPort> =
-        Arc::new(ThreadRngAdapter::new());
-
+    // Note: rng is already extracted from infra above
     let challenge_resolution_service = Arc::new(ChallengeResolutionService::new(
         Arc::new(challenge_service_impl.clone()),
         Arc::new(skill_service_impl.clone()),
