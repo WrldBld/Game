@@ -5,15 +5,16 @@
 //! - Extracting configurable inputs from workflows
 //! - Applying prompts and overrides to workflows
 //! - Managing workflow configurations
+//!
+//! Note: Core workflow analysis functions are now in `wrldbldr_domain_types`.
+//! This module provides thin wrappers for backwards compatibility.
 
 use anyhow::{anyhow, Result};
 use rand::Rng;
 
 use crate::application::dto::{workflow_config_from_export_dto, workflow_config_to_export_dto};
-use wrldbldr_domain::entities::{
-    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
-    WorkflowConfiguration, WorkflowInput,
-};
+use wrldbldr_domain::entities::{InputDefault, PromptMappingType, WorkflowConfiguration};
+use wrldbldr_domain_types::{PromptMapping, WorkflowAnalysis};
 use wrldbldr_protocol::WorkflowConfigExportDto;
 
 /// Service for working with ComfyUI workflows
@@ -23,126 +24,16 @@ impl WorkflowService {
     /// Analyze a ComfyUI API format workflow JSON
     ///
     /// Extracts all configurable inputs (non-connection values) from the workflow.
+    /// Delegates to `wrldbldr_domain_types::analyze_workflow`.
     pub fn analyze_workflow(workflow_json: &serde_json::Value) -> WorkflowAnalysis {
-        let mut inputs = Vec::new();
-        let mut text_inputs = Vec::new();
-        let mut errors = Vec::new();
-        let mut node_count = 0;
-
-        // The workflow should be an object with node IDs as keys
-        let nodes = match workflow_json.as_object() {
-            Some(nodes) => nodes,
-            None => {
-                errors.push("Workflow JSON must be an object with node IDs as keys".to_string());
-                return WorkflowAnalysis {
-                    node_count: 0,
-                    inputs,
-                    text_inputs,
-                    errors,
-                };
-            }
-        };
-
-        for (node_id, node) in nodes {
-            node_count += 1;
-
-            // Get the class_type (node type)
-            let class_type = node
-                .get("class_type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown")
-                .to_string();
-
-            // Get the node title from _meta if available
-            let node_title = node
-                .get("_meta")
-                .and_then(|m| m.get("title"))
-                .and_then(|t| t.as_str())
-                .map(String::from);
-
-            // Get inputs
-            let node_inputs = match node.get("inputs").and_then(|v| v.as_object()) {
-                Some(inputs) => inputs,
-                None => continue, // Node has no inputs
-            };
-
-            for (input_name, value) in node_inputs {
-                // Skip connection inputs (arrays like ["node_id", output_index])
-                if value.is_array() {
-                    continue;
-                }
-
-                let input_type = InputType::from_value(value);
-
-                let workflow_input = WorkflowInput {
-                    node_id: node_id.clone(),
-                    node_type: class_type.clone(),
-                    node_title: node_title.clone(),
-                    input_name: input_name.clone(),
-                    input_type: input_type.clone(),
-                    current_value: value.clone(),
-                };
-
-                // Track text inputs separately (potential prompt fields)
-                if input_type == InputType::Text {
-                    text_inputs.push(workflow_input.clone());
-                }
-
-                inputs.push(workflow_input);
-            }
-        }
-
-        // Sort inputs by node_id then input_name for consistent ordering
-        inputs.sort_by(|a, b| {
-            a.node_id
-                .cmp(&b.node_id)
-                .then(a.input_name.cmp(&b.input_name))
-        });
-
-        text_inputs.sort_by(|a, b| {
-            a.node_id
-                .cmp(&b.node_id)
-                .then(a.input_name.cmp(&b.input_name))
-        });
-
-        WorkflowAnalysis {
-            node_count,
-            inputs,
-            text_inputs,
-            errors,
-        }
+        wrldbldr_domain_types::analyze_workflow(workflow_json)
     }
 
     /// Validate a workflow JSON is in ComfyUI API format
+    ///
+    /// Delegates to `wrldbldr_domain_types::validate_workflow`.
     pub fn validate_workflow(workflow_json: &serde_json::Value) -> Result<()> {
-        let nodes = workflow_json
-            .as_object()
-            .ok_or_else(|| anyhow!("Workflow must be a JSON object"))?;
-
-        if nodes.is_empty() {
-            return Err(anyhow!("Workflow has no nodes"));
-        }
-
-        // Check that at least some nodes have the expected structure
-        let mut valid_nodes = 0;
-        for (_node_id, node) in nodes {
-            if !node.is_object() {
-                continue;
-            }
-
-            // Check for class_type (required in API format)
-            if node.get("class_type").is_some() {
-                valid_nodes += 1;
-            }
-        }
-
-        if valid_nodes == 0 {
-            return Err(anyhow!(
-                "No valid ComfyUI nodes found. Make sure you're using the API format (Save API Format from ComfyUI)"
-            ));
-        }
-
-        Ok(())
+        wrldbldr_domain_types::validate_workflow(workflow_json).map_err(|e| anyhow!(e))
     }
 
     /// Prepare a workflow for execution by applying prompt and overrides
@@ -253,64 +144,20 @@ impl WorkflowService {
     }
 
     /// Find common node types in a workflow
+    ///
+    /// Delegates to `wrldbldr_domain_types::find_nodes_by_type`.
     pub fn find_nodes_by_type(
         workflow: &serde_json::Value,
         class_type: &str,
     ) -> Vec<(String, serde_json::Value)> {
-        let mut found = Vec::new();
-
-        if let Some(nodes) = workflow.as_object() {
-            for (node_id, node) in nodes {
-                if let Some(ct) = node.get("class_type").and_then(|v| v.as_str()) {
-                    if ct == class_type {
-                        found.push((node_id.clone(), node.clone()));
-                    }
-                }
-            }
-        }
-
-        found
+        wrldbldr_domain_types::find_nodes_by_type(workflow, class_type)
     }
 
     /// Auto-detect prompt mappings from common node types
+    ///
+    /// Delegates to `wrldbldr_domain_types::auto_detect_prompt_mappings`.
     pub fn auto_detect_prompt_mappings(workflow: &serde_json::Value) -> Vec<PromptMapping> {
-        let mut mappings = Vec::new();
-
-        // Look for CLIPTextEncode nodes (most common for prompts)
-        let clip_nodes = Self::find_nodes_by_type(workflow, "CLIPTextEncode");
-
-        for (node_id, node) in clip_nodes {
-            // Check the node title to guess if it's positive or negative
-            let title = node
-                .get("_meta")
-                .and_then(|m| m.get("title"))
-                .and_then(|t| t.as_str())
-                .unwrap_or("");
-
-            let is_negative =
-                title.to_lowercase().contains("negative") || title.to_lowercase().contains("neg");
-
-            let mapping_type = if is_negative {
-                PromptMappingType::Negative
-            } else {
-                // Default to primary for the first positive prompt found
-                if mappings
-                    .iter()
-                    .any(|m: &PromptMapping| m.mapping_type == PromptMappingType::Primary)
-                {
-                    continue; // Skip additional positive prompts
-                }
-                PromptMappingType::Primary
-            };
-
-            mappings.push(PromptMapping {
-                node_id: node_id.clone(),
-                input_name: "text".to_string(),
-                mapping_type,
-            });
-        }
-
-        mappings
+        wrldbldr_domain_types::auto_detect_prompt_mappings(workflow)
     }
 
     /// Export all workflow configurations to a single JSON for backup
@@ -355,6 +202,7 @@ impl WorkflowService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain_types::InputType;
 
     fn sample_workflow() -> serde_json::Value {
         serde_json::json!({

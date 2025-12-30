@@ -8,6 +8,7 @@ description = "WrldBldr Engine App - Application services and use-cases"
 
 [dependencies]
 wrldbldr-domain = { workspace = true }
+wrldbldr-domain-types = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-engine-dto = { workspace = true }
