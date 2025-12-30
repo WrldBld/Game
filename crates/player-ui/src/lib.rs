@@ -7,6 +7,15 @@ pub mod routes;
 
 pub use routes::Route;
 
+/// Shell variant for UI layout selection.
+/// This is passed via Dioxus context from the runner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ShellKind {
+    #[default]
+    Desktop,
+    Mobile,
+}
+
 /// Type alias for the platform port used throughout the UI
 pub type Platform = Arc<dyn PlatformPort>;
 
@@ -24,7 +33,7 @@ pub fn app() -> Element {
 #[component]
 fn AppRoot() -> Element {
     // Provided by `wrldbldr-player-runner`.
-    let config = use_context::<wrldbldr_player_ports::config::RunnerConfig>();
+    let shell = use_context::<ShellKind>();
 
     // These must be created inside an active Dioxus runtime.
     use_context_provider(|| presentation::state::GameState::new());
@@ -38,13 +47,13 @@ fn AppRoot() -> Element {
         }
 
         {
-            match config.shell {
-                wrldbldr_player_ports::config::ShellKind::Desktop => rsx! {
+            match shell {
+                ShellKind::Desktop => rsx! {
                     DesktopShell {
                         Router::<routes::Route> {}
                     }
                 },
-                wrldbldr_player_ports::config::ShellKind::Mobile => rsx! {
+                ShellKind::Mobile => rsx! {
                     MobileShell {
                         Router::<routes::Route> {}
                     }

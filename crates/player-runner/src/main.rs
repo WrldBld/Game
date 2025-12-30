@@ -42,9 +42,9 @@ fn main() {
                 .unwrap_or(1024.0);
 
             if width < 768.0 {
-                wrldbldr_player_ports::config::ShellKind::Mobile
+                wrldbldr_player_runner::config::ShellKind::Mobile
             } else {
-                wrldbldr_player_ports::config::ShellKind::Desktop
+                wrldbldr_player_runner::config::ShellKind::Desktop
             }
         }
 
@@ -52,12 +52,12 @@ fn main() {
         {
             std::env::var("WRLDBLDR_SHELL")
                 .ok()
-                .and_then(|s| s.parse::<wrldbldr_player_ports::config::ShellKind>().ok())
+                .and_then(|s| s.parse::<wrldbldr_player_runner::config::ShellKind>().ok())
                 .unwrap_or_default()
         }
     };
 
-    let config = wrldbldr_player_ports::config::RunnerConfig { shell };
+    let config = wrldbldr_player_runner::config::RunnerConfig { shell };
 
     // Get WebSocket URL from environment or use default
     let ws_url = std::env::var("WRLDBLDR_ENGINE_WS_URL")

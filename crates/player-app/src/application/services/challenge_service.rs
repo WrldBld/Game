@@ -136,7 +136,7 @@ impl ChallengeService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;
+    use wrldbldr_player_ports::outbound::testing::MockGameConnectionPort;
 
     #[tokio::test]
     async fn list_challenges_sends_correct_payload() {

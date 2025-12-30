@@ -12,8 +12,8 @@
 
 use async_trait::async_trait;
 
-use wrldbldr_domain::value_objects::GamePromptRequest;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, SceneId, WorldId};
+use wrldbldr_domain::value_objects::{GamePromptRequest, PlayerActionData};
+use wrldbldr_domain::{PlayerCharacterId, SceneId, WorldId};
 
 /// Error type for prompt context operations
 #[derive(Debug, thiserror::Error)]
@@ -61,11 +61,7 @@ pub trait PromptContextServicePort: Send + Sync {
     /// # Arguments
     ///
     /// * `world_id` - The world containing the action
-    /// * `pc_id` - The player character performing the action
-    /// * `action_type` - Type of action (e.g., "speak", "examine", "use_item")
-    /// * `target` - Optional target of the action (NPC name, object, etc.)
-    /// * `dialogue` - Optional dialogue content if the action is speech
-    /// * `region_id` - Optional region ID for location context
+    /// * `action` - The player action data containing action type, target, dialogue, etc.
     ///
     /// # Returns
     ///
@@ -73,36 +69,8 @@ pub trait PromptContextServicePort: Send + Sync {
     async fn build_prompt_from_action(
         &self,
         world_id: WorldId,
-        pc_id: PlayerCharacterId,
-        action_type: String,
-        target: Option<String>,
-        dialogue: Option<String>,
-        region_id: Option<RegionId>,
+        action: &PlayerActionData,
     ) -> Result<GamePromptRequest, PromptContextError>;
-
-    /// Find which NPC should respond to the player.
-    ///
-    /// Given a scene and an optional target, determines which character
-    /// should respond to the player's action. If a target is specified,
-    /// attempts to match it to a character in the scene. Otherwise,
-    /// selects an appropriate responding character.
-    ///
-    /// # Arguments
-    ///
-    /// * `world_id` - The world containing the scene
-    /// * `scene_id` - The current scene
-    /// * `target` - Optional target name to match
-    ///
-    /// # Returns
-    ///
-    /// The ID of the responding character, or `None` if no suitable
-    /// character is found.
-    async fn find_responding_character(
-        &self,
-        world_id: WorldId,
-        scene_id: SceneId,
-        target: Option<String>,
-    ) -> Result<Option<CharacterId>, PromptContextError>;
 }
 
 #[cfg(any(test, feature = "testing"))]
@@ -115,18 +83,7 @@ mockall::mock! {
         async fn build_prompt_from_action(
             &self,
             world_id: WorldId,
-            pc_id: PlayerCharacterId,
-            action_type: String,
-            target: Option<String>,
-            dialogue: Option<String>,
-            region_id: Option<RegionId>,
+            action: &PlayerActionData,
         ) -> Result<GamePromptRequest, PromptContextError>;
-
-        async fn find_responding_character(
-            &self,
-            world_id: WorldId,
-            scene_id: SceneId,
-            target: Option<String>,
-        ) -> Result<Option<CharacterId>, PromptContextError>;
     }
 }

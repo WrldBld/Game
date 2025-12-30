@@ -5,10 +5,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
 use std::sync::Arc;
 
-use wrldbldr_domain::entities::WorkflowConfiguration;
 use wrldbldr_domain_types::{
     analyze_workflow, auto_detect_prompt_mappings, validate_workflow, WorkflowSlot,
 };
@@ -117,49 +115,17 @@ pub async fn save_workflow_config(
     // Validate the workflow JSON
     validate_workflow(&req.workflow_json).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    // Check if we're updating or creating
-    let existing = state
+    // Delegate entity mutation to the service
+    let (config, is_update) = state
         .workflow_service()
-        .get_by_slot(workflow_slot)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let is_update = existing.is_some();
-
-    let now = Utc::now();
-    let config = if let Some(mut existing_config) = existing {
-        // Update existing
-        existing_config.name = req.name;
-        existing_config.update_workflow(req.workflow_json, now);
-        existing_config.set_prompt_mappings(
+        .create_or_update(
+            workflow_slot,
+            req.name,
+            req.workflow_json,
             req.prompt_mappings.into_iter().map(Into::into).collect(),
-            now,
-        );
-        existing_config.set_input_defaults(
             req.input_defaults.into_iter().map(Into::into).collect(),
-            now,
-        );
-        existing_config.set_locked_inputs(req.locked_inputs, now);
-        existing_config
-    } else {
-        // Create new
-        let mut config =
-            WorkflowConfiguration::new(workflow_slot, req.name, req.workflow_json, now);
-        config.set_prompt_mappings(
-            req.prompt_mappings.into_iter().map(Into::into).collect(),
-            now,
-        );
-        config.set_input_defaults(
-            req.input_defaults.into_iter().map(Into::into).collect(),
-            now,
-        );
-        config.set_locked_inputs(req.locked_inputs, now);
-        config
-    };
-
-    state
-        .workflow_service()
-        .save(&config)
+            req.locked_inputs,
+        )
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -204,35 +170,24 @@ pub async fn update_workflow_defaults(
 ) -> Result<Json<WorkflowConfigFullResponseDto>, (StatusCode, String)> {
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
-    let mut config = state
+    // Delegate entity mutation to the service
+    let config = state
         .workflow_service()
-        .get_by_slot(workflow_slot)
+        .update_defaults(
+            workflow_slot,
+            req.input_defaults.into_iter().map(Into::into).collect(),
+            req.locked_inputs,
+        )
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                format!("No workflow configured for slot: {}", slot),
-            )
+        .map_err(|e| {
+            // Check if it's a "not found" error
+            let msg = e.to_string();
+            if msg.contains("No workflow configured") {
+                (StatusCode::NOT_FOUND, msg)
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg)
+            }
         })?;
-
-    // Update defaults
-    let now = Utc::now();
-    config.set_input_defaults(
-        req.input_defaults.into_iter().map(Into::into).collect(),
-        now,
-    );
-
-    // Update locked inputs if provided
-    if let Some(locked) = req.locked_inputs {
-        config.set_locked_inputs(locked, now);
-    }
-
-    state
-        .workflow_service()
-        .save(&config)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let analysis = analyze_workflow(&config.workflow_json);
     Ok(Json(workflow_config_to_full_response_dto(&config, analysis)))
@@ -275,32 +230,16 @@ pub async fn import_workflows(
     State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<ImportWorkflowsRequestDto>,
 ) -> Result<Json<ImportWorkflowsResponseDto>, (StatusCode, String)> {
+    // Parse the import data
     let configs = import_configs(&req.data)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let mut imported = 0;
-    let mut skipped = 0;
-
-    for config in configs {
-        let existing = state
-            .workflow_service()
-            .get_by_slot(config.slot)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-        if existing.is_some() && !req.replace_existing {
-            skipped += 1;
-            continue;
-        }
-
-        state
-            .workflow_service()
-            .save(&config)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-        imported += 1;
-    }
+    // Delegate import logic to the service
+    let (imported, skipped) = state
+        .workflow_service()
+        .import_configs(configs, req.replace_existing)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(ImportWorkflowsResponseDto { imported, skipped }))
 }

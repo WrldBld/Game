@@ -35,3 +35,10 @@ pub use game_connection::{
     mock::CombinedGameConnectionMock, MockConnectionLifecyclePort, MockDmControlPort,
     MockGameRequestPort, MockNavigationPort, MockPlayerActionPort, MockSessionCommandPort,
 };
+
+// Re-export full GameConnectionPort mock
+#[cfg(any(test, feature = "testing"))]
+pub use testing::{
+    MockGameConnectionPort, SentAction, SentApproval, SentChallengeTrigger, SentJoin,
+    SentSceneChange,
+};

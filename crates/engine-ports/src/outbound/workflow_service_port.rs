@@ -13,7 +13,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::{WorkflowConfigId, WorldId};
 
 /// Port for workflow service operations
@@ -57,4 +57,36 @@ pub trait WorkflowServicePort: Send + Sync {
         world_id: WorldId,
         slot: WorkflowSlot,
     ) -> Result<Option<WorkflowConfiguration>>;
+
+    /// Create a new workflow configuration or update an existing one
+    ///
+    /// Returns the created/updated configuration with is_update flag.
+    async fn create_or_update(
+        &self,
+        slot: WorkflowSlot,
+        name: String,
+        workflow_json: serde_json::Value,
+        prompt_mappings: Vec<PromptMapping>,
+        input_defaults: Vec<InputDefault>,
+        locked_inputs: Vec<String>,
+    ) -> Result<(WorkflowConfiguration, bool)>;
+
+    /// Update just the defaults for an existing workflow configuration
+    ///
+    /// Returns the updated configuration, or an error if no configuration exists for the slot.
+    async fn update_defaults(
+        &self,
+        slot: WorkflowSlot,
+        input_defaults: Vec<InputDefault>,
+        locked_inputs: Option<Vec<String>>,
+    ) -> Result<WorkflowConfiguration>;
+
+    /// Import workflow configurations, optionally replacing existing ones
+    ///
+    /// Returns (imported_count, skipped_count).
+    async fn import_configs(
+        &self,
+        configs: Vec<WorkflowConfiguration>,
+        replace_existing: bool,
+    ) -> Result<(usize, usize)>;
 }

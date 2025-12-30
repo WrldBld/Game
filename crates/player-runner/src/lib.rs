@@ -2,10 +2,51 @@ use std::sync::Arc;
 
 use wrldbldr_player_adapters::Platform;
 use wrldbldr_player_app::application::api::Api;
-use wrldbldr_player_ports::{
-    config::RunnerConfig,
-    outbound::{GameConnectionPort, PlatformPort, RawApiPort},
-};
+use wrldbldr_player_ports::outbound::{GameConnectionPort, PlatformPort, RawApiPort};
+
+/// Configuration types for the player runner.
+pub mod config {
+    use std::str::FromStr;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum ShellKind {
+        Desktop,
+        Mobile,
+    }
+
+    impl Default for ShellKind {
+        fn default() -> Self {
+            Self::Desktop
+        }
+    }
+
+    impl FromStr for ShellKind {
+        type Err = String;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match s.trim().to_ascii_lowercase().as_str() {
+                "desktop" => Ok(Self::Desktop),
+                "mobile" => Ok(Self::Mobile),
+                other => Err(format!("unknown shell kind: {other}")),
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct RunnerConfig {
+        pub shell: ShellKind,
+    }
+
+    impl Default for RunnerConfig {
+        fn default() -> Self {
+            Self {
+                shell: ShellKind::default(),
+            }
+        }
+    }
+}
+
+use config::RunnerConfig;
 
 pub struct RunnerDeps {
     pub platform: Platform,
@@ -37,9 +78,15 @@ pub fn run(deps: RunnerDeps) {
         builder = builder.with_cfg(cfg);
     }
 
+    // Convert runner's ShellKind to player-ui's ShellKind for context
+    let ui_shell = match config.shell {
+        config::ShellKind::Desktop => wrldbldr_player_ui::ShellKind::Desktop,
+        config::ShellKind::Mobile => wrldbldr_player_ui::ShellKind::Mobile,
+    };
+
     builder
         .with_context(platform_port)
-        .with_context(config)
+        .with_context(ui_shell)
         .with_context(wrldbldr_player_ui::presentation::Services::new(
             api, raw_api, connection,
         ))

@@ -1,11 +1,26 @@
 //! Test utilities for outbound ports
 //!
-//! NOTE: Mock implementations have been moved to player-adapters/infrastructure/testing
-//! where they belong (adapters layer). This module is kept for backwards compatibility
-//! and re-exports from the correct location.
+//! This module provides mock implementations of outbound port traits for testing.
+//! These mocks are available when the `testing` feature is enabled.
 //!
-//! For new code, import mocks from:
-//! `use wrldbldr_player_adapters::infrastructure::testing::MockGameConnectionPort;`
+//! # Usage
+//!
+//! Add to your Cargo.toml:
+//! ```toml
+//! [dev-dependencies]
+//! wrldbldr-player-ports = { workspace = true, features = ["testing"] }
+//! ```
+//!
+//! Then import the mocks:
+//! ```ignore
+//! use wrldbldr_player_ports::outbound::testing::MockGameConnectionPort;
+//! ```
 
-// This module is now empty - mocks are in player-adapters
-// The re-export in outbound/mod.rs has been removed
+#[cfg(any(test, feature = "testing"))]
+mod mock_game_connection;
+
+#[cfg(any(test, feature = "testing"))]
+pub use mock_game_connection::{
+    MockGameConnectionPort, SentAction, SentApproval, SentChallengeTrigger, SentJoin,
+    SentSceneChange,
+};

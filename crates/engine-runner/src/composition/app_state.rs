@@ -154,67 +154,12 @@ use wrldbldr_engine_ports::outbound::{
 pub use wrldbldr_engine_ports::inbound::AppStatePort;
 
 use wrldbldr_domain::value_objects::{
-    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData,
-    GamePromptRequest, LlmRequestData, PlayerActionData,
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
+    PlayerActionData,
 };
 use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient as ComfyUIClientType;
 use wrldbldr_engine_adapters::infrastructure::ollama::OllamaClient as OllamaClientType;
 use wrldbldr_engine_adapters::infrastructure::queues::{InProcessNotifier, QueueBackendEnum};
-
-/// Adapter that implements PromptContextServicePort by delegating to PromptContextService.
-///
-/// This adapter bridges the app-layer PromptContextService trait to the port-layer
-/// PromptContextServicePort trait. The port trait has a different method signature
-/// (individual fields vs struct), so this adapter does the conversion.
-///
-/// Note: This is a workaround for the incomplete trait migration. In the future,
-/// PromptContextServiceImpl should directly implement PromptContextServicePort.
-struct PromptContextServicePortAdapter {
-    inner: Arc<dyn wrldbldr_engine_app::application::services::PromptContextService>,
-}
-
-#[async_trait::async_trait]
-impl PromptContextServicePort for PromptContextServicePortAdapter {
-    async fn build_prompt_from_action(
-        &self,
-        world_id: wrldbldr_domain::WorldId,
-        pc_id: wrldbldr_domain::PlayerCharacterId,
-        action_type: String,
-        target: Option<String>,
-        dialogue: Option<String>,
-        _region_id: Option<wrldbldr_domain::RegionId>,
-    ) -> Result<GamePromptRequest, wrldbldr_engine_ports::outbound::PromptContextError> {
-        use wrldbldr_domain::value_objects::PlayerActionData;
-        use wrldbldr_engine_ports::outbound::PromptContextError;
-
-        // Build the action struct from individual fields
-        let action = PlayerActionData {
-            world_id,
-            player_id: "adapter".to_string(), // Not used in prompt building
-            pc_id: Some(pc_id),
-            action_type,
-            target,
-            dialogue,
-            timestamp: chrono::Utc::now(),
-        };
-
-        // Delegate to the inner service
-        self.inner
-            .build_prompt_from_action(world_id, &action)
-            .await
-            .map_err(|e| PromptContextError::Internal(e.to_string()))
-    }
-
-    async fn find_responding_character(
-        &self,
-        _world_id: wrldbldr_domain::WorldId,
-        _scene_id: wrldbldr_domain::SceneId,
-        _target: Option<String>,
-    ) -> Result<Option<wrldbldr_domain::CharacterId>, wrldbldr_engine_ports::outbound::PromptContextError> {
-        // Not used by any current code paths through AppState
-        Ok(None)
-    }
-}
 
 /// Worker services - concrete queue service types for background workers.
 ///
@@ -960,9 +905,8 @@ pub async fn new_app_state(
 
     // Create prompt context service for building LLM prompts from player actions
     // Uses ISP: CharacterCrudPort, RegionItemPort
-    let prompt_context_service: Arc<
-        dyn wrldbldr_engine_app::application::services::PromptContextService,
-    > = Arc::new(PromptContextServiceImpl::new(
+    // PromptContextServiceImpl now implements both app-layer trait and port trait directly
+    let prompt_context_service_impl = Arc::new(PromptContextServiceImpl::new(
         world_service.clone(),
         world_state.clone() as Arc<dyn wrldbldr_engine_ports::outbound::WorldStatePort>,
         challenge_service.clone(),
@@ -975,6 +919,13 @@ pub async fn new_app_state(
         actantial_context_service.clone()
             as Arc<dyn wrldbldr_engine_app::application::services::ActantialContextService>,
     ));
+    // Cast to app-layer trait for WorkerServices (which needs the app-layer signature)
+    let prompt_context_service: Arc<
+        dyn wrldbldr_engine_app::application::services::PromptContextService,
+    > = prompt_context_service_impl.clone();
+    // Cast to port trait for AppState (no adapter shim needed - impl is direct now)
+    let prompt_context_service_port: Arc<dyn PromptContextServicePort> =
+        prompt_context_service_impl;
 
     // Clone generation services for use in request handler
     let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
@@ -1318,9 +1269,7 @@ pub async fn new_app_state(
         request_handler.clone(),
         directorial_context_repo.clone(),
         composition_use_cases,
-        Arc::new(PromptContextServicePortAdapter {
-            inner: prompt_context_service.clone(),
-        }) as Arc<dyn PromptContextServicePort>,
+        prompt_context_service_port,
     );
 
     // ===========================================================================

@@ -36,8 +36,8 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, QueueError, RegionItemPort,
-    WorldStatePort,
+    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, PromptContextError,
+    PromptContextServicePort, QueueError, RegionItemPort, WorldStatePort,
 };
 
 use super::{
@@ -251,6 +251,25 @@ impl PromptContextService for PromptContextServiceImpl {
             location_id: location_id_for_persistence,
             game_time: game_time_for_persistence,
         })
+    }
+}
+
+/// Implementation of the port trait for PromptContextServiceImpl.
+///
+/// This allows the service to be used directly as the port trait without
+/// needing an adapter shim. The error type is converted from QueueError
+/// to PromptContextError.
+#[async_trait]
+impl PromptContextServicePort for PromptContextServiceImpl {
+    async fn build_prompt_from_action(
+        &self,
+        world_id: WorldId,
+        action: &PlayerActionData,
+    ) -> Result<GamePromptRequest, PromptContextError> {
+        // Delegate to the app-layer trait implementation, converting the error type
+        PromptContextService::build_prompt_from_action(self, world_id, action)
+            .await
+            .map_err(|e| PromptContextError::Internal(e.to_string()))
     }
 }
 
