@@ -8,8 +8,8 @@ use axum::{
 use chrono::Utc;
 use std::sync::Arc;
 
-use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::outbound::{
     analyze_workflow, auto_detect_prompt_mappings, export_workflow_configs,
     import_workflow_configs, prepare_workflow, validate_workflow,
@@ -28,12 +28,10 @@ use wrldbldr_protocol::{
 
 /// List all workflow slots grouped by category
 pub async fn list_workflow_slots(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<WorkflowSlotsResponseDto>, (StatusCode, String)> {
     let configs = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .list_all()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -81,15 +79,13 @@ pub async fn list_workflow_slots(
 
 /// Get a workflow configuration by slot
 pub async fn get_workflow_config(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(slot): Path<String>,
 ) -> Result<Json<WorkflowConfigFullResponseDto>, (StatusCode, String)> {
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let config = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -106,7 +102,7 @@ pub async fn get_workflow_config(
 
 /// Create or update a workflow configuration
 pub async fn save_workflow_config(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(slot): Path<String>,
     Json(req): Json<CreateWorkflowConfigRequestDto>,
 ) -> Result<(StatusCode, Json<WorkflowConfigFullResponseDto>), (StatusCode, String)> {
@@ -118,9 +114,7 @@ pub async fn save_workflow_config(
 
     // Check if we're updating or creating
     let existing = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -159,9 +153,7 @@ pub async fn save_workflow_config(
     };
 
     state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .save(&config)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -178,15 +170,13 @@ pub async fn save_workflow_config(
 
 /// Delete a workflow configuration
 pub async fn delete_workflow_config(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(slot): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let deleted = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .delete_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -203,16 +193,14 @@ pub async fn delete_workflow_config(
 
 /// Update just the defaults of a workflow configuration (without re-uploading the workflow JSON)
 pub async fn update_workflow_defaults(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(slot): Path<String>,
     Json(req): Json<UpdateWorkflowDefaultsRequestDto>,
 ) -> Result<Json<WorkflowConfigFullResponseDto>, (StatusCode, String)> {
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let mut config = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -236,9 +224,7 @@ pub async fn update_workflow_defaults(
     }
 
     state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .save(&config)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -268,12 +254,10 @@ pub async fn analyze_workflow_handler(
 
 /// Export all workflow configurations
 pub async fn export_workflows(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let configs = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .list_all()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -283,7 +267,7 @@ pub async fn export_workflows(
 }
 
 pub async fn import_workflows(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<ImportWorkflowsRequestDto>,
 ) -> Result<Json<ImportWorkflowsResponseDto>, (StatusCode, String)> {
     let configs = import_workflow_configs(&req.data)
@@ -294,9 +278,7 @@ pub async fn import_workflows(
 
     for config in configs {
         let existing = state
-            .app
-            .assets
-            .workflow_config_service
+            .workflow_service()
             .get_by_slot(config.slot)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -307,9 +289,7 @@ pub async fn import_workflows(
         }
 
         state
-            .app
-            .assets
-            .workflow_config_service
+            .workflow_service()
             .save(&config)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -321,16 +301,14 @@ pub async fn import_workflows(
 }
 
 pub async fn test_workflow(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(slot): Path<String>,
     Json(req): Json<TestWorkflowRequestDto>,
 ) -> Result<Json<TestWorkflowResponseDto>, (StatusCode, String)> {
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let config = state
-        .app
-        .assets
-        .workflow_config_service
+        .workflow_service()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -352,13 +330,13 @@ pub async fn test_workflow(
 
     // Queue the workflow with ComfyUI
     let queue_result = state
-        .comfyui_client
+        .comfyui()
         .queue_prompt(prepared_workflow)
         .await
         .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, e.to_string()))?;
 
     Ok(Json(TestWorkflowResponseDto {
         prompt_id: queue_result.prompt_id,
-        queue_position: queue_result.number,
+        queue_position: 0, // Queue position not available from ComfyUI response
     }))
 }

@@ -30,7 +30,7 @@ use wrldbldr_domain::{
 };
 use wrldbldr_protocol::ServerMessage;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 
 // =============================================================================
 // Context Types
@@ -102,10 +102,10 @@ impl HandlerContext {
     /// Returns error ServerMessage if:
     /// - Client is not connected
     /// - Client is not in a world
-    pub async fn extract(state: &AdapterState, client_id: Uuid) -> Result<Self, ServerMessage> {
+    pub async fn extract(state: &dyn AppStatePort, client_id: Uuid) -> Result<Self, ServerMessage> {
         let client_id_str = client_id.to_string();
         let connection = state
-            .connection_manager
+            .world_connection_manager()
             .get_connection_by_client_id(&client_id_str)
             .await
             .ok_or_else(|| error_response("NOT_CONNECTED", "Client is not connected"))?;

@@ -4,7 +4,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_engine_ports::outbound::NarrativeEventSuggestionDecisionInput;
 use wrldbldr_protocol::ServerMessage;
@@ -22,7 +22,7 @@ use super::common::extract_dm_context;
 /// Returns None on success (use case broadcasts events via BroadcastPort).
 /// Returns Some(error) on failure.
 pub async fn handle_narrative_event_suggestion_decision(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     request_id: String,
     event_id: String,
@@ -45,9 +45,7 @@ pub async fn handle_narrative_event_suggestion_decision(
 
     // Delegate to use case (broadcasts are handled by the use case via BroadcastPort)
     match state
-        .app
-        .use_cases
-        .narrative_event
+        .narrative_event_use_case()
         .handle_suggestion_decision(ctx, input)
         .await
     {

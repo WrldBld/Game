@@ -11,9 +11,7 @@ default = []
 testing = []
 
 [dependencies]
-# Hexagonal architecture: adapters depend on ports, NOT app layer
-# The engine-app dependency has been removed to enforce proper hexagonal boundaries
-wrldbldr-engine-composition = { workspace = true }
+# Hexagonal architecture: adapters depend on ports, NOT app or composition layers
 wrldbldr-engine-dto = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }

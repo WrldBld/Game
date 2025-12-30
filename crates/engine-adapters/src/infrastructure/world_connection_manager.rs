@@ -27,8 +27,9 @@ use uuid::Uuid;
 
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ConnectedUserInfo as PortConnectedUserInfo, ConnectionStats as PortConnectionStats,
-    DmInfo as PortDmInfo, WorldConnectionManagerPort, WorldRole as PortWorldRole,
+    ConnectedUserInfo as PortConnectedUserInfo, ConnectionContext as PortConnectionContext,
+    ConnectionStats as PortConnectionStats, DmInfo as PortDmInfo, WorldConnectionManagerPort,
+    WorldRole as PortWorldRole,
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 
@@ -1006,6 +1007,84 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
 
     async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
         self.get_world_id_by_client_id(client_id).await
+    }
+
+    async fn get_connection_context(&self, connection_id: Uuid) -> Option<PortConnectionContext> {
+        let conn = self.get_connection(connection_id).await?;
+        Some(PortConnectionContext {
+            connection_id: conn.connection_id,
+            user_id: conn.user_id,
+            username: conn.username,
+            world_id: conn.world_id,
+            role: conn.role.map(to_port_role),
+            pc_id: conn.pc_id,
+            spectate_pc_id: conn.spectate_pc_id,
+        })
+    }
+
+    async fn get_connection_by_client_id(&self, client_id: &str) -> Option<PortConnectionContext> {
+        let conn = WorldConnectionManager::get_connection_by_client_id(self, client_id).await?;
+        Some(PortConnectionContext {
+            connection_id: conn.connection_id,
+            user_id: conn.user_id,
+            username: conn.username,
+            world_id: conn.world_id,
+            role: conn.role.map(to_port_role),
+            pc_id: conn.pc_id,
+            spectate_pc_id: conn.spectate_pc_id,
+        })
+    }
+
+    async fn is_spectator_by_client_id(&self, client_id: &str) -> bool {
+        let conn = match self.get_connection_by_client_id(client_id).await {
+            Some(c) => c,
+            None => return false,
+        };
+        conn.is_spectator()
+    }
+
+    async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
+        let conn = self.get_connection_by_client_id(client_id).await?;
+        conn.pc_id
+    }
+
+    async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value) {
+        // Deserialize to ServerMessage and broadcast
+        if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
+            WorldConnectionManager::broadcast_to_world(self, world_id, server_msg).await;
+        } else {
+            tracing::warn!("Failed to deserialize broadcast message for world {}", world_id);
+        }
+    }
+
+    async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value) {
+        if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
+            WorldConnectionManager::broadcast_to_dms(self, world_id, server_msg).await;
+        } else {
+            tracing::warn!("Failed to deserialize broadcast message for DMs in world {}", world_id);
+        }
+    }
+
+    async fn broadcast_to_players(&self, world_id: Uuid, message: serde_json::Value) {
+        if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
+            WorldConnectionManager::broadcast_to_players(self, world_id, server_msg).await;
+        } else {
+            tracing::warn!("Failed to deserialize broadcast message for players in world {}", world_id);
+        }
+    }
+
+    async fn broadcast_to_all_worlds(&self, message: serde_json::Value) {
+        if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
+            for world_id in self.get_all_world_ids().await {
+                WorldConnectionManager::broadcast_to_world(self, world_id, server_msg.clone()).await;
+            }
+        } else {
+            tracing::warn!("Failed to deserialize broadcast message for all worlds");
+        }
+    }
+
+    async fn unregister_connection(&self, connection_id: Uuid) {
+        let _ = WorldConnectionManager::unregister_connection(self, connection_id).await;
     }
 }
 

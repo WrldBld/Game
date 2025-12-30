@@ -12,7 +12,4 @@
 pub mod app_state;
 pub mod services;
 
-pub use app_state::{new_adapter_state, AdapterState};
-// Re-export composition-layer AppState for external consumers
-#[allow(unused_imports)]
-pub use wrldbldr_engine_composition::AppState;
+pub use app_state::{new_adapter_state, AppStatePort};

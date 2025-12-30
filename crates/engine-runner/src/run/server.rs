@@ -22,7 +22,7 @@ use wrldbldr_engine_adapters::infrastructure;
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::http;
 
-use crate::composition::{new_adapter_state, AdapterState};
+use crate::composition::{new_adapter_state, AppStatePort};
 
 /// Creates a cancellation token and spawns a task that cancels it on SIGTERM/SIGINT
 fn setup_shutdown_signal(cancel_token: CancellationToken) {
@@ -87,7 +87,7 @@ pub async fn run() -> Result<()> {
     // Also returns worker services with concrete queue types for background workers
     let (state, worker_services, generation_event_rx, challenge_approval_rx) =
         new_adapter_state(config.clone()).await?;
-    let state: Arc<AdapterState> = Arc::new(state);
+    let state: Arc<dyn AppStatePort> = Arc::new(state);
     tracing::info!("Application state initialized");
 
     // Clone queue config for workers (from adapter-layer config, not composition AppConfig)
@@ -173,7 +173,7 @@ pub async fn run() -> Result<()> {
     // Approval notification worker (sends ApprovalRequired messages to DM)
     let approval_notification_worker_task = {
         let service = worker_services.dm_approval_queue_service.clone();
-        let world_connection_manager = state.connection_manager.clone();
+        let world_connection_manager = worker_services.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -192,7 +192,7 @@ pub async fn run() -> Result<()> {
     let dm_action_worker_task = {
         let service = worker_services.dm_action_queue_service.clone();
         let dm_action_processor = worker_services.dm_action_processor.clone();
-        let world_connection_manager = state.connection_manager.clone();
+        let world_connection_manager = worker_services.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -210,7 +210,7 @@ pub async fn run() -> Result<()> {
     // Challenge outcome notification worker (sends pending challenge outcomes to DM)
     let challenge_outcome_worker_task = {
         let challenge_queue = worker_services.challenge_outcome_queue.clone();
-        let world_connection_manager = state.connection_manager.clone();
+        let world_connection_manager = worker_services.world_connection_manager.clone();
         let recovery_interval_clone = recovery_interval;
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -274,7 +274,7 @@ pub async fn run() -> Result<()> {
 
     // Generation event publisher (converts GenerationEvents to AppEvents and publishes to event bus)
     let generation_event_worker = {
-        let event_bus = state.app.events.event_bus.clone();
+        let event_bus = worker_services.event_bus.clone();
         let publisher = GenerationEventPublisher::new(event_bus);
         let cancel = cancel_token.clone();
         tokio::spawn(async move {
@@ -285,7 +285,7 @@ pub async fn run() -> Result<()> {
 
     // Challenge approval event publisher (converts ChallengeApprovalEvents to GameEvents and broadcasts via BroadcastPort)
     let challenge_approval_worker = {
-        let broadcast_port = state.app.use_cases.broadcast.clone();
+        let broadcast_port = worker_services.broadcast.clone();
         let publisher = ChallengeApprovalEventPublisher::new(broadcast_port);
         let cancel = cancel_token.clone();
         tokio::spawn(async move {

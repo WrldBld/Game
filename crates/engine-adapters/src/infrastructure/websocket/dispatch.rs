@@ -5,7 +5,7 @@
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_protocol::{ClientMessage, ServerMessage};
 
 use super::handlers::{
@@ -19,7 +19,7 @@ use super::handlers::{
 /// Each ClientMessage variant is routed to its corresponding handler module.
 pub async fn handle_message(
     msg: ClientMessage,
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     sender: mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {

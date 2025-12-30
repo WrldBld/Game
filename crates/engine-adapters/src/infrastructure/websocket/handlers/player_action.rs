@@ -6,7 +6,7 @@
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use crate::infrastructure::websocket::converters::scene_changed_event_to_message;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
@@ -21,7 +21,7 @@ use wrldbldr_protocol::ServerMessage;
 /// 2. Queues non-travel actions for LLM/DM processing
 /// 3. Notifies DM of queued actions
 pub async fn handle_player_action(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     action_type: String,
     target: Option<String>,
@@ -50,9 +50,7 @@ pub async fn handle_player_action(
     };
 
     match state
-        .app
-        .use_cases
-        .player_action
+        .player_action_use_case()
         .handle_action(ctx, input)
         .await
     {
@@ -106,9 +104,9 @@ pub async fn handle_player_action(
 // =============================================================================
 
 /// Extract UseCaseContext from connection state
-async fn extract_context(state: &AdapterState, client_id: Uuid) -> Option<UseCaseContext> {
+async fn extract_context(state: &dyn AppStatePort, client_id: Uuid) -> Option<UseCaseContext> {
     let conn = state
-        .connection_manager
+        .world_connection_manager()
         .get_connection_by_client_id(&client_id.to_string())
         .await?;
 

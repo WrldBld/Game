@@ -6,9 +6,10 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::inbound::RequestContext;
-use wrldbldr_protocol::{RequestPayload, ServerMessage};
+use wrldbldr_engine_ports::outbound::WorldRole as PortWorldRole;
+use wrldbldr_protocol::{RequestPayload, ServerMessage, WorldRole};
 
 /// Handle Request message
 ///
@@ -35,7 +36,7 @@ use wrldbldr_protocol::{RequestPayload, ServerMessage};
 /// Always returns `Some(ServerMessage::Response { ... })` with the request_id
 /// and result from the AppRequestHandler.
 pub async fn handle_request(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     request_id: String,
     payload: RequestPayload,
@@ -52,7 +53,7 @@ pub async fn handle_request(
     );
 
     // Get connection context
-    let conn_info = state.connection_manager.get_connection(connection_id).await;
+    let conn_info = state.world_connection_manager().get_connection_context(connection_id).await;
 
     // Build request context
     let ctx = if let Some(info) = &conn_info {
@@ -60,7 +61,7 @@ pub async fn handle_request(
             connection_id,
             user_id: info.user_id.clone(),
             world_id: info.world_id,
-            role: info.role,
+            role: info.role.map(port_to_protocol_role),
             pc_id: info.pc_id,
             is_dm: info.is_dm(),
             is_spectating: info.is_spectator(),
@@ -71,7 +72,16 @@ pub async fn handle_request(
     };
 
     // Delegate to the AppRequestHandler for all operations
-    let result = state.app.request_handler.handle(payload, ctx).await;
+    let result = state.request_handler().handle(payload, ctx).await;
 
     Some(ServerMessage::Response { request_id, result })
+}
+
+/// Convert port WorldRole to protocol WorldRole
+fn port_to_protocol_role(role: PortWorldRole) -> WorldRole {
+    match role {
+        PortWorldRole::DM => WorldRole::Dm,
+        PortWorldRole::Player => WorldRole::Player,
+        PortWorldRole::Spectator => WorldRole::Spectator,
+    }
 }

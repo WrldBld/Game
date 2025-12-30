@@ -6,7 +6,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::outbound::{
@@ -20,9 +20,9 @@ use super::common::extract_dm_context_opt;
 ///
 /// Spawns an async task to perform the health check and broadcast
 /// the result to all connected clients as a `ComfyUIStateChanged` message.
-pub async fn handle_check_comfyui_health(state: &AdapterState) -> Option<ServerMessage> {
-    let comfyui_client = state.comfyui_client.clone();
-    let connection_manager = state.connection_manager.clone();
+pub async fn handle_check_comfyui_health(state: &dyn AppStatePort) -> Option<ServerMessage> {
+    let comfyui_client = state.comfyui().clone();
+    let connection_manager = state.world_connection_manager().clone();
 
     tokio::spawn(async move {
         let (state_str, message) = match comfyui_client.health_check().await {
@@ -42,10 +42,13 @@ pub async fn handle_check_comfyui_health(state: &AdapterState) -> Option<ServerM
             message,
             retry_in_seconds: None,
         };
-        for world_id in connection_manager.get_all_world_ids().await {
-            connection_manager
-                .broadcast_to_world(world_id, msg.clone())
-                .await;
+        // Serialize to JSON for the port interface
+        if let Ok(json_msg) = serde_json::to_value(&msg) {
+            for world_id in connection_manager.get_all_world_ids().await {
+                connection_manager
+                    .broadcast_to_world(world_id, json_msg.clone())
+                    .await;
+            }
         }
     });
 
@@ -54,7 +57,7 @@ pub async fn handle_check_comfyui_health(state: &AdapterState) -> Option<ServerM
 
 /// Handles sharing an NPC's location with a player character.
 pub async fn handle_share_npc_location(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: String,
     npc_id: String,
@@ -73,9 +76,7 @@ pub async fn handle_share_npc_location(
     };
 
     match state
-        .app
-        .use_cases
-        .observation
+        .observation_use_case()
         .share_npc_location(ctx, input)
         .await
     {
@@ -86,7 +87,7 @@ pub async fn handle_share_npc_location(
 
 /// Handles triggering an NPC approach event.
 pub async fn handle_trigger_approach_event(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     npc_id: String,
     target_pc_id: String,
@@ -103,9 +104,7 @@ pub async fn handle_trigger_approach_event(
     };
 
     match state
-        .app
-        .use_cases
-        .observation
+        .observation_use_case()
         .trigger_approach_event(ctx, input)
         .await
     {
@@ -116,7 +115,7 @@ pub async fn handle_trigger_approach_event(
 
 /// Handles triggering a location-wide event.
 pub async fn handle_trigger_location_event(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     region_id: String,
     description: String,
@@ -129,9 +128,7 @@ pub async fn handle_trigger_location_event(
     };
 
     match state
-        .app
-        .use_cases
-        .observation
+        .observation_use_case()
         .trigger_location_event(ctx, input)
         .await
     {

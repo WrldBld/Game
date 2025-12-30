@@ -8,7 +8,7 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_protocol::ServerMessage;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 
 // =============================================================================
 // Error Helpers
@@ -33,12 +33,12 @@ pub fn error_msg(code: &str, message: &str) -> ServerMessage {
 /// - Not connected to a world
 /// - No player character selected
 pub async fn extract_player_context(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
 ) -> Result<(WorldId, PlayerCharacterId), ServerMessage> {
     let client_id_str = client_id.to_string();
     let connection = state
-        .connection_manager
+        .world_connection_manager()
         .get_connection_by_client_id(&client_id_str)
         .await
         .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
@@ -63,12 +63,12 @@ pub async fn extract_player_context(
 /// - Not connected to a world
 /// - Not a DM
 pub async fn extract_dm_context(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
 ) -> Result<UseCaseContext, ServerMessage> {
     let client_id_str = client_id.to_string();
     let connection = state
-        .connection_manager
+        .world_connection_manager()
         .get_connection_by_client_id(&client_id_str)
         .await
         .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
@@ -101,9 +101,9 @@ pub async fn extract_dm_context(
 ///
 /// Returns None if connection not found or not connected to a world.
 /// Does NOT check DM status - use `extract_dm_context_opt` for that.
-pub async fn extract_context_opt(state: &AdapterState, client_id: Uuid) -> Option<UseCaseContext> {
+pub async fn extract_context_opt(state: &dyn AppStatePort, client_id: Uuid) -> Option<UseCaseContext> {
     let conn = state
-        .connection_manager
+        .world_connection_manager()
         .get_connection_by_client_id(&client_id.to_string())
         .await?;
 
@@ -119,7 +119,7 @@ pub async fn extract_context_opt(state: &AdapterState, client_id: Uuid) -> Optio
 ///
 /// Returns None if connection not found, not in world, or not a DM.
 pub async fn extract_dm_context_opt(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
 ) -> Option<UseCaseContext> {
     extract_context_opt(state, client_id)

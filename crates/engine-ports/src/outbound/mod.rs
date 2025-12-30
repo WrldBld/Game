@@ -86,7 +86,7 @@ pub use challenge_service_port::MockChallengeServicePort;
 pub use clock_port::ClockPort;
 
 // Random port - RNG abstraction for deterministic testing
-pub use random_port::{FixedRandomPort, RandomPort};
+pub use random_port::RandomPort;
 #[cfg(any(test, feature = "testing"))]
 pub use random_port::MockRandomPort;
 
@@ -295,7 +295,8 @@ pub use game_events::{
 #[cfg(any(test, feature = "testing"))]
 pub use world_connection_manager_port::MockWorldConnectionManagerPort;
 pub use world_connection_manager_port::{
-    ConnectedUserInfo, ConnectionManagerError, ConnectionStats, DmInfo, WorldConnectionManagerPort,
+    ConnectedUserInfo, ConnectionContext, ConnectionManagerError, ConnectionStats, DmInfo,
+    WorldConnectionManagerPort,
 };
 
 pub use world_state_port::WorldStatePort;

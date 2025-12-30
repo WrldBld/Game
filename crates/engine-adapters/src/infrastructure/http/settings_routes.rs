@@ -1,4 +1,3 @@
-use crate::infrastructure::adapter_state::AdapterState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -9,8 +8,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::value_objects::{settings_metadata, AppSettings, SettingsFieldMetadata};
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 
-pub fn settings_routes() -> Router<Arc<AdapterState>> {
+pub fn settings_routes() -> Router<Arc<dyn AppStatePort>> {
     Router::new()
         // Global settings
         .route("/api/settings", get(get_settings))
@@ -38,17 +38,16 @@ pub fn settings_routes() -> Router<Arc<AdapterState>> {
 // Global Settings
 // =============================================================================
 
-async fn get_settings(State(state): State<Arc<AdapterState>>) -> Json<AppSettings> {
-    Json(state.app.settings_service.get().await)
+async fn get_settings(State(state): State<Arc<dyn AppStatePort>>) -> Json<AppSettings> {
+    Json(state.settings_service().get().await)
 }
 
 async fn update_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Json(settings): Json<AppSettings>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     state
-        .app
-        .settings_service
+        .settings_service()
         .update(settings.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -56,11 +55,10 @@ async fn update_settings(
 }
 
 async fn reset_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     state
-        .app
-        .settings_service
+        .settings_service()
         .reset()
         .await
         .map(Json)
@@ -80,7 +78,7 @@ async fn get_settings_metadata() -> Json<Vec<SettingsFieldMetadata>> {
 // =============================================================================
 
 async fn get_world_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -92,12 +90,12 @@ async fn get_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     Ok(Json(
-        state.app.settings_service.get_for_world(world_id).await,
+        state.settings_service().get_for_world(world_id).await,
     ))
 }
 
 async fn update_world_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(world_id): Path<String>,
     Json(settings): Json<AppSettings>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
@@ -110,20 +108,19 @@ async fn update_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .app
-        .settings_service
+        .settings_service()
         .update_for_world(world_id, settings.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return the updated settings with world_id set
     Ok(Json(
-        state.app.settings_service.get_for_world(world_id).await,
+        state.settings_service().get_for_world(world_id).await,
     ))
 }
 
 async fn reset_world_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(world_id): Path<String>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -135,8 +132,7 @@ async fn reset_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .app
-        .settings_service
+        .settings_service()
         .reset_for_world(world_id)
         .await
         .map(Json)
@@ -144,7 +140,7 @@ async fn reset_world_settings(
 }
 
 async fn delete_world_settings(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(world_id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id).map_err(|_| {
@@ -156,8 +152,7 @@ async fn delete_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .app
-        .settings_service
+        .settings_service()
         .delete_for_world(world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

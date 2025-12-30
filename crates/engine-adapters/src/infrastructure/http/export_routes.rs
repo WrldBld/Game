@@ -8,14 +8,14 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::outbound::PlayerWorldSnapshot;
 use wrldbldr_protocol::dto::ExportQueryDto;
 
 /// Export a world as JSON snapshot
 pub async fn export_world(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(id): Path<String>,
     Query(_query): Query<ExportQueryDto>,
 ) -> Result<Json<PlayerWorldSnapshot>, (StatusCode, String)> {
@@ -23,9 +23,7 @@ pub async fn export_world(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .app
-        .core
-        .world_service
+        .world_service()
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -35,7 +33,7 @@ pub async fn export_world(
 
 /// Export a world as raw JSON string (for download)
 pub async fn export_world_raw(
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
     Path(id): Path<String>,
     Query(query): Query<ExportQueryDto>,
 ) -> Result<String, (StatusCode, String)> {
@@ -43,9 +41,7 @@ pub async fn export_world_raw(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .app
-        .core
-        .world_service
+        .world_service()
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

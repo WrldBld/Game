@@ -7340,7 +7340,6 @@ dependencies = [
  "uuid",
  "validator",
  "wrldbldr-domain",
- "wrldbldr-engine-composition",
  "wrldbldr-engine-dto",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",

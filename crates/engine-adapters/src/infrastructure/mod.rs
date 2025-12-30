@@ -7,7 +7,6 @@
 //! - Ollama: LLM integration for AI-powered responses
 //! - ComfyUI: Asset generation integration
 //! - Config: Application configuration
-//! - Adapter State: Hexagonal-compliant state (AppState + infrastructure)
 //! - Event Bus: Event publishing and subscription infrastructure
 //! - Repositories: Additional persistence implementations
 //! - Context Budget: Token budget enforcement for LLM prompts
@@ -19,8 +18,10 @@
 //! The old `state` module has been deprecated. Use case construction is now done
 //! directly in `engine-runner/composition/app_state.rs`. Service containers are
 //! provided by `engine-composition` crate.
+//!
+//! `AdapterState` has been moved to `engine-composition` to fix the dependency
+//! inversion - adapters should not depend on composition.
 
-pub mod adapter_state;
 pub mod clock;
 
 #[cfg(any(test, feature = "testing"))]
@@ -74,5 +75,4 @@ pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManage
 // Re-export settings loader
 pub use settings_loader::load_settings_from_env;
 
-// Re-export adapter state for hexagonal architecture
-pub use adapter_state::AdapterState;
+

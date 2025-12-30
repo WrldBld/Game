@@ -5,10 +5,9 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_ports::inbound::WorldRole as UseCaseWorldRole;
+use wrldbldr_engine_ports::inbound::{AppStatePort, WorldRole as UseCaseWorldRole};
 use wrldbldr_engine_ports::outbound::{ConnectionError, JoinWorldInput, SetSpectateTargetInput};
 use wrldbldr_protocol::{JoinError, ServerMessage, WorldRole};
 
@@ -19,7 +18,7 @@ pub fn handle_heartbeat() -> Option<ServerMessage> {
 
 /// Handles JoinWorld requests by delegating to ConnectionUseCase.
 pub async fn handle_join_world(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     world_id: Uuid,
     role: WorldRole,
@@ -36,9 +35,7 @@ pub async fn handle_join_world(
     };
 
     match state
-        .app
-        .use_cases
-        .connection
+        .connection_use_case()
         .join_world(client_id, user_id, input)
         .await
     {
@@ -85,14 +82,14 @@ pub async fn handle_join_world(
 }
 
 /// Handles LeaveWorld requests by delegating to ConnectionUseCase.
-pub async fn handle_leave_world(state: &AdapterState, client_id: Uuid) -> Option<ServerMessage> {
-    let _ = state.app.use_cases.connection.leave_world(client_id).await;
+pub async fn handle_leave_world(state: &dyn AppStatePort, client_id: Uuid) -> Option<ServerMessage> {
+    let _ = state.connection_use_case().leave_world(client_id).await;
     None // No response needed
 }
 
 /// Handles SetSpectateTarget requests by delegating to ConnectionUseCase.
 pub async fn handle_set_spectate_target(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: Uuid,
 ) -> Option<ServerMessage> {
@@ -101,9 +98,7 @@ pub async fn handle_set_spectate_target(
     };
 
     match state
-        .app
-        .use_cases
-        .connection
+        .connection_use_case()
         .set_spectate_target(client_id, input)
         .await
     {

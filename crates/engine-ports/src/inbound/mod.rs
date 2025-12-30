@@ -1,5 +1,6 @@
 //! Inbound ports - Interfaces that the application exposes to the outside world
 
+pub mod app_state_port;
 pub mod challenge_use_case_port;
 pub mod connection_use_case_port;
 pub mod inventory_use_case_port;
@@ -44,6 +45,9 @@ pub use scene_use_case_port::SceneUseCasePort;
 pub use staging_use_case_port::MockStagingUseCasePort;
 pub use staging_use_case_port::StagingUseCasePort;
 pub use use_case_context::UseCaseContext;
+
+// App state port - interface for accessing application services
+pub use app_state_port::AppStatePort;
 
 // Re-export all use case error types
 pub use use_case_errors::{

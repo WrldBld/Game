@@ -22,7 +22,7 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 
 /// Create all API routes
 ///
@@ -30,7 +30,7 @@ use crate::infrastructure::adapter_state::AdapterState;
 /// Challenge, StoryEvent, NarrativeEvent, EventChain, Goal, Want, Skill,
 /// SheetTemplate, Observation, Interaction) are now handled via WebSocket.
 /// See `crates/protocol/src/requests.rs` for the RequestPayload enum.
-pub fn create_routes() -> Router<Arc<AdapterState>> {
+pub fn create_routes() -> Router<Arc<dyn AppStatePort>> {
     Router::new()
         // Export routes (large file downloads)
         .route("/api/worlds/{id}/export", get(export_routes::export_world))

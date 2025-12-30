@@ -5,7 +5,7 @@
 
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId};
 use wrldbldr_engine_ports::outbound::{DropInput, EquipInput, PickupInput, UnequipInput};
@@ -19,7 +19,7 @@ use super::common::{error_msg, extract_context_opt};
 
 /// Handle equipping an item from a player character's inventory.
 pub async fn handle_equip_item(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: String,
     item_id: String,
@@ -38,7 +38,7 @@ pub async fn handle_equip_item(
         item_id: item_uuid,
     };
 
-    match state.app.use_cases.inventory.equip(ctx, input).await {
+    match state.inventory_use_case().equip(ctx, input).await {
         Ok(result) => Some(ServerMessage::ItemEquipped {
             pc_id,
             item_id,
@@ -54,7 +54,7 @@ pub async fn handle_equip_item(
 
 /// Handle unequipping an item from a player character.
 pub async fn handle_unequip_item(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: String,
     item_id: String,
@@ -73,7 +73,7 @@ pub async fn handle_unequip_item(
         item_id: item_uuid,
     };
 
-    match state.app.use_cases.inventory.unequip(ctx, input).await {
+    match state.inventory_use_case().unequip(ctx, input).await {
         Ok(result) => Some(ServerMessage::ItemUnequipped {
             pc_id,
             item_id,
@@ -89,7 +89,7 @@ pub async fn handle_unequip_item(
 
 /// Handle dropping an item from a player character's inventory into the current region.
 pub async fn handle_drop_item(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: String,
     item_id: String,
@@ -111,7 +111,7 @@ pub async fn handle_drop_item(
     };
 
     match wrldbldr_engine_ports::inbound::InventoryUseCasePort::drop(
-        &*state.app.use_cases.inventory,
+        &*state.inventory_use_case(),
         ctx,
         input,
     )
@@ -133,7 +133,7 @@ pub async fn handle_drop_item(
 
 /// Handle picking up an item from the current region into a player character's inventory.
 pub async fn handle_pickup_item(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     pc_id: String,
     item_id: String,
@@ -163,7 +163,7 @@ pub async fn handle_pickup_item(
         item_id: item_uuid,
     };
 
-    match state.app.use_cases.inventory.pickup(ctx, input).await {
+    match state.inventory_use_case().pickup(ctx, input).await {
         Ok(result) => Some(ServerMessage::ItemPickedUp {
             pc_id,
             item_id,

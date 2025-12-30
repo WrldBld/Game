@@ -78,13 +78,13 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::infrastructure::adapter_state::AdapterState;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_protocol::{ClientMessage, ServerMessage};
 
 /// WebSocket upgrade handler - entry point for new connections
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(state): State<Arc<AdapterState>>,
+    State(state): State<Arc<dyn AppStatePort>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
@@ -94,7 +94,7 @@ pub async fn ws_handler(
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
 
 /// Handle an individual WebSocket connection
-async fn handle_socket(socket: WebSocket, state: Arc<AdapterState>) {
+async fn handle_socket(socket: WebSocket, state: Arc<dyn AppStatePort>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Create a unique client ID for this connection
@@ -123,7 +123,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AdapterState>) {
             Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(&text) {
                 Ok(msg) => {
                     if let Some(response) =
-                        dispatch::handle_message(msg, &state, client_id, tx.clone()).await
+                        dispatch::handle_message(msg, state.as_ref(), client_id, tx.clone()).await
                     {
                         match tx.try_send(response) {
                             Ok(_) => {}
@@ -178,13 +178,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AdapterState>) {
     // Clean up: remove client from world connection
     let client_id_str = client_id.to_string();
     if let Some(connection) = state
-        .connection_manager
+        .world_connection_manager()
         .get_connection_by_client_id(&client_id_str)
         .await
     {
         if let Some(world_id) = connection.world_id {
             state
-                .connection_manager
+                .world_connection_manager()
                 .unregister_connection(connection.connection_id)
                 .await;
             tracing::info!(

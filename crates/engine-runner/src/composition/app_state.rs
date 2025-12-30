@@ -35,7 +35,9 @@ use wrldbldr_engine_adapters::infrastructure::ports::{
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
-use wrldbldr_engine_adapters::infrastructure::world_connection_manager::new_shared_manager;
+use wrldbldr_engine_adapters::infrastructure::world_connection_manager::{
+    new_shared_manager, SharedWorldConnectionManager,
+};
 use wrldbldr_engine_adapters::infrastructure::SystemEnvironmentAdapter;
 use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
 use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
@@ -79,6 +81,7 @@ use wrldbldr_engine_ports::outbound::{
     AssetGenerationQueueServicePort,
     AssetServicePort,
     BroadcastPort,
+    EventBusPort,
     // Challenge repository ports - split for ISP (Clean Interface Segregation)
     ChallengeAvailabilityPort,
     ChallengeCrudPort,
@@ -103,7 +106,6 @@ use wrldbldr_engine_ports::outbound::{
     DmActionQueueServicePort,
     DmApprovalQueueServicePort,
     DomainEventRepositoryPort,
-    EventBusPort,
     EventChainServicePort,
     EventEffectExecutorPort,
     EventNotifierPort,
@@ -138,8 +140,8 @@ use wrldbldr_engine_ports::outbound::{
     WorldStatePort,
 };
 
-// Re-export AdapterState for server.rs
-pub use wrldbldr_engine_adapters::infrastructure::AdapterState;
+// Re-export AppStatePort for server.rs
+pub use wrldbldr_engine_ports::inbound::AppStatePort;
 
 use wrldbldr_domain::value_objects::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData,
@@ -260,23 +262,32 @@ pub struct WorkerServices {
     /// Workers need the app-layer trait which has `build_prompt_from_action(&action)`
     pub prompt_context_service:
         Arc<dyn wrldbldr_engine_app::application::services::PromptContextService>,
+
+    /// World connection manager (concrete type for workers that need broadcasting)
+    pub world_connection_manager: SharedWorldConnectionManager,
+
+    /// Event bus for publishing generation events
+    pub event_bus: Arc<dyn EventBusPort>,
+
+    /// Broadcast port for publishing game events
+    pub broadcast: Arc<dyn BroadcastPort>,
 }
 
 /// Buffer size for internal event channels
 /// Provides backpressure when consumers are slow
 const EVENT_CHANNEL_BUFFER: usize = 256;
 
-/// Creates a new AdapterState with all services initialized.
+/// Creates a new AppState with all services initialized.
 ///
 /// Returns:
-/// - `AdapterState`: The main application state with port-typed services
+/// - `AppState`: The main application state with port-typed services
 /// - `WorkerServices`: Concrete queue services for background workers
 /// - `generation_event_rx`: GenerationEvent receiver for GenerationEventPublisher
 /// - `challenge_approval_rx`: ChallengeApprovalEvent receiver for ChallengeApprovalEventPublisher
 pub async fn new_app_state(
     config: AppConfig,
 ) -> Result<(
-    AdapterState,
+    AppState,
     WorkerServices,
     tokio::sync::mpsc::Receiver<GenerationEvent>,
     tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,
@@ -1269,18 +1280,6 @@ pub async fn new_app_state(
     );
 
     // ===========================================================================
-    // Create AdapterState (wraps composition AppState with infrastructure types)
-    // ===========================================================================
-    // Pass the full adapter config so server.rs can access queue/CORS settings
-    let adapter_state = AdapterState::new(
-        composition_app_state,
-        config,
-        world_connection_manager.clone(),
-        comfyui_client.clone(),
-        region_repo.clone(),
-    );
-
-    // ===========================================================================
     // Create WorkerServices (concrete queue types for background workers)
     // ===========================================================================
     // Workers need concrete types because they call infrastructure-specific methods
@@ -1294,25 +1293,26 @@ pub async fn new_app_state(
         dm_action_processor: dm_action_processor.clone(),
         challenge_outcome_queue: challenge_outcome_queue.clone(),
         prompt_context_service: prompt_context_service.clone(),
+        world_connection_manager: world_connection_manager.clone(),
+        event_bus: event_bus.clone(),
+        broadcast: broadcast.clone(),
     };
 
     Ok((
-        adapter_state,
+        composition_app_state,
         worker_services,
         generation_event_rx,
         challenge_approval_rx,
     ))
 }
 
-/// Alias for `new_app_state` that returns `AdapterState`.
+/// Alias for `new_app_state` for backward compatibility.
 ///
-/// This is the preferred entry point for creating application state, as it makes
-/// clear that we're returning an `AdapterState` (infrastructure-aware) rather
-/// than a composition-layer `AppState`.
+/// This is the preferred entry point for creating application state.
 pub async fn new_adapter_state(
     config: AppConfig,
 ) -> Result<(
-    AdapterState,
+    AppState,
     WorkerServices,
     tokio::sync::mpsc::Receiver<GenerationEvent>,
     tokio::sync::mpsc::Receiver<ChallengeApprovalEvent>,

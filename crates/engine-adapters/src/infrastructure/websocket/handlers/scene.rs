@@ -2,10 +2,10 @@
 //!
 //! Thin routing layer for scene management. Business logic is in SceneUseCase.
 
-use crate::infrastructure::adapter_state::AdapterState;
 use crate::infrastructure::websocket::IntoServerError;
 use uuid::Uuid;
 use wrldbldr_domain::SceneId;
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::inbound::NpcMotivation;
 use wrldbldr_engine_ports::outbound::{
     RequestSceneChangeInput, SceneApprovalDecision, SceneApprovalDecisionInput, SceneChangeResult,
@@ -17,7 +17,7 @@ use super::common::{error_msg, extract_context_opt, extract_dm_context_opt};
 
 /// Handles a request to change the current scene.
 pub async fn handle_request_scene_change(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     scene_id: String,
 ) -> Option<ServerMessage> {
@@ -30,9 +30,7 @@ pub async fn handle_request_scene_change(
         scene_id: scene_uuid,
     };
     match state
-        .app
-        .use_cases
-        .scene
+        .scene_use_case()
         .request_scene_change(ctx, input)
         .await
     {
@@ -43,7 +41,7 @@ pub async fn handle_request_scene_change(
 
 /// Handles a directorial update from the DM.
 pub async fn handle_directorial_update(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     context: DirectorialContext,
 ) -> Option<ServerMessage> {
@@ -71,9 +69,7 @@ pub async fn handle_directorial_update(
         dm_notes: Some(context.scene_notes),
     };
     match state
-        .app
-        .use_cases
-        .scene
+        .scene_use_case()
         .update_directorial_context(ctx, input)
         .await
     {
@@ -84,7 +80,7 @@ pub async fn handle_directorial_update(
 
 /// Handles an approval decision from the DM.
 pub async fn handle_approval_decision(
-    state: &AdapterState,
+    state: &dyn AppStatePort,
     client_id: Uuid,
     request_id: String,
     decision: wrldbldr_protocol::ApprovalDecision,
@@ -103,9 +99,7 @@ pub async fn handle_approval_decision(
         decision: convert_decision(decision),
     };
     match state
-        .app
-        .use_cases
-        .scene
+        .scene_use_case()
         .handle_approval_decision(ctx, input)
         .await
     {

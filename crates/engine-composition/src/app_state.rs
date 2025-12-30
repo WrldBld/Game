@@ -75,11 +75,18 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::inbound::RequestHandler;
+use wrldbldr_engine_ports::inbound::{
+    AppStatePort, ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort,
+    MovementUseCasePort, NarrativeEventUseCasePort, ObservationUseCasePort,
+    PlayerActionUseCasePort, RequestHandler, SceneUseCasePort, StagingUseCasePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    ComfyUIPort, DirectorialContextRepositoryPort, LlmPort, PromptContextServicePort,
+    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
+    DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
+    GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort,
+    LlmPort, LlmQueueServicePort, PlayerActionQueueServicePort, PromptContextServicePort,
     PromptTemplateServicePort, RegionRepositoryPort, SettingsServicePort, StagingServicePort,
-    WorldConnectionManagerPort, WorldStatePort,
+    WorkflowServicePort, WorldConnectionManagerPort, WorldServicePort, WorldStatePort,
 };
 
 /// Type alias for LlmPort with anyhow::Error as the associated error type.
@@ -492,6 +499,123 @@ impl AppState {
             use_cases,
             prompt_context_service,
         }
+    }
+}
+
+// =============================================================================
+// AppStatePort Implementation
+// =============================================================================
+
+impl AppStatePort for AppState {
+    // Use Cases
+    fn movement_use_case(&self) -> Arc<dyn MovementUseCasePort> {
+        self.use_cases.movement.clone()
+    }
+
+    fn staging_use_case(&self) -> Arc<dyn StagingUseCasePort> {
+        self.use_cases.staging.clone()
+    }
+
+    fn inventory_use_case(&self) -> Arc<dyn InventoryUseCasePort> {
+        self.use_cases.inventory.clone()
+    }
+
+    fn player_action_use_case(&self) -> Arc<dyn PlayerActionUseCasePort> {
+        self.use_cases.player_action.clone()
+    }
+
+    fn observation_use_case(&self) -> Arc<dyn ObservationUseCasePort> {
+        self.use_cases.observation.clone()
+    }
+
+    fn challenge_use_case(&self) -> Arc<dyn ChallengeUseCasePort> {
+        self.use_cases.challenge.clone()
+    }
+
+    fn scene_use_case(&self) -> Arc<dyn SceneUseCasePort> {
+        self.use_cases.scene.clone()
+    }
+
+    fn connection_use_case(&self) -> Arc<dyn ConnectionUseCasePort> {
+        self.use_cases.connection.clone()
+    }
+
+    fn narrative_event_use_case(&self) -> Arc<dyn NarrativeEventUseCasePort> {
+        self.use_cases.narrative_event.clone()
+    }
+
+    // Infrastructure Services
+    fn broadcast(&self) -> Arc<dyn BroadcastPort> {
+        self.use_cases.broadcast.clone()
+    }
+
+    fn world_connection_manager(&self) -> Arc<dyn WorldConnectionManagerPort> {
+        self.world_connection_manager.clone()
+    }
+
+    fn comfyui(&self) -> Arc<dyn ComfyUIPort> {
+        self.comfyui.clone()
+    }
+
+    fn region_repo(&self) -> Arc<dyn RegionRepositoryPort> {
+        self.region_repo.clone()
+    }
+
+    fn settings_service(&self) -> Arc<dyn SettingsServicePort> {
+        self.settings_service.clone()
+    }
+
+    fn prompt_template_service(&self) -> Arc<dyn PromptTemplateServicePort> {
+        self.prompt_template_service.clone()
+    }
+
+    // Asset Services
+    fn asset_service(&self) -> Arc<dyn AssetServicePort> {
+        self.assets.asset_service.clone()
+    }
+
+    fn generation_service(&self) -> Arc<dyn GenerationServicePort> {
+        self.assets.generation_service.clone()
+    }
+
+    fn asset_generation_queue_service(&self) -> Arc<dyn AssetGenerationQueueServicePort> {
+        self.queues.asset_generation_queue_service.clone()
+    }
+
+    fn workflow_service(&self) -> Arc<dyn WorkflowServicePort> {
+        self.assets.workflow_config_service.clone()
+    }
+
+    fn generation_queue_projection_service(&self) -> Arc<dyn GenerationQueueProjectionServicePort> {
+        self.assets.generation_queue_projection_service.clone()
+    }
+
+    // Queue Services
+    fn player_action_queue_service(&self) -> Arc<dyn PlayerActionQueueServicePort> {
+        self.queues.player_action_queue_service.clone()
+    }
+
+    fn llm_queue_service(&self) -> Arc<dyn LlmQueueServicePort> {
+        self.queues.llm_queue_service.clone()
+    }
+
+    fn dm_approval_queue_service(&self) -> Arc<dyn DmApprovalQueueServicePort> {
+        self.queues.dm_approval_queue_service.clone()
+    }
+
+    // Event Infrastructure
+    fn generation_read_state(&self) -> Arc<dyn GenerationReadStatePort> {
+        self.events.generation_read_state_repository.clone()
+    }
+
+    // World Services
+    fn world_service(&self) -> Arc<dyn WorldServicePort> {
+        self.core.world_service.clone()
+    }
+
+    // Request Handling
+    fn request_handler(&self) -> Arc<dyn RequestHandler> {
+        self.request_handler.clone()
     }
 }
 

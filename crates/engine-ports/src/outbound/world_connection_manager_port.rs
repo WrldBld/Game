@@ -110,6 +110,50 @@ pub struct ConnectionStats {
     pub spectator_connections: usize,
 }
 
+/// Context information about a connection for request handling
+///
+/// This DTO provides all the connection state needed by WebSocket handlers
+/// to build RequestContext without exposing infrastructure details.
+#[derive(Debug, Clone)]
+pub struct ConnectionContext {
+    /// Unique connection identifier
+    pub connection_id: Uuid,
+    /// User ID (may have multiple connections with same user_id)
+    pub user_id: String,
+    /// Display name (if known)
+    pub username: Option<String>,
+    /// World this connection is joined to (None if not in a world)
+    pub world_id: Option<Uuid>,
+    /// Role in the world (None if not in a world)
+    pub role: Option<WorldRole>,
+    /// Player character ID (for Player role)
+    pub pc_id: Option<Uuid>,
+    /// Spectate target PC (for Spectator role)
+    pub spectate_pc_id: Option<Uuid>,
+}
+
+impl ConnectionContext {
+    /// Check if this connection is in a world
+    pub fn is_in_world(&self) -> bool {
+        self.world_id.is_some()
+    }
+
+    /// Check if this connection is a DM
+    pub fn is_dm(&self) -> bool {
+        self.role == Some(WorldRole::DM)
+    }
+
+    /// Check if this connection is a Player
+    pub fn is_player(&self) -> bool {
+        self.role == Some(WorldRole::Player)
+    }
+
+    /// Check if this connection is a Spectator
+    pub fn is_spectator(&self) -> bool {
+        self.role == Some(WorldRole::Spectator)
+    }
+}
+
 /// Port for managing world-scoped WebSocket connections
 ///
 /// This trait provides query access to connection state and management
@@ -176,4 +220,52 @@ pub trait WorldConnectionManagerPort: Send + Sync {
 
     /// Get world ID by client ID
     async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+
+    // =========================================================================
+    // Connection Context Methods (for handlers)
+    // =========================================================================
+
+    /// Get full connection context by connection ID
+    ///
+    /// Returns all connection state needed by handlers to build RequestContext.
+    /// This is the primary method for WebSocket handlers to get connection info.
+    async fn get_connection_context(&self, connection_id: Uuid) -> Option<ConnectionContext>;
+
+    /// Get full connection context by client ID string
+    ///
+    /// This is commonly used by handlers that receive client_id as a string.
+    async fn get_connection_by_client_id(&self, client_id: &str) -> Option<ConnectionContext>;
+
+    /// Check if a connection is a spectator
+    async fn is_spectator_by_client_id(&self, client_id: &str) -> bool;
+
+    /// Get PC ID for a connection (if Player role)
+    async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+
+    // =========================================================================
+    // Broadcast Methods (for handlers)
+    // =========================================================================
+
+    /// Broadcast a serialized message to all connections in a world
+    ///
+    /// The message should be a JSON-serialized ServerMessage.
+    async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value);
+
+    /// Broadcast a serialized message to DM connections in a world
+    async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value);
+
+    /// Broadcast a serialized message to player connections in a world
+    async fn broadcast_to_players(&self, world_id: Uuid, message: serde_json::Value);
+
+    /// Broadcast a serialized message to all worlds
+    async fn broadcast_to_all_worlds(&self, message: serde_json::Value);
+
+    // =========================================================================
+    // Connection Lifecycle Methods
+    // =========================================================================
+
+    /// Unregister a connection when it disconnects
+    ///
+    /// This cleans up connection state and notifies other users in the world.
+    async fn unregister_connection(&self, connection_id: Uuid);
 }

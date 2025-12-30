@@ -17,7 +17,7 @@ chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true }  # TODO: Remove once prepare_workflow moves to adapters
 # Note: tokio intentionally not included - ports should only need async-trait
 
 [dev-dependencies]

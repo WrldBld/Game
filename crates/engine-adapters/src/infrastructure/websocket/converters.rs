@@ -7,6 +7,7 @@
 //! Protocol types (`wrldbldr_protocol`) are the wire format for Engine-Player communication.
 //! These converters bridge protocol types to internal port types (`wrldbldr_engine_ports`).
 
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::outbound::{
     DiceInputType, MovementResult, OutcomeDecision, SceneChangedEvent, SelectCharacterResult,
 };
@@ -89,10 +90,10 @@ pub fn to_domain_role(r: ActantialRoleData) -> wrldbldr_domain::entities::Actant
 
 /// Fetch region items and convert to protocol format
 pub async fn fetch_region_items(
-    state: &crate::infrastructure::adapter_state::AdapterState,
+    state: &dyn AppStatePort,
     region_id: wrldbldr_domain::RegionId,
 ) -> Vec<wrldbldr_protocol::RegionItemData> {
-    match state.region_repo.get_region_items(region_id).await {
+    match state.region_repo().get_region_items(region_id).await {
         Ok(items) => items
             .into_iter()
             .map(|item| wrldbldr_protocol::RegionItemData {
