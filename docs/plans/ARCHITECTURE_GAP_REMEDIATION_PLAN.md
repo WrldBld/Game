@@ -1,8 +1,9 @@
 # Architecture Gap Remediation Plan
 
 **Created**: December 30, 2024  
-**Status**: PLANNED  
-**Estimated Total Effort**: 25-30 hours  
+**Last Updated**: December 30, 2024  
+**Status**: IN PROGRESS  
+**Estimated Total Effort**: 18-24 hours (revised from 25-30h)  
 **Current Architecture Score**: 92/100  
 **Target Architecture Score**: 98/100
 
@@ -10,7 +11,9 @@
 
 ## Executive Summary
 
-This plan addresses all identified gaps from the comprehensive architecture review, organized into 6 phases. Each phase is designed to be independently executable with clear deliverables.
+This plan addresses all identified gaps from the comprehensive architecture review, organized into 8 phases. Each phase is designed to be independently executable with clear deliverables.
+
+**Revision Note (Dec 30, 2024)**: Plan validated by sub-agents. Several tasks marked complete, time estimates corrected, and two new phases added for discovered tech debt.
 
 ---
 
@@ -22,137 +25,53 @@ This plan addresses all identified gaps from the comprehensive architecture revi
 
 ### 1.1 Fix Clippy Auto-Fixable Warnings
 
-**Effort**: 30 minutes  
-**Command**:
-```bash
-cargo clippy --fix --workspace --allow-dirty
-```
+**Status**: COMPLETE (Dec 30, 2024)
 
-**Expected Result**: Eliminates ~344 warnings (81% of total 424)
+**Result**: Reduced warnings from 424 to 85 (339 fixed)
 
 **Verification**:
 ```bash
 cargo clippy --workspace 2>&1 | grep "warning:" | wc -l
-# Should drop from 424 to ~80
+# Result: 85
 ```
 
 ---
 
 ### 1.2 Replace `anyhow` with `thiserror` in Domain
 
-**Effort**: 1 hour  
-**Files to Modify**: 3
+**Status**: COMPLETE (Dec 30, 2024)
 
-#### File 1: `crates/domain/src/value_objects/region.rs`
-
-**Lines 29, 36** - `RegionShift::FromStr`:
-```rust
-// Before
-impl std::str::FromStr for RegionShift {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // ...
-        _ => Err(anyhow::anyhow!("Invalid region shift: {}", s)),
-    }
-}
-
-// After
-impl std::str::FromStr for RegionShift {
-    type Err = DomainError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // ...
-        _ => Err(DomainError::parse(format!("Invalid region shift: {}", s))),
-    }
-}
-```
-
-**Lines 61, 68** - `RegionFrequency::FromStr`:
-```rust
-// Same pattern as above
-```
-
-#### File 2: `crates/domain/src/entities/observation.rs`
-
-**Lines 51, 58** - `ObservationType::FromStr`:
-```rust
-// Same pattern as above
-```
-
-#### File 3: `crates/domain/Cargo.toml`
-
-**Line 16** - Remove:
-```toml
-anyhow = { workspace = true }
-```
+**Changes Made**:
+- `crates/domain/src/value_objects/region.rs` - `RegionShift`, `RegionFrequency` now use `DomainError::parse()`
+- `crates/domain/src/entities/observation.rs` - `ObservationType` now uses `DomainError::parse()`
+- `crates/domain/Cargo.toml` - `anyhow` dependency removed
 
 **Verification**:
 ```bash
-cargo check -p wrldbldr-domain
-grep -r "anyhow" crates/domain/src/  # Should return nothing
+grep -r "anyhow" crates/domain/src/  # Returns only comment in error.rs
 ```
 
 ---
 
 ### 1.3 Fix `derivable_impls` Warnings
 
-**Effort**: 30 minutes  
-**Files to Modify**: 3 files in `crates/domain-types/src/`
+**Status**: COMPLETE (Dec 30, 2024)
 
-#### `monomyth.rs` (line ~38):
-```rust
-// Before
-impl Default for MonomythStage {
-    fn default() -> Self {
-        MonomythStage::OrdinaryWorld
-    }
-}
-
-// After
-#[derive(Default)]  // Add to existing derives
-pub enum MonomythStage {
-    #[default]
-    OrdinaryWorld,
-    // ... other variants
-}
-```
-
-#### `archetype.rs` (line ~30):
-```rust
-// Same pattern - add #[derive(Default)] and #[default] on first variant
-```
-
-#### `rule_system.rs` (lines ~21, ~47):
-```rust
-// Same pattern for RuleSystemType and RuleSystemVariant
-```
-
-**Verification**:
-```bash
-cargo clippy -p wrldbldr-domain-types 2>&1 | grep "derivable_impls"
-# Should return nothing
-```
+Fixed by `cargo clippy --fix` in Phase 1.1:
+- `monomyth.rs` - Added `#[derive(Default)]` and `#[default]` attribute
+- `archetype.rs` - Added `#[derive(Default)]` and `#[default]` attribute
+- `rule_system.rs` - Added `#[derive(Default)]` and `#[default]` attribute
 
 ---
 
 ### 1.4 Add Missing Crates to Arch-Check
 
-**Effort**: 15 minutes  
-**File**: `crates/xtask/src/main.rs`
+**Status**: COMPLETE (Dec 30, 2024)
 
-Add to the `check_dirs` array in `check_no_glob_reexports()` (around line 798):
-```rust
-let check_dirs = [
-    // ... existing entries
-    workspace_root.join("crates/engine-dto/src"),
-    workspace_root.join("crates/domain-types/src"),
-    workspace_root.join("crates/engine-composition/src"),
-];
-```
-
-**Verification**:
-```bash
-cargo xtask arch-check
-```
+**Changes Made**: Added to `check_no_glob_reexports()` in `crates/xtask/src/main.rs`:
+- `crates/engine-dto/src`
+- `crates/domain-types/src`
+- `crates/engine-composition/src`
 
 ---
 
@@ -164,184 +83,83 @@ cargo xtask arch-check
 
 ### 2.1 Remove `DmApprovalDecision` Duplication
 
-**Effort**: 1.5 hours  
-**Current State**: 3 identical definitions
+**Status**: COMPLETE (Dec 30, 2024)
 
-| Location | Status |
-|----------|--------|
-| `domain/src/value_objects/queue_data.rs:101` | KEEP (canonical) |
-| `engine-dto/src/queue.rs:377-406` | REMOVE |
-| `engine-ports/src/outbound/dm_approval_queue_service_port.rs:118` | REMOVE |
+**Resolution**: Domain and engine-dto versions kept separate (different serde attributes).
+- Domain uses `#[serde(rename_all = "camelCase")]`
+- engine-dto uses `#[serde(tag = "decision")]`
 
-#### Step 1: Update `engine-dto/src/queue.rs`
-
-Remove the `DmApprovalDecision` enum definition (lines ~377-406).
-
-Add import:
-```rust
-use wrldbldr_domain::value_objects::DmApprovalDecision;
-```
-
-Update any `From` implementations that convert between the types (they become identity or can be removed).
-
-#### Step 2: Update `engine-ports/src/outbound/dm_approval_queue_service_port.rs`
-
-Remove the `DmApprovalDecision` enum definition.
-
-Add re-export:
-```rust
-pub use wrldbldr_domain::value_objects::DmApprovalDecision;
-```
-
-#### Step 3: Update `engine-ports/src/outbound/mod.rs`
-
-Update exports to source from domain.
-
-**Verification**:
-```bash
-cargo check --workspace
-grep -rn "enum DmApprovalDecision" crates/  # Should only show domain
-```
+**Changes Made**:
+- `engine-ports` now re-exports from `engine-dto` (single DTO source)
+- Removed duplicate definition from `engine-ports`
 
 ---
 
-### 2.2 Remove Player-App `SuggestionContext` Duplication
+### 2.2 Unify `SuggestionContext`
 
-**Effort**: 30 minutes  
-**File**: `crates/player-app/src/application/dto/requests.rs`
+**Status**: COMPLETE (Dec 30, 2024)
 
-Remove local `SuggestionContext` definition (around line 110).
-
-Replace with:
-```rust
-pub use wrldbldr_protocol::SuggestionContextData as SuggestionContext;
-```
-
-Update any code that constructs this type to use the protocol version's field names.
-
-**Verification**:
-```bash
-cargo check -p wrldbldr-player-app
-```
+**Changes Made**:
+- `engine-dto` is now the single source of truth
+- `engine-ports` re-exports from `engine-dto`
+- `engine-app` re-exports from `engine-dto`
+- `player-app` keeps its own simpler version (no `world_id` field - different needs)
 
 ---
 
 ### 2.3 Document PromptMappingDto/InputDefaultDto Separation
 
-**Effort**: 30 minutes  
-**Files**: 2
+**Status**: PENDING
 
-#### `crates/protocol/src/dto.rs` (near line 166):
-```rust
-/// Workflow prompt mapping for wire format.
-/// 
-/// NOTE: This type uses camelCase serialization for client communication.
-/// A separate version exists in `engine-dto::persistence` with snake_case
-/// for Neo4j persistence. Do not consolidate - they serve different purposes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PromptMappingDto { ... }
-```
+**Effort**: 30 minutes
 
-#### `crates/engine-dto/src/persistence.rs` (near line 817):
-```rust
-/// Workflow prompt mapping for Neo4j persistence.
-/// 
-/// NOTE: This type uses default (snake_case) serialization for database storage.
-/// A separate version exists in `protocol::dto` with camelCase for wire format.
-/// Do not consolidate - they serve different purposes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptMappingDto { ... }
-```
+Both types intentionally separate due to different serialization needs:
+- Protocol version: camelCase for wire format
+- engine-dto version: snake_case for Neo4j persistence
+
+Add documentation comments to both files explaining this is intentional.
 
 ---
 
-## Phase 3: God Trait Splitting (8-10 hours)
+## Phase 3: God Trait Splitting (4-5 hours)
 
 **Priority**: MEDIUM  
 **Risk**: MEDIUM  
-**Dependencies**: None (can run in parallel with Phase 2)
+**Dependencies**: None
 
-### 3.1 Split `WorldConnectionManagerPort` (20 methods → 4 traits)
+**Revision Note**: Time reduced from 8-10h to 4-5h. Six traits already split; only six remain.
 
-**Effort**: 2 hours  
-**File**: `crates/engine-ports/src/outbound/world_connection_manager_port.rs`
+### Already Complete (No Action Needed)
 
-#### New File Structure:
-```
-crates/engine-ports/src/outbound/
-├── world_connection_manager/
-│   ├── mod.rs
-│   ├── query_port.rs         # ConnectionQueryPort (8 methods)
-│   ├── context_port.rs       # ConnectionContextPort (6 methods)
-│   ├── broadcast_port.rs     # ConnectionBroadcastPort (4 methods)
-│   └── lifecycle_port.rs     # ConnectionLifecyclePort (1 method)
-└── world_connection_manager_port.rs  # Deprecated, re-exports for compatibility
-```
+The following traits have already been split into ISP-compliant sub-traits:
 
-#### Trait Definitions:
+| Original Trait | Split Module | Sub-traits Created |
+|----------------|--------------|-------------------|
+| `LocationRepositoryPort` | `location_repository/` | 4 sub-traits |
+| `RegionRepositoryPort` | `region_repository/` | 4 sub-traits |
+| `CharacterRepositoryPort` | `character_repository/` | 6 sub-traits |
+| `StoryEventRepositoryPort` | `story_event_repository/` | 4 sub-traits |
+| `NarrativeEventRepositoryPort` | `narrative_event_repository/` | 4 sub-traits |
+| `ChallengeRepositoryPort` | `challenge_repository/` | 5 sub-traits |
 
-```rust
-// query_port.rs
-#[async_trait]
-pub trait ConnectionQueryPort: Send + Sync {
-    async fn has_dm(&self, world_id: WorldId) -> bool;
-    async fn get_dm_info(&self, world_id: WorldId) -> Option<DmInfo>;
-    async fn get_connected_users(&self, world_id: WorldId) -> Vec<ConnectedUserInfo>;
-    async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<WorldRole>;
-    async fn find_player_for_pc(&self, world_id: WorldId, pc_id: PlayerCharacterId) -> Option<String>;
-    async fn get_world_pcs(&self, world_id: WorldId) -> Vec<PlayerCharacterId>;
-    async fn get_all_world_ids(&self) -> Vec<Uuid>;
-    async fn stats(&self) -> ConnectionStats;
-}
+### 3.1 Split `WorldConnectionManagerPort` (19 methods → 4 traits)
 
-// context_port.rs
-#[async_trait]
-pub trait ConnectionContextPort: Send + Sync {
-    async fn get_user_id_by_client_id(&self, client_id: &str) -> Option<String>;
-    async fn is_dm_by_client_id(&self, client_id: &str) -> bool;
-    async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
-    async fn get_connection_context(&self, client_id: &str) -> Option<ConnectionContext>;
-    async fn get_connection_by_client_id(&self, client_id: &str) -> Option<ConnectionInfo>;
-    async fn is_spectator_by_client_id(&self, client_id: &str) -> bool;
-    async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<PlayerCharacterId>;
-}
+**Status**: PENDING  
+**Effort**: 1.5 hours
 
-// broadcast_port.rs
-#[async_trait]
-pub trait ConnectionBroadcastPort: Send + Sync {
-    async fn broadcast_to_world(&self, world_id: &Uuid, message: ServerMessage) -> Result<(), BroadcastError>;
-    async fn broadcast_to_dms(&self, world_id: &Uuid, message: ServerMessage) -> Result<(), BroadcastError>;
-    async fn broadcast_to_players(&self, world_id: &Uuid, message: ServerMessage) -> Result<(), BroadcastError>;
-    async fn broadcast_to_all_worlds(&self, message: ServerMessage) -> Result<(), BroadcastError>;
-}
-
-// lifecycle_port.rs
-#[async_trait]
-pub trait ConnectionLifecyclePort: Send + Sync {
-    async fn unregister_connection(&self, client_id: &str);
-}
-```
-
-#### Backward Compatibility:
-
-```rust
-// world_connection_manager_port.rs
-#[deprecated(note = "Use the split traits: ConnectionQueryPort, ConnectionContextPort, ConnectionBroadcastPort, ConnectionLifecyclePort")]
-pub trait WorldConnectionManagerPort: 
-    ConnectionQueryPort + ConnectionContextPort + ConnectionBroadcastPort + ConnectionLifecyclePort {}
-
-// Blanket implementation for backward compatibility
-impl<T> WorldConnectionManagerPort for T 
-where T: ConnectionQueryPort + ConnectionContextPort + ConnectionBroadcastPort + ConnectionLifecyclePort {}
-```
+| New Trait | Methods |
+|-----------|---------|
+| `ConnectionQueryPort` | 8 methods (has_dm, get_dm_info, get_connected_users, etc.) |
+| `ConnectionContextPort` | 7 methods (get_user_id_by_client_id, get_connection_context, etc.) |
+| `ConnectionBroadcastPort` | 4 methods (broadcast_to_world, broadcast_to_dms, etc.) |
+| `ConnectionLifecyclePort` | 1 method (unregister_connection) |
 
 ---
 
 ### 3.2 Split `WorldStatePort` (17 methods → 6 traits)
 
-**Effort**: 2 hours  
-**Pattern**: Same as 3.1
+**Status**: PENDING  
+**Effort**: 1.5 hours
 
 | New Trait | Methods |
 |-----------|---------|
@@ -356,7 +174,8 @@ where T: ConnectionQueryPort + ConnectionContextPort + ConnectionBroadcastPort +
 
 ### 3.3 Split `PlayerCharacterRepositoryPort` (17 methods → 5 traits)
 
-**Effort**: 2 hours  
+**Status**: PENDING  
+**Effort**: 1 hour
 
 | New Trait | Methods |
 |-----------|---------|
@@ -370,7 +189,8 @@ where T: ConnectionQueryPort + ConnectionContextPort + ConnectionBroadcastPort +
 
 ### 3.4 Split `SceneRepositoryPort` (17 methods → 5 traits)
 
-**Effort**: 1.5 hours  
+**Status**: PENDING  
+**Effort**: 1 hour
 
 | New Trait | Methods |
 |-----------|---------|
@@ -382,9 +202,10 @@ where T: ConnectionQueryPort + ConnectionContextPort + ConnectionBroadcastPort +
 
 ---
 
-### 3.5 Split `EventChainServicePort` and `EventChainRepositoryPort`
+### 3.5 Split `EventChainRepositoryPort` (18 methods) and `EventChainServicePort` (16 methods)
 
-**Effort**: 2 hours  
+**Status**: PENDING  
+**Effort**: 1 hour
 
 Both follow similar pattern with 4 sub-traits each:
 - `*CrudPort` (4 methods)
@@ -394,192 +215,156 @@ Both follow similar pattern with 4 sub-traits each:
 
 ---
 
-### 3.6 Deprecate Legacy Monolithic Traits
+### 3.6 Add Deprecation Notices to Legacy Monolithic Traits
 
-**Effort**: 30 minutes  
-**File**: `crates/engine-ports/src/outbound/repository_port.rs`
+**Status**: PENDING  
+**Effort**: 30 minutes
 
-Add deprecation notices:
-```rust
-#[deprecated(since = "0.2.0", note = "Use split traits in location_repository/ module")]
-pub trait LocationRepositoryPort { ... }
-
-#[deprecated(since = "0.2.0", note = "Use split traits in region_repository/ module")]  
-pub trait RegionRepositoryPort { ... }
-```
+Add `#[deprecated]` attributes to:
+- `LocationRepositoryPort` (points to `location_repository/` module)
+- `RegionRepositoryPort` (points to `region_repository/` module)
 
 ---
 
-## Phase 4: app_state.rs Decomposition (4-5 hours)
+## Phase 4: app_state.rs Decomposition (2-3 hours)
 
 **Priority**: MEDIUM  
 **Risk**: MEDIUM  
 **Dependencies**: None
 
-### 4.1 Create New Module Structure
+**Revision Note**: Time reduced from 4-5h to 2-3h. Service grouping already done in `engine-composition/`. Focus is now on extracting factory functions from the wiring logic, with a realistic target of ~600 lines (not 150).
 
+### Already Complete (No Action Needed)
+
+Service container types already exist in `engine-composition/`:
+- `CoreServices` (core_services.rs)
+- `GameServices` (game_services.rs)
+- `UseCases` (use_cases.rs)
+- `QueueServices` (queue_services.rs)
+- `EventInfra` (event_infra.rs)
+- `AssetServices` (asset_services.rs)
+- `PlayerServices` (player_services.rs)
+
+### 4.1 Extract Repository Factory Function
+
+**Status**: PENDING  
+**Effort**: 1 hour
+
+Extract lines ~317-400 from `new_app_state()` into:
+```rust
+pub fn create_repositories(neo4j: &Neo4jRepository) -> RepositoryPorts {
+    // ~90 lines of Arc creation and trait coercion
+}
+```
+
+### 4.2 Extract Queue Infrastructure Factory Function
+
+**Status**: PENDING  
+**Effort**: 1 hour
+
+Extract lines ~613-660 from `new_app_state()` into:
+```rust
+pub async fn create_queue_infrastructure(
+    config: &AppConfig,
+    core: &CoreServiceBundle,
+) -> Result<QueueInfrastructure> {
+    // Queue backends, event bus setup
+}
+```
+
+### 4.3 Extract WorkerServices Creation
+
+**Status**: PENDING  
 **Effort**: 30 minutes
 
-```
-crates/engine-runner/src/composition/
-├── mod.rs                  # Module declarations and re-exports
-├── app_state.rs            # Main orchestration (~150 lines)
-├── infrastructure.rs       # Clock, env, LLM, ComfyUI, settings (~100 lines)
-├── repositories.rs         # All 40+ repository ports (~150 lines)
-├── core_services.rs        # Core application services (~200 lines)
-├── queue_infrastructure.rs # Queue backends, event bus (~150 lines)
-├── game_services.rs        # Game-specific services (~200 lines)
-├── use_cases.rs            # Use case construction (~200 lines)
-└── worker_services.rs      # WorkerServices struct (~80 lines)
-```
+Extract lines ~1275-1291 into separate function.
 
-### 4.2 Define Intermediate Structs
-
-#### `infrastructure.rs`:
-```rust
-pub struct InfraServices {
-    pub clock: Arc<dyn ClockPort>,
-    pub environment: Arc<dyn EnvironmentPort>,
-    pub llm_client: OllamaClient,
-    pub comfyui_client: ComfyUIClient,
-    pub settings_service: Arc<SettingsService>,
-    pub prompt_template_service: Arc<PromptTemplateService>,
-    pub directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
-}
-
-pub async fn create_infrastructure(config: &AppConfig) -> Result<InfraServices> {
-    // ~70 lines extracted from app_state.rs lines 242-316
-}
-```
-
-#### `repositories.rs`:
-```rust
-pub struct RepositoryPorts {
-    pub world: Arc<dyn WorldRepositoryPort>,
-    pub character_crud: Arc<dyn CharacterCrudPort>,
-    pub character_want: Arc<dyn CharacterWantPort>,
-    // ... 40+ more ports
-}
-
-pub fn create_repositories(neo4j: &Neo4jRepository) -> RepositoryPorts {
-    // ~90 lines extracted from app_state.rs lines 317-401
-}
-```
-
-#### Similar structs for:
-- `CoreServiceBundle` in `core_services.rs`
-- `QueueInfrastructure` in `queue_infrastructure.rs`
-- `GameServiceBundle` in `game_services.rs`
-
-### 4.3-4.8 Extract Factory Functions
-
-Each factory function:
-1. Takes required dependencies as parameters
-2. Returns a struct containing created services
-3. Is independently testable
-
-### 4.9 Refactor `new_app_state()` to Orchestrator
-
-Final `app_state.rs` (~150 lines):
-```rust
-pub async fn new_app_state(config: AppConfig) -> Result<(AppState, WorkerServices, ...)> {
-    let infra = create_infrastructure(&config).await?;
-    let neo4j = create_neo4j_connection(&config).await?;
-    let repos = create_repositories(&neo4j);
-    let core = create_core_services(&repos, &infra);
-    let queues = create_queue_infrastructure(&config, &core).await?;
-    let game = create_game_services(&repos, &core, &queues);
-    let use_cases = create_use_cases(&repos, &core, &game, &queues);
-    
-    assemble_app_state(config, infra, repos, core, queues, game, use_cases)
-}
-```
+**Target**: Reduce `new_app_state()` from 1313 lines to ~600-700 lines.
 
 ---
 
-## Phase 5: Manual Clippy Fixes (2-3 hours)
+## Phase 5: Manual Clippy Fixes (4-6 hours)
 
 **Priority**: LOW  
 **Risk**: LOW  
 **Dependencies**: Phase 1.1 (auto-fix first)
 
+**Revision Note**: Time increased from 2-3h to 4-6h. `too_many_arguments` scope is 31 functions (not 3).
+
+### Current Warning Summary (85 total)
+
+| Warning Type | Count | Effort |
+|--------------|-------|--------|
+| `too_many_arguments` | 31 | HIGH - struct wrapping needed |
+| `result_large_err` | 13 | MEDIUM - Box error types |
+| `doc list item overindented` | 11 | LOW - auto-fixable |
+| `large_enum_variant` | 4 | MEDIUM - Box large variants |
+| `type_complexity` | 3 | LOW - type alias |
+| Other (auto-fixable) | 23 | TRIVIAL |
+
 ### 5.1 Fix `result_large_err` Warnings
 
-**Effort**: 1 hour  
+**Status**: PENDING  
+**Effort**: 45 minutes  
 **File**: `crates/engine-adapters/src/infrastructure/websocket/context.rs`  
 **Count**: 13 warnings
 
-Box the error type:
-```rust
-// Before
-fn some_function() -> Result<T, LargeError>
-
-// After  
-fn some_function() -> Result<T, Box<LargeError>>
-```
+**Option A** (Recommended for boundary code): Add `#[allow(clippy::result_large_err)]`  
+**Option B**: Box the error type in return signatures
 
 ---
 
 ### 5.2 Fix `large_enum_variant` Warnings
 
-**Effort**: 30 minutes  
-**Files**: 4 locations
+**Status**: PENDING  
+**Effort**: 45 minutes  
+**Count**: 4 locations
 
 | File | Line | Fix |
 |------|------|-----|
 | `player-ports/src/inbound/player_events.rs` | 327 | Box large variant |
 | `engine-ports/src/outbound/use_case_types.rs` | 36 | Box large variant |
-| `engine-ports/src/outbound/use_case_types.rs` | 867 | Box large variant |
+| `engine-ports/src/outbound/use_case_types.rs` | 855 | Box large variant |
 | `player-app/src/application/services/session_service.rs` | 41 | Box large variant |
-
-Pattern:
-```rust
-// Before
-enum MyEnum {
-    SmallVariant(u32),
-    LargeVariant(VeryLargeStruct),
-}
-
-// After
-enum MyEnum {
-    SmallVariant(u32),
-    LargeVariant(Box<VeryLargeStruct>),
-}
-```
 
 ---
 
-### 5.3 Address `too_many_arguments` (Priority Functions)
+### 5.3 Address `too_many_arguments` (31 functions)
 
-**Effort**: 1-1.5 hours  
-**Focus**: Use cases and ports only (highest impact)
+**Status**: PENDING  
+**Effort**: 3-4 hours
 
-| Function | Location | Solution |
-|----------|----------|----------|
-| `SceneUseCase::new()` | `use_cases/scene.rs:238` | Create `SceneUseCaseDeps` struct |
-| `StagingUseCase::new()` | `use_cases/staging.rs:284` | Create `StagingUseCaseDeps` struct |
-| `ConnectionUseCase::new()` | `use_cases/connection.rs:260` | Create `ConnectionUseCaseDeps` struct |
+**Priority 1 - Most severe (10+ args):**
+| Function | Args | Location |
+|----------|------|----------|
+| `challenge_resolution_service` constructor | 14 | `challenge_resolution_service.rs:369` |
+| `story_event_service` constructor | 13 | `story_event_service.rs:31` |
+| `llm_queue_service` constructor | 11 | `llm_queue_service.rs:78` |
 
-Pattern:
+**Fix Pattern**: Create `*Deps` structs:
 ```rust
-// Before
-pub fn new(
-    world_service: Arc<dyn WorldService>,
-    character_service: Arc<dyn CharacterService>,
-    location_service: Arc<dyn LocationService>,
-    // ... 10+ more
-) -> Self
-
-// After
-pub struct SceneUseCaseDeps {
+pub struct ChallengeResolutionDeps {
     pub world_service: Arc<dyn WorldService>,
     pub character_service: Arc<dyn CharacterService>,
-    pub location_service: Arc<dyn LocationService>,
-    // ...
+    // ... other deps
 }
 
-pub fn new(deps: SceneUseCaseDeps) -> Self
+pub fn new(deps: ChallengeResolutionDeps) -> Self
 ```
+
+**Priority 2 - Use cases (8 args)**: Create dependency structs for all use case constructors.
+
+**Priority 3 - Domain entities (8 args)**: Consider `#[allow]` - entity constructors often legitimately need many fields.
+
+---
+
+### 5.4 Fix `type_complexity` Warnings
+
+**Status**: PENDING  
+**Effort**: 30 minutes  
+**Count**: 3 locations in `player-adapters`
+
+Create type aliases for complex generic types.
 
 ---
 
@@ -591,71 +376,164 @@ pub fn new(deps: SceneUseCaseDeps) -> Self
 
 ### 6.1 Document `LlmPortDyn` Workaround
 
-**Effort**: 30 minutes  
-**File**: `crates/engine-composition/src/app_state.rs`
+**Status**: PENDING  
+**Effort**: 30 minutes
 
-Create ADR or add detailed comment:
-```rust
-/// # LlmPortDyn Wrapper Pattern
-/// 
-/// This trait exists as a workaround for Rust's limitations with async trait objects.
-/// 
-/// ## Problem
-/// `LlmPort` is an async trait with generic error types. Creating `Arc<dyn LlmPort>`
-/// requires the error type to be object-safe, which conflicts with associated types.
-/// 
-/// ## Solution
-/// `LlmPortDyn` provides a concrete, boxed-future version of each method that can
-/// be made into a trait object. The adapter wraps `OllamaClient` and implements
-/// `LlmPortDyn`.
-/// 
-/// ## Alternative Considered
-/// Using `async-trait` with `#[async_trait]` was considered but doesn't solve the
-/// associated error type issue for this specific use case.
-```
+Add ADR or detailed comment explaining the async trait object workaround.
 
 ---
 
 ### 6.2 Update Architecture Documentation
 
-**Effort**: 30 minutes  
-**File**: `docs/architecture/hexagonal-architecture.md`
+**Status**: PARTIALLY COMPLETE
 
-Update:
-- [ ] ISP compliance section with new split traits
-- [ ] Crate file counts (now ~450 files)
-- [ ] Architecture score (target: 98/100)
+**Remaining**:
+- [ ] Update ISP compliance section with new split traits
+- [ ] Update crate file counts
 
 ---
 
 ### 6.3 Archive Completed Plans
 
-**Effort**: 30 minutes  
+**Status**: PARTIALLY COMPLETE
 
-Add completion markers to:
-- `docs/plans/CODE_QUALITY_REMEDIATION_PLAN.md` - Mark COMPLETE
-- `docs/plans/HEXAGONAL_CLEANUP_PLAN.md` - Mark ARCHIVED
-- `docs/plans/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` - Mark COMPLETE
-- `docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md` - Mark COMPLETE
-- `docs/plans/PROTOCOL_AS_OWNER_REFACTOR_PLAN.md` - Mark COMPLETE
+| Document | Current Status | Action Needed |
+|----------|----------------|---------------|
+| `CODE_QUALITY_REMEDIATION_PLAN.md` | COMPLETE | None |
+| `HEXAGONAL_CLEANUP_PLAN.md` | SUPERSEDED | None |
+| `HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` | Complete | None |
+| `HEXAGONAL_GAP_REMEDIATION_PLAN.md` | COMPLETE | None |
+| `PROTOCOL_AS_OWNER_REFACTOR_PLAN.md` | No status | Add COMPLETE marker |
+| `HEXAGONAL_ARCHITECTURE_PHASE2_PLAN.md` | No status | Review and mark |
+| `WEBSOCKET_ADAPTER_REFACTORING_PLAN.md` | No status | Review and mark |
+| `CHALLENGE_APPROVAL_REFACTORING_PLAN.md` | No status | Review and mark |
 
-Update `docs/progress/ACTIVE_DEVELOPMENT.md`:
-- Mark Phase Q (Code Quality) as COMPLETE
-- Reference this plan for remaining work
+---
+
+### 6.4 Update ACTIVE_DEVELOPMENT.md
+
+**Status**: PENDING  
+**Effort**: 15 minutes
+
+Fix Phase Q status - currently shows "NOT STARTED" but is actually COMPLETE.
+
+---
+
+## Phase 7: Large Repository Decomposition (NEW)
+
+**Priority**: MEDIUM  
+**Risk**: MEDIUM  
+**Dependencies**: Phase 3 (trait splitting patterns)  
+**Effort**: 4-6 hours
+
+**Rationale**: Three repository files exceed 1800 lines, making them difficult to maintain.
+
+### 7.1 Decompose `character_repository.rs` (2073 lines)
+
+**Status**: PENDING  
+**Effort**: 2 hours
+
+Split by character type:
+- `character_repository/npc.rs` - NPC-specific queries
+- `character_repository/pc.rs` - PlayerCharacter-specific queries
+- `character_repository/common.rs` - Shared operations
+
+---
+
+### 7.2 Decompose `narrative_event_repository.rs` (2005 lines)
+
+**Status**: PENDING  
+**Effort**: 2 hours
+
+Split by operation category:
+- `narrative_event_repository/crud.rs` - Basic CRUD
+- `narrative_event_repository/query.rs` - Complex queries
+- `narrative_event_repository/trigger.rs` - Trigger evaluation
+
+---
+
+### 7.3 Decompose `story_event_repository.rs` (1814 lines)
+
+**Status**: PENDING  
+**Effort**: 2 hours
+
+Split by query type:
+- `story_event_repository/crud.rs` - Basic CRUD
+- `story_event_repository/edge.rs` - Edge operations
+- `story_event_repository/timeline.rs` - Timeline queries
+
+---
+
+## Phase 8: Error Handling Audit (NEW)
+
+**Priority**: HIGH  
+**Risk**: LOW  
+**Dependencies**: None  
+**Effort**: 2-3 hours
+
+**Rationale**: Production `unwrap()` calls and silent error discarding could cause panics or hide bugs.
+
+### 8.1 Fix Production `unwrap()` Calls
+
+**Status**: PENDING  
+**Effort**: 1 hour
+
+**Critical locations**:
+| File | Line | Issue |
+|------|------|-------|
+| `staging_service.rs` | 616 | `extract_json_array(response).unwrap()` - panics on malformed LLM response |
+
+**Fix**: Replace with proper error handling using `?` or `map_err`.
+
+---
+
+### 8.2 Review Silent Error Discarding
+
+**Status**: PENDING  
+**Effort**: 1-2 hours
+
+**Pattern**: `let _ = potentially_failing_operation();`
+
+**High-priority locations** (88 total, focus on critical paths):
+- `broadcast_adapter.rs` - 10 instances of discarding send results
+- `story_event_repository.rs` - 4 instances of discarding graph operations
+
+**Fix Options**:
+1. Add logging for discarded errors
+2. Use `let _ =` with explicit comment explaining why it's OK to discard
+3. Propagate errors where appropriate
+
+---
+
+### 8.3 Track Critical TODO Items
+
+**Status**: PENDING  
+**Effort**: 30 minutes
+
+Create issues for:
+| File | Line | Issue |
+|------|------|-------|
+| `challenge_outcome_approval_service.rs` | 634 | Missing queue item ID tracking |
+| `challenge_outcome_approval_service.rs` | 796 | Missing branch lookup |
+| `movement.rs` | 489 | Missing previous staging lookup |
+| `trigger_evaluation_service.rs` | 405 | Missing player character inventory |
+| `interaction_repository.rs` | 416 | Phase 0.H edge targeting incomplete |
 
 ---
 
 ## Execution Summary
 
-| Phase | Effort | Priority | Risk | Dependencies |
-|-------|--------|----------|------|--------------|
-| 1. Quick Wins | 2-3h | HIGH | LOW | None |
-| 2. DTO Consolidation | 3-4h | HIGH | MEDIUM | Phase 1.2 |
-| 3. God Trait Splitting | 8-10h | MEDIUM | MEDIUM | None |
-| 4. app_state.rs Decomposition | 4-5h | MEDIUM | MEDIUM | None |
-| 5. Manual Clippy Fixes | 2-3h | LOW | LOW | Phase 1.1 |
-| 6. Documentation | 1-2h | LOW | LOW | All |
-| **Total** | **20-27h** | | | |
+| Phase | Effort | Priority | Risk | Status |
+|-------|--------|----------|------|--------|
+| 1. Quick Wins | 2-3h | HIGH | LOW | **COMPLETE** |
+| 2. DTO Consolidation | 3-4h | HIGH | MEDIUM | **MOSTLY COMPLETE** |
+| 3. God Trait Splitting | 4-5h | MEDIUM | MEDIUM | PENDING (6 traits remain) |
+| 4. app_state.rs Decomposition | 2-3h | MEDIUM | MEDIUM | PENDING |
+| 5. Manual Clippy Fixes | 4-6h | LOW | LOW | PENDING |
+| 6. Documentation | 1-2h | LOW | LOW | PARTIALLY COMPLETE |
+| 7. Large Repository Decomposition | 4-6h | MEDIUM | MEDIUM | **NEW** |
+| 8. Error Handling Audit | 2-3h | HIGH | LOW | **NEW** |
+| **Total** | **18-24h** | | | |
 
 ---
 
@@ -678,15 +556,32 @@ cargo xtask arch-check           # Architecture rules
 cargo clippy --workspace         # Lint warnings reduced
 
 # Metrics to track
-wc -l crates/engine-runner/src/composition/app_state.rs  # Target: <200 lines
+wc -l crates/engine-runner/src/composition/app_state.rs  # Target: <700 lines
 cargo clippy --workspace 2>&1 | grep "warning:" | wc -l   # Target: <50 warnings
 ```
+
+---
+
+## Change Log
+
+| Date | Changes |
+|------|---------|
+| Dec 30, 2024 | Initial plan created |
+| Dec 30, 2024 | Phase 1 completed (clippy auto-fix, anyhow removal, derivable_impls, arch-check) |
+| Dec 30, 2024 | Phase 2.1, 2.2 completed (DmApprovalDecision, SuggestionContext consolidation) |
+| Dec 30, 2024 | Plan validated by sub-agents; Phase 3 scope reduced (6 traits already split) |
+| Dec 30, 2024 | Phase 4 target revised (600 lines realistic, not 150) |
+| Dec 30, 2024 | Phase 5 scope expanded (31 functions, not 3) |
+| Dec 30, 2024 | Added Phase 7 (Large Repository Decomposition) |
+| Dec 30, 2024 | Added Phase 8 (Error Handling Audit) |
+| Dec 30, 2024 | Removed Phase 2.3 LoadGenerationQueueItemsResult (type never existed) |
 
 ---
 
 ## Notes
 
 - Phases 3 and 4 can run in parallel if multiple developers are available
-- Phase 5 can be partially deferred - focus on use cases/ports first
+- Phase 5 can use strategic `#[allow]` for lower-priority warnings (domain entities)
 - All trait splits maintain backward compatibility via blanket implementations
-- Consider feature flags for deprecated traits if removal timeline is long
+- Phase 7 (repository decomposition) should follow Phase 3 patterns
+- Phase 8 is high priority due to potential production panics
