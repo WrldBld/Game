@@ -209,7 +209,7 @@ impl PlayerActionUseCase {
                 input.dialogue,
             )
             .await
-            .map_err(|e| ActionError::QueueFailed(e))?;
+            .map_err(ActionError::QueueFailed)?;
 
         // Get queue depth
         let depth = self.action_queue.depth().await.unwrap_or(0);

@@ -20,6 +20,7 @@ use wrldbldr_engine_ports::outbound::{
 
 /// Request to create a new item
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct CreateItemRequest {
     pub name: String,
     pub description: Option<String>,
@@ -30,19 +31,6 @@ pub struct CreateItemRequest {
     pub container_limit: Option<u32>,
 }
 
-impl Default for CreateItemRequest {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            description: None,
-            item_type: None,
-            is_unique: false,
-            properties: None,
-            can_contain_items: false,
-            container_limit: None,
-        }
-    }
-}
 
 /// Request to give an item to a player character
 #[derive(Debug, Clone)]

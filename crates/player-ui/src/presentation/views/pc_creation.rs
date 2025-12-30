@@ -42,8 +42,8 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
     let mut current_step = use_signal(|| CreationStep::Basics);
 
     // Form state - Step 1: Basics
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
 
     // Form state - Step 2: Character Sheet
     let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
@@ -170,7 +170,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         let sheet_vals = sheet_values.read().clone();
         let _session_id = props.session_id.clone();
         let pc_svc = pc_service.clone();
-        let nav = navigator.clone();
+        let nav = navigator;
         let world_id = props.world_id.clone();
 
         if name_val.trim().is_empty() {

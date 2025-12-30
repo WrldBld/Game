@@ -391,11 +391,11 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                                             on_toggle_favorite: handle_toggle_favorite.clone(),
                                             on_toggle_active: handle_toggle_active.clone(),
                                             on_edit: {
-                                                let mut editing = editing_challenge.clone();
+                                                let mut editing = editing_challenge;
                                                 move |c: ChallengeData| editing.set(Some(c))
                                             },
-                                            on_delete: handle_delete.clone(),
-                                            on_trigger: props.on_trigger_challenge.clone(),
+                                            on_delete: handle_delete,
+                                            on_trigger: props.on_trigger_challenge,
                                         }
                                     }
                                 }
@@ -412,7 +412,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                     challenge: None,
                     skills: props.skills.clone(),
                     on_save: {
-                        let mut challenges = challenges.clone();
+                        let mut challenges = challenges;
                         move |challenge: ChallengeData| {
                             challenges.write().push(challenge);
                             show_create_form.set(false);
@@ -429,7 +429,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
                     challenge: Some(challenge.clone()),
                     skills: props.skills.clone(),
                     on_save: {
-                        let mut challenges = challenges.clone();
+                        let mut challenges = challenges;
                         let challenge_id = challenge.id.clone();
                         move |updated: ChallengeData| {
                             let mut write = challenges.write();

@@ -449,7 +449,7 @@ impl MovementUseCase {
                 None,
             )
             .await
-            .map_err(|e| MovementError::Staging(e))?;
+            .map_err(MovementError::Staging)?;
 
         // Create pending staging data
         let waiting_pc = WaitingPcData {

@@ -273,7 +273,7 @@ impl GenerationService {
                             completed_count += 1;
 
                             // Extract generated images
-                            for (_node_id, output) in &prompt_history.outputs {
+                            for output in prompt_history.outputs.values() {
                                 if let Some(images) = &output.images {
                                     for image in images {
                                         // Download and save the image
@@ -402,9 +402,9 @@ impl GenerationService {
 
         // Create asset entity
         let mut asset = GalleryAsset::new_generated(
-            batch.entity_type.clone(),
+            batch.entity_type,
             batch.entity_id.clone(),
-            batch.asset_type.clone(),
+            batch.asset_type,
             output_path,
             metadata,
             self.clock.now(),

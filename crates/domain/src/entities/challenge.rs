@@ -185,8 +185,10 @@ impl Challenge {
 /// Types of challenges
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum ChallengeType {
     /// Standard skill check against difficulty
+    #[default]
     SkillCheck,
     /// Raw attribute/ability check (no skill proficiency)
     AbilityCheck,
@@ -198,11 +200,6 @@ pub enum ChallengeType {
     ComplexChallenge,
 }
 
-impl Default for ChallengeType {
-    fn default() -> Self {
-        Self::SkillCheck
-    }
-}
 
 impl ChallengeType {
     pub fn display_name(&self) -> &'static str {

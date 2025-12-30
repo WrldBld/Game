@@ -105,13 +105,13 @@ impl ChallengeUseCase {
             .resolution_service
             .handle_roll(&ctx.world_id, pc_id, input.challenge_id.clone(), input.roll)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+            .map_err(ChallengeError::ResolutionFailed)?;
 
         // Broadcast roll submission event
         // Adapter routes to DM (full details) and players (status only)
         self.broadcast
             .broadcast(
-                ctx.world_id.clone(),
+                ctx.world_id,
                 GameEvent::ChallengeRollSubmitted {
                     world_id: ctx.world_id,
                     resolution_id: result.resolution_id.clone(),
@@ -170,13 +170,13 @@ impl ChallengeUseCase {
                 input.input_type,
             )
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+            .map_err(ChallengeError::ResolutionFailed)?;
 
         // Broadcast roll submission event
         // Adapter routes to DM (full details) and players (status only)
         self.broadcast
             .broadcast(
-                ctx.world_id.clone(),
+                ctx.world_id,
                 GameEvent::ChallengeRollSubmitted {
                     world_id: ctx.world_id,
                     resolution_id: result.resolution_id.clone(),
@@ -230,12 +230,12 @@ impl ChallengeUseCase {
             .resolution_service
             .trigger_challenge(&ctx.world_id, input.challenge_id, input.target_character_id)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+            .map_err(ChallengeError::ResolutionFailed)?;
 
         // Broadcast challenge prompt to world
         self.broadcast
             .broadcast(
-                ctx.world_id.clone(),
+                ctx.world_id,
                 GameEvent::ChallengePromptSent {
                     world_id: ctx.world_id,
                     challenge_id: result.challenge_id.clone(),
@@ -271,7 +271,7 @@ impl ChallengeUseCase {
                 input.modified_difficulty,
             )
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(ChallengeError::ResolutionFailed)
     }
 
     /// Regenerate challenge outcome text
@@ -377,7 +377,7 @@ impl ChallengeUseCase {
                 input.outcomes,
             )
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(ChallengeError::ResolutionFailed)
     }
 
     /// Handle DM's decision on a challenge outcome
@@ -399,7 +399,7 @@ impl ChallengeUseCase {
         self.outcome_approval
             .process_decision(&ctx.world_id, &input.resolution_id, input.decision)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))?;
+            .map_err(ChallengeError::ResolutionFailed)?;
 
         Ok(OutcomeDecisionResult {
             outcome_text: None, // Resolution broadcast handled by service
@@ -430,7 +430,7 @@ impl ChallengeUseCase {
         self.outcome_approval
             .process_decision(&ctx.world_id, &input.resolution_id, decision)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(ChallengeError::ResolutionFailed)
     }
 
     /// Request branching outcome options
@@ -452,7 +452,7 @@ impl ChallengeUseCase {
         self.outcome_approval
             .request_branches(&ctx.world_id, &input.resolution_id, input.guidance)
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(ChallengeError::ResolutionFailed)
     }
 
     /// Select a specific outcome branch
@@ -479,7 +479,7 @@ impl ChallengeUseCase {
                 input.modified_description,
             )
             .await
-            .map_err(|e| ChallengeError::ResolutionFailed(e))
+            .map_err(ChallengeError::ResolutionFailed)
     }
 }
 

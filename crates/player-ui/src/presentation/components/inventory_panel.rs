@@ -124,9 +124,9 @@ pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
                                     title: "Equipped",
                                     icon: "*",
                                     items: equipped_items.into_iter().cloned().collect(),
-                                    on_use: props.on_use_item.clone(),
-                                    on_toggle_equip: props.on_toggle_equip.clone(),
-                                    on_drop: props.on_drop_item.clone(),
+                                    on_use: props.on_use_item,
+                                    on_toggle_equip: props.on_toggle_equip,
+                                    on_drop: props.on_drop_item,
                                 }
                             }
 
@@ -136,9 +136,9 @@ pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
                                     title: "Weapons",
                                     icon: "+",
                                     items: weapon_items.into_iter().cloned().collect(),
-                                    on_use: props.on_use_item.clone(),
-                                    on_toggle_equip: props.on_toggle_equip.clone(),
-                                    on_drop: props.on_drop_item.clone(),
+                                    on_use: props.on_use_item,
+                                    on_toggle_equip: props.on_toggle_equip,
+                                    on_drop: props.on_drop_item,
                                 }
                             }
 
@@ -148,9 +148,9 @@ pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
                                     title: "Consumables",
                                     icon: "o",
                                     items: consumable_items.into_iter().cloned().collect(),
-                                    on_use: props.on_use_item.clone(),
-                                    on_toggle_equip: props.on_toggle_equip.clone(),
-                                    on_drop: props.on_drop_item.clone(),
+                                    on_use: props.on_use_item,
+                                    on_toggle_equip: props.on_toggle_equip,
+                                    on_drop: props.on_drop_item,
                                 }
                             }
 
@@ -160,9 +160,9 @@ pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
                                     title: "Key Items",
                                     icon: "#",
                                     items: key_items.into_iter().cloned().collect(),
-                                    on_use: props.on_use_item.clone(),
-                                    on_toggle_equip: props.on_toggle_equip.clone(),
-                                    on_drop: props.on_drop_item.clone(),
+                                    on_use: props.on_use_item,
+                                    on_toggle_equip: props.on_toggle_equip,
+                                    on_drop: props.on_drop_item,
                                 }
                             }
 
@@ -172,9 +172,9 @@ pub fn InventoryPanel(props: InventoryPanelProps) -> Element {
                                     title: "Items",
                                     icon: ".",
                                     items: other_items.into_iter().cloned().collect(),
-                                    on_use: props.on_use_item.clone(),
-                                    on_toggle_equip: props.on_toggle_equip.clone(),
-                                    on_drop: props.on_drop_item.clone(),
+                                    on_use: props.on_use_item,
+                                    on_toggle_equip: props.on_toggle_equip,
+                                    on_drop: props.on_drop_item,
                                 }
                             }
                         }
@@ -222,9 +222,9 @@ fn InventorySection(props: InventorySectionProps) -> Element {
                     InventoryItemCard {
                         key: "{item.item.id}",
                         item: item.clone(),
-                        on_use: props.on_use.clone(),
-                        on_toggle_equip: props.on_toggle_equip.clone(),
-                        on_drop: props.on_drop.clone(),
+                        on_use: props.on_use,
+                        on_toggle_equip: props.on_toggle_equip,
+                        on_drop: props.on_drop,
                     }
                 }
             }
@@ -345,7 +345,7 @@ fn InventoryItemCard(props: InventoryItemCardProps) -> Element {
                         if props.item.is_consumable() {
                             if let Some(ref handler) = props.on_use {
                                 {
-                                    let handler = handler.clone();
+                                    let handler = *handler;
                                     let id = item_id.clone();
                                     rsx! {
                                         button {
@@ -362,7 +362,7 @@ fn InventoryItemCard(props: InventoryItemCardProps) -> Element {
                         if props.item.is_weapon() || props.item.item.item_type.as_deref() == Some("Armor") {
                             if let Some(ref handler) = props.on_toggle_equip {
                                 {
-                                    let handler = handler.clone();
+                                    let handler = *handler;
                                     let id = item_id.clone();
                                     let is_equipped = props.item.equipped;
                                     rsx! {
@@ -384,7 +384,7 @@ fn InventoryItemCard(props: InventoryItemCardProps) -> Element {
                         if !props.item.is_key() && !props.item.is_quest() {
                             if let Some(ref handler) = props.on_drop {
                                 {
-                                    let handler = handler.clone();
+                                    let handler = *handler;
                                     let id = item_id.clone();
                                     rsx! {
                                         button {

@@ -189,7 +189,7 @@ impl WorldStateManager {
     /// Add a pending staging approval
     pub fn add_pending_staging(&self, world_id: &WorldId, approval: WorldPendingStagingApproval) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| {
                 state.pending_staging_approvals.push(approval.clone());
             })
@@ -316,7 +316,7 @@ impl WorldStatePort for WorldStateManager {
 
     fn set_game_time(&self, world_id: &WorldId, time: GameTime) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| state.game_time = time.clone())
             .or_insert_with(|| WorldState {
                 game_time: time,
@@ -339,7 +339,7 @@ impl WorldStatePort for WorldStateManager {
 
     fn add_conversation(&self, world_id: &WorldId, entry: ConversationEntry) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| {
                 state.conversation_history.push(entry.clone());
                 // Keep only last 30 entries
@@ -386,7 +386,7 @@ impl WorldStatePort for WorldStateManager {
 
     fn add_pending_approval(&self, world_id: &WorldId, item: PendingApprovalItem) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| {
                 state.pending_approvals.push(item.clone());
             })
@@ -431,7 +431,7 @@ impl WorldStatePort for WorldStateManager {
 
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| {
                 state.current_scene_id = scene_id.clone();
             })
@@ -455,7 +455,7 @@ impl WorldStatePort for WorldStateManager {
 
     fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes) {
         self.states
-            .entry(world_id.clone())
+            .entry(*world_id)
             .and_modify(|state| {
                 state.directorial_context = Some(notes.clone());
             })
@@ -486,7 +486,7 @@ impl WorldStatePort for WorldStateManager {
             current_scene_id: None,
             directorial_context: None,
         };
-        self.states.insert(world_id.clone(), state);
+        self.states.insert(*world_id, state);
     }
 
     fn cleanup_world(&self, world_id: &WorldId) {

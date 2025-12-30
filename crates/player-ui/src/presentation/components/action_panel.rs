@@ -61,7 +61,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "Inventory",
                     icon: "bag",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -70,7 +70,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "Character",
                     icon: "person",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -79,7 +79,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "Map",
                     icon: "map",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -88,7 +88,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "People",
                     icon: "people",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -97,7 +97,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "Log",
                     icon: "scroll",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -106,7 +106,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 SystemButton {
                     label: "Skills",
                     icon: "skills",
-                    on_click: handler.clone(),
+                    on_click: *handler,
                     disabled: props.disabled,
                 }
             }
@@ -116,7 +116,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 if props.region_items_count > 0 {
                     LootButton {
                         count: props.region_items_count,
-                        on_click: handler.clone(),
+                        on_click: *handler,
                         disabled: props.disabled,
                     }
                 }
@@ -134,7 +134,7 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 InteractionButton {
                     key: "{interaction.id}",
                     interaction: interaction.clone(),
-                    on_click: props.on_interaction.clone(),
+                    on_click: props.on_interaction,
                     disabled: props.disabled,
                 }
             }

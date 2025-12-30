@@ -319,7 +319,7 @@ where
         let character_modifier = if let Some(ref sid) = skill_id {
             match self
                 .player_character_service
-                .get_skill_modifier(*pc_id, sid.clone())
+                .get_skill_modifier(*pc_id, *sid)
                 .await
             {
                 Ok(modifier) => {
@@ -384,7 +384,7 @@ where
     ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
         // Look up skill name if we have a skill_id
         let skill_name = if let Some(ref sid) = skill_id {
-            match self.skill_service.get_skill(sid.clone()).await {
+            match self.skill_service.get_skill(*sid).await {
                 Ok(Some(skill)) => Some(skill.name),
                 Ok(None) => {
                     tracing::warn!("Skill {} not found for challenge {}", sid, challenge_id_str);
@@ -623,7 +623,7 @@ where
 
         // Look up skill name from skill service
         let skill_name = if let Some(ref sid) = skill_id {
-            match self.skill_service.get_skill(sid.clone()).await {
+            match self.skill_service.get_skill(*sid).await {
                 Ok(Some(skill)) => skill.name,
                 Ok(None) => {
                     tracing::warn!("Skill {} not found for challenge", sid);
@@ -645,7 +645,7 @@ where
             {
                 match self
                     .player_character_service
-                    .get_skill_modifier(pc_id, sid.clone())
+                    .get_skill_modifier(pc_id, *sid)
                     .await
                 {
                     Ok(modifier) => modifier,
@@ -775,7 +775,7 @@ where
             if let Some(pc_id) = challenge_suggestion.target_pc_id {
                 match self
                     .player_character_service
-                    .get_skill_modifier(pc_id, sid.clone())
+                    .get_skill_modifier(pc_id, *sid)
                     .await
                 {
                     Ok(modifier) => modifier,

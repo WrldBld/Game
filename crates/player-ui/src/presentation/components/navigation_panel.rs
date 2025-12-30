@@ -106,7 +106,7 @@ pub fn NavigationPanel(props: NavigationPanelProps) -> Element {
                                             target: target.clone(),
                                             disabled: props.disabled,
                                             on_click: {
-                                                let on_move = props.on_move_to_region.clone();
+                                                let on_move = props.on_move_to_region;
                                                 let region_id = target.region_id.clone();
                                                 move |_| on_move.call(region_id.clone())
                                             },
@@ -133,7 +133,7 @@ pub fn NavigationPanel(props: NavigationPanelProps) -> Element {
                                             exit: exit.clone(),
                                             disabled: props.disabled,
                                             on_click: {
-                                                let on_exit = props.on_exit_to_location.clone();
+                                                let on_exit = props.on_exit_to_location;
                                                 let location_id = exit.location_id.clone();
                                                 let arrival_region_id = exit.arrival_region_id.clone();
                                                 move |_| on_exit.call((location_id.clone(), arrival_region_id.clone()))
@@ -303,7 +303,7 @@ pub fn NavigationButtons(props: NavigationButtonsProps) -> Element {
                     let is_locked = target.is_locked;
                     let is_disabled = props.disabled || is_locked;
                     let region_id = target.region_id.clone();
-                    let on_move = props.on_move_to_region.clone();
+                    let on_move = props.on_move_to_region;
 
                     rsx! {
                         button {
@@ -334,7 +334,7 @@ pub fn NavigationButtons(props: NavigationButtonsProps) -> Element {
                 {
                     let location_id = exit.location_id.clone();
                     let arrival_region_id = exit.arrival_region_id.clone();
-                    let on_exit = props.on_exit_to_location.clone();
+                    let on_exit = props.on_exit_to_location;
 
                     rsx! {
                         button {

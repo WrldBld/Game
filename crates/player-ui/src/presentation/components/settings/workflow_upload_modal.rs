@@ -109,7 +109,7 @@ pub fn WorkflowUploadModal(props: WorkflowUploadModalProps) -> Element {
 
     // Save workflow configuration
     let slot_for_save = props.slot.clone();
-    let on_save_handler = props.on_save.clone();
+    let on_save_handler = props.on_save;
     let workflow_service_for_save = workflow_service.clone();
     let do_save = move |_| {
         let json_text = workflow_json.read().clone();
@@ -117,7 +117,7 @@ pub fn WorkflowUploadModal(props: WorkflowUploadModalProps) -> Element {
         let primary = primary_mapping.read().clone();
         let negative = negative_mapping.read().clone();
         let slot = slot_for_save.clone();
-        let on_save = on_save_handler.clone();
+        let on_save = on_save_handler;
         let svc = workflow_service_for_save.clone();
 
         spawn(async move {
@@ -479,7 +479,7 @@ fn ConfigureStepContent(props: ConfigureStepContentProps) -> Element {
                 TextInputSelector {
                     inputs: props.analysis.text_inputs.clone(),
                     selected: props.primary_mapping.clone(),
-                    on_select: props.on_primary_change.clone(),
+                    on_select: props.on_primary_change,
                 }
             }
 
@@ -492,7 +492,7 @@ fn ConfigureStepContent(props: ConfigureStepContentProps) -> Element {
                 TextInputSelector {
                     inputs: props.analysis.text_inputs.clone(),
                     selected: props.negative_mapping.clone(),
-                    on_select: props.on_negative_change.clone(),
+                    on_select: props.on_negative_change,
                 }
             }
         }

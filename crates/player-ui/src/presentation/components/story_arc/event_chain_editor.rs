@@ -62,7 +62,7 @@ pub fn EventChainEditor(props: EventChainEditorProps) -> Element {
             let active_val = *is_active.read();
             let mut saving = is_saving;
             let mut err = error;
-            let on_save_handler = props.on_save.clone();
+            let on_save_handler = props.on_save;
             spawn(async move {
                 saving.set(true);
                 err.set(None);

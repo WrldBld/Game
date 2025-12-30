@@ -173,7 +173,7 @@ pub fn MiniMap(props: MiniMapProps) -> Element {
                                                 class: "absolute rounded-lg border-2 {bg_color} {border_color} transition-colors flex items-center justify-center",
                                                 style: "left: {bounds.x}px; top: {bounds.y}px; width: {bounds.width}px; height: {bounds.height}px;",
                                                 onclick: {
-                                                    let on_click = props.on_region_click.clone();
+                                                    let on_click = props.on_region_click;
                                                     let rid = region_id.clone();
                                                     let can_click = is_navigable && !is_current;
                                                     move |e| {
@@ -219,7 +219,7 @@ pub fn MiniMap(props: MiniMapProps) -> Element {
                             current_region_id: props.current_region_id.clone(),
                             navigable_region_ids: props.navigable_region_ids.clone(),
                             locked_region_ids: props.locked_region_ids.clone(),
-                            on_region_click: props.on_region_click.clone(),
+                            on_region_click: props.on_region_click,
                         }
                     }
                 }
@@ -289,7 +289,7 @@ fn MapGridView(props: MapGridViewProps) -> Element {
                             class: "p-4 rounded-lg border {card_class} text-left transition-colors disabled:cursor-not-allowed",
                             disabled: is_locked || is_current,
                             onclick: {
-                                let on_click = props.on_region_click.clone();
+                                let on_click = props.on_region_click;
                                 let rid = region_id.clone();
                                 let can_click = is_navigable && !is_current;
                                 move |_| {

@@ -73,7 +73,7 @@ where
                 QueueItemStatus::Pending => true,
                 QueueItemStatus::Delayed => item
                     .scheduled_at
-                    .map_or(false, |scheduled| scheduled <= now),
+                    .is_some_and(|scheduled| scheduled <= now),
                 _ => false,
             };
 
@@ -116,7 +116,7 @@ where
                 QueueItemStatus::Pending => true,
                 QueueItemStatus::Delayed => item
                     .scheduled_at
-                    .map_or(false, |scheduled| scheduled <= now),
+                    .is_some_and(|scheduled| scheduled <= now),
                 _ => false,
             };
 

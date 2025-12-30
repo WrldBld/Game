@@ -9,16 +9,14 @@ pub mod config {
     use std::str::FromStr;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Default)]
     pub enum ShellKind {
+        #[default]
         Desktop,
         Mobile,
     }
 
-    impl Default for ShellKind {
-        fn default() -> Self {
-            Self::Desktop
-        }
-    }
+    
 
     impl FromStr for ShellKind {
         type Err = String;
@@ -33,17 +31,12 @@ pub mod config {
     }
 
     #[derive(Clone, Debug)]
+    #[derive(Default)]
     pub struct RunnerConfig {
         pub shell: ShellKind,
     }
 
-    impl Default for RunnerConfig {
-        fn default() -> Self {
-            Self {
-                shell: ShellKind::default(),
-            }
-        }
-    }
+    
 }
 
 use config::RunnerConfig;

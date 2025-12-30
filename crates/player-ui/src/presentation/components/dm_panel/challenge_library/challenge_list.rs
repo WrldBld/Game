@@ -56,11 +56,11 @@ pub fn ChallengeTypeSection(props: ChallengeTypeSectionProps) -> Element {
                             key: "{challenge.id}",
                             challenge: challenge.clone(),
                             skill_name: props.skills_map.get(&challenge.skill_id).cloned().unwrap_or_else(|| "Unknown".to_string()),
-                            on_toggle_favorite: props.on_toggle_favorite.clone(),
-                            on_toggle_active: props.on_toggle_active.clone(),
-                            on_edit: props.on_edit.clone(),
-                            on_delete: props.on_delete.clone(),
-                            on_trigger: props.on_trigger.clone(),
+                            on_toggle_favorite: props.on_toggle_favorite,
+                            on_toggle_active: props.on_toggle_active,
+                            on_edit: props.on_edit,
+                            on_delete: props.on_delete,
+                            on_trigger: props.on_trigger,
                         }
                     }
                 }
@@ -177,7 +177,7 @@ pub fn ChallengeCard(props: ChallengeCardProps) -> Element {
                 if let Some(ref on_trigger) = props.on_trigger {
                     button {
                         onclick: {
-                            let trigger = on_trigger.clone();
+                            let trigger = *on_trigger;
                             let c = challenge_for_trigger.clone();
                             move |_| trigger.call(c.clone())
                         },

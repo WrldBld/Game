@@ -33,9 +33,9 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
     let asset_service = use_asset_service();
     let settings_service = use_settings_service();
     let mut prompt = use_signal(|| props.initial_prompt.clone());
-    let mut negative_prompt = use_signal(|| String::new());
+    let mut negative_prompt = use_signal(String::new);
     let mut count = use_signal(|| 4u8);
-    let mut workflow_slot = use_signal(|| String::new());
+    let mut workflow_slot = use_signal(String::new);
     let mut is_generating = use_signal(|| false);
     let mut style_reference_id: Signal<Option<String>> = use_signal(|| None);
     let mut style_reference_label: Signal<Option<String>> = use_signal(|| None);

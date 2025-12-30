@@ -649,7 +649,7 @@ impl From<GenerationMetadataStored> for GenerationMetadata {
         let batch_id = uuid::Uuid::parse_str(&value.batch_id)
             .ok()
             .map(BatchId::from_uuid)
-            .unwrap_or_else(BatchId::new);
+            .unwrap_or_default();
 
         Self {
             workflow: value.workflow,

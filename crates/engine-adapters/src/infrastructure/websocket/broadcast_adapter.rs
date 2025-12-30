@@ -70,7 +70,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 for pc in &evt.waiting_pcs {
                     let _ = self
                         .connection_manager
-                        .send_to_user_in_world(&world_uuid, &pc.user_id, msg.clone())
+                        .send_to_user_in_world(world_uuid, &pc.user_id, msg.clone())
                         .await;
                 }
             }
@@ -79,7 +79,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 let msg = convert_staging_pending(event);
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -90,7 +90,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 let msg = convert_scene_changed(event);
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -108,7 +108,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -147,7 +147,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 // Broadcast to all except the joining user
                 let _ = self
                     .connection_manager
-                    .broadcast_to_world_except(&world_uuid, &user_id, msg)
+                    .broadcast_to_world_except(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -158,7 +158,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 // Broadcast to all except the leaving user
                 let _ = self
                     .connection_manager
-                    .broadcast_to_world_except(&world_uuid, &user_id, msg)
+                    .broadcast_to_world_except(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -178,7 +178,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -197,7 +197,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -222,7 +222,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, msg)
+                    .send_to_user_in_world(world_uuid, &user_id, msg)
                     .await;
             }
 
@@ -480,7 +480,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 let _ = self
                     .connection_manager
-                    .send_to_user_in_world(&world_uuid, &user_id, message)
+                    .send_to_user_in_world(world_uuid, &user_id, message)
                     .await;
             }
 

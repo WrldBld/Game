@@ -24,7 +24,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
     let settings_service = use_settings_service();
 
     // State for the form fields
-    let mut settings = use_signal(|| AppSettings::default());
+    let mut settings = use_signal(AppSettings::default);
     let mut is_loading = use_signal(|| true);
     let mut is_saving = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);

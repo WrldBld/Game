@@ -122,10 +122,10 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
     let slot_id_for_delete = slot_id.clone();
     let workflow_service_for_delete = workflow_service.clone();
     // Delete handler
-    let on_deleted = props.on_deleted.clone();
+    let on_deleted = props.on_deleted;
     let do_delete = move |_| {
         let slot = slot_id_for_delete.clone();
-        let callback = on_deleted.clone();
+        let callback = on_deleted;
         let svc = workflow_service_for_delete.clone();
 
         spawn(async move {

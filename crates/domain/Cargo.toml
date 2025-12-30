@@ -13,7 +13,7 @@ wrldbldr-domain-types = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
+# NOTE: anyhow removed for hexagonal architecture purity - domain uses thiserror instead
 # NOTE: rand removed for hexagonal architecture purity - RNG is now injected via closure
 serde = { workspace = true }
 serde_json = { workspace = true }

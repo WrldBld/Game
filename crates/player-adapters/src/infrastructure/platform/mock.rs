@@ -286,7 +286,7 @@ pub struct MockConnectionFactoryProvider;
 
 impl MockConnectionFactoryProvider {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 
@@ -305,13 +305,13 @@ impl ConnectionFactoryProvider for MockConnectionFactoryProvider {
 pub fn create_mock_platform() -> Platform {
     Platform::new(
         MockTimeProvider::default(),
-        MockSleepProvider::default(),
+        MockSleepProvider,
         MockRandomProvider::default(),
         MockStorageProvider::default(),
         MockLogProvider::default(),
         MockDocumentProvider::default(),
         MockEngineConfigProvider::default(),
-        MockConnectionFactoryProvider::default(),
+        MockConnectionFactoryProvider,
     )
 }
 
@@ -337,13 +337,13 @@ impl MockPlatformBuilder {
     pub fn new() -> Self {
         Self {
             time: MockTimeProvider::default(),
-            sleep: MockSleepProvider::default(),
+            sleep: MockSleepProvider,
             random: MockRandomProvider::default(),
             storage: MockStorageProvider::default(),
             log: MockLogProvider::default(),
             document: MockDocumentProvider::default(),
             engine_config: MockEngineConfigProvider::default(),
-            connection_factory: MockConnectionFactoryProvider::default(),
+            connection_factory: MockConnectionFactoryProvider,
         }
     }
 

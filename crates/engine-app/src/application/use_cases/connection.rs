@@ -132,7 +132,7 @@ impl ConnectionUseCase {
                 input.spectate_pc_id.map(|id| *id.as_uuid()),
             )
             .await
-            .map_err(|e| ConnectionError::ConnectionFailed(e))?;
+            .map_err(ConnectionError::ConnectionFailed)?;
 
         // Get world snapshot
         let snapshot = self
@@ -257,7 +257,7 @@ impl ConnectionUseCase {
             .pc_service
             .get_pc(input.pc_id)
             .await
-            .map_err(|e| ConnectionError::Database(e))?
+            .map_err(ConnectionError::Database)?
             .ok_or(ConnectionError::PcNotFound(input.pc_id))?;
 
         // Set spectate target

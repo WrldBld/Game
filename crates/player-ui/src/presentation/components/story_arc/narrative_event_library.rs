@@ -16,7 +16,7 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
     let mut events: Signal<Vec<NarrativeEventData>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
-    let mut search_text = use_signal(|| String::new());
+    let mut search_text = use_signal(String::new);
     let mut filter_status = use_signal(|| "all".to_string());
     let mut show_favorites_only = use_signal(|| false);
     let mut selected_event: Signal<Option<NarrativeEventData>> = use_signal(|| None);
@@ -254,7 +254,7 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
                 NarrativeEventFormModal {
                     world_id: props.world_id.clone(),
                     on_save: {
-                        let mut events = events.clone();
+                        let mut events = events;
                         move |new_event: NarrativeEventData| {
                             events.write().push(new_event);
                             show_create_form.set(false);
@@ -279,20 +279,20 @@ struct NarrativeEventFormModalProps {
 fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
     let narrative_event_service = use_narrative_event_service();
 
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
-    let mut scene_direction = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
+    let mut scene_direction = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
     let mut save_error: Signal<Option<String>> = use_signal(|| None);
 
     let save_event = {
         let world_id = props.world_id.clone();
         let service = narrative_event_service.clone();
-        let on_save = props.on_save.clone();
+        let on_save = props.on_save;
         move |_| {
             let world_id = world_id.clone();
             let service = service.clone();
-            let on_save = on_save.clone();
+            let on_save = on_save;
             let name_val = name.read().clone();
             let desc_val = description.read().clone();
             let direction_val = scene_direction.read().clone();

@@ -136,7 +136,7 @@ fn EntityTypeTabLink(world_id: String, tab: EntityTypeTab, active: bool) -> Elem
     rsx! {
         Link {
             to: Route::DMCreatorSubTabRoute {
-                world_id: world_id,
+                world_id,
                 subtab: subtab.to_string(),
             },
             class: format!("flex-1 py-2 px-1 {} text-white border-0 cursor-pointer text-xs no-underline text-center", bg_class),

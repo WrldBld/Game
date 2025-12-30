@@ -124,8 +124,8 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
             if let Some(suggestion) = &props.challenge_suggestion {
                 {
                     let request_id = props.request_id.clone();
-                    let on_regenerate = props.on_regenerate_outcome.clone();
-                    let on_discard = props.on_discard_challenge.clone();
+                    let on_regenerate = props.on_regenerate_outcome;
+                    let on_discard = props.on_discard_challenge;
                     let outcomes = props.challenge_outcomes.clone();
 
                     rsx! {
@@ -145,7 +145,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                 if on_discard.is_some() {
                                     {
                                         let request_id_discard = request_id.clone();
-                                        let handler = on_discard.clone();
+                                        let handler = on_discard;
                                         rsx! {
                                             button {
                                                 onclick: move |_| {
@@ -202,7 +202,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                                 OutcomeDetailsSection {
                                     outcomes: outcomes.clone(),
                                     request_id: request_id.clone(),
-                                    on_regenerate: on_regenerate.clone(),
+                                    on_regenerate: on_regenerate,
                                 }
                             }
 
@@ -401,7 +401,7 @@ fn OutcomeDetailsSection(props: OutcomeDetailsSectionProps) -> Element {
                 if props.on_regenerate.is_some() {
                     {
                         let request_id = props.request_id.clone();
-                        let handler = props.on_regenerate.clone();
+                        let handler = props.on_regenerate;
                         rsx! {
                             button {
                                 onclick: move |_| {
@@ -433,7 +433,7 @@ fn OutcomeDetailsSection(props: OutcomeDetailsSectionProps) -> Element {
                         outcome: outcome.clone(),
                         outcome_type: "success".to_string(),
                         request_id: props.request_id.clone(),
-                        on_regenerate: props.on_regenerate.clone(),
+                        on_regenerate: props.on_regenerate,
                         is_expanded: *expanded_outcome.read() == Some("success".to_string()),
                         on_toggle: move |_| {
                             let current = expanded_outcome.read().clone();
@@ -454,7 +454,7 @@ fn OutcomeDetailsSection(props: OutcomeDetailsSectionProps) -> Element {
                         outcome: outcome.clone(),
                         outcome_type: "failure".to_string(),
                         request_id: props.request_id.clone(),
-                        on_regenerate: props.on_regenerate.clone(),
+                        on_regenerate: props.on_regenerate,
                         is_expanded: *expanded_outcome.read() == Some("failure".to_string()),
                         on_toggle: move |_| {
                             let current = expanded_outcome.read().clone();
@@ -475,7 +475,7 @@ fn OutcomeDetailsSection(props: OutcomeDetailsSectionProps) -> Element {
                         outcome: outcome.clone(),
                         outcome_type: "critical_success".to_string(),
                         request_id: props.request_id.clone(),
-                        on_regenerate: props.on_regenerate.clone(),
+                        on_regenerate: props.on_regenerate,
                         is_expanded: *expanded_outcome.read() == Some("critical_success".to_string()),
                         on_toggle: move |_| {
                             let current = expanded_outcome.read().clone();
@@ -496,7 +496,7 @@ fn OutcomeDetailsSection(props: OutcomeDetailsSectionProps) -> Element {
                         outcome: outcome.clone(),
                         outcome_type: "critical_failure".to_string(),
                         request_id: props.request_id.clone(),
-                        on_regenerate: props.on_regenerate.clone(),
+                        on_regenerate: props.on_regenerate,
                         is_expanded: *expanded_outcome.read() == Some("critical_failure".to_string()),
                         on_toggle: move |_| {
                             let current = expanded_outcome.read().clone();
@@ -643,7 +643,7 @@ fn OutcomeTab(props: OutcomeTabProps) -> Element {
 
                             // Toggle edit/save
                             {
-                                let mut editing_sig = editing.clone();
+                                let mut editing_sig = editing;
                                 rsx! {
                                     button {
                                         onclick: move |_| {
@@ -660,9 +660,9 @@ fn OutcomeTab(props: OutcomeTabProps) -> Element {
                             {
                                 let request_id = props.request_id.clone();
                                 let outcome_type = props.outcome_type.clone();
-                                let handler = props.on_regenerate.clone();
-                                let edited_flavor_sig = edited_flavor.clone();
-                                let edited_direction_sig = edited_direction.clone();
+                                let handler = props.on_regenerate;
+                                let edited_flavor_sig = edited_flavor;
+                                let edited_direction_sig = edited_direction;
 
                                 rsx! {
                                     button {

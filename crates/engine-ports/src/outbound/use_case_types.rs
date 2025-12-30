@@ -265,21 +265,19 @@ pub struct SpectateTargetResult {
 
 /// Time context for scenes
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum TimeContext {
+    #[default]
     Unspecified,
     TimeOfDay(String),
     During(String),
     Custom(String),
 }
 
-impl Default for TimeContext {
-    fn default() -> Self {
-        Self::Unspecified
-    }
-}
 
 /// Directorial context data for scene management
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct DirectorialContextData {
     pub npc_motivations: Vec<NpcMotivation>,
     pub scene_mood: Option<String>,
@@ -287,16 +285,6 @@ pub struct DirectorialContextData {
     pub dm_notes: Option<String>,
 }
 
-impl Default for DirectorialContextData {
-    fn default() -> Self {
-        Self {
-            npc_motivations: Vec::new(),
-            scene_mood: None,
-            pacing: None,
-            dm_notes: None,
-        }
-    }
-}
 
 /// NPC motivation data for directorial context
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -36,7 +36,7 @@ pub fn DirectorModeContent() -> Element {
     let mut show_queue_panel = use_signal(|| false);
 
     // Local state for directorial inputs
-    let mut scene_notes = use_signal(|| String::new());
+    let mut scene_notes = use_signal(String::new);
     let mut current_tone = use_signal(|| "Serious".to_string());
     let mut show_challenge_library = use_signal(|| false);
     let mut show_trigger_challenge = use_signal(|| false);
@@ -692,7 +692,7 @@ fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
     let platform = crate::use_platform();
     let mut modified_dialogue = use_signal(|| props.approval.proposed_dialogue.clone());
     let mut show_reasoning = use_signal(|| false);
-    let mut rejection_feedback = use_signal(|| String::new());
+    let mut rejection_feedback = use_signal(String::new);
     let mut show_reject_input = use_signal(|| false);
 
     // Track which tools are approved

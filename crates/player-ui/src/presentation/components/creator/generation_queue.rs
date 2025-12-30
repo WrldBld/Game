@@ -251,7 +251,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
                             batch: batch.clone(),
                             show_read: show_read_val,
                             world_id: world_id.clone(),
-                            on_navigate_to_entity: props.on_navigate_to_entity.clone(),
+                            on_navigate_to_entity: props.on_navigate_to_entity,
                         }
                     }
 
@@ -262,7 +262,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
                             selected_suggestion,
                             show_read: show_read_val,
                             world_id: world_id.clone(),
-                            on_navigate_to_entity: props.on_navigate_to_entity.clone(),
+                            on_navigate_to_entity: props.on_navigate_to_entity,
                         }
                     }
                 }
@@ -469,14 +469,14 @@ fn QueueItemRow(
                                     let entity_id = batch.entity_id.clone();
                                     let state = use_generation_state();
                                     let world_id_clone = world_id.clone();
-                                    let nav_handler = on_navigate_to_entity.clone();
+                                    let nav_handler = on_navigate_to_entity;
                                     let gen_svc = generation_service.clone();
                                     let plat_clone = platform.clone();
                                     move |_| {
                                         let bid = batch_id.clone();
                                         let wid = world_id_clone.clone();
                                         let mut gen_state = state;
-                                        let nav = nav_handler.clone();
+                                        let nav = nav_handler;
                                         let svc = gen_svc.clone();
                                         let plat = plat_clone.clone();
                                     spawn(async move {
@@ -678,7 +678,7 @@ fn SuggestionQueueRow(
                                 let field_type = suggestion.field_type.clone();
                                 let state = use_generation_state();
                                 let world_id_clone = world_id.clone();
-                                let nav_handler = on_navigate_to_entity.clone();
+                                let nav_handler = on_navigate_to_entity;
                                 let gen_svc = generation_service.clone();
                                 let plat_clone = platform.clone();
                                 move |_| {
@@ -686,7 +686,7 @@ fn SuggestionQueueRow(
                                     let req_id_clone = req_id.clone();
                                     let wid = world_id_clone.clone();
                                     let mut gen_state = state;
-                                    let nav = nav_handler.clone();
+                                    let nav = nav_handler;
                                     let svc = gen_svc.clone();
                                     let plat = plat_clone.clone();
                                 spawn(async move {

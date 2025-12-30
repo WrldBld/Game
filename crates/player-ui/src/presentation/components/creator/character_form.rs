@@ -42,12 +42,12 @@ pub fn CharacterForm(
     let world_service = use_world_service();
 
     // Form state
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
     let mut archetype = use_signal(|| "Hero".to_string());
-    let mut wants = use_signal(|| String::new());
-    let mut fears = use_signal(|| String::new());
-    let mut backstory = use_signal(|| String::new());
+    let mut wants = use_signal(String::new);
+    let mut fears = use_signal(String::new);
+    let mut backstory = use_signal(String::new);
     let mut is_loading = use_signal(|| !is_new);
     let mut is_saving = use_signal(|| false);
     let mut success_message: Signal<Option<String>> = use_signal(|| None);
@@ -423,7 +423,7 @@ pub fn CharacterForm(
                             is_saving.set(true);
 
                             let char_id = character_id.clone();
-                            let on_close = on_close.clone();
+                            let on_close = on_close;
                             let svc = char_svc.clone();
                             let world_id_clone = world_id.clone();
 

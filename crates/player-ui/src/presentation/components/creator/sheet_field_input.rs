@@ -72,7 +72,7 @@ pub fn SheetSectionInput(props: SheetSectionProps) -> Element {
                         {
                             let field_id = field.id.clone();
                             let current_value = props.values.get(&field_id).cloned();
-                            let on_change = props.on_change.clone();
+                            let on_change = props.on_change;
                             rsx! {
                                 SheetFieldInput {
                                     key: "{field_id}",
@@ -127,7 +127,7 @@ pub fn SheetFieldInput(props: SheetFieldInputProps) -> Element {
                     };
                     let min_val = *min;
                     let max_val = *max;
-                    let on_change = props.on_change.clone();
+                    let on_change = props.on_change;
 
                     rsx! {
                         input {
@@ -152,7 +152,7 @@ pub fn SheetFieldInput(props: SheetFieldInputProps) -> Element {
                         _ => String::new(),
                     };
                     let is_multiline = *multiline;
-                    let on_change = props.on_change.clone();
+                    let on_change = props.on_change;
 
                     if is_multiline {
                         rsx! {
@@ -185,7 +185,7 @@ pub fn SheetFieldInput(props: SheetFieldInputProps) -> Element {
                         Some(FieldValue::Boolean(b)) => *b,
                         _ => *default,
                     };
-                    let on_change = props.on_change.clone();
+                    let on_change = props.on_change;
 
                     rsx! {
                         input {
@@ -206,7 +206,7 @@ pub fn SheetFieldInput(props: SheetFieldInputProps) -> Element {
                         _ => options.first().map(|o| o.value.clone()).unwrap_or_default(),
                     };
                     let opts = options.clone();
-                    let on_change = props.on_change.clone();
+                    let on_change = props.on_change;
 
                     rsx! {
                         select {
@@ -232,8 +232,8 @@ pub fn SheetFieldInput(props: SheetFieldInputProps) -> Element {
                         Some(FieldValue::Resource { current, max }) => (*current, *max),
                         _ => (default_max.unwrap_or(10), default_max.unwrap_or(10)),
                     };
-                    let on_change = props.on_change.clone();
-                    let on_change2 = props.on_change.clone();
+                    let on_change = props.on_change;
+                    let on_change2 = props.on_change;
 
                     rsx! {
                         div {
@@ -429,7 +429,7 @@ pub fn CharacterSheetForm(props: CharacterSheetFormProps) -> Element {
                             key: "{section_id}",
                             section: section,
                             values: props.values.clone(),
-                            on_change: props.on_change.clone(),
+                            on_change: props.on_change,
                             read_only: props.read_only,
                         }
                     }

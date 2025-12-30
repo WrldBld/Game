@@ -377,10 +377,10 @@ fn AddSkillForm(
     on_created: EventHandler<SkillData>,
     on_cancel: EventHandler<()>,
 ) -> Element {
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
     let mut category = use_signal(|| SkillCategory::Custom);
-    let mut base_attribute = use_signal(|| String::new());
+    let mut base_attribute = use_signal(String::new);
     let mut is_creating = use_signal(|| false);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 

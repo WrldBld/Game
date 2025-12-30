@@ -68,7 +68,7 @@ impl GameTime {
     }
 
     pub fn advance(&mut self, duration: Duration) {
-        self.current = self.current + duration;
+        self.current += duration;
     }
 
     pub fn advance_hours(&mut self, hours: u32) {

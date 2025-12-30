@@ -153,17 +153,17 @@ impl Default for DialogueState {
 pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     let platform = use_platform();
     let is_typing = *dialogue_state.is_typing.read();
-    let full_text = dialogue_state.full_text.clone();
-    let displayed_text = dialogue_state.displayed_text.clone();
-    let is_typing_signal = dialogue_state.is_typing.clone();
-    let awaiting_signal = dialogue_state.awaiting_input.clone();
+    let full_text = dialogue_state.full_text;
+    let displayed_text = dialogue_state.displayed_text;
+    let is_typing_signal = dialogue_state.is_typing;
+    let awaiting_signal = dialogue_state.awaiting_input;
 
     use_future(move || {
         let platform = platform.clone();
-        let full_text = full_text.clone();
-        let mut displayed_text = displayed_text.clone();
-        let mut is_typing_signal = is_typing_signal.clone();
-        let mut awaiting_signal = awaiting_signal.clone();
+        let full_text = full_text;
+        let mut displayed_text = displayed_text;
+        let mut is_typing_signal = is_typing_signal;
+        let mut awaiting_signal = awaiting_signal;
 
         async move {
             if !is_typing {

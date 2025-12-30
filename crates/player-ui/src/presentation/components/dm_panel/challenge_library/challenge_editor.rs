@@ -118,7 +118,7 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
                 .collect(),
         };
 
-        let on_save = props.on_save.clone();
+        let on_save = props.on_save;
         let is_edit = is_edit;
         let service = challenge_service_for_save.clone();
         let wid = world_id_for_save.clone();

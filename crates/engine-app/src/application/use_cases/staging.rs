@@ -120,7 +120,7 @@ impl StagingApprovalUseCase {
                 &ctx.user_id,
             )
             .await
-            .map_err(|e| StagingError::ApprovalFailed(e))?;
+            .map_err(StagingError::ApprovalFailed)?;
 
         // Build NPC presence list
         let npcs_present: Vec<NpcPresenceData> = staged_npcs
@@ -203,7 +203,7 @@ impl StagingApprovalUseCase {
                 &input.guidance,
             )
             .await
-            .map_err(|e| StagingError::RegenerationFailed(e))?;
+            .map_err(StagingError::RegenerationFailed)?;
 
         // Update the pending staging with new suggestions
         self.staging_state.update_llm_suggestions(
@@ -281,7 +281,7 @@ impl StagingApprovalUseCase {
                 &ctx.user_id,
             )
             .await
-            .map_err(|e| StagingError::PreStagingFailed(e))?;
+            .map_err(StagingError::PreStagingFailed)?;
 
         // Build NPC presence list
         let npcs_present: Vec<NpcPresenceData> = staged_npcs

@@ -36,10 +36,10 @@ fn AppRoot() -> Element {
     let shell = use_context::<ShellKind>();
 
     // These must be created inside an active Dioxus runtime.
-    use_context_provider(|| presentation::state::GameState::new());
-    use_context_provider(|| presentation::state::SessionState::new());
-    use_context_provider(|| presentation::state::DialogueState::new());
-    use_context_provider(|| presentation::state::GenerationState::new());
+    use_context_provider(presentation::state::GameState::new);
+    use_context_provider(presentation::state::SessionState::new);
+    use_context_provider(presentation::state::DialogueState::new);
+    use_context_provider(presentation::state::GenerationState::new);
 
     rsx! {
         document::Stylesheet {

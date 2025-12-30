@@ -166,13 +166,9 @@ pub enum InteractionCondition {
 /// Data for interaction requirement edges
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct InteractionRequirement {
     /// Whether the required item is consumed when the interaction is used
     pub consumed: bool,
 }
 
-impl Default for InteractionRequirement {
-    fn default() -> Self {
-        Self { consumed: false }
-    }
-}

@@ -796,10 +796,13 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
 
     // Directories to check for glob re-exports
     let check_dirs = [
+        workspace_root.join("crates/domain-types/src"),
         workspace_root.join("crates/domain/src"),
         workspace_root.join("crates/protocol/src"),
+        workspace_root.join("crates/engine-dto/src"),
         workspace_root.join("crates/engine-ports/src"),
         workspace_root.join("crates/engine-app/src"),
+        workspace_root.join("crates/engine-composition/src"),
         workspace_root.join("crates/engine-adapters/src"),
         workspace_root.join("crates/engine-runner/src"),
         workspace_root.join("crates/player-ports/src"),

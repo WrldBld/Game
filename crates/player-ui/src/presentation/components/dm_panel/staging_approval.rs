@@ -123,7 +123,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
 
     let handle_approve = {
         let request_id = props.data.request_id.clone();
-        let on_approve = props.on_approve.clone();
+        let on_approve = props.on_approve;
         move |_| {
             let approved: Vec<(String, bool, bool)> = selections
                 .read()
@@ -148,7 +148,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
 
     let handle_use_previous = {
         let request_id = props.data.request_id.clone();
-        let on_approve = props.on_approve.clone();
+        let on_approve = props.on_approve;
         let previous = props.data.previous_staging.clone();
         move |_| {
             if let Some(ref prev) = previous {
@@ -176,7 +176,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
 
     let handle_regenerate_submit = {
         let request_id = props.data.request_id.clone();
-        let on_regenerate = props.on_regenerate.clone();
+        let on_regenerate = props.on_regenerate;
         move |_| {
             let guidance = regenerate_guidance.read().clone();
             if !guidance.is_empty() {
@@ -295,12 +295,11 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                                         },
                                         on_toggle_hidden: move |_| {
                                             let mut current = selections.read().clone();
-                                            if idx < current.len() {
-                                                if current[idx].is_present {
+                                            if idx < current.len()
+                                                && current[idx].is_present {
                                                     current[idx].is_hidden_from_players = !current[idx].is_hidden_from_players;
                                                     source_type.set("custom".to_string());
                                                 }
-                                            }
                                             selections.set(current);
                                         },
                                     }

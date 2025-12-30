@@ -173,7 +173,7 @@ fn RollInputPhase(
     // Input mode: true = use formula roll, false = manual input
     let mut use_formula_mode = use_signal(|| true);
     let mut formula_input = use_signal(move || suggested_dice_display.clone());
-    let mut manual_input = use_signal(|| String::new());
+    let mut manual_input = use_signal(String::new);
     let mut roll_result = use_signal(|| None::<RollDisplayState>);
     let mut is_rolling = use_signal(|| false);
     let mut error_message = use_signal(|| None::<String>);

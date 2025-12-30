@@ -167,7 +167,7 @@ impl PromptBuilder {
             }
         }
 
-        prompt.push_str("\n");
+        prompt.push('\n');
 
         // Directorial notes - tone and pacing guidance
         if let Some(notes) = directorial_notes {
@@ -192,7 +192,7 @@ impl PromptBuilder {
                     prompt.push_str(&format!("  - {}\n", beat));
                 }
             }
-            prompt.push_str("\n");
+            prompt.push('\n');
         }
 
         // Character details
@@ -266,7 +266,7 @@ impl PromptBuilder {
                         event.featured_npc_names.join(", ")
                     ));
                 }
-                prompt.push_str("\n");
+                prompt.push('\n');
             }
 
             // Use configurable narrative event suggestion format

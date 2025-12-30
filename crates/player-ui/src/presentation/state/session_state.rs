@@ -54,95 +54,95 @@ impl SessionState {
 
     /// Current connection status
     pub fn connection_status(&self) -> Signal<ConnectionStatus> {
-        self.connection.connection_status.clone()
+        self.connection.connection_status
     }
 
     /// Session ID after joining (legacy)
     pub fn session_id(&self) -> Signal<Option<String>> {
-        self.connection.session_id.clone()
+        self.connection.session_id
     }
 
     /// World ID after joining (WebSocket-first protocol)
     pub fn world_id(&self) -> Signal<Option<Uuid>> {
-        self.connection.world_id.clone()
+        self.connection.world_id
     }
 
     /// User ID (local identifier)
     pub fn user_id(&self) -> Signal<Option<String>> {
-        self.connection.user_id.clone()
+        self.connection.user_id
     }
 
     /// User role (DungeonMaster, Player, Spectator) - legacy
     pub fn user_role(&self) -> Signal<Option<ParticipantRole>> {
-        self.connection.user_role.clone()
+        self.connection.user_role
     }
 
     /// World role (DM, Player, Spectator) - WebSocket-first protocol
     pub fn world_role(&self) -> Signal<Option<WorldRole>> {
-        self.connection.world_role.clone()
+        self.connection.world_role
     }
 
     /// Connected users in the current world
     pub fn connected_users(&self) -> Signal<Vec<ConnectedUser>> {
-        self.connection.connected_users.clone()
+        self.connection.connected_users
     }
 
     /// Server URL we're connected to
     pub fn server_url(&self) -> Signal<Option<String>> {
-        self.connection.server_url.clone()
+        self.connection.server_url
     }
 
     /// Game connection handle (if connected)
     pub fn engine_client(&self) -> Signal<Option<Arc<dyn GameConnectionPort>>> {
-        self.connection.engine_client.clone()
+        self.connection.engine_client
     }
 
     /// Error message if connection failed
     pub fn error_message(&self) -> Signal<Option<String>> {
-        self.connection.error_message.clone()
+        self.connection.error_message
     }
 
     /// Pending approval requests (for DM)
     pub fn pending_approvals(&self) -> Signal<Vec<PendingApproval>> {
-        self.approval.pending_approvals.clone()
+        self.approval.pending_approvals
     }
 
     /// Conversation log (for DM view)
     pub fn conversation_log(&self) -> Signal<Vec<ConversationLogEntry>> {
-        self.approval.conversation_log.clone()
+        self.approval.conversation_log
     }
 
     /// Active challenge prompt (if any)
     pub fn active_challenge(&self) -> Signal<Option<ChallengePromptData>> {
-        self.challenge.active_challenge.clone()
+        self.challenge.active_challenge
     }
 
     /// Recent challenge results for display
     pub fn challenge_results(&self) -> Signal<Vec<ChallengeResultData>> {
-        self.challenge.challenge_results.clone()
+        self.challenge.challenge_results
     }
 
     /// Player character skills with modifiers
     pub fn player_skills(&self) -> Signal<Vec<PlayerSkillData>> {
-        self.challenge.player_skills.clone()
+        self.challenge.player_skills
     }
 
     /// Recent approval decisions for DM decision history
     pub fn decision_history(&self) -> Signal<Vec<ApprovalHistoryEntry>> {
-        self.approval.decision_history.clone()
+        self.approval.decision_history
     }
 
     /// ComfyUI connection state
     pub fn comfyui_state(&self) -> Signal<String> {
-        self.connection.comfyui_state.clone()
+        self.connection.comfyui_state
     }
 
     pub fn comfyui_message(&self) -> Signal<Option<String>> {
-        self.connection.comfyui_message.clone()
+        self.connection.comfyui_message
     }
 
     pub fn comfyui_retry_in_seconds(&self) -> Signal<Option<u32>> {
-        self.connection.comfyui_retry_in_seconds.clone()
+        self.connection.comfyui_retry_in_seconds
     }
 
     // =========================================================================
@@ -327,7 +327,7 @@ impl SessionState {
     pub fn roll_status(
         &self,
     ) -> Signal<crate::presentation::state::challenge_state::RollSubmissionStatus> {
-        self.challenge.roll_status.clone()
+        self.challenge.roll_status
     }
 
     /// Add a pending challenge outcome for DM approval
@@ -371,7 +371,7 @@ impl SessionState {
     pub fn pending_challenge_outcomes(
         &self,
     ) -> Signal<Vec<crate::presentation::state::approval_state::PendingChallengeOutcome>> {
-        self.approval.pending_challenge_outcomes.clone()
+        self.approval.pending_challenge_outcomes
     }
 }
 

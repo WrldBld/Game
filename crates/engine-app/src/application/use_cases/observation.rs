@@ -206,7 +206,7 @@ impl ObservationUseCase {
         // Send to the target PC's user via BroadcastPort
         self.broadcast
             .broadcast(
-                ctx.world_id.clone(),
+                ctx.world_id,
                 GameEvent::NpcApproach {
                     user_id: pc.user_id.clone(),
                     npc_id: input.npc_id,
@@ -253,7 +253,7 @@ impl ObservationUseCase {
         // Broadcast to all in world via BroadcastPort
         self.broadcast
             .broadcast(
-                ctx.world_id.clone(),
+                ctx.world_id,
                 GameEvent::LocationEvent {
                     region_id: input.region_id,
                     description: input.description.clone(),

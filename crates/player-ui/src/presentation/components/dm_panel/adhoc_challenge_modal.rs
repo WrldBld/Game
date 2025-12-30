@@ -37,14 +37,14 @@ pub struct AdHocChallengeModalProps {
 /// - Custom outcomes (success, failure, optional criticals)
 #[component]
 pub fn AdHocChallengeModal(props: AdHocChallengeModalProps) -> Element {
-    let mut challenge_name = use_signal(|| String::new());
-    let mut skill_name = use_signal(|| String::new());
-    let mut difficulty = use_signal(|| String::new());
-    let mut selected_pc = use_signal(|| String::new());
-    let mut success_outcome = use_signal(|| String::new());
-    let mut failure_outcome = use_signal(|| String::new());
-    let mut critical_success = use_signal(|| String::new());
-    let mut critical_failure = use_signal(|| String::new());
+    let mut challenge_name = use_signal(String::new);
+    let mut skill_name = use_signal(String::new);
+    let mut difficulty = use_signal(String::new);
+    let mut selected_pc = use_signal(String::new);
+    let mut success_outcome = use_signal(String::new);
+    let mut failure_outcome = use_signal(String::new);
+    let mut critical_success = use_signal(String::new);
+    let mut critical_failure = use_signal(String::new);
     let mut show_criticals = use_signal(|| false);
 
     let player_characters = props.player_characters.clone();

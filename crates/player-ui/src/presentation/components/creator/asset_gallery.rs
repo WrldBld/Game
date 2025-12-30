@@ -281,7 +281,7 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
             div {
                 onclick: {
                     let id = id_for_activate.clone();
-                    let on_activate = props.on_activate.clone();
+                    let on_activate = props.on_activate;
                     move |_| {
                         on_activate.call(id.clone());
                         show_menu.set(false);
@@ -323,7 +323,7 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
                         button {
                             onclick: {
                                 let id = id_for_menu_activate.clone();
-                                let on_activate = props.on_activate.clone();
+                                let on_activate = props.on_activate;
                                 move |_| {
                                     on_activate.call(id.clone());
                                     show_menu.set(false);
@@ -338,7 +338,7 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
                     button {
                         onclick: {
                             let id = id_for_style_ref.clone();
-                            let handler = props.on_use_as_reference.clone();
+                            let handler = props.on_use_as_reference;
                             move |_| {
                                 handler.call(id.clone());
                                 show_menu.set(false);
@@ -359,7 +359,7 @@ fn AssetThumbnail(props: AssetThumbnailProps) -> Element {
                     button {
                         onclick: {
                             let id = id_for_delete.clone();
-                            let on_delete = props.on_delete.clone();
+                            let on_delete = props.on_delete;
                             move |_| {
                                 on_delete.call(id.clone());
                                 show_menu.set(false);
@@ -387,10 +387,10 @@ fn GenerateAssetModal(
     on_generate: EventHandler<GenerateRequest>,
 ) -> Element {
     let asset_service = use_asset_service();
-    let mut prompt = use_signal(|| String::new());
-    let mut negative_prompt = use_signal(|| String::new());
+    let mut prompt = use_signal(String::new);
+    let mut negative_prompt = use_signal(String::new);
     let mut count = use_signal(|| 4u8);
-    let mut workflow_slot = use_signal(|| String::new());
+    let mut workflow_slot = use_signal(String::new);
     let mut is_generating = use_signal(|| false);
     // Pre-populate with world default style reference
     let mut style_reference_id: Signal<Option<String>> = use_signal(|| None);

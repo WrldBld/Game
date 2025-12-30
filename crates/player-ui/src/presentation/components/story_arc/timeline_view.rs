@@ -41,9 +41,7 @@ impl<'a> TimelineViewModel<'a> {
         let filter_state = self.filters;
 
         self.events
-            .iter()
-            .cloned()
-            .filter(|event| {
+            .iter().filter(|&event| {
                 // Hide hidden events unless show_hidden is true
                 if event.is_hidden && !filter_state.show_hidden {
                     return false;
@@ -85,7 +83,7 @@ impl<'a> TimelineViewModel<'a> {
                 }
 
                 true
-            })
+            }).cloned()
             .collect()
     }
 }
@@ -177,7 +175,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
 
                 rsx! {
                     TimelineFilters {
-                        filters: filters.clone(),
+                        filters: filters,
                         on_filter_change: move |new_filters: TimelineFilterState| filters.set(new_filters),
                         characters: characters,
                         locations: locations,

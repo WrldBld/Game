@@ -39,12 +39,12 @@ pub fn LocationForm(
     let loc_service = use_location_service();
 
     // Form state
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
     let mut location_type = use_signal(|| "Interior".to_string());
-    let mut atmosphere = use_signal(|| String::new());
-    let mut notable_features = use_signal(|| String::new());
-    let mut hidden_secrets = use_signal(|| String::new());
+    let mut atmosphere = use_signal(String::new);
+    let mut notable_features = use_signal(String::new);
+    let mut hidden_secrets = use_signal(String::new);
     let mut parent_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut parent_locations: Signal<Vec<LocationFormData>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| !is_new);
@@ -390,7 +390,7 @@ pub fn LocationForm(
                             is_saving.set(true);
 
                             let loc_id = location_id.clone();
-                            let on_close = on_close.clone();
+                            let on_close = on_close;
                             let svc = loc_svc.clone();
                             let world_id_clone = world_id.clone();
 

@@ -47,16 +47,10 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn(async move {
-                match svc.get_sheet_template(&world_id_clone).await {
-                    Ok(template_json) => {
-                        match serde_json::from_value::<SheetTemplate>(template_json) {
-                            Ok(template) => {
-                                sheet_template.set(Some(template));
-                            }
-                            Err(_) => {}
-                        }
+                if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
+                    if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
+                        sheet_template.set(Some(template));
                     }
-                    Err(_) => {}
                 }
                 loading.set(false);
             });
@@ -69,8 +63,8 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         let sheet_vals = sheet_values.read().clone();
         let pc_id = props.pc.id.clone();
         let pc_svc = pc_service.clone();
-        let on_saved_handler = props.on_saved.clone();
-        let on_close_handler = props.on_close.clone();
+        let on_saved_handler = props.on_saved;
+        let on_close_handler = props.on_close;
 
         if name_val.trim().is_empty() {
             error_message.set(Some("Character name is required".to_string()));

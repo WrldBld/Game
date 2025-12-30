@@ -372,16 +372,16 @@ impl From<&EventOutcome> for StoredEventOutcome {
             condition: o
                 .condition
                 .as_ref()
-                .map(|c| StoredOutcomeCondition::from(c)),
+                .map(StoredOutcomeCondition::from),
             effects: o
                 .effects
                 .iter()
-                .map(|e| StoredEventEffect::from(e))
+                .map(StoredEventEffect::from)
                 .collect(),
             chain_events: o
                 .chain_events
                 .iter()
-                .map(|c| StoredChainedEvent::from(c))
+                .map(StoredChainedEvent::from)
                 .collect(),
             timeline_summary: o.timeline_summary.clone(),
         }
@@ -730,16 +730,16 @@ impl From<StoredEventOutcome> for EventOutcome {
             name: s.name,
             label: s.label,
             description: s.description,
-            condition: s.condition.map(|c| OutcomeCondition::from(c)),
+            condition: s.condition.map(OutcomeCondition::from),
             effects: s
                 .effects
                 .into_iter()
-                .map(|e| EventEffect::from(e))
+                .map(EventEffect::from)
                 .collect(),
             chain_events: s
                 .chain_events
                 .into_iter()
-                .map(|c| ChainedEvent::from(c))
+                .map(ChainedEvent::from)
                 .collect(),
             timeline_summary: s.timeline_summary,
         }

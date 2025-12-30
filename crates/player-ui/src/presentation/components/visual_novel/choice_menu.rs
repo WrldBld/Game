@@ -23,7 +23,7 @@ pub struct ChoiceMenuProps {
 /// Includes a text input field for custom responses when available.
 #[component]
 pub fn ChoiceMenu(props: ChoiceMenuProps) -> Element {
-    let mut custom_text = use_signal(|| String::new());
+    let mut custom_text = use_signal(String::new);
     let has_custom = props.choices.iter().any(|c| c.is_custom_input);
 
     rsx! {
@@ -35,7 +35,7 @@ pub fn ChoiceMenu(props: ChoiceMenuProps) -> Element {
                 ChoiceButton {
                     key: "{choice.id}",
                     choice: choice.clone(),
-                    on_click: props.on_select.clone(),
+                    on_click: props.on_select,
                 }
             }
 

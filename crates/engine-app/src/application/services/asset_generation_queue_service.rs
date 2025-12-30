@@ -312,7 +312,7 @@ impl<
                 let mut created_assets = 0;
                 for (original_filename, bytes) in downloaded_images {
                     let asset_id = AssetId::new();
-                    let extension = original_filename.split('.').last().unwrap_or("png");
+                    let extension = original_filename.split('.').next_back().unwrap_or("png");
                     let file_name = format!("{}_{}.{}", request.entity_id, asset_id, extension);
                     let file_path = format!("{}/{}", assets_dir, file_name);
 
@@ -334,9 +334,9 @@ impl<
 
                     let asset = GalleryAsset {
                         id: asset_id,
-                        entity_type: entity_type.clone(),
+                        entity_type: entity_type,
                         entity_id: request.entity_id.clone(),
-                        asset_type: asset_type.clone(),
+                        asset_type: asset_type,
                         file_path,
                         is_active: created_assets == 0, // First asset is active
                         label: None,
@@ -367,13 +367,11 @@ impl<
                             request.entity_id
                         );
                     }
-                } else {
-                    if let Err(e) = queue_clone
-                        .fail(item_id, "Failed to create any asset records")
-                        .await
-                    {
-                        tracing::error!("Failed to mark queue item as failed: {}", e);
-                    }
+                } else if let Err(e) = queue_clone
+                    .fail(item_id, "Failed to create any asset records")
+                    .await
+                {
+                    tracing::error!("Failed to mark queue item as failed: {}", e);
                 }
             });
         }

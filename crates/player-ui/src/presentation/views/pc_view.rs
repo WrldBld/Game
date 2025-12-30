@@ -456,7 +456,7 @@ pub fn PCView() -> Element {
                 on_skills: Some(EventHandler::new({
                     let game_state = game_state.clone();
                     let skill_service = skill_service.clone();
-                    let character_sheet_values = character_sheet_values.clone();
+                    let character_sheet_values = character_sheet_values;
                     move |_| {
                         tracing::info!("Open skills panel");
                         show_skills_panel.set(true);
@@ -485,7 +485,7 @@ pub fn PCView() -> Element {
                                                     .get(&format!("skill_{}", s.name.to_lowercase().replace(' ', "_")))
                                                     .or_else(|| sheet_values.get(&s.name.to_lowercase()))
                                                     .and_then(|v| match v {
-                                                        wrldbldr_player_app::application::dto::FieldValue::Number(n) => Some(*n as i32),
+                                                        wrldbldr_player_app::application::dto::FieldValue::Number(n) => Some(*n),
                                                         _ => None,
                                                     })
                                                     .unwrap_or(0);
@@ -692,7 +692,7 @@ pub fn PCView() -> Element {
                     })),
                     on_toggle_equip: Some(EventHandler::new({
                         let session_state = session_state.clone();
-                        let inventory_items = inventory_items.clone();
+                        let inventory_items = inventory_items;
                         let pc_id = selected_pc_id.clone();
                         move |item_id: String| {
                             let Some(ref pc_id) = pc_id else {

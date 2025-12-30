@@ -19,12 +19,12 @@ pub fn PCViewRoute(world_id: String) -> Element {
     {
         let world_id_clone = world_id.clone();
         let user_id = platform.get_user_id();
-        let nav = navigator.clone();
+        let nav = navigator;
         let pc_svc = pc_service.clone();
         use_effect(move || {
             let wid = world_id_clone.clone();
             let uid = user_id.clone();
-            let nav_clone = nav.clone();
+            let nav_clone = nav;
             let pc_svc_clone = pc_svc.clone();
             spawn(async move {
                 match pc_svc_clone.get_my_pc(&wid, &uid).await {

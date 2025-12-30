@@ -16,7 +16,7 @@ pub fn MainMenuRoute() -> Element {
     // skip the manual "Connect to Server" modal. This keeps the flow:
     // MainMenu → RoleSelect → WorldSelect, without an extra click.
     let platform_for_effect = platform.clone();
-    let navigator_for_effect = navigator.clone();
+    let navigator_for_effect = navigator;
     use_effect(move || {
         // Load last-used server URL or fall back to the default WS URL
         let server_url = platform_for_effect

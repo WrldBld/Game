@@ -158,7 +158,7 @@ pub fn KnownNpcsPanel(props: KnownNpcsPanelProps) -> Element {
                                     icon: "@",
                                     icon_color: "text-blue-400",
                                     observations: direct_obs.into_iter().cloned().collect(),
-                                    on_npc_click: props.on_npc_click.clone(),
+                                    on_npc_click: props.on_npc_click,
                                 }
                             }
 
@@ -169,7 +169,7 @@ pub fn KnownNpcsPanel(props: KnownNpcsPanelProps) -> Element {
                                     icon: "?",
                                     icon_color: "text-yellow-400",
                                     observations: heard_obs.into_iter().cloned().collect(),
-                                    on_npc_click: props.on_npc_click.clone(),
+                                    on_npc_click: props.on_npc_click,
                                 }
                             }
 
@@ -180,7 +180,7 @@ pub fn KnownNpcsPanel(props: KnownNpcsPanelProps) -> Element {
                                     icon: "*",
                                     icon_color: "text-purple-400",
                                     observations: deduced_obs.into_iter().cloned().collect(),
-                                    on_npc_click: props.on_npc_click.clone(),
+                                    on_npc_click: props.on_npc_click,
                                 }
                             }
                         }
@@ -227,7 +227,7 @@ fn ObservationSection(props: ObservationSectionProps) -> Element {
                     NpcObservationCard {
                         key: "{obs.npc_id}",
                         observation: obs.clone(),
-                        on_click: props.on_npc_click.clone(),
+                        on_click: props.on_npc_click,
                     }
                 }
             }
@@ -265,7 +265,7 @@ fn NpcObservationCard(props: NpcObservationCardProps) -> Element {
         div {
             class: "npc-observation-card bg-black/30 rounded-lg border border-white/10 p-3 hover:bg-white/5 transition-colors",
             onclick: {
-                let on_click = props.on_click.clone();
+                let on_click = props.on_click;
                 move |_| {
                     if let Some(handler) = &on_click {
                         handler.call(npc_id.clone());

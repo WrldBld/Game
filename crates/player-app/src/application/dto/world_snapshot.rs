@@ -704,18 +704,15 @@ pub struct SheetSection {
 /// Layout for a section
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum SectionLayout {
+    #[default]
     Vertical,
     Grid { columns: u8 },
     Flow,
     TwoColumn,
 }
 
-impl Default for SectionLayout {
-    fn default() -> Self {
-        Self::Vertical
-    }
-}
 
 /// A field in the character sheet
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

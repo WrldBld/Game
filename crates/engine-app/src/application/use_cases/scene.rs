@@ -83,7 +83,7 @@ impl SceneUseCase {
             .scene_service
             .get_scene_with_relations(input.scene_id)
             .await
-            .map_err(|e| SceneError::Database(e))?
+            .map_err(SceneError::Database)?
             .ok_or_else(|| SceneError::SceneNotFound(input.scene_id.to_string()))?;
 
         // Load interactions
@@ -235,7 +235,7 @@ impl SceneUseCase {
         self.dm_action_queue
             .enqueue_action(&ctx.world_id, ctx.user_id.clone(), action)
             .await
-            .map_err(|e| SceneError::Database(e))?;
+            .map_err(SceneError::Database)?;
 
         info!(
             request_id = %input.request_id,

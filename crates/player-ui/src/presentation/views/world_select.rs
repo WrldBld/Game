@@ -206,7 +206,7 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
                                     action_label: action_label,
                                     is_dm: is_dm,
                                     on_select: {
-                                        let mut world_to_load = world_to_load.clone();
+                                        let mut world_to_load = world_to_load;
                                         move |id: String| {
                                             // In the new WebSocket-first architecture,
                                             // sessions are established when connecting to the world
@@ -264,8 +264,8 @@ fn WorldCard(
 #[component]
 fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>) -> Element {
     let world_service = use_world_service();
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
     let mut selected_type = use_signal(|| RuleSystemType::D20);
     let mut selected_variant: Signal<Option<RuleSystemVariant>> =
         use_signal(|| Some(RuleSystemVariant::Dnd5e));

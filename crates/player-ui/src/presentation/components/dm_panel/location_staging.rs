@@ -427,7 +427,7 @@ fn PreStageModal(props: PreStageModalProps) -> Element {
     let mut ttl_hours = use_signal(|| 4i32);
 
     let handle_approve = {
-        let on_approve = props.on_approve.clone();
+        let on_approve = props.on_approve;
         move |_| {
             let approved: Vec<(String, bool, bool)> = selections
                 .read()
@@ -544,11 +544,10 @@ fn PreStageModal(props: PreStageModalProps) -> Element {
                                                         disabled: !checked_present,
                                                         onchange: move |_| {
                                                             let mut current = selections.read().clone();
-                                                            if idx < current.len() {
-                                                                if current[idx].2 {
+                                                            if idx < current.len()
+                                                                && current[idx].2 {
                                                                     current[idx].3 = !current[idx].3;
                                                                 }
-                                                            }
                                                             selections.set(current);
                                                         },
                                                         class: "w-4 h-4 rounded border-gray-600 bg-dark-bg text-purple-500 disabled:opacity-50",

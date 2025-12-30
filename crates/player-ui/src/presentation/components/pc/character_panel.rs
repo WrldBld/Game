@@ -28,16 +28,10 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn(async move {
-                match svc.get_sheet_template(&world_id_clone).await {
-                    Ok(template_json) => {
-                        match serde_json::from_value::<SheetTemplate>(template_json) {
-                            Ok(template) => {
-                                sheet_template.set(Some(template));
-                            }
-                            Err(_) => {}
-                        }
+                if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
+                    if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
+                        sheet_template.set(Some(template));
                     }
-                    Err(_) => {}
                 }
                 loading.set(false);
             });

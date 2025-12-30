@@ -355,7 +355,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
                 div {
                     class: "p-4 border-b border-gray-700 bg-dark-surface",
                     TimelineFilters {
-                        filters: filters.clone(),
+                        filters: filters,
                         on_filter_change: move |new_filters: TimelineFilterState| filters.set(new_filters),
                         characters: characters.clone(),
                         locations: locations.clone(),
@@ -445,7 +445,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
 
                                 for (idx, cluster) in clusters.iter().enumerate() {
                                     {
-                                        let is_expanded = expanded_cluster_idx.read().map_or(false, |i| i == idx);
+                                        let is_expanded = expanded_cluster_idx.read().is_some_and(|i| i == idx);
                                         let show_expand = cluster.events.len() > 3 && !is_expanded;
                                         let visible_events = if is_expanded || cluster.events.len() <= 3 {
                                             cluster.events.clone()

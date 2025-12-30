@@ -47,7 +47,7 @@ impl PlayerActionQueuePort for PlayerActionQueueAdapter {
         self.service
             .enqueue(action)
             .await
-            .map(|id| ActionId::from_uuid(id))
+            .map(ActionId::from_uuid)
             .map_err(|e| e.to_string())
     }
 

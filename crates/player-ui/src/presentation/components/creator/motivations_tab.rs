@@ -466,8 +466,8 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
     let actantial_service = use_actantial_service();
     let mut show_add_form = use_signal(|| false);
     let mut selected_role = use_signal(|| "helper".to_string());
-    let mut selected_target = use_signal(|| String::new());
-    let mut reason = use_signal(|| String::new());
+    let mut selected_target = use_signal(String::new);
+    let mut reason = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
 
     let want = &props.want;
@@ -481,13 +481,13 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want.id.clone();
-        let on_refresh = props.on_refresh.clone();
+        let on_refresh = props.on_refresh;
 
         move |_| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
-            let on_refresh = on_refresh.clone();
+            let on_refresh = on_refresh;
 
             let role_str = selected_role.read().clone();
             let target_str = selected_target.read().clone();
@@ -552,13 +552,13 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want.id.clone();
-        let on_refresh = props.on_refresh.clone();
+        let on_refresh = props.on_refresh;
 
         move |actor: ActantialActorData, role: ActantialRoleData| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
-            let on_refresh = on_refresh.clone();
+            let on_refresh = on_refresh;
             let actor_type = actor.actor_type;
 
             spawn(async move {
@@ -797,11 +797,11 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
     let add_common_goals = {
         let service = actantial_service.clone();
         let world_id = props.world_id.clone();
-        let on_refresh = props.on_refresh.clone();
+        let on_refresh = props.on_refresh;
         move |_| {
             let service = service.clone();
             let world_id = world_id.clone();
-            let on_refresh = on_refresh.clone();
+            let on_refresh = on_refresh;
             adding_common.set(true);
 
             spawn(async move {
@@ -999,7 +999,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
     let mut visibility = use_signal(|| {
         existing_want
             .as_ref()
-            .map(|w| w.visibility.clone())
+            .map(|w| w.visibility)
             .unwrap_or(WantVisibilityData::Known)
     });
     let mut deflection = use_signal(|| {
@@ -1038,18 +1038,18 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
         let service = actantial_service.clone();
         let character_id = props.character_id.clone();
         let want_id = props.want_id.clone();
-        let on_save = props.on_save.clone();
+        let on_save = props.on_save;
 
         move |_| {
             let service = service.clone();
             let character_id = character_id.clone();
             let want_id = want_id.clone();
-            let on_save = on_save.clone();
+            let on_save = on_save;
 
             let desc = description.read().clone();
             let int = *intensity.read();
             let pri = *priority.read();
-            let vis = visibility.read().clone();
+            let vis = *visibility.read();
             let defl = deflection.read().clone();
             let tls = tells.read().clone();
             let target_sel = target_selection.read().clone();
@@ -1392,8 +1392,8 @@ struct GoalEditorModalProps {
 #[component]
 fn GoalEditorModal(props: GoalEditorModalProps) -> Element {
     let actantial_service = use_actantial_service();
-    let mut name = use_signal(|| String::new());
-    let mut description = use_signal(|| String::new());
+    let mut name = use_signal(String::new);
+    let mut description = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
     let mut error_msg: Signal<Option<String>> = use_signal(|| None);
 
@@ -1401,12 +1401,12 @@ fn GoalEditorModal(props: GoalEditorModalProps) -> Element {
     let save_goal = {
         let service = actantial_service.clone();
         let world_id = props.world_id.clone();
-        let on_save = props.on_save.clone();
+        let on_save = props.on_save;
 
         move |_| {
             let service = service.clone();
             let world_id = world_id.clone();
-            let on_save = on_save.clone();
+            let on_save = on_save;
 
             let goal_name = name.read().clone();
             let goal_desc = description.read().clone();

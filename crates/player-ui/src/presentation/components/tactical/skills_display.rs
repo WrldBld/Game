@@ -41,7 +41,7 @@ pub fn SkillsDisplay(props: SkillsDisplayProps) -> Element {
     for skill in props.skills.iter() {
         categories
             .entry(skill.category.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(skill.clone());
     }
 

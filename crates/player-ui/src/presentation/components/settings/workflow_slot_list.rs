@@ -109,8 +109,8 @@ pub fn WorkflowSlotList(props: WorkflowSlotListProps) -> Element {
                             title: category.name.clone(),
                             slots: category.slots.clone(),
                             selected_slot: props.selected_slot.clone(),
-                            on_select: props.on_select.clone(),
-                            on_configure: props.on_configure.clone(),
+                            on_select: props.on_select,
+                            on_configure: props.on_configure,
                         }
                     }
                 }
@@ -151,8 +151,8 @@ fn CategorySection(props: CategorySectionProps) -> Element {
                     SlotCard {
                         slot: slot.clone(),
                         is_selected: props.selected_slot.as_ref() == Some(&slot.slot),
-                        on_select: props.on_select.clone(),
-                        on_configure: props.on_configure.clone(),
+                        on_select: props.on_select,
+                        on_configure: props.on_configure,
                     }
                 }
             }

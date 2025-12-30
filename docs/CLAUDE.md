@@ -4,7 +4,7 @@ This `docs/` directory contains planning docs, roadmaps, and technical specs for
 
 ## Source Of Truth
 
-- Coding + crate/layout rules: `../CLAUDE.md`
+- Agent Guidelines + Architecture Rules: `../AGENTS.md`
 - Hexagonal enforcement refactor plan: `progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md`
 - Feature tracking: `progress/ACTIVE_DEVELOPMENT.md`, `progress/ROADMAP.md`, `progress/MVP.md`
 

@@ -123,7 +123,7 @@ impl CreateWantRequest {
             description: self.description.clone(),
             intensity: self.intensity,
             priority: self.priority,
-            visibility: self.visibility.clone(),
+            visibility: self.visibility,
             target_id: self.target_id.clone(),
             target_type: self.target_type.as_ref().and_then(|t| match t.as_str() {
                 "Character" => Some(WantTargetTypeData::Character),
@@ -143,7 +143,7 @@ impl UpdateWantRequest {
             description: self.description.clone(),
             intensity: self.intensity,
             priority: self.priority,
-            visibility: self.visibility.clone(),
+            visibility: self.visibility,
             deflection_behavior: self.deflection_behavior.clone(),
             tells: self.tells.clone().map(|t| vec![t]),
         }
@@ -267,7 +267,7 @@ impl ActantialService {
                 RequestPayload::SetWantTarget {
                     want_id: want_id.to_string(),
                     target_id: request.target_id.clone(),
-                    target_type: request.target_type.clone(),
+                    target_type: request.target_type,
                 },
                 get_request_timeout_ms(),
             )
@@ -324,8 +324,8 @@ impl ActantialService {
                     character_id: character_id.to_string(),
                     want_id: request.want_id.clone(),
                     target_id: request.actor_id.clone(),
-                    target_type: request.actor_type.clone(),
-                    role: request.role.clone(),
+                    target_type: request.actor_type,
+                    role: request.role,
                     reason: request.reason.clone().unwrap_or_default(),
                 },
                 get_request_timeout_ms(),
@@ -348,8 +348,8 @@ impl ActantialService {
                     character_id: character_id.to_string(),
                     want_id: request.want_id.clone(),
                     target_id: request.actor_id.clone(),
-                    target_type: request.actor_type.clone(),
-                    role: request.role.clone(),
+                    target_type: request.actor_type,
+                    role: request.role,
                 },
                 get_request_timeout_ms(),
             )

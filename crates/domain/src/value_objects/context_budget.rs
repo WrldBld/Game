@@ -244,6 +244,7 @@ impl ContextBudgetConfig {
 
 /// Token counting configuration
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum TokenCountMethod {
     /// Simple character-based approximation: 1 token ≈ 4 characters
     /// Fast but less accurate, good for quick estimates
@@ -253,14 +254,10 @@ pub enum TokenCountMethod {
     WordApprox,
     /// Hybrid: uses character count for short text, word count for longer text
     /// Provides best balance of speed and accuracy
+    #[default]
     Hybrid,
 }
 
-impl Default for TokenCountMethod {
-    fn default() -> Self {
-        Self::Hybrid
-    }
-}
 
 /// Token counter for estimating LLM token usage
 ///

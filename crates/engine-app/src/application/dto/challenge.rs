@@ -14,7 +14,9 @@ use wrldbldr_domain::{ChallengeId, SceneId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ChallengeTypeDto {
+    #[default]
     SkillCheck,
     AbilityCheck,
     SavingThrow,
@@ -22,11 +24,6 @@ pub enum ChallengeTypeDto {
     ComplexChallenge,
 }
 
-impl Default for ChallengeTypeDto {
-    fn default() -> Self {
-        Self::SkillCheck
-    }
-}
 
 impl From<ChallengeTypeDto> for ChallengeType {
     fn from(value: ChallengeTypeDto) -> Self {

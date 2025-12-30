@@ -83,7 +83,7 @@ pub fn RegionItemsPanel(props: RegionItemsPanelProps) -> Element {
                                 RegionItemCard {
                                     key: "{item.id}",
                                     item: item.clone(),
-                                    on_pickup: props.on_pickup.clone(),
+                                    on_pickup: props.on_pickup,
                                 }
                             }
                         }

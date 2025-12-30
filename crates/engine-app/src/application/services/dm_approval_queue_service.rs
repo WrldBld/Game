@@ -258,13 +258,11 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
                     )
                     .await;
                     executed_tools.push(tool.name.clone());
-                } else {
-                    if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
-                        if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
-                            tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
-                        } else {
-                            executed_tools.push(tool.name.clone());
-                        }
+                } else if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
+                    if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
+                        tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
+                    } else {
+                        executed_tools.push(tool.name.clone());
                     }
                 }
             }
@@ -771,7 +769,7 @@ fn convert_domain_to_port_approval(
         payload: ApprovalRequest {
             world_id: data.world_id.to_uuid(),
             source_action_id: data.source_action_id,
-            decision_type: convert_domain_decision_type(data.decision_type.clone()),
+            decision_type: convert_domain_decision_type(data.decision_type),
             urgency: convert_domain_urgency(data.urgency),
             pc_id: data.pc_id.map(|id| id.to_uuid()),
             npc_id: data.npc_id.map(|id| id.to_string()),

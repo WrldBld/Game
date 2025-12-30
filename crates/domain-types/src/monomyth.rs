@@ -8,8 +8,10 @@ use serde::{Deserialize, Serialize};
 /// these stages represent the archetypal journey of transformation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MonomythStage {
     /// The hero's normal life before the adventure
+    #[default]
     OrdinaryWorld,
     /// The hero receives a challenge or quest
     CallToAdventure,
@@ -35,11 +37,6 @@ pub enum MonomythStage {
     ReturnWithElixir,
 }
 
-impl Default for MonomythStage {
-    fn default() -> Self {
-        Self::OrdinaryWorld
-    }
-}
 
 impl MonomythStage {
     /// Returns a description of this stage's narrative function

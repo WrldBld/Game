@@ -221,9 +221,7 @@ impl ComfyUIClient {
             .clone();
         for attempt in 0..=config.max_retries {
             // Check circuit breaker
-            if let Err(e) = self.circuit_breaker.check_circuit() {
-                return Err(e);
-            }
+            self.circuit_breaker.check_circuit()?;
 
             match operation().await {
                 Ok(result) => {
@@ -357,7 +355,7 @@ impl ComfyUIClient {
                 let queue_response: QueueResponse = response
                     .json()
                     .await
-                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
+                    .map_err(|e| ComfyUIError::HttpError(e))?;
                 Ok(queue_response)
             }
         })
@@ -402,7 +400,7 @@ impl ComfyUIClient {
                 let history: HistoryResponse = response
                     .json()
                     .await
-                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
+                    .map_err(|e| ComfyUIError::HttpError(e))?;
                 Ok(history)
             }
         })
@@ -461,7 +459,7 @@ impl ComfyUIClient {
                 let bytes = response
                     .bytes()
                     .await
-                    .map_err(|e| ComfyUIError::HttpError(reqwest::Error::from(e)))?;
+                    .map_err(|e| ComfyUIError::HttpError(e))?;
                 Ok(bytes.to_vec())
             }
         })

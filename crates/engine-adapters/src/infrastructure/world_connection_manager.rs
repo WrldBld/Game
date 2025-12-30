@@ -585,7 +585,7 @@ impl WorldConnectionManager {
         let worlds = self.worlds.read().await;
         let world_state = worlds
             .get(world_id)
-            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+            .ok_or(BroadcastError::WorldNotFound(*world_id))?;
 
         // Get connections
         let conns_guard = self.connections.read().await;
@@ -612,13 +612,13 @@ impl WorldConnectionManager {
         let worlds = self.worlds.read().await;
         let world_state = worlds
             .get(world_id)
-            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+            .ok_or(BroadcastError::WorldNotFound(*world_id))?;
 
         // Check dm_user_id exists
         let dm_user_id = world_state
             .dm_user_id
             .as_ref()
-            .ok_or_else(|| BroadcastError::DmNotConnected(*world_id))?;
+            .ok_or(BroadcastError::DmNotConnected(*world_id))?;
 
         // Get connections
         let conns_guard = self.connections.read().await;
@@ -646,7 +646,7 @@ impl WorldConnectionManager {
         let worlds = self.worlds.read().await;
         let world_state = worlds
             .get(world_id)
-            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+            .ok_or(BroadcastError::WorldNotFound(*world_id))?;
 
         // Get connections
         let conns_guard = self.connections.read().await;
@@ -680,7 +680,7 @@ impl WorldConnectionManager {
         let worlds = self.worlds.read().await;
         let world_state = worlds
             .get(world_id)
-            .ok_or_else(|| BroadcastError::WorldNotFound(*world_id))?;
+            .ok_or(BroadcastError::WorldNotFound(*world_id))?;
 
         // Check if user exists in users
         let conns_guard = self.connections.read().await;

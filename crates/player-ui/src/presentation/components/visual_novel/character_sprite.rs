@@ -129,7 +129,7 @@ pub fn CharacterLayer(props: CharacterLayerProps) -> Element {
                 CharacterSprite {
                     key: "{character.id}",
                     character: character.clone(),
-                    on_click: props.on_character_click.clone(),
+                    on_click: props.on_character_click,
                 }
             }
         }

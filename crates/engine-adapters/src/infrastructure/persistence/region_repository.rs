@@ -688,12 +688,12 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
         world_id: WorldId::from_uuid(world_id),
         name,
         description,
-        sprite_asset: if sprite_asset.as_ref().map_or(true, |s| s.is_empty()) {
+        sprite_asset: if sprite_asset.as_ref().is_none_or(|s| s.is_empty()) {
             None
         } else {
             sprite_asset
         },
-        portrait_asset: if portrait_asset.as_ref().map_or(true, |s| s.is_empty()) {
+        portrait_asset: if portrait_asset.as_ref().is_none_or(|s| s.is_empty()) {
             None
         } else {
             portrait_asset

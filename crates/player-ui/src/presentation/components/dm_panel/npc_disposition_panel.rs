@@ -75,7 +75,7 @@ pub struct NpcDispositionPanelProps {
 pub fn NpcDispositionPanel(props: NpcDispositionPanelProps) -> Element {
     let mut selected_disposition = use_signal(|| props.current_disposition.clone());
     let mut selected_relationship = use_signal(|| props.current_relationship.clone());
-    let mut reason = use_signal(|| String::new());
+    let mut reason = use_signal(String::new);
 
     let npc_id = props.npc_id.clone();
     let pc_id = props.pc_id.clone();
@@ -237,8 +237,8 @@ pub fn NpcDispositionListPanel(props: NpcDispositionListPanelProps) -> Element {
                     pc_name: props.pc_name.clone(),
                     current_disposition: npc.current_disposition.clone().unwrap_or_else(|| "Neutral".to_string()),
                     current_relationship: npc.current_relationship.clone().unwrap_or_else(|| "Stranger".to_string()),
-                    on_disposition_change: props.on_disposition_change.clone(),
-                    on_relationship_change: props.on_relationship_change.clone(),
+                    on_disposition_change: props.on_disposition_change,
+                    on_relationship_change: props.on_relationship_change,
                 }
             }
         }

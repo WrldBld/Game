@@ -69,7 +69,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
         let session_state = session_state.clone();
         let game_state = game_state.clone();
         let dialogue_state = dialogue_state.clone();
-        let generation_state = generation_state.clone();
+        let generation_state = generation_state;
         use_effect(move || {
             ensure_connection(
                 &world_id,
@@ -77,7 +77,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                 session_state.clone(),
                 game_state.clone(),
                 dialogue_state.clone(),
-                generation_state.clone(),
+                generation_state,
                 platform.clone(),
             );
         });
@@ -100,7 +100,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let mut session_state = session_state.clone();
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
-                        let generation_state = generation_state.clone();
+                        let generation_state = generation_state;
                         move |_| {
                             // Force reconnection attempt by setting disconnected first
                             session_state.set_disconnected();
@@ -110,7 +110,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                                 session_state.clone(),
                                 game_state.clone(),
                                 dialogue_state.clone(),
-                                generation_state.clone(),
+                                generation_state,
                                 platform.clone(),
                             );
                         }

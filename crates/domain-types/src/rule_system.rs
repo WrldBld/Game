@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 /// The type of rule system (determines dice mechanics and success calculation)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RuleSystemType {
     /// Roll d20 + modifier vs DC (D&D, Pathfinder)
+    #[default]
     D20,
     /// Roll d100 under skill value (Call of Cthulhu, RuneQuest)
     D100,
@@ -18,19 +20,16 @@ pub enum RuleSystemType {
     Custom,
 }
 
-impl Default for RuleSystemType {
-    fn default() -> Self {
-        Self::D20
-    }
-}
 
 /// Known presets for rule systems
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RuleSystemVariant {
     // D20 variants
     Dnd5e,
     Pathfinder2e,
+    #[default]
     GenericD20,
     // D100 variants
     CallOfCthulhu7e,
@@ -44,11 +43,6 @@ pub enum RuleSystemVariant {
     Custom(String),
 }
 
-impl Default for RuleSystemVariant {
-    fn default() -> Self {
-        Self::GenericD20
-    }
-}
 
 impl RuleSystemVariant {
     /// Get the display name for this variant

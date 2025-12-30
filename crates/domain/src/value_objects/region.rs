@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::TimeOfDay;
 
+use crate::error::DomainError;
+
 /// Work shift for a region (when NPC works there)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -26,14 +28,14 @@ impl std::fmt::Display for RegionShift {
 }
 
 impl std::str::FromStr for RegionShift {
-    type Err = anyhow::Error;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "day" => Ok(RegionShift::Day),
             "night" => Ok(RegionShift::Night),
             "always" | "" => Ok(RegionShift::Always),
-            _ => Err(anyhow::anyhow!("Invalid region shift: {}", s)),
+            _ => Err(DomainError::parse(format!("Invalid region shift: {}", s))),
         }
     }
 }
@@ -58,14 +60,14 @@ impl std::fmt::Display for RegionFrequency {
 }
 
 impl std::str::FromStr for RegionFrequency {
-    type Err = anyhow::Error;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "often" => Ok(RegionFrequency::Often),
             "sometimes" | "" => Ok(RegionFrequency::Sometimes),
             "rarely" => Ok(RegionFrequency::Rarely),
-            _ => Err(anyhow::anyhow!("Invalid region frequency: {}", s)),
+            _ => Err(DomainError::parse(format!("Invalid region frequency: {}", s))),
         }
     }
 }

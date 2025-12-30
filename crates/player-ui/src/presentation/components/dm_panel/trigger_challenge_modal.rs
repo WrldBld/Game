@@ -26,8 +26,8 @@ pub struct TriggerChallengeModalProps {
 /// - Trigger the challenge
 #[component]
 pub fn TriggerChallengeModal(props: TriggerChallengeModalProps) -> Element {
-    let mut selected_challenge = use_signal(|| String::new());
-    let mut selected_character = use_signal(|| String::new());
+    let mut selected_challenge = use_signal(String::new);
+    let mut selected_character = use_signal(String::new);
 
     let challenges = props.challenges.clone();
     let scene_characters = props.scene_characters.clone();

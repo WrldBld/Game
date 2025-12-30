@@ -10,8 +10,10 @@ use crate::presentation::components::tactical::PlayerSkillData;
 ///
 /// Tracks the state of a submitted roll as it goes through DM approval.
 #[derive(Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum RollSubmissionStatus {
     /// No roll has been submitted
+    #[default]
     NotSubmitted,
     /// Roll submitted, waiting for DM approval
     AwaitingApproval {
@@ -26,11 +28,6 @@ pub enum RollSubmissionStatus {
     Dismissed,
 }
 
-impl Default for RollSubmissionStatus {
-    fn default() -> Self {
-        Self::NotSubmitted
-    }
-}
 
 /// Challenge prompt data shown to player
 #[derive(Debug, Clone, PartialEq)]

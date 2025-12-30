@@ -154,7 +154,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
             None
         } else {
             // Parse "type:id" format
-            let id_part = val.split(':').last().unwrap_or("");
+            let id_part = val.split(':').next_back().unwrap_or("");
             characters
                 .read()
                 .iter()
@@ -165,7 +165,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
 
     // Handle selection
     let on_select = {
-        let on_change = props.on_change.clone();
+        let on_change = props.on_change;
         move |char: CharacterOption| {
             on_change.call(char.prefixed_id());
             is_open.set(false);
@@ -175,7 +175,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
 
     // Handle clear
     let on_clear = {
-        let on_change = props.on_change.clone();
+        let on_change = props.on_change;
         move |_| {
             on_change.call(String::new());
         }
@@ -259,7 +259,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                             for char in filtered_chars {
                                 {
                                     let char_clone = char.clone();
-                                    let mut on_select = on_select.clone();
+                                    let mut on_select = on_select;
                                     let is_selected = props.value == char.prefixed_id();
                                     let bg_class = if char.is_pc {
                                         "bg-green-900/30 hover:bg-green-800/50"

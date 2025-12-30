@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 /// providing guidance for NPC behavior and story function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CampbellArchetype {
     /// The protagonist of the story
     Hero,
@@ -24,14 +25,10 @@ pub enum CampbellArchetype {
     /// Provides comic relief and challenges the status quo
     Trickster,
     /// Supports the hero on their journey
+    #[default]
     Ally,
 }
 
-impl Default for CampbellArchetype {
-    fn default() -> Self {
-        Self::Ally
-    }
-}
 
 impl CampbellArchetype {
     /// Returns a description of this archetype's narrative function

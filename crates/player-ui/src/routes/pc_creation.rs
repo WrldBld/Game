@@ -21,7 +21,7 @@ pub fn PCCreationRoute(world_id: String) -> Element {
         .session_id()
         .read()
         .clone()
-        .unwrap_or_else(|| "".to_string());
+        .unwrap_or_default();
 
     rsx! {
         crate::presentation::views::pc_creation::PCCreationView {

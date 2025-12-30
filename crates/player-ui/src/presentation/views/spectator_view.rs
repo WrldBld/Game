@@ -24,7 +24,7 @@ pub fn SpectatorView() -> Element {
     let scene_characters = game_state.scene_characters.read().clone();
 
     // Get conversation history for the log
-    let mut conversation_log = use_signal(|| Vec::<ConversationEntry>::new());
+    let mut conversation_log = use_signal(Vec::<ConversationEntry>::new);
 
     // Track dialogue updates to add to log
     {

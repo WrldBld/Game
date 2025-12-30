@@ -7,6 +7,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
 /// How the PC learned about an NPC's location
@@ -48,14 +49,14 @@ impl std::fmt::Display for ObservationType {
 }
 
 impl std::str::FromStr for ObservationType {
-    type Err = anyhow::Error;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "direct" => Ok(ObservationType::Direct),
             "heard_about" | "heardabout" => Ok(ObservationType::HeardAbout),
             "deduced" => Ok(ObservationType::Deduced),
-            _ => Err(anyhow::anyhow!("Invalid observation type: {}", s)),
+            _ => Err(DomainError::parse(format!("Invalid observation type: {}", s))),
         }
     }
 }
