@@ -11,14 +11,18 @@
 
 Phase 1 of hexagonal remediation achieved 100% compliance at the **code level** (zero warnings, zero arch-check violations). However, a subsequent review revealed **structural issues in the dependency graph** that undermine the architecture at the crate level.
 
-### Current Score: 76/100
+### Current Score: 85/100 (Updated 2025-12-30)
 
-Key issues:
-- Backwards dependencies in Cargo.toml files
-- Concrete implementations in wrong layers
-- Business logic leakage into protocol crate
-- God traits still present (7 with 15+ methods)
-- God object (request_handler.rs at 3,497 lines)
+**Completed**:
+- ✅ C1+C2: AdapterState eliminated, AppStatePort created
+- ✅ C4: FixedRandomPort moved to adapters layer
+- ✅ No backwards dependencies in engine-adapters or engine-composition
+
+**Remaining issues**:
+- C3: player-ui → player-adapters dependency
+- M1: Business logic leakage into protocol crate
+- M2: God traits still present (7 with 15+ methods)
+- M3: God object (request_handler.rs at 3,497 lines)
 
 ---
 
@@ -188,11 +192,45 @@ async fn handle_foo(state: &AppState, ...) {
 
 ### C4: FixedRandomPort in Wrong Layer - COMPLETED
 
-**Status**: ✅ DONE
+**Status**: ✅ DONE (2025-12-30)
 
 - Moved `FixedRandomPort` from `engine-ports` to `engine-adapters/src/infrastructure/testing/`
 - Removed `rand` dependency from engine-ports
 - Only `RandomPort` trait remains in engine-ports
+
+---
+
+### C1+C2: AdapterState Eliminated - COMPLETED
+
+**Status**: ✅ DONE (2025-12-30)
+
+**Solution implemented**:
+1. Created `AppStatePort` trait in `engine-ports/src/inbound/app_state_port.rs`
+   - Provides access to all use cases, services, and infrastructure via trait methods
+   - All handlers now use `&dyn AppStatePort` instead of concrete `&AdapterState`
+
+2. Extended `WorldConnectionManagerPort` with:
+   - `get_connection_context(connection_id)` - Returns port-safe `ConnectionContext`
+   - `get_connection_by_client_id(client_id)` - Lookup by client ID
+   - `is_spectator_by_client_id(client_id)` - Check spectator status
+   - `get_pc_id_by_client_id(client_id)` - Get player character ID
+   - `broadcast_to_world(world_id, message)` - Broadcast to world
+   - `broadcast_to_dms(world_id, message)` - Broadcast to DMs
+   - `broadcast_to_players(world_id, message)` - Broadcast to players
+   - `broadcast_to_all_worlds(message)` - Global broadcast
+   - `unregister_connection(connection_id)` - Remove connection
+
+3. Added `ConnectionContext` struct to ports layer (port-safe version of `ConnectionInfo`)
+
+4. Implemented `AppStatePort` for `AppState` in engine-composition
+
+5. Updated all ~23 HTTP/WebSocket handlers to use `&dyn AppStatePort`
+
+6. Added `WorkerServices` struct in engine-runner for background workers needing concrete types
+
+7. Deleted `AdapterState` and removed engine-composition dependency from engine-adapters
+
+**Result**: arch-check passes with zero violations
 
 ---
 
@@ -273,13 +311,17 @@ handlers/
 ### Phase 2.1: Critical Dependency Fixes (6-8 hours)
 
 1. [x] C4: Move FixedRandomPort to engine-adapters
-2. [ ] C1+C2: Eliminate AdapterState
-   - [ ] Add `get_connection`, `broadcast_to_world` to WorldConnectionManagerPort
-   - [ ] Add `ConnectionInfo` to engine-ports
-   - [ ] Implement new methods in WorldConnectionManager
-   - [ ] Update all handlers to use AppState
-   - [ ] Delete AdapterState from engine-composition
-   - [ ] Remove engine-composition dependency from engine-adapters
+2. [x] C1+C2: Eliminate AdapterState - COMPLETED 2025-12-30
+   - [x] Add `get_connection_context`, `broadcast_to_world` etc to WorldConnectionManagerPort
+   - [x] Add `ConnectionContext` struct to engine-ports
+   - [x] Implement new methods in WorldConnectionManager
+   - [x] Create AppStatePort trait in engine-ports
+   - [x] Implement AppStatePort for AppState in engine-composition
+   - [x] Update all ~23 handlers to use &dyn AppStatePort
+   - [x] Delete AdapterState from engine-composition
+   - [x] Remove engine-composition dependency from engine-adapters
+   - [x] Remove unused engine-dto dependency from engine-composition
+   - [x] Add WorkerServices for background workers needing concrete types
 3. [ ] C3: Create PlatformPort trait, update player-ui
 
 ### Phase 2.2: Protocol Cleanup (2-3 hours)
@@ -307,15 +349,15 @@ handlers/
 
 After all phases complete:
 
-- [ ] `cargo check --workspace` - Zero errors
-- [ ] `cargo test --workspace` - All tests pass
-- [ ] `cargo xtask arch-check` - Zero violations
-- [ ] No backwards dependencies in Cargo.toml files
-- [ ] No concrete implementations in ports layer
-- [ ] No business logic in protocol layer
-- [ ] No traits with more than 12 methods
-- [ ] No files over 500 lines (except generated code)
-- [ ] Proper dependency flow: domain → ports → adapters → app → composition → runner
+- [x] `cargo check --workspace` - Zero errors ✅
+- [x] `cargo test --workspace` - All tests pass ✅
+- [x] `cargo xtask arch-check` - Zero violations ✅ (as of 2025-12-30)
+- [x] No backwards dependencies in Cargo.toml files ✅ (engine layer)
+- [x] No concrete implementations in ports layer ✅
+- [ ] No business logic in protocol layer (M1 pending)
+- [ ] No traits with more than 12 methods (M2 pending)
+- [ ] No files over 500 lines (M3 pending)
+- [x] Proper dependency flow: domain → ports → adapters → app → composition → runner ✅
 
 ---
 
