@@ -51,7 +51,7 @@ WrldBldr uses WebSocket for real-time communication between Player clients and t
 | `DiscardChallenge` | `challenge_id` | Discard suggestion |
 | `CreateAdHocChallenge` | `name`, `skill_id`, `difficulty`, `target_pc_id` | Create without LLM |
 | `ShareNpcLocation` | `npc_id`, `pc_id`, `location_id`, `region_id?`, `notes?` | Share NPC whereabouts |
-| `TriggerApproachEvent` | `npc_id`, `target_pc_id`, `description`, `reveal` | NPC approaches player (optionally unrevealed) |
+| `TriggerApproachEvent` | `npc_id`, `target_pc_id`, `description` | NPC approaches player |
 | `TriggerLocationEvent` | `region_id`, `description` | Location narration |
 | `AdvanceGameTime` | `hours` | Advance in-game time |
 
@@ -129,7 +129,7 @@ WrldBldr uses WebSocket for real-time communication between Player clients and t
 | Message | Fields | Purpose |
 |---------|--------|---------|
 | `NarrativeEventTriggered` | `event_id`, `name`, `description`, `effects?` | Event fired |
-| `ApproachEvent` | `npc_id`, `npc_name`, `npc_sprite?`, `description`, `reveal` | NPC approached (can be "Unknown Figure") |
+| `ApproachEvent` | `npc_id`, `npc_name`, `npc_sprite?`, `description` | NPC approached |
 | `LocationEvent` | `region_id`, `description` | Location narration |
 | `NpcLocationShared` | `npc_id`, `npc_name`, `location`, `region?`, `notes?` | DM shared info |
 | `GameTimeUpdated` | `display`, `time_of_day`, `is_paused` | Time advanced |

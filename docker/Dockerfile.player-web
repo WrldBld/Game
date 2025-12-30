@@ -20,62 +20,47 @@ RUN apt-get update && apt-get install -y \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust WASM target and dioxus cli
+# Install Rust WASM target and trunk
 RUN rustup target add wasm32-unknown-unknown && \
-    cargo install dioxus-cli wasm-bindgen-cli
+    cargo install trunk wasm-bindgen-cli
 
 # Copy workspace manifests first for dependency caching
 COPY Cargo.toml Cargo.lock ./
 COPY crates/protocol/Cargo.toml crates/protocol/
-COPY crates/player-ports/Cargo.toml crates/player-ports/
-COPY crates/player-app/Cargo.toml crates/player-app/
-COPY crates/player-adapters/Cargo.toml crates/player-adapters/
-COPY crates/player-ui/Cargo.toml crates/player-ui/
-COPY crates/player-runner/Cargo.toml crates/player-runner/
+COPY crates/engine/Cargo.toml crates/engine/
+COPY crates/player/Cargo.toml crates/player/
 
 # Create dummy source files for dependency pre-build
 RUN mkdir -p crates/protocol/src && \
     echo "pub fn dummy() {}" > crates/protocol/src/lib.rs && \
-    mkdir -p crates/player-ports/src && \
-    echo "pub fn dummy() {}" > crates/player-ports/src/lib.rs && \
-    mkdir -p crates/player-app/src && \
-    echo "pub fn dummy() {}" > crates/player-app/src/lib.rs && \
-    mkdir -p crates/player-adapters/src && \
-    echo "pub fn dummy() {}" > crates/player-adapters/src/lib.rs && \
-    mkdir -p crates/player-ui/src && \
-    echo "pub fn dummy() {}" > crates/player-ui/src/lib.rs && \
-    mkdir -p crates/player-runner/src && \
-    echo "pub fn dummy() {}" > crates/player-runner/src/lib.rs
+    mkdir -p crates/engine/src && \
+    echo "fn main() {}" > crates/engine/src/main.rs && \
+    mkdir -p crates/player/src && \
+    echo "fn main() {}" > crates/player/src/main.rs
 
 # Build dependencies only (this layer is cached)
-RUN cargo build --release --target wasm32-unknown-unknown -p wrldbldr-player-runner 2>/dev/null || true
+RUN cargo build --release --target wasm32-unknown-unknown -p wrldbldr-player 2>/dev/null || true
 
 # Remove dummy source files
 RUN rm -rf crates/*/src
 
 # Copy actual source code
 COPY crates/protocol/src crates/protocol/src
-COPY crates/player-ports/src crates/player-ports/src
-COPY crates/player-app/src crates/player-app/src
-COPY crates/player-adapters/src crates/player-adapters/src
-COPY crates/player-ui/src crates/player-ui/src
-COPY crates/player-ui/assets crates/player-ui/assets
-COPY crates/player-ui/styles crates/player-ui/styles
-COPY crates/player-ui/package.json crates/player-ui/
-COPY crates/player-ui/package-lock.json crates/player-ui/
-COPY crates/player-ui/tailwind.config.js crates/player-ui/
-COPY crates/player-runner/src crates/player-runner/src
-COPY crates/player-runner/index.html crates/player-runner/
-COPY crates/player-runner/Dioxus.toml crates/player-runner/
-COPY crates/player-runner/assets crates/player-runner/assets
+COPY crates/player/src crates/player/src
+COPY crates/player/index.html crates/player/
+COPY crates/player/Trunk.toml crates/player/
+COPY crates/player/styles crates/player/styles
+COPY crates/player/package.json crates/player/
+COPY crates/player/package-lock.json crates/player/
+COPY crates/player/tailwind.config.js crates/player/
 
 # Install npm dependencies and build CSS
-WORKDIR /app/crates/player-ui
-RUN npm ci && npm run build:css
+WORKDIR /app/crates/player
+RUN npm ci && \
+    npx tailwindcss -i styles/input.css -o styles/output.css --minify
 
-# Build the WASM application with dx
-WORKDIR /app/crates/player-runner
-RUN dx build --web --release
+# Build the WASM application with trunk
+RUN trunk build --release
 
 # -----------------------------------------------------------------------------
 # Stage 2: Nginx Runtime
@@ -86,7 +71,7 @@ FROM nginx:alpine
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy the built WASM application
-COPY --from=builder /app/crates/player-runner/dist /usr/share/nginx/html
+COPY --from=builder /app/crates/player/dist /usr/share/nginx/html
 
 # Add config script for runtime environment variables
 COPY docker/configure-env.sh /docker-entrypoint.d/40-configure-env.sh

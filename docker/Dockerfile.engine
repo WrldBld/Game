@@ -20,27 +20,30 @@ RUN apt-get update && apt-get install -y \
 # Copy workspace manifests first for dependency caching
 COPY Cargo.toml Cargo.lock ./
 COPY crates/protocol/Cargo.toml crates/protocol/
-COPY crates/engine-runner/Cargo.toml crates/engine-runner/
+COPY crates/engine/Cargo.toml crates/engine/
+COPY crates/player/Cargo.toml crates/player/
 
 # Create dummy source files for dependency pre-build
 RUN mkdir -p crates/protocol/src && \
     echo "pub fn dummy() {}" > crates/protocol/src/lib.rs && \
-    mkdir -p crates/engine-runner/src && \
-    echo "fn main() {}" > crates/engine-runner/src/main.rs
+    mkdir -p crates/engine/src && \
+    echo "fn main() {}" > crates/engine/src/main.rs && \
+    mkdir -p crates/player/src && \
+    echo "fn main() {}" > crates/player/src/main.rs
 
 # Build dependencies only (this layer is cached)
-RUN cargo build --release -p wrldbldr-engine-runner 2>/dev/null || true
+RUN cargo build --release -p wrldbldr-engine 2>/dev/null || true
 
 # Remove dummy source files
 RUN rm -rf crates/*/src
 
 # Copy actual source code
 COPY crates/protocol/src crates/protocol/src
-COPY crates/engine-runner/src crates/engine-runner/src
+COPY crates/engine/src crates/engine/src
 
 # Build the actual application
-RUN touch crates/protocol/src/lib.rs crates/engine-runner/src/main.rs && \
-    cargo build --release -p wrldbldr-engine-runner
+RUN touch crates/protocol/src/lib.rs crates/engine/src/main.rs && \
+    cargo build --release -p wrldbldr-engine
 
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime

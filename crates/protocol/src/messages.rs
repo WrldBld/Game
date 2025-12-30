@@ -5,16 +5,11 @@
 //! and Player (sending ClientMessage, receiving ServerMessage).
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::types::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ParticipantRole,
     ProposedToolInfo,
 };
-
-fn default_true() -> bool {
-    true
-}
 
 // =============================================================================
 // Client Messages (Player → Engine)
@@ -30,7 +25,7 @@ pub enum ClientMessage {
         role: ParticipantRole,
         /// Optional world ID to join (creates demo session if not provided)
         #[serde(default)]
-        world_id: Option<Uuid>,
+        world_id: Option<String>,
     },
     /// Player performs an action
     PlayerAction {
@@ -157,11 +152,7 @@ pub enum ClientMessage {
         npc_id: String,
         target_pc_id: String,
         description: String,
-        /// When false, player sees "Unknown Figure" and no sprite
-        #[serde(default = "default_true")]
-        reveal: bool,
     },
-
 
     /// DM triggers a location event (narration for all PCs in a region)
     TriggerLocationEvent {
@@ -431,9 +422,6 @@ pub enum ServerMessage {
         npc_name: String,
         npc_sprite: Option<String>,
         description: String,
-        /// When false, player sees "Unknown Figure" and no sprite
-        #[serde(default = "default_true")]
-        reveal: bool,
     },
 
     /// A location event occurred (sent to all PCs in region)
@@ -470,7 +458,11 @@ pub enum ServerMessage {
     MovementBlocked { pc_id: String, reason: String },
 
     /// Game time has been updated (broadcast to all)
-    GameTimeUpdated { game_time: crate::types::GameTime },
+    GameTimeUpdated {
+        display: String,
+        time_of_day: String,
+        is_paused: bool,
+    },
 
     // =========================================================================
     // Staging System (NPC Presence Approval)
@@ -484,7 +476,7 @@ pub enum ServerMessage {
         region_name: String,
         location_id: String,
         location_name: String,
-        game_time: crate::types::GameTime,
+        game_time_display: String,
         /// Previous staging if expired (for reference)
         #[serde(default)]
         previous_staging: Option<PreviousStagingInfo>,
@@ -753,9 +745,6 @@ pub struct StagedNpcInfo {
     pub portrait_asset: Option<String>,
     pub is_present: bool,
     pub reasoning: String,
-    /// When true, NPC is present but hidden from players
-    #[serde(default)]
-    pub is_hidden_from_players: bool,
 }
 
 /// Info about previous staging (for reference)
@@ -783,9 +772,6 @@ pub struct NpcPresentInfo {
     pub sprite_asset: Option<String>,
     #[serde(default)]
     pub portrait_asset: Option<String>,
-    /// When true, NPC is present but hidden from players
-    #[serde(default)]
-    pub is_hidden_from_players: bool,
 }
 
 /// DM's decision for an NPC in staging
@@ -796,7 +782,4 @@ pub struct ApprovedNpcInfo {
     /// Optional override reasoning (if DM modified)
     #[serde(default)]
     pub reasoning: Option<String>,
-    /// When true, NPC is present but hidden from players
-    #[serde(default)]
-    pub is_hidden_from_players: bool,
 }

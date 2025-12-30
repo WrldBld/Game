@@ -24,53 +24,53 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-001**: As a player, I can speak to NPCs and receive contextual responses
   - *Implementation*: PlayerAction → LLMQueueService → Ollama → DM approval → DialogueResponse
-  - *Files*: `crates/engine-app/src/application/services/llm_queue_service.rs`
+  - *Files*: `Engine/src/application/services/llm_queue_service.rs`
 
 - [x] **US-DLG-002**: As a DM, I can approve LLM responses before players see them
   - *Implementation*: ApprovalRequired WebSocket message, ApprovalDecision handling
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Player/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-DLG-003**: As a DM, I can modify LLM responses before approving
   - *Implementation*: AcceptWithModification decision type, modified dialogue text
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 - [x] **US-DLG-004**: As a DM, I can reject and request regeneration with feedback
   - *Implementation*: Reject decision type, feedback included in retry, max 3 retries
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 - [x] **US-DLG-005**: As a DM, I can take over and write my own response
   - *Implementation*: TakeOver decision type, DM-written dialogue
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 - [x] **US-DLG-006**: As a DM, I can approve/reject LLM tool call suggestions
   - *Implementation*: ProposedToolInfo in approval, approved_tools filtering
-  - *Files*: `crates/engine-app/src/application/services/tool_execution_service.rs`
+  - *Files*: `Engine/src/application/services/tool_execution_service.rs`
 
 - [x] **US-DLG-007**: As a DM, I can set directorial notes that guide the LLM
   - *Implementation*: DirectorialNotes value object, included in LLM system prompt
-  - *Files*: `crates/domain/src/value_objects/directorial.rs`
+  - *Files*: `Engine/src/domain/value_objects/directorial.rs`
 
 - [x] **US-DLG-008**: As a player, I see a "thinking" indicator while LLM processes
   - *Implementation*: LLMProcessing WebSocket message, UI shows animated indicator
-  - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `Player/src/presentation/views/pc_view.rs`
 
 - [x] **US-DLG-009**: As a DM, I can configure token budgets per context category
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
-  - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine-adapters/src/infrastructure/http/settings_routes.rs`
+  - *Files*: `Engine/src/domain/value_objects/context_budget.rs`, `Engine/src/infrastructure/http/settings_routes.rs`
 
 ### Pending (Dialogue Tracking Enhancement)
 
 - [ ] **US-DLG-010**: As a system, I persist dialogue exchanges as StoryEvents for later querying
   - *Implementation*: Call `record_dialogue_exchange` in DMApprovalQueueService after approval
-  - *Files*: `crates/engine-app/src/application/services/dm_approval_queue_service.rs`, `crates/engine-app/src/application/services/story_event_service.rs`
+  - *Files*: `Engine/src/application/services/dm_approval_queue_service.rs`, `Engine/src/application/services/story_event_service.rs`
 
 - [ ] **US-DLG-011**: As a system, I can query the last dialogues with a specific NPC
   - *Implementation*: Add `get_dialogues_with_npc` method to StoryEventRepository
-  - *Files*: `crates/engine-ports/src/outbound/repository_port.rs`, `crates/engine-adapters/src/infrastructure/persistence/story_event_repository.rs`
+  - *Files*: `Engine/src/application/ports/outbound/story_event_repository_port.rs`, `Engine/src/infrastructure/persistence/story_event_repository.rs`
 
 - [ ] **US-DLG-012**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
   - *Implementation*: SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/story_event_repository.rs`
+  - *Files*: `Engine/src/infrastructure/persistence/story_event_repository.rs`
 
 > **Note**: These dialogue tracking enhancements are required by the [Staging System](./staging-system.md) to provide LLM context about recent NPC interactions (e.g., if an NPC said they'd be somewhere else).
 

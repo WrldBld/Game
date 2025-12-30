@@ -32,7 +32,7 @@ pkgs.mkShell {
     tmux  # Required by overmind
 
     # Frontend tooling (for Player web builds)
-    dioxus-cli
+    trunk          # WASM bundler for Dioxus
     wasm-bindgen-cli
     binaryen       # wasm-opt
 

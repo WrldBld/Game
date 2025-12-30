@@ -225,17 +225,17 @@ SQLite persistence enables recovery after restart:
 
 | File | Purpose |
 |------|---------|
-| `crates/engine-ports/src/outbound/queue_port.rs` | Queue port trait |
-| `crates/engine-app/src/application/dto/queue_items.rs` | Item types |
-| `crates/engine-app/src/application/services/player_action_queue_service.rs` | Player actions |
-| `crates/engine-app/src/application/services/dm_action_queue_service.rs` | DM actions |
-| `crates/engine-app/src/application/services/llm_queue_service.rs` | LLM processing |
-| `crates/engine-app/src/application/services/asset_generation_queue_service.rs` | Asset generation |
-| `crates/engine-app/src/application/services/dm_approval_queue_service.rs` | Approvals |
-| `crates/engine-adapters/src/infrastructure/queues/sqlite_queue.rs` | SQLite backend |
-| `crates/engine-adapters/src/infrastructure/queues/memory_queue.rs` | In-memory backend |
-| `crates/engine-adapters/src/infrastructure/queues/factory.rs` | Queue factory |
-| `crates/engine-adapters/src/infrastructure/queue_workers.rs` | Worker spawning |
+| `src/application/ports/outbound/queue_port.rs` | Queue port trait |
+| `src/application/dto/queue_items.rs` | Item types |
+| `src/application/services/player_action_queue_service.rs` | Player actions |
+| `src/application/services/dm_action_queue_service.rs` | DM actions |
+| `src/application/services/llm_queue_service.rs` | LLM processing |
+| `src/application/services/asset_generation_queue_service.rs` | Asset generation |
+| `src/application/services/dm_approval_queue_service.rs` | Approvals |
+| `src/infrastructure/queues/sqlite_queue.rs` | SQLite backend |
+| `src/infrastructure/queues/memory_queue.rs` | In-memory backend |
+| `src/infrastructure/queues/factory.rs` | Queue factory |
+| `src/main.rs` | Worker spawning |
 
 ---
 

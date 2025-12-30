@@ -1,7 +1,7 @@
 //! WrldBldr Protocol - Shared types for Engine and Player communication
 //!
 //! This crate contains all types shared between the Engine (backend) and Player (frontend):
-//! - Wire-format DTOs (REST + WebSocket)
+//! - ID types (WorldId, CharacterId, etc.)
 //! - WebSocket message types (ClientMessage, ServerMessage)
 //! - Rule system configuration types
 //! - Shared enums and value objects
@@ -11,12 +11,16 @@
 //! 1. **Minimal dependencies** - Only serde, uuid, chrono, and serde_json
 //! 2. **No business logic** - Pure data types and serialization
 //! 3. **WASM compatible** - Must compile for both native and wasm32 targets
-//! 4. **No domain IDs** - use raw `uuid::Uuid` in DTOs
 
-pub mod app_events;
+pub mod ids;
 pub mod messages;
 pub mod rule_system;
 pub mod types;
+
+// =============================================================================
+// ID Types
+// =============================================================================
+pub use ids::*;
 
 // =============================================================================
 // WebSocket Message Types
@@ -57,11 +61,6 @@ pub use messages::{
 };
 
 // =============================================================================
-// App Events
-// =============================================================================
-pub use app_events::AppEvent;
-
-// =============================================================================
 // Rule System Types
 // =============================================================================
 pub use rule_system::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
@@ -80,6 +79,7 @@ pub use types::{
     CampbellArchetype,
     // Game time
     GameTime,
+    TimeOfDay,
     // Monomyth stages
     MonomythStage,
     // Participant roles

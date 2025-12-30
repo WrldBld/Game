@@ -159,7 +159,7 @@ nix-shell
 
 npm install
 cargo run      # Desktop
-dx serve --web # Web
+trunk serve    # Web
 ```
 
 ---

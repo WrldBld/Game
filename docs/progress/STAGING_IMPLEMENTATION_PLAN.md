@@ -1,8 +1,8 @@
 # Staging System Implementation Plan
 
 **Created:** 2025-12-19
-**Status:** Parts A-F Complete, Part G Pending (Hidden NPCs extension), Part H Partial
-**Estimated Effort:** ~18.0 hours (15.5 hours completed)
+**Status:** Parts A-F Complete, Part G Pending
+**Estimated Effort:** ~16.5 hours (15.5 hours completed)
 **Phase:** 3 of Code Review Remediation
 
 This plan implements the **Staging System** which manages NPC presence in regions with DM approval workflow, combining rule-based logic with LLM reasoning.
@@ -392,23 +392,6 @@ if let Some(_region_id) = staging_pending.read().as_ref() {
 
 ---
 
-### Part H: Hidden NPCs Extension (1.5 hours) ⏳ PENDING
-
-Add the capability to stage NPCs as "present but hidden from players" so that:
-- DM can still stage and later reveal NPCs
-- hidden NPCs are excluded from player-facing "npcs_present" payloads
-- unrevealed interactions are rendered as "Unknown Figure"
-
-| # | Task | Est. | Status | Files |
-|---|------|------|--------|-------|
-| H1 | Extend protocol staged/approved types with hidden flag | 15m | ⏳ | `crates/protocol/src/messages.rs` |
-| H2 | Persist hidden flag on INCLUDES_NPC edge | 30m | ⏳ | `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs` |
-| H3 | Add hidden flag to staged NPC domain + ports | 20m | ⏳ | `crates/domain/src/entities/staging.rs`, `crates/engine-ports/src/outbound/staging_repository_port.rs` |
-| H4 | Filter hidden NPCs from player presence payloads | 20m | ⏳ | `crates/engine-adapters/src/infrastructure/websocket.rs` |
-| H5 | Update DM UI to set hidden flag | 15m | ⏳ | `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`, `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs` |
-
----
-
 ## Implementation Order
 
 1. **Part A** (Dialogue Tracking) - Required dependency for LLM context
@@ -418,7 +401,6 @@ Add the capability to stage NPCs as "present but hidden from players" so that:
 5. **Part E** (Engine Integration) - WebSocket flow changes
 6. **Part F** (Player UI) - All UI components
 7. **Part G** (Finalization) - Testing, cleanup, documentation
-8. **Part H** (Hidden NPCs Extension) - Hidden presence / unrevealed interactions
 
 ---
 

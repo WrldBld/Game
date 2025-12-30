@@ -3,7 +3,7 @@
 Active implementation tracking for WrldBldr user stories.
 
 **Current Phase**: Phase B - Player Knowledge & Agency (COMPLETE)  
-**Last Updated**: 2025-12-20
+**Last Updated**: 2025-12-18
 
 ---
 
@@ -32,81 +32,6 @@ All Phase B stories have been implemented. See Completed section for details.
 ## Phase C: DM Tools & Advanced Features
 
 Improve DM workflow. These don't block player gameplay.
-
-### US-STG-013 / US-OBS-006: Hidden NPCs + Unrevealed Interactions
-
-| Field | Value |
-|-------|-------|
-| **Status** | In Progress |
-| **Priority** | High |
-| **Effort** | 2-3 days |
-| **Systems** | [Staging](../systems/staging-system.md), [Observation](../systems/observation-system.md) |
-
-**Goal**: Support NPCs that are staged as present-but-hidden from players, while still allowing DM-triggered approach events that may or may not reveal identity.
-
-**Player-facing behavior**:
-- Hidden NPCs do not appear in `SceneChanged.npcs_present` or `StagingReady.npcs_present`.
-- Unrevealed approaches display as **"Unknown Figure"** with no sprite/portrait.
-- Unrevealed interactions are recorded as observations and shown as **"Unknown Figure"** in Known NPCs.
-
-**Implementation checklist**:
-- [ ] Protocol: add `reveal` to approach events
-- [ ] Protocol: add `is_hidden_from_players` to staged/approved NPCs
-- [ ] Engine: persist hidden flag in staging (`INCLUDES_NPC`)
-- [ ] Engine: filter hidden NPCs from player presence messages
-- [ ] Engine: add `is_revealed_to_player` to observations + persistence
-- [ ] Engine: scrub observation API for unrevealed entries
-- [ ] Engine: approach event handler supports `reveal=false`
-- [ ] Player UI: staging approval + pre-stage support hidden toggle
-- [ ] Player UI: observations refresh via shared state; show Unknown Figure
-- [ ] Security: stop `DerivedSceneRequest.pc_id` from auto-creating observations
-- [ ] Maintenance: audit/remove unused HTTP endpoints (e.g. `POST /api/regions/{region_id}/scene`)
-- [ ] Validate: `cargo check --workspace` and `cargo xtask arch-check`
-
-**Key files**:
-- `crates/protocol/src/messages.rs`
-- `crates/domain/src/entities/staging.rs`
-- `crates/domain/src/entities/observation.rs`
-- `crates/engine-adapters/src/infrastructure/websocket.rs`
-- `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs`
-- `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
-- `crates/engine-adapters/src/infrastructure/http/observation_routes.rs`
-- `crates/engine-adapters/src/infrastructure/http/region_routes.rs`
-- `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
-- `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`
-
----
-
-## Architecture Maintenance
-
-### ARCH-SHIM-001: Remove internal `pub use crate::...` and `pub(crate) use ...` shims
-
-| Field | Value |
-|-------|-------|
-| **Status** | Done |
-| **Priority** | High |
-| **Effort** | 0.5 days |
-|
-**Goal**: Reduce redundant module-level shims and make imports point at the true owning module.
-
-**Planned work (checklist)**:
-- [x] Remove `pub use crate::...` re-exports (player-ui session_state facade)
-- [x] Remove `pub use crate::...` re-export (player-app services -> dto)
-- [x] Remove `pub(crate) use ...` re-export (engine-adapters export mod)
-- [x] Update call sites to import from source modules
-- [x] Extend `cargo xtask arch-check` to forbid:
-  - `pub use crate::...`
-  - `pub(crate) use ...`
-- [x] Run `cargo xtask arch-check` and `cargo check --workspace`
-
-**Target files**:
-- `crates/player-ui/src/presentation/state/session_state.rs`
-- `crates/player-app/src/application/services/mod.rs`
-- `crates/engine-adapters/src/infrastructure/export/mod.rs`
-- `crates/engine-adapters/src/infrastructure/persistence/world_repository.rs`
-- `crates/player-ui/src/presentation/components/settings/mod.rs`
-- `crates/xtask/src/main.rs`
-
 
 ### US-CHAL-010: Region-level Challenge Binding
 
@@ -210,10 +135,10 @@ Stories moved here when fully implemented.
 - Use item action wired to player actions
 
 **Files**:
-- `crates/engine-app/src/application/dto/item.rs`
-- `crates/player-ui/src/presentation/components/inventory_panel.rs`
-- `crates/player-app/src/application/services/character_service.rs`
-- `crates/player-app/src/application/dto/world_snapshot.rs`
+- `Engine/src/application/dto/item.rs`
+- `Player/src/presentation/components/inventory_panel.rs`
+- `Player/src/application/services/character_service.rs`
+- `Player/src/application/dto/world_snapshot.rs`
 
 ---
 
@@ -232,9 +157,9 @@ Stories moved here when fully implemented.
 - Click NPC to initiate talk action
 
 **Files**:
-- `crates/player-ui/src/presentation/components/known_npcs_panel.rs`
-- `crates/player-app/src/application/services/observation_service.rs`
-- `crates/player-ui/src/presentation/views/pc_view.rs`
+- `Player/src/presentation/components/known_npcs_panel.rs`
+- `Player/src/application/services/observation_service.rs`
+- `Player/src/presentation/views/pc_view.rs`
 
 ---
 
@@ -253,9 +178,9 @@ Stories moved here when fully implemented.
 - Legend showing current/available/locked regions
 
 **Files**:
-- `crates/player-ui/src/presentation/components/mini_map.rs`
-- `crates/player-app/src/application/services/location_service.rs`
-- `crates/player-ui/src/presentation/views/pc_view.rs`
+- `Player/src/presentation/components/mini_map.rs`
+- `Player/src/application/services/location_service.rs`
+- `Player/src/presentation/views/pc_view.rs`
 
 ---
 
@@ -274,10 +199,10 @@ Stories moved here when fully implemented.
 - Map button in action panel opens navigation modal
 
 **Files**:
-- `crates/player-ui/src/presentation/components/navigation_panel.rs`
-- `crates/player-ui/src/presentation/state/game_state.rs`
-- `crates/player-ports/src/outbound/game_connection_port.rs`
-- `crates/player-adapters/src/infrastructure/websocket/game_connection_adapter.rs`
+- `Player/src/presentation/components/navigation_panel.rs`
+- `Player/src/presentation/state/game_state.rs`
+- `Player/src/application/ports/outbound/game_connection_port.rs`
+- `Player/src/infrastructure/websocket/game_connection_adapter.rs`
 
 ---
 
@@ -295,9 +220,9 @@ Stories moved here when fully implemented.
 - Shows pause indicator when time is stopped
 
 **Files**:
-- `crates/player-ui/src/presentation/components/navigation_panel.rs` (GameTimeDisplay)
-- `crates/player-ui/src/presentation/state/game_state.rs` (GameTimeData)
-- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
+- `Player/src/presentation/components/navigation_panel.rs` (GameTimeDisplay)
+- `Player/src/presentation/state/game_state.rs` (GameTimeData)
+- `Player/src/presentation/handlers/session_message_handler.rs`
 
 ---
 
@@ -316,10 +241,10 @@ Stories moved here when fully implemented.
 - Triggered by `ApproachEvent` WebSocket message
 
 **Files**:
-- `crates/player-ui/src/presentation/components/event_overlays.rs`
-- `crates/player-ui/src/presentation/state/game_state.rs`
-- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
-- `crates/player-ui/src/presentation/views/pc_view.rs`
+- `Player/src/presentation/components/event_overlays.rs`
+- `Player/src/presentation/state/game_state.rs`
+- `Player/src/presentation/handlers/session_message_handler.rs`
+- `Player/src/presentation/views/pc_view.rs`
 
 ---
 
@@ -337,10 +262,10 @@ Stories moved here when fully implemented.
 - Triggered by `LocationEvent` WebSocket message
 
 **Files**:
-- `crates/player-ui/src/presentation/components/event_overlays.rs`
-- `crates/player-ui/src/presentation/state/game_state.rs`
-- `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
-- `crates/player-ui/src/presentation/views/pc_view.rs`
+- `Player/src/presentation/components/event_overlays.rs`
+- `Player/src/presentation/state/game_state.rs`
+- `Player/src/presentation/handlers/session_message_handler.rs`
+- `Player/src/presentation/views/pc_view.rs`
 
 ---
 
@@ -357,8 +282,8 @@ Stories moved here when fully implemented.
 - Roll display: dice + modifier + skill = total
 
 **Files**:
-- `crates/player-ui/src/presentation/components/tactical/challenge_roll.rs`
-- `crates/player-ui/src/presentation/components/tactical/skills_display.rs`
+- `Player/src/presentation/components/tactical/challenge_roll.rs`
+- `Player/src/presentation/components/tactical/skills_display.rs`
 
 ---
 
@@ -375,8 +300,8 @@ Stories moved here when fully implemented.
 - Metadata endpoint for UI field rendering
 
 **Files**:
-- `crates/domain/src/value_objects/context_budget.rs`
-- `crates/engine-adapters/src/infrastructure/http/settings_routes.rs`
+- `Engine/src/domain/value_objects/context_budget.rs`
+- `Engine/src/infrastructure/http/settings_routes.rs`
 
 ---
 

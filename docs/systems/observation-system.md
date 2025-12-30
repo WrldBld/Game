@@ -13,7 +13,6 @@ Players don't have omniscient knowledge of where NPCs are. Instead:
 1. **Direct Observations**: Auto-recorded when NPCs appear in a scene
 2. **Heard Information**: DM shares intel ("The bartender mentioned seeing Marcus at the docks")
 3. **Deduced Information**: Challenge results reveal NPC patterns
-4. **Unrevealed Interactions (Hidden NPCs)**: Observations can be recorded without revealing identity (shown as "Unknown Figure")
 
 This supports mystery scenarios where players must investigate to find people.
 
@@ -25,15 +24,15 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-001**: As a player, my observations are recorded when NPCs appear in scenes
   - *Implementation*: `record_observation()` called when scene displays NPCs
-  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
+  - *Files*: `Engine/src/domain/entities/observation.rs`, `Engine/src/infrastructure/persistence/observation_repository.rs`
 
 - [x] **US-OBS-002**: As a DM, I can share NPC location information with a player
   - *Implementation*: `ShareNpcLocation` WebSocket message creates `HeardAbout` observation
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 - [x] **US-OBS-003**: As a player, challenge successes can reveal NPC information
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
-  - *Files*: `crates/engine-app/src/application/services/event_effect_executor.rs`
+  - *Files*: `Engine/src/application/services/event_effect_executor.rs`
 
 ### Pending
 
@@ -42,14 +41,6 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [ ] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
   - *Notes*: Observation records game time and location
-
-- [ ] **US-OBS-006**: As a DM, I can record an interaction without revealing the NPC
-  - *Design*: Unrevealed observations render as `npc_name = "Unknown Figure"` and have no portrait/sprite
-  - *Implementation (planned)*:
-    - Add `is_revealed_to_player` to observation entity + persistence
-    - Approach events can set `reveal=false` to create an unrevealed direct observation
-    - Observation list API scrubs identity when unrevealed
-    - Player Known NPCs UI respects the reveal flag
 
 ---
 
@@ -99,7 +90,6 @@ This supports mystery scenarios where players must investigate to find people.
     region_id: "uuid",
     game_time: datetime(),
     observation_type: "direct",  // direct, heard_about, deduced
-    is_revealed_to_player: true,  // false => show "Unknown Figure"
     notes: "Saw them arguing with the bartender"
 }]->(npc:Character)
 ```

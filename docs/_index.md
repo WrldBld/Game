@@ -3,7 +3,7 @@
 **WrldBldr** is a TTRPG management system with an AI-powered game master assistant.
 
 - **Engine** (Rust/Axum): World creation tool with Neo4j database, Ollama LLM integration
-- **Player** (Rust/Dioxus): Gameplay client with visual novel interface (runner owns composition root; UI is presentation-only)
+- **Player** (Rust/Dioxus): Gameplay client with visual novel interface
 
 ---
 
@@ -50,16 +50,15 @@ Technical reference for developers.
 
 ## Quick Links
 
-All commands should run inside the repo Nix shell:
-- One-shot: `nix-shell /home/otto/repos/WrldBldr/Game/shell.nix --run "cd /home/otto/repos/WrldBldr/Game && <cmd>"`
-
 ### Engine
-- **Run**: `nix-shell /home/otto/repos/WrldBldr/Game/shell.nix --run "cd /home/otto/repos/WrldBldr/Game && task backend"`
-- **Check**: `nix-shell /home/otto/repos/WrldBldr/Game/shell.nix --run "cd /home/otto/repos/WrldBldr/Game && cargo check -p wrldbldr-engine-runner"`
+- **Run**: `cd Engine && nix-shell --run "cargo run"`
+- **Check**: `cd Engine && nix-shell --run "cargo check"`
+- [Engine README](../Engine/README.md)
 
 ### Player
-- **Run Desktop**: `nix-shell /home/otto/repos/WrldBldr/Game/shell.nix --run "cd /home/otto/repos/WrldBldr/Game && task desktop:dev"`
-- **Run Web**: `nix-shell /home/otto/repos/WrldBldr/Game/shell.nix --run "cd /home/otto/repos/WrldBldr/Game && task web:dev"`
+- **Run Desktop**: `cd Player && nix-shell --run "cargo run"`
+- **Run Web**: `cd Player && trunk serve`
+- [Player README](../Player/README.md)
 
 ---
 

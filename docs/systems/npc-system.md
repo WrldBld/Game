@@ -26,31 +26,31 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 - [x] **US-NPC-001**: As a player, I see relevant NPCs when I enter a region based on their schedules
   - *Implementation*: [Staging System](./staging-system.md) queries NPC-Region relationships, generates suggestions, and requires DM approval
-  - *Files*: `crates/engine-app/src/application/services/staging_service.rs` (replaces `presence_service.rs`)
+  - *Files*: `Engine/src/application/services/staging_service.rs` (replaces `presence_service.rs`)
 
 - [x] **US-NPC-002**: As a DM, I can define where NPCs work (region + shift)
   - *Implementation*: `WORKS_AT_REGION` edge with `shift` property (day/night/always)
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-NPC-003**: As a DM, I can define where NPCs live
   - *Implementation*: `HOME_REGION` edge, NPCs more likely present at night
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-NPC-004**: As a DM, I can define where NPCs frequently visit
   - *Implementation*: `FREQUENTS_REGION` edge with `frequency` (always/often/sometimes/rarely) and `time_of_day`
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-NPC-005**: As a DM, I can define regions NPCs avoid
   - *Implementation*: `AVOIDS_REGION` edge overrides other presence rules
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
 
 - [x] **US-NPC-006**: As a DM, I can make an NPC approach a specific player
   - *Implementation*: `TriggerApproachEvent` WebSocket message, NPC appears in PC's region
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 - [x] **US-NPC-007**: As a DM, I can trigger a location-wide event (narration)
   - *Implementation*: `TriggerLocationEvent` WebSocket message, all PCs in region see it
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `Engine/src/infrastructure/websocket.rs`
 
 ### Pending
 

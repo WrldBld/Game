@@ -23,39 +23,39 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-001**: As a DM, I can upload ComfyUI workflows for different asset types
   - *Implementation*: WorkflowConfiguration entity with slot-based management
-  - *Files*: `crates/domain/src/entities/workflow_config.rs`
+  - *Files*: `Engine/src/domain/entities/workflow_config.rs`
 
 - [x] **US-AST-002**: As a DM, I can queue image generation with prompts
   - *Implementation*: GenerationBatch entity, AssetGenerationQueue
-  - *Files*: `crates/engine-app/src/application/services/asset_generation_queue_service.rs`
+  - *Files*: `Engine/src/application/services/asset_generation_queue_service.rs`
 
 - [x] **US-AST-003**: As a DM, I can see real-time generation progress
   - *Implementation*: GenerationQueued/Progress/Complete/Failed WebSocket messages
-  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `Player/src/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-004**: As a DM, I can browse generated assets in a gallery
   - *Implementation*: AssetGallery with filtering, thumbnails, context menu
-  - *Files*: `crates/player-ui/src/presentation/components/creator/asset_gallery.rs`
+  - *Files*: `Player/src/presentation/components/creator/asset_gallery.rs`
 
 - [x] **US-AST-005**: As a DM, I can set a generated asset as active for an entity
   - *Implementation*: Asset activation sets portrait_asset/sprite_asset/backdrop_asset
-  - *Files*: `crates/engine-app/src/application/services/generation_service.rs`
+  - *Files*: `Engine/src/application/services/asset_service.rs`
 
 - [x] **US-AST-006**: As a DM, I can cancel/retry/clear generation batches
   - *Implementation*: Batch management UI with status-appropriate actions
-  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `Player/src/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-007**: As a DM, I can use style references for consistent art
   - *Implementation*: StyleReferenceMapping, IPAdapter detection
-  - *Files*: `crates/engine-adapters/src/infrastructure/comfyui.rs`
+  - *Files*: `Engine/src/infrastructure/comfyui.rs`
 
 - [x] **US-AST-008**: As a DM, I can see ComfyUI connection status
   - *Implementation*: ComfyUIBanner component with health indicator
-  - *Files*: `crates/player-ui/src/presentation/components/creator/comfyui_banner.rs`
+  - *Files*: `Player/src/presentation/components/creator/comfyui_banner.rs`
 
 - [x] **US-AST-009**: As a DM, I can quick-generate from Director Mode
   - *Implementation*: DirectorGenerateModal, generate buttons on NPC panel
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/director_generate_modal.rs`
+  - *Files*: `Player/src/presentation/components/dm_panel/director_generate_modal.rs`
 
 ### Pending
 

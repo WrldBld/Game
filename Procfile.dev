@@ -3,11 +3,10 @@
 # Or simply: task dev
 
 # Backend Engine server
-backend: RUST_LOG=info,wrldbldr_engine=debug cargo run -p wrldbldr-engine-runner --bin wrldbldr-engine
+backend: cd crates/engine && RUST_LOG=info,wrldbldr_engine=debug cargo run --bin wrldbldr-engine
 
 # Frontend Player (web/WASM with hot reload)
-# Ensure npm deps exist so tailwindcss is available.
-frontend: cd crates/player-ui && ([ -d node_modules ] || npm ci) && RUST_LOG=info,wrldbldr_player=debug npm run build:css && cd ../player-runner && dx serve --web --open=false
+frontend: cd crates/player && RUST_LOG=info,wrldbldr_player=debug trunk serve
 
 # Tailwind CSS watcher (optional - uncomment if needed)
-# css: cd crates/player-ui && npm run watch:css
+# css: cd crates/player && npx tailwindcss -i styles/input.css -o styles/output.css --watch

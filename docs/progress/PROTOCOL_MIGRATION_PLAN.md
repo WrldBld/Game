@@ -13,7 +13,6 @@ Migrate all WebSocket wire-format types from Engine and Player into the shared `
 | Execution | Sequential (Stream A → B → C → D) |
 | Commits | After each stream completes |
 | Backwards Compatibility | Not required - clean break |
-| Re-export shims | **Forbidden**: no `pub use` / module re-export layers in engine/player/app crates; import from the owning crate directly |
 
 ---
 
@@ -36,7 +35,7 @@ Migrate all WebSocket wire-format types from Engine and Player into the shared `
 | A.9 | Add session types to `messages.rs`: `ParticipantInfo`, `DirectorialContext`, `NpcMotivationData`, `SplitPartyLocation` |
 | A.10 | Replace `ClientMessage` placeholder with full enum (~22 variants) |
 | A.11 | Replace `ServerMessage` placeholder with full enum (~40 variants) |
-| A.12 | Keep `lib.rs` minimal; expose types via canonical module paths (avoid broad `pub use` re-export shims) |
+| A.12 | Update `lib.rs` to re-export all new types |
 | A.13 | Verify protocol crate compiles |
 | A.14 | Commit |
 
@@ -50,7 +49,7 @@ Migrate all WebSocket wire-format types from Engine and Player into the shared `
 
 | Task | Description |
 |------|-------------|
-| B.1 | Update Engine code to import from `wrldbldr_protocol::...` directly (do not re-export protocol types from `domain/value_objects/mod.rs`) |
+| B.1 | Update `domain/value_objects/mod.rs` - re-export from protocol |
 | B.2 | Update `domain/value_objects/approval.rs` - remove types now in protocol |
 | B.3 | Update `application/dto/queue_items.rs` - import from protocol |
 | B.4 | Refactor `infrastructure/websocket/messages.rs` - remove duplicates |
@@ -125,9 +124,9 @@ to match Player's `SceneCharacterState`. Engine currently sends `None`.
 | Check | Command |
 |-------|---------|
 | Protocol compiles | `cargo check -p wrldbldr-protocol` |
-| Engine compiles | `cargo check -p wrldbldr-engine-runner` |
-| Player compiles (native) | `cargo check -p wrldbldr-player-runner --bin wrldbldr-player` |
-| Player compiles (WASM) | `cargo check -p wrldbldr-player-runner --target wasm32-unknown-unknown --bin wrldbldr-player` |
+| Engine compiles | `cargo check -p wrldbldr-engine` |
+| Player compiles (native) | `cargo check -p wrldbldr-player` |
+| Player compiles (WASM) | `cargo check -p wrldbldr-player --target wasm32-unknown-unknown` |
 | Full workspace | `cargo check --workspace` |
 
 ---

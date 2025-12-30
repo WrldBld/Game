@@ -38,99 +38,135 @@ WrldBldr uses hexagonal (ports & adapters) architecture to separate business log
 
 ---
 
-## Directory Structure (crate-based)
-
-Hexagonal boundaries are enforced by **crate dependencies**.
-
-### Core
-- `crates/domain` (`wrldbldr-domain`): core domain types + typed IDs (aim: serde-free)
-- `crates/protocol` (`wrldbldr-protocol`): wire DTOs for HTTP/WS (serialization-only)
-
-### Ports
-- `crates/engine-ports` (`wrldbldr-engine-ports`): all engine port traits (inbound + outbound)
-- `crates/player-ports` (`wrldbldr-player-ports`): all player port traits (inbound + outbound)
+## Directory Structure
 
 ### Engine
-- `crates/engine-app` (`wrldbldr-engine-app`): application services + app-layer DTOs
-- `crates/engine-adapters` (`wrldbldr-engine-adapters`): infrastructure (Axum routes, WS server, persistence, LLM clients, queues)
-- `crates/engine-runner` (`wrldbldr-engine-runner`): composition root; produces `wrldbldr-engine` binary
+
+```
+Engine/src/
+├── domain/                    # Core business logic
+│   ├── entities/              # Business objects with identity
+│   ├── value_objects/         # Immutable objects (IDs, configs)
+│   └── aggregates/            # (Future: DDD aggregates)
+│
+├── application/               # Use case orchestration
+│   ├── services/              # Business logic coordination
+│   ├── ports/
+│   │   ├── inbound/           # Use case interfaces
+│   │   └── outbound/          # Repository interfaces
+│   └── dto/                   # Data transfer objects
+│
+└── infrastructure/            # External adapters
+    ├── persistence/           # Neo4j repositories
+    ├── http/                  # REST routes
+    ├── websocket/             # WebSocket handlers
+    ├── queues/                # Queue implementations
+    └── ollama.rs              # LLM client
+```
 
 ### Player
-- `crates/player-app` (`wrldbldr-player-app`): application services
-- `crates/player-adapters` (`wrldbldr-player-adapters`): infrastructure (HTTP/WS clients, platform/storage adapters)
-- `crates/player-ui` (`wrldbldr-player-ui`): Dioxus presentation (no adapter construction)
-- `crates/player-runner` (`wrldbldr-player-runner`): composition root; produces `wrldbldr-player` binary
+
+```
+Player/src/
+├── domain/                    # Client-side entities
+│   ├── entities/
+│   └── value_objects/
+│
+├── application/               # Client services
+│   ├── services/              # API calls, business logic
+│   ├── ports/
+│   │   └── outbound/          # ApiPort, GameConnectionPort
+│   └── dto/                   # DTOs matching Engine
+│
+├── infrastructure/            # External adapters
+│   ├── websocket/             # WebSocket client
+│   ├── platform/              # Platform abstraction
+│   └── http_client.rs         # HTTP client
+│
+└── presentation/              # UI layer
+    ├── views/                 # Full-page views
+    ├── components/            # Reusable components
+    ├── state/                 # Reactive state
+    └── handlers/              # Event handlers
+```
 
 ---
 
-## Import Rules (crate boundaries)
+## Import Rules
 
 ### NEVER ALLOWED
 
-- App crates importing adapter crates (e.g. `wrldbldr-engine-app` depending on `wrldbldr-engine-adapters`).
-- Non-owner crates re-exporting/aliasing owning crates:
-
 ```rust
-// Re-export shim (forbidden)
-pub use wrldbldr_protocol::GameTime;
+// Domain importing from application/infrastructure
+use crate::application::*;     // FORBIDDEN in domain/
+use crate::infrastructure::*;  // FORBIDDEN in domain/
 
-// Crate alias shim (forbidden)
-use wrldbldr_protocol as messages;
-extern crate wrldbldr_protocol as messages;
+// Application importing from infrastructure
+use crate::infrastructure::*;  // FORBIDDEN in application/
 ```
-
-Rationale: keep a single canonical import path for every type.
 
 ### ALWAYS REQUIRED
 
-- Application code depends on **port traits**, not concrete adapters.
-- Adapters implement those port traits.
-
----
-
-## Port Pattern (crate based)
-
-### Defining a Port (ports crate)
-
 ```rust
-// crates/engine-ports/src/outbound/repository_port.rs
+// Infrastructure implements application ports
+use crate::application::ports::outbound::SomeRepositoryPort;
 
-#[async_trait]
-pub trait CharacterRepositoryPort: Send + Sync {
-    async fn get(&self, id: CharacterId) -> Result<Option<Character>>;
-    async fn create(&self, character: &Character) -> Result<()>;
-    async fn update(&self, character: &Character) -> Result<()>;
-    async fn delete(&self, id: CharacterId) -> Result<()>;
+impl SomeRepositoryPort for Neo4jSomeRepository {
+    // ...
 }
 ```
 
-### Implementing a Port (adapters crate)
+---
+
+## Port Pattern
+
+### Defining a Port (Application Layer)
 
 ```rust
-// crates/engine-adapters/src/infrastructure/persistence/character_repository.rs
+// application/ports/outbound/character_repository_port.rs
 
-pub struct Neo4jCharacterRepository { /* ... */ }
+#[async_trait]
+pub trait CharacterRepositoryPort: Send + Sync {
+    async fn get_by_id(&self, id: &CharacterId) -> Result<Option<Character>>;
+    async fn save(&self, character: &Character) -> Result<()>;
+    async fn delete(&self, id: &CharacterId) -> Result<()>;
+    async fn list_by_world(&self, world_id: &WorldId) -> Result<Vec<Character>>;
+}
+```
+
+### Implementing a Port (Infrastructure Layer)
+
+```rust
+// infrastructure/persistence/character_repository.rs
+
+pub struct Neo4jCharacterRepository {
+    pool: Arc<Graph>,
+}
 
 #[async_trait]
 impl CharacterRepositoryPort for Neo4jCharacterRepository {
-    async fn get(&self, id: CharacterId) -> Result<Option<Character>> {
+    async fn get_by_id(&self, id: &CharacterId) -> Result<Option<Character>> {
         // Neo4j query implementation
     }
     // ...
 }
 ```
 
-### Using a Port (app crate)
+### Using a Port (Application Layer)
 
 ```rust
-// crates/engine-app/src/application/services/character_service.rs
+// application/services/character_service.rs
 
-pub struct CharacterService<R: CharacterRepositoryPort> {
-    character_repo: Arc<R>,
+pub struct CharacterService {
+    character_repo: Arc<dyn CharacterRepositoryPort>,
+}
+
+impl CharacterService {
+    pub async fn get_character(&self, id: &CharacterId) -> Result<Option<Character>> {
+        self.character_repo.get_by_id(id).await
+    }
 }
 ```
-
----
 
 ---
 
@@ -140,20 +176,22 @@ pub struct CharacterService<R: CharacterRepositoryPort> {
 
 1. **Propose in Plan**: Document the violation, explain why, describe trade-offs
 2. **Await Approval**: User must explicitly approve
-3. **Mark in Code** (and prefer crate-level fixes over module-level exceptions):
+3. **Mark in Code**:
 
 ```rust
-// ARCHITECTURE VIOLATION: [APPROVED YYYY-MM-DD]
+// ARCHITECTURE VIOLATION: [APPROVED 2025-12-17]
 // Reason: <explanation>
 // Mitigation: <how we limit the damage>
 // Approved by: <user>
+use crate::infrastructure::SomeType;  // Normally forbidden
 ```
-
-Note: because this repo enforces architecture primarily via crate dependencies, most violations should be solvable by moving code to the correct crate rather than adding an exception.
 
 ### Currently Accepted Violations
 
-None tracked in this document. If a violation is required, document it in `docs/progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` and keep the owning crate boundaries intact.
+| Location | Description | Justification |
+|----------|-------------|---------------|
+| `Player/src/presentation/services.rs` | Type aliases expose `ApiAdapter` | Composition layer pattern - components use service methods only |
+| `Engine/src/domain/entities/*.rs` | Serde derives on some domain types | Required for JSON serialization to Neo4j |
 
 ---
 
