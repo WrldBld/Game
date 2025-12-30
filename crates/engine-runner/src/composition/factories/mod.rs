@@ -11,7 +11,7 @@
 //! Level 2: event_infra      - Event bus, domain events, channels (parallel with queues)
 //! Level 2: queue_services   - Queue backends and queue services (parallel with events)
 //! Level 3: core_services    - Core domain services (World, Character, Location, etc.)
-//! Level 4: game_services    - Game services (Challenge, Narrative, Staging, etc.)
+//! Level 4: game_services    - Game services (Challenge, Narrative, Staging, etc.) [NOT YET WIRED]
 //! Level 4: asset_services   - Asset services (Asset, Workflow, Generation) [parallel with game_services]
 //! Level 5: use_cases        - Use cases with adapters
 //! ```
@@ -34,30 +34,20 @@ pub mod use_cases;
 // Infrastructure factory (Level 0)
 pub use infrastructure::{create_infrastructure, InfrastructureContext};
 
-// Repository factory (Level 1)
-pub use repositories::{
-    coerce_isp, create_repository_ports, ChallengePorts, CharacterPorts, EventChainPorts,
-    LocationPorts, NarrativeEventPorts, PlayerCharacterPorts, RegionPorts, RepositoryPorts,
-    ScenePorts, StoryEventPorts,
-};
+// Repository factory (Level 1) - used internally by app_state
+pub use repositories::create_repository_ports;
 
 // Event infrastructure factory (Level 2a)
-pub use event_infra::{create_event_infrastructure, EventInfrastructure};
+pub use event_infra::create_event_infrastructure;
 
 // Queue services factory (Level 2b)
-pub use queue_services::{create_queue_services, QueueServiceContext, QueueServiceDependencies};
+pub use queue_services::{create_queue_services, QueueServiceDependencies};
 
 // Core services factory (Level 3)
-pub use core_services::{create_core_services, CoreServiceDependencies, CoreServicePorts};
+pub use core_services::{create_core_services, CoreServiceDependencies};
 
-// Game services factory (Level 4a)
-pub use game_services::{
-    create_game_services, create_story_event_ports, GameServiceDependencies, GameServicePorts,
-    GameServicesResult,
-};
-
-// Asset services factory (Level 4b - parallel with game_services)
-pub use asset_services::{create_asset_services, AssetServiceDependencies, AssetServicePorts};
+// Asset services factory (Level 4b)
+pub use asset_services::{create_asset_services, AssetServiceDependencies};
 
 // Use cases factory (Level 5)
-pub use use_cases::{create_use_cases, UseCaseContext, UseCaseDependencies};
+pub use use_cases::{create_use_cases, UseCaseDependencies};

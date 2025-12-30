@@ -10,16 +10,6 @@ use anyhow::Result;
 
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::export::Neo4jWorldExporter;
-// Import port adapters for use case construction (replaces OldUseCases::new())
-use wrldbldr_engine_adapters::infrastructure::ports::{
-    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
-    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
-    DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
-    InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
-    SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
-    WorldServiceAdapter,
-};
-use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
@@ -41,24 +31,18 @@ use wrldbldr_engine_app::application::services::{
     WorldServiceImpl,
 };
 use super::factories::{
-    AssetServiceDependencies, CoreServiceDependencies, create_asset_services, create_core_services,
+    AssetServiceDependencies, CoreServiceDependencies, UseCaseDependencies,
+    create_asset_services, create_core_services, create_use_cases,
 };
-use wrldbldr_engine_app::application::use_cases::{
-    ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
-    ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
-};
+
 
 // Import composition layer types
 use wrldbldr_engine_composition::{
     AppConfig as CompositionAppConfig, AppState, AssetServices, CoreServices, EventInfra,
-    GameServices, LlmPortDyn, PlayerServices, QueueServices, UseCases,
+    GameServices, LlmPortDyn, PlayerServices, QueueServices,
 };
 
-use wrldbldr_engine_ports::inbound::{
-    ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
-    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandler,
-    SceneUseCasePort, StagingUseCasePort,
-};
+use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
     ActantialContextServicePort,
     BroadcastPort,
@@ -788,177 +772,44 @@ pub async fn new_app_state(
     tracing::info!("Initialized request handler for WebSocket-first architecture");
 
     // ===========================================================================
-    // Create use cases directly (replaces OldUseCases::new())
-    // This moves the use case construction from engine-adapters to engine-runner
+    // Create use cases (using factory)
     // ===========================================================================
+    let use_case_ctx = create_use_cases(UseCaseDependencies {
+        // Infrastructure
+        world_connection_manager: world_connection_manager.clone(),
+        world_state: world_state.clone(),
+        clock: clock.clone(),
+        // Repository ports (ISP-split)
+        player_character_repo: player_character_repo_for_handler.clone(),
+        region_crud: region_crud.clone(),
+        region_connection: region_connection.clone(),
+        region_exit: region_exit.clone(),
+        region_item: region_item.clone(),
+        location_crud: location_crud.clone(),
+        location_map: location_map.clone(),
+        character_crud: character_crud_for_use_cases.clone(),
+        observation_repo: observation_repo_for_use_cases.clone(),
+        directorial_context_repo: directorial_context_repo.clone(),
+        // Service ports (inbound)
+        scene_service_port: scene_service_port.clone(),
+        interaction_service_port: interaction_service_port.clone(),
+        world_service_port: world_service_port.clone(),
+        player_character_service_port: player_character_service_port.clone(),
+        // Service ports (outbound)
+        staging_service_port: staging_service.clone(),
+        player_action_queue_service_port: player_action_queue_service_port.clone(),
+        challenge_resolution_service_port: challenge_resolution_service.clone(),
+        challenge_outcome_approval_service_port: challenge_outcome_approval_service.clone(),
+        dm_approval_queue_service_port: dm_approval_queue_service_port.clone(),
+        // Concrete services (for generic use cases)
+        narrative_event_approval_service: narrative_event_approval_service.clone(),
+        // Request handler
+        request_handler: request_handler.clone(),
+    });
 
-    // Create broadcast adapter for all use cases to share
-    let broadcast: Arc<dyn BroadcastPort> =
-        Arc::new(WebSocketBroadcastAdapter::new(world_connection_manager.clone()));
-
-    // Create DM notification adapter (clone connection_manager since we'll use it again)
-    let dm_notification = Arc::new(DmNotificationAdapter::new(world_connection_manager.clone()));
-
-    // Create staging adapters
-    // Note: StagingStateAdapter implements both StagingStatePort and StagingStateExtPort
-    // Note: StagingServiceAdapter implements both StagingServicePort and StagingServiceExtPort
-    let staging_state_adapter = Arc::new(StagingStateAdapter::new(world_state.clone()));
-    let staging_service_adapter = Arc::new(StagingServiceAdapter::new(staging_service.clone()));
-
-    // Create shared scene builder
-    // Uses ISP: RegionCrudPort, RegionConnectionPort, RegionExitPort, RegionItemPort
-    let scene_builder = Arc::new(SceneBuilder::new(
-        region_crud.clone(),
-        region_connection.clone(),
-        region_exit.clone(),
-        region_item.clone(),
-        location_crud.clone(),
-    ));
-
-    // Create movement use case
-    // Uses ISP: RegionCrudPort, RegionConnectionPort
-    let movement_use_case = Arc::new(MovementUseCase::new(
-        player_character_repo_for_handler.clone(),
-        region_crud.clone(),
-        region_connection.clone(),
-        location_crud.clone(),
-        location_map.clone(),
-        staging_service_adapter.clone(),
-        staging_state_adapter.clone(),
-        broadcast.clone(),
-        scene_builder.clone(),
-        clock.clone(),
-    ));
-
-    // Create inventory use case
-    // Uses ISP: RegionItemPort
-    let inventory_use_case = Arc::new(InventoryUseCase::new(
-        player_character_repo_for_handler.clone(),
-        region_item.clone(),
-        broadcast.clone(),
-    ));
-
-    // Create staging approval use case
-    // Uses ISP: CharacterCrudPort, RegionCrudPort
-    let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
-        staging_service_adapter,
-        staging_state_adapter,
-        character_crud_for_use_cases.clone(),
-        region_crud.clone(),
-        location_crud.clone(),
-        broadcast.clone(),
-        scene_builder,
-        clock.clone(),
-    ));
-
-    // Create player action use case
-    let player_action_queue_adapter =
-        Arc::new(PlayerActionQueueAdapter::new(player_action_queue_service.clone()));
-    let player_action_use_case = Arc::new(PlayerActionUseCase::new(
-        movement_use_case.clone(),
-        player_action_queue_adapter,
-        dm_notification,
-    ));
-
-    // Create observation use case
-    // Uses ISP: CharacterCrudPort for character lookups
-    // Uses BroadcastPort for NpcApproach and LocationEvent notifications
-    let observation_use_case = Arc::new(ObservationUseCase::new(
-        player_character_repo_for_handler.clone(),
-        character_crud_for_use_cases,
-        observation_repo_for_use_cases,
-        broadcast.clone(),
-        clock.clone(),
-    ));
-
-    // =========================================================================
-    // Challenge Use Case
-    // =========================================================================
-    // Adapter wraps the ChallengeResolutionService to implement ChallengeResolutionPort
-    let challenge_resolution_adapter = Arc::new(ChallengeResolutionAdapter::new(
-        challenge_resolution_service.clone(),
-    ));
-    let challenge_outcome_adapter = Arc::new(ChallengeOutcomeApprovalAdapter::new(
-        challenge_outcome_approval_service.clone(),
-    ));
-    let challenge_dm_queue_adapter = Arc::new(ChallengeDmApprovalQueueAdapter::new(
-        dm_approval_queue_service.clone(),
-    ));
-
-    let challenge_use_case = Arc::new(ChallengeUseCase::new(
-        challenge_resolution_adapter,
-        challenge_outcome_adapter,
-        challenge_dm_queue_adapter,
-        broadcast.clone(),
-    ));
-
-    // =========================================================================
-    // Scene Use Case
-    // =========================================================================
-    let scene_service_adapter = Arc::new(SceneServiceAdapter::new(scene_service_port.clone()));
-    let interaction_service_adapter =
-        Arc::new(InteractionServiceAdapter::new(interaction_service_port.clone()));
-    let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(world_state.clone()));
-    let scene_directorial_adapter = Arc::new(DirectorialContextAdapter::new(
-        directorial_context_repo.clone(),
-    ));
-    let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
-
-    let scene_use_case = Arc::new(SceneUseCase::new(
-        scene_service_adapter,
-        interaction_service_adapter,
-        scene_world_state_adapter,
-        scene_directorial_adapter,
-        dm_action_queue_placeholder,
-    ));
-
-    // =========================================================================
-    // Connection Use Case
-    // =========================================================================
-    let connection_manager_adapter =
-        Arc::new(ConnectionManagerAdapter::new(world_connection_manager.clone()));
-    let world_service_adapter = Arc::new(WorldServiceAdapter::new(world_service_port.clone()));
-    let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(player_character_service_port.clone()));
-    let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
-        directorial_context_repo.clone(),
-    ));
-    let connection_world_state_adapter =
-        Arc::new(ConnectionWorldStateAdapter::new(world_state.clone()));
-
-    let connection_use_case = Arc::new(ConnectionUseCase::new(
-        connection_manager_adapter,
-        world_service_adapter,
-        pc_service_adapter,
-        connection_directorial_adapter,
-        connection_world_state_adapter,
-        broadcast.clone(),
-    ));
-
-    // =========================================================================
-    // Narrative Event Use Case
-    // =========================================================================
-    let narrative_event_use_case = Arc::new(NarrativeEventUseCase::new(
-        narrative_event_approval_service.clone(),
-        broadcast.clone(),
-    ));
-
-    tracing::info!("Initialized use cases container with all 9 use cases");
-
-    // ===========================================================================
-    // Create composition-layer UseCases with port traits (casting from concrete)
-    // ===========================================================================
-    let composition_use_cases = UseCases::new(
-        broadcast.clone(),
-        movement_use_case as Arc<dyn MovementUseCasePort>,
-        staging_approval_use_case as Arc<dyn StagingUseCasePort>,
-        inventory_use_case as Arc<dyn InventoryUseCasePort>,
-        player_action_use_case as Arc<dyn PlayerActionUseCasePort>,
-        observation_use_case as Arc<dyn ObservationUseCasePort>,
-        challenge_use_case as Arc<dyn ChallengeUseCasePort>,
-        scene_use_case as Arc<dyn SceneUseCasePort>,
-        connection_use_case as Arc<dyn ConnectionUseCasePort>,
-        narrative_event_use_case as Arc<dyn NarrativeEventUseCasePort>,
-    );
+    // Extract use cases container and broadcast for use in composition layer
+    let composition_use_cases = use_case_ctx.use_cases;
+    let broadcast = use_case_ctx.broadcast;
 
     // ===========================================================================
     // Create composition-layer CoreServices (port-based)

@@ -13,9 +13,13 @@
 //!
 //! - `app_state`: Main AppState construction and wiring
 //! - `factories`: Factory functions for creating port trait objects
+//!   - `infrastructure`: Infrastructure services (clock, rng, Neo4j, Ollama, ComfyUI)
 //!   - `repositories`: ISP-compliant repository ports
+//!   - `event_infra`: Event bus and domain event infrastructure
+//!   - `queue_services`: Queue backends and queue services
 //!   - `core_services`: Core domain service ports
-//!   - `game_services`: Game service ports
+//!   - `asset_services`: Asset service ports
+//!   - `game_services`: Game service ports (not yet wired)
 //!   - `use_cases`: Use case construction with adapters
 //! - `services`: Service container re-exports (deprecated)
 
@@ -24,14 +28,3 @@ pub mod factories;
 pub mod services;
 
 pub use app_state::{new_adapter_state, AppStatePort};
-pub use factories::{
-    // Repository factory exports
-    coerce_isp, create_repository_ports, ChallengePorts, CharacterPorts, EventChainPorts,
-    LocationPorts, NarrativeEventPorts, PlayerCharacterPorts, RegionPorts, RepositoryPorts,
-    ScenePorts, StoryEventPorts,
-    // Game services factory exports
-    create_game_services, create_story_event_ports, GameServiceDependencies, GameServicePorts,
-    GameServicesResult,
-    // Use case factory exports
-    create_use_cases, UseCaseContext, UseCaseDependencies,
-};
