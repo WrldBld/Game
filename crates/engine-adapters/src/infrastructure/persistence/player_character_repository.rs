@@ -12,7 +12,10 @@ use wrldbldr_domain::entities::{
     AcquisitionMethod, CharacterSheetData, InventoryItem, PlayerCharacter,
 };
 use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::PlayerCharacterRepositoryPort;
+use wrldbldr_engine_ports::outbound::{
+    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
+    PlayerCharacterQueryPort, PlayerCharacterRepositoryPort,
+};
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
@@ -456,6 +459,125 @@ fn row_to_inventory_item(row: &Row) -> Result<InventoryItem> {
         acquired_at,
         acquisition_method,
     })
+}
+
+// =============================================================================
+// ISP Sub-trait Implementations
+// =============================================================================
+
+#[async_trait]
+impl PlayerCharacterCrudPort for Neo4jPlayerCharacterRepository {
+    async fn create(&self, pc: &PlayerCharacter) -> Result<()> {
+        PlayerCharacterRepositoryPort::create(self, pc).await
+    }
+
+    async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
+        PlayerCharacterRepositoryPort::get(self, id).await
+    }
+
+    async fn update(&self, pc: &PlayerCharacter) -> Result<()> {
+        PlayerCharacterRepositoryPort::update(self, pc).await
+    }
+
+    async fn delete(&self, id: PlayerCharacterId) -> Result<()> {
+        PlayerCharacterRepositoryPort::delete(self, id).await
+    }
+
+    async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()> {
+        PlayerCharacterRepositoryPort::unbind_from_session(self, id).await
+    }
+}
+
+#[async_trait]
+impl PlayerCharacterQueryPort for Neo4jPlayerCharacterRepository {
+    async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterRepositoryPort::get_by_location(self, location_id).await
+    }
+
+    async fn get_by_user_and_world(
+        &self,
+        user_id: &str,
+        world_id: WorldId,
+    ) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterRepositoryPort::get_by_user_and_world(self, user_id, world_id).await
+    }
+
+    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterRepositoryPort::get_all_by_world(self, world_id).await
+    }
+
+    async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterRepositoryPort::get_unbound_by_user(self, user_id).await
+    }
+}
+
+#[async_trait]
+impl PlayerCharacterPositionPort for Neo4jPlayerCharacterRepository {
+    async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()> {
+        PlayerCharacterRepositoryPort::update_location(self, id, location_id).await
+    }
+
+    async fn update_region(&self, id: PlayerCharacterId, region_id: RegionId) -> Result<()> {
+        PlayerCharacterRepositoryPort::update_region(self, id, region_id).await
+    }
+
+    async fn update_position(
+        &self,
+        id: PlayerCharacterId,
+        location_id: LocationId,
+        region_id: Option<RegionId>,
+    ) -> Result<()> {
+        PlayerCharacterRepositoryPort::update_position(self, id, location_id, region_id).await
+    }
+}
+
+#[async_trait]
+impl PlayerCharacterInventoryPort for Neo4jPlayerCharacterRepository {
+    async fn add_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+        acquisition_method: Option<AcquisitionMethod>,
+    ) -> Result<()> {
+        PlayerCharacterRepositoryPort::add_inventory_item(
+            self,
+            pc_id,
+            item_id,
+            quantity,
+            is_equipped,
+            acquisition_method,
+        )
+        .await
+    }
+
+    async fn get_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>> {
+        PlayerCharacterRepositoryPort::get_inventory(self, pc_id).await
+    }
+
+    async fn get_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<Option<InventoryItem>> {
+        PlayerCharacterRepositoryPort::get_inventory_item(self, pc_id, item_id).await
+    }
+
+    async fn update_inventory_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+        is_equipped: bool,
+    ) -> Result<()> {
+        PlayerCharacterRepositoryPort::update_inventory_item(self, pc_id, item_id, quantity, is_equipped)
+            .await
+    }
+
+    async fn remove_inventory_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<()> {
+        PlayerCharacterRepositoryPort::remove_inventory_item(self, pc_id, item_id).await
+    }
 }
 
 /// Parse a PlayerCharacter from a Neo4j row

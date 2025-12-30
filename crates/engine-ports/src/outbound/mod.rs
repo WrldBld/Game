@@ -42,8 +42,11 @@ mod narrative_event_repository;
 mod narrative_event_service_port;
 mod challenge_repository;
 mod character_repository;
+mod event_chain_repository;
 mod location_repository;
+mod player_character_repository;
 mod region_repository;
+mod scene_repository;
 mod story_event_repository;
 mod player_action_queue_service_port;
 mod player_character_service_port;
@@ -235,6 +238,45 @@ pub use region_repository::{
     MockRegionConnectionPort, MockRegionCrudPort, MockRegionExitPort, MockRegionItemPort,
     MockRegionNpcPort, MockRegionRepository,
 };
+
+// PlayerCharacter repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - PlayerCharacterCrudPort: Core CRUD operations (5 methods)
+// - PlayerCharacterQueryPort: Query/lookup operations (4 methods)
+// - PlayerCharacterPositionPort: Position/movement operations (3 methods)
+// - PlayerCharacterInventoryPort: Inventory management (5 methods)
+pub use player_character_repository::{
+    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
+    PlayerCharacterQueryPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use player_character_repository::MockPlayerCharacterRepository;
+
+// Scene repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - SceneCrudPort: Core CRUD operations (5 methods)
+// - SceneQueryPort: Query by act/location (2 methods)
+// - SceneLocationPort: AT_LOCATION edge management (2 methods)
+// - SceneFeaturedCharacterPort: FEATURES_CHARACTER edges (5 methods)
+// - SceneCompletionPort: COMPLETED_SCENE tracking (3 methods)
+pub use scene_repository::{
+    SceneCompletionPort, SceneCrudPort, SceneFeaturedCharacterPort, SceneLocationPort,
+    SceneQueryPort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use scene_repository::MockSceneRepository;
+
+// EventChain repository ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - EventChainCrudPort: Core CRUD operations (4 methods)
+// - EventChainQueryPort: Query/lookup operations (4 methods)
+// - EventChainMembershipPort: Event membership management (3 methods)
+// - EventChainStatePort: Status and state management (5 methods)
+pub use event_chain_repository::{
+    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainStatePort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use event_chain_repository::MockEventChainRepository;
 
 pub use prompt_template_port::{
     PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
