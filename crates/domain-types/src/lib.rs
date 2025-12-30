@@ -55,6 +55,9 @@ pub use rule_system::{
 // Workflow types
 mod workflow;
 pub use workflow::{
+    // Types
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis, WorkflowInput,
     WorkflowSlot,
+    // Pure analysis functions
+    analyze_workflow, auto_detect_prompt_mappings, find_nodes_by_type, validate_workflow,
 };
