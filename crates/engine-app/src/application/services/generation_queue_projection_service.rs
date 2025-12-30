@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 
-use crate::application::dto::GenerationBatchResponseDto;
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
+use wrldbldr_domain::entities::{BatchStatus, GenerationBatch};
 use wrldbldr_domain::{DomainEvent, WorldId};
 use wrldbldr_engine_ports::outbound::{
     DomainEventRepositoryPort, GenerationBatchSnapshot as PortGenerationBatchSnapshot,
@@ -20,6 +20,34 @@ use wrldbldr_engine_ports::outbound::{
     GenerationReadKind, GenerationReadStatePort,
     SuggestionTaskSnapshot as PortSuggestionTaskSnapshot,
 };
+use wrldbldr_protocol::GenerationBatchResponseDto;
+
+/// Convert GenerationBatch to GenerationBatchResponseDto
+fn generation_batch_to_dto(b: GenerationBatch) -> GenerationBatchResponseDto {
+    let (status, progress) = match &b.status {
+        BatchStatus::Queued => ("Queued".to_string(), None),
+        BatchStatus::Generating { progress } => ("Generating".to_string(), Some(*progress)),
+        BatchStatus::ReadyForSelection => ("ReadyForSelection".to_string(), Some(100)),
+        BatchStatus::Completed => ("Completed".to_string(), Some(100)),
+        BatchStatus::Failed { error } => (format!("Failed: {}", error), None),
+    };
+
+    GenerationBatchResponseDto {
+        id: b.id.to_string(),
+        world_id: b.world_id.to_string(),
+        entity_type: b.entity_type.to_string(),
+        entity_id: b.entity_id,
+        asset_type: b.asset_type.to_string(),
+        workflow: b.workflow,
+        prompt: b.prompt,
+        count: b.count,
+        status,
+        progress,
+        asset_count: b.assets.len(),
+        requested_at: b.requested_at.to_rfc3339(),
+        completed_at: b.completed_at.map(|t| t.to_rfc3339()),
+    }
+}
 
 /// Snapshot DTO for suggestion tasks, mirrored from `infrastructure::http::queue_routes`.
 #[derive(Debug, serde::Serialize)]
@@ -109,7 +137,7 @@ impl GenerationQueueProjectionService {
             .unwrap_or_default()
             .into_iter()
             .map(|b| {
-                let dto = GenerationBatchResponseDto::from(b);
+                let dto = generation_batch_to_dto(b);
                 let is_read = read_batches.contains(&dto.id);
                 GenerationBatchResponseDtoWithRead {
                     batch: dto,

@@ -2,23 +2,23 @@
 //!
 //! DTOs are used for data transfer between layers (HTTP routes, services, etc.)
 //! They provide a stable API that is decoupled from domain entities.
+//!
+//! NOTE: Many DTOs have been consolidated into `wrldbldr_protocol` as the single
+//! source of truth for wire-format types. Import directly from protocol for:
+//! - Asset DTOs (GalleryAssetResponseDto, GenerationBatchResponseDto, etc.)
+//! - Export DTOs (ExportQueryDto)
+//! - Rule System DTOs
+//! - Most Workflow DTOs
 
-// NOTE: App events moved to `wrldbldr-protocol`.
-// NOTE: approval module removed - types moved to domain layer
-// mod approval;
-mod asset;
 mod challenge;
 mod character;
 mod comfyui_config;
 mod event_chain;
-mod export;
 mod interaction;
 mod item;
 mod location;
 mod narrative_event;
 mod player_character;
-// NOTE: queue_items module removed - types moved to domain layer
-// mod queue_items;
 mod rule_system;
 mod scene;
 mod session_info;
@@ -30,23 +30,8 @@ mod workflow;
 mod world;
 mod world_snapshot;
 
-// Application events are protocol-owned; import directly from `wrldbldr_protocol`
-// at call sites (no re-export shims).
-//
-// (The old `application::dto::AppEvent` has been removed.)
-
 // NOTE: Approval DTOs moved to wrldbldr_domain::value_objects::queue_data
-// (ChallengeSuggestion, DmApprovalDecision, NarrativeEventSuggestion, ProposedTool, etc.)
-
-// NOTE: Queue item types have been moved to wrldbldr_domain::value_objects::queue_data
-// See Phase 3.0.1.7 - Queue Architecture Remediation
-
-// Asset DTOs
-pub use asset::{
-    parse_asset_type, parse_entity_type, GalleryAssetResponseDto, GenerateAssetRequestDto,
-    GenerationBatchResponseDto, SelectFromBatchRequestDto, UpdateAssetLabelRequestDto,
-    UploadAssetRequestDto,
-};
+// NOTE: Queue item types moved to wrldbldr_domain::value_objects::queue_data
 
 // Challenge DTOs
 pub use challenge::{
@@ -65,14 +50,10 @@ pub use rule_system::{
     RuleSystemSummaryDto, RuleSystemTypeDetailsDto,
 };
 
-// Workflow DTOs
+// Workflow DTOs - conversion functions that need WorkflowService
 pub use workflow::{
-    parse_workflow_slot, workflow_config_to_full_response_dto, workflow_config_to_response_dto,
-    AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto, ImportWorkflowsRequestDto,
-    ImportWorkflowsResponseDto, InputDefaultDto, PromptMappingDto, TestWorkflowRequestDto,
-    TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
-    WorkflowConfigExportDto, WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
-    WorkflowSlotCategoryDto, WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
+    workflow_config_from_export_dto, workflow_config_to_export_dto,
+    workflow_config_to_full_response_dto, workflow_config_to_response_dto,
 };
 
 // Scene DTOs
@@ -141,8 +122,7 @@ pub use player_character::{
     CreatePlayerCharacterRequestDto, PlayerCharacterResponseDto, UpdatePlayerCharacterRequestDto,
 };
 
-// Export DTOs
-pub use export::ExportQueryDto;
+
 
 // Suggestion DTOs
 pub use suggestion::{SuggestionRequestDto, UnifiedSuggestionRequestDto};

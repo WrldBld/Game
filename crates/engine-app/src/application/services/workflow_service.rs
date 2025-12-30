@@ -9,11 +9,12 @@
 use anyhow::{anyhow, Result};
 use rand::Rng;
 
-use crate::application::dto::WorkflowConfigExportDto;
+use crate::application::dto::{workflow_config_from_export_dto, workflow_config_to_export_dto};
 use wrldbldr_domain::entities::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
     WorkflowConfiguration, WorkflowInput,
 };
+use wrldbldr_protocol::WorkflowConfigExportDto;
 
 /// Service for working with ComfyUI workflows
 pub struct WorkflowService;
@@ -321,8 +322,11 @@ impl WorkflowService {
         configs: &[WorkflowConfiguration],
         exported_at: chrono::DateTime<chrono::Utc>,
     ) -> serde_json::Value {
-        let exported: Vec<WorkflowConfigExportDto> =
-            configs.iter().cloned().map(Into::into).collect();
+        let exported: Vec<WorkflowConfigExportDto> = configs
+            .iter()
+            .cloned()
+            .map(workflow_config_to_export_dto)
+            .collect();
         serde_json::json!({
             "version": "1.0",
             "exported_at": exported_at.to_rfc3339(),
@@ -341,7 +345,7 @@ impl WorkflowService {
 
         let configs: Vec<WorkflowConfiguration> = dtos
             .into_iter()
-            .map(TryInto::try_into)
+            .map(workflow_config_from_export_dto)
             .collect::<Result<Vec<_>>>()?;
 
         Ok(configs)
