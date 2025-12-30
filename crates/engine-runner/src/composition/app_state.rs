@@ -146,8 +146,8 @@ use wrldbldr_engine_ports::outbound::{
     TriggerEvaluationServicePort,
     WorkflowServicePort,
     ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    WorldServicePort,
-    WorldStatePort,
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldServicePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs
@@ -1268,7 +1268,12 @@ pub async fn new_app_state(
         world_connection_manager.clone() as Arc<dyn ConnectionContextPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionBroadcastPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionLifecyclePort>,
-        world_state.clone() as Arc<dyn WorldStatePort>,
+        world_state.clone() as Arc<dyn WorldTimePort>,
+        world_state.clone() as Arc<dyn WorldConversationPort>,
+        world_state.clone() as Arc<dyn WorldApprovalPort>,
+        world_state.clone() as Arc<dyn WorldScenePort>,
+        world_state.clone() as Arc<dyn WorldDirectorialPort>,
+        world_state.clone() as Arc<dyn WorldLifecyclePort>,
         request_handler.clone(),
         directorial_context_repo.clone(),
         composition_use_cases,

@@ -17,7 +17,7 @@ use wrldbldr_engine_ports::inbound::{
 use wrldbldr_engine_ports::outbound::StagedNpcData;
 
 use crate::infrastructure::{
-    WaitingPc, WorldPendingStagingApproval, WorldStateManager, WorldStatePort,
+    WaitingPc, WorldPendingStagingApproval, WorldStateManager, WorldTimePort,
 };
 
 /// Adapter that implements staging state ports using WorldStateManager

@@ -27,8 +27,7 @@ use wrldbldr_engine_ports::inbound::{
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
     PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
-    WorldServicePort as OutboundWorldServicePort,
-    WorldStatePort as OutboundWorldStatePort, // Trait to call methods on WorldStateManager
+    WorldDirectorialPort, WorldScenePort, WorldServicePort as OutboundWorldServicePort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
@@ -168,7 +167,7 @@ impl ConnectionWorldStateAdapter {
 
 impl InboundWorldStatePort for ConnectionWorldStateAdapter {
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
-        OutboundWorldStatePort::set_current_scene(self.state.as_ref(), world_id, scene_id);
+        WorldScenePort::set_current_scene(self.state.as_ref(), world_id, scene_id);
     }
 
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
@@ -203,7 +202,7 @@ impl InboundWorldStatePort for ConnectionWorldStateAdapter {
                 .unwrap_or(PacingGuidance::Natural),
         };
 
-        OutboundWorldStatePort::set_directorial_context(self.state.as_ref(), world_id, notes);
+        WorldDirectorialPort::set_directorial_context(self.state.as_ref(), world_id, notes);
     }
 }
 

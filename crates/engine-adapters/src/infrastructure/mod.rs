@@ -67,8 +67,11 @@ pub use world_state_manager::{WaitingPc, WorldPendingStagingApproval, WorldState
 pub use wrldbldr_domain::value_objects::{
     ApprovalType, ConversationEntry, DirectorialNotes, PendingApprovalItem, Speaker,
 };
-// Re-export the port trait so callers can use trait methods on Arc<WorldStateManager>
-pub use wrldbldr_engine_ports::outbound::WorldStatePort;
+// Re-export the port traits so callers can use trait methods on Arc<WorldStateManager>
+pub use wrldbldr_engine_ports::outbound::{
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldStatePort, WorldTimePort,
+};
 
 // Re-export world connection manager types
 pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManager};

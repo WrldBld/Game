@@ -51,7 +51,8 @@ use crate::outbound::{
     DmApprovalQueueServicePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
     GenerationServicePort, LlmQueueServicePort, PlayerActionQueueServicePort,
     PromptTemplateServicePort, RegionItemPort, SettingsServicePort, WorkflowServicePort,
-    WorldServicePort,
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldServicePort, WorldTimePort,
 };
 
 /// Port for accessing application services from adapter handlers.
@@ -193,4 +194,26 @@ pub trait AppStatePort: Send + Sync {
 
     /// Get the world service for world operations (export, query, etc.)
     fn world_service(&self) -> Arc<dyn WorldServicePort>;
+
+    // =========================================================================
+    // World State Ports (ISP-compliant sub-traits)
+    // =========================================================================
+
+    /// Get the world time port for game time management
+    fn world_time(&self) -> Arc<dyn WorldTimePort>;
+
+    /// Get the world conversation port for conversation history
+    fn world_conversation(&self) -> Arc<dyn WorldConversationPort>;
+
+    /// Get the world approval port for pending DM approvals
+    fn world_approval(&self) -> Arc<dyn WorldApprovalPort>;
+
+    /// Get the world scene port for current scene tracking
+    fn world_scene(&self) -> Arc<dyn WorldScenePort>;
+
+    /// Get the world directorial port for DM directorial context
+    fn world_directorial(&self) -> Arc<dyn WorldDirectorialPort>;
+
+    /// Get the world lifecycle port for world initialization/cleanup
+    fn world_lifecycle(&self) -> Arc<dyn WorldLifecyclePort>;
 }

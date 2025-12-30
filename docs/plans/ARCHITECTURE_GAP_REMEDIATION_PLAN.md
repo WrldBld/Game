@@ -148,21 +148,27 @@ The following traits have already been split into ISP-compliant sub-traits:
 | `EventChainRepositoryPort` | `event_chain_repository/` | 4 sub-traits | **COMPLETE** (Dec 30) |
 | `GameConnectionPort` (player-ports) | `game_connection/` | 6 sub-traits | PRIOR |
 
-### 3.1 Split `WorldConnectionManagerPort` (19 methods → 4 traits)
+### 3.1 Split `WorldConnectionManagerPort` (20 methods → 4 traits)
 
-**Status**: PENDING  
-**Effort**: 1.5 hours
+**Status**: **COMPLETE** (Dec 30, 2024)
 
 | New Trait | Methods |
 |-----------|---------|
-| `ConnectionQueryPort` | 8 methods (has_dm, get_dm_info, get_connected_users, etc.) |
+| `ConnectionQueryPort` | 8 methods (has_dm, get_dm_info, get_connected_users, stats, etc.) |
 | `ConnectionContextPort` | 7 methods (get_user_id_by_client_id, get_connection_context, etc.) |
 | `ConnectionBroadcastPort` | 4 methods (broadcast_to_world, broadcast_to_dms, etc.) |
 | `ConnectionLifecyclePort` | 1 method (unregister_connection) |
 
+**Changes Made**:
+- Created `world_connection_manager/` module with 4 sub-traits
+- Deleted monolithic `world_connection_manager_port.rs`
+- Updated `AppStatePort` with 4 separate getter methods
+- Updated all WebSocket handlers to use specific ports
+- Updated `AppState` constructor to accept 4 port parameters
+
 ---
 
-### 3.2 Split `WorldStatePort` (17 methods → 6 traits)
+### 3.2 Split `WorldStatePort` (18 methods → 6 traits)
 
 **Status**: PENDING  
 **Effort**: 1.5 hours

@@ -75,7 +75,7 @@ mod workflow_service_port;
 mod world_connection_manager;
 mod world_exporter_port;
 mod world_service_port;
-mod world_state_port;
+mod world_state;
 
 // Actantial context service port - interface for character motivation context
 pub use actantial_context_service_port::ActantialContextServicePort;
@@ -380,7 +380,18 @@ pub use world_connection_manager::{
 #[cfg(any(test, feature = "testing"))]
 pub use world_connection_manager::MockWorldConnectionManager;
 
-pub use world_state_port::WorldStatePort;
+// WorldState ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - WorldTimePort: Game time management (3 methods)
+// - WorldConversationPort: Conversation history (3 methods)
+// - WorldApprovalPort: Pending DM approvals (3 methods)
+// - WorldScenePort: Current scene tracking (2 methods)
+// - WorldDirectorialPort: DM directorial context (3 methods)
+// - WorldLifecyclePort: World initialization/cleanup (3 methods)
+pub use world_state::{
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldStatePort, WorldTimePort,
+};
 
 // Item service port - interface for item operations
 pub use item_service_port::ItemServicePort;
@@ -633,4 +644,7 @@ pub use event_effect_executor_port::{
 #[cfg(any(test, feature = "testing"))]
 pub use broadcast_port::MockBroadcastPort;
 #[cfg(any(test, feature = "testing"))]
-pub use world_state_port::MockWorldStatePort;
+pub use world_state::{
+    MockWorldApprovalPort, MockWorldConversationPort, MockWorldDirectorialPort,
+    MockWorldLifecyclePort, MockWorldScenePort, MockWorldStatePort, MockWorldTimePort,
+};

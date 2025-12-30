@@ -4,9 +4,12 @@ use uuid::Uuid;
 use wrldbldr_domain::value_objects::{ConversationEntry, DirectorialNotes, PendingApprovalItem};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_dto::StagingProposal;
-use wrldbldr_engine_ports::outbound::WorldStatePort;
+use wrldbldr_engine_ports::outbound::{
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldTimePort,
+};
 
-/// In-memory implementation of [`WorldStatePort`].
+/// In-memory implementation of the world state sub-traits.
 ///
 /// Manages per-world state (game time, conversation, approvals) using DashMap
 /// for thread-safe concurrent access.
@@ -14,7 +17,7 @@ use wrldbldr_engine_ports::outbound::WorldStatePort;
 /// # Architecture Note
 ///
 /// This adapter also contains staging approval methods that are NOT part of
-/// `WorldStatePort` because they depend on `StagingProposal` from engine-app.
+/// the world state port traits because they depend on `StagingProposal` from engine-app.
 /// These methods are accessed directly by handlers that need staging functionality.
 pub struct WorldStateManager {
     states: DashMap<WorldId, WorldState>,
@@ -146,9 +149,9 @@ impl WorldStateManager {
 
     // === Pending Staging Approvals ===
     //
-    // NOTE: These methods are NOT part of WorldStatePort because they depend on
-    // StagingProposal from engine-app. They are adapter-specific methods accessed
-    // directly by handlers that need staging functionality.
+    // NOTE: These methods are NOT part of the world state port traits because they
+    // depend on StagingProposal from engine-app. They are adapter-specific methods
+    // accessed directly by handlers that need staging functionality.
 
     /// Get all pending staging approvals for a world
     pub fn get_all_pending_staging(&self, world_id: &WorldId) -> Vec<WorldPendingStagingApproval> {
@@ -303,11 +306,9 @@ impl Default for WorldStateManager {
     }
 }
 
-// === WorldStatePort Implementation ===
+// === WorldTimePort Implementation ===
 
-impl WorldStatePort for WorldStateManager {
-    // === Game Time ===
-
+impl WorldTimePort for WorldStateManager {
     fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime> {
         self.states
             .get(world_id)
@@ -334,9 +335,11 @@ impl WorldStatePort for WorldStateManager {
         state.game_time.advance(duration);
         Some(state.game_time.clone())
     }
+}
 
-    // === Conversation History ===
+// === WorldConversationPort Implementation ===
 
+impl WorldConversationPort for WorldStateManager {
     fn add_conversation(&self, world_id: &WorldId, entry: ConversationEntry) {
         self.states
             .entry(*world_id)
@@ -381,9 +384,11 @@ impl WorldStatePort for WorldStateManager {
             state.conversation_history.clear();
         }
     }
+}
 
-    // === Pending Approvals ===
+// === WorldApprovalPort Implementation ===
 
+impl WorldApprovalPort for WorldStateManager {
     fn add_pending_approval(&self, world_id: &WorldId, item: PendingApprovalItem) {
         self.states
             .entry(*world_id)
@@ -420,9 +425,11 @@ impl WorldStatePort for WorldStateManager {
             .map(|state| state.pending_approvals.clone())
             .unwrap_or_default()
     }
+}
 
-    // === Current Scene ===
+// === WorldScenePort Implementation ===
 
+impl WorldScenePort for WorldStateManager {
     fn get_current_scene(&self, world_id: &WorldId) -> Option<String> {
         self.states
             .get(world_id)
@@ -444,9 +451,11 @@ impl WorldStatePort for WorldStateManager {
                 directorial_context: None,
             });
     }
+}
 
-    // === Directorial Context ===
+// === WorldDirectorialPort Implementation ===
 
+impl WorldDirectorialPort for WorldStateManager {
     fn get_directorial_context(&self, world_id: &WorldId) -> Option<DirectorialNotes> {
         self.states
             .get(world_id)
@@ -474,9 +483,11 @@ impl WorldStatePort for WorldStateManager {
             state.directorial_context = None;
         }
     }
+}
 
-    // === Lifecycle ===
+// === WorldLifecyclePort Implementation ===
 
+impl WorldLifecyclePort for WorldStateManager {
     fn initialize_world(&self, world_id: &WorldId, initial_time: GameTime) {
         let state = WorldState {
             game_time: initial_time,

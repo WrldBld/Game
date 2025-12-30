@@ -87,7 +87,8 @@ use wrldbldr_engine_ports::outbound::{
     GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort,
     LlmPort, LlmQueueServicePort, PlayerActionQueueServicePort, PromptContextServicePort,
     PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
-    WorkflowServicePort, WorldServicePort, WorldStatePort,
+    WorkflowServicePort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
+    WorldLifecyclePort, WorldScenePort, WorldServicePort, WorldTimePort,
 };
 
 /// Type alias for LlmPort with anyhow::Error as the associated error type.
@@ -382,14 +383,35 @@ pub struct AppState {
     /// Handles connection cleanup on disconnect.
     pub connection_lifecycle: Arc<dyn ConnectionLifecyclePort>,
 
-    /// World state manager for per-world game state.
+    /// World time port for game time management.
     ///
-    /// Provides world-scoped storage for:
-    /// - Game time tracking
-    /// - Conversation history
-    /// - Pending approval queues
-    /// - Current scene state
-    pub world_state: Arc<dyn WorldStatePort>,
+    /// Provides game time operations for worlds.
+    pub world_time: Arc<dyn WorldTimePort>,
+
+    /// World conversation port for conversation history.
+    ///
+    /// Provides conversation history operations for LLM context.
+    pub world_conversation: Arc<dyn WorldConversationPort>,
+
+    /// World approval port for pending DM approvals.
+    ///
+    /// Provides pending approval management for DM review.
+    pub world_approval: Arc<dyn WorldApprovalPort>,
+
+    /// World scene port for current scene tracking.
+    ///
+    /// Tracks the current scene for each world.
+    pub world_scene: Arc<dyn WorldScenePort>,
+
+    /// World directorial port for DM directorial context.
+    ///
+    /// Provides directorial context management for NPC guidance.
+    pub world_directorial: Arc<dyn WorldDirectorialPort>,
+
+    /// World lifecycle port for world initialization/cleanup.
+    ///
+    /// Manages world session lifecycle.
+    pub world_lifecycle: Arc<dyn WorldLifecyclePort>,
 
     /// Request handler for WebSocket-first architecture.
     ///
@@ -442,7 +464,12 @@ impl AppState {
     /// * `connection_context` - Connection context port implementation
     /// * `connection_broadcast` - Connection broadcast port implementation
     /// * `connection_lifecycle` - Connection lifecycle port implementation
-    /// * `world_state` - World state manager implementation
+    /// * `world_time` - World time port implementation
+    /// * `world_conversation` - World conversation port implementation
+    /// * `world_approval` - World approval port implementation
+    /// * `world_scene` - World scene port implementation
+    /// * `world_directorial` - World directorial port implementation
+    /// * `world_lifecycle` - World lifecycle port implementation
     /// * `request_handler` - Request handler implementation
     /// * `directorial_context_repo` - Directorial context repository implementation
     /// * `use_cases` - Use cases container
@@ -470,7 +497,12 @@ impl AppState {
     ///     connection_context,
     ///     connection_broadcast,
     ///     connection_lifecycle,
-    ///     Arc::new(world_state_manager) as Arc<dyn WorldStatePort>,
+    ///     world_time,
+    ///     world_conversation,
+    ///     world_approval,
+    ///     world_scene,
+    ///     world_directorial,
+    ///     world_lifecycle,
     ///     Arc::new(request_handler) as Arc<dyn RequestHandler>,
     ///     Arc::new(directorial_context_repo) as Arc<dyn DirectorialContextRepositoryPort>,
     ///     use_cases,
@@ -496,7 +528,12 @@ impl AppState {
         connection_context: Arc<dyn ConnectionContextPort>,
         connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
         connection_lifecycle: Arc<dyn ConnectionLifecyclePort>,
-        world_state: Arc<dyn WorldStatePort>,
+        world_time: Arc<dyn WorldTimePort>,
+        world_conversation: Arc<dyn WorldConversationPort>,
+        world_approval: Arc<dyn WorldApprovalPort>,
+        world_scene: Arc<dyn WorldScenePort>,
+        world_directorial: Arc<dyn WorldDirectorialPort>,
+        world_lifecycle: Arc<dyn WorldLifecyclePort>,
         request_handler: Arc<dyn RequestHandler>,
         directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
         use_cases: UseCases,
@@ -520,7 +557,12 @@ impl AppState {
             connection_context,
             connection_broadcast,
             connection_lifecycle,
-            world_state,
+            world_time,
+            world_conversation,
+            world_approval,
+            world_scene,
+            world_directorial,
+            world_lifecycle,
             request_handler,
             directorial_context_repo,
             use_cases,
@@ -656,6 +698,31 @@ impl AppStatePort for AppState {
     fn request_handler(&self) -> Arc<dyn RequestHandler> {
         self.request_handler.clone()
     }
+
+    // World State Ports (ISP-compliant sub-traits)
+    fn world_time(&self) -> Arc<dyn WorldTimePort> {
+        self.world_time.clone()
+    }
+
+    fn world_conversation(&self) -> Arc<dyn WorldConversationPort> {
+        self.world_conversation.clone()
+    }
+
+    fn world_approval(&self) -> Arc<dyn WorldApprovalPort> {
+        self.world_approval.clone()
+    }
+
+    fn world_scene(&self) -> Arc<dyn WorldScenePort> {
+        self.world_scene.clone()
+    }
+
+    fn world_directorial(&self) -> Arc<dyn WorldDirectorialPort> {
+        self.world_directorial.clone()
+    }
+
+    fn world_lifecycle(&self) -> Arc<dyn WorldLifecyclePort> {
+        self.world_lifecycle.clone()
+    }
 }
 
 impl std::fmt::Debug for AppState {
@@ -681,7 +748,12 @@ impl std::fmt::Debug for AppState {
             .field("connection_context", &"Arc<dyn ConnectionContextPort>")
             .field("connection_broadcast", &"Arc<dyn ConnectionBroadcastPort>")
             .field("connection_lifecycle", &"Arc<dyn ConnectionLifecyclePort>")
-            .field("world_state", &"Arc<dyn WorldStatePort>")
+            .field("world_time", &"Arc<dyn WorldTimePort>")
+            .field("world_conversation", &"Arc<dyn WorldConversationPort>")
+            .field("world_approval", &"Arc<dyn WorldApprovalPort>")
+            .field("world_scene", &"Arc<dyn WorldScenePort>")
+            .field("world_directorial", &"Arc<dyn WorldDirectorialPort>")
+            .field("world_lifecycle", &"Arc<dyn WorldLifecyclePort>")
             .field("request_handler", &"Arc<dyn RequestHandler>")
             .field(
                 "directorial_context_repo",
