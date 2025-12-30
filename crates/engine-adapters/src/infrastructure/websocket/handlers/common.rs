@@ -38,7 +38,7 @@ pub async fn extract_player_context(
 ) -> Result<(WorldId, PlayerCharacterId), ServerMessage> {
     let client_id_str = client_id.to_string();
     let connection = state
-        .world_connection_manager()
+        .connection_context()
         .get_connection_by_client_id(&client_id_str)
         .await
         .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
@@ -68,7 +68,7 @@ pub async fn extract_dm_context(
 ) -> Result<UseCaseContext, ServerMessage> {
     let client_id_str = client_id.to_string();
     let connection = state
-        .world_connection_manager()
+        .connection_context()
         .get_connection_by_client_id(&client_id_str)
         .await
         .ok_or_else(|| error_msg("NOT_CONNECTED", "Connection not found"))?;
@@ -103,7 +103,7 @@ pub async fn extract_dm_context(
 /// Does NOT check DM status - use `extract_dm_context_opt` for that.
 pub async fn extract_context_opt(state: &dyn AppStatePort, client_id: Uuid) -> Option<UseCaseContext> {
     let conn = state
-        .world_connection_manager()
+        .connection_context()
         .get_connection_by_client_id(&client_id.to_string())
         .await?;
 

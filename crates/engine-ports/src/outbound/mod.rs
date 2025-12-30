@@ -72,7 +72,7 @@ mod suggestion_enqueue_port;
 mod trigger_evaluation_service_port;
 mod use_case_types;
 mod workflow_service_port;
-mod world_connection_manager_port;
+mod world_connection_manager;
 mod world_exporter_port;
 mod world_service_port;
 mod world_state_port;
@@ -367,12 +367,18 @@ pub use game_events::{
     RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent, StagedNpcData,
     StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, StateChangeInfo, WaitingPcData,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use world_connection_manager_port::MockWorldConnectionManagerPort;
-pub use world_connection_manager_port::{
-    ConnectedUserInfo, ConnectionContext, ConnectionManagerError, ConnectionStats, DmInfo,
-    WorldConnectionManagerPort,
+// WorldConnectionManager ports - split for Interface Segregation Principle (Clean ISP)
+// Services should depend only on the specific traits they need:
+// - ConnectionQueryPort: Query connection state (8 methods)
+// - ConnectionContextPort: Resolve client/connection context (7 methods)
+// - ConnectionBroadcastPort: Broadcast messages (4 methods)
+// - ConnectionLifecyclePort: Connection lifecycle (1 method)
+pub use world_connection_manager::{
+    ConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext, ConnectionContextPort,
+    ConnectionLifecyclePort, ConnectionManagerError, ConnectionQueryPort, ConnectionStats, DmInfo,
 };
+#[cfg(any(test, feature = "testing"))]
+pub use world_connection_manager::MockWorldConnectionManager;
 
 pub use world_state_port::WorldStatePort;
 

@@ -22,7 +22,8 @@ use super::common::extract_dm_context_opt;
 /// the result to all connected clients as a `ComfyUIStateChanged` message.
 pub async fn handle_check_comfyui_health(state: &dyn AppStatePort) -> Option<ServerMessage> {
     let comfyui_client = state.comfyui().clone();
-    let connection_manager = state.world_connection_manager().clone();
+    let connection_query = state.connection_query().clone();
+    let connection_broadcast = state.connection_broadcast().clone();
 
     tokio::spawn(async move {
         let (state_str, message) = match comfyui_client.health_check().await {
@@ -44,8 +45,8 @@ pub async fn handle_check_comfyui_health(state: &dyn AppStatePort) -> Option<Ser
         };
         // Serialize to JSON for the port interface
         if let Ok(json_msg) = serde_json::to_value(&msg) {
-            for world_id in connection_manager.get_all_world_ids().await {
-                connection_manager
+            for world_id in connection_query.get_all_world_ids().await {
+                connection_broadcast
                     .broadcast_to_world(world_id, json_msg.clone())
                     .await;
             }

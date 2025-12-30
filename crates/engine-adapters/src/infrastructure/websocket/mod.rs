@@ -178,13 +178,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<dyn AppStatePort>) {
     // Clean up: remove client from world connection
     let client_id_str = client_id.to_string();
     if let Some(connection) = state
-        .world_connection_manager()
+        .connection_context()
         .get_connection_by_client_id(&client_id_str)
         .await
     {
         if let Some(world_id) = connection.world_id {
             state
-                .world_connection_manager()
+                .connection_lifecycle()
                 .unregister_connection(connection.connection_id)
                 .await;
             tracing::info!(

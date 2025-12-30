@@ -164,7 +164,7 @@ pub async fn handle_exit_to_location(
 /// Extract UseCaseContext from connection state
 async fn extract_context(state: &dyn AppStatePort, client_id: Uuid) -> Option<UseCaseContext> {
     let conn = state
-        .world_connection_manager()
+        .connection_context()
         .get_connection_by_client_id(&client_id.to_string())
         .await?;
 

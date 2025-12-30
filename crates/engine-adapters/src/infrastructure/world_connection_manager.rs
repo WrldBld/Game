@@ -27,8 +27,9 @@ use uuid::Uuid;
 
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ConnectedUserInfo as PortConnectedUserInfo, ConnectionContext as PortConnectionContext,
-    ConnectionStats as PortConnectionStats, DmInfo as PortDmInfo, WorldConnectionManagerPort,
+    ConnectedUserInfo as PortConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext as PortConnectionContext,
+    ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
+    ConnectionStats as PortConnectionStats, DmInfo as PortDmInfo,
     WorldRole as PortWorldRole,
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
@@ -936,17 +937,17 @@ pub fn new_shared_manager() -> SharedWorldConnectionManager {
 }
 
 // =============================================================================
-// Port Implementation
+// ISP Sub-trait Implementations
 // =============================================================================
 
 #[async_trait]
-impl WorldConnectionManagerPort for WorldConnectionManager {
+impl ConnectionQueryPort for WorldConnectionManager {
     async fn has_dm(&self, world_id: &WorldId) -> bool {
-        self.has_dm(&world_id.to_uuid()).await
+        WorldConnectionManager::has_dm(self, &world_id.to_uuid()).await
     }
 
     async fn get_dm_info(&self, world_id: &WorldId) -> Option<PortDmInfo> {
-        let info = self.get_dm_info(&world_id.to_uuid()).await?;
+        let info = WorldConnectionManager::get_dm_info(self, &world_id.to_uuid()).await?;
         Some(PortDmInfo {
             user_id: info.user_id,
             username: info.username,
@@ -955,7 +956,7 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
     }
 
     async fn get_connected_users(&self, world_id: WorldId) -> Vec<PortConnectedUserInfo> {
-        let users = self.get_connected_users(world_id.to_uuid()).await;
+        let users = WorldConnectionManager::get_connected_users(self, world_id.to_uuid()).await;
         users
             .into_iter()
             .map(|u| PortConnectedUserInfo {
@@ -969,25 +970,25 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
     }
 
     async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<PortWorldRole> {
-        self.get_user_role(&world_id.to_uuid(), user_id)
+        WorldConnectionManager::get_user_role(self, &world_id.to_uuid(), user_id)
             .await
             .map(to_port_role)
     }
 
     async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &Uuid) -> Option<String> {
-        self.find_player_for_pc(&world_id.to_uuid(), pc_id).await
+        WorldConnectionManager::find_player_for_pc(self, &world_id.to_uuid(), pc_id).await
     }
 
     async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(Uuid, String)> {
-        self.get_world_pcs(&world_id.to_uuid()).await
+        WorldConnectionManager::get_world_pcs(self, &world_id.to_uuid()).await
     }
 
     async fn get_all_world_ids(&self) -> Vec<Uuid> {
-        self.get_all_world_ids().await
+        WorldConnectionManager::get_all_world_ids(self).await
     }
 
     async fn stats(&self) -> PortConnectionStats {
-        let stats = self.stats().await;
+        let stats = WorldConnectionManager::stats(self).await;
         PortConnectionStats {
             total_connections: stats.total_connections,
             total_worlds: stats.total_worlds,
@@ -996,17 +997,28 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
             spectator_connections: stats.spectator_connections,
         }
     }
+}
 
+#[async_trait]
+impl ConnectionContextPort for WorldConnectionManager {
     async fn get_user_id_by_client_id(&self, client_id: &str) -> Option<String> {
-        self.get_user_id_by_client_id(client_id).await
+        WorldConnectionManager::get_user_id_by_client_id(self, client_id).await
     }
 
     async fn is_dm_by_client_id(&self, client_id: &str) -> bool {
-        self.is_dm_by_client_id(client_id).await
+        WorldConnectionManager::is_dm_by_client_id(self, client_id).await
     }
 
     async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
-        self.get_world_id_by_client_id(client_id).await
+        WorldConnectionManager::get_world_id_by_client_id(self, client_id).await
+    }
+
+    async fn is_spectator_by_client_id(&self, client_id: &str) -> bool {
+        let conn = match WorldConnectionManager::get_connection_by_client_id(self, client_id).await {
+            Some(c) => c,
+            None => return false,
+        };
+        conn.is_spectator()
     }
 
     async fn get_connection_context(&self, connection_id: Uuid) -> Option<PortConnectionContext> {
@@ -1035,19 +1047,14 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
         })
     }
 
-    async fn is_spectator_by_client_id(&self, client_id: &str) -> bool {
-        let conn = match self.get_connection_by_client_id(client_id).await {
-            Some(c) => c,
-            None => return false,
-        };
-        conn.is_spectator()
-    }
-
     async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<Uuid> {
-        let conn = self.get_connection_by_client_id(client_id).await?;
+        let conn = WorldConnectionManager::get_connection_by_client_id(self, client_id).await?;
         conn.pc_id
     }
+}
 
+#[async_trait]
+impl ConnectionBroadcastPort for WorldConnectionManager {
     async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value) {
         // Deserialize to ServerMessage and broadcast
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
@@ -1075,14 +1082,17 @@ impl WorldConnectionManagerPort for WorldConnectionManager {
 
     async fn broadcast_to_all_worlds(&self, message: serde_json::Value) {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
-            for world_id in self.get_all_world_ids().await {
+            for world_id in WorldConnectionManager::get_all_world_ids(self).await {
                 WorldConnectionManager::broadcast_to_world(self, world_id, server_msg.clone()).await;
             }
         } else {
             tracing::warn!("Failed to deserialize broadcast message for all worlds");
         }
     }
+}
 
+#[async_trait]
+impl ConnectionLifecyclePort for WorldConnectionManager {
     async fn unregister_connection(&self, connection_id: Uuid) {
         let _ = WorldConnectionManager::unregister_connection(self, connection_id).await;
     }

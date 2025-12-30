@@ -82,11 +82,12 @@ use wrldbldr_engine_ports::inbound::{
 };
 use wrldbldr_engine_ports::outbound::{
     AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
+    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
     DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort,
     LlmPort, LlmQueueServicePort, PlayerActionQueueServicePort, PromptContextServicePort,
     PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
-    WorkflowServicePort, WorldConnectionManagerPort, WorldServicePort, WorldStatePort,
+    WorkflowServicePort, WorldServicePort, WorldStatePort,
 };
 
 /// Type alias for LlmPort with anyhow::Error as the associated error type.
@@ -361,11 +362,25 @@ pub struct AppState {
     /// Handles NPC staging proposals, approvals, and region presence.
     pub staging_service: Arc<dyn StagingServicePort>,
 
-    /// World connection manager for WebSocket architecture.
+    /// Connection query port for querying connection state.
     ///
-    /// Manages world-scoped connections, roles (DM/Player), and connection tracking.
-    /// Handles JoinWorld/LeaveWorld lifecycle and role enforcement.
-    pub world_connection_manager: Arc<dyn WorldConnectionManagerPort>,
+    /// Provides access to DM presence, connected users, roles, and statistics.
+    pub connection_query: Arc<dyn ConnectionQueryPort>,
+
+    /// Connection context port for resolving client/connection context.
+    ///
+    /// Used by WebSocket handlers to build RequestContext from client IDs.
+    pub connection_context: Arc<dyn ConnectionContextPort>,
+
+    /// Connection broadcast port for WebSocket message broadcasting.
+    ///
+    /// Sends serialized messages to world members, DMs, players, etc.
+    pub connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
+
+    /// Connection lifecycle port for connection management.
+    ///
+    /// Handles connection cleanup on disconnect.
+    pub connection_lifecycle: Arc<dyn ConnectionLifecyclePort>,
 
     /// World state manager for per-world game state.
     ///
@@ -423,7 +438,10 @@ impl AppState {
     /// * `settings_service` - Settings service implementation
     /// * `prompt_template_service` - Prompt template service implementation
     /// * `staging_service` - Staging service implementation
-    /// * `world_connection_manager` - World connection manager implementation
+    /// * `connection_query` - Connection query port implementation
+    /// * `connection_context` - Connection context port implementation
+    /// * `connection_broadcast` - Connection broadcast port implementation
+    /// * `connection_lifecycle` - Connection lifecycle port implementation
     /// * `world_state` - World state manager implementation
     /// * `request_handler` - Request handler implementation
     /// * `directorial_context_repo` - Directorial context repository implementation
@@ -448,7 +466,10 @@ impl AppState {
     ///     Arc::new(settings_service) as Arc<dyn SettingsServicePort>,
     ///     Arc::new(prompt_template_service) as Arc<dyn PromptTemplateServicePort>,
     ///     Arc::new(staging_service) as Arc<dyn StagingServicePort>,
-    ///     Arc::new(world_connection_manager) as Arc<dyn WorldConnectionManagerPort>,
+    ///     connection_query,
+    ///     connection_context,
+    ///     connection_broadcast,
+    ///     connection_lifecycle,
     ///     Arc::new(world_state_manager) as Arc<dyn WorldStatePort>,
     ///     Arc::new(request_handler) as Arc<dyn RequestHandler>,
     ///     Arc::new(directorial_context_repo) as Arc<dyn DirectorialContextRepositoryPort>,
@@ -471,7 +492,10 @@ impl AppState {
         settings_service: Arc<dyn SettingsServicePort>,
         prompt_template_service: Arc<dyn PromptTemplateServicePort>,
         staging_service: Arc<dyn StagingServicePort>,
-        world_connection_manager: Arc<dyn WorldConnectionManagerPort>,
+        connection_query: Arc<dyn ConnectionQueryPort>,
+        connection_context: Arc<dyn ConnectionContextPort>,
+        connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
+        connection_lifecycle: Arc<dyn ConnectionLifecyclePort>,
         world_state: Arc<dyn WorldStatePort>,
         request_handler: Arc<dyn RequestHandler>,
         directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
@@ -492,7 +516,10 @@ impl AppState {
             settings_service,
             prompt_template_service,
             staging_service,
-            world_connection_manager,
+            connection_query,
+            connection_context,
+            connection_broadcast,
+            connection_lifecycle,
             world_state,
             request_handler,
             directorial_context_repo,
@@ -549,8 +576,20 @@ impl AppStatePort for AppState {
         self.use_cases.broadcast.clone()
     }
 
-    fn world_connection_manager(&self) -> Arc<dyn WorldConnectionManagerPort> {
-        self.world_connection_manager.clone()
+    fn connection_query(&self) -> Arc<dyn ConnectionQueryPort> {
+        self.connection_query.clone()
+    }
+
+    fn connection_context(&self) -> Arc<dyn ConnectionContextPort> {
+        self.connection_context.clone()
+    }
+
+    fn connection_broadcast(&self) -> Arc<dyn ConnectionBroadcastPort> {
+        self.connection_broadcast.clone()
+    }
+
+    fn connection_lifecycle(&self) -> Arc<dyn ConnectionLifecyclePort> {
+        self.connection_lifecycle.clone()
     }
 
     fn comfyui(&self) -> Arc<dyn ComfyUIPort> {
@@ -638,10 +677,10 @@ impl std::fmt::Debug for AppState {
                 &"Arc<dyn PromptTemplateServicePort>",
             )
             .field("staging_service", &"Arc<dyn StagingServicePort>")
-            .field(
-                "world_connection_manager",
-                &"Arc<dyn WorldConnectionManagerPort>",
-            )
+            .field("connection_query", &"Arc<dyn ConnectionQueryPort>")
+            .field("connection_context", &"Arc<dyn ConnectionContextPort>")
+            .field("connection_broadcast", &"Arc<dyn ConnectionBroadcastPort>")
+            .field("connection_lifecycle", &"Arc<dyn ConnectionLifecyclePort>")
             .field("world_state", &"Arc<dyn WorldStatePort>")
             .field("request_handler", &"Arc<dyn RequestHandler>")
             .field(

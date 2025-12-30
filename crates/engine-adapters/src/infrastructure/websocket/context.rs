@@ -105,7 +105,7 @@ impl HandlerContext {
     pub async fn extract(state: &dyn AppStatePort, client_id: Uuid) -> Result<Self, ServerMessage> {
         let client_id_str = client_id.to_string();
         let connection = state
-            .world_connection_manager()
+            .connection_context()
             .get_connection_by_client_id(&client_id_str)
             .await
             .ok_or_else(|| error_response("NOT_CONNECTED", "Client is not connected"))?;

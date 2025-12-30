@@ -47,10 +47,11 @@ use crate::inbound::{
 };
 use crate::outbound::{
     AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
+    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
     DmApprovalQueueServicePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
     GenerationServicePort, LlmQueueServicePort, PlayerActionQueueServicePort,
     PromptTemplateServicePort, RegionItemPort, SettingsServicePort, WorkflowServicePort,
-    WorldConnectionManagerPort, WorldServicePort,
+    WorldServicePort,
 };
 
 /// Port for accessing application services from adapter handlers.
@@ -116,8 +117,17 @@ pub trait AppStatePort: Send + Sync {
     /// Get the broadcast port for sending events to clients
     fn broadcast(&self) -> Arc<dyn BroadcastPort>;
 
-    /// Get the world connection manager for connection context and broadcasting
-    fn world_connection_manager(&self) -> Arc<dyn WorldConnectionManagerPort>;
+    /// Get the connection query port for querying connection state
+    fn connection_query(&self) -> Arc<dyn ConnectionQueryPort>;
+
+    /// Get the connection context port for resolving client context
+    fn connection_context(&self) -> Arc<dyn ConnectionContextPort>;
+
+    /// Get the connection broadcast port for WebSocket message broadcasting
+    fn connection_broadcast(&self) -> Arc<dyn ConnectionBroadcastPort>;
+
+    /// Get the connection lifecycle port for connection management
+    fn connection_lifecycle(&self) -> Arc<dyn ConnectionLifecyclePort>;
 
     /// Get the ComfyUI port for image generation and health checks
     fn comfyui(&self) -> Arc<dyn ComfyUIPort>;

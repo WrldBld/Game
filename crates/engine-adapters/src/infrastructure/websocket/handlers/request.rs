@@ -53,7 +53,7 @@ pub async fn handle_request(
     );
 
     // Get connection context
-    let conn_info = state.world_connection_manager().get_connection_context(connection_id).await;
+    let conn_info = state.connection_context().get_connection_context(connection_id).await;
 
     // Build request context
     let ctx = if let Some(info) = &conn_info {
