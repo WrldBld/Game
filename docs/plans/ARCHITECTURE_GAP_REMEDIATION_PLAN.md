@@ -127,20 +127,26 @@ Add documentation comments to both files explaining this is intentional.
 **Risk**: MEDIUM  
 **Dependencies**: None
 
-**Revision Note**: Time reduced from 8-10h to 4-5h. Six traits already split; only six remain.
+**Status**: **MOSTLY COMPLETE** (Dec 30, 2024)
+
+**Revision Note**: Time reduced from 8-10h to 4-5h. Most traits now split; only 2 remain.
 
 ### Already Complete (No Action Needed)
 
 The following traits have already been split into ISP-compliant sub-traits:
 
-| Original Trait | Split Module | Sub-traits Created |
-|----------------|--------------|-------------------|
-| `LocationRepositoryPort` | `location_repository/` | 4 sub-traits |
-| `RegionRepositoryPort` | `region_repository/` | 4 sub-traits |
-| `CharacterRepositoryPort` | `character_repository/` | 6 sub-traits |
-| `StoryEventRepositoryPort` | `story_event_repository/` | 4 sub-traits |
-| `NarrativeEventRepositoryPort` | `narrative_event_repository/` | 4 sub-traits |
-| `ChallengeRepositoryPort` | `challenge_repository/` | 5 sub-traits |
+| Original Trait | Split Module | Sub-traits Created | Status |
+|----------------|--------------|-------------------|--------|
+| `LocationRepositoryPort` | `location_repository/` | 4 sub-traits | PRIOR |
+| `RegionRepositoryPort` | `region_repository/` | 4 sub-traits | PRIOR |
+| `CharacterRepositoryPort` | `character_repository/` | 6 sub-traits | PRIOR |
+| `StoryEventRepositoryPort` | `story_event_repository/` | 4 sub-traits | PRIOR |
+| `NarrativeEventRepositoryPort` | `narrative_event_repository/` | 4 sub-traits | PRIOR |
+| `ChallengeRepositoryPort` | `challenge_repository/` | 5 sub-traits | PRIOR |
+| `PlayerCharacterRepositoryPort` | `player_character_repository/` | 4 sub-traits | **COMPLETE** (Dec 30) |
+| `SceneRepositoryPort` | `scene_repository/` | 5 sub-traits | **COMPLETE** (Dec 30) |
+| `EventChainRepositoryPort` | `event_chain_repository/` | 4 sub-traits | **COMPLETE** (Dec 30) |
+| `GameConnectionPort` (player-ports) | `game_connection/` | 6 sub-traits | PRIOR |
 
 ### 3.1 Split `WorldConnectionManagerPort` (19 methods → 4 traits)
 
@@ -172,46 +178,45 @@ The following traits have already been split into ISP-compliant sub-traits:
 
 ---
 
-### 3.3 Split `PlayerCharacterRepositoryPort` (17 methods → 5 traits)
+### 3.3 Split `PlayerCharacterRepositoryPort` (16 methods → 4 traits)
 
-**Status**: PENDING  
-**Effort**: 1 hour
+**Status**: **COMPLETE** (Dec 30, 2024)
 
 | New Trait | Methods |
 |-----------|---------|
-| `PlayerCharacterCrudPort` | create, get, update, delete |
+| `PlayerCharacterCrudPort` | create, get, update, delete, unbind_from_session |
 | `PlayerCharacterQueryPort` | get_by_location, get_by_user_and_world, get_all_by_world, get_unbound_by_user |
 | `PlayerCharacterPositionPort` | update_location, update_region, update_position |
-| `PlayerCharacterSessionPort` | unbind_from_session |
 | `PlayerCharacterInventoryPort` | add_inventory_item, get_inventory, get_inventory_item, update_inventory_item, remove_inventory_item |
 
 ---
 
-### 3.4 Split `SceneRepositoryPort` (17 methods → 5 traits)
+### 3.4 Split `SceneRepositoryPort` (16 methods → 5 traits)
 
-**Status**: PENDING  
-**Effort**: 1 hour
+**Status**: **COMPLETE** (Dec 30, 2024)
 
 | New Trait | Methods |
 |-----------|---------|
 | `SceneCrudPort` | create, get, update, delete, update_directorial_notes |
 | `SceneQueryPort` | list_by_act, list_by_location |
 | `SceneLocationPort` | set_location, get_location |
-| `SceneCharacterPort` | add_featured_character, get_featured_characters, update_featured_character, remove_featured_character, get_scenes_for_character |
+| `SceneFeaturedCharacterPort` | add_featured_character, get_featured_characters, update_featured_character, remove_featured_character, get_scenes_for_character |
 | `SceneCompletionPort` | mark_scene_completed, is_scene_completed, get_completed_scenes |
 
 ---
 
-### 3.5 Split `EventChainRepositoryPort` (18 methods) and `EventChainServicePort` (16 methods)
+### 3.5 Split `EventChainRepositoryPort` (17 methods → 4 traits)
 
-**Status**: PENDING  
-**Effort**: 1 hour
+**Status**: **COMPLETE** (Dec 30, 2024)
 
-Both follow similar pattern with 4 sub-traits each:
-- `*CrudPort` (4 methods)
-- `*QueryPort` (4 methods)  
-- `*MembershipPort` (3 methods)
-- `*StatusPort` (5 methods)
+| New Trait | Methods |
+|-----------|---------|
+| `EventChainCrudPort` | create, get, update, delete |
+| `EventChainQueryPort` | list_by_world, list_active, list_favorites, get_chains_for_event |
+| `EventChainMembershipPort` | add_event_to_chain, remove_event_from_chain, complete_event |
+| `EventChainStatePort` | toggle_favorite, set_active, reset, get_status, list_statuses |
+
+**Note**: `EventChainServicePort` (16 methods) was NOT split. It's a facade service that exposes the same operations to higher layers. ISP splitting is less critical for facade services since they are typically injected as a single dependency.
 
 ---
 
@@ -527,12 +532,12 @@ Create issues for:
 |-------|--------|----------|------|--------|
 | 1. Quick Wins | 2-3h | HIGH | LOW | **COMPLETE** |
 | 2. DTO Consolidation | 3-4h | HIGH | MEDIUM | **MOSTLY COMPLETE** |
-| 3. God Trait Splitting | 4-5h | MEDIUM | MEDIUM | PENDING (6 traits remain) |
+| 3. God Trait Splitting | 4-5h | MEDIUM | MEDIUM | **MOSTLY COMPLETE** (2 traits remain) |
 | 4. app_state.rs Decomposition | 2-3h | MEDIUM | MEDIUM | PENDING |
 | 5. Manual Clippy Fixes | 4-6h | LOW | LOW | PENDING |
 | 6. Documentation | 1-2h | LOW | LOW | PARTIALLY COMPLETE |
-| 7. Large Repository Decomposition | 4-6h | MEDIUM | MEDIUM | **NEW** |
-| 8. Error Handling Audit | 2-3h | HIGH | LOW | **NEW** |
+| 7. Large Repository Decomposition | 4-6h | MEDIUM | MEDIUM | PENDING |
+| 8. Error Handling Audit | 2-3h | HIGH | LOW | PENDING |
 | **Total** | **18-24h** | | | |
 
 ---
@@ -575,6 +580,8 @@ cargo clippy --workspace 2>&1 | grep "warning:" | wc -l   # Target: <50 warnings
 | Dec 30, 2024 | Added Phase 7 (Large Repository Decomposition) |
 | Dec 30, 2024 | Added Phase 8 (Error Handling Audit) |
 | Dec 30, 2024 | Removed Phase 2.3 LoadGenerationQueueItemsResult (type never existed) |
+| Dec 30, 2024 | Phase A & B: Protocol import fixes, unused dep removal, DTO consolidation |
+| Dec 30, 2024 | Phase C: Split PlayerCharacterRepositoryPort, SceneRepositoryPort, EventChainRepositoryPort |
 
 ---
 
