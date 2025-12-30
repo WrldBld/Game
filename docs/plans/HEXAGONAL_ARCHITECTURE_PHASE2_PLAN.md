@@ -11,15 +11,16 @@
 
 Phase 1 of hexagonal remediation achieved 100% compliance at the **code level** (zero warnings, zero arch-check violations). However, a subsequent review revealed **structural issues in the dependency graph** that undermine the architecture at the crate level.
 
-### Current Score: 85/100 (Updated 2025-12-30)
+### Current Score: 90/100 (Updated 2025-12-30)
 
-**Completed**:
+**Completed - All Critical Issues Resolved**:
 - ✅ C1+C2: AdapterState eliminated, AppStatePort created
+- ✅ C3: PlatformPort created, player-ui → player-adapters dependency removed
 - ✅ C4: FixedRandomPort moved to adapters layer
-- ✅ No backwards dependencies in engine-adapters or engine-composition
+- ✅ No backwards dependencies in any layer
+- ✅ arch-check passes with zero violations
 
-**Remaining issues**:
-- C3: player-ui → player-adapters dependency
+**Remaining Medium Priority issues**:
 - M1: Business logic leakage into protocol crate
 - M2: God traits still present (7 with 15+ methods)
 - M3: God object (request_handler.rs at 3,497 lines)
@@ -167,26 +168,31 @@ async fn handle_foo(state: &AppState, ...) {
 
 ---
 
-### C3: player-ui → player-adapters Dependency
+### C3: player-ui → player-adapters Dependency - COMPLETED
 
-**Location**: `crates/player-ui/Cargo.toml:10`
+**Status**: ✅ DONE (2025-12-30)
 
-**Root Cause**: player-ui imports `Platform` type from player-adapters for DI.
+**Solution implemented**:
+1. Created `PlatformPort` trait in `player-ports/src/outbound/platform_port.rs`
+   - Defines all platform methods: time, sleep, random, storage, logging, document, engine config, connection factory
+   - Uses `Send + Sync` bounds for Dioxus context compatibility
 
-**Impact**: UI layer depends on infrastructure layer - violates hexagonal boundaries.
+2. Implemented `PlatformPort` for `Platform` in `player-adapters/src/state/platform.rs`
 
-**Fix Strategy**:
-1. Create `PlatformPort` trait in player-ports with required methods (storage, logging, time, connection)
-2. Have `Platform` implement `PlatformPort` in player-adapters
-3. Update player-ui to depend on `Arc<dyn PlatformPort>` instead of concrete `Platform`
-4. player-runner creates Platform and provides as `Arc<dyn PlatformPort>`
+3. Added to `player-ui/src/lib.rs`:
+   - `pub type Platform = Arc<dyn PlatformPort>` - Type alias for convenience
+   - `pub fn use_platform() -> Platform` - Hook for Dioxus context access
 
-**Files to modify**:
-- `crates/player-ports/src/outbound/platform_port.rs` → NEW: Define trait
-- `crates/player-adapters/src/infrastructure/platform.rs` → Implement trait
-- `crates/player-ui/src/**/*.rs` → Update 23 imports to use trait
-- `crates/player-runner/src/main.rs` → Provide Arc<dyn PlatformPort>
-- `crates/player-ui/Cargo.toml` → Remove player-adapters dependency
+4. Updated all 23 player-ui files to use:
+   - `use crate::use_platform` instead of `use wrldbldr_player_adapters::Platform`
+   - `use_platform()` instead of `use_context::<Platform>()`
+   - `platform.as_ref()` when passing to functions expecting `&dyn PlatformPort`
+
+5. Updated `player-runner/src/lib.rs` to wrap Platform in Arc<dyn PlatformPort>
+
+6. Removed `wrldbldr-player-adapters` dependency from `player-ui/Cargo.toml`
+
+**Result**: Player UI layer now properly depends only on ports, not adapters
 
 ---
 
@@ -322,7 +328,12 @@ handlers/
    - [x] Remove engine-composition dependency from engine-adapters
    - [x] Remove unused engine-dto dependency from engine-composition
    - [x] Add WorkerServices for background workers needing concrete types
-3. [ ] C3: Create PlatformPort trait, update player-ui
+3. [x] C3: Create PlatformPort trait, update player-ui - COMPLETED 2025-12-30
+   - [x] Create PlatformPort trait in player-ports
+   - [x] Implement PlatformPort for Platform in player-adapters
+   - [x] Add use_platform() hook and Platform type alias in player-ui
+   - [x] Update all 23 player-ui files to use Arc<dyn PlatformPort>
+   - [x] Remove player-adapters dependency from player-ui
 
 ### Phase 2.2: Protocol Cleanup (2-3 hours)
 1. [ ] M1: Move WorldRole methods to domain
