@@ -2,46 +2,42 @@
 
 **Status**: ACTIVE  
 **Created**: 2025-12-28  
-**Last Updated**: 2025-12-29 (Arch-check PASSES - 85-90% hexagonal compliance achieved)  
+**Last Updated**: 2025-12-29 (Domain purity COMPLETE - 95%+ hexagonal compliance achieved)  
 **Goal**: Achieve a clean, production-ready codebase with zero technical debt  
 **Estimated Total Effort**: 70-95 hours (implementation) + contingency = 95-125 hours total  
-**Estimated Remaining Effort**: 15-25 hours
+**Estimated Remaining Effort**: 5-10 hours
 
 ---
 
 ## Post Phase 3.5 Arch-Check Review (December 29, 2024)
 
-### Current State: 85-90% Hexagonal Compliance
+### Current State: 95%+ Hexagonal Compliance
 
 | Achievement | Status |
 |-------------|--------|
 | adapters→app coupling removed | **COMPLETE** |
 | Composition root in runner | **COMPLETE** |
 | God traits split (169→25) | **COMPLETE** |
-| Domain purity (Utc::now, env vars) | **MOSTLY COMPLETE** (3 remaining) |
+| Domain purity (rand, Utc::now, env vars) | **COMPLETE** |
 | Protocol forward compatibility | **COMPLETE** |
 | Test compilation | **PASSING** |
 | arch-check | **PASSING** (14 crates checked) |
+
+### Domain Purity Achievements
+
+| Item | Status |
+|------|--------|
+| Remove `rand` from domain | **DONE** - Created RandomPort, ThreadRngAdapter, FixedRandomPort |
+| Remove `Utc::now()` from domain | **DONE** - ClockPort injected to use cases, adapters call Utc::now() |
+| Move env I/O out of domain | **DONE** - EnvPort in ports layer |
 
 ### Remaining Work Summary
 
 | Priority | Item | Effort |
 |----------|------|--------|
-| HIGH | Remove `rand` from domain (create RandomPort) | 2-3h |
-| HIGH | Fix 3 remaining domain Utc::now() calls | 1h |
-| MEDIUM | Remove unused old god traits | 1h |
-| MEDIUM | Dead code cleanup (42 warnings) | 2-3h |
+| MEDIUM | Remove unused old god traits (CharacterRepositoryPort, ChallengeRepositoryPort) | 1h |
+| MEDIUM | Dead code cleanup (~40 warnings) | 2-3h |
 | LOW | Phase 4.4-4.5 (#[allow(dead_code)] audit) | 1-2h |
-
-### Files With Uncommitted Changes (from arch-check fixes)
-
-The following files were modified to pass arch-check:
-- `crates/engine-adapters/src/infrastructure/websocket/handlers/challenge.rs` - Reduced to 396 lines
-- `crates/engine-adapters/src/infrastructure/websocket/handlers/challenge_converters.rs` - NEW: extracted converters
-- `crates/engine-adapters/src/infrastructure/websocket/handlers/mod.rs` - Added module
-- `crates/engine-adapters/src/infrastructure/world_connection_manager.rs` - Fixed WorldRole type conversion
-- `crates/engine-ports/src/outbound/world_connection_manager_port.rs` - Removed protocol import
-- `crates/xtask/src/main.rs` - Updated arch-check rules
 
 ---
 
@@ -236,6 +232,7 @@ Six comprehensive code reviews (including cross-validation) identified issues ac
 | Phase 5.1 | Serde on Entities (53 types) | **DONE** | 100% |
 | Phase 5.2 | Serde on ID Types | **DONE** | 100% |
 | Phase 5.3 | Move Env I/O Out of Domain | **DONE** | 100% |
+| Phase 5.4 | Remove rand from Domain | **DONE** | 100% |
 | Phase 5.5 | Unified DomainError Type | **DONE** | 100% |
 | Phase 5.6 | Domain Utc::now() (51 calls) | **DONE** | 100% |
 | Phase 6 | Protocol Layer Polish | **DONE** | 100% |
