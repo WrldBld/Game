@@ -12,6 +12,7 @@
 //! Level 2: queue_services   - Queue backends and queue services (parallel with events)
 //! Level 3: core_services    - Core domain services (World, Character, Location, etc.)
 //! Level 4: game_services    - Game services (Challenge, Narrative, Staging, etc.)
+//! Level 4: asset_services   - Asset services (Asset, Workflow, Generation) [parallel with game_services]
 //! Level 5: use_cases        - Use cases with adapters
 //! ```
 //!
@@ -21,6 +22,7 @@
 //! - Input: Concrete adapter implementations or repository ports
 //! - Output: `Arc<dyn Port>` trait objects for dependency injection
 
+pub mod asset_services;
 pub mod core_services;
 pub mod event_infra;
 pub mod game_services;
@@ -48,11 +50,14 @@ pub use queue_services::{create_queue_services, QueueServiceContext, QueueServic
 // Core services factory (Level 3)
 pub use core_services::{create_core_services, CoreServiceDependencies, CoreServicePorts};
 
-// Game services factory (Level 4)
+// Game services factory (Level 4a)
 pub use game_services::{
     create_game_services, create_story_event_ports, GameServiceDependencies, GameServicePorts,
     GameServicesResult,
 };
+
+// Asset services factory (Level 4b - parallel with game_services)
+pub use asset_services::{create_asset_services, AssetServiceDependencies, AssetServicePorts};
 
 // Use cases factory (Level 5)
 pub use use_cases::{create_use_cases, UseCaseContext, UseCaseDependencies};

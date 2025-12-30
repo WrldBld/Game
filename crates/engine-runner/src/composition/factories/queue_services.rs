@@ -25,11 +25,13 @@ use wrldbldr_engine_adapters::infrastructure::{
 };
 use wrldbldr_engine_app::application::services::{
     generation_service::GenerationEvent, AssetGenerationQueueService, DMApprovalQueueService,
-    DmActionQueueService, ItemServiceImpl, LLMQueueService, PlayerActionQueueService,
+    DmActionProcessorService, DmActionQueueService, InteractionService, ItemServiceImpl,
+    LLMQueueService, NarrativeEventService, PlayerActionQueueService, SceneService,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, DmActionQueueServicePort, DmApprovalQueueServicePort,
-    FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
+    AssetGenerationQueueServicePort, DmActionProcessorPort, DmActionQueueServicePort,
+    DmApprovalQueueServicePort, FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort,
+    QueuePort,
 };
 
 use super::repositories::RepositoryPorts;
@@ -106,6 +108,12 @@ pub struct QueueServiceContext {
     pub dm_approval_queue_service:
         Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>>,
     pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
+
+    // =========================================================================
+    // DM Action Processor (for WorkerServices)
+    // =========================================================================
+    pub dm_action_processor_port: Arc<dyn DmActionProcessorPort>,
+    pub dm_action_processor: Arc<DmActionProcessorService>,
 }
 
 /// Dependencies for queue service creation (needs core services).
@@ -117,6 +125,10 @@ pub struct QueueServiceDependencies<'a> {
     pub story_event_service:
         Arc<dyn wrldbldr_engine_app::application::services::StoryEventService>,
     pub generation_event_tx: mpsc::Sender<GenerationEvent>,
+    // App-layer services needed for DmActionProcessorService
+    pub narrative_event_service: Arc<dyn NarrativeEventService>,
+    pub scene_service: Arc<dyn SceneService>,
+    pub interaction_service: Arc<dyn InteractionService>,
 }
 
 /// Creates queue services (needs story_event_service from core services).
@@ -128,6 +140,9 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
         queue_backends,
         story_event_service,
         generation_event_tx,
+        narrative_event_service,
+        scene_service,
+        interaction_service,
     } = deps;
 
     // =========================================================================
@@ -187,6 +202,19 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
         infra.clock.clone(),
     ));
 
+    // =========================================================================
+    // DM Action Processor Service
+    // =========================================================================
+    // This service handles the business logic for DM actions (approval decisions,
+    // direct NPC control, event triggering, scene transitions)
+    let dm_action_processor = Arc::new(DmActionProcessorService::new(
+        dm_approval_queue_service.clone(),
+        narrative_event_service,
+        scene_service,
+        interaction_service,
+        infra.clock.clone(),
+    ));
+
     tracing::info!("Initialized queue services");
 
     Ok(QueueServiceContext {
@@ -204,6 +232,9 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
         asset_generation_queue_service,
         dm_approval_queue_service,
         challenge_outcome_queue: queue_backends.challenge_outcome_queue.clone(),
+        // DM action processor
+        dm_action_processor_port: dm_action_processor.clone(),
+        dm_action_processor,
     })
 }
 
@@ -221,6 +252,7 @@ mod tests {
                 &ctx.asset_generation_queue_service_port;
             let _: &Arc<dyn DmApprovalQueueServicePort> = &ctx.dm_approval_queue_service_port;
             let _: &Arc<dyn QueuePort<ChallengeOutcomeData>> = &ctx.challenge_outcome_queue_port;
+            let _: &Arc<dyn DmActionProcessorPort> = &ctx.dm_action_processor_port;
         }
     }
 }
