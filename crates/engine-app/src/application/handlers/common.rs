@@ -253,3 +253,22 @@ pub fn to_protocol_game_time(
         game_time.is_paused(),
     )
 }
+
+/// Convert NpcDispositionState to NpcDispositionStateDto for wire transfer.
+///
+/// This conversion lives in the application layer (not protocol) to maintain
+/// the separation between domain and wire-format types.
+pub fn npc_disposition_to_dto(
+    state: &wrldbldr_domain::value_objects::NpcDispositionState,
+) -> wrldbldr_protocol::NpcDispositionStateDto {
+    wrldbldr_protocol::NpcDispositionStateDto {
+        npc_id: state.npc_id.to_uuid(),
+        pc_id: state.pc_id.to_uuid(),
+        disposition: state.disposition,
+        relationship: state.relationship,
+        sentiment: state.sentiment,
+        updated_at: state.updated_at.to_rfc3339(),
+        disposition_reason: state.disposition_reason.clone(),
+        relationship_points: state.relationship_points,
+    }
+}

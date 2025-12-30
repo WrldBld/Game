@@ -23,6 +23,7 @@
 //! inversion - adapters should not depend on composition.
 
 pub mod clock;
+pub mod dto_conversions;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

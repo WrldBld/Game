@@ -8,11 +8,11 @@ description = "WrldBldr Protocol - Shared types for Engine and Player communicat
 
 [dependencies]
 # Shared vocabulary types (innermost layer)
+# Protocol uses only the pure vocabulary types from domain-types
 wrldbldr-domain-types = { workspace = true }
 
-# Domain types - needed for entity-to-DTO conversions
-# TODO: Phase 3 - Move From<Domain> impls to adapters to remove this dependency
-wrldbldr-domain = { workspace = true }
+# NOTE: wrldbldr-domain dependency was removed as part of hexagonal architecture refactoring.
+# All domain→protocol conversions are now handled in engine-adapters or engine-app.
 
 # Serialization (required for wire protocol)
 serde = { workspace = true }

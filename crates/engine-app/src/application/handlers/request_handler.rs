@@ -26,7 +26,7 @@ use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 // Import common helpers
 use super::common::{
     convert_actantial_role, convert_actor_type, convert_want_target_type, convert_want_visibility,
-    parse_act_id, parse_challenge_id, parse_character_id, parse_difficulty,
+    npc_disposition_to_dto, parse_act_id, parse_challenge_id, parse_character_id, parse_difficulty,
     parse_disposition_level, parse_event_chain_id, parse_goal_id, parse_interaction_id,
     parse_item_id, parse_location_id, parse_narrative_event_id, parse_player_character_id,
     parse_region_id, parse_relationship_id, parse_relationship_level, parse_scene_id,
@@ -2311,7 +2311,7 @@ impl RequestHandler for AppRequestHandler {
                 match self.disposition_service.get_all_relationships(id).await {
                     Ok(dispositions) => {
                         let dtos: Vec<wrldbldr_protocol::NpcDispositionStateDto> =
-                            dispositions.iter().map(|d| d.into()).collect();
+                            dispositions.iter().map(npc_disposition_to_dto).collect();
                         ResponseResult::success(dtos)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2342,7 +2342,7 @@ impl RequestHandler for AppRequestHandler {
                     .await
                 {
                     Ok(state) => {
-                        let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
+                        let dto = npc_disposition_to_dto(&state);
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
@@ -2372,7 +2372,7 @@ impl RequestHandler for AppRequestHandler {
                     .await
                 {
                     Ok(state) => {
-                        let dto: wrldbldr_protocol::NpcDispositionStateDto = (&state).into();
+                        let dto = npc_disposition_to_dto(&state);
                         ResponseResult::success(dto)
                     }
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),

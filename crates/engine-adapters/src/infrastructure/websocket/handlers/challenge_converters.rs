@@ -36,6 +36,12 @@ pub fn to_use_case_dice_input(input: wrldbldr_protocol::DiceInputType) -> DiceIn
 
 /// Convert protocol AdHocOutcomes to use case AdHocOutcomes
 pub fn to_use_case_adhoc_outcomes(outcomes: wrldbldr_protocol::AdHocOutcomes) -> AdHocOutcomes {
-    // Protocol has success/failure as required String fields, matching domain
-    outcomes.into()
+    // Explicit conversion instead of using From impl in protocol
+    // This allows removing protocol→domain dependency
+    AdHocOutcomes::new(
+        outcomes.success,
+        outcomes.failure,
+        outcomes.critical_success,
+        outcomes.critical_failure,
+    )
 }

@@ -8,15 +8,21 @@ use axum::{
 use chrono::Utc;
 use std::sync::Arc;
 
-use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_domain::entities::WorkflowConfiguration;
+use wrldbldr_domain_types::WorkflowSlot;
 use wrldbldr_engine_app::application::services::WorkflowService;
 use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_protocol::{
-    parse_workflow_slot, workflow_config_to_full_response_dto, workflow_config_to_response_dto,
-    AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto, ImportWorkflowsRequestDto,
-    ImportWorkflowsResponseDto, TestWorkflowRequestDto, TestWorkflowResponseDto,
-    UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto, WorkflowConfigFullResponseDto,
-    WorkflowSlotCategoryDto, WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
+    parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
+    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, TestWorkflowRequestDto,
+    TestWorkflowResponseDto, UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
+    WorkflowConfigFullResponseDto, WorkflowSlotCategoryDto, WorkflowSlotStatusDto,
+    WorkflowSlotsResponseDto,
+};
+
+// Import conversion functions from adapters
+use crate::infrastructure::dto_conversions::{
+    workflow_config_to_full_response_dto, workflow_config_to_response_dto,
 };
 
 // ============================================================================

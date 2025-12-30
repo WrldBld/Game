@@ -7,13 +7,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
-// Uses domain types for DTO conversion methods only.
-// Wire format uses raw Uuid; these imports enable From trait conversions.
-use wrldbldr_domain::entities::{
-    BatchStatus, GalleryAsset, GenerationBatch, WorkflowAnalysis, WorkflowConfiguration,
-};
-use wrldbldr_domain::value_objects::{DispositionLevel, NpcDispositionState, RelationshipLevel};
+// Import shared vocabulary types from domain-types (innermost layer)
+use wrldbldr_domain_types::{DispositionLevel, RelationshipLevel, WorkflowAnalysis};
 
 // =============================================================================
 // NPC Disposition DTOs
@@ -44,23 +39,8 @@ pub struct NpcDispositionStateDto {
     pub relationship_points: i32,
 }
 
-impl From<&NpcDispositionState> for NpcDispositionStateDto {
-    fn from(state: &NpcDispositionState) -> Self {
-        Self {
-            npc_id: state.npc_id.to_uuid(),
-            pc_id: state.pc_id.to_uuid(),
-            disposition: state.disposition,
-            relationship: state.relationship,
-            sentiment: state.sentiment,
-            updated_at: state.updated_at.to_rfc3339(),
-            disposition_reason: state.disposition_reason.clone(),
-            relationship_points: state.relationship_points,
-        }
-    }
-}
-
-// NOTE: NpcDispositionStateDto::to_domain() was removed as it was unused.
-// If needed, implement conversion in engine-app layer where domain types are used.
+// NOTE: From<&NpcDispositionState> impl was moved to engine-app (npc_disposition_to_dto)
+// as part of hexagonal architecture refactoring to remove protocol→domain dependency.
 
 // =============================================================================
 // Asset DTOs (REST API)
@@ -102,23 +82,8 @@ pub struct GalleryAssetResponseDto {
     pub created_at: String,
 }
 
-impl From<GalleryAsset> for GalleryAssetResponseDto {
-    fn from(a: GalleryAsset) -> Self {
-        let is_generated = a.is_generated();
-        Self {
-            id: a.id.to_string(),
-            entity_type: a.entity_type.to_string(),
-            entity_id: a.entity_id,
-            asset_type: a.asset_type.to_string(),
-            file_path: a.file_path,
-            is_active: a.is_active,
-            label: a.label,
-            is_generated,
-            style_reference_id: None,
-            created_at: a.created_at.to_rfc3339(),
-        }
-    }
-}
+// NOTE: From<GalleryAsset> impl was moved to engine-adapters (gallery_asset_to_dto)
+// as part of hexagonal architecture refactoring to remove protocol→domain dependency.
 
 /// Request DTO for generating an asset
 #[derive(Debug, Deserialize)]
@@ -163,33 +128,8 @@ pub struct GenerationBatchResponseDto {
     pub completed_at: Option<String>,
 }
 
-impl From<GenerationBatch> for GenerationBatchResponseDto {
-    fn from(b: GenerationBatch) -> Self {
-        let (status, progress) = match &b.status {
-            BatchStatus::Queued => ("Queued".to_string(), None),
-            BatchStatus::Generating { progress } => ("Generating".to_string(), Some(*progress)),
-            BatchStatus::ReadyForSelection => ("ReadyForSelection".to_string(), Some(100)),
-            BatchStatus::Completed => ("Completed".to_string(), Some(100)),
-            BatchStatus::Failed { error } => (format!("Failed: {}", error), None),
-        };
-
-        Self {
-            id: b.id.to_string(),
-            world_id: b.world_id.to_string(),
-            entity_type: b.entity_type.to_string(),
-            entity_id: b.entity_id,
-            asset_type: b.asset_type.to_string(),
-            workflow: b.workflow,
-            prompt: b.prompt,
-            count: b.count,
-            status,
-            progress,
-            asset_count: b.assets.len(),
-            requested_at: b.requested_at.to_rfc3339(),
-            completed_at: b.completed_at.map(|t| t.to_rfc3339()),
-        }
-    }
-}
+// NOTE: From<GenerationBatch> impl was moved to engine-adapters (generation_batch_to_dto)
+// as part of hexagonal architecture refactoring to remove protocol→domain dependency.
 
 /// Request DTO for selecting assets from a batch
 #[derive(Debug, Deserialize)]
@@ -218,7 +158,7 @@ pub struct ExportQueryDto {
 // Workflow DTOs (REST API)
 // =============================================================================
 
-use wrldbldr_domain::entities::{PromptMapping, PromptMappingType};
+use wrldbldr_domain_types::{PromptMapping, PromptMappingType};
 
 /// DTO for prompt mapping configuration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -296,7 +236,7 @@ pub struct WorkflowConfigResponseDto {
 // Rule System DTOs (REST API)
 // =============================================================================
 
-use wrldbldr_domain::value_objects::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
+use wrldbldr_domain_types::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
 
 /// Summary of a preset for browsing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -379,7 +319,7 @@ pub fn parse_variant(s: &str) -> Result<RuleSystemVariant, String> {
 // =============================================================================
 
 use std::str::FromStr;
-use wrldbldr_domain::entities::{InputDefault, InputType, WorkflowInput, WorkflowSlot};
+use wrldbldr_domain_types::{InputDefault, InputType, WorkflowInput, WorkflowSlot};
 
 /// Response for workflow slot status.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -646,98 +586,8 @@ pub struct WorkflowConfigExportDto {
     pub updated_at: String,
 }
 
-impl From<WorkflowConfiguration> for WorkflowConfigExportDto {
-    fn from(value: WorkflowConfiguration) -> Self {
-        Self {
-            id: value.id.to_string(),
-            slot: value.slot.as_str().to_string(),
-            name: value.name,
-            workflow_json: value.workflow_json,
-            prompt_mappings: value.prompt_mappings.into_iter().map(Into::into).collect(),
-            input_defaults: value.input_defaults.into_iter().map(Into::into).collect(),
-            locked_inputs: value.locked_inputs,
-            created_at: value.created_at.to_rfc3339(),
-            updated_at: value.updated_at.to_rfc3339(),
-        }
-    }
-}
+// NOTE: From<WorkflowConfiguration> and TryFrom<WorkflowConfigExportDto> impls were moved to
+// engine-adapters (workflow_conversions) as part of hexagonal architecture refactoring.
 
-impl TryFrom<WorkflowConfigExportDto> for WorkflowConfiguration {
-    type Error = anyhow::Error;
-
-    fn try_from(value: WorkflowConfigExportDto) -> anyhow::Result<Self> {
-        use chrono::{DateTime, Utc};
-        use uuid::Uuid;
-        use wrldbldr_domain::WorkflowConfigId;
-
-        let id = Uuid::parse_str(&value.id)
-            .map(WorkflowConfigId::from_uuid)
-            .unwrap_or_else(|_| WorkflowConfigId::new());
-
-        let slot = WorkflowSlot::from_str(&value.slot)
-            .map_err(|_| anyhow::anyhow!("Invalid workflow slot: {}", value.slot))?;
-
-        let created_at = DateTime::parse_from_rfc3339(&value.created_at)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
-        let updated_at = DateTime::parse_from_rfc3339(&value.updated_at)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
-
-        Ok(Self {
-            id,
-            slot,
-            name: value.name,
-            workflow_json: value.workflow_json,
-            prompt_mappings: value.prompt_mappings.into_iter().map(Into::into).collect(),
-            input_defaults: value.input_defaults.into_iter().map(Into::into).collect(),
-            locked_inputs: value.locked_inputs,
-            created_at,
-            updated_at,
-        })
-    }
-}
-
-// ============================================================================
-// Workflow Configuration Response Converters
-// ============================================================================
-
-/// Build a WorkflowConfigResponseDto from a WorkflowConfiguration and its analysis.
-pub fn workflow_config_to_response_dto(
-    config: &WorkflowConfiguration,
-    analysis: &WorkflowAnalysis,
-) -> WorkflowConfigResponseDto {
-    WorkflowConfigResponseDto {
-        id: config.id.to_string(),
-        slot: config.slot.as_str().to_string(),
-        slot_display_name: config.slot.display_name().to_string(),
-        name: config.name.clone(),
-        node_count: analysis.node_count,
-        input_count: analysis.inputs.len(),
-        prompt_mappings: config.prompt_mappings.clone().into_iter().map(Into::into).collect(),
-        has_primary_prompt: config.primary_prompt_mapping().is_some(),
-        has_negative_prompt: config.negative_prompt_mapping().is_some(),
-        created_at: config.created_at.to_rfc3339(),
-        updated_at: config.updated_at.to_rfc3339(),
-    }
-}
-
-/// Build a WorkflowConfigFullResponseDto from a WorkflowConfiguration and its analysis.
-pub fn workflow_config_to_full_response_dto(
-    config: &WorkflowConfiguration,
-    analysis: WorkflowAnalysis,
-) -> WorkflowConfigFullResponseDto {
-    WorkflowConfigFullResponseDto {
-        id: config.id.to_string(),
-        slot: config.slot.as_str().to_string(),
-        slot_display_name: config.slot.display_name().to_string(),
-        name: config.name.clone(),
-        workflow_json: config.workflow_json.clone(),
-        prompt_mappings: config.prompt_mappings.clone().into_iter().map(Into::into).collect(),
-        input_defaults: config.input_defaults.clone().into_iter().map(Into::into).collect(),
-        locked_inputs: config.locked_inputs.clone(),
-        analysis: analysis.into(),
-        created_at: config.created_at.to_rfc3339(),
-        updated_at: config.updated_at.to_rfc3339(),
-    }
-}
+// NOTE: workflow_config_to_response_dto and workflow_config_to_full_response_dto functions
+// were moved to engine-adapters (workflow_conversions) as part of hexagonal architecture refactoring.

@@ -7349,6 +7349,7 @@ dependencies = [
  "uuid",
  "validator",
  "wrldbldr-domain",
+ "wrldbldr-domain-types",
  "wrldbldr-engine-app",
  "wrldbldr-engine-dto",
  "wrldbldr-engine-ports",
@@ -7571,7 +7572,6 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
- "wrldbldr-domain",
  "wrldbldr-domain-types",
 ]
 

@@ -974,8 +974,8 @@ pub enum DiceInputType {
 
 /// Ad-hoc challenge outcomes for DM-created challenges (wire format)
 ///
-/// This is the protocol/wire format. For domain operations, use
-/// `wrldbldr_domain::value_objects::AdHocOutcomes`.
+/// This is the protocol/wire format. Domain conversion is handled in
+/// engine-adapters (challenge_converters.rs).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdHocOutcomes {
     pub success: String,
@@ -986,27 +986,8 @@ pub struct AdHocOutcomes {
     pub critical_failure: Option<String>,
 }
 
-impl From<AdHocOutcomes> for wrldbldr_domain::value_objects::AdHocOutcomes {
-    fn from(proto: AdHocOutcomes) -> Self {
-        wrldbldr_domain::value_objects::AdHocOutcomes::new(
-            proto.success,
-            proto.failure,
-            proto.critical_success,
-            proto.critical_failure,
-        )
-    }
-}
-
-impl From<wrldbldr_domain::value_objects::AdHocOutcomes> for AdHocOutcomes {
-    fn from(domain: wrldbldr_domain::value_objects::AdHocOutcomes) -> Self {
-        Self {
-            success: domain.success,
-            failure: domain.failure,
-            critical_success: domain.critical_success,
-            critical_failure: domain.critical_failure,
-        }
-    }
-}
+// NOTE: From<AdHocOutcomes> conversions were moved to engine-adapters
+// (to_use_case_adhoc_outcomes function) as part of hexagonal architecture refactoring.
 
 /// Outcome detail data for regenerated outcomes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

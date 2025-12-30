@@ -19,9 +19,12 @@ use wrldbldr_domain::{AssetId, BatchId};
 use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::outbound::{AssetGenerationRequest, CreateAssetRequest};
 use wrldbldr_protocol::{
-    GalleryAssetResponseDto, GenerateAssetRequestDto, GenerationBatchResponseDto,
-    SelectFromBatchRequestDto, UpdateAssetLabelRequestDto, UploadAssetRequestDto,
+    GenerateAssetRequestDto, SelectFromBatchRequestDto, UpdateAssetLabelRequestDto,
+    UploadAssetRequestDto,
 };
+
+// Import conversion functions from adapters
+use crate::infrastructure::dto_conversions::{gallery_asset_to_dto, generation_batch_to_dto};
 
 // ==================== Character Gallery Routes ====================
 
@@ -29,7 +32,7 @@ use wrldbldr_protocol::{
 pub async fn list_character_assets(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(character_id): Path<String>,
-) -> Result<Json<Vec<GalleryAssetResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GalleryAssetResponseDto>>, (StatusCode, String)> {
     let assets = state
         .asset_service()
         .list_assets(EntityType::Character, &character_id)
@@ -37,10 +40,7 @@ pub async fn list_character_assets(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(
-        assets
-            .into_iter()
-            .map(GalleryAssetResponseDto::from)
-            .collect(),
+        assets.into_iter().map(gallery_asset_to_dto).collect(),
     ))
 }
 
@@ -49,7 +49,7 @@ pub async fn upload_character_asset(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(character_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
-) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<wrldbldr_protocol::GalleryAssetResponseDto>), (StatusCode, String)> {
     let asset_type =
         AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
@@ -78,7 +78,7 @@ pub async fn upload_character_asset(
 
     Ok((
         StatusCode::CREATED,
-        Json(GalleryAssetResponseDto::from(asset)),
+        Json(gallery_asset_to_dto(asset)),
     ))
 }
 
@@ -140,7 +140,7 @@ pub async fn delete_character_asset(
 pub async fn list_location_assets(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(location_id): Path<String>,
-) -> Result<Json<Vec<GalleryAssetResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GalleryAssetResponseDto>>, (StatusCode, String)> {
     let assets = state
         .asset_service()
         .list_assets(EntityType::Location, &location_id)
@@ -150,7 +150,7 @@ pub async fn list_location_assets(
     Ok(Json(
         assets
             .into_iter()
-            .map(GalleryAssetResponseDto::from)
+            .map(gallery_asset_to_dto)
             .collect(),
     ))
 }
@@ -160,7 +160,7 @@ pub async fn upload_location_asset(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(location_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
-) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<wrldbldr_protocol::GalleryAssetResponseDto>), (StatusCode, String)> {
     let asset_type =
         AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
@@ -189,7 +189,7 @@ pub async fn upload_location_asset(
 
     Ok((
         StatusCode::CREATED,
-        Json(GalleryAssetResponseDto::from(asset)),
+        Json(gallery_asset_to_dto(asset)),
     ))
 }
 
@@ -233,7 +233,7 @@ pub async fn delete_location_asset(
 pub async fn list_item_assets(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(item_id): Path<String>,
-) -> Result<Json<Vec<GalleryAssetResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GalleryAssetResponseDto>>, (StatusCode, String)> {
     let assets = state
         .asset_service()
         .list_assets(EntityType::Item, &item_id)
@@ -243,7 +243,7 @@ pub async fn list_item_assets(
     Ok(Json(
         assets
             .into_iter()
-            .map(GalleryAssetResponseDto::from)
+            .map(gallery_asset_to_dto)
             .collect(),
     ))
 }
@@ -253,7 +253,7 @@ pub async fn upload_item_asset(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(item_id): Path<String>,
     Json(req): Json<UploadAssetRequestDto>,
-) -> Result<(StatusCode, Json<GalleryAssetResponseDto>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<wrldbldr_protocol::GalleryAssetResponseDto>), (StatusCode, String)> {
     let asset_type =
         AssetType::from_str(&req.asset_type).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
@@ -282,7 +282,7 @@ pub async fn upload_item_asset(
 
     Ok((
         StatusCode::CREATED,
-        Json(GalleryAssetResponseDto::from(asset)),
+        Json(gallery_asset_to_dto(asset)),
     ))
 }
 
@@ -326,7 +326,7 @@ pub async fn delete_item_asset(
 pub async fn queue_generation(
     State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<GenerateAssetRequestDto>,
-) -> Result<(StatusCode, Json<GenerationBatchResponseDto>), (StatusCode, String)> {
+) -> Result<(StatusCode, Json<wrldbldr_protocol::GenerationBatchResponseDto>), (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&req.world_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
@@ -416,7 +416,7 @@ pub async fn queue_generation(
 
     Ok((
         StatusCode::CREATED,
-        Json(GenerationBatchResponseDto::from(batch)),
+        Json(generation_batch_to_dto(batch)),
     ))
 }
 
@@ -424,7 +424,7 @@ pub async fn queue_generation(
 pub async fn list_queue(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(world_id): Path<String>,
-) -> Result<Json<Vec<GenerationBatchResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GenerationBatchResponseDto>>, (StatusCode, String)> {
     let world_uuid = Uuid::parse_str(&world_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
@@ -438,7 +438,7 @@ pub async fn list_queue(
     Ok(Json(
         batches
             .into_iter()
-            .map(GenerationBatchResponseDto::from)
+            .map(generation_batch_to_dto)
             .collect(),
     ))
 }
@@ -446,7 +446,7 @@ pub async fn list_queue(
 /// List batches ready for selection
 pub async fn list_ready_batches(
     State(state): State<Arc<dyn AppStatePort>>,
-) -> Result<Json<Vec<GenerationBatchResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GenerationBatchResponseDto>>, (StatusCode, String)> {
     let batches = state
         .asset_service()
         .list_ready_batches()
@@ -456,7 +456,7 @@ pub async fn list_ready_batches(
     Ok(Json(
         batches
             .into_iter()
-            .map(GenerationBatchResponseDto::from)
+            .map(generation_batch_to_dto)
             .collect(),
     ))
 }
@@ -465,7 +465,7 @@ pub async fn list_ready_batches(
 pub async fn get_batch(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(batch_id): Path<String>,
-) -> Result<Json<GenerationBatchResponseDto>, (StatusCode, String)> {
+) -> Result<Json<wrldbldr_protocol::GenerationBatchResponseDto>, (StatusCode, String)> {
     let uuid = Uuid::parse_str(&batch_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid batch ID".to_string()))?;
 
@@ -476,14 +476,14 @@ pub async fn get_batch(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Batch not found".to_string()))?;
 
-    Ok(Json(GenerationBatchResponseDto::from(batch)))
+    Ok(Json(generation_batch_to_dto(batch)))
 }
 
 /// Get assets from a completed batch
 pub async fn get_batch_assets(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(batch_id): Path<String>,
-) -> Result<Json<Vec<GalleryAssetResponseDto>>, (StatusCode, String)> {
+) -> Result<Json<Vec<wrldbldr_protocol::GalleryAssetResponseDto>>, (StatusCode, String)> {
     let uuid = Uuid::parse_str(&batch_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid batch ID".to_string()))?;
 
@@ -502,7 +502,7 @@ pub async fn get_batch_assets(
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         {
-            assets.push(GalleryAssetResponseDto::from(asset));
+            assets.push(gallery_asset_to_dto(asset));
         }
     }
 
@@ -605,7 +605,7 @@ pub async fn cancel_batch(
 pub async fn retry_batch(
     State(state): State<Arc<dyn AppStatePort>>,
     Path(batch_id): Path<String>,
-) -> Result<Json<GenerationBatchResponseDto>, (StatusCode, String)> {
+) -> Result<Json<wrldbldr_protocol::GenerationBatchResponseDto>, (StatusCode, String)> {
     let uuid = Uuid::parse_str(&batch_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid batch ID".to_string()))?;
 
@@ -654,5 +654,5 @@ pub async fn retry_batch(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(GenerationBatchResponseDto::from(created_batch)))
+    Ok(Json(generation_batch_to_dto(created_batch)))
 }

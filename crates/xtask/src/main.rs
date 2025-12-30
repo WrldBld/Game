@@ -870,11 +870,8 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         // Domain layer depends on domain-types for shared vocabulary
         ("wrldbldr-domain", HashSet::from(["wrldbldr-domain-types"])),
         // Protocol (API contract) depends on domain-types for shared vocabulary
-        // TODO: Remove wrldbldr-domain once From impls are moved to adapters
-        (
-            "wrldbldr-protocol",
-            HashSet::from(["wrldbldr-domain-types", "wrldbldr-domain"]),
-        ),
+        // NOTE: wrldbldr-domain dependency was removed - From impls moved to adapters
+        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain-types"])),
         (
             "wrldbldr-engine-dto",
             HashSet::from([
@@ -931,6 +928,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-engine-dto",
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
+                "wrldbldr-domain-types", // For DTO conversions (shared vocabulary)
             ]),
         ),
         (

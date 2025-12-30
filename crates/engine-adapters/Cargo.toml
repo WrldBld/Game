@@ -19,6 +19,7 @@ wrldbldr-engine-dto = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 wrldbldr-domain = { workspace = true }
+wrldbldr-domain-types = { workspace = true }
 
 # Engine adapter deps
 axum = { workspace = true }

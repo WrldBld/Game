@@ -121,9 +121,7 @@ pub use dto::{
     parse_variant,
     // Workflow parsing
     parse_workflow_slot,
-    // Workflow DTO conversion functions
-    workflow_config_to_full_response_dto,
-    workflow_config_to_response_dto,
+    // NOTE: workflow_config_to_*_response_dto functions moved to engine-adapters
     // Workflow DTOs
     AnalyzeWorkflowRequestDto,
     CreateWorkflowConfigRequestDto,
