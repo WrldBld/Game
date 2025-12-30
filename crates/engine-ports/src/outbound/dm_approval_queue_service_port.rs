@@ -6,7 +6,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[cfg(any(test, feature = "testing"))]
@@ -112,30 +111,8 @@ pub struct ApprovalQueueItem {
     pub updated_at: DateTime<Utc>,
 }
 
-/// DM's decision on an approval request
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "decision")]
-pub enum DmApprovalDecision {
-    /// Accept the response as-is
-    Accept,
-    /// Accept with item distribution specified
-    AcceptWithRecipients {
-        /// Maps tool_id -> recipient PC IDs
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-    /// Accept with modifications
-    AcceptWithModification {
-        modified_dialogue: String,
-        approved_tools: Vec<String>,
-        rejected_tools: Vec<String>,
-        #[serde(default)]
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-    /// Reject with feedback for regeneration
-    Reject { feedback: String },
-    /// DM takes over the response
-    TakeOver { dm_response: String },
-}
+// Re-export DmApprovalDecision from engine-dto (single source of truth for DTO types)
+pub use wrldbldr_engine_dto::DmApprovalDecision;
 
 // ============================================================================
 // Port Trait

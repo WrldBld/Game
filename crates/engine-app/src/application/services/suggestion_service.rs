@@ -327,36 +327,8 @@ impl<L: LlmPort> SuggestionService<L> {
     }
 }
 
-/// Context for generating suggestions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SuggestionContext {
-    /// Type of entity (e.g., "character", "location", "tavern", "forest")
-    pub entity_type: Option<String>,
-    /// Name of the entity (if already set)
-    pub entity_name: Option<String>,
-    /// World/setting name or type
-    pub world_setting: Option<String>,
-    /// Hints or keywords to guide generation
-    pub hints: Option<String>,
-    /// Additional context from other fields
-    pub additional_context: Option<String>,
-    /// World ID for per-world template resolution
-    #[serde(default)]
-    pub world_id: Option<String>,
-}
-
-impl Default for SuggestionContext {
-    fn default() -> Self {
-        Self {
-            entity_type: None,
-            entity_name: None,
-            world_setting: Some("fantasy".to_string()),
-            hints: None,
-            additional_context: None,
-            world_id: None,
-        }
-    }
-}
+// Re-export SuggestionContext from engine-dto (single source of truth)
+pub use wrldbldr_engine_dto::SuggestionContext;
 
 /// Request for a suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]

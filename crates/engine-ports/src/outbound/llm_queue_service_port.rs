@@ -50,23 +50,8 @@ pub enum LlmRequestType {
     },
 }
 
-/// Context for generating suggestions
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SuggestionContext {
-    /// Type of entity (e.g., "character", "location")
-    pub entity_type: Option<String>,
-    /// Name of the entity (if already set)
-    pub entity_name: Option<String>,
-    /// World/setting name or type
-    pub world_setting: Option<String>,
-    /// Hints or keywords to guide generation
-    pub hints: Option<String>,
-    /// Additional context from other fields
-    pub additional_context: Option<String>,
-    /// World ID for per-world template resolution
-    #[serde(default)]
-    pub world_id: Option<String>,
-}
+// Re-export SuggestionContext from engine-dto (single source of truth for DTO types)
+pub use wrldbldr_engine_dto::SuggestionContext;
 
 /// LLM queue item - wraps a request with queue metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
