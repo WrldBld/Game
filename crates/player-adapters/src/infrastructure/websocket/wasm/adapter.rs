@@ -25,9 +25,12 @@ use std::sync::{
 use anyhow::Result;
 use send_wrapper::SendWrapper;
 
+use wrldbldr_player_ports::inbound::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 use wrldbldr_player_ports::session_types as app;
 use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
+
+use crate::infrastructure::message_translator;
 
 use super::client::EngineClient;
 use crate::infrastructure::session_type_converters::{
@@ -344,14 +347,15 @@ impl GameConnectionPort for WasmGameConnection {
         });
     }
 
-    /// Register callback for server messages
-    fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>) {
+    /// Register callback for server events
+    fn on_message(&self, callback: Box<dyn FnMut(PlayerEvent) + Send + 'static>) {
         let cb = Rc::new(RefCell::new(callback));
         let cb_for_engine = Rc::clone(&cb);
 
         self.inner.client.set_on_message(move |msg| {
-            let value = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
-            (cb_for_engine.borrow_mut())(value);
+            // Translate wire-format ServerMessage to application-layer PlayerEvent
+            let event = message_translator::translate(msg);
+            (cb_for_engine.borrow_mut())(event);
         });
     }
 

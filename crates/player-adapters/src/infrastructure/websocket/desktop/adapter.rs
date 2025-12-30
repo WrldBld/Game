@@ -9,9 +9,12 @@ use std::sync::{
 
 use anyhow::Result;
 
+use wrldbldr_player_ports::inbound::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 use wrldbldr_player_ports::session_types as app;
 use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};
+
+use crate::infrastructure::message_translator;
 
 use super::client::EngineClient;
 use crate::infrastructure::session_type_converters::{
@@ -369,7 +372,7 @@ impl GameConnectionPort for DesktopGameConnection {
         });
     }
 
-    fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>) {
+    fn on_message(&self, callback: Box<dyn FnMut(PlayerEvent) + Send + 'static>) {
         let cb = Arc::new(tokio::sync::Mutex::new(callback));
         let cb_for_engine = Arc::clone(&cb);
         let client = self.client.clone();
@@ -377,11 +380,12 @@ impl GameConnectionPort for DesktopGameConnection {
         tokio::spawn(async move {
             client
                 .set_on_message(move |msg| {
-                    let value = serde_json::to_value(msg).unwrap_or(serde_json::Value::Null);
+                    // Translate wire-format ServerMessage to application-layer PlayerEvent
+                    let event = message_translator::translate(msg);
                     let cb_for_call = Arc::clone(&cb_for_engine);
                     tokio::spawn(async move {
                         let mut cb = cb_for_call.lock().await;
-                        (cb)(value);
+                        (cb)(event);
                     });
                 })
                 .await;

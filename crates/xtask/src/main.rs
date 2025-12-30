@@ -678,10 +678,18 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that player-ports doesn't import wrldbldr_protocol directly.
+/// Check that player-ports doesn't import wrldbldr_protocol directly (with Shared Kernel exceptions).
 ///
-/// The ports layer defines interfaces and should use domain types, not protocol types.
-/// GameConnectionPort is currently exempt as it's being refactored (Phase P2).
+/// The ports layer defines interfaces and should generally use domain types, not protocol types.
+/// However, the Shared Kernel pattern allows specific port files to use protocol types when
+/// they define the boundary between player and engine communication.
+///
+/// Shared Kernel files (whitelisted):
+/// - request_port.rs: Defines RequestPort trait using protocol RequestPayload/ResponseResult
+/// - game_connection_port.rs: WebSocket connection port uses protocol message types
+/// - mock_game_connection.rs: Testing infrastructure that mirrors the connection port
+///
+/// Any other files in player-ports should NOT use wrldbldr_protocol directly.
 fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -698,16 +706,22 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
     let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
 
+    // Shared Kernel whitelist: files that legitimately use protocol types at the boundary
+    let shared_kernel_files: HashSet<&str> = [
+        "request_port.rs",          // RequestPort trait uses RequestPayload/ResponseResult
+        "game_connection_port.rs",  // WebSocket connection uses protocol message types
+        "mock_game_connection.rs",  // Testing infrastructure mirrors connection port
+    ]
+    .into_iter()
+    .collect();
+
     let mut violations = Vec::new();
 
     for entry in walkdir_rs_files(&ports_dir)? {
         let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        // Exempt files:
-        // - game_connection_port.rs: Critical exemption - WebSocket port uses protocol types
-        //   This will be addressed in Phase P2 (refactor GameConnectionPort)
-        // - mock_game_connection.rs: Testing infrastructure that mirrors the port
-        if file_name == "game_connection_port.rs" || file_name == "mock_game_connection.rs" {
+        // Skip Shared Kernel files - they are allowed to use protocol types
+        if shared_kernel_files.contains(file_name) {
             continue;
         }
 
@@ -725,10 +739,11 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
 
             if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                 violations.push(format!(
-                    "{}:{}: uses wrldbldr_protocol - ports layer should use domain types\n    {}",
+                    "{}:{}: uses wrldbldr_protocol - only Shared Kernel files may use protocol types\n    {}\n    (Shared Kernel files: {})",
                     entry.display(),
                     line_idx + 1,
-                    trimmed
+                    trimmed,
+                    shared_kernel_files.iter().copied().collect::<Vec<_>>().join(", ")
                 ));
                 break; // One violation per file is enough
             }
@@ -736,16 +751,17 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        // For now, just report violations without failing the build
         eprintln!(
             "Player-ports protocol isolation violations ({} files):",
             violations.len()
         );
+        eprintln!("  Shared Kernel pattern: Only designated boundary files may use protocol types.");
+        eprintln!("  Whitelisted files: request_port.rs, game_connection_port.rs, mock_game_connection.rs");
+        eprintln!();
         for v in &violations {
             eprintln!("  - {v}");
         }
-        eprintln!("\nNote: GameConnectionPort refactoring is tracked as Phase P2.");
-        // Uncomment to enforce: anyhow::bail!("arch-check failed: player-ports imports protocol types");
+        anyhow::bail!("arch-check failed: player-ports imports protocol types in non-Shared-Kernel files");
     }
 
     Ok(())

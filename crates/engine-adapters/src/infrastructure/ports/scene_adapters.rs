@@ -25,7 +25,6 @@ use wrldbldr_engine_ports::inbound::{
     InteractionServicePort as InboundInteractionServicePort,
     InteractionTarget,
     LocationEntity,
-    NpcMotivation,
     SceneDmActionQueuePort,
     SceneEntity,
     SceneServicePort as InboundSceneServicePort,
@@ -294,6 +293,7 @@ impl SceneDmActionQueuePort for DmActionQueuePlaceholder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_engine_ports::inbound::NpcMotivation;
 
     #[test]
     fn test_time_context_conversion() {

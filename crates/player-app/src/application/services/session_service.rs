@@ -5,25 +5,19 @@
 //! - Sending JoinSession messages
 //! - Processing server messages and updating application state
 //!
-//! # Protocol Dependencies
+//! # Event Types
 //!
-//! This service uses `ServerMessage` from the protocol crate. This is intentional
-//! and follows the same pattern as `RequestPayload`/`ResponseResult`:
-//!
-//! - `ServerMessage` is the wire format for server-to-client communication
-//! - It's analogous to `RequestPayload` for client-to-server communication
-//! - The translation to app-layer `PlayerEvent` happens in the adapters layer
-//!   via `player-adapters::infrastructure::message_translator`
-//!
-//! The presentation layer (player-ui) can use the translator when processing
-//! these events if it needs domain-friendly types.
+//! This service emits `PlayerEvent` (from player-ports) which is the application-layer
+//! representation of server events. The translation from wire format (`ServerMessage`)
+//! to `PlayerEvent` happens in the adapters layer, keeping this service focused on
+//! session orchestration without protocol dependencies.
 
 use std::sync::Arc;
 
 use anyhow::Result;
 
+use wrldbldr_player_ports::inbound::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
-use wrldbldr_protocol::ServerMessage;
 
 use crate::application::dto::{AppConnectionStatus, ParticipantRole};
 use futures_channel::mpsc;
@@ -47,11 +41,11 @@ pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnect
 pub enum SessionEvent {
     /// Connection state changed (uses port type)
     StateChanged(PortConnectionState),
-    /// Server message received (wire format)
+    /// Server event received (application-layer type)
     ///
-    /// NOTE: This contains protocol ServerMessage, which should be translated
-    /// to PlayerEvent by the presentation layer using player-adapters' translator.
-    MessageReceived(ServerMessage),
+    /// The translation from wire format (ServerMessage) to PlayerEvent
+    /// is performed by the adapters layer before delivery.
+    MessageReceived(PlayerEvent),
 }
 
 /// Session service for managing Engine connection (cross-platform).
@@ -95,18 +89,11 @@ impl SessionService {
             }));
         }
 
-        // Parse and forward server messages
+        // Forward server events (already translated by adapters layer)
         {
             let tx = tx.clone();
-            self.connection.on_message(Box::new(move |value| {
-                match serde_json::from_value::<ServerMessage>(value) {
-                    Ok(message) => {
-                        let _ = tx.unbounded_send(SessionEvent::MessageReceived(message));
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to parse server message JSON: {}", e);
-                    }
-                }
+            self.connection.on_message(Box::new(move |event| {
+                let _ = tx.unbounded_send(SessionEvent::MessageReceived(event));
             }));
         }
 

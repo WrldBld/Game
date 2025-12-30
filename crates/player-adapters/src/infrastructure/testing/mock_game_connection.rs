@@ -9,6 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
+use wrldbldr_player_ports::inbound::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState, GameConnectionPort};
 use wrldbldr_player_ports::session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
@@ -58,7 +59,7 @@ struct State {
     sent_rolls: Vec<(String, i32)>,
 
     on_state_change: Option<Box<dyn FnMut(ConnectionState) + Send + 'static>>,
-    on_message: Option<Box<dyn FnMut(serde_json::Value) + Send + 'static>>,
+    on_message: Option<Box<dyn FnMut(PlayerEvent) + Send + 'static>>,
 }
 
 impl Default for State {
@@ -105,10 +106,11 @@ impl MockGameConnectionPort {
         }
     }
 
-    pub fn emit_message(&self, value: serde_json::Value) {
+    /// Emit a PlayerEvent to the registered callback
+    pub fn emit_event(&self, event: PlayerEvent) {
         let mut s = self.state.lock().unwrap();
         if let Some(cb) = s.on_message.as_mut() {
-            cb(value);
+            cb(event);
         }
     }
 
@@ -339,7 +341,7 @@ impl GameConnectionPort for MockGameConnectionPort {
         s.on_state_change = Some(callback);
     }
 
-    fn on_message(&self, callback: Box<dyn FnMut(serde_json::Value) + Send + 'static>) {
+    fn on_message(&self, callback: Box<dyn FnMut(PlayerEvent) + Send + 'static>) {
         let mut s = self.state.lock().unwrap();
         s.on_message = Some(callback);
     }

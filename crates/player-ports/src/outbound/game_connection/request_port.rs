@@ -3,10 +3,24 @@
 //! This trait defines operations for sending requests to the server
 //! and awaiting responses, including health checks.
 //!
+//! # Shared Kernel Pattern
+//!
+//! This port uses protocol types (`RequestPayload`, `ResponseResult`, `RequestError`)
+//! directly because they form a **Shared Kernel** - types that must be identical
+//! on both Engine and Player sides for correct WebSocket communication.
+//!
+//! This is distinct from domain types (which each side defines independently).
+//! The protocol crate exists specifically to share wire-format types across
+//! the engine-player boundary.
+//!
+//! See `docs/architecture/hexagonal-architecture.md` for full explanation.
+//!
 //! Note: The async request methods use `async_trait` instead of returning
 //! `Pin<Box<dyn Future>>` for better mockall compatibility.
 
 use async_trait::async_trait;
+
+// Shared Kernel: Protocol types used directly for wire-format compatibility
 use wrldbldr_protocol::{RequestError, RequestPayload, ResponseResult};
 
 use crate::outbound::GameConnectionPort;

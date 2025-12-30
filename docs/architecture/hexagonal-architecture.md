@@ -4,6 +4,70 @@
 
 WrldBldr uses hexagonal (ports & adapters) architecture to separate business logic from external concerns. This enables testing, flexibility, and clean dependencies.
 
+The architecture also incorporates a **Shared Kernel** pattern for the Engine-Player communication boundary, where the `protocol` crate defines wire-format types that must be identical on both sides.
+
+---
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              WrldBldr Architecture                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           SHARED KERNEL                                     │ │
+│  │                                                                             │ │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
+│  │  │  protocol (wrldbldr-protocol)                                        │   │ │
+│  │  │  ├── Wire-format DTOs (REST + WebSocket)                             │   │ │
+│  │  │  ├── ClientMessage / ServerMessage enums                             │   │ │
+│  │  │  ├── RequestPayload / ResponseResult                                 │   │ │
+│  │  │  └── No business logic - pure serialization types                    │   │ │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
+│  └────────────────────────────────────────────────────────────────────────────┘ │
+│                                      │                                           │
+│                    ┌─────────────────┴─────────────────┐                        │
+│                    │                                   │                        │
+│                    ▼                                   ▼                        │
+│  ┌─────────────────────────────────┐   ┌─────────────────────────────────┐     │
+│  │         ENGINE SIDE              │   │         PLAYER SIDE             │     │
+│  ├─────────────────────────────────┤   ├─────────────────────────────────┤     │
+│  │                                 │   │                                 │     │
+│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
+│  │  │   domain (innermost)      │  │   │  │   (shares domain crate)   │  │     │
+│  │  │   Pure business entities  │  │   │  │                           │  │     │
+│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │              │                  │   │              │                  │     │
+│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
+│  │  │   engine-ports            │  │   │  │   player-ports            │  │     │
+│  │  │   Port trait definitions  │  │   │  │   Port trait definitions  │  │     │
+│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │              │                  │   │              │                  │     │
+│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
+│  │  │   engine-app              │  │   │  │   player-app              │  │     │
+│  │  │   Use cases & services    │  │   │  │   Use cases & services    │  │     │
+│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │              │                  │   │              │                  │     │
+│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
+│  │  │   engine-adapters         │  │   │  │   player-adapters         │  │     │
+│  │  │   Neo4j, HTTP, WebSocket  │  │   │  │   HTTP/WS clients, UI     │  │     │
+│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │              │                  │   │              │                  │     │
+│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
+│  │  │   engine-runner           │  │   │  │   player-runner           │  │     │
+│  │  │   Composition root        │  │   │  │   Composition root        │  │     │
+│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │                                 │   │              │                  │     │
+│  └─────────────────────────────────┘   │  ┌───────────────────────────┐  │     │
+│                                        │  │   player-ui               │  │     │
+│                                        │  │   Dioxus presentation     │  │     │
+│                                        │  └───────────────────────────┘  │     │
+│                                        └─────────────────────────────────┘     │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Layer Structure
@@ -16,144 +80,279 @@ WrldBldr uses hexagonal (ports & adapters) architecture to separate business log
 │   Domain Layer (innermost)                                                  │
 │   ├── Contains: Entities, Value Objects, Domain Services                    │
 │   ├── Depends on: NOTHING external                                          │
-│   └── Rule: Pure Rust, no framework dependencies                            │
+│   ├── Rule: Pure Rust, no framework dependencies                            │
+│   └── Purity: No I/O (rand, Utc::now, env vars) - use injected ports        │
+│                                                                             │
+│   Ports Layer                                                               │
+│   ├── Contains: Trait definitions (inbound + outbound)                      │
+│   ├── Depends on: Domain only                                               │
+│   ├── Exception: May use Shared Kernel (protocol) for wire-format types     │
+│   └── Rule: Interfaces only, no implementations                             │
 │                                                                             │
 │   Application Layer                                                         │
-│   ├── Contains: Services, Use Cases, DTOs, Ports (traits)                   │
-│   ├── Depends on: Domain only                                               │
+│   ├── Contains: Services, Use Cases, DTOs                                   │
+│   ├── Depends on: Domain, Ports                                             │
 │   └── Rule: Orchestrates domain logic via ports                             │
 │                                                                             │
-│   Infrastructure Layer (outermost)                                          │
-│   ├── Contains: Repositories, External clients, HTTP/WS                     │
-│   ├── Depends on: Application (implements ports)                            │
-│   └── Rule: Adapts external systems to ports                                │
+│   Adapters Layer (outermost)                                                │
+│   ├── Contains: Repositories, External clients, HTTP/WS handlers            │
+│   ├── Depends on: Application, Ports, Protocol                              │
+│   └── Rule: Implements ports, translates external types                     │
+│                                                                             │
+│   Runner Layer                                                              │
+│   ├── Contains: main(), composition root, CLI                               │
+│   ├── Depends on: All layers (wires everything together)                    │
+│   └── Rule: Only place where concrete types are constructed                 │
 │                                                                             │
 │   Presentation Layer (Player only)                                          │
-│   ├── Contains: UI Components, Views, State                                 │
-│   ├── Depends on: Application services                                      │
-│   └── Rule: Calls services, never repositories directly                     │
+│   ├── Contains: UI Components, Views, Reactive State                        │
+│   ├── Depends on: Application services (via signals)                        │
+│   └── Rule: Calls services, never adapters directly                         │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Directory Structure (crate-based)
+## Shared Kernel Pattern
+
+### What is the Shared Kernel?
+
+The `protocol` crate serves as a **Shared Kernel** - a bounded context that both Engine and Player must share for correct WebSocket communication.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      SHARED KERNEL                               │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  wrldbldr-protocol                                       │   │
+│  │                                                         │   │
+│  │  Wire-Format Types (must be identical on both sides):   │   │
+│  │  ├── ClientMessage (100+ variants)                      │   │
+│  │  ├── ServerMessage (65+ variants)                       │   │
+│  │  ├── RequestPayload (95+ variants)                      │   │
+│  │  ├── ResponseResult (Success/Error)                     │   │
+│  │  └── RequestError (client-side errors)                  │   │
+│  │                                                         │   │
+│  │  Characteristics:                                       │   │
+│  │  ├── Minimal dependencies (serde, uuid, chrono)         │   │
+│  │  ├── No business logic                                  │   │
+│  │  ├── WASM compatible                                    │   │
+│  │  └── Serialization-focused                              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Why Not Duplicate These Types?
+
+1. **Correctness**: Both sides must serialize/deserialize identically
+2. **Maintainability**: Changes must be synchronized - a single source ensures this
+3. **Scale**: 95+ `RequestPayload` variants would mean ~1100 lines of duplicate code
+4. **No semantic difference**: Unlike domain types, wire-format types have no independent meaning per side
+
+### Shared Kernel vs Domain Types
+
+| Aspect | Domain Types | Shared Kernel (Protocol) |
+|--------|--------------|--------------------------|
+| **Purpose** | Business semantics | Wire format |
+| **Identity** | Independent per side | Must be identical |
+| **Evolution** | Can evolve independently | Must evolve in lockstep |
+| **Location** | Domain crate | Protocol crate |
+| **Example** | `Character`, `Location` | `RequestPayload`, `ServerMessage` |
+
+### Files Approved for Shared Kernel Usage
+
+These files in `player-ports` are approved to use protocol types directly:
+
+| File | Protocol Types Used | Reason |
+|------|---------------------|--------|
+| `request_port.rs` | `RequestPayload`, `ResponseResult`, `RequestError` | Defines WebSocket request/response interface |
+| `game_connection_port.rs` | Same as above | Parent trait for WebSocket connection |
+| `mock_game_connection.rs` | Same as above | Testing infrastructure |
+
+All other ports should define their own types and have adapters translate from protocol types.
+
+---
+
+## Directory Structure (Crate-Based)
 
 Hexagonal boundaries are enforced by **crate dependencies**.
 
 ### Core
-- `crates/domain` (`wrldbldr-domain`): core domain types + typed IDs (aim: serde-free)
-- `crates/protocol` (`wrldbldr-protocol`): wire DTOs for HTTP/WS (serialization-only)
+- `crates/domain` (`wrldbldr-domain`): Core business entities, value objects, typed IDs
+- `crates/protocol` (`wrldbldr-protocol`): **Shared Kernel** - wire-format DTOs
 
-### Ports
-- `crates/engine-ports` (`wrldbldr-engine-ports`): all engine port traits (inbound + outbound)
-- `crates/player-ports` (`wrldbldr-player-ports`): all player port traits (inbound + outbound)
+### Engine Side
+| Crate | Layer | Purpose |
+|-------|-------|---------|
+| `engine-ports` | Ports | All engine port traits (inbound + outbound) |
+| `engine-app` | Application | Services, use cases, app-layer DTOs |
+| `engine-adapters` | Infrastructure | Neo4j, HTTP handlers, WebSocket server, LLM clients |
+| `engine-runner` | Composition | Entry point, wiring, CLI |
 
-### Engine
-- `crates/engine-app` (`wrldbldr-engine-app`): application services + app-layer DTOs
-- `crates/engine-adapters` (`wrldbldr-engine-adapters`): infrastructure (Axum routes, WS server, persistence, LLM clients, queues)
-- `crates/engine-runner` (`wrldbldr-engine-runner`): composition root; produces `wrldbldr-engine` binary
-
-### Player
-- `crates/player-app` (`wrldbldr-player-app`): application services
-- `crates/player-adapters` (`wrldbldr-player-adapters`): infrastructure (HTTP/WS clients, platform/storage adapters)
-- `crates/player-ui` (`wrldbldr-player-ui`): Dioxus presentation (no adapter construction)
-- `crates/player-runner` (`wrldbldr-player-runner`): composition root; produces `wrldbldr-player` binary
+### Player Side
+| Crate | Layer | Purpose |
+|-------|-------|---------|
+| `player-ports` | Ports | All player port traits (+ Shared Kernel exceptions) |
+| `player-app` | Application | Services, use cases |
+| `player-adapters` | Infrastructure | HTTP/WS clients, platform adapters, message translation |
+| `player-ui` | Presentation | Dioxus components, views, reactive state |
+| `player-runner` | Composition | Entry point, wiring |
 
 ---
 
-## Import Rules (crate boundaries)
+## Import Rules (Crate Boundaries)
 
 ### NEVER ALLOWED
 
-- App crates importing adapter crates (e.g. `wrldbldr-engine-app` depending on `wrldbldr-engine-adapters`).
-- Non-owner crates re-exporting/aliasing owning crates:
-
 ```rust
-// Re-export shim (forbidden)
-pub use wrldbldr_protocol::GameTime;
+// App importing adapters (violates dependency direction)
+use wrldbldr_engine_adapters::*;  // in engine-app - FORBIDDEN
 
-// Crate alias shim (forbidden)
-use wrldbldr_protocol as messages;
-extern crate wrldbldr_protocol as messages;
+// Re-export shim (hides ownership)
+pub use wrldbldr_protocol::GameTime;  // FORBIDDEN
+
+// Crate alias shim
+use wrldbldr_protocol as messages;  // FORBIDDEN
 ```
 
-Rationale: keep a single canonical import path for every type.
+### ALLOWED
 
-### ALWAYS REQUIRED
+```rust
+// Ports using Shared Kernel (documented exception)
+use wrldbldr_protocol::{RequestPayload, ResponseResult};  // in request_port.rs - OK
 
-- Application code depends on **port traits**, not concrete adapters.
-- Adapters implement those port traits.
+// Adapters using protocol for translation
+use wrldbldr_protocol::ServerMessage;  // in adapters - OK
+
+// App using ports
+use wrldbldr_engine_ports::outbound::BroadcastPort;  // in app - OK
+```
 
 ---
 
-## Port Pattern (crate based)
+## Domain Purity
 
-### Defining a Port (ports crate)
+The domain layer is **pure** - no I/O operations:
+
+| Forbidden in Domain | Use Instead |
+|---------------------|-------------|
+| `rand::thread_rng()` | Inject `RandomPort` |
+| `Utc::now()` | Inject `ClockPort` |
+| `std::env::var()` | Inject `EnvPort` |
+| File I/O | Inject repository port |
+| Network calls | Inject service port |
+
+This ensures:
+- **Testability**: All behavior is deterministic when ports are mocked
+- **Clarity**: Domain logic is pure business rules
+- **Flexibility**: I/O strategies can change without touching domain
+
+---
+
+## Port Patterns
+
+### Interface Segregation (ISP)
+
+Large "god traits" are split into focused sub-traits:
 
 ```rust
-// crates/engine-ports/src/outbound/repository_port.rs
-
-#[async_trait]
+// Before (god trait - 42 methods)
 pub trait CharacterRepositoryPort: Send + Sync {
-    async fn get(&self, id: CharacterId) -> Result<Option<Character>>;
-    async fn create(&self, character: &Character) -> Result<()>;
-    async fn update(&self, character: &Character) -> Result<()>;
-    async fn delete(&self, id: CharacterId) -> Result<()>;
+    async fn create(&self, ...) -> Result<()>;
+    async fn get(&self, ...) -> Result<Option<Character>>;
+    // ... 40 more methods
+}
+
+// After (ISP sub-traits)
+pub trait CharacterCrudPort: Send + Sync {
+    async fn create(&self, ...) -> Result<()>;
+    async fn get(&self, ...) -> Result<Option<Character>>;
+    // 6 focused methods
+}
+
+pub trait CharacterWantPort: Send + Sync {
+    async fn create_want(&self, ...) -> Result<()>;
+    // 7 focused methods
+}
+
+// Services depend on minimal interface
+pub struct MyService {
+    crud: Arc<dyn CharacterCrudPort>,  // Only what's needed
 }
 ```
 
-### Implementing a Port (adapters crate)
+### Outbound vs Inbound Ports
 
-```rust
-// crates/engine-adapters/src/infrastructure/persistence/character_repository.rs
-
-pub struct Neo4jCharacterRepository { /* ... */ }
-
-#[async_trait]
-impl CharacterRepositoryPort for Neo4jCharacterRepository {
-    async fn get(&self, id: CharacterId) -> Result<Option<Character>> {
-        // Neo4j query implementation
-    }
-    // ...
-}
 ```
-
-### Using a Port (app crate)
-
-```rust
-// crates/engine-app/src/application/services/character_service.rs
-
-pub struct CharacterService<R: CharacterRepositoryPort> {
-    character_repo: Arc<R>,
-}
+┌─────────────────────────────────────────────────────────────────┐
+│                       PORT DIRECTIONS                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  INBOUND PORTS (Driving)                                        │
+│  ├── Define: What the app offers to external actors             │
+│  ├── Called by: Adapters (HTTP handlers, WebSocket handlers)    │
+│  ├── Example: ChallengeUseCasePort, MovementUseCasePort         │
+│  └── Location: {crate}-ports/src/inbound/                       │
+│                                                                 │
+│  OUTBOUND PORTS (Driven)                                        │
+│  ├── Define: What the app needs from external systems           │
+│  ├── Implemented by: Adapters (Neo4j repos, HTTP clients)       │
+│  ├── Example: CharacterCrudPort, BroadcastPort, ClockPort       │
+│  └── Location: {crate}-ports/src/outbound/                      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
----
+## Composition Root
 
-## Architecture Compliance
-
-### Violation Approval Process
-
-1. **Propose in Plan**: Document the violation, explain why, describe trade-offs
-2. **Await Approval**: User must explicitly approve
-3. **Mark in Code** (and prefer crate-level fixes over module-level exceptions):
+All dependency injection happens in the **runner** crate:
 
 ```rust
-// ARCHITECTURE VIOLATION: [APPROVED YYYY-MM-DD]
-// Reason: <explanation>
-// Mitigation: <how we limit the damage>
-// Approved by: <user>
+// crates/engine-runner/src/composition/app_state.rs
+
+pub async fn build_app_state() -> AppState {
+    // Create adapters (concrete types)
+    let neo4j = Neo4jCharacterRepository::new(pool.clone());
+    let clock = SystemClock::new();
+    let broadcast = WebSocketBroadcastAdapter::new(conn_manager.clone());
+    
+    // Wire into services (as trait objects)
+    let character_service = CharacterService::new(
+        Arc::new(neo4j) as Arc<dyn CharacterCrudPort>,
+        Arc::new(clock) as Arc<dyn ClockPort>,
+    );
+    
+    // Bundle into app state
+    AppState { character_service, ... }
+}
 ```
 
-Note: because this repo enforces architecture primarily via crate dependencies, most violations should be solvable by moving code to the correct crate rather than adding an exception.
+**Only the runner knows about concrete types.** All other layers work with trait objects.
 
-### Currently Accepted Violations
+---
 
-None tracked in this document. If a violation is required, document it in `docs/progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` and keep the owning crate boundaries intact.
+## Architecture Enforcement
+
+### Automated Checks
+
+Run `cargo xtask arch-check` to verify:
+- No forbidden imports (adapters in app layer)
+- No protocol imports outside Shared Kernel exceptions
+- File size limits (500 lines max)
+- Crate dependency direction
+
+### Shared Kernel Whitelist
+
+The arch-check maintains a whitelist of files approved for Shared Kernel usage:
+- `request_port.rs`
+- `game_connection_port.rs`
+- `mock_game_connection.rs`
+
+Any new file using protocol types in ports layer will fail arch-check.
 
 ---
 
@@ -162,32 +361,31 @@ None tracked in this document. If a violation is required, document it in `docs/
 ### Unit Tests (Domain/Application)
 
 ```rust
-// Use mock implementations of ports
-struct MockCharacterRepo {
-    characters: Vec<Character>,
-}
-
-impl CharacterRepositoryPort for MockCharacterRepo {
-    // In-memory implementation
-}
-
+// Mock ports for deterministic testing
 #[test]
-fn test_character_service() {
-    let mock_repo = MockCharacterRepo::new();
-    let service = CharacterService::new(Arc::new(mock_repo));
-    // Test business logic without database
+fn test_dice_roll() {
+    let fixed_rng = FixedRandomPort::new(vec![15]);  // Always rolls 15
+    let formula = DiceFormula::parse("2d6+3")?;
+    
+    let result = formula.roll(|min, max| fixed_rng.gen_range(min, max));
+    assert_eq!(result, 18);  // 15 + 3
 }
 ```
 
 ### Integration Tests (Infrastructure)
 
 ```rust
-// Test with real database
 #[tokio::test]
-async fn test_neo4j_repository() {
+async fn test_neo4j_character_crud() {
     let pool = setup_test_database().await;
     let repo = Neo4jCharacterRepository::new(pool);
-    // Test actual persistence
+    
+    // Test with real database
+    let character = Character::new(...);
+    repo.create(&character).await.unwrap();
+    
+    let loaded = repo.get(character.id).await.unwrap();
+    assert_eq!(loaded, Some(character));
 }
 ```
 
@@ -196,5 +394,7 @@ async fn test_neo4j_repository() {
 ## Related Documents
 
 - [Neo4j Schema](./neo4j-schema.md) - Database structure
-- [WebSocket Protocol](./websocket-protocol.md) - Message types
-- [Queue System](./queue-system.md) - Queue architecture
+- [WebSocket Protocol](./websocket-protocol.md) - Message types and wire format
+- [Queue System](./queue-system.md) - Async job processing
+- [CLAUDE.md](/CLAUDE.md) - AI assistant guidelines
+- [AGENTS.md](/AGENTS.md) - Detailed crate-by-crate guidance
