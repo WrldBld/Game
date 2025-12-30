@@ -7,6 +7,7 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::RuleSystemConfig;
+use chrono::Utc;
 use wrldbldr_domain::{ActId, GameTime, WorldId};
 use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
 
@@ -204,15 +205,15 @@ fn row_to_world(row: Row) -> Result<World> {
     let updated_at =
         chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
 
-    // Parse game time or use default
+    // Parse game time or create new with current time (adapter layer can use Utc::now())
     let mut game_time = if let Some(ref gt_str) = game_time_str {
         if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(gt_str) {
             GameTime::starting_at(dt.with_timezone(&chrono::Utc))
         } else {
-            GameTime::default()
+            GameTime::new(Utc::now())
         }
     } else {
-        GameTime::default()
+        GameTime::new(Utc::now())
     };
     game_time.set_paused(game_time_paused);
 

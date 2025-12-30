@@ -33,11 +33,8 @@ pub struct GameTime {
     is_paused: bool,
 }
 
-impl Default for GameTime {
-    fn default() -> Self {
-        Self::new(Utc::now())
-    }
-}
+// NOTE: Default impl removed for hexagonal architecture purity.
+// Domain layer should not call Utc::now(). Callers should use GameTime::new(clock.now()).
 
 impl GameTime {
     pub fn new(now: DateTime<Utc>) -> Self {

@@ -555,7 +555,9 @@ mod tests {
 
     #[test]
     fn test_conversation_entry_to_turn_player() {
-        let entry = ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into());
+        use chrono::Utc;
+        let entry =
+            ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), Utc::now());
         let turn = PromptContextServiceImpl::conversation_entry_to_turn(entry);
         assert_eq!(turn.speaker, "Hero");
         assert_eq!(turn.text, "Hello!");
@@ -563,7 +565,13 @@ mod tests {
 
     #[test]
     fn test_conversation_entry_to_turn_npc() {
-        let entry = ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into());
+        use chrono::Utc;
+        let entry = ConversationEntry::npc(
+            "npc1".into(),
+            "Merchant".into(),
+            "Welcome!".into(),
+            Utc::now(),
+        );
         let turn = PromptContextServiceImpl::conversation_entry_to_turn(entry);
         assert_eq!(turn.speaker, "Merchant");
         assert_eq!(turn.text, "Welcome!");
@@ -571,7 +579,8 @@ mod tests {
 
     #[test]
     fn test_conversation_entry_to_turn_system() {
-        let entry = ConversationEntry::system("Game saved.".into());
+        use chrono::Utc;
+        let entry = ConversationEntry::system("Game saved.".into(), Utc::now());
         let turn = PromptContextServiceImpl::conversation_entry_to_turn(entry);
         assert_eq!(turn.speaker, "System");
         assert_eq!(turn.text, "Game saved.");
@@ -579,7 +588,8 @@ mod tests {
 
     #[test]
     fn test_conversation_entry_to_turn_dm() {
-        let entry = ConversationEntry::dm("Roll initiative.".into());
+        use chrono::Utc;
+        let entry = ConversationEntry::dm("Roll initiative.".into(), Utc::now());
         let turn = PromptContextServiceImpl::conversation_entry_to_turn(entry);
         assert_eq!(turn.speaker, "DM");
         assert_eq!(turn.text, "Roll initiative.");

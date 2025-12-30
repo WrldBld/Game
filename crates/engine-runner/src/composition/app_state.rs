@@ -1017,6 +1017,7 @@ pub async fn new_app_state(
         staging_state_adapter.clone(),
         broadcast.clone(),
         scene_builder.clone(),
+        clock.clone(),
     ));
 
     // Create inventory use case
@@ -1036,6 +1037,7 @@ pub async fn new_app_state(
         location_repo.clone(),
         broadcast.clone(),
         scene_builder,
+        clock.clone(),
     ));
 
     // Create player action use case

@@ -57,10 +57,10 @@ use tracing::{debug, info, warn};
 
 use async_trait::async_trait;
 use wrldbldr_domain::entities::{Location, Region};
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
+    BroadcastPort, ClockPort, GameEvent, LocationRepositoryPort, PlayerCharacterRepositoryPort,
     RegionRepositoryPort, StagingPendingEvent, StagingRequiredEvent, WaitingPcData,
 };
 
@@ -92,6 +92,7 @@ pub struct MovementUseCase {
     staging_state: Arc<dyn StagingStatePort>,
     broadcast: Arc<dyn BroadcastPort>,
     scene_builder: Arc<SceneBuilder>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl MovementUseCase {
@@ -104,6 +105,7 @@ impl MovementUseCase {
         staging_state: Arc<dyn StagingStatePort>,
         broadcast: Arc<dyn BroadcastPort>,
         scene_builder: Arc<SceneBuilder>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             pc_repo,
@@ -113,6 +115,7 @@ impl MovementUseCase {
             staging_state,
             broadcast,
             scene_builder,
+            clock,
         }
     }
 
@@ -335,11 +338,11 @@ impl MovementUseCase {
         region: &Region,
         location: &Location,
     ) -> Result<MovementResult, MovementError> {
-        // Get game time
+        // Get game time (fall back to current time if not set for this world)
         let game_time = self
             .staging_state
             .get_game_time(&ctx.world_id)
-            .unwrap_or_default();
+            .unwrap_or_else(|| GameTime::new(self.clock.now()));
 
         // Check for existing valid staging
         match self

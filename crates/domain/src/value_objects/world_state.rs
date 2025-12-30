@@ -16,33 +16,37 @@ pub struct ConversationEntry {
 }
 
 impl ConversationEntry {
-    /// Create a new conversation entry with the current timestamp.
-    pub fn new(speaker: Speaker, message: String) -> Self {
+    /// Create a new conversation entry with the specified timestamp.
+    ///
+    /// # Hexagonal Architecture Note
+    /// Timestamp is injected rather than using `Utc::now()` to keep domain pure.
+    /// Call sites should use `clock_port.now()` to get the current time.
+    pub fn new(speaker: Speaker, message: String, now: DateTime<Utc>) -> Self {
         Self {
-            timestamp: Utc::now(),
+            timestamp: now,
             speaker,
             message,
         }
     }
 
     /// Create a player conversation entry.
-    pub fn player(pc_id: String, pc_name: String, message: String) -> Self {
-        Self::new(Speaker::Player { pc_id, pc_name }, message)
+    pub fn player(pc_id: String, pc_name: String, message: String, now: DateTime<Utc>) -> Self {
+        Self::new(Speaker::Player { pc_id, pc_name }, message, now)
     }
 
     /// Create an NPC conversation entry.
-    pub fn npc(npc_id: String, npc_name: String, message: String) -> Self {
-        Self::new(Speaker::Npc { npc_id, npc_name }, message)
+    pub fn npc(npc_id: String, npc_name: String, message: String, now: DateTime<Utc>) -> Self {
+        Self::new(Speaker::Npc { npc_id, npc_name }, message, now)
     }
 
     /// Create a system message entry.
-    pub fn system(message: String) -> Self {
-        Self::new(Speaker::System, message)
+    pub fn system(message: String, now: DateTime<Utc>) -> Self {
+        Self::new(Speaker::System, message, now)
     }
 
     /// Create a DM message entry.
-    pub fn dm(message: String) -> Self {
-        Self::new(Speaker::Dm, message)
+    pub fn dm(message: String, now: DateTime<Utc>) -> Self {
+        Self::new(Speaker::Dm, message, now)
     }
 }
 
@@ -85,12 +89,21 @@ pub struct PendingApprovalItem {
 }
 
 impl PendingApprovalItem {
-    /// Create a new pending approval item with the current timestamp.
-    pub fn new(approval_id: String, approval_type: ApprovalType, data: serde_json::Value) -> Self {
+    /// Create a new pending approval item with the specified timestamp.
+    ///
+    /// # Hexagonal Architecture Note
+    /// Timestamp is injected rather than using `Utc::now()` to keep domain pure.
+    /// Call sites should use `clock_port.now()` to get the current time.
+    pub fn new(
+        approval_id: String,
+        approval_type: ApprovalType,
+        data: serde_json::Value,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             approval_id,
             approval_type,
-            created_at: Utc::now(),
+            created_at: now,
             data,
         }
     }
@@ -116,16 +129,20 @@ mod tests {
 
     #[test]
     fn test_conversation_entry_constructors() {
-        let player = ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into());
+        let now = Utc::now();
+
+        let player =
+            ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), now);
         assert!(matches!(player.speaker, Speaker::Player { .. }));
 
-        let npc = ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into());
+        let npc =
+            ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into(), now);
         assert!(matches!(npc.speaker, Speaker::Npc { .. }));
 
-        let system = ConversationEntry::system("Game saved.".into());
+        let system = ConversationEntry::system("Game saved.".into(), now);
         assert!(matches!(system.speaker, Speaker::System));
 
-        let dm = ConversationEntry::dm("Roll for initiative.".into());
+        let dm = ConversationEntry::dm("Roll for initiative.".into(), now);
         assert!(matches!(dm.speaker, Speaker::Dm));
     }
 

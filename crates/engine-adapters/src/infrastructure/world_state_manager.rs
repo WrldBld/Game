@@ -194,7 +194,7 @@ impl WorldStateManager {
                 state.pending_staging_approvals.push(approval.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
+                game_time: GameTime::new(Utc::now()),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: vec![approval],
@@ -350,7 +350,7 @@ impl WorldStatePort for WorldStateManager {
                 }
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
+                game_time: GameTime::new(Utc::now()),
                 conversation_history: vec![entry],
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
@@ -391,7 +391,7 @@ impl WorldStatePort for WorldStateManager {
                 state.pending_approvals.push(item.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
+                game_time: GameTime::new(Utc::now()),
                 conversation_history: Vec::new(),
                 pending_approvals: vec![item],
                 pending_staging_approvals: Vec::new(),
@@ -436,7 +436,7 @@ impl WorldStatePort for WorldStateManager {
                 state.current_scene_id = scene_id.clone();
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
+                game_time: GameTime::new(Utc::now()),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
@@ -460,7 +460,7 @@ impl WorldStatePort for WorldStateManager {
                 state.directorial_context = Some(notes.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::default(),
+                game_time: GameTime::new(Utc::now()),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),

@@ -15,11 +15,11 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use wrldbldr_domain::entities::StagedNpc;
-use wrldbldr_domain::{CharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, GameTime, WorldId};
 use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterCrudPort, GameEvent, LocationRepositoryPort, NpcPresenceData,
-    RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
+    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationRepositoryPort,
+    NpcPresenceData, RegionRepositoryPort, StagingReadyEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
@@ -53,6 +53,7 @@ pub struct StagingApprovalUseCase {
     location_repo: Arc<dyn LocationRepositoryPort>,
     broadcast: Arc<dyn BroadcastPort>,
     scene_builder: Arc<SceneBuilder>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl StagingApprovalUseCase {
@@ -65,6 +66,7 @@ impl StagingApprovalUseCase {
         location_repo: Arc<dyn LocationRepositoryPort>,
         broadcast: Arc<dyn BroadcastPort>,
         scene_builder: Arc<SceneBuilder>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             staging_service,
@@ -74,6 +76,7 @@ impl StagingApprovalUseCase {
             location_repo,
             broadcast,
             scene_builder,
+            clock,
         }
     }
 
@@ -96,7 +99,7 @@ impl StagingApprovalUseCase {
         let game_time = self
             .staging_state
             .get_game_time(&ctx.world_id)
-            .unwrap_or_default();
+            .unwrap_or_else(|| GameTime::new(self.clock.now()));
 
         // Build approved NPC data with enriched character info
         let approved_npc_data = self
@@ -187,7 +190,7 @@ impl StagingApprovalUseCase {
         let game_time = self
             .staging_state
             .get_game_time(&ctx.world_id)
-            .unwrap_or_default();
+            .unwrap_or_else(|| GameTime::new(self.clock.now()));
 
         // Regenerate suggestions
         let new_suggestions = self
@@ -245,7 +248,7 @@ impl StagingApprovalUseCase {
         let game_time = self
             .staging_state
             .get_game_time(&ctx.world_id)
-            .unwrap_or_default();
+            .unwrap_or_else(|| GameTime::new(self.clock.now()));
 
         // Build approved NPC data with character info
         let mut approved_npc_data = Vec::new();
