@@ -140,7 +140,7 @@ pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 // Repository ports - Note: CharacterRepositoryPort and ChallengeRepositoryPort have been
 // split into ISP sub-traits (see character_repository/ and challenge_repository/)
 pub use repository_port::{
-    AssetRepositoryPort, CharacterNode, EventChainRepositoryPort, FlagRepositoryPort,
+    AssetRepositoryPort, CharacterNode, ContainerInfo, EventChainRepositoryPort, FlagRepositoryPort,
     GoalRepositoryPort, InteractionRepositoryPort, ItemRepositoryPort, LocationRepositoryPort,
     ObservationRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
     RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,

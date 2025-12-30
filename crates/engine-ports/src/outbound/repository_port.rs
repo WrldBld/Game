@@ -582,10 +582,21 @@ pub trait ItemRepositoryPort: Send + Sync {
         quantity: u32,
     ) -> Result<()>;
 
-    /// Get container capacity (current count, max limit)
+    /// Get container information including capacity
     ///
-    /// Returns (current_count, Some(max)) if limited, (current_count, None) if unlimited.
-    async fn get_container_capacity(&self, container_id: ItemId) -> Result<(u32, Option<u32>)>;
+    /// Returns container info with current count, max limit, and whether it can contain items.
+    async fn get_container_info(&self, container_id: ItemId) -> Result<ContainerInfo>;
+}
+
+/// Information about a container's capacity and state
+#[derive(Debug, Clone)]
+pub struct ContainerInfo {
+    /// Whether the item can contain other items
+    pub can_contain_items: bool,
+    /// Current number of items in the container
+    pub current_count: u32,
+    /// Maximum number of items (None = unlimited)
+    pub max_limit: Option<u32>,
 }
 
 // =============================================================================

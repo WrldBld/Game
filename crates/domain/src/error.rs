@@ -36,6 +36,10 @@ pub enum DomainError {
     /// State transition not allowed
     #[error("Invalid state transition: {0}")]
     InvalidStateTransition(String),
+
+    /// Container is at capacity
+    #[error("Container full: {current}/{max} items")]
+    ContainerFull { current: u32, max: u32 },
 }
 
 impl DomainError {
@@ -70,6 +74,11 @@ impl DomainError {
     /// Create an invalid state transition error
     pub fn invalid_state_transition(msg: impl Into<String>) -> Self {
         Self::InvalidStateTransition(msg.into())
+    }
+
+    /// Create a container full error
+    pub fn container_full(current: u32, max: u32) -> Self {
+        Self::ContainerFull { current, max }
     }
 }
 
@@ -114,5 +123,12 @@ mod tests {
         let domain_err: DomainError = dice_err.into();
         assert!(matches!(domain_err, DomainError::Parse(_)));
         assert!(domain_err.to_string().contains("Empty dice formula"));
+    }
+
+    #[test]
+    fn test_container_full_error() {
+        let err = DomainError::container_full(5, 5);
+        assert!(matches!(err, DomainError::ContainerFull { .. }));
+        assert_eq!(err.to_string(), "Container full: 5/5 items");
     }
 }

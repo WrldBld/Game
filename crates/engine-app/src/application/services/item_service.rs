@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
+use wrldbldr_domain::error::DomainError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ItemRepositoryPort, ItemServicePort, PlayerCharacterRepositoryPort, RegionItemPort,
@@ -146,6 +147,21 @@ pub trait ItemService: Send + Sync {
         region_id: RegionId,
         request: CreateItemRequest,
     ) -> Result<Item>;
+
+    // -------------------------------------------------------------------------
+    // Container Operations
+    // -------------------------------------------------------------------------
+
+    /// Add an item to a container with capacity validation
+    ///
+    /// Returns DomainError::ContainerFull if the container is at capacity,
+    /// or DomainError::Constraint if the item cannot contain other items.
+    async fn add_item_to_container(
+        &self,
+        container_id: ItemId,
+        item_id: ItemId,
+        quantity: u32,
+    ) -> Result<(), DomainError>;
 }
 
 /// Default implementation of ItemService using port abstractions
@@ -377,6 +393,48 @@ impl ItemService for ItemServiceImpl {
         );
 
         Ok(item)
+    }
+
+    #[instrument(skip(self))]
+    async fn add_item_to_container(
+        &self,
+        container_id: ItemId,
+        item_id: ItemId,
+        quantity: u32,
+    ) -> Result<(), DomainError> {
+        // Get container info for validation
+        let info = self
+            .item_repository
+            .get_container_info(container_id)
+            .await
+            .map_err(|e| DomainError::constraint(format!("Failed to get container info: {}", e)))?;
+
+        // Validate container can hold items
+        if !info.can_contain_items {
+            return Err(DomainError::constraint("Item cannot contain other items"));
+        }
+
+        // Validate capacity
+        if let Some(max) = info.max_limit {
+            if info.current_count >= max {
+                return Err(DomainError::container_full(info.current_count, max));
+            }
+        }
+
+        // Add item (repository is now pure data access)
+        self.item_repository
+            .add_item_to_container(container_id, item_id, quantity)
+            .await
+            .map_err(|e| DomainError::constraint(format!("Failed to add item to container: {}", e)))?;
+
+        info!(
+            container_id = %container_id,
+            item_id = %item_id,
+            quantity = quantity,
+            "Added item to container"
+        );
+
+        Ok(())
     }
 }
 

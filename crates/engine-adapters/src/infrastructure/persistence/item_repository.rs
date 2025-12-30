@@ -12,7 +12,7 @@ use neo4rs::query;
 
 use wrldbldr_domain::entities::Item;
 use wrldbldr_domain::{ItemId, WorldId};
-use wrldbldr_engine_ports::outbound::ItemRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ContainerInfo, ItemRepositoryPort};
 
 use super::converters::row_to_item;
 use super::Neo4jConnection;
@@ -168,37 +168,7 @@ impl ItemRepositoryPort for Neo4jItemRepository {
         item_id: ItemId,
         quantity: u32,
     ) -> Result<()> {
-        // First check if the container can hold items and has capacity
-        let check_q = query(
-            "MATCH (container:Item {id: $container_id})
-            WHERE container.can_contain_items = true
-            OPTIONAL MATCH (container)-[r:CONTAINS]->(existing:Item)
-            WITH container, count(existing) as current_count
-            RETURN container.container_limit as max_limit, current_count",
-        )
-        .param("container_id", container_id.to_string());
-
-        let mut result = self.connection.graph().execute(check_q).await?;
-
-        if let Some(row) = result.next().await? {
-            let max_limit: i64 = row.get("max_limit").unwrap_or(-1);
-            let current_count: i64 = row.get("current_count")?;
-
-            // -1 means unlimited, otherwise check capacity
-            if max_limit >= 0 && current_count >= max_limit {
-                return Err(anyhow::anyhow!(
-                    "Container is full ({}/{} items)",
-                    current_count,
-                    max_limit
-                ));
-            }
-        } else {
-            return Err(anyhow::anyhow!(
-                "Container not found or cannot contain items"
-            ));
-        }
-
-        // Add the item to the container
+        // Pure data access - validation should be done by the service layer
         let add_q = query(
             "MATCH (container:Item {id: $container_id}), (item:Item {id: $item_id})
             CREATE (container)-[:CONTAINS {
@@ -284,18 +254,21 @@ impl ItemRepositoryPort for Neo4jItemRepository {
         Ok(())
     }
 
-    async fn get_container_capacity(&self, container_id: ItemId) -> Result<(u32, Option<u32>)> {
+    async fn get_container_info(&self, container_id: ItemId) -> Result<ContainerInfo> {
         let q = query(
             "MATCH (container:Item {id: $container_id})
             OPTIONAL MATCH (container)-[r:CONTAINS]->(item:Item)
             WITH container, count(item) as current_count
-            RETURN container.container_limit as max_limit, current_count",
+            RETURN container.can_contain_items as can_contain, 
+                   container.container_limit as max_limit, 
+                   current_count",
         )
         .param("container_id", container_id.to_string());
 
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
+            let can_contain: bool = row.get("can_contain").unwrap_or(false);
             let max_limit: i64 = row.get("max_limit").unwrap_or(-1);
             let current_count: i64 = row.get("current_count")?;
 
@@ -305,7 +278,11 @@ impl ItemRepositoryPort for Neo4jItemRepository {
                 Some(max_limit as u32)
             };
 
-            Ok((current_count as u32, max))
+            Ok(ContainerInfo {
+                can_contain_items: can_contain,
+                current_count: current_count as u32,
+                max_limit: max,
+            })
         } else {
             Err(anyhow::anyhow!("Container not found"))
         }

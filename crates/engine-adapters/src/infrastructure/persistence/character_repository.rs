@@ -243,20 +243,6 @@ impl Neo4jCharacterRepository {
         Ok(())
     }
 
-    /// Change a character's archetype
-    pub async fn change_archetype(
-        &self,
-        id: CharacterId,
-        new_archetype: CampbellArchetype,
-        reason: &str,
-    ) -> Result<()> {
-        if let Some(mut character) = self.get(id).await? {
-            character.change_archetype(new_archetype, reason, Utc::now());
-            self.update(&character).await?;
-        }
-        Ok(())
-    }
-
     // =========================================================================
     // Wants
     // =========================================================================
