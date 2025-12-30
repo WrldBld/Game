@@ -21,9 +21,52 @@ Phase 1 of hexagonal remediation achieved 100% compliance at the **code level** 
 - ✅ No backwards dependencies in any layer
 - ✅ arch-check passes with zero violations
 
-**Remaining Medium Priority issues**:
+**Remaining Issues (identified in 2025-12-30 review)**:
+- **C5**: Protocol → Domain dependency via From impls (CRITICAL)
+- **C6**: workflow_service_port.rs has 270 lines of impl code in ports (HIGH)
 - M2: God traits still present (7 with 15+ methods)
 - M3: God object (request_handler.rs at 3,497 lines)
+
+---
+
+## Conceptual Model Update (2025-12-30)
+
+### Terminology Change: "Shared Kernel" → "Shared Vocabulary" + "API Contract"
+
+The previous model incorrectly used DDD's "shared kernel" terminology for protocol. 
+Protocol is NOT a shared kernel (which implies shared domain logic). Instead:
+
+- **domain-types**: "Shared Vocabulary" - pure data definitions (enums, simple structs)
+- **protocol**: "API Contract" - wire format for engine↔player communication
+
+### Target Dependency Graph
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SHARED VOCABULARY (domain-types)                           │
+│  - Pure data definitions with no identity or logic          │
+│  - Depends on: serde only                                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┴───────────────────┐
+          ▼                                       ▼
+┌─────────────────────────┐          ┌─────────────────────────┐
+│  DOMAIN LAYER           │          │  API CONTRACT (protocol)│
+│  - Entities with IDs    │          │  - Wire-format DTOs     │
+│  - Business logic       │          │  - Message enums        │
+│  Depends on:            │          │  Depends on:            │
+│  - domain-types         │          │  - domain-types ONLY    │
+│  NO protocol imports    │          │  NO domain imports      │
+└─────────────────────────┘          └─────────────────────────┘
+          │                                       │
+          └───────────────────┬───────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ADAPTERS LAYER                                             │
+│  - Domain ↔ Protocol conversions (From impls)               │
+│  - Depends on: domain, protocol, ports                      │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -240,6 +283,78 @@ async fn handle_foo(state: &AppState, ...) {
 
 ---
 
+## New Critical Issues (Identified 2025-12-30)
+
+### C5: Protocol → Domain Dependency (CRITICAL)
+
+**Status**: ⏳ IN PROGRESS
+
+**Problem**: Protocol crate depends on `wrldbldr-domain` for `From<DomainEntity>` trait implementations. This:
+- Forces player WASM to compile entire domain crate
+- Violates API contract principle (protocol should only know wire format)
+- Creates tight coupling between wire format and domain internals
+
+**Current protocol→domain imports (16 From impls)**:
+- `GalleryAsset` → `GalleryAssetResponseDto`
+- `GenerationBatch` → `GenerationBatchResponseDto`
+- `NpcDispositionState` → `NpcDispositionStateDto`
+- `WorkflowConfiguration` → `WorkflowConfigExportDto`
+- `PromptMapping` ↔ `PromptMappingDto` (bidirectional)
+- `PromptMappingType` ↔ `PromptMappingTypeDto` (bidirectional)
+- `InputDefault` ↔ `InputDefaultDto` (bidirectional)
+- `InputType` ↔ `InputTypeDto` (bidirectional)
+- `WorkflowInput` → `WorkflowInputDto`
+- `WorkflowAnalysis` → `WorkflowAnalysisDto`
+- `AdHocOutcomes` (bidirectional in messages.rs)
+
+**Solution**:
+1. Unify EntityType enum in domain-types (extend from 3 to 20 variants)
+2. Move GameTime to domain-types as canonical source
+3. Update protocol imports to use domain-types for shared vocabulary
+4. Move all From<DomainEntity> implementations to engine-adapters
+5. Remove `wrldbldr-domain` dependency from protocol/Cargo.toml
+
+**Files to modify**:
+- `crates/domain-types/src/asset_types.rs` - Extend EntityType
+- `crates/domain-types/src/lib.rs` - Add new exports
+- `crates/protocol/src/responses.rs` - Re-export EntityType from domain-types
+- `crates/protocol/src/dto.rs` - Move From impls out
+- `crates/protocol/src/messages.rs` - Move AdHocOutcomes From impls out
+- `crates/protocol/Cargo.toml` - Remove domain dependency
+- `crates/engine-adapters/src/infrastructure/dto_conversions/` - New module for From impls
+
+---
+
+### C6: Implementation Code in Ports Layer (HIGH)
+
+**Status**: ⏳ PENDING
+
+**Problem**: `crates/engine-ports/src/outbound/workflow_service_port.rs` contains ~270 lines of implementation code:
+- `analyze_workflow()` - Parses ComfyUI workflow JSON
+- `validate_workflow()` - Validates workflow format
+- `prepare_workflow()` - Prepares workflow with prompts (uses `rand`)
+- `auto_detect_prompt_mappings()` - Auto-detects CLIPTextEncode nodes
+- `export_workflow_configs()` - Exports to JSON
+- `import_workflow_configs()` - Imports from JSON
+
+**Additional Issue**: `rand` dependency in engine-ports (acknowledged TODO)
+
+**Solution**:
+These functions are already duplicated in `engine-app/services/workflow_service.rs`.
+1. Delete implementation code from workflow_service_port.rs (keep only trait)
+2. Remove `rand` dependency from engine-ports/Cargo.toml
+3. Update engine-adapters/http/workflow_routes.rs to use WorkflowService directly
+4. Add engine-app dependency to engine-adapters (acceptable in hexagonal)
+
+**Files to modify**:
+- `crates/engine-ports/src/outbound/workflow_service_port.rs` - Delete lines 59-337
+- `crates/engine-ports/src/outbound/mod.rs` - Remove function re-exports
+- `crates/engine-ports/Cargo.toml` - Remove `rand` dependency
+- `crates/engine-adapters/Cargo.toml` - Add `wrldbldr-engine-app`
+- `crates/engine-adapters/src/infrastructure/http/workflow_routes.rs` - Update imports
+
+---
+
 ## Medium Priority Issues
 
 ### M1: Business Logic in Protocol Crate - COMPLETED
@@ -311,7 +426,7 @@ handlers/
 
 ## Implementation Order
 
-### Phase 2.1: Critical Dependency Fixes (6-8 hours)
+### Phase 2.1: Critical Dependency Fixes (6-8 hours) - COMPLETED
 
 1. [x] C4: Move FixedRandomPort to engine-adapters
 2. [x] C1+C2: Eliminate AdapterState - COMPLETED 2025-12-30
@@ -336,6 +451,58 @@ handlers/
 1. [x] M1: Removed unused ErrorCode::to_http_status (was dead code)
 2. [x] M1: Removed unused NpcDispositionStateDto::to_domain (was dead code)
 3. [x] M1: Kept WorldRole predicates and GameTime::from_domain (acceptable in protocol)
+
+### Phase 2.6: Protocol Architecture Fix (NEW - 8-12 hours)
+
+**Goal**: Remove `wrldbldr-domain` dependency from protocol crate
+
+1. [ ] C5.1: Unify EntityType enum in domain-types
+   - [ ] Extend EntityType from 3 to 20 variants
+   - [ ] Add `has_assets()` helper method
+   - [ ] Add `Unknown` variant for forward compatibility
+   - [ ] Use snake_case serde with camelCase aliases for backward compat
+
+2. [ ] C5.2: Move GameTime to domain-types
+   - [ ] Create `game_time.rs` in domain-types
+   - [ ] Update domain to re-export from domain-types
+   - [ ] Update protocol to re-export from domain-types
+
+3. [ ] C5.3: Update protocol to use domain-types imports
+   - [ ] Change imports in dto.rs from domain to domain-types
+   - [ ] Change imports in responses.rs (EntityType re-export)
+   - [ ] Change imports in types.rs if any
+
+4. [ ] C5.4: Create dto_conversions module in engine-adapters
+   - [ ] Create `crates/engine-adapters/src/infrastructure/dto_conversions/mod.rs`
+   - [ ] Move GalleryAsset → GalleryAssetResponseDto
+   - [ ] Move GenerationBatch → GenerationBatchResponseDto
+   - [ ] Move NpcDispositionState → NpcDispositionStateDto
+   - [ ] Move WorkflowConfiguration → WorkflowConfigExportDto
+   - [ ] Move PromptMapping ↔ PromptMappingDto
+   - [ ] Move InputDefault ↔ InputDefaultDto
+   - [ ] Move InputType ↔ InputTypeDto
+   - [ ] Move WorkflowInput → WorkflowInputDto
+   - [ ] Move WorkflowAnalysis → WorkflowAnalysisDto
+   - [ ] Move helper functions (workflow_config_to_response_dto, etc.)
+
+5. [ ] C5.5: Move AdHocOutcomes conversions from messages.rs
+
+6. [ ] C5.6: Update call sites in engine-adapters and engine-app
+   - [ ] Update asset_routes.rs
+   - [ ] Update workflow_routes.rs
+   - [ ] Update request_handler.rs
+   - [ ] Update generation_queue_projection_service.rs
+
+7. [ ] C5.7: Remove domain dependency from protocol
+   - [ ] Remove `wrldbldr-domain = { workspace = true }` from Cargo.toml
+   - [ ] Verify protocol compiles with domain-types only
+
+8. [ ] C6: Fix workflow_service_port.rs
+   - [ ] Delete implementation code (lines 59-337)
+   - [ ] Remove function re-exports from mod.rs
+   - [ ] Remove `rand` from engine-ports/Cargo.toml
+   - [ ] Add engine-app to engine-adapters dependencies
+   - [ ] Update workflow_routes.rs to use WorkflowService
 
 ### Phase 2.3: God Trait Splitting (8-12 hours)
 1. [ ] M2: Split LocationRepositoryPort (27 methods)

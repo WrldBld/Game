@@ -1,0 +1,16 @@
+[package]
+name = "wrldbldr-domain-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared vocabulary types for WrldBldr - the innermost layer with zero domain dependencies"
+
+[dependencies]
+# Serialization - required for all wire-format types
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

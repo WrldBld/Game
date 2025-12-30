@@ -30,7 +30,7 @@ use super::common::{
     parse_disposition_level, parse_event_chain_id, parse_goal_id, parse_interaction_id,
     parse_item_id, parse_location_id, parse_narrative_event_id, parse_player_character_id,
     parse_region_id, parse_relationship_id, parse_relationship_level, parse_scene_id,
-    parse_skill_id, parse_story_event_id, parse_want_id, parse_world_id,
+    parse_skill_id, parse_story_event_id, parse_want_id, parse_world_id, to_protocol_game_time,
 };
 
 use crate::application::dto::{
@@ -3010,9 +3010,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 match self.world_service.get_game_time(id).await {
-                    Ok(game_time) => ResponseResult::success(
-                        wrldbldr_protocol::GameTime::from_domain(&game_time),
-                    ),
+                    Ok(game_time) => ResponseResult::success(to_protocol_game_time(&game_time)),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }
@@ -3026,9 +3024,7 @@ impl RequestHandler for AppRequestHandler {
                     Err(e) => return e,
                 };
                 match self.world_service.advance_game_time(id, hours).await {
-                    Ok(game_time) => ResponseResult::success(
-                        wrldbldr_protocol::GameTime::from_domain(&game_time),
-                    ),
+                    Ok(game_time) => ResponseResult::success(to_protocol_game_time(&game_time)),
                     Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 }
             }

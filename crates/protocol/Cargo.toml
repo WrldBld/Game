@@ -7,7 +7,11 @@ authors.workspace = true
 description = "WrldBldr Protocol - Shared types for Engine and Player communication"
 
 [dependencies]
-# Domain types (shared enums re-exported for wire serialization)
+# Shared vocabulary types (innermost layer)
+wrldbldr-domain-types = { workspace = true }
+
+# Domain types - needed for entity-to-DTO conversions
+# TODO: Phase 3 - Move From<Domain> impls to adapters to remove this dependency
 wrldbldr-domain = { workspace = true }
 
 # Serialization (required for wire protocol)

@@ -7,6 +7,9 @@ authors.workspace = true
 description = "WrldBldr Domain - Core domain types and invariants"
 
 [dependencies]
+# Shared vocabulary types - the innermost layer
+wrldbldr-domain-types = { workspace = true }
+
 uuid = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }

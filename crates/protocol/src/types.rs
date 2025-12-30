@@ -4,13 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]
-// Re-exports stable domain types for wire serialization. Domain remains
-// the canonical source. These types have serde derives and are used
-// unchanged in protocol messages.
-// See: docs/architecture/hexagonal-architecture.md
-pub use wrldbldr_domain::entities::MonomythStage;
-pub use wrldbldr_domain::value_objects::CampbellArchetype;
+// Re-export shared vocabulary types from domain-types (innermost layer)
+// These are stable types used in wire format without modification.
+pub use wrldbldr_domain_types::CampbellArchetype;
+pub use wrldbldr_domain_types::MonomythStage;
 
 // =============================================================================
 // Session & Participant Types
@@ -123,18 +120,21 @@ pub struct NarrativeEventSuggestionInfo {
 }
 
 // =============================================================================
-// Character Archetypes - Re-exported from domain (see top of file)
+// Character Archetypes - Re-exported from domain-types (see top of file)
 // =============================================================================
 
 // =============================================================================
-// Monomyth Stages - Re-exported from domain (see top of file)
+// Monomyth Stages - Re-exported from domain-types (see top of file)
 // =============================================================================
 
 // =============================================================================
 // Game Time
 // =============================================================================
 
-/// Game time representation
+/// Game time representation for wire transfer
+///
+/// Uses simple numeric fields for efficient JSON serialization.
+/// Conversion from domain GameTime happens in the adapter layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameTime {
     /// Day number (currently ordinal-style, 1-based; calendar is planned)
@@ -166,22 +166,6 @@ impl GameTime {
             hour,
             minute,
             is_paused,
-        }
-    }
-
-    /// Convert from domain GameTime to protocol GameTime for wire transfer.
-    ///
-    /// Domain GameTime uses `chrono::DateTime<Utc>` internally for rich date/time
-    /// manipulation, while protocol GameTime uses simple numeric fields for
-    /// efficient JSON serialization over the wire.
-    pub fn from_domain(game_time: &wrldbldr_domain::GameTime) -> Self {
-        use chrono::Timelike;
-        let current = game_time.current();
-        Self {
-            day: game_time.day_ordinal(),
-            hour: current.hour() as u8,
-            minute: current.minute() as u8,
-            is_paused: game_time.is_paused(),
         }
     }
 }

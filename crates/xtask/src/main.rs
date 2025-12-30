@@ -865,8 +865,16 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     // Note: dev-dependencies are included in cargo metadata, so we allow them here
     // with comments indicating which are dev-only.
     HashMap::from([
-        ("wrldbldr-domain", HashSet::from([])),
-        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
+        // Innermost layer: shared vocabulary types with zero internal deps
+        ("wrldbldr-domain-types", HashSet::from([])),
+        // Domain layer depends on domain-types for shared vocabulary
+        ("wrldbldr-domain", HashSet::from(["wrldbldr-domain-types"])),
+        // Protocol (API contract) depends on domain-types for shared vocabulary
+        // TODO: Remove wrldbldr-domain once From impls are moved to adapters
+        (
+            "wrldbldr-protocol",
+            HashSet::from(["wrldbldr-domain-types", "wrldbldr-domain"]),
+        ),
         (
             "wrldbldr-engine-dto",
             HashSet::from([

@@ -5,6 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
+// Re-export shared vocabulary types from domain-types
+pub use wrldbldr_domain_types::{ChangeType, EntityType};
+
 // =============================================================================
 // Response Result
 // =============================================================================
@@ -232,45 +235,7 @@ impl EntityChangedData {
     }
 }
 
-/// Types of entities that can change
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EntityType {
-    World,
-    Character,
-    Location,
-    Region,
-    Scene,
-    Act,
-    Interaction,
-    Skill,
-    Challenge,
-    NarrativeEvent,
-    EventChain,
-    StoryEvent,
-    PlayerCharacter,
-    Relationship,
-    Observation,
-    Goal,
-    Want,
-    ActantialView,
-    GameTime,
-    /// Unknown variant for forward compatibility
-    #[serde(other)]
-    Unknown,
-}
-
-/// Types of changes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ChangeType {
-    Created,
-    Updated,
-    Deleted,
-    /// Unknown variant for forward compatibility
-    #[serde(other)]
-    Unknown,
-}
+// EntityType and ChangeType are re-exported from wrldbldr_domain_types at the top of this file
 
 // =============================================================================
 // World Role

@@ -9,11 +9,8 @@ use chrono::Utc;
 use std::sync::Arc;
 
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
+use wrldbldr_engine_app::application::services::WorkflowService;
 use wrldbldr_engine_ports::inbound::AppStatePort;
-use wrldbldr_engine_ports::outbound::{
-    analyze_workflow, auto_detect_prompt_mappings, export_workflow_configs,
-    import_workflow_configs, prepare_workflow, validate_workflow,
-};
 use wrldbldr_protocol::{
     parse_workflow_slot, workflow_config_to_full_response_dto, workflow_config_to_response_dto,
     AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto, ImportWorkflowsRequestDto,
@@ -63,7 +60,7 @@ pub async fn list_workflow_slots(
             default_height: height,
             configured: config.is_some(),
             config: config.map(|c| {
-                let analysis = analyze_workflow(&c.workflow_json);
+                let analysis = WorkflowService::analyze_workflow(&c.workflow_json);
                 workflow_config_to_response_dto(c, &analysis)
             }),
         };
@@ -96,7 +93,7 @@ pub async fn get_workflow_config(
             )
         })?;
 
-    let analysis = analyze_workflow(&config.workflow_json);
+    let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
     Ok(Json(workflow_config_to_full_response_dto(&config, analysis)))
 }
 
@@ -109,7 +106,7 @@ pub async fn save_workflow_config(
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     // Validate the workflow JSON
-    validate_workflow(&req.workflow_json)
+    WorkflowService::validate_workflow(&req.workflow_json)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Check if we're updating or creating
@@ -164,7 +161,7 @@ pub async fn save_workflow_config(
         StatusCode::CREATED
     };
 
-    let analysis = analyze_workflow(&config.workflow_json);
+    let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
     Ok((status, Json(workflow_config_to_full_response_dto(&config, analysis))))
 }
 
@@ -229,7 +226,7 @@ pub async fn update_workflow_defaults(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let analysis = analyze_workflow(&config.workflow_json);
+    let analysis = WorkflowService::analyze_workflow(&config.workflow_json);
     Ok(Json(workflow_config_to_full_response_dto(&config, analysis)))
 }
 
@@ -238,12 +235,12 @@ pub async fn analyze_workflow_handler(
     Json(req): Json<AnalyzeWorkflowRequestDto>,
 ) -> Result<Json<WorkflowAnalysisResponseDto>, (StatusCode, String)> {
     // Validate first
-    if let Err(e) = validate_workflow(&req.workflow_json) {
+    if let Err(e) = WorkflowService::validate_workflow(&req.workflow_json) {
         return Err((StatusCode::BAD_REQUEST, e.to_string()));
     }
 
-    let analysis = analyze_workflow(&req.workflow_json);
-    let auto_mappings = auto_detect_prompt_mappings(&req.workflow_json);
+    let analysis = WorkflowService::analyze_workflow(&req.workflow_json);
+    let auto_mappings = WorkflowService::auto_detect_prompt_mappings(&req.workflow_json);
 
     Ok(Json(WorkflowAnalysisResponseDto {
         is_valid: analysis.is_valid(),
@@ -262,7 +259,7 @@ pub async fn export_workflows(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let export = export_workflow_configs(&configs, chrono::Utc::now());
+    let export = WorkflowService::export_configs(&configs, chrono::Utc::now());
     Ok(Json(export))
 }
 
@@ -270,7 +267,7 @@ pub async fn import_workflows(
     State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<ImportWorkflowsRequestDto>,
 ) -> Result<Json<ImportWorkflowsResponseDto>, (StatusCode, String)> {
-    let configs = import_workflow_configs(&req.data)
+    let configs = WorkflowService::import_configs(&req.data)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let mut imported = 0;
@@ -320,7 +317,7 @@ pub async fn test_workflow(
         })?;
 
     // Prepare the workflow with the test prompt
-    let prepared_workflow = prepare_workflow(
+    let prepared_workflow = WorkflowService::prepare_workflow(
         &config,
         &req.prompt,
         req.negative_prompt.as_deref(),

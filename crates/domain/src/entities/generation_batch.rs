@@ -6,54 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::gallery_asset::{AssetType, EntityType};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 
-/// Status of a generation batch
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum BatchStatus {
-    /// Waiting in queue to be processed
-    Queued,
-    /// Currently being generated
-    Generating {
-        /// Progress 0-100
-        progress: u8,
-    },
-    /// Generation complete, awaiting user selection
-    ReadyForSelection,
-    /// User has selected assets, batch is complete
-    Completed,
-    /// Generation failed
-    Failed { error: String },
-}
-
-impl BatchStatus {
-    pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Completed | Self::Failed { .. })
-    }
-
-    pub fn is_active(&self) -> bool {
-        matches!(self, Self::Generating { .. })
-    }
-
-    pub fn is_queued(&self) -> bool {
-        matches!(self, Self::Queued)
-    }
-
-    pub fn is_ready(&self) -> bool {
-        matches!(self, Self::ReadyForSelection)
-    }
-}
-
-impl std::fmt::Display for BatchStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Queued => write!(f, "Queued"),
-            Self::Generating { progress } => write!(f, "Generating ({}%)", progress),
-            Self::ReadyForSelection => write!(f, "Ready"),
-            Self::Completed => write!(f, "Completed"),
-            Self::Failed { error } => write!(f, "Failed: {}", error),
-        }
-    }
-}
+// Re-export BatchStatus from domain-types
+pub use wrldbldr_domain_types::BatchStatus;
 
 /// A batch of assets being generated together
 #[derive(Debug, Clone, Serialize, Deserialize)]

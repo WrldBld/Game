@@ -337,12 +337,11 @@ pub use asset_service_port::MockAssetServicePort;
 pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
 
 // Workflow service port - interface for workflow configuration operations
+// NOTE: Workflow utility functions (analyze_workflow, validate_workflow, etc.) are in
+// engine-app::application::services::WorkflowService, not in this port.
 #[cfg(any(test, feature = "testing"))]
 pub use workflow_service_port::MockWorkflowServicePort;
-pub use workflow_service_port::{
-    analyze_workflow, auto_detect_prompt_mappings, export_workflow_configs,
-    import_workflow_configs, prepare_workflow, validate_workflow, WorkflowServicePort,
-};
+pub use workflow_service_port::WorkflowServicePort;
 
 // Generation service port - interface for asset generation operations
 #[cfg(any(test, feature = "testing"))]

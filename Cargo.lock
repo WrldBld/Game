@@ -7309,6 +7309,15 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "uuid",
+ "wrldbldr-domain-types",
+]
+
+[[package]]
+name = "wrldbldr-domain-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -7340,6 +7349,7 @@ dependencies = [
  "uuid",
  "validator",
  "wrldbldr-domain",
+ "wrldbldr-engine-app",
  "wrldbldr-engine-dto",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",
@@ -7400,7 +7410,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "mockall",
- "rand 0.8.5",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -7563,6 +7572,7 @@ dependencies = [
  "serde_json",
  "uuid",
  "wrldbldr-domain",
+ "wrldbldr-domain-types",
 ]
 
 [[package]]

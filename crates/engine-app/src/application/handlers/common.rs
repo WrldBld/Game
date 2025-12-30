@@ -236,3 +236,20 @@ pub fn convert_want_visibility(data: WantVisibilityData) -> WantVisibility {
         WantVisibilityData::Hidden | WantVisibilityData::Unknown => WantVisibility::Hidden, // Default unknown to Hidden
     }
 }
+
+/// Convert domain GameTime to protocol GameTime for wire transfer.
+///
+/// This conversion lives in the application layer (not protocol) to maintain
+/// the separation between domain and wire-format types.
+pub fn to_protocol_game_time(
+    game_time: &wrldbldr_domain::GameTime,
+) -> wrldbldr_protocol::GameTime {
+    use chrono::Timelike;
+    let current = game_time.current();
+    wrldbldr_protocol::GameTime::new(
+        game_time.day_ordinal(),
+        current.hour() as u8,
+        current.minute() as u8,
+        game_time.is_paused(),
+    )
+}

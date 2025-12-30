@@ -61,6 +61,14 @@ impl Neo4jAssetRepository {
 
         self.connection.graph().run(q).await?;
 
+        // Validate entity type can have assets
+        if !asset.entity_type.has_assets() {
+            anyhow::bail!(
+                "Entity type {:?} cannot have assets. Only Character, Location, and Item can have assets.",
+                asset.entity_type
+            );
+        }
+
         // Create relationship to owning entity
         let relationship_query = match asset.entity_type {
             EntityType::Character => query(
@@ -75,6 +83,8 @@ impl Neo4jAssetRepository {
                 "MATCH (e:Item {id: $entity_id}), (a:GalleryAsset {id: $asset_id})
                     CREATE (e)-[:HAS_ASSET]->(a)",
             ),
+            // Unreachable due to has_assets() check above
+            _ => unreachable!("has_assets() check should prevent non-asset entity types"),
         };
 
         self.connection

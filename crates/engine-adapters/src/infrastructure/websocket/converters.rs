@@ -120,10 +120,17 @@ pub async fn fetch_region_items(
 
 /// Convert domain GameTime to protocol GameTime for wire transfer.
 ///
-/// This is a convenience re-export of `protocol::GameTime::from_domain()`.
-/// Prefer using the protocol method directly where possible.
+/// This conversion lives in the adapters layer (not protocol) to maintain
+/// the separation between domain and wire-format types.
 pub fn to_protocol_game_time(game_time: &wrldbldr_domain::GameTime) -> wrldbldr_protocol::GameTime {
-    wrldbldr_protocol::GameTime::from_domain(game_time)
+    use chrono::Timelike;
+    let current = game_time.current();
+    wrldbldr_protocol::GameTime::new(
+        game_time.day_ordinal(),
+        current.hour() as u8,
+        current.minute() as u8,
+        game_time.is_paused(),
+    )
 }
 
 // =============================================================================
