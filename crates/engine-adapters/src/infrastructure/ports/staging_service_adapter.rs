@@ -47,19 +47,6 @@ impl StagingServiceAdapter {
         }
     }
 
-    /// Convert StagedNpcProposal to RegeneratedNpc
-    fn proposal_to_regenerated_npc(proposal: &StagedNpcProposal) -> RegeneratedNpc {
-        RegeneratedNpc {
-            character_id: proposal.character_id.clone(),
-            name: proposal.name.clone(),
-            sprite_asset: proposal.sprite_asset.clone(),
-            portrait_asset: proposal.portrait_asset.clone(),
-            is_present: proposal.is_present,
-            is_hidden_from_players: proposal.is_hidden_from_players,
-            reasoning: proposal.reasoning.clone(),
-        }
-    }
-
     /// Convert ApprovedNpcData to ApprovedNpc
     fn approved_npc_data_to_approved_npc(data: &ApprovedNpcData) -> ApprovedNpc {
         ApprovedNpc {
@@ -242,22 +229,4 @@ mod tests {
         assert!(data.is_present);
     }
 
-    #[test]
-    fn test_proposal_to_regenerated_npc() {
-        let proposal = StagedNpcProposal {
-            character_id: "char-123".to_string(),
-            name: "Test NPC".to_string(),
-            sprite_asset: None,
-            portrait_asset: Some("portrait.png".to_string()),
-            is_present: false,
-            is_hidden_from_players: true,
-            reasoning: "Hidden for surprise".to_string(),
-        };
-
-        let regenerated = StagingServiceAdapter::proposal_to_regenerated_npc(&proposal);
-
-        assert_eq!(regenerated.name, "Test NPC");
-        assert!(!regenerated.is_present);
-        assert!(regenerated.is_hidden_from_players);
-    }
 }

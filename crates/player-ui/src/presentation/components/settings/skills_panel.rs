@@ -254,7 +254,7 @@ fn SkillRow(
     let is_custom = skill.is_custom;
 
     let world_id_for_toggle = world_id.clone();
-    let world_id_for_delete = world_id.clone();
+    let _world_id_for_delete = world_id.clone();
 
     // Get skill service
     let skill_service = use_skill_service();
@@ -279,7 +279,7 @@ fn SkillRow(
     let handle_toggle = {
         let service = skill_service.clone();
         move |_| {
-            let world_id = world_id_for_toggle.clone();
+            let _world_id = world_id_for_toggle.clone();
             let skill_id = skill_id_for_toggle.clone();
             let new_hidden = !is_hidden;
             let service = service.clone();
@@ -550,7 +550,7 @@ fn EditSkillForm(
             return;
         }
 
-        let world_id = world_id.clone();
+        let _world_id = world_id.clone();
         let skill_id = skill_id.clone();
         let desc = description.read().clone();
         let cat = *category.read();

@@ -291,6 +291,23 @@ pub enum GameEvent {
         /// Scene direction for DM (optional)
         scene_direction: Option<String>,
     },
+
+    // === Observation Events ===
+    /// NPC approaches a player (sent to specific user)
+    NpcApproach {
+        user_id: String,
+        npc_id: CharacterId,
+        npc_name: String,
+        npc_sprite: Option<String>,
+        description: String,
+        reveal: bool,
+    },
+
+    /// Location event triggered by DM (broadcast to world)
+    LocationEvent {
+        region_id: RegionId,
+        description: String,
+    },
 }
 
 // =============================================================================

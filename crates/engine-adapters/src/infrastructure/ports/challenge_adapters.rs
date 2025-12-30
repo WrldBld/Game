@@ -22,7 +22,7 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
     ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType,
-    RollResultData as RollResult, TriggerInfo, TriggerResult,
+    RollResultData as RollResult, TriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{
     ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, DiceRoll,
@@ -218,7 +218,7 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
         // Convert DiceInputType to DiceRoll
         let dice_roll = match input_type {
             DiceInputType::Manual(value) => DiceRoll::simple(value),
-            DiceInputType::Formula(formula) => {
+            DiceInputType::Formula(_formula) => {
                 // For formula input, we'd need to evaluate it - for now, return an error
                 // since the port doesn't support formula evaluation
                 return Err("Formula-based dice input requires port extension".to_string());

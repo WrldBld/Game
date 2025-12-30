@@ -40,6 +40,7 @@ pub struct AuthenticatedUser {
 /// # Future Enhancement
 /// This will be replaced with proper JWT validation when
 /// production authentication is implemented.
+#[allow(dead_code)] // Reserved for future JWT authentication implementation
 pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
     let user_id = request
         .headers()
@@ -62,6 +63,7 @@ pub async fn auth_middleware(mut request: Request, next: Next) -> Response {
 ///
 /// Use this for endpoints that must have a user_id.
 /// Returns 401 Unauthorized if X-User-Id header is missing.
+#[allow(dead_code)] // Reserved for future JWT authentication implementation
 pub async fn require_auth_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Check if already authenticated by previous middleware
     if request.extensions().get::<AuthenticatedUser>().is_some() {

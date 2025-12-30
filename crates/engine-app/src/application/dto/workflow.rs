@@ -16,10 +16,10 @@ use wrldbldr_domain::WorkflowConfigId;
 // Re-export wire-format types from protocol
 pub use wrldbldr_protocol::{
     parse_workflow_slot, AnalyzeWorkflowRequestDto, CreateWorkflowConfigRequestDto,
-    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, InputDefaultDto, InputTypeDto,
-    PromptMappingDto, PromptMappingTypeDto, TestWorkflowRequestDto, TestWorkflowResponseDto,
-    UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisDto, WorkflowAnalysisResponseDto,
-    WorkflowConfigFullResponseDto, WorkflowConfigResponseDto, WorkflowInputDto,
+    ImportWorkflowsRequestDto, ImportWorkflowsResponseDto, InputDefaultDto,
+    PromptMappingDto, TestWorkflowRequestDto, TestWorkflowResponseDto,
+    UpdateWorkflowDefaultsRequestDto, WorkflowAnalysisResponseDto,
+    WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
     WorkflowSlotCategoryDto, WorkflowSlotStatusDto, WorkflowSlotsResponseDto,
 };
 

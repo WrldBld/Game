@@ -548,6 +548,4 @@ pub use event_effect_executor_port::{
 #[cfg(any(test, feature = "testing"))]
 pub use broadcast_port::MockBroadcastPort;
 #[cfg(any(test, feature = "testing"))]
-pub use repository_port::MockChallengeRepositoryPort;
-#[cfg(any(test, feature = "testing"))]
 pub use world_state_port::MockWorldStatePort;

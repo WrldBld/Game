@@ -21,7 +21,6 @@ use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, RegionId};
 use wrldbldr_engine_ports::inbound::UseCaseContext;
-use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::ActionError;
 use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
@@ -49,8 +48,6 @@ pub struct PlayerActionUseCase {
     action_queue: Arc<dyn PlayerActionQueuePort>,
     /// DM notification port
     dm_notification: Arc<dyn DmNotificationPort>,
-    /// Broadcast port for side-effect notifications
-    broadcast: Arc<dyn BroadcastPort>,
 }
 
 impl PlayerActionUseCase {
@@ -59,13 +56,11 @@ impl PlayerActionUseCase {
         movement: Arc<MovementUseCase>,
         action_queue: Arc<dyn PlayerActionQueuePort>,
         dm_notification: Arc<dyn DmNotificationPort>,
-        broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {
         Self {
             movement,
             action_queue,
             dm_notification,
-            broadcast,
         }
     }
 

@@ -65,7 +65,7 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
 
     let save = move |_| {
         let name_val = name.read().clone();
-        let desc_val = description.read().clone();
+        let _desc_val = description.read().clone();
         let sheet_vals = sheet_values.read().clone();
         let pc_id = props.pc.id.clone();
         let pc_svc = pc_service.clone();

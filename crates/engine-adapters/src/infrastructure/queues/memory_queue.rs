@@ -19,7 +19,6 @@ use wrldbldr_engine_ports::outbound::{
 /// In-memory queue implementation
 pub struct InMemoryQueue<T, N: QueueNotificationPort> {
     items: Arc<RwLock<Vec<QueueItem<T>>>>,
-    queue_name: String,
     notifier: N,
 }
 
@@ -34,10 +33,9 @@ impl<T, N: QueueNotificationPort> InMemoryQueue<T, N>
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    pub fn new(queue_name: impl Into<String>, notifier: N) -> Self {
+    pub fn new(_queue_name: impl Into<String>, notifier: N) -> Self {
         Self {
             items: Arc::new(RwLock::new(Vec::new())),
-            queue_name: queue_name.into(),
             notifier,
         }
     }

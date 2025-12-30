@@ -16,7 +16,7 @@
 //! DEPRECATED and kept only for backward compatibility during migration.
 
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 
 /// A challenge that can be triggered during gameplay
 ///

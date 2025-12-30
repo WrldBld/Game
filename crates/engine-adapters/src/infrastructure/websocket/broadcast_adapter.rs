@@ -438,23 +438,59 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
 
             GameEvent::CharacterStatUpdated {
                 world_id: _,
-                ref character_id,
-                ref character_name,
-                ref stat_name,
+                character_id,
+                character_name,
+                stat_name,
                 old_value,
                 new_value,
                 delta,
-                ref source,
+                source,
             } => {
-                // Broadcast stat update to all players
                 let message = ServerMessage::CharacterStatUpdated {
-                    character_id: character_id.clone(),
-                    character_name: character_name.clone(),
-                    stat_name: stat_name.clone(),
+                    character_id,
+                    character_name,
+                    stat_name,
                     old_value,
                     new_value,
                     delta,
                     source: source.clone(),
+                };
+                self.connection_manager
+                    .broadcast_to_world(*world_uuid, message)
+                    .await;
+            }
+
+            // =====================================================================
+            // Observation Events
+            // =====================================================================
+            GameEvent::NpcApproach {
+                user_id,
+                npc_id,
+                npc_name,
+                npc_sprite,
+                description,
+                reveal,
+            } => {
+                let message = ServerMessage::ApproachEvent {
+                    npc_id: npc_id.to_string(),
+                    npc_name,
+                    npc_sprite,
+                    description,
+                    reveal,
+                };
+                let _ = self
+                    .connection_manager
+                    .send_to_user_in_world(&world_uuid, &user_id, message)
+                    .await;
+            }
+
+            GameEvent::LocationEvent {
+                region_id,
+                description,
+            } => {
+                let message = ServerMessage::LocationEvent {
+                    region_id: region_id.to_string(),
+                    description,
                 };
                 self.connection_manager
                     .broadcast_to_world(*world_uuid, message)

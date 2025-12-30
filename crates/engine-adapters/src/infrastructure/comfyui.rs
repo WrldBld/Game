@@ -214,8 +214,6 @@ impl ComfyUIClient {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T, ComfyUIError>>,
     {
-        let mut last_error: Option<String> = None;
-
         let config = self
             .config
             .lock()
@@ -243,8 +241,7 @@ impl ComfyUIClient {
                         ComfyUIError::ServiceUnavailable
                         | ComfyUIError::HttpError(_)
                         | ComfyUIError::Timeout(_) => {
-                            // These are retryable
-                            last_error = Some(format!("{:?}", e));
+                            // These are retryable - continue to next attempt
                         }
                         ComfyUIError::CircuitOpen => {
                             return Err(e);

@@ -177,7 +177,7 @@ pub fn prepare_workflow(
     negative_prompt: Option<&str>,
     overrides: &[InputDefault],
 ) -> Result<serde_json::Value> {
-    use anyhow::anyhow;
+    
     use rand::Rng;
     use wrldbldr_domain::entities::PromptMappingType;
 

@@ -74,8 +74,6 @@ pub use use_case_ports::{
     StagingServicePort,
     StagingStateExtPort,
     StagingStatePort,
-    // Observation port traits
-    WorldMessagePort,
     WorldServicePort,
     WorldStatePort,
 };

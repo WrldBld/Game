@@ -14,7 +14,7 @@
 //!     ├── ConnectionManagerPort (trait)
 //!     ├── SceneServicePort (trait)
 //!     ├── WorldServicePort (trait)
-//!     └── ObservationRepositoryPort / WorldMessagePort (traits)
+//!     └── ObservationRepositoryPort (traits)
 //!
 //! Adapter Layer (this module)
 //!     │
@@ -25,8 +25,7 @@
 //!     ├── InteractionServiceAdapter ───► InteractionService
 //!     ├── WorldServiceAdapter ─────────► WorldService
 //!     ├── PlayerCharacterServiceAdapter ► PlayerCharacterService
-//!     ├── DirectorialContextAdapter ───► DirectorialContextRepositoryPort
-//!     └── WorldMessageAdapter ──────────► WorldConnectionManager
+//!     └── DirectorialContextAdapter ───► DirectorialContextRepositoryPort
 //! ```
 //!
 //! # Usage
@@ -47,7 +46,6 @@
 
 mod challenge_adapters;
 mod connection_manager_adapter;
-mod observation_adapters;
 mod player_action_adapters;
 mod staging_service_adapter;
 mod staging_state_adapter;
@@ -64,7 +62,6 @@ pub use connection_adapters::{
     PlayerCharacterServiceAdapter, WorldServiceAdapter,
 };
 pub use connection_manager_adapter::ConnectionManagerAdapter;
-pub use observation_adapters::WorldMessageAdapter;
 pub use player_action_adapters::{DmNotificationAdapter, PlayerActionQueueAdapter};
 pub use scene_adapters::{
     DirectorialContextAdapter, DmActionQueuePlaceholder, InteractionServiceAdapter,

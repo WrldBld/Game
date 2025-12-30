@@ -195,9 +195,6 @@ pub trait ConnectionManagerPort: Send + Sync {
     /// Send to connection
     async fn send_to_connection(&self, connection_id: Uuid, user_joined: UserJoinedEvent);
 
-    /// Broadcast to world
-    async fn broadcast_to_world(&self, world_id: Uuid, event: UserLeftEvent);
-
     /// Get the current DM user ID for a world (None if no DM connected)
     async fn get_dm_user_id(&self, world_id: Uuid) -> Option<String>;
 }
@@ -424,16 +421,3 @@ pub trait StagingServiceExtPort: StagingServicePort {
     ) -> Result<Vec<StagedNpc>, String>;
 }
 
-// =============================================================================
-// Observation Ports (from observation.rs)
-// =============================================================================
-
-/// Port for sending messages to specific users
-#[async_trait]
-pub trait WorldMessagePort: Send + Sync {
-    /// Send a message to a specific user in a world
-    async fn send_to_user(&self, user_id: &str, world_id: Uuid, event: ApproachEventData);
-
-    /// Broadcast to all in a world
-    async fn broadcast_to_world(&self, world_id: Uuid, event: LocationEventData);
-}

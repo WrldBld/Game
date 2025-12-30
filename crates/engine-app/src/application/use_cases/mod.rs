@@ -26,7 +26,6 @@
 //! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
 //! - `StagingStatePort`, `StagingServicePort`, `StagingStateExtPort`, `StagingServiceExtPort`
-//! - `WorldMessagePort`
 //!
 //! Types used by these ports are defined in `engine-ports::outbound::use_case_types`.
 //!
@@ -114,7 +113,7 @@ pub use connection::{
     ConnectedUser, ConnectionInfo, ConnectionManagerPort, ConnectionUseCase,
     DirectorialContextPort, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
     PlayerCharacterServicePort, SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent,
-    UserLeftEvent, WorldRole, WorldServicePort,
+    WorldRole, WorldServicePort,
 };
 
 pub use inventory::{
@@ -129,7 +128,7 @@ pub use movement::{
 pub use observation::{
     ApproachEventData, LocationEventData, ObservationUseCase, ShareNpcLocationInput,
     ShareNpcLocationResult, TriggerApproachInput, TriggerApproachResult, TriggerLocationEventInput,
-    TriggerLocationEventResult, WorldMessagePort,
+    TriggerLocationEventResult,
 };
 pub use player_action::{
     ActionResult, DmNotificationPort, PlayerActionInput, PlayerActionQueuePort, PlayerActionUseCase,

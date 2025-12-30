@@ -9,7 +9,7 @@ use uuid::Uuid;
 use tokio::sync::broadcast;
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::{
-    ConnectedUser, ConnectionInfo, ConnectionManagerPort, UserJoinedEvent, UserLeftEvent,
+    ConnectedUser, ConnectionInfo, ConnectionManagerPort, UserJoinedEvent,
     WorldRole as UseCaseWorldRole,
 };
 use wrldbldr_protocol::{ServerMessage, WorldRole as ProtocolWorldRole};
@@ -149,15 +149,6 @@ impl ConnectionManagerPort for ConnectionManagerAdapter {
         self.manager
             .send_to_connection(connection_id, message)
             .await;
-    }
-
-    async fn broadcast_to_world(&self, world_id: Uuid, event: UserLeftEvent) {
-        // Convert UserLeftEvent to ServerMessage
-        let message = ServerMessage::UserLeft {
-            user_id: event.user_id,
-        };
-
-        self.manager.broadcast_to_world(world_id, message).await;
     }
 
     async fn get_dm_user_id(&self, world_id: Uuid) -> Option<String> {

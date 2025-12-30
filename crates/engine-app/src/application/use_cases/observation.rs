@@ -22,14 +22,14 @@ use tracing::{info, warn};
 use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterCrudPort, ClockPort, ObservationRepositoryPort,
+    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, ObservationRepositoryPort,
     PlayerCharacterRepositoryPort,
 };
 
 use super::errors::ObservationError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{ObservationUseCasePort, WorldMessagePort};
+pub use wrldbldr_engine_ports::inbound::ObservationUseCasePort;
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -49,7 +49,6 @@ pub struct ObservationUseCase {
     pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
     observation_repo: Arc<dyn ObservationRepositoryPort>,
-    message_port: Arc<dyn WorldMessagePort>,
     broadcast: Arc<dyn BroadcastPort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
@@ -65,7 +64,6 @@ impl ObservationUseCase {
         pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
-        message_port: Arc<dyn WorldMessagePort>,
         broadcast: Arc<dyn BroadcastPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -73,7 +71,6 @@ impl ObservationUseCase {
             pc_repo,
             character_crud,
             observation_repo,
-            message_port,
             broadcast,
             clock,
         }
@@ -206,18 +203,19 @@ impl ObservationUseCase {
             ("Unknown Figure".to_string(), None)
         };
 
-        let approach_event = ApproachEventData {
-            npc_id: input.npc_id.to_string(),
-            npc_name: npc_name.clone(),
-            npc_sprite,
-            description: input.description,
-            reveal: input.reveal,
-        };
-
-        // Send to the target PC's user
-        let world_id_uuid = *ctx.world_id.as_uuid();
-        self.message_port
-            .send_to_user(&pc.user_id, world_id_uuid, approach_event)
+        // Send to the target PC's user via BroadcastPort
+        self.broadcast
+            .broadcast(
+                ctx.world_id.clone(),
+                GameEvent::NpcApproach {
+                    user_id: pc.user_id.clone(),
+                    npc_id: input.npc_id,
+                    npc_name: npc_name.clone(),
+                    npc_sprite,
+                    description: input.description,
+                    reveal: input.reveal,
+                },
+            )
             .await;
 
         info!(
@@ -252,16 +250,15 @@ impl ObservationUseCase {
             "DM triggering location event"
         );
 
-        // Build the location event
-        let location_event = LocationEventData {
-            region_id: input.region_id.to_string(),
-            description: input.description,
-        };
-
-        // Broadcast to all in world
-        let world_id_uuid = *ctx.world_id.as_uuid();
-        self.message_port
-            .broadcast_to_world(world_id_uuid, location_event)
+        // Broadcast to all in world via BroadcastPort
+        self.broadcast
+            .broadcast(
+                ctx.world_id.clone(),
+                GameEvent::LocationEvent {
+                    region_id: input.region_id,
+                    description: input.description.clone(),
+                },
+            )
             .await;
 
         info!(

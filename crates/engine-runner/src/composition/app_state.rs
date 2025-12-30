@@ -31,7 +31,7 @@ use wrldbldr_engine_adapters::infrastructure::ports::{
     DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
     SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
-    WorldMessageAdapter, WorldServiceAdapter,
+    WorldServiceAdapter,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
@@ -357,7 +357,7 @@ pub async fn new_app_state(
     let character_crud: Arc<dyn CharacterCrudPort> = character_concrete.clone();
     let character_want: Arc<dyn CharacterWantPort> = character_concrete.clone();
     let character_actantial: Arc<dyn CharacterActantialPort> = character_concrete.clone();
-    let character_inventory: Arc<dyn CharacterInventoryPort> = character_concrete.clone();
+    let _character_inventory: Arc<dyn CharacterInventoryPort> = character_concrete.clone();
     let character_location: Arc<dyn CharacterLocationPort> = character_concrete.clone();
     let character_disposition: Arc<dyn CharacterDispositionPort> = character_concrete.clone();
     let location_repo: Arc<dyn wrldbldr_engine_ports::outbound::LocationRepositoryPort> =
@@ -530,7 +530,7 @@ pub async fn new_app_state(
     let challenge_crud_for_effects = challenge_crud.clone();
 
     // Clone event_chain_repo for port version before it's moved
-    let event_chain_repo_for_port = event_chain_repo.clone();
+    let _event_chain_repo_for_port = event_chain_repo.clone();
     let event_chain_service_impl_for_port = EventChainServiceImpl::new(event_chain_repo);
     let event_chain_service: Arc<
         dyn wrldbldr_engine_app::application::services::EventChainService,
@@ -542,7 +542,7 @@ pub async fn new_app_state(
     let asset_service = AssetServiceImpl::new(asset_repo_for_service, clock.clone());
     // Clone workflow_repo before creating service (we'll need it for composition layer too)
     let workflow_repo_for_composition = workflow_repo.clone();
-    let workflow_config_service = WorkflowConfigService::new(workflow_repo);
+    let _workflow_config_service = WorkflowConfigService::new(workflow_repo);
     let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
 
     let item_service_for_port = ItemServiceImpl::new(
@@ -596,10 +596,10 @@ pub async fn new_app_state(
     let observation_repo_for_handler = observation_repo.clone();
 
     // Clone repos for port version before they're moved
-    let player_character_repo_for_scene_port = player_character_repo.clone();
-    let scene_repo_for_port = scene_repo_for_resolution.clone();
-    let flag_repo_for_port = flag_repo.clone();
-    let observation_repo_for_port = observation_repo.clone();
+    let _player_character_repo_for_scene_port = player_character_repo.clone();
+    let _scene_repo_for_port = scene_repo_for_resolution.clone();
+    let _flag_repo_for_port = flag_repo.clone();
+    let _observation_repo_for_port = observation_repo.clone();
 
     let scene_resolution_service_impl = SceneResolutionServiceImpl::new(
         player_character_repo,
@@ -607,7 +607,7 @@ pub async fn new_app_state(
         flag_repo,
         observation_repo,
     );
-    let scene_resolution_service: Arc<
+    let _scene_resolution_service: Arc<
         dyn wrldbldr_engine_app::application::services::SceneResolutionService,
     > = Arc::new(scene_resolution_service_impl.clone());
     let scene_resolution_service_port: Arc<dyn SceneResolutionServicePort> =
@@ -1047,21 +1047,15 @@ pub async fn new_app_state(
         movement_use_case.clone(),
         player_action_queue_adapter,
         dm_notification,
-        broadcast.clone(),
     ));
-
-    // Create observation adapters
-    // Note: observation_repo now directly implements the same ObservationRepositoryPort
-    // used by ObservationUseCase (consolidated from engine-ports)
-    let world_message_adapter = Arc::new(WorldMessageAdapter::new(world_connection_manager.clone()));
 
     // Create observation use case
     // Uses ISP: CharacterCrudPort for character lookups
+    // Uses BroadcastPort for NpcApproach and LocationEvent notifications
     let observation_use_case = Arc::new(ObservationUseCase::new(
         player_character_repo_for_handler.clone(),
         character_crud_for_use_cases,
         observation_repo_for_use_cases,
-        world_message_adapter,
         broadcast.clone(),
         clock.clone(),
     ));
@@ -1105,7 +1099,6 @@ pub async fn new_app_state(
         scene_world_state_adapter,
         scene_directorial_adapter,
         dm_action_queue_placeholder,
-        broadcast.clone(),
     ));
 
     // =========================================================================

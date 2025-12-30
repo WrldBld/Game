@@ -158,10 +158,6 @@ where
             .unwrap_or_default()
     }
 
-    fn serialize_metadata(metadata: &HashMap<String, String>) -> String {
-        serde_json::to_string(metadata).unwrap_or_else(|_| "{}".to_string())
-    }
-
     async fn row_to_item(&self, row: sqlx::sqlite::SqliteRow) -> Result<QueueItem<T>, QueueError> {
         let id_str: String = row.get("id");
         let id = uuid::Uuid::parse_str(&id_str)

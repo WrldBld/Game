@@ -19,13 +19,14 @@ use tracing::{debug, info, warn};
 
 use async_trait::async_trait;
 use uuid::Uuid;
+use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::inbound::ConnectionUseCasePort;
-use wrldbldr_engine_ports::outbound::BroadcastPort;
+use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent};
 
 use super::errors::ConnectionError;
 
 // Import services
-use crate::application::services::{JoinPolicyError, JoinValidation, WorldSessionPolicy};
+use crate::application::services::{JoinValidation, WorldSessionPolicy};
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
@@ -35,7 +36,7 @@ pub use wrldbldr_engine_ports::inbound::{
 // Import types from engine-ports
 pub use wrldbldr_engine_ports::outbound::{
     ConnectedUser, ConnectionInfo, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
-    SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent, UserLeftEvent, WorldRole,
+    SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent, WorldRole,
 };
 
 // WorldStatePort is imported from engine-ports via scene.rs
@@ -211,11 +212,13 @@ impl ConnectionUseCase {
         if let Some((world_id, _role)) = self.connection_manager.leave_world(connection_id).await {
             // Broadcast UserLeft to remaining users
             if let Some(info) = conn_info {
-                let user_left = UserLeftEvent {
-                    user_id: info.user_id,
-                };
-                self.connection_manager
-                    .broadcast_to_world(world_id, user_left)
+                self.broadcast
+                    .broadcast(
+                        WorldId::from_uuid(world_id),
+                        GameEvent::PlayerLeft {
+                            user_id: info.user_id,
+                        },
+                    )
                     .await;
             }
             info!(world_id = %world_id, "User left world");

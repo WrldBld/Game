@@ -17,7 +17,7 @@ use crate::application::services::{
 };
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
-use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
+use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
     NarrativeEventCrudPort, RegionRepositoryPort, StagedNpcProposal as PortStagedNpcProposal,

@@ -18,7 +18,6 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use wrldbldr_engine_ports::inbound::{SceneUseCasePort, UseCaseContext};
-use wrldbldr_engine_ports::outbound::BroadcastPort;
 
 use super::errors::SceneError;
 
@@ -49,7 +48,6 @@ pub struct SceneUseCase {
     world_state: Arc<dyn WorldStatePort>,
     directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
     dm_action_queue: Arc<dyn DmActionQueuePort>,
-    broadcast: Arc<dyn BroadcastPort>,
 }
 
 impl SceneUseCase {
@@ -60,7 +58,6 @@ impl SceneUseCase {
         world_state: Arc<dyn WorldStatePort>,
         directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
         dm_action_queue: Arc<dyn DmActionQueuePort>,
-        broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {
         Self {
             scene_service,
@@ -68,7 +65,6 @@ impl SceneUseCase {
             world_state,
             directorial_repo,
             dm_action_queue,
-            broadcast,
         }
     }
 

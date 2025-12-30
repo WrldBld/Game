@@ -165,10 +165,10 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
 
     let create_character = move |_| {
         let name_val = name.read().clone();
-        let desc_val = description.read().clone();
+        let _desc_val = description.read().clone();
         let location_id = selected_location_id.read().clone();
         let sheet_vals = sheet_values.read().clone();
-        let session_id = props.session_id.clone();
+        let _session_id = props.session_id.clone();
         let pc_svc = pc_service.clone();
         let nav = navigator.clone();
         let world_id = props.world_id.clone();
