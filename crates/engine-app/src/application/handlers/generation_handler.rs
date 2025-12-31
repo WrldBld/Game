@@ -8,7 +8,7 @@ use std::sync::Arc;
 use wrldbldr_engine_ports::inbound::RequestContext;
 use wrldbldr_engine_ports::outbound::{
     GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext, SuggestionEnqueuePort,
-    SuggestionEnqueueRequest,
+    SuggestionEnqueueRequest, GenerationQueueProjectionServicePort,
 };
 use wrldbldr_protocol::{
     ActantialRoleData, CreateItemData, ErrorCode, ResponseResult, SuggestionContextData,
@@ -18,7 +18,7 @@ use super::common::{
     parse_character_id, parse_item_id, parse_region_id, parse_want_id, parse_world_id,
 };
 use crate::application::services::{
-    CharacterService, CreateItemRequest, GenerationQueueProjectionService, ItemService,
+    CharacterService, CreateItemRequest, ItemService,
 };
 
 // =============================================================================
@@ -296,7 +296,7 @@ pub async fn suggest_actantial_reason(
 ///
 /// Retrieves the current generation queue state for a world.
 pub async fn get_generation_queue(
-    generation_queue_projection: &Arc<GenerationQueueProjectionService>,
+    generation_queue_projection: &Arc<dyn GenerationQueueProjectionServicePort>,
     ctx: &RequestContext,
     world_id: &str,
     user_id: Option<String>,
@@ -307,7 +307,7 @@ pub async fn get_generation_queue(
     };
 
     // Use provided user_id or fall back to context user_id
-    let effective_user_id = user_id.as_deref().or(Some(&ctx.user_id));
+    let effective_user_id = user_id.or_else(|| Some(ctx.user_id.clone()));
 
     match generation_queue_projection
         .project_queue(effective_user_id, wid)

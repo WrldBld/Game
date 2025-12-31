@@ -393,6 +393,7 @@ Steps:
 
 Progress:
 - ✅ 2025-12-31: `InfrastructureContext` now stores `Arc<dyn SettingsServicePort>` and `Arc<dyn PromptTemplateServicePort>` (no concrete service storage); updated `AppState` and queue-service wiring.
+- ✅ 2025-12-31: removed `GenerationQueueProjectionService` concrete storage from asset-services composition; handlers now depend on `GenerationQueueProjectionServicePort`.
 
 Steps:
 1. In `engine-runner` factories and containers:
@@ -400,7 +401,7 @@ Steps:
 2. If generics force concretes (e.g., `NarrativeEventApprovalService<N>`), introduce a trait object abstraction.
 
 **Verify**
-- Add/enable an arch-check that flags `Arc<SomeConcreteService>` fields in composition modules.
+- Enabled arch-check that flags `Arc<SomeConcreteService>` fields in `engine-runner` composition factories (initial scope; excludes queue_services/use_cases).
 
 ---
 

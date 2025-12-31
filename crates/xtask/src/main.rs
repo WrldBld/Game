@@ -125,8 +125,97 @@ fn arch_check() -> anyhow::Result<()> {
     check_app_does_not_depend_on_inbound_ports()?;
     check_no_engine_dto_shadowing_engine_ports_types()?;
     check_engine_app_no_internal_service_construction()?;
+    check_engine_runner_composition_no_concrete_service_fields()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
+    Ok(())
+}
+
+/// Phase 7: composition root should not store concrete services when a port exists.
+///
+/// This is a heuristic check that looks for `pub <field>: Arc<Concrete*Service...>`
+/// fields inside `engine-runner` composition factories.
+///
+/// Notes:
+/// - Only scans `crates/engine-runner/src/composition/factories/**`.
+/// - Skips `queue_services.rs` and `use_cases.rs` for now (they intentionally carry
+///   concrete worker services/adapters).
+fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let factories_dir = workspace_root.join("crates/engine-runner/src/composition/factories");
+    if !factories_dir.exists() {
+        return Ok(());
+    }
+
+    // regex_lite does not support look-around; capture the first token after `Arc<`
+    // and filter out `dyn` in code.
+    let field_arc_re = regex_lite::Regex::new(r"\bpub\s+[A-Za-z0-9_]+\s*:\s*Arc<\s*([^\s>]+)")
+    .context("compiling composition concrete-service regex")?;
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for entry in walkdir_rs_files(&factories_dir)? {
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if matches!(file_name, "queue_services.rs" | "use_cases.rs") {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        for cap in field_arc_re.captures_iter(&sanitized) {
+            let Some(ty) = cap.get(1).map(|m| m.as_str()) else {
+                continue;
+            };
+            let Some(mat) = cap.get(0) else {
+                continue;
+            };
+            let start = mat.range().start;
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+
+            if ty == "dyn" {
+                continue;
+            }
+
+            // Determine leaf type name (strip module path and generics)
+            let leaf = ty.rsplit("::").next().unwrap_or(ty);
+            let leaf = leaf.split('<').next().unwrap_or(leaf);
+
+            let is_service = leaf.contains("Service") && !leaf.ends_with("ServicePort");
+            if !is_service {
+                continue;
+            }
+
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "  - {}:{}: {}",
+                entry.display(),
+                line_no,
+                line.trim_end()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("arch-check failed: engine-runner composition factories store concrete service types (Phase 7)");
+        eprintln!("Use `Arc<dyn ...ServicePort>` fields instead when a port exists.\n");
+        for v in violations.iter().take(20) {
+            eprintln!("{v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed");
+    }
+
     Ok(())
 }
 

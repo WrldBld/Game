@@ -572,10 +572,7 @@ pub async fn new_app_state(
     let generation_service = asset_services.generation_service.clone();
     let generation_queue_projection_service =
         asset_services.generation_queue_projection_service.clone();
-    // Keep concrete generation_queue_projection_service for AppRequestHandler
-    let generation_queue_projection_service_concrete = asset_services
-        .generation_queue_projection_service_concrete
-        .clone();
+    // AppRequestHandler now depends on the projection port.
 
     // Create challenge outcome approval service (P3.3) - must be created before resolution service
     // Wire LLM port for suggestion generation, settings service for branch count,
@@ -714,8 +711,7 @@ pub async fn new_app_state(
         prompt_context_service_impl;
 
     // Clone generation services for use in request handler
-    let generation_queue_projection_for_handler =
-        generation_queue_projection_service_concrete.clone();
+    let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
     let generation_read_state_for_handler = generation_read_state_repository.clone();
 
     // Create suggestion enqueue adapter for AI suggestions

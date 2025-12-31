@@ -29,16 +29,15 @@ use std::sync::Arc;
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
     CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
-    RegionCrudPort, SuggestionEnqueuePort,
+    GenerationQueueProjectionServicePort, RegionCrudPort, SuggestionEnqueuePort,
 };
 use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 
 use crate::application::services::{
     ActantialContextService, ChallengeService, CharacterService, DispositionService,
-    EventChainService, GenerationQueueProjectionService, InteractionService, ItemService,
-    LocationService, NarrativeEventService, PlayerCharacterService, RegionService,
-    RelationshipService, SceneService, SheetTemplateService, SkillService, StoryEventService,
-    WorldService,
+    EventChainService, InteractionService, ItemService, LocationService, NarrativeEventService,
+    PlayerCharacterService, RegionService, RelationshipService, SceneService, SheetTemplateService,
+    SkillService, StoryEventService, WorldService,
 };
 
 use super::{
@@ -83,7 +82,7 @@ pub struct AppRequestHandler {
     suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
 
     // Generation queue services (for WebSocket hydration)
-    generation_queue_projection: Arc<GenerationQueueProjectionService>,
+    generation_queue_projection: Arc<dyn GenerationQueueProjectionServicePort>,
     generation_read_state: Arc<dyn GenerationReadStatePort>,
 
     /// Clock for time operations (required for testability)
@@ -117,7 +116,7 @@ impl AppRequestHandler {
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_crud: Arc<dyn RegionCrudPort>,
         suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
-        generation_queue_projection: Arc<GenerationQueueProjectionService>,
+        generation_queue_projection: Arc<dyn GenerationQueueProjectionServicePort>,
         generation_read_state: Arc<dyn GenerationReadStatePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
