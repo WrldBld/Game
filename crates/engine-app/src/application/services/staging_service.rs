@@ -596,7 +596,7 @@ That's all!"#;
     fn test_staged_npc_proposal_from_suggestion() {
         let suggestion = RuleBasedSuggestion::present(Uuid::new_v4(), "Test NPC", "Test reasoning");
 
-        let proposal = StagedNpcProposal::from(suggestion);
+        let proposal = rule_based_suggestion_to_proposal(&suggestion);
         assert_eq!(proposal.name, "Test NPC");
         assert!(proposal.is_present);
         assert_eq!(proposal.reasoning, "Test reasoning");
