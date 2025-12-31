@@ -45,8 +45,6 @@ Node labels and properties in this document are intended to reflect the live per
     name: "Family Honor Restored",
     description: "The stain cleansed"
 })
-
-> Note: `Goal` is referenced by some edges (e.g. want targets), but there is currently no Neo4j repository that creates/updates `Goal` nodes in the persistence layer. Treat it as "optional/legacy" until the missing repository is implemented.
 ```
 
 ### Locations & Regions
@@ -300,6 +298,50 @@ Node labels and properties in this document are intended to reflect the live per
 })
 ```
 
+### Character Sheets
+
+```cypher
+(:SheetTemplate {
+    id: "uuid",
+    world_id: "uuid",
+    name: "D&D 5e Character Sheet",
+    sections: "{...}",           // JSON - deeply nested template sections
+    created_at: datetime(),
+    updated_at: datetime()
+})
+```
+
+### Tactical Maps
+
+```cypher
+(:GridMap {
+    id: "uuid",
+    location_id: "uuid",
+    tiles: "{...}",              // JSON - 2D spatial tile data
+    width: 20,
+    height: 15,
+    created_at: datetime()
+})
+```
+
+### Staging (NPC Presence)
+
+```cypher
+(:Staging {
+    id: "uuid",
+    region_id: "uuid",
+    location_id: "uuid",
+    world_id: "uuid",
+    game_time: datetime,         // Game time when approved
+    approved_at: datetime,       // Real time when approved
+    ttl_hours: 3,                // How long valid in game hours
+    approved_by: "client_id",    // Who approved
+    source: "llm",               // "rule" | "llm" | "custom" | "prestaged"
+    dm_guidance: "" | "...",     // Optional guidance for regeneration
+    is_active: true              // Current active staging for region
+})
+```
+
 ---
 
 ## Edge Types
@@ -495,6 +537,67 @@ Node labels and properties in this document are intended to reflect the live per
 ### Observation
 
 Observation is currently persisted as properties on `Character` (see `wrldbldr_domain::entities::NpcObservation`) rather than via an `OBSERVED_NPC` edge.
+
+### Scene Completion
+
+```cypher
+(playerCharacter)-[:COMPLETED_SCENE]->(scene)
+```
+
+### Region Items
+
+```cypher
+(region:Region)-[:CONTAINS_ITEM {
+    quantity: 1,
+    added_at: datetime()
+}]->(item:Item)
+```
+
+### NPC Disposition
+
+```cypher
+(character:Character)-[:DISPOSITION_TOWARD {
+    base_disposition: "neutral",
+    current_disposition: "friendly",
+    relationship_level: 2,
+    last_updated: datetime()
+}]->(playerCharacter:PlayerCharacter)
+```
+
+### Dialogue History
+
+```cypher
+(playerCharacter:PlayerCharacter)-[:SPOKE_TO {
+    last_dialogue_at: datetime(),
+    last_topic: "...",
+    conversation_count: 5
+}]->(character:Character)
+```
+
+### Staging (NPC Presence)
+
+```cypher
+// Current active staging for a region
+(region:Region)-[:CURRENT_STAGING]->(staging:Staging)
+
+// All stagings for a region (history)
+(region:Region)-[:HAS_STAGING]->(staging:Staging)
+
+// NPCs included in a staging
+(staging:Staging)-[:INCLUDES_NPC {
+    is_present: true,
+    is_hidden_from_players: false,
+    reasoning: "Works here during evening shift"
+}]->(character:Character)
+```
+
+### Assets
+
+```cypher
+(entity)-[:HAS_ASSET]->(galleryAsset:GalleryAsset)
+```
+
+> Note: Entity can be Character, Location, or Item.
 
 ---
 

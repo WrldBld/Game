@@ -15,7 +15,10 @@ Core gameplay mechanics, each with user stories, UI mockups, and implementation 
 |--------|-------------|--------|
 | [Navigation](systems/navigation-system.md) | Locations, regions, movement, game time | Engine ✅ Player ⏳ |
 | [NPC](systems/npc-system.md) | NPC presence, location rules, DM events | Engine ✅ Player ⏳ |
-| [Character](systems/character-system.md) | NPCs, PCs, archetypes, actantial model, relationships, inventory | Engine ✅ Player ✅ |
+| [Character](systems/character-system.md) | NPCs, PCs, archetypes, relationships | Engine ✅ Player ✅ |
+| [Actantial Model](systems/actantial-system.md) | NPC motivations, wants, helpers/opponents | Engine ✅ Player ✅ |
+| [Inventory](systems/inventory-system.md) | Items, equipment, containers, region items | Engine ✅ Player ✅ |
+| [Staging](systems/staging-system.md) | NPC presence approval, DM workflow | Engine ✅ Player ⏳ |
 | [Observation](systems/observation-system.md) | Player knowledge tracking, known NPCs | Engine ✅ Player ⏳ |
 | [Challenge](systems/challenge-system.md) | Skill checks, dice, outcomes, rule systems | Engine ✅ Player ✅ |
 | [Narrative](systems/narrative-system.md) | Events, triggers, effects, chains | Engine ✅ Player ✅ |

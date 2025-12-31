@@ -15,6 +15,7 @@ WrldBldr uses a queue-based architecture for processing player actions, DM decis
 | `LLMReasoningQueue` | Ollama requests | SQLite | Semaphore (configurable) |
 | `AssetGenerationQueue` | ComfyUI requests | SQLite | 1 (sequential) |
 | `DMApprovalQueue` | Decisions awaiting DM approval | SQLite | N/A (waiting) |
+| `ChallengeOutcomeQueue` | Challenge outcomes awaiting DM approval | SQLite | N/A (waiting) |
 
 ---
 
@@ -55,15 +56,63 @@ WrldBldr uses a queue-based architecture for processing player actions, DM decis
 
 ## Queue Port Interface
 
+The core queue interface is defined in `crates/engine-ports/src/outbound/queue_port.rs`:
+
 ```rust
 #[async_trait]
-pub trait QueuePort<T>: Send + Sync {
-    async fn enqueue(&self, item: T) -> Result<QueueItemId>;
-    async fn dequeue(&self) -> Result<Option<QueueItem<T>>>;
-    async fn peek(&self) -> Result<Option<QueueItem<T>>>;
-    async fn complete(&self, id: &QueueItemId) -> Result<()>;
-    async fn fail(&self, id: &QueueItemId, error: &str) -> Result<()>;
-    async fn get_status(&self) -> Result<QueueStatus>;
+pub trait QueuePort<T>: Send + Sync
+where
+    T: Send + Sync + Clone,
+{
+    /// Add item to queue with given priority (higher = more urgent)
+    async fn enqueue(&self, payload: T, priority: u8) -> Result<QueueItemId, QueueError>;
+
+    /// Get next item for processing (marks as Processing)
+    async fn dequeue(&self) -> Result<Option<QueueItem<T>>, QueueError>;
+
+    /// Peek at next item without removing or changing status
+    async fn peek(&self) -> Result<Option<QueueItem<T>>, QueueError>;
+
+    /// Mark item as completed
+    async fn complete(&self, id: QueueItemId) -> Result<(), QueueError>;
+
+    /// Mark item as failed (may retry based on attempts)
+    async fn fail(&self, id: QueueItemId, error: &str) -> Result<(), QueueError>;
+
+    /// Delay item for later processing
+    async fn delay(&self, id: QueueItemId, until: DateTime<Utc>) -> Result<(), QueueError>;
+
+    /// Get item by ID
+    async fn get(&self, id: QueueItemId) -> Result<Option<QueueItem<T>>, QueueError>;
+
+    /// Get all items with given status
+    async fn list_by_status(&self, status: QueueItemStatus) -> Result<Vec<QueueItem<T>>, QueueError>;
+
+    /// Get queue depth (pending items count)
+    async fn depth(&self) -> Result<usize, QueueError>;
+
+    /// Clear completed/failed items older than duration
+    async fn cleanup(&self, older_than: Duration) -> Result<usize, QueueError>;
+}
+```
+
+### Extended Ports
+
+```rust
+/// For approval queues with human-facing features
+#[async_trait]
+pub trait ApprovalQueuePort<T>: QueuePort<T> {
+    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<QueueItem<T>>, QueueError>;
+    async fn get_history_by_world(&self, world_id: WorldId, limit: usize) -> Result<Vec<QueueItem<T>>, QueueError>;
+    async fn expire_old(&self, older_than: Duration) -> Result<usize, QueueError>;
+}
+
+/// For processing queues with concurrency control
+#[async_trait]
+pub trait ProcessingQueuePort<T>: QueuePort<T> {
+    fn batch_size(&self) -> usize;
+    async fn processing_count(&self) -> Result<usize, QueueError>;
+    async fn has_capacity(&self) -> Result<bool, QueueError>;
 }
 ```
 
@@ -77,7 +126,8 @@ pub enum QueueItemStatus {
     Processing,  // Currently being processed
     Completed,   // Successfully processed
     Failed,      // Processing failed
-    Cancelled,   // Manually cancelled
+    Delayed,     // Scheduled for later processing
+    Expired,     // TTL exceeded (for approval queues)
 }
 ```
 
@@ -89,7 +139,7 @@ pub enum QueueItemStatus {
 
 ```
 1. Player sends PlayerAction via WebSocket
-2. Handler creates PlayerActionItem with session_id
+2. Handler creates PlayerActionData payload
 3. Handler calls PlayerActionQueueService.enqueue()
 4. Background worker polls queue
 5. Worker builds LLM context, calls LLMQueueService.enqueue()
@@ -102,7 +152,7 @@ pub enum QueueItemStatus {
 ### LLM Request Flow
 
 ```
-1. LLMRequestItem created with prompt, npc_id, context
+1. LLMRequestData created with prompt, npc_id, context
 2. Semaphore limits concurrent Ollama calls
 3. Worker calls Ollama API
 4. Response parsed for dialogue, tools, suggestions
@@ -145,24 +195,13 @@ Environment variables:
 
 ---
 
-## Session-Aware Processing
+## World-Scoped Processing
 
-All queue items carry `session_id` for:
+All queue items carry `world_id` for:
 
-1. **Isolation**: Items from different sessions don't interfere
-2. **Fairness**: Round-robin processing across sessions
-3. **Routing**: Results sent to correct session participants
-
-```rust
-pub struct PlayerActionItem {
-    pub action_id: ActionId,
-    pub session_id: SessionId,  // Required
-    pub user_id: String,
-    pub action_type: String,
-    pub target_id: Option<String>,
-    pub content: String,
-}
-```
+1. **Isolation**: Items from different worlds don't interfere
+2. **Fairness**: Round-robin processing across worlds
+3. **Routing**: Results sent to correct world participants
 
 ---
 
@@ -178,7 +217,7 @@ Response:
   "player_action_queue": {
     "pending": 3,
     "processing": 1,
-    "sessions": ["session-1", "session-2"]
+    "worlds": ["world-1", "world-2"]
   },
   "llm_queue": {
     "pending": 2,
@@ -221,21 +260,51 @@ SQLite persistence enables recovery after restart:
 
 ## Implementation Files
 
-### Engine
+### Domain Layer
 
 | File | Purpose |
 |------|---------|
-| `crates/engine-ports/src/outbound/queue_port.rs` | Queue port trait |
-| `crates/engine-app/src/application/dto/queue_items.rs` | Item types |
+| `crates/domain/src/value_objects/queue_data.rs` | Queue payload value objects (PlayerActionData, LlmRequestData, etc.) |
+
+### Ports Layer
+
+| File | Purpose |
+|------|---------|
+| `crates/engine-ports/src/outbound/queue_port.rs` | Core queue port traits (QueuePort, ApprovalQueuePort, ProcessingQueuePort) |
+| `crates/engine-ports/src/outbound/queue_notification_port.rs` | Queue notification port for worker wake-up |
+| `crates/engine-ports/src/outbound/player_action_queue_service_port.rs` | Player action queue service port |
+| `crates/engine-ports/src/outbound/dm_action_queue_service_port.rs` | DM action queue service port |
+| `crates/engine-ports/src/outbound/llm_queue_service_port.rs` | LLM queue service port |
+| `crates/engine-ports/src/outbound/asset_generation_queue_service_port.rs` | Asset generation queue service port |
+| `crates/engine-ports/src/outbound/dm_approval_queue_service_port.rs` | DM approval queue service port |
+
+### Application Layer
+
+| File | Purpose |
+|------|---------|
+| `crates/engine-dto/src/queue.rs` | Queue DTOs and conversions (1000+ lines) |
 | `crates/engine-app/src/application/services/player_action_queue_service.rs` | Player actions |
 | `crates/engine-app/src/application/services/dm_action_queue_service.rs` | DM actions |
 | `crates/engine-app/src/application/services/llm_queue_service.rs` | LLM processing |
 | `crates/engine-app/src/application/services/asset_generation_queue_service.rs` | Asset generation |
 | `crates/engine-app/src/application/services/dm_approval_queue_service.rs` | Approvals |
+
+### Adapters Layer
+
+| File | Purpose |
+|------|---------|
 | `crates/engine-adapters/src/infrastructure/queues/sqlite_queue.rs` | SQLite backend |
 | `crates/engine-adapters/src/infrastructure/queues/memory_queue.rs` | In-memory backend |
 | `crates/engine-adapters/src/infrastructure/queues/factory.rs` | Queue factory |
-| `crates/engine-adapters/src/infrastructure/queue_workers.rs` | Worker spawning |
+| `crates/engine-adapters/src/infrastructure/queues/in_process_notifier.rs` | Queue notification system |
+| `crates/engine-adapters/src/infrastructure/http/queue_routes.rs` | HTTP routes for queue status |
+
+### Runner Layer
+
+| File | Purpose |
+|------|---------|
+| `crates/engine-runner/src/run/queue_workers.rs` | Background worker spawning |
+| `crates/engine-runner/src/composition/factories/queue_services.rs` | Queue service factory |
 
 ---
 

@@ -386,7 +386,6 @@ impl TriggerEvaluationService {
     /// # Arguments
     ///
     /// * `world_id` - The world to build state for
-    /// * `session_id` - The current session
     /// * `player_character_id` - Optional player character to get location/inventory from
     /// * `immediate_context` - Optional immediate context (just completed challenge, etc.)
     #[instrument(skip(self, immediate_context))]

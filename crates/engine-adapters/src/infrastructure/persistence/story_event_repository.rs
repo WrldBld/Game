@@ -1772,8 +1772,8 @@ impl StoryEventDialoguePort for Neo4jStoryEventRepository {
 
 /// Convert a Neo4j row to a StoryEvent
 ///
-/// NOTE: session_id, scene_id, location_id, involved_characters, and triggered_by
-/// are now stored as graph edges, not node properties. Use the edge query methods
+/// NOTE: scene_id, location_id, involved_characters, and triggered_by
+/// are stored as graph edges, not node properties. Use the edge query methods
 /// to retrieve these associations.
 fn row_to_story_event(row: Row) -> Result<StoryEvent> {
     let node: neo4rs::Node = row.get("e")?;
@@ -1795,9 +1795,8 @@ fn row_to_story_event(row: Row) -> Result<StoryEvent> {
     Ok(StoryEvent {
         id: StoryEventId::from(Uuid::parse_str(&id_str)?),
         world_id: WorldId::from(Uuid::parse_str(&world_id_str)?),
-        // NOTE: session_id now stored as OCCURRED_IN_SESSION edge
-        // NOTE: scene_id now stored as OCCURRED_IN_SCENE edge
-        // NOTE: location_id now stored as OCCURRED_AT edge
+        // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
+        // NOTE: location_id stored as OCCURRED_AT edge
         event_type,
         timestamp: DateTime::parse_from_rfc3339(&timestamp_str)?.with_timezone(&Utc),
         game_time: if game_time.is_empty() {

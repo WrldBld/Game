@@ -163,13 +163,24 @@ The `protocol` crate serves as a **Shared Kernel** - a bounded context that both
 
 ### Files Approved for Shared Kernel Usage
 
-These files in `player-ports` are approved to use protocol types directly:
+These files in ports layers are approved to use protocol types directly:
+
+#### Engine-Ports
+
+| File | Protocol Types Used | Reason |
+|------|---------------------|--------|
+| `request_handler.rs` | `RequestPayload`, `ResponseResult` | Defines primary engine-player communication boundary |
+| `dm_approval_queue_service_port.rs` | `ChallengeSuggestionInfo`, `NarrativeEventSuggestionInfo`, `ProposedToolInfo` | Queue items contain wire-format suggestion types |
+
+#### Player-Ports
 
 | File | Protocol Types Used | Reason |
 |------|---------------------|--------|
 | `request_port.rs` | `RequestPayload`, `ResponseResult`, `RequestError` | Defines WebSocket request/response interface |
 | `game_connection_port.rs` | Same as above | Parent trait for WebSocket connection |
 | `mock_game_connection.rs` | Same as above | Testing infrastructure |
+| `session_types.rs` | Multiple DTO types | Provides `From` conversions between port-layer and protocol types |
+| `player_events.rs` | `ChallengeSuggestionInfo`, `NarrativeEventSuggestionInfo`, `ProposedToolInfo` | Re-exports for event payloads |
 
 All other ports should define their own types and have adapters translate from protocol types.
 
@@ -347,10 +358,18 @@ Run `cargo xtask arch-check` to verify:
 
 ### Shared Kernel Whitelist
 
-The arch-check maintains a whitelist of files approved for Shared Kernel usage:
+The arch-check maintains a whitelist of files approved for Shared Kernel usage.
+
+**Engine-Ports whitelist:**
+- `request_handler.rs`
+- `dm_approval_queue_service_port.rs`
+
+**Player-Ports whitelist:**
 - `request_port.rs`
 - `game_connection_port.rs`
 - `mock_game_connection.rs`
+- `session_types.rs`
+- `player_events.rs`
 
 Any new file using protocol types in ports layer will fail arch-check.
 

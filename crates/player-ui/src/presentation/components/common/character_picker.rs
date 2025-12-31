@@ -6,7 +6,6 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::{use_character_service, use_player_character_service};
-use crate::presentation::state::use_session_state;
 
 /// A selectable character entry
 #[derive(Clone, Debug, PartialEq)]
@@ -52,7 +51,6 @@ pub struct CharacterPickerProps {
 pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
     let character_service = use_character_service();
     let pc_service = use_player_character_service();
-    let session_state = use_session_state();
 
     // State for character options
     let mut characters: Signal<Vec<CharacterOption>> = use_signal(Vec::new);
@@ -72,8 +70,6 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
             let exclude_id = exclude_id.clone();
             let char_service = char_service.clone();
             let pc_svc = pc_svc.clone();
-            let session_id: Option<String> = (*session_state.session_id().read()).clone();
-
             spawn(async move {
                 is_loading.set(true);
                 let mut all_chars: Vec<CharacterOption> = Vec::new();
@@ -98,28 +94,26 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                     }
                 }
 
-                // Fetch PCs if we have a session
-                if let Some(sid) = session_id {
-                    match pc_svc.list_pcs(&sid).await {
-                        Ok(pcs) => {
-                            for pc in pcs {
-                                // Skip excluded character
-                                if exclude_id.as_ref().map(|e| e == &pc.id).unwrap_or(false) {
-                                    continue;
-                                }
-                                all_chars.push(CharacterOption {
-                                    id: pc.id,
-                                    name: pc.name,
-                                    is_pc: true,
-                                });
+                // Fetch PCs for this world
+                match pc_svc.list_pcs(&world_id).await {
+                    Ok(pcs) => {
+                        for pc in pcs {
+                            // Skip excluded character
+                            if exclude_id.as_ref().map(|e| e == &pc.id).unwrap_or(false) {
+                                continue;
                             }
+                            all_chars.push(CharacterOption {
+                                id: pc.id,
+                                name: pc.name,
+                                is_pc: true,
+                            });
                         }
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to load PCs (may not have active session): {:?}",
-                                e
-                            );
-                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to load PCs (may not have active world): {:?}",
+                            e
+                        );
                     }
                 }
 

@@ -210,13 +210,13 @@ pub fn DirectorModeContent() -> Element {
                 div {
                     class: "panel-section bg-dark-surface rounded-lg p-4",
 
-                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Session Info" }
+                    h3 { class: "text-gray-400 mb-3 text-sm uppercase", "Connection Info" }
 
                     div { class: "text-white text-sm",
-                        if let Some(session_id) = session_state.session_id().read().as_ref() {
-                            p { class: "my-1", "Session: {session_id}" }
+                        if let Some(world_id) = session_state.world_id().read().as_ref() {
+                            p { class: "my-1", "World: {world_id}" }
                         } else {
-                            p { class: "my-1 text-amber-500", "Not connected to session" }
+                            p { class: "my-1 text-amber-500", "Not connected to world" }
                         }
                     }
                 }
@@ -417,7 +417,7 @@ pub fn DirectorModeContent() -> Element {
 
             // PC Management Modal
             if *show_pc_management.read() {
-                if let Some(session_id) = session_state.session_id().read().as_ref() {
+                if let Some(world_id) = session_state.world_id().read().as_ref() {
                     div {
                         class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
                         onclick: move |_| show_pc_management.set(false),
@@ -437,7 +437,7 @@ pub fn DirectorModeContent() -> Element {
                                 }
                             }
                             crate::presentation::components::dm_panel::pc_management::PCManagementPanel {
-                                session_id: session_id.clone(),
+                                world_id: world_id.to_string(),
                                 on_view_as_character: move |character_id| {
                                     // TODO (Phase 23 Player Perspective): Implement view-as-character mode
                                     tracing::info!("View as character: {}", character_id);
@@ -495,10 +495,9 @@ pub fn DirectorModeContent() -> Element {
             if *show_character_perspective.read() {
                 {
                     let mut game_state_for_view = game_state.clone();
-                    let session_id = session_state.session_id().read().as_ref().map(|s| s.clone());
                     let world_id = game_state.world.read().as_ref().map(|w| w.world.id.clone());
 
-                    if let (Some(session_id), Some(world_id)) = (session_id, world_id) {
+                    if let Some(world_id) = world_id {
                         rsx! {
                             div {
                                 class: "fixed inset-0 bg-black/80 flex items-center justify-center z-[1000]",
@@ -519,7 +518,6 @@ pub fn DirectorModeContent() -> Element {
                                         }
                                     }
                                     crate::presentation::components::dm_panel::character_perspective::CharacterPerspectiveViewer {
-                                        session_id: session_id.clone(),
                                         world_id: world_id.clone(),
                                         on_view_as: move |data: ViewAsData| {
                                             // Switch to view-as-character mode

@@ -347,10 +347,6 @@ impl NarrativeEventService for NarrativeEventServiceImpl {
                 world_id: event.world_id,
                 event_name: event.name.clone(),
                 outcome_name: outcome_name.unwrap_or_else(|| "default".to_string()),
-                // Narrative events are world-scoped for now; session_id will be
-                // attached by higher-level orchestration when triggered from
-                // a specific live session.
-                session_id: None,
             };
 
             if let Err(e) = self.event_bus.publish(domain_event).await {

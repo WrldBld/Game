@@ -62,61 +62,63 @@ impl GenerationEventPublisher {
 
     /// Map a GenerationEvent to a DomainEvent.
     ///
-    /// For now, generation events are not session-scoped and are broadcast
-    /// based on world context in the subscriber. When generation is invoked
-    /// from a specific live session in the future, this mapping can be
-    /// extended to populate `session_id`.
+    /// All generation events are world-scoped for routing to connected clients.
     fn map_to_domain_event(&self, event: GenerationEvent) -> Option<DomainEvent> {
         match event {
             GenerationEvent::BatchQueued {
                 batch_id,
+                world_id,
                 entity_type,
                 entity_id,
                 asset_type,
                 position,
             } => Some(DomainEvent::GenerationBatchQueued {
                 batch_id: batch_id.to_string(),
+                world_id,
                 entity_type: entity_type.to_string(),
                 entity_id,
                 asset_type: asset_type.to_string(),
                 position,
-                session_id: None,
             }),
-            GenerationEvent::BatchProgress { batch_id, progress } => {
-                Some(DomainEvent::GenerationBatchProgress {
-                    batch_id: batch_id.to_string(),
-                    // GenerationEvent uses u8 (0-100), DomainEvent uses f32 (0.0-1.0)
-                    progress: progress as f32 / 100.0,
-                    session_id: None,
-                })
-            }
+            GenerationEvent::BatchProgress {
+                batch_id,
+                world_id,
+                progress,
+            } => Some(DomainEvent::GenerationBatchProgress {
+                batch_id: batch_id.to_string(),
+                world_id,
+                // GenerationEvent uses u8 (0-100), DomainEvent uses f32 (0.0-1.0)
+                progress: progress as f32 / 100.0,
+            }),
             GenerationEvent::BatchComplete {
                 batch_id,
+                world_id,
                 entity_type,
                 entity_id,
                 asset_type,
                 asset_count,
             } => Some(DomainEvent::GenerationBatchCompleted {
                 batch_id: batch_id.to_string(),
+                world_id,
                 entity_type: entity_type.to_string(),
                 entity_id,
                 asset_type: asset_type.to_string(),
                 asset_count,
-                session_id: None,
             }),
             GenerationEvent::BatchFailed {
                 batch_id,
+                world_id,
                 entity_type,
                 entity_id,
                 asset_type,
                 error,
             } => Some(DomainEvent::GenerationBatchFailed {
                 batch_id: batch_id.to_string(),
+                world_id,
                 entity_type: entity_type.to_string(),
                 entity_id,
                 asset_type: asset_type.to_string(),
                 error,
-                session_id: None,
             }),
             GenerationEvent::SuggestionQueued {
                 request_id,

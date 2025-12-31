@@ -57,12 +57,7 @@ impl SessionState {
         self.connection.connection_status
     }
 
-    /// Session ID after joining (legacy)
-    pub fn session_id(&self) -> Signal<Option<String>> {
-        self.connection.session_id
-    }
-
-    /// World ID after joining (WebSocket-first protocol)
+    /// World ID after joining (all connections are world-scoped)
     pub fn world_id(&self) -> Signal<Option<Uuid>> {
         self.connection.world_id
     }
@@ -164,12 +159,7 @@ impl SessionState {
         self.connection.set_connection_handle(client);
     }
 
-    /// Set the session as joined (legacy)
-    pub fn set_session_joined(&mut self, session_id: String) {
-        self.connection.set_session_joined(session_id);
-    }
-
-    /// Set the world as joined (WebSocket-first protocol)
+    /// Set the world as joined
     pub fn set_world_joined(
         &mut self,
         world_id: Uuid,

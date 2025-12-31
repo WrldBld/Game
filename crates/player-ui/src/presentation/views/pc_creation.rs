@@ -24,7 +24,6 @@ enum CreationStep {
 /// Props for PC creation view
 #[derive(Props, Clone, PartialEq)]
 pub struct PCCreationProps {
-    pub session_id: String,
     pub world_id: String,
 }
 
@@ -168,7 +167,6 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         let _desc_val = description.read().clone();
         let location_id = selected_location_id.read().clone();
         let sheet_vals = sheet_values.read().clone();
-        let _session_id = props.session_id.clone();
         let pc_svc = pc_service.clone();
         let nav = navigator;
         let world_id = props.world_id.clone();

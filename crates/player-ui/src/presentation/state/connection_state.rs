@@ -1,6 +1,7 @@
 //! Connection state management using Dioxus signals
 //!
 //! Tracks connection status, server URL, and user/world information.
+//! All connections are world-scoped (no session concept).
 
 use dioxus::prelude::*;
 use std::sync::Arc;
@@ -58,9 +59,7 @@ impl ConnectionStatus {
 pub struct ConnectionState {
     /// Current connection status
     pub connection_status: Signal<ConnectionStatus>,
-    /// Session ID after joining (legacy - kept for backward compatibility)
-    pub session_id: Signal<Option<String>>,
-    /// World ID after joining (WebSocket-first protocol)
+    /// World ID after joining (all connections are world-scoped)
     pub world_id: Signal<Option<Uuid>>,
     /// User ID (local identifier)
     pub user_id: Signal<Option<String>>,
@@ -87,7 +86,6 @@ impl ConnectionState {
     pub fn new() -> Self {
         Self {
             connection_status: Signal::new(ConnectionStatus::Disconnected),
-            session_id: Signal::new(None),
             world_id: Signal::new(None),
             user_id: Signal::new(None),
             user_role: Signal::new(None),
@@ -122,11 +120,6 @@ impl ConnectionState {
     /// and status is driven by incoming connection events.
     pub fn set_connection_handle(&mut self, client: Arc<dyn GameConnectionPort>) {
         self.engine_client.set(Some(client));
-    }
-
-    /// Set the session as joined (legacy)
-    pub fn set_session_joined(&mut self, session_id: String) {
-        self.session_id.set(Some(session_id));
     }
 
     /// Set the world as joined (WebSocket-first protocol)
@@ -174,7 +167,7 @@ impl ConnectionState {
     pub fn set_disconnected(&mut self) {
         self.connection_status.set(ConnectionStatus::Disconnected);
         self.engine_client.set(None);
-        self.session_id.set(None);
+        self.world_id.set(None);
     }
 
     /// Set the connection to failed state with error
@@ -197,7 +190,6 @@ impl ConnectionState {
     /// Clear all connection state
     pub fn clear(&mut self) {
         self.connection_status.set(ConnectionStatus::Disconnected);
-        self.session_id.set(None);
         self.world_id.set(None);
         self.user_id.set(None);
         self.user_role.set(None);

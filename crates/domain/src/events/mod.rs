@@ -23,7 +23,6 @@ pub enum DomainEvent {
         world_id: WorldId,
         event_name: String,
         outcome_name: String,
-        session_id: Option<String>,
     },
 
     // Challenge
@@ -35,38 +34,37 @@ pub enum DomainEvent {
         success: bool,
         roll: Option<i32>,
         total: Option<i32>,
-        session_id: Option<String>,
     },
 
     // Generation (Asset/Image)
     GenerationBatchQueued {
         batch_id: String,
+        world_id: WorldId,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         position: u32,
-        session_id: Option<String>,
     },
     GenerationBatchProgress {
         batch_id: String,
+        world_id: WorldId,
         progress: f32,
-        session_id: Option<String>,
     },
     GenerationBatchCompleted {
         batch_id: String,
+        world_id: WorldId,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         asset_count: u32,
-        session_id: Option<String>,
     },
     GenerationBatchFailed {
         batch_id: String,
+        world_id: WorldId,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         error: String,
-        session_id: Option<String>,
     },
 
     // Suggestion (LLM Text)
@@ -117,11 +115,14 @@ impl DomainEvent {
             Self::StoryEventCreated { world_id, .. } => Some(*world_id),
             Self::NarrativeEventTriggered { world_id, .. } => Some(*world_id),
             Self::ChallengeResolved { world_id, .. } => Some(*world_id),
+            Self::GenerationBatchQueued { world_id, .. } => Some(*world_id),
+            Self::GenerationBatchProgress { world_id, .. } => Some(*world_id),
+            Self::GenerationBatchCompleted { world_id, .. } => Some(*world_id),
+            Self::GenerationBatchFailed { world_id, .. } => Some(*world_id),
             Self::SuggestionQueued { world_id, .. } => *world_id,
             Self::SuggestionProgress { world_id, .. } => *world_id,
             Self::SuggestionCompleted { world_id, .. } => *world_id,
             Self::SuggestionFailed { world_id, .. } => *world_id,
-            _ => None,
         }
     }
 }

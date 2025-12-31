@@ -21,7 +21,7 @@ mod narrative_event;
 mod player_character;
 mod rule_system;
 mod scene;
-mod session_info;
+
 mod sheet_template;
 mod skill;
 mod story_event;
@@ -115,9 +115,6 @@ pub use sheet_template::{
     CreateFieldRequestDto, CreateSectionRequestDto, SheetTemplateResponseDto,
     SheetTemplateStorageDto, SheetTemplateSummaryDto,
 };
-
-// Session DTOs
-pub use session_info::SessionInfo;
 
 // Player Character DTOs
 pub use player_character::{

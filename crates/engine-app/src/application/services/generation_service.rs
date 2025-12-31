@@ -28,16 +28,22 @@ pub enum GenerationEvent {
     /// A batch has been queued
     BatchQueued {
         batch_id: BatchId,
+        world_id: WorldId,
         entity_type: EntityType,
         entity_id: String,
         asset_type: AssetType,
         position: u32,
     },
     /// A batch is generating (progress update)
-    BatchProgress { batch_id: BatchId, progress: u8 },
+    BatchProgress {
+        batch_id: BatchId,
+        world_id: WorldId,
+        progress: u8,
+    },
     /// A batch has completed
     BatchComplete {
         batch_id: BatchId,
+        world_id: WorldId,
         entity_type: EntityType,
         entity_id: String,
         asset_type: AssetType,
@@ -46,6 +52,7 @@ pub enum GenerationEvent {
     /// A batch has failed
     BatchFailed {
         batch_id: BatchId,
+        world_id: WorldId,
         entity_type: EntityType,
         entity_id: String,
         asset_type: AssetType,
@@ -170,6 +177,7 @@ impl GenerationService {
         // Send queued event (non-blocking, logs warning if buffer full)
         if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchQueued {
             batch_id,
+            world_id: batch.world_id,
             entity_type: batch.entity_type,
             entity_id: batch.entity_id.clone(),
             asset_type: batch.asset_type,
@@ -300,10 +308,11 @@ impl GenerationService {
         };
 
         // Update progress (non-blocking, logs warning if buffer full)
-        if let Err(e) = self
-            .event_sender
-            .try_send(GenerationEvent::BatchProgress { batch_id, progress })
-        {
+        if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchProgress {
+            batch_id,
+            world_id: batch.world_id,
+            progress,
+        }) {
             tracing::warn!("Failed to send BatchProgress event: {}", e);
         }
 
@@ -321,6 +330,7 @@ impl GenerationService {
 
             if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchComplete {
                 batch_id,
+                world_id: batch.world_id,
                 entity_type: batch.entity_type,
                 entity_id: batch.entity_id.clone(),
                 asset_type: batch.asset_type,

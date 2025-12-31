@@ -8,7 +8,7 @@ use wrldbldr_player_app::application::services::PlayerCharacterData;
 /// Props for PCManagementPanel
 #[derive(Props, Clone, PartialEq)]
 pub struct PCManagementPanelProps {
-    pub session_id: String,
+    pub world_id: String,
     pub on_view_as_character: EventHandler<String>,
 }
 
@@ -22,14 +22,14 @@ pub fn PCManagementPanel(props: PCManagementPanelProps) -> Element {
 
     // Load PCs on mount
     {
-        let session_id = props.session_id.clone();
+        let world_id = props.world_id.clone();
         let pc_svc = pc_service.clone();
         use_effect(move || {
-            let sid = session_id.clone();
+            let wid = world_id.clone();
             let svc = pc_svc.clone();
             loading.set(true);
             spawn(async move {
-                match svc.list_pcs(&sid).await {
+                match svc.list_pcs(&wid).await {
                     Ok(pc_list) => {
                         pcs.set(pc_list);
                         loading.set(false);
@@ -67,7 +67,7 @@ pub fn PCManagementPanel(props: PCManagementPanelProps) -> Element {
             } else if pcs.read().is_empty() {
                 div {
                     class: "p-8 text-center text-gray-400",
-                    "No player characters in this session"
+                    "No player characters in this world"
                 }
             } else {
                 {
@@ -159,7 +159,7 @@ fn PCManagementCard(props: PCManagementCardProps) -> Element {
 /// Props for PCLocationsWidget
 #[derive(Props, Clone, PartialEq)]
 pub struct PCLocationsWidgetProps {
-    pub session_id: String,
+    pub world_id: String,
     pub on_manage: EventHandler<()>,
 }
 
@@ -172,14 +172,14 @@ pub fn PCLocationsWidget(props: PCLocationsWidgetProps) -> Element {
 
     // Load PCs on mount
     {
-        let session_id = props.session_id.clone();
+        let world_id = props.world_id.clone();
         let pc_svc = pc_service.clone();
         use_effect(move || {
-            let sid = session_id.clone();
+            let wid = world_id.clone();
             let svc = pc_svc.clone();
             loading.set(true);
             spawn(async move {
-                match svc.list_pcs(&sid).await {
+                match svc.list_pcs(&wid).await {
                     Ok(pc_list) => {
                         pcs.set(pc_list);
                         loading.set(false);

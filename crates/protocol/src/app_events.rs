@@ -3,6 +3,8 @@
 //! These events are published through the EventBus after significant
 //! application/domain state changes. They are coarse-grained, serializable,
 //! and suitable for persistence, fan-out to multiple subscribers.
+//!
+//! All events are world-scoped for routing to connected clients.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,8 +28,6 @@ pub enum AppEvent {
         world_id: String,
         event_name: String,
         outcome_name: String,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     // ========================================================================
@@ -42,8 +42,6 @@ pub enum AppEvent {
         success: bool,
         roll: Option<i32>,
         total: Option<i32>,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     // ========================================================================
@@ -52,42 +50,38 @@ pub enum AppEvent {
     /// A generation batch was queued.
     GenerationBatchQueued {
         batch_id: String,
+        world_id: String,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         position: u32,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     /// A generation batch is progressing.
     GenerationBatchProgress {
         batch_id: String,
+        world_id: String,
         progress: u8,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     /// A generation batch completed successfully.
     GenerationBatchCompleted {
         batch_id: String,
+        world_id: String,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         asset_count: u32,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     /// A generation batch failed.
     GenerationBatchFailed {
         batch_id: String,
+        world_id: String,
         entity_type: String,
         entity_id: String,
         asset_type: String,
         error: String,
-        #[serde(default)]
-        session_id: Option<String>,
     },
 
     // ========================================================================
@@ -155,24 +149,16 @@ impl AppEvent {
         match self {
             AppEvent::StoryEventCreated { world_id, .. }
             | AppEvent::NarrativeEventTriggered { world_id, .. }
-            | AppEvent::ChallengeResolved { world_id, .. } => Some(world_id.as_str()),
+            | AppEvent::ChallengeResolved { world_id, .. }
+            | AppEvent::GenerationBatchQueued { world_id, .. }
+            | AppEvent::GenerationBatchProgress { world_id, .. }
+            | AppEvent::GenerationBatchCompleted { world_id, .. }
+            | AppEvent::GenerationBatchFailed { world_id, .. } => Some(world_id.as_str()),
             AppEvent::SuggestionQueued { world_id, .. }
             | AppEvent::SuggestionProgress { world_id, .. }
             | AppEvent::SuggestionCompleted { world_id, .. }
             | AppEvent::SuggestionFailed { world_id, .. } => world_id.as_deref(),
-            _ => None,
-        }
-    }
-
-    pub fn session_id(&self) -> Option<&str> {
-        match self {
-            AppEvent::NarrativeEventTriggered { session_id, .. }
-            | AppEvent::ChallengeResolved { session_id, .. }
-            | AppEvent::GenerationBatchQueued { session_id, .. }
-            | AppEvent::GenerationBatchProgress { session_id, .. }
-            | AppEvent::GenerationBatchCompleted { session_id, .. }
-            | AppEvent::GenerationBatchFailed { session_id, .. } => session_id.as_deref(),
-            _ => None,
+            AppEvent::Unknown => None,
         }
     }
 }

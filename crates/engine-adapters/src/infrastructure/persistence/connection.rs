@@ -83,7 +83,6 @@ impl Neo4jConnection {
             "CREATE INDEX scene_act IF NOT EXISTS FOR (s:Scene) ON (s.act_id)",
             "CREATE INDEX sheet_template_world IF NOT EXISTS FOR (t:SheetTemplate) ON (t.world_id)",
             "CREATE INDEX player_character_world IF NOT EXISTS FOR (pc:PlayerCharacter) ON (pc.world_id)",
-            "CREATE INDEX player_character_session IF NOT EXISTS FOR (pc:PlayerCharacter) ON (pc.session_id)",
             "CREATE INDEX staging_world IF NOT EXISTS FOR (s:Staging) ON (s.world_id)",
             "CREATE INDEX generation_batch_world IF NOT EXISTS FOR (b:GenerationBatch) ON (b.world_id)",
             "CREATE INDEX goal_world IF NOT EXISTS FOR (g:Goal) ON (g.world_id)",

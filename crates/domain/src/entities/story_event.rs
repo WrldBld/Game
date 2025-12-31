@@ -38,9 +38,8 @@ use wrldbldr_domain::{
 pub struct StoryEvent {
     pub id: StoryEventId,
     pub world_id: WorldId,
-    // NOTE: session_id moved to OCCURRED_IN_SESSION edge
-    // NOTE: scene_id moved to OCCURRED_IN_SCENE edge
-    // NOTE: location_id moved to OCCURRED_AT edge
+    // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
+    // NOTE: location_id stored as OCCURRED_AT edge
     /// The type and details of the event
     /// (Kept as JSON - contains complex discriminated union data)
     pub event_type: StoryEventType,
@@ -332,9 +331,8 @@ impl StoryEvent {
         Self {
             id: StoryEventId::new(),
             world_id,
-            // NOTE: session_id now stored as OCCURRED_IN_SESSION edge
-            // NOTE: scene_id now stored as OCCURRED_IN_SCENE edge
-            // NOTE: location_id now stored as OCCURRED_AT edge
+            // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
+            // NOTE: location_id stored as OCCURRED_AT edge
             event_type,
             timestamp: now,
             game_time: None,

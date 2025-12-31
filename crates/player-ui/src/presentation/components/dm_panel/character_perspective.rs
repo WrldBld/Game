@@ -14,7 +14,6 @@ pub struct ViewAsData {
 /// Props for CharacterPerspectiveViewer
 #[derive(Props, Clone, PartialEq)]
 pub struct CharacterPerspectiveViewerProps {
-    pub session_id: String,
     pub world_id: String,
     pub on_view_as: EventHandler<ViewAsData>,
 }
@@ -33,19 +32,17 @@ pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Ele
 
     // Load PCs and NPCs on mount
     {
-        let session_id = props.session_id.clone();
         let world_id = props.world_id.clone();
         let pc_svc = pc_service.clone();
         let char_svc = character_service.clone();
         use_effect(move || {
-            let sid = session_id.clone();
             let wid = world_id.clone();
             let pc_svc_clone = pc_svc.clone();
             let char_svc_clone = char_svc.clone();
             loading.set(true);
             spawn(async move {
                 // Load PCs
-                let pc_result = pc_svc_clone.list_pcs(&sid).await;
+                let pc_result = pc_svc_clone.list_pcs(&wid).await;
 
                 // Load NPCs
                 let npc_result = char_svc_clone.list_characters(&wid).await;
