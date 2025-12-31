@@ -231,7 +231,9 @@ def render_port_taxonomy_block() -> str:
     if player_defs:
         out_lines.append(render_table(player_defs, player_usage).rstrip())
     else:
-        out_lines.append("_No player inbound items found (unexpected)._ ")
+        out_lines.append(
+            "_No player inbound items found._ (Player server-event DTOs are currently defined in `crates/player-ports/src/outbound/player_events.rs`.)"
+        )
 
     out_lines.append("")
     out_lines.append("_Regenerate with `task arch:inventories`._")

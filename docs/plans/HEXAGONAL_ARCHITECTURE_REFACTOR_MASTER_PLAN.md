@@ -156,7 +156,7 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 
 #### Player inbound taxonomy
 
-_No player inbound items found (unexpected)._ 
+_No player inbound items found._ (Player server-event DTOs are currently defined in `crates/player-ports/src/outbound/player_events.rs`.)
 
 _Regenerate with `task arch:inventories`._
 
