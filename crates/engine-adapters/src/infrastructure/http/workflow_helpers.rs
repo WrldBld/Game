@@ -143,7 +143,14 @@ pub fn export_configs(
 }
 
 /// Import workflow configurations from exported JSON
-pub fn import_configs(json: &serde_json::Value) -> Result<Vec<WorkflowConfiguration>> {
+///
+/// # Arguments
+/// * `json` - The JSON value containing exported workflow configurations
+/// * `fallback_time` - Fallback timestamp if datetime parsing fails (typically from ClockPort)
+pub fn import_configs(
+    json: &serde_json::Value,
+    fallback_time: DateTime<Utc>,
+) -> Result<Vec<WorkflowConfiguration>> {
     let workflows = json
         .get("workflows")
         .ok_or_else(|| anyhow!("Missing 'workflows' field in import data"))?;
@@ -153,7 +160,7 @@ pub fn import_configs(json: &serde_json::Value) -> Result<Vec<WorkflowConfigurat
 
     let configs: Vec<WorkflowConfiguration> = dtos
         .into_iter()
-        .map(workflow_config_from_export_dto)
+        .map(|dto| workflow_config_from_export_dto(dto, fallback_time))
         .collect::<Result<Vec<_>>>()?;
 
     Ok(configs)

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use neo4rs::{query, Row};
 use uuid::Uuid;
+use wrldbldr_common::StringExt;
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
@@ -443,7 +444,7 @@ fn row_to_event_chain(row: Row) -> Result<EventChain> {
             Uuid::parse_str(&act_id_str).ok().map(ActId::from)
         },
         tags,
-        color: if color.is_empty() { None } else { Some(color) },
+        color: color.into_option(),
         is_favorite,
         created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
         updated_at: DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&Utc),

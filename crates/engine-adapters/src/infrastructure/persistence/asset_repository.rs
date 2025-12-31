@@ -7,6 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
+use wrldbldr_common::StringExt;
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{
@@ -507,7 +508,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset> {
         asset_type,
         file_path,
         is_active,
-        label: if label.is_empty() { None } else { Some(label) },
+        label: label.into_option(),
         generation_metadata,
         created_at,
     })

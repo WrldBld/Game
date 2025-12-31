@@ -911,6 +911,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         (
             "wrldbldr-engine-app",
             HashSet::from([
+                "wrldbldr-common", // for datetime/string utilities (shared kernel)
                 "wrldbldr-domain",
                 "wrldbldr-domain-types", // for workflow analysis functions
                 "wrldbldr-protocol",

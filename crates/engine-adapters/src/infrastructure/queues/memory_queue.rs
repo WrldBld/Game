@@ -50,7 +50,8 @@ where
 {
     async fn enqueue(&self, payload: T, priority: u8) -> Result<QueueItemId, QueueError> {
         let mut items = self.items.write().await;
-        let item = QueueItem::new(payload, priority);
+        let now = self.clock.now();
+        let item = QueueItem::new_with_time(payload, priority, now);
         let id = item.id;
         items.push(item);
         drop(items); // Release the lock before notifying

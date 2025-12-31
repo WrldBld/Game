@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use wrldbldr_common::datetime::parse_datetime_or;
 
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain_types::analyze_workflow;
@@ -94,8 +95,13 @@ pub fn workflow_config_to_export_dto(value: WorkflowConfiguration) -> WorkflowCo
 }
 
 /// Convert WorkflowConfigExportDto to WorkflowConfiguration for import
+///
+/// # Arguments
+/// * `value` - The export DTO to convert
+/// * `fallback_time` - Fallback timestamp if parsing fails (typically from ClockPort)
 pub fn workflow_config_from_export_dto(
     value: WorkflowConfigExportDto,
+    fallback_time: DateTime<Utc>,
 ) -> anyhow::Result<WorkflowConfiguration> {
     let id = Uuid::parse_str(&value.id)
         .map(WorkflowConfigId::from_uuid)
@@ -104,12 +110,8 @@ pub fn workflow_config_from_export_dto(
     let slot = WorkflowSlot::from_str(&value.slot)
         .map_err(|_| anyhow::anyhow!("Invalid workflow slot: {}", value.slot))?;
 
-    let created_at = DateTime::parse_from_rfc3339(&value.created_at)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
-    let updated_at = DateTime::parse_from_rfc3339(&value.updated_at)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
+    let created_at = parse_datetime_or(&value.created_at, fallback_time);
+    let updated_at = parse_datetime_or(&value.updated_at, fallback_time);
 
     Ok(WorkflowConfiguration {
         id,

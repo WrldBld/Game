@@ -7153,6 +7153,7 @@ dependencies = [
  "tracing",
  "uuid",
  "validator",
+ "wrldbldr-common",
  "wrldbldr-domain",
  "wrldbldr-domain-types",
  "wrldbldr-engine-dto",

@@ -7,6 +7,7 @@ authors.workspace = true
 description = "WrldBldr Engine App - Application services and use-cases"
 
 [dependencies]
+wrldbldr-common = { workspace = true }
 wrldbldr-domain = { workspace = true }
 wrldbldr-domain-types = { workspace = true }
 wrldbldr-protocol = { workspace = true }

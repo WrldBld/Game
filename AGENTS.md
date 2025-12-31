@@ -62,6 +62,7 @@ WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tableto
 |-------|-------|---------|
 | `domain-types` | Domain | Shared vocabulary (archetypes, monomyth stages) |
 | `domain` | Domain | 25+ entities, value objects, 26 typed IDs |
+| `common` | Shared Kernel | Shared utilities (datetime parsing, string-to-option) |
 | `protocol` | Shared Kernel | Wire-format types for Engine↔Player communication |
 | `engine-dto` | Shared Kernel | Engine-internal DTOs (queues, persistence) |
 | `engine-ports` | Ports | 100+ repository/service traits (ISP-compliant) |

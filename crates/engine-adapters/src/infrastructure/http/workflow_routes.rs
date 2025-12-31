@@ -231,7 +231,7 @@ pub async fn import_workflows(
     Json(req): Json<ImportWorkflowsRequestDto>,
 ) -> Result<Json<ImportWorkflowsResponseDto>, (StatusCode, String)> {
     // Parse the import data
-    let configs = import_configs(&req.data)
+    let configs = import_configs(&req.data, state.clock().now())
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Delegate import logic to the service

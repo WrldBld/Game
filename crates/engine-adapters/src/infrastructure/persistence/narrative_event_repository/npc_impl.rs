@@ -6,6 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
 use uuid::Uuid;
+use wrldbldr_common::StringExt;
 
 use super::Neo4jNarrativeEventRepository;
 use wrldbldr_domain::entities::{EventChainMembership, FeaturedNpc};
@@ -57,7 +58,7 @@ impl NarrativeEventNpcPort for Neo4jNarrativeEventRepository {
 
             npcs.push(FeaturedNpc {
                 character_id: CharacterId::from(Uuid::parse_str(&character_id_str)?),
-                role: if role.is_empty() { None } else { Some(role) },
+                role: role.into_option(),
             });
         }
 

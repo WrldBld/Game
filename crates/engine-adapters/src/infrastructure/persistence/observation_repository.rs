@@ -9,6 +9,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
 use wrldbldr_common::datetime::parse_datetime_or;
+use wrldbldr_common::StringExt;
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{NpcObservation, ObservationSummary, ObservationType};
@@ -99,7 +100,7 @@ impl Neo4jObservationRepository {
                     .parse()
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
-                notes: if notes.is_empty() { None } else { Some(notes) },
+                notes: notes.into_option(),
                 created_at: parse_datetime_or(&created_at_str, self.clock.now()),
             };
 
@@ -146,11 +147,7 @@ impl Neo4jObservationRepository {
             summaries.push(ObservationSummary {
                 npc_id,
                 npc_name,
-                npc_portrait: if npc_portrait.is_empty() {
-                    None
-                } else {
-                    Some(npc_portrait)
-                },
+                npc_portrait: npc_portrait.into_option(),
                 is_revealed_to_player,
                 location_name,
                 region_name,
@@ -158,7 +155,7 @@ impl Neo4jObservationRepository {
                 observation_type: observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
-                notes: if notes.is_empty() { None } else { Some(notes) },
+                notes: notes.into_option(),
                 time_ago_description: None, // Caller can compute this from game time
             });
         }
@@ -203,7 +200,7 @@ impl Neo4jObservationRepository {
                     .parse()
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
-                notes: if notes.is_empty() { None } else { Some(notes) },
+                notes: notes.into_option(),
                 created_at: parse_datetime_or(&created_at_str, self.clock.now()),
             }))
         } else {

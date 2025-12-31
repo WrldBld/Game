@@ -25,6 +25,13 @@ The architecture also incorporates a **Shared Kernel** pattern for the Engine-Pl
 │  │  │  ├── RequestPayload / ResponseResult                                 │   │ │
 │  │  │  └── No business logic - pure serialization types                    │   │ │
 │  │  └─────────────────────────────────────────────────────────────────────┘   │ │
+│  │                                                                             │ │
+│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
+│  │  │  common (wrldbldr-common)                                            │   │ │
+│  │  │  ├── Pure utility functions (datetime parsing, string helpers)       │   │ │
+│  │  │  ├── No domain type dependencies                                     │   │ │
+│  │  │  └── WASM compatible, minimal dependencies (only chrono)             │   │ │
+│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────────────────────────┘ │
 │                                      │                                           │
 │                    ┌─────────────────┴─────────────────┐                        │
@@ -118,7 +125,7 @@ The architecture also incorporates a **Shared Kernel** pattern for the Engine-Pl
 
 ### What is the Shared Kernel?
 
-The `protocol` crate serves as a **Shared Kernel** - a bounded context that both Engine and Player must share for correct WebSocket communication.
+The **Shared Kernel** layer contains crates that provide shared functionality across both Engine and Player sides without containing business logic.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -139,6 +146,21 @@ The `protocol` crate serves as a **Shared Kernel** - a bounded context that both
 │  │  ├── No business logic                                  │   │
 │  │  ├── WASM compatible                                    │   │
 │  │  └── Serialization-focused                              │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  wrldbldr-common                                         │   │
+│  │                                                         │   │
+│  │  Pure Utility Functions:                                │   │
+│  │  ├── datetime: parse_datetime, parse_datetime_or        │   │
+│  │  └── string: none_if_empty, some_if_not_empty           │   │
+│  │                                                         │   │
+│  │  Characteristics:                                       │   │
+│  │  ├── Minimal dependencies (only chrono)                 │   │
+│  │  ├── Pure functions only - no side effects, no I/O      │   │
+│  │  ├── No domain type dependencies                        │   │
+│  │  ├── WASM compatible                                    │   │
+│  │  └── Used by: engine-adapters                           │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -192,7 +214,10 @@ Hexagonal boundaries are enforced by **crate dependencies**.
 
 ### Core
 - `crates/domain` (`wrldbldr-domain`): Core business entities, value objects, typed IDs
-- `crates/protocol` (`wrldbldr-protocol`): **Shared Kernel** - wire-format DTOs
+
+### Shared Kernel
+- `crates/protocol` (`wrldbldr-protocol`): Wire-format DTOs for Engine↔Player communication
+- `crates/common` (`wrldbldr-common`): Pure utility functions (datetime, string helpers)
 
 ### Engine Side
 | Crate | Layer | Purpose |

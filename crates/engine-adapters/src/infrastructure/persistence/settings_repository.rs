@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use sqlx::SqlitePool;
+use wrldbldr_common::some_if_not_empty;
 
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
@@ -191,8 +192,7 @@ impl SqliteSettingsRepository {
                     }
                 }
                 "context_budget.summarization_model" => {
-                    settings.context_budget.summarization_model =
-                        if value.is_empty() { None } else { Some(value) };
+                    settings.context_budget.summarization_model = some_if_not_empty(value);
                 }
 
                 _ => {}

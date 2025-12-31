@@ -288,6 +288,10 @@ impl Neo4jCharacterRepository {
     }
 
     /// Add a frequented region
+    ///
+    /// Note: Prepared for future region-level relationship support.
+    /// Currently unused but infrastructure is in place.
+    #[allow(dead_code)]
     pub(crate) async fn add_frequented_region_impl(
         &self,
         character_id: CharacterId,
@@ -334,6 +338,10 @@ impl Neo4jCharacterRepository {
     }
 
     /// Add an avoided region
+    ///
+    /// Note: Prepared for future region-level relationship support.
+    /// Currently unused but infrastructure is in place.
+    #[allow(dead_code)]
     pub(crate) async fn add_avoided_region_impl(
         &self,
         character_id: CharacterId,

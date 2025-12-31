@@ -64,8 +64,10 @@ pub struct QueueItem<T> {
 }
 
 impl<T> QueueItem<T> {
-    pub fn new(payload: T, priority: u8) -> Self {
-        let now = Utc::now();
+    /// Create a new queue item with explicit timestamps
+    ///
+    /// This is the preferred constructor for testable code. Use with an injected clock.
+    pub fn new_with_time(payload: T, priority: u8, now: DateTime<Utc>) -> Self {
         Self {
             id: Uuid::new_v4(),
             payload,
@@ -81,9 +83,17 @@ impl<T> QueueItem<T> {
         }
     }
 
-    /// Create a queue item with a specific ID (for reconstruction from storage)
-    pub fn with_id(id: QueueItemId, payload: T, priority: u8) -> Self {
-        let now = Utc::now();
+    /// Create a new queue item with current time
+    ///
+    /// Note: For testable code, prefer `new_with_time()` with an injected clock.
+    pub fn new(payload: T, priority: u8) -> Self {
+        Self::new_with_time(payload, priority, Utc::now())
+    }
+
+    /// Create a queue item with a specific ID and explicit timestamps
+    ///
+    /// This is the preferred constructor for reconstruction from storage or testable code.
+    pub fn with_id_and_time(id: QueueItemId, payload: T, priority: u8, now: DateTime<Utc>) -> Self {
         Self {
             id,
             payload,
@@ -97,6 +107,13 @@ impl<T> QueueItem<T> {
             error_message: None,
             metadata: HashMap::new(),
         }
+    }
+
+    /// Create a queue item with a specific ID (for reconstruction from storage)
+    ///
+    /// Note: For testable code, prefer `with_id_and_time()` with an injected clock.
+    pub fn with_id(id: QueueItemId, payload: T, priority: u8) -> Self {
+        Self::with_id_and_time(id, payload, priority, Utc::now())
     }
 }
 
