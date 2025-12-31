@@ -20,10 +20,12 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, RegionId};
-use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
+use wrldbldr_engine_ports::outbound::{
+    ExitToLocationInput, MoveToRegionInput, MovementResult,
+};
 
 use super::errors::ActionError;
-use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::PlayerActionUseCasePort;
@@ -43,7 +45,7 @@ pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
 /// Delegates travel to MovementUseCase to avoid duplicating movement logic.
 pub struct PlayerActionUseCase {
     /// Movement use case for travel actions
-    movement: Arc<MovementUseCase>,
+    movement: Arc<dyn MovementUseCasePort>,
     /// Queue service for non-immediate actions
     action_queue: Arc<dyn PlayerActionQueuePort>,
     /// DM notification port
@@ -53,7 +55,7 @@ pub struct PlayerActionUseCase {
 impl PlayerActionUseCase {
     /// Create a new PlayerActionUseCase with all dependencies
     pub fn new(
-        movement: Arc<MovementUseCase>,
+        movement: Arc<dyn MovementUseCasePort>,
         action_queue: Arc<dyn PlayerActionQueuePort>,
         dm_notification: Arc<dyn DmNotificationPort>,
     ) -> Self {

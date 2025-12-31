@@ -114,7 +114,7 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `ManageLocationUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ManageSceneUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ManageWorldUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `MovementUseCasePort` | trait | crates/engine-ports/src/inbound/movement_use_case_port.rs | crates/engine-app/src/application/use_cases/movement.rs | inbound | Keep in inbound; ensure only adapters/UI import |
+| `MovementUseCasePort` | trait | crates/engine-ports/src/inbound/movement_use_case_port.rs | crates/engine-app/src/application/use_cases/movement.rs, crates/engine-app/src/application/use_cases/player_action.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `NarrativeEventUseCasePort` | trait | crates/engine-ports/src/inbound/narrative_event_use_case_port.rs | crates/engine-app/src/application/use_cases/narrative_event.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ObservationUseCasePort` | trait | crates/engine-ports/src/inbound/observation_use_case_port.rs | crates/engine-app/src/application/use_cases/observation.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `PlayerActionUseCasePort` | trait | crates/engine-ports/src/inbound/player_action_use_case_port.rs | crates/engine-app/src/application/use_cases/player_action.rs | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -323,6 +323,9 @@ Steps:
 ### 5.1 Use cases must not depend on concrete use cases
 
 **Example to fix**: `PlayerActionUseCase` depends on `Arc<MovementUseCase>`.
+
+**Progress**
+- ✅ 2025-12-31: `PlayerActionUseCase` now depends on `Arc<dyn MovementUseCasePort>`.
 
 Steps:
 1. Find all `Arc<SomeUseCase>` fields in use cases.

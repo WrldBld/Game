@@ -219,7 +219,7 @@ WrldBldr’s systems map naturally to use cases (inbound ports) and to a small s
 These are high-impact known gaps to refactor toward this target architecture:
 
 - **Port taxonomy drift**: some traits currently under `engine-ports/inbound` are used as outbound dependencies.
-- **Port adapter anti-pattern**: wrapper adapters exist in `engine-adapters/src/infrastructure/ports/`.
+- **Port adapter anti-pattern**: avoid adding wrapper-forwarder adapters under `engine-adapters/src/infrastructure/ports.rs` (and sibling modules); prefer implementing ports directly on the underlying infrastructure types.
 - **Concrete dependencies in application**:
     - use cases depending on concrete use cases
     - services depending on concrete service types instead of ports
