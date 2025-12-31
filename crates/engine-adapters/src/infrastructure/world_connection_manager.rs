@@ -25,7 +25,7 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ConnectedUserInfo as PortConnectedUserInfo, ConnectionBroadcastPort,
     ConnectionContext as PortConnectionContext, ConnectionContextPort, ConnectionLifecyclePort,
@@ -34,6 +34,14 @@ use wrldbldr_engine_ports::outbound::{
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 
+fn to_protocol_role(role: PortWorldRole) -> WorldRole {
+    match role {
+        PortWorldRole::DM => WorldRole::Dm,
+        PortWorldRole::Player => WorldRole::Player,
+        PortWorldRole::Spectator => WorldRole::Spectator,
+    }
+}
+
 /// Convert protocol WorldRole to port WorldRole
 fn to_port_role(role: WorldRole) -> PortWorldRole {
     match role {
@@ -41,6 +49,35 @@ fn to_port_role(role: WorldRole) -> PortWorldRole {
         WorldRole::Player => PortWorldRole::Player,
         WorldRole::Spectator => PortWorldRole::Spectator,
         WorldRole::Unknown => PortWorldRole::Spectator, // Default unknown to spectator (read-only)
+    }
+}
+
+fn to_use_case_connected_user(
+    user: &ConnectedUser,
+) -> wrldbldr_engine_ports::outbound::ConnectedUser {
+    wrldbldr_engine_ports::outbound::ConnectedUser {
+        user_id: user.user_id.clone(),
+        role: to_port_role(user.role),
+        pc_id: user
+            .pc_id
+            .as_ref()
+            .and_then(|id| Uuid::parse_str(id).ok())
+            .map(PlayerCharacterId::from_uuid),
+        pc_name: None,
+    }
+}
+
+fn to_use_case_connection_info(
+    info: &ConnectionInfo,
+) -> wrldbldr_engine_ports::outbound::ConnectionInfo {
+    wrldbldr_engine_ports::outbound::ConnectionInfo {
+        connection_id: info.connection_id,
+        client_id: info.connection_id.to_string(),
+        user_id: info.user_id.clone(),
+        world_id: info.world_id,
+        role: info.role.map(to_port_role),
+        pc_id: info.pc_id,
+        spectate_pc_id: info.spectate_pc_id,
     }
 }
 
@@ -910,6 +947,115 @@ pub struct WorldConnectionStats {
     pub dm_connections: usize,
     pub player_connections: usize,
     pub spectator_connections: usize,
+}
+
+// =============================================================================
+// Use-case dependency ports (implemented directly on WorldConnectionManager)
+// =============================================================================
+
+#[async_trait]
+impl wrldbldr_engine_ports::outbound::ConnectionManagerPort for WorldConnectionManager {
+    async fn register_connection(&self, connection_id: Uuid, client_id: String, user_id: String) {
+        let (sender, _) = broadcast::channel::<ServerMessage>(256);
+        WorldConnectionManager::register_connection(self, connection_id, client_id, user_id, sender)
+            .await;
+    }
+
+    async fn join_world(
+        &self,
+        connection_id: Uuid,
+        world_id: Uuid,
+        role: wrldbldr_engine_ports::outbound::WorldRole,
+        pc_id: Option<Uuid>,
+        spectate_pc_id: Option<Uuid>,
+    ) -> Result<Vec<wrldbldr_engine_ports::outbound::ConnectedUser>, String> {
+        let protocol_role = to_protocol_role(role);
+        WorldConnectionManager::join_world(
+            self,
+            connection_id,
+            world_id,
+            protocol_role,
+            pc_id,
+            spectate_pc_id,
+        )
+        .await
+        .map(|users| users.iter().map(to_use_case_connected_user).collect())
+        .map_err(|e| format!("{:?}", e))
+    }
+
+    async fn leave_world(
+        &self,
+        connection_id: Uuid,
+    ) -> Option<(Uuid, wrldbldr_engine_ports::outbound::WorldRole)> {
+        WorldConnectionManager::leave_world(self, connection_id)
+            .await
+            .map(|(world_id, role)| (world_id, to_port_role(role)))
+    }
+
+    async fn get_connection(
+        &self,
+        connection_id: Uuid,
+    ) -> Option<wrldbldr_engine_ports::outbound::ConnectionInfo> {
+        WorldConnectionManager::get_connection(self, connection_id)
+            .await
+            .as_ref()
+            .map(to_use_case_connection_info)
+    }
+
+    async fn set_spectate_target(&self, connection_id: Uuid, pc_id: Option<Uuid>) {
+        WorldConnectionManager::set_spectate_target(self, connection_id, pc_id).await;
+    }
+
+    async fn get_world_connections(&self, world_id: Uuid) -> Vec<Uuid> {
+        WorldConnectionManager::get_world_connections(self, world_id).await
+    }
+
+    async fn send_to_connection(
+        &self,
+        connection_id: Uuid,
+        user_joined: wrldbldr_engine_ports::outbound::UserJoinedEvent,
+    ) {
+        let message = ServerMessage::UserJoined {
+            user_id: user_joined.user_id,
+            username: user_joined.pc.as_ref().map(|pc| pc.name.clone()),
+            role: to_protocol_role(user_joined.role),
+            pc: user_joined.pc.map(|pc| {
+                serde_json::json!({
+                    "id": pc.id,
+                    "name": pc.name,
+                })
+            }),
+        };
+
+        WorldConnectionManager::send_to_connection(self, connection_id, message).await;
+    }
+
+    async fn get_dm_user_id(&self, world_id: Uuid) -> Option<String> {
+        WorldConnectionManager::get_dm_info(self, &world_id)
+            .await
+            .map(|info| info.user_id)
+    }
+}
+
+#[async_trait]
+impl wrldbldr_engine_ports::outbound::DmNotificationPort for WorldConnectionManager {
+    async fn notify_action_queued(
+        &self,
+        world_id: &WorldId,
+        action_id: String,
+        player_name: String,
+        action_type: String,
+        queue_depth: usize,
+    ) {
+        let message = ServerMessage::ActionQueued {
+            action_id,
+            player_name,
+            action_type,
+            queue_depth,
+        };
+
+        WorldConnectionManager::broadcast_to_dms(self, *world_id.as_uuid(), message).await;
+    }
 }
 
 // =============================================================================

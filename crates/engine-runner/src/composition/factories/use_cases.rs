@@ -42,8 +42,8 @@ use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
-    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter,
-    DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
+    ConnectionDirectorialContextAdapter,
+    DirectorialContextAdapter, DmActionQueuePlaceholder,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
     SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
     WorldServiceAdapter,
@@ -112,8 +112,6 @@ pub struct UseCaseContext {
     // =========================================================================
     /// WebSocket broadcast adapter (concrete)
     pub broadcast_adapter: Arc<WebSocketBroadcastAdapter>,
-    /// DM notification adapter
-    pub dm_notification_adapter: Arc<DmNotificationAdapter>,
     /// Staging state adapter
     pub staging_state_adapter: Arc<StagingStateAdapter>,
     /// Staging service adapter
@@ -134,8 +132,6 @@ pub struct UseCaseContext {
     pub scene_world_state_adapter: Arc<SceneWorldStateAdapter>,
     /// Directorial context adapter
     pub directorial_context_adapter: Arc<DirectorialContextAdapter>,
-    /// Connection manager adapter
-    pub connection_manager_adapter: Arc<ConnectionManagerAdapter>,
     /// World service adapter
     pub world_service_adapter: Arc<WorldServiceAdapter>,
     /// Player character service adapter
@@ -288,13 +284,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
     // =========================================================================
-    // Create DM notification adapter
-    // =========================================================================
-    let dm_notification_adapter = Arc::new(DmNotificationAdapter::new(
-        deps.world_connection_manager.clone(),
-    ));
-
-    // =========================================================================
     // Create staging adapters
     // =========================================================================
     let staging_state_adapter = Arc::new(StagingStateAdapter::new(
@@ -367,7 +356,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
         player_action_queue_adapter.clone(),
-        dm_notification_adapter.clone(),
+        deps.world_connection_manager.clone(),
     ));
 
     // =========================================================================
@@ -426,9 +415,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create Connection Use Case
     // =========================================================================
-    let connection_manager_adapter = Arc::new(ConnectionManagerAdapter::new(
-        deps.world_connection_manager.clone(),
-    ));
     let world_service_adapter = Arc::new(WorldServiceAdapter::new(deps.world_service_port.clone()));
     let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(
         deps.player_character_service_port.clone(),
@@ -439,7 +425,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let connection_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
 
     let connection_use_case = Arc::new(ConnectionUseCase::new(
-        connection_manager_adapter.clone(),
+        deps.world_connection_manager.clone(),
         world_service_adapter.clone(),
         pc_service_adapter.clone(),
         connection_directorial_adapter.clone(),
@@ -480,7 +466,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
 
         // Adapters
         broadcast_adapter,
-        dm_notification_adapter,
         staging_state_adapter,
         staging_service_adapter,
         player_action_queue_adapter,
@@ -491,7 +476,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
         interaction_service_adapter,
         scene_world_state_adapter,
         directorial_context_adapter,
-        connection_manager_adapter,
         world_service_adapter,
         pc_service_adapter,
         connection_directorial_adapter,
@@ -518,7 +502,6 @@ mod tests {
 
             // Adapters
             let _ = &ctx.broadcast_adapter;
-            let _ = &ctx.dm_notification_adapter;
             let _ = &ctx.staging_state_adapter;
             let _ = &ctx.staging_service_adapter;
             let _ = &ctx.player_action_queue_adapter;
@@ -529,7 +512,6 @@ mod tests {
             let _ = &ctx.interaction_service_adapter;
             let _ = &ctx.scene_world_state_adapter;
             let _ = &ctx.directorial_context_adapter;
-            let _ = &ctx.connection_manager_adapter;
             let _ = &ctx.world_service_adapter;
             let _ = &ctx.pc_service_adapter;
             let _ = &ctx.connection_directorial_adapter;
@@ -616,7 +598,6 @@ mod tests {
         // Document the expected adapters
         let expected_adapters = [
             "WebSocketBroadcastAdapter",
-            "DmNotificationAdapter",
             "StagingStateAdapter",
             "StagingServiceAdapter",
             "PlayerActionQueueAdapter",
@@ -627,13 +608,12 @@ mod tests {
             "InteractionServiceAdapter",
             "SceneWorldStateAdapter",
             "DirectorialContextAdapter",
-            "ConnectionManagerAdapter",
             "WorldServiceAdapter",
             "PlayerCharacterServiceAdapter",
             "ConnectionDirectorialContextAdapter",
             "SceneWorldStateAdapter",
         ];
 
-        assert_eq!(expected_adapters.len(), 17);
+        assert_eq!(expected_adapters.len(), 15);
     }
 }

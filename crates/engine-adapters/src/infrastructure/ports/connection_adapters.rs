@@ -4,8 +4,8 @@
 //!
 //! # Implementation Notes
 //!
-//! ConnectionManagerAdapter is in a separate file (connection_manager_adapter.rs)
-//! as it was created earlier. This file contains the remaining adapters for:
+//! `ConnectionManagerPort` is implemented directly on `WorldConnectionManager`.
+//! This file contains the remaining adapters for:
 //! - WorldSnapshotJsonPort
 //! - PlayerCharacterDtoPort
 //! - DirectorialContextQueryPort
@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::{DirectorialNotes, PacingGuidance};
+use wrldbldr_domain::value_objects::PacingGuidance;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextData, DirectorialContextQueryPort,
@@ -24,7 +24,6 @@ use wrldbldr_engine_ports::outbound::{
     WorldServicePort as OutboundWorldServicePort,
     WorldSnapshotJsonPort,
 };
-use crate::infrastructure::WorldStateManager;
 
 /// Adapter for WorldServicePort implementing WorldSnapshotJsonPort.
 pub struct WorldServiceAdapter {

@@ -6,12 +6,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, DmNotificationPort, PlayerAction, PlayerActionQueuePort,
-    PlayerActionQueueServicePort,
+    ClockPort, PlayerAction, PlayerActionQueuePort, PlayerActionQueueServicePort,
 };
-use wrldbldr_protocol::ServerMessage;
-
-use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
 /// Adapter for PlayerActionQueueServicePort implementing PlayerActionQueuePort.
 pub struct PlayerActionQueueAdapter {
@@ -55,40 +51,6 @@ impl PlayerActionQueuePort for PlayerActionQueueAdapter {
 
     async fn depth(&self) -> Result<usize, String> {
         self.service.depth().await.map_err(|e| e.to_string())
-    }
-}
-
-/// Adapter for DM notification via WorldConnectionManager
-pub struct DmNotificationAdapter {
-    manager: SharedWorldConnectionManager,
-}
-
-impl DmNotificationAdapter {
-    pub fn new(manager: SharedWorldConnectionManager) -> Self {
-        Self { manager }
-    }
-}
-
-#[async_trait::async_trait]
-impl DmNotificationPort for DmNotificationAdapter {
-    async fn notify_action_queued(
-        &self,
-        world_id: &WorldId,
-        action_id: String,
-        player_name: String,
-        action_type: String,
-        queue_depth: usize,
-    ) {
-        let message = ServerMessage::ActionQueued {
-            action_id,
-            player_name,
-            action_type,
-            queue_depth,
-        };
-
-        self.manager
-            .broadcast_to_dms(*world_id.as_uuid(), message)
-            .await;
     }
 }
 

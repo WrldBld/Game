@@ -45,7 +45,6 @@
 //! - [x] ConnectionAdapters - For ConnectionUseCase (WorldServiceAdapter, PlayerCharacterServiceAdapter, etc.)
 
 mod challenge_adapters;
-mod connection_manager_adapter;
 mod player_action_adapters;
 mod staging_service_adapter;
 mod staging_state_adapter;
@@ -61,8 +60,7 @@ pub use connection_adapters::{
     ConnectionDirectorialContextAdapter,
     PlayerCharacterServiceAdapter, WorldServiceAdapter,
 };
-pub use connection_manager_adapter::ConnectionManagerAdapter;
-pub use player_action_adapters::{DmNotificationAdapter, PlayerActionQueueAdapter};
+pub use player_action_adapters::PlayerActionQueueAdapter;
 pub use scene_adapters::{
     DirectorialContextAdapter, DmActionQueuePlaceholder, InteractionServiceAdapter,
     SceneServiceAdapter, SceneWorldStateAdapter,
