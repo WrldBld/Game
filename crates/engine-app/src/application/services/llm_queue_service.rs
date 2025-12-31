@@ -219,11 +219,6 @@ impl<
                     }
                 };
 
-                let llm_service = LLMService::new(
-                    Arc::clone(&llm_client_clone),
-                    prompt_template_service_clone.clone(),
-                );
-
                 match &request.request_type {
                     LlmRequestType::NpcResponse { action_item_id } => {
                         // Process NPC response request
@@ -235,7 +230,12 @@ impl<
                             }
                             return;
                         };
-                        match llm_service.generate_npc_response(prompt.clone()).await
+                        match LLMService::generate_npc_response_with(
+                            Arc::clone(&llm_client_clone),
+                            prompt_template_service_clone.clone(),
+                            prompt.clone(),
+                        )
+                        .await
                         {
                             Ok(response) => {
                                 // Create approval item for DM

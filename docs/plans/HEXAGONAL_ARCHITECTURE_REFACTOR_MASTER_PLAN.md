@@ -373,6 +373,7 @@ Progress:
 - ✅ 2025-12-31: removed internal `ToolExecutionService::new()` construction from `DMApprovalQueueService` (no longer stores a ToolExecutionService field; uses a unit-struct instance at execution sites).
 - ✅ 2025-12-31: removed internal `OutcomeSuggestionService::new()` construction from `ChallengeOutcomeApprovalService` tasks by switching call sites to dependency-injected associated functions.
 - ✅ 2025-12-31: removed internal `SuggestionService::new()` construction from `LLMQueueService` suggestion handling by switching to a dependency-injected associated function.
+- ✅ 2025-12-31: removed internal `LLMService::new()` construction from `LLMQueueService` NPC response handling by switching to a dependency-injected associated function.
 - ✅ 2025-12-31: verified `cargo check --workspace` and `cargo xtask arch-check`.
 
 Steps:

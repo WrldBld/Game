@@ -83,6 +83,18 @@ impl<L: LlmPort> LLMService<L> {
         }
     }
 
+    /// Phase 6 IoC helper: generate an NPC response without requiring callers to
+    /// construct an `LLMService` instance.
+    pub async fn generate_npc_response_with(
+        ollama: Arc<L>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        request: GamePromptRequest,
+    ) -> Result<LLMGameResponse, LLMServiceError> {
+        Self::new(ollama, prompt_template_service)
+            .generate_npc_response(request)
+            .await
+    }
+
     /// Generate an NPC response to a player action
     ///
     /// This method builds a comprehensive prompt from the game context,
