@@ -21,6 +21,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use neo4rs::Row;
+use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_domain::{
     entities::{Item, MapBounds, Region, Want, WantVisibility},
     ItemId, LocationId, RegionId, WantId, WorldId,
@@ -89,6 +90,10 @@ pub fn row_to_item(row: &Row) -> Result<Item> {
 ///
 /// Expects the row to contain a node with alias `w` representing the Want.
 ///
+/// # Arguments
+/// * `row` - The Neo4j row containing the want node
+/// * `fallback_time` - Fallback timestamp to use if created_at parsing fails
+///
 /// # Node Properties
 /// - `id` (String): UUID of the want
 /// - `description` (String): What the character wants
@@ -98,7 +103,7 @@ pub fn row_to_item(row: &Row) -> Result<Item> {
 /// - `known_to_player` (bool, optional): Legacy field, converted to visibility
 /// - `deflection_behavior` (String, optional): How character hides this want
 /// - `tells` (String, optional): JSON array of behavioral tells
-pub fn row_to_want(row: &Row) -> Result<Want> {
+pub fn row_to_want(row: &Row, fallback_time: DateTime<Utc>) -> Result<Want> {
     let node: neo4rs::Node = row.get("w")?;
 
     let id_str: String = node.get("id")?;
@@ -128,9 +133,7 @@ pub fn row_to_want(row: &Row) -> Result<Want> {
     let tells: Vec<String> = serde_json::from_str(&tells_json).unwrap_or_default();
 
     let id = uuid::Uuid::parse_str(&id_str)?;
-    let created_at = DateTime::parse_from_rfc3339(&created_at_str)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
+    let created_at = parse_datetime_or(&created_at_str, fallback_time);
 
     Ok(Want {
         id: WantId::from_uuid(id),

@@ -6,13 +6,15 @@
 //! - `(World)-[:CONTAINS_ITEM]->(Item)` - World contains item
 //! - `(Item)-[:CONTAINS {quantity, added_at}]->(Item)` - Container items
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
 
 use wrldbldr_domain::entities::Item;
 use wrldbldr_domain::{ItemId, WorldId};
-use wrldbldr_engine_ports::outbound::{ContainerInfo, ItemRepositoryPort};
+use wrldbldr_engine_ports::outbound::{ClockPort, ContainerInfo, ItemRepositoryPort};
 
 use super::converters::row_to_item;
 use super::Neo4jConnection;
@@ -20,11 +22,12 @@ use super::Neo4jConnection;
 /// Neo4j implementation of ItemRepositoryPort
 pub struct Neo4jItemRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jItemRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 }
 
@@ -180,7 +183,7 @@ impl ItemRepositoryPort for Neo4jItemRepository {
         .param("container_id", container_id.to_string())
         .param("item_id", item_id.to_string())
         .param("quantity", quantity as i64)
-        .param("added_at", chrono::Utc::now().to_rfc3339());
+        .param("added_at", self.clock.now_rfc3339());
 
         self.connection.graph().run(add_q).await?;
         Ok(())

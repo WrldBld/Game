@@ -127,6 +127,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         &config.neo4j_user,
         &config.neo4j_password,
         &config.neo4j_database,
+        clock.clone(),
     )
     .await?;
     tracing::info!("Neo4j connection established");

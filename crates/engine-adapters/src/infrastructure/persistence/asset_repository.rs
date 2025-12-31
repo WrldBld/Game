@@ -1,6 +1,7 @@
 //! Asset repository implementation for Neo4j
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,16 +13,17 @@ use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
 use wrldbldr_domain::{AssetId, BatchId};
-use wrldbldr_engine_ports::outbound::AssetRepositoryPort;
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 
 /// Repository for GalleryAsset operations
 pub struct Neo4jAssetRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jAssetRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     // ==================== GalleryAsset Operations ====================
@@ -422,7 +424,7 @@ impl Neo4jAssetRepository {
     pub async fn update_batch_status(&self, id: BatchId, status: &BatchStatus) -> Result<()> {
         let status_json = serde_json::to_string(&BatchStatusStored::from(status.clone()))?;
         let completed_at = if status.is_terminal() {
-            chrono::Utc::now().to_rfc3339()
+            self.clock.now_rfc3339()
         } else {
             String::new()
         };

@@ -3,24 +3,27 @@
 //! Neo4j repository for NPC observations.
 //! Observations are stored as edges: `(PlayerCharacter)-[:OBSERVED_NPC {...}]->(Character)`
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use neo4rs::query;
+use wrldbldr_common::datetime::parse_datetime_or;
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{NpcObservation, ObservationSummary, ObservationType};
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
-use wrldbldr_engine_ports::outbound::ObservationRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ClockPort, ObservationRepositoryPort};
 
 /// Repository for NPC observations
 pub struct Neo4jObservationRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jObservationRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create or update an observation (upsert)
@@ -91,17 +94,13 @@ impl Neo4jObservationRepository {
                 npc_id: CharacterId::from_uuid(uuid::Uuid::parse_str(&npc_id_str)?),
                 location_id: LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)?),
                 region_id: RegionId::from_uuid(uuid::Uuid::parse_str(&region_id_str)?),
-                game_time: DateTime::parse_from_rfc3339(&game_time_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
+                game_time: parse_datetime_or(&game_time_str, self.clock.now()),
                 observation_type: observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
                 notes: if notes.is_empty() { None } else { Some(notes) },
-                created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
+                created_at: parse_datetime_or(&created_at_str, self.clock.now()),
             };
 
             observations.push(observation);
@@ -142,9 +141,7 @@ impl Neo4jObservationRepository {
             let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
 
-            let game_time = DateTime::parse_from_rfc3339(&game_time_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let game_time = parse_datetime_or(&game_time_str, self.clock.now());
 
             summaries.push(ObservationSummary {
                 npc_id,
@@ -201,17 +198,13 @@ impl Neo4jObservationRepository {
                 npc_id,
                 location_id: LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)?),
                 region_id: RegionId::from_uuid(uuid::Uuid::parse_str(&region_id_str)?),
-                game_time: DateTime::parse_from_rfc3339(&game_time_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
+                game_time: parse_datetime_or(&game_time_str, self.clock.now()),
                 observation_type: observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
                 notes: if notes.is_empty() { None } else { Some(notes) },
-                created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
+                created_at: parse_datetime_or(&created_at_str, self.clock.now()),
             }))
         } else {
             Ok(None)

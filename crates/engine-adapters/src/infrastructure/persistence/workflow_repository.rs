@@ -1,28 +1,30 @@
 //! Neo4j repository for workflow configurations
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use neo4rs::query;
 use uuid::Uuid;
+use wrldbldr_common::datetime::parse_datetime_or;
 
 use crate::infrastructure::persistence::Neo4jConnection;
 use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::WorkflowConfigId;
 use wrldbldr_engine_dto::persistence::{InputDefaultDto, PromptMappingDto};
-use wrldbldr_engine_ports::outbound::WorkflowRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ClockPort, WorkflowRepositoryPort};
 
 /// Repository for workflow configuration persistence
 #[derive(Clone)]
 pub struct Neo4jWorkflowRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jWorkflowRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create or update a workflow configuration
@@ -222,14 +224,10 @@ impl Neo4jWorkflowRepository {
             serde_json::from_str(&locked_inputs_str).unwrap_or_default();
 
         let created_at_str: String = row.get("created_at").unwrap_or_default();
-        let created_at = DateTime::parse_from_rfc3339(&created_at_str)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let created_at = parse_datetime_or(&created_at_str, self.clock.now());
 
         let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-        let updated_at = DateTime::parse_from_rfc3339(&updated_at_str)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let updated_at = parse_datetime_or(&updated_at_str, self.clock.now());
 
         Ok(WorkflowConfiguration {
             id,

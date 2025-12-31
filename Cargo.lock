@@ -7130,6 +7130,7 @@ dependencies = [
  "tower",
  "tracing",
  "uuid",
+ "wrldbldr-common",
  "wrldbldr-domain",
  "wrldbldr-domain-types",
  "wrldbldr-engine-dto",

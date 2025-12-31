@@ -1,30 +1,35 @@
 //! Player Character repository implementation for Neo4j
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use neo4rs::{query, Row};
 use serde_json;
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
 use neo4rs::Node;
+use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_domain::entities::{
     AcquisitionMethod, CharacterSheetData, InventoryItem, PlayerCharacter,
 };
 use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
+    ClockPort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
     PlayerCharacterQueryPort, PlayerCharacterRepositoryPort,
 };
 
 /// Repository for PlayerCharacter operations
 pub struct Neo4jPlayerCharacterRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jPlayerCharacterRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 }
 
@@ -173,7 +178,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         )
         .param("id", id.to_string())
         .param("location_id", location_id.to_string())
-        .param("last_active_at", chrono::Utc::now().to_rfc3339());
+        .param("last_active_at", self.clock.now_rfc3339());
 
         self.connection.graph().run(create_q).await?;
         tracing::debug!(
@@ -192,7 +197,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         )
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
-        .param("last_active_at", chrono::Utc::now().to_rfc3339());
+        .param("last_active_at", self.clock.now_rfc3339());
 
         self.connection.graph().run(q).await?;
         tracing::debug!("Updated player character region: {} -> {}", id, region_id);
@@ -228,7 +233,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("id", id.to_string())
         .param("location_id", location_id.to_string())
         .param("region_id", region_id_str)
-        .param("last_active_at", chrono::Utc::now().to_rfc3339());
+        .param("last_active_at", self.clock.now_rfc3339());
 
         self.connection.graph().run(create_q).await?;
         tracing::debug!(
@@ -347,7 +352,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         .param("item_id", item_id.to_string())
         .param("quantity", quantity as i64)
         .param("equipped", is_equipped)
-        .param("acquired_at", chrono::Utc::now().to_rfc3339())
+        .param("acquired_at", self.clock.now_rfc3339())
         .param("acquisition_method", method_str);
 
         self.connection.graph().run(q).await?;
@@ -366,9 +371,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
 
         let mut result = self.connection.graph().execute(q).await?;
         let mut inventory = Vec::new();
+        let fallback_time = self.clock.now();
 
         while let Some(row) = result.next().await? {
-            inventory.push(row_to_inventory_item(&row)?);
+            inventory.push(row_to_inventory_item(&row, fallback_time)?);
         }
 
         Ok(inventory)
@@ -390,7 +396,7 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_inventory_item(&row)?))
+            Ok(Some(row_to_inventory_item(&row, self.clock.now())?))
         } else {
             Ok(None)
         }
@@ -433,18 +439,14 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
 }
 
 /// Parse an InventoryItem from a Neo4j row
-fn row_to_inventory_item(row: &Row) -> Result<InventoryItem> {
-    use chrono::{DateTime, Utc};
-
+fn row_to_inventory_item(row: &Row, fallback_time: DateTime<Utc>) -> Result<InventoryItem> {
     let item = row_to_item(row)?;
     let quantity: i64 = row.get("quantity")?;
     let equipped: bool = row.get("equipped")?;
     let acquired_at_str: String = row.get("acquired_at")?;
     let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
 
-    let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
-        .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
+    let acquired_at = parse_datetime_or(&acquired_at_str, fallback_time);
 
     let acquisition_method = if acquisition_method_str.is_empty() {
         None

@@ -10,28 +10,32 @@
 //! - `(Region)-[:HAS_STAGING]->(Staging)` - Historical stagings
 //! - `(Staging)-[:INCLUDES_NPC {is_present, reasoning}]->(Character)` - NPC presence
 
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 
+use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId};
-use wrldbldr_engine_ports::outbound::{StagedNpcRow, StagingRepositoryPort};
+use wrldbldr_engine_ports::outbound::{ClockPort, StagedNpcRow, StagingRepositoryPort};
 
 pub struct Neo4jStagingRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jStagingRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Helper to convert a Neo4j row to a Staging entity (without NPCs)
-    fn row_to_staging(row: Row) -> Result<Staging> {
+    fn row_to_staging(&self, row: Row) -> Result<Staging> {
         let node: neo4rs::Node = row.get("s")?;
 
         let id_str: String = node.get("id")?;
@@ -51,13 +55,9 @@ impl Neo4jStagingRepository {
         let location_id = uuid::Uuid::parse_str(&location_id_str)?;
         let world_id = uuid::Uuid::parse_str(&world_id_str)?;
 
-        let game_time = DateTime::parse_from_rfc3339(&game_time_str)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let game_time = parse_datetime_or(&game_time_str, self.clock.now());
 
-        let approved_at = DateTime::parse_from_rfc3339(&approved_at_str)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let approved_at = parse_datetime_or(&approved_at_str, self.clock.now());
 
         let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
 
@@ -95,7 +95,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let mut staging = Self::row_to_staging(row)?;
+            let mut staging = self.row_to_staging(row)?;
             // Load NPCs for this staging
             staging.npcs = self
                 .get_staged_npcs(staging.id)
@@ -131,7 +131,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         let mut stagings = Vec::new();
 
         while let Some(row) = result.next().await? {
-            let staging = Self::row_to_staging(row)?;
+            let staging = self.row_to_staging(row)?;
             stagings.push(staging);
         }
 
@@ -150,7 +150,7 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            let mut staging = Self::row_to_staging(row)?;
+            let mut staging = self.row_to_staging(row)?;
             // Load NPCs for this staging
             staging.npcs = self
                 .get_staged_npcs(staging.id)

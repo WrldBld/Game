@@ -1,9 +1,13 @@
 //! Relationship repository implementation for Neo4j
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
+use wrldbldr_common::datetime::parse_datetime_or;
 
 use super::connection::Neo4jConnection;
 
@@ -12,17 +16,18 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterNode, RelationshipEdge, RelationshipRepositoryPort, SocialNetwork,
+    CharacterNode, ClockPort, RelationshipEdge, RelationshipRepositoryPort, SocialNetwork,
 };
 
 /// Repository for Relationship (character social network) operations
 pub struct Neo4jRelationshipRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jRelationshipRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create a relationship between two characters
@@ -81,7 +86,7 @@ impl Neo4jRelationshipRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_relationship(row)?))
+            Ok(Some(row_to_relationship(row, self.clock.now())?))
         } else {
             Ok(None)
         }
@@ -101,7 +106,7 @@ impl Neo4jRelationshipRepository {
         let mut relationships = Vec::new();
 
         while let Some(row) = result.next().await? {
-            relationships.push(row_to_relationship(row)?);
+            relationships.push(row_to_relationship(row, self.clock.now())?);
         }
 
         Ok(relationships)
@@ -127,7 +132,7 @@ impl Neo4jRelationshipRepository {
         let mut relationships = Vec::new();
 
         while let Some(row) = result.next().await? {
-            relationships.push(row_to_relationship(row)?);
+            relationships.push(row_to_relationship(row, self.clock.now())?);
         }
 
         Ok(relationships)
@@ -463,7 +468,7 @@ impl Neo4jRelationshipRepository {
     }
 }
 
-fn row_to_relationship(row: Row) -> Result<Relationship> {
+fn row_to_relationship(row: Row, fallback_time: DateTime<Utc>) -> Result<Relationship> {
     let id_str: String = row.get("id")?;
     let from_id_str: String = row.get("from_id")?;
     let to_id_str: String = row.get("to_id")?;
@@ -480,7 +485,7 @@ fn row_to_relationship(row: Row) -> Result<Relationship> {
     let history: Vec<RelationshipEvent> =
         serde_json::from_str::<Vec<RelationshipEventStored>>(&history_json)?
             .into_iter()
-            .map(Into::into)
+            .map(|stored| stored.into_event(fallback_time))
             .collect();
 
     Ok(Relationship {
@@ -602,14 +607,13 @@ impl From<RelationshipEvent> for RelationshipEventStored {
     }
 }
 
-impl From<RelationshipEventStored> for RelationshipEvent {
-    fn from(value: RelationshipEventStored) -> Self {
-        let timestamp = chrono::DateTime::parse_from_rfc3339(&value.timestamp)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| chrono::Utc::now());
-        Self {
-            description: value.description,
-            sentiment_change: value.sentiment_change,
+impl RelationshipEventStored {
+    /// Convert to domain event, using the provided fallback time if timestamp parsing fails
+    fn into_event(self, fallback_time: DateTime<Utc>) -> RelationshipEvent {
+        let timestamp = parse_datetime_or(&self.timestamp, fallback_time);
+        RelationshipEvent {
+            description: self.description,
+            sentiment_change: self.sentiment_change,
             timestamp,
         }
     }

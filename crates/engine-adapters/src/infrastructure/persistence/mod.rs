@@ -3,7 +3,9 @@
 //! This module implements the repository pattern for Neo4j,
 //! providing CRUD operations for all domain entities.
 
+use std::sync::Arc;
 use uuid::Uuid;
+use wrldbldr_engine_ports::outbound::ClockPort;
 
 /// Parse a UUID string with logging on failure.
 ///
@@ -87,23 +89,73 @@ use anyhow::Result;
 #[derive(Clone)]
 pub struct Neo4jRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jRepository {
-    pub async fn new(uri: &str, user: &str, password: &str, database: &str) -> Result<Self> {
+    pub async fn new(
+        uri: &str,
+        user: &str,
+        password: &str,
+        database: &str,
+        clock: Arc<dyn ClockPort>,
+    ) -> Result<Self> {
         let connection = Neo4jConnection::new(uri, user, password, database).await?;
         connection.initialize_schema().await?;
-        Ok(Self { connection })
+        Ok(Self { connection, clock })
     }
 
+    /// Get the clock port (for repository access)
+    pub fn clock(&self) -> &Arc<dyn ClockPort> {
+        &self.clock
+    }
+
+    // Repositories that need clock for timestamps
     pub fn worlds(&self) -> Neo4jWorldRepository {
-        Neo4jWorldRepository::new(self.connection.clone())
+        Neo4jWorldRepository::new(self.connection.clone(), self.clock.clone())
     }
 
     pub fn characters(&self) -> Neo4jCharacterRepository {
-        Neo4jCharacterRepository::new(self.connection.clone())
+        Neo4jCharacterRepository::new(self.connection.clone(), self.clock.clone())
     }
 
+    pub fn relationships(&self) -> Neo4jRelationshipRepository {
+        Neo4jRelationshipRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn assets(&self) -> Neo4jAssetRepository {
+        Neo4jAssetRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn workflows(&self) -> Neo4jWorkflowRepository {
+        Neo4jWorkflowRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn narrative_events(&self) -> Neo4jNarrativeEventRepository {
+        Neo4jNarrativeEventRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn event_chains(&self) -> Neo4jEventChainRepository {
+        Neo4jEventChainRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn player_characters(&self) -> Neo4jPlayerCharacterRepository {
+        Neo4jPlayerCharacterRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn observations(&self) -> Neo4jObservationRepository {
+        Neo4jObservationRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn stagings(&self) -> Neo4jStagingRepository {
+        Neo4jStagingRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    pub fn items(&self) -> Neo4jItemRepository {
+        Neo4jItemRepository::new(self.connection.clone(), self.clock.clone())
+    }
+
+    // Repositories that don't need timestamps
     pub fn locations(&self) -> Neo4jLocationRepository {
         Neo4jLocationRepository::new(self.connection.clone())
     }
@@ -112,20 +164,8 @@ impl Neo4jRepository {
         Neo4jSceneRepository::new(self.connection.clone())
     }
 
-    pub fn relationships(&self) -> Neo4jRelationshipRepository {
-        Neo4jRelationshipRepository::new(self.connection.clone())
-    }
-
     pub fn interactions(&self) -> Neo4jInteractionRepository {
         Neo4jInteractionRepository::new(self.connection.clone())
-    }
-
-    pub fn assets(&self) -> Neo4jAssetRepository {
-        Neo4jAssetRepository::new(self.connection.clone())
-    }
-
-    pub fn workflows(&self) -> Neo4jWorkflowRepository {
-        Neo4jWorkflowRepository::new(self.connection.clone())
     }
 
     pub fn skills(&self) -> Neo4jSkillRepository {
@@ -144,36 +184,12 @@ impl Neo4jRepository {
         Neo4jStoryEventRepository::new(self.connection.clone())
     }
 
-    pub fn narrative_events(&self) -> Neo4jNarrativeEventRepository {
-        Neo4jNarrativeEventRepository::new(self.connection.clone())
-    }
-
-    pub fn event_chains(&self) -> Neo4jEventChainRepository {
-        Neo4jEventChainRepository::new(self.connection.clone())
-    }
-
-    pub fn player_characters(&self) -> Neo4jPlayerCharacterRepository {
-        Neo4jPlayerCharacterRepository::new(self.connection.clone())
-    }
-
     pub fn regions(&self) -> Neo4jRegionRepository {
         Neo4jRegionRepository::new(self.connection.clone())
     }
 
-    pub fn observations(&self) -> Neo4jObservationRepository {
-        Neo4jObservationRepository::new(self.connection.clone())
-    }
-
-    pub fn stagings(&self) -> Neo4jStagingRepository {
-        Neo4jStagingRepository::new(self.connection.clone())
-    }
-
     pub fn flags(&self) -> Neo4jFlagRepository {
         Neo4jFlagRepository::new(self.connection.clone())
-    }
-
-    pub fn items(&self) -> Neo4jItemRepository {
-        Neo4jItemRepository::new(self.connection.clone())
     }
 
     pub fn goals(&self) -> Neo4jGoalRepository {
@@ -181,6 +197,6 @@ impl Neo4jRepository {
     }
 
     pub fn wants(&self) -> Neo4jWantRepository {
-        Neo4jWantRepository::new(self.connection.clone())
+        Neo4jWantRepository::new(self.connection.clone(), self.clock.clone())
     }
 }

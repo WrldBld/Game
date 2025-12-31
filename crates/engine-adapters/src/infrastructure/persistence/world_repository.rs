@@ -1,5 +1,7 @@
 //! World repository implementation for Neo4j
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
@@ -7,18 +9,19 @@ use neo4rs::{query, Row};
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::RuleSystemConfig;
-use chrono::Utc;
+use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_domain::{ActId, GameTime, WorldId};
-use wrldbldr_engine_ports::outbound::WorldRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ClockPort, WorldRepositoryPort};
 
 /// Repository for World aggregate operations
 pub struct Neo4jWorldRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jWorldRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create a new world
@@ -67,7 +70,7 @@ impl Neo4jWorldRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_world(row)?))
+            Ok(Some(self.row_to_world(row)?))
         } else {
             Ok(None)
         }
@@ -88,7 +91,7 @@ impl Neo4jWorldRepository {
         let mut worlds = Vec::new();
 
         while let Some(row) = result.next().await? {
-            worlds.push(row_to_world(row)?);
+            worlds.push(self.row_to_world(row)?);
         }
 
         Ok(worlds)
@@ -185,47 +188,46 @@ impl Neo4jWorldRepository {
     }
 }
 
-fn row_to_world(row: Row) -> Result<World> {
-    let id_str: String = row.get("id")?;
-    let name: String = row.get("name")?;
-    let description: String = row.get("description")?;
-    let rule_system_json: String = row.get("rule_system")?;
-    let created_at_str: String = row.get("created_at")?;
-    let updated_at_str: String = row.get("updated_at")?;
+impl Neo4jWorldRepository {
+    fn row_to_world(&self, row: Row) -> Result<World> {
+        let id_str: String = row.get("id")?;
+        let name: String = row.get("name")?;
+        let description: String = row.get("description")?;
+        let rule_system_json: String = row.get("rule_system")?;
+        let created_at_str: String = row.get("created_at")?;
+        let updated_at_str: String = row.get("updated_at")?;
 
-    // GameTime fields - use defaults for backwards compatibility with existing DBs
-    let game_time_str: Option<String> = row.get("game_time").ok();
-    let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
+        // GameTime fields - use defaults for backwards compatibility with existing DBs
+        let game_time_str: Option<String> = row.get("game_time").ok();
+        let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    // Domain RuleSystemConfig now has serde derives, deserialize directly
-    let rule_system: RuleSystemConfig = serde_json::from_str(&rule_system_json)?;
-    let created_at =
-        chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
-    let updated_at =
-        chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
+        let id = uuid::Uuid::parse_str(&id_str)?;
+        // Domain RuleSystemConfig now has serde derives, deserialize directly
+        let rule_system: RuleSystemConfig = serde_json::from_str(&rule_system_json)?;
+        let created_at =
+            chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
+        let updated_at =
+            chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
 
-    // Parse game time or create new with current time (adapter layer can use Utc::now())
-    let mut game_time = if let Some(ref gt_str) = game_time_str {
-        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(gt_str) {
-            GameTime::starting_at(dt.with_timezone(&chrono::Utc))
+        // Parse game time or create new with current time via injected clock
+        let mut game_time = if let Some(ref gt_str) = game_time_str {
+            let dt = parse_datetime_or(gt_str, self.clock.now());
+            GameTime::starting_at(dt)
         } else {
-            GameTime::new(Utc::now())
-        }
-    } else {
-        GameTime::new(Utc::now())
-    };
-    game_time.set_paused(game_time_paused);
+            GameTime::new(self.clock.now())
+        };
+        game_time.set_paused(game_time_paused);
 
-    Ok(World {
-        id: WorldId::from_uuid(id),
-        name,
-        description,
-        rule_system,
-        game_time,
-        created_at,
-        updated_at,
-    })
+        Ok(World {
+            id: WorldId::from_uuid(id),
+            name,
+            description,
+            rule_system,
+            game_time,
+            created_at,
+            updated_at,
+        })
+    }
 }
 
 fn row_to_act(row: Row) -> Result<Act> {

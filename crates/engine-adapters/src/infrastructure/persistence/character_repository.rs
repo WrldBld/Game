@@ -10,9 +10,9 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
+use wrldbldr_common::datetime::parse_datetime_or;
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_want};
@@ -26,20 +26,22 @@ use wrldbldr_domain::value_objects::{
     WantTarget,
 };
 use wrldbldr_domain::PlayerCharacterId;
+use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, RegionId, SceneId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     CharacterActantialPort, CharacterCrudPort, CharacterDispositionPort, CharacterInventoryPort,
-    CharacterLocationPort, CharacterWantPort,
+    CharacterLocationPort, CharacterWantPort, ClockPort,
 };
 
 /// Repository for Character operations
 pub struct Neo4jCharacterRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jCharacterRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     // =========================================================================
@@ -290,7 +292,7 @@ impl Neo4jCharacterRepository {
         )
         .param("tells", tells_json)
         .param("priority", priority as i64)
-        .param("acquired_at", Utc::now().to_rfc3339());
+        .param("acquired_at", self.clock.now_rfc3339());
 
         self.connection.graph().run(q).await?;
         tracing::debug!(
@@ -314,12 +316,10 @@ impl Neo4jCharacterRepository {
         let mut wants = Vec::new();
 
         while let Some(row) = result.next().await? {
-            let want = row_to_want(&row)?;
+            let want = row_to_want(&row, self.clock.now())?;
             let priority: i64 = row.get("priority")?;
             let acquired_at_str: String = row.get("acquired_at")?;
-            let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let acquired_at = parse_datetime_or(&acquired_at_str, self.clock.now());
 
             wants.push(CharacterWant {
                 want,
@@ -534,9 +534,7 @@ impl Neo4jCharacterRepository {
         };
 
         let want_id = WantId::from_uuid(uuid::Uuid::parse_str(&want_id_str)?);
-        let assigned_at = DateTime::parse_from_rfc3339(&assigned_at_str)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let assigned_at = parse_datetime_or(&assigned_at_str, self.clock.now());
 
         Ok(Some((
             role,
@@ -718,7 +716,7 @@ impl Neo4jCharacterRepository {
         .param("item_id", item_id.to_string())
         .param("quantity", quantity as i64)
         .param("equipped", equipped)
-        .param("acquired_at", Utc::now().to_rfc3339())
+        .param("acquired_at", self.clock.now_rfc3339())
         .param("acquisition_method", method_str);
 
         self.connection.graph().run(q).await?;
@@ -744,9 +742,7 @@ impl Neo4jCharacterRepository {
             let acquired_at_str: String = row.get("acquired_at")?;
             let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
 
-            let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let acquired_at = parse_datetime_or(&acquired_at_str, self.clock.now());
 
             let acquisition_method = if acquisition_method_str.is_empty() {
                 None
@@ -789,9 +785,7 @@ impl Neo4jCharacterRepository {
             let acquired_at_str: String = row.get("acquired_at")?;
             let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
 
-            let acquired_at = DateTime::parse_from_rfc3339(&acquired_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let acquired_at = parse_datetime_or(&acquired_at_str, self.clock.now());
 
             let acquisition_method = if acquisition_method_str.is_empty() {
                 None
@@ -950,7 +944,7 @@ impl Neo4jCharacterRepository {
         .param("time_of_day", time_of_day)
         .param("day_of_week", day_of_week.unwrap_or_default())
         .param("reason", reason.unwrap_or_default())
-        .param("since", Utc::now().to_rfc3339());
+        .param("since", self.clock.now_rfc3339());
 
         self.connection.graph().run(q).await?;
         Ok(())
@@ -1140,7 +1134,7 @@ impl Neo4jCharacterRepository {
         .param("character_id", character_id.to_string())
         .param("region_id", region_id.to_string())
         .param("frequency", frequency.to_string())
-        .param("since", Utc::now().to_rfc3339());
+        .param("since", self.clock.now_rfc3339());
 
         self.connection.graph().run(q).await?;
         tracing::debug!(
@@ -1337,9 +1331,7 @@ impl Neo4jCharacterRepository {
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
-            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let updated_at = parse_datetime_or(&updated_at_str, self.clock.now());
 
             Ok(Some(NpcDispositionState {
                 npc_id,
@@ -1441,9 +1433,7 @@ impl Neo4jCharacterRepository {
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
             let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
-            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let updated_at = parse_datetime_or(&updated_at_str, self.clock.now());
 
             dispositions.push(NpcDispositionState {
                 npc_id: CharacterId::from_uuid(npc_uuid),
@@ -1493,9 +1483,7 @@ impl Neo4jCharacterRepository {
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
             let npc_uuid = uuid::Uuid::parse_str(&npc_id_str)?;
-            let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now());
+            let updated_at = parse_datetime_or(&updated_at_str, self.clock.now());
 
             dispositions.push(NpcDispositionState {
                 npc_id: CharacterId::from_uuid(npc_uuid),
@@ -1674,9 +1662,12 @@ impl From<ArchetypeChange> for ArchetypeChangeStored {
 
 impl From<ArchetypeChangeStored> for ArchetypeChange {
     fn from(value: ArchetypeChangeStored) -> Self {
-        let timestamp = chrono::DateTime::parse_from_rfc3339(&value.timestamp)
-            .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| chrono::Utc::now());
+        // Note: From trait impls can't access ClockPort, so we use epoch as fallback.
+        // This is only hit when stored data is corrupted.
+        let timestamp = wrldbldr_common::datetime::parse_datetime_or(
+            &value.timestamp,
+            chrono::DateTime::UNIX_EPOCH,
+        );
         Self {
             from: value.from.parse().unwrap_or(CampbellArchetype::Ally),
             to: value.to.parse().unwrap_or(CampbellArchetype::Ally),

@@ -2,6 +2,8 @@
 //!
 //! Wants are desires that characters have. They can target Characters, Items, or Goals.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
@@ -10,16 +12,17 @@ use super::connection::Neo4jConnection;
 use super::converters::row_to_want;
 use wrldbldr_domain::entities::Want;
 use wrldbldr_domain::WantId;
-use wrldbldr_engine_ports::outbound::WantRepositoryPort;
+use wrldbldr_engine_ports::outbound::{ClockPort, WantRepositoryPort};
 
 /// Repository for Want operations
 pub struct Neo4jWantRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jWantRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Get a want by ID
@@ -33,7 +36,7 @@ impl Neo4jWantRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_want(&row)?))
+            Ok(Some(row_to_want(&row, self.clock.now())?))
         } else {
             Ok(None)
         }

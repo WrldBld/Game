@@ -1,5 +1,7 @@
 //! EventChain repository implementation for Neo4j
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -10,18 +12,19 @@ use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainRepositoryPort,
-    EventChainStatePort,
+    ClockPort, EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort,
+    EventChainRepositoryPort, EventChainStatePort,
 };
 
 /// Repository for EventChain operations
 pub struct Neo4jEventChainRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jEventChainRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create a new event chain
@@ -135,7 +138,7 @@ impl Neo4jEventChainRepository {
         .param("tags_json", tags_json)
         .param("color", chain.color.clone().unwrap_or_default())
         .param("is_favorite", chain.is_favorite)
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -238,7 +241,7 @@ impl Neo4jEventChainRepository {
         )
         .param("chain_id", chain_id.to_string())
         .param("event_id", event_id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -259,7 +262,7 @@ impl Neo4jEventChainRepository {
         )
         .param("chain_id", chain_id.to_string())
         .param("event_id", event_id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -300,7 +303,7 @@ impl Neo4jEventChainRepository {
         )
         .param("chain_id", chain_id.to_string())
         .param("event_id", event_id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -315,7 +318,7 @@ impl Neo4jEventChainRepository {
             RETURN c.is_favorite as is_favorite",
         )
         .param("id", id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         if let Some(row) = result.next().await? {
@@ -336,7 +339,7 @@ impl Neo4jEventChainRepository {
         )
         .param("id", id.to_string())
         .param("is_active", is_active)
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -354,7 +357,7 @@ impl Neo4jEventChainRepository {
         )
         .param("id", id.to_string())
         .param("empty", empty_vec)
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())

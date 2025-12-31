@@ -941,6 +941,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
             "wrldbldr-engine-adapters",
             HashSet::from([
                 // NOTE: engine-app dependency REMOVED - adapters no longer depend on app layer
+                "wrldbldr-common", // For datetime parsing utilities
                 "wrldbldr-engine-ports",
                 "wrldbldr-engine-composition",
                 "wrldbldr-engine-dto",

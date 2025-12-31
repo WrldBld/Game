@@ -12,6 +12,7 @@ testing = []
 
 [dependencies]
 # Hexagonal architecture dependencies
+wrldbldr-common = { workspace = true }
 wrldbldr-engine-dto = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }

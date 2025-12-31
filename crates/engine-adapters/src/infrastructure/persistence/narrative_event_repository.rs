@@ -1,5 +1,7 @@
 //! NarrativeEvent repository implementation for Neo4j
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -17,7 +19,8 @@ use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, EventChainId, LocationId, NarrativeEventId, SceneId, WorldId,
 };
 use wrldbldr_engine_ports::outbound::{
-    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
+    ClockPort, NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort,
+    NarrativeEventTiePort,
 };
 
 // ============================================================================
@@ -945,11 +948,12 @@ impl From<StoredChainedEvent> for ChainedEvent {
 /// Repository for NarrativeEvent operations
 pub struct Neo4jNarrativeEventRepository {
     connection: Neo4jConnection,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jNarrativeEventRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 
     /// Create a new narrative event
@@ -1140,7 +1144,7 @@ impl Neo4jNarrativeEventRepository {
         )
         .param("priority", event.priority as i64)
         .param("is_favorite", event.is_favorite)
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -1234,7 +1238,7 @@ impl Neo4jNarrativeEventRepository {
             RETURN e.is_favorite as is_favorite",
         )
         .param("id", id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         if let Some(row) = result.next().await? {
@@ -1255,7 +1259,7 @@ impl Neo4jNarrativeEventRepository {
         )
         .param("id", id.to_string())
         .param("is_active", is_active)
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -1278,9 +1282,9 @@ impl Neo4jNarrativeEventRepository {
             RETURN e.id as id",
         )
         .param("id", id.to_string())
-        .param("triggered_at", Utc::now().to_rfc3339())
+        .param("triggered_at", self.clock.now_rfc3339())
         .param("selected_outcome", outcome_name.unwrap_or_default())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())
@@ -1297,7 +1301,7 @@ impl Neo4jNarrativeEventRepository {
             RETURN e.id as id",
         )
         .param("id", id.to_string())
-        .param("updated_at", Utc::now().to_rfc3339());
+        .param("updated_at", self.clock.now_rfc3339());
 
         let mut result = self.connection.graph().execute(q).await?;
         Ok(result.next().await?.is_some())

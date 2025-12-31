@@ -80,7 +80,7 @@ cargo xtask arch-check  # Should pass with no protocol violations
 
 ## Part 2: Shared Utilities Crate
 
-**Status**: READY  
+**Status**: COMPLETE (commit 8d09c21)  
 **Effort**: 2-3 hours  
 **Priority**: HIGH (enables subsequent steps)
 
@@ -586,3 +586,4 @@ Each part is atomic:
 | Dec 31, 2024 | Initial plan created from architecture review |
 | Dec 31, 2024 | Validation round 1: Corrected counts, added facade step, added RandomPort |
 | Dec 31, 2024 | Validation round 2: Part 1 already complete, Part 4 deferred, parallelization enabled, story_event can split independently, corrected Neo4jRepository location, added world_snapshot.rs violation |
+| Dec 31, 2024 | Part 2 COMPLETE: Created wrldbldr-common crate with datetime and string utilities |

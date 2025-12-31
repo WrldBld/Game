@@ -319,7 +319,7 @@ pub struct RepositoryPorts {
 /// # Example
 ///
 /// ```ignore
-/// let repository = Neo4jRepository::new(&uri, &user, &password, &database).await?;
+/// let repository = Neo4jRepository::new(&uri, &user, &password, &database, clock.clone()).await?;
 /// let ports = create_repository_ports(&repository);
 ///
 /// // Use ports in service construction
