@@ -96,10 +96,36 @@ impl Challenge {
     }
 
     /// Check if a trigger condition matches some player action/context
+    ///
+    /// Logic:
+    /// - All conditions with `required: true` must match (AND logic)
+    /// - At least one condition overall must match (to avoid false positives)
+    /// - If all conditions are optional, at least one must match (OR logic)
+    /// - If all conditions are required, all must match (AND logic)
     pub fn matches_trigger(&self, action: &str, context: &str) -> bool {
-        self.trigger_conditions
+        if self.trigger_conditions.is_empty() {
+            return false;
+        }
+
+        // Check which conditions match
+        let matched: Vec<bool> = self
+            .trigger_conditions
             .iter()
-            .any(|tc| tc.matches(action, context))
+            .map(|tc| tc.matches(action, context))
+            .collect();
+
+        // All required conditions must match
+        let required_conditions_met = self
+            .trigger_conditions
+            .iter()
+            .zip(matched.iter())
+            .filter(|(tc, _)| tc.required)
+            .all(|(_, &m)| m);
+
+        // At least one condition must match overall
+        let at_least_one_matches = matched.iter().any(|&m| m);
+
+        required_conditions_met && at_least_one_matches
     }
 
     /// Evaluate a dice roll against this challenge's difficulty.
