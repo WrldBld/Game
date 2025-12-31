@@ -5,11 +5,10 @@
 WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tabletop roleplaying games.
 
 ### Key Facts
-- **~450 Rust files** across 15 workspace crates
+- **~650 Rust files** across 15 workspace crates
 - **Multi-architecture**: Backend engine server (Axum) + WebAssembly player UI (Dioxus)
 - **AI-powered**: Neo4j graph DB + Ollama LLM + ComfyUI image generation
 - **Hexagonal/Clean architecture**: domain → ports → adapters → apps → runners
-- **Architecture compliance**: 92%+ (tracked via `cargo xtask arch-check`)
 
 ### Project Objectives
 1. **Pure Graph Model**: All game state in Neo4j as nodes and edges
@@ -62,7 +61,7 @@ WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tableto
 | Crate | Layer | Purpose |
 |-------|-------|---------|
 | `domain-types` | Domain | Shared vocabulary (archetypes, monomyth stages) |
-| `domain` | Domain | 25+ entities, value objects, 25+ typed IDs |
+| `domain` | Domain | 25+ entities, value objects, 26 typed IDs |
 | `protocol` | Shared Kernel | Wire-format types for Engine↔Player communication |
 | `engine-dto` | Shared Kernel | Engine-internal DTOs (queues, persistence) |
 | `engine-ports` | Ports | 100+ repository/service traits (ISP-compliant) |
@@ -80,62 +79,85 @@ WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tableto
 
 ## Architecture Rules (STRICT)
 
+These rules are enforced by `cargo xtask arch-check`. **Always run this before committing.**
+
 ### 1. Domain Layer Purity
 
 **Location**: `crates/domain/`, `crates/domain-types/`
 
-**Rules**:
-- NO external framework dependencies (tokio, axum, neo4rs)
-- NO imports from ports, adapters, app, or runner layers
-- NO `Utc::now()` in production code - time must be injected via `ClockPort`
-- NO `rand` crate - randomness must be injected
-- NO file I/O, network calls, or environment access
+**DO**:
+- Use `serde`, `uuid`, `chrono`, `thiserror` only
+- Use typed IDs (`CharacterId`, not raw `Uuid`)
+- Implement business logic in entity methods
 
-**Allowed**: serde, uuid, chrono, thiserror
+**DON'T**:
+- Import tokio, axum, neo4rs, or any framework crate
+- Import from ports, adapters, app, or runner layers
+- Call `Utc::now()` - inject time via `ClockPort`
+- Use `rand` crate - inject randomness via ports
+- Perform file I/O, network calls, or env access
 
-**Known Exception** (ADR-001): `Uuid::new_v4()` is allowed for ID generation (pragmatic trade-off)
+**Known Exception** (ADR-001): `Uuid::new_v4()` is allowed for ID generation.
 
 ### 2. Ports Layer Contracts
 
 **Location**: `crates/engine-ports/`, `crates/player-ports/`
 
-**Rules**:
-- Define traits (interfaces) only - no implementations
+**DO**:
+- Define traits (interfaces) only
 - Depend only on domain types
-- NO adapter or app layer imports
-- All async traits use `#[async_trait]`
-- Protocol imports allowed only in whitelisted boundary files
+- Use `#[async_trait]` for async traits
+- Follow Interface Segregation - small, focused traits
 
-**Interface Segregation**: Large traits split into focused sub-traits:
-- `CharacterCrudPort`, `CharacterWantPort`, `CharacterInventoryPort`, etc.
-- `StoryEventCrudPort`, `StoryEventEdgePort`, `StoryEventQueryPort`, etc.
+**DON'T**:
+- Add implementations (blanket impls, default impls with logic)
+- Import from adapters or app layers
+- Import protocol types (except whitelisted boundary files)
+
+**Pattern**: Split large traits into focused sub-traits:
+```rust
+// Good - focused traits
+trait CharacterCrudPort { ... }
+trait CharacterWantPort { ... }
+trait CharacterInventoryPort { ... }
+
+// Bad - god trait with 20+ methods
+trait CharacterRepository { /* everything */ }
+```
 
 ### 3. Adapters Layer Implementation
 
 **Location**: `crates/engine-adapters/`, `crates/player-adapters/`
 
-**Rules**:
+**DO**:
 - Implement port traits
-- May depend on: domain, ports, protocol, external crates
-- NO direct dependencies on app layer
-- NO business logic - only translation/mapping
-- All Neo4j queries use `.param()` for values (no string concatenation)
+- Depend on domain, ports, protocol, external crates
+- Use parameterized queries for all database operations
+- Handle and propagate errors properly
+
+**DON'T**:
+- Depend on app layer
+- Put business logic here - only translation/mapping
+- Concatenate user input into queries (injection risk)
 
 ### 4. Application Layer Orchestration
 
 **Location**: `crates/engine-app/`, `crates/player-app/`
 
-**Rules**:
+**DO**:
 - Orchestrate domain objects via port abstractions
-- May depend on: domain, ports, protocol (for DTOs)
-- NO direct adapter dependencies
-- NO direct I/O (database, HTTP, filesystem)
-- Delegate domain logic to entities
+- Depend on domain, ports
+- Use protocol types only in handlers (boundary layer)
+
+**DON'T**:
+- Import adapter implementations directly
+- Perform direct I/O (database, HTTP, filesystem)
+- Duplicate domain logic - delegate to entities
 
 ### 5. Protocol Import Rules
 
-| Layer | Protocol Imports | Rationale |
-|-------|------------------|-----------|
+| Layer | Protocol Imports | Why |
+|-------|------------------|-----|
 | domain | FORBIDDEN | Pure business logic |
 | *-ports | FORBIDDEN (except whitelisted) | Infrastructure contracts |
 | *-app/use_cases | FORBIDDEN | Business orchestration |
@@ -152,38 +174,93 @@ WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tableto
 
 ---
 
-## Technology Stack
+## Common Pitfalls
 
-### Core Dependencies
-```toml
-tokio = { version = "1.42", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-uuid = { version = "1.11", features = ["v4", "serde", "js"] }
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2.0"
-async-trait = "0.1"
+### Neo4j Cypher Injection
+
+**CRITICAL**: Never concatenate user input into Cypher strings.
+
+```rust
+// CORRECT - parameterized query
+let query = query("MATCH (c:Character {id: $id}) RETURN c")
+    .param("id", id.to_string());
+
+// WRONG - injection vulnerability
+let query = query(&format!("MATCH (c:Character {{id: '{}'}}) RETURN c", id));
 ```
 
-### Engine-Specific
-```toml
-neo4rs = "0.8"                    # Graph database
-axum = { version = "0.8", features = ["ws"] }  # HTTP/WebSocket
-sqlx = "0.8"                      # SQLite for queues
-reqwest = "0.12"                  # HTTP client (LLM, ComfyUI)
+Dynamic edge types from validated enums are safe:
+```rust
+let edge_type = match role {
+    ActantialRole::Helper => "VIEWS_AS_HELPER",
+    ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
+};
+// Safe - edge_type from controlled enum, not user input
 ```
 
-### Player-Specific
-```toml
-dioxus = "0.7.2"                  # Web UI framework
-tokio-tungstenite = "0.24"        # WebSocket (desktop)
-gloo-net = "0.5"                  # WebSocket (WASM)
+### Protocol Enum Forward Compatibility
+
+When adding enums to protocol types, always include `#[serde(other)]` variant:
+
+```rust
+#[derive(Serialize, Deserialize)]
+pub enum StatusDto {
+    Active,
+    Inactive,
+    #[serde(other)]
+    Unknown,  // Handles future variants gracefully
+}
+```
+
+This prevents deserialization failures when engine sends new variants to older players.
+
+### Typed ID Usage
+
+Always use typed IDs, never raw UUIDs:
+
+```rust
+// CORRECT
+fn get_character(&self, id: CharacterId) -> Character;
+
+// WRONG - loses type safety
+fn get_character(&self, id: Uuid) -> Character;
+```
+
+For tests, use `from_uuid()` for deterministic IDs:
+```rust
+let id = CharacterId::from_uuid(Uuid::nil());
+```
+
+### Time and Randomness
+
+Never use `Utc::now()` or `rand` directly in domain/app layers:
+
+```rust
+// WRONG - impure, untestable
+let timestamp = Utc::now();
+
+// CORRECT - inject via port
+let timestamp = clock_port.now();
+```
+
+### Error Handling
+
+Never swallow errors or use `.unwrap()` in production code:
+
+```rust
+// WRONG
+let result = repository.get(id).unwrap();
+
+// CORRECT
+let result = repository.get(id).await?;
 ```
 
 ---
 
-## Development Commands
+## Development Workflow
 
-### Required Checks (Always Run)
+### Required Checks (Always Run Before Commit)
+
 ```bash
 cargo xtask arch-check    # Architecture validation (MUST PASS)
 cargo check --workspace   # Compilation check
@@ -191,13 +268,14 @@ cargo test --workspace    # Run all tests
 ```
 
 ### Quality Checks
+
 ```bash
 cargo clippy --workspace --all-targets
 cargo fmt --all -- --check
-cargo audit
 ```
 
 ### Running the Application
+
 ```bash
 # Engine server
 cargo run -p wrldbldr-engine-runner
@@ -211,34 +289,36 @@ dx serve --platform web
 
 ---
 
-## Current Architecture Status
+## Adding New Features
 
-### Compliance Score: 92/100
+### Adding a New Entity
 
-**Completed**:
-- adapters→app coupling removed
-- God traits split (ISP compliance)
-- Domain purity (rand, Utc::now abstracted)
-- Protocol forward compatibility
-- Broadcast consolidation
-- Player-UI protocol isolation
-- arch-check passing (15 crates)
+1. **Domain** (`crates/domain/src/entities/`): Define entity struct and methods
+2. **Domain** (`crates/domain/src/ids.rs`): Add typed ID if needed
+3. **Ports** (`crates/engine-ports/src/outbound/`): Define repository trait(s)
+4. **Adapters** (`crates/engine-adapters/src/infrastructure/persistence/`): Implement Neo4j repository
+5. **Composition** (`crates/engine-composition/`): Wire up in DI container
+6. **App** (`crates/engine-app/`): Add service/use case if needed
 
-**Remaining Issues**:
+### Adding a New API Endpoint
 
-| Issue | Severity | Location |
-|-------|----------|----------|
-| `anyhow` in domain | Medium | `domain/Cargo.toml` - should use `thiserror` |
-| UUID generation impure | Low | `domain/src/ids.rs` - documented in ADR-001 |
-| 7 god traits remain | Medium | 15+ methods each (e.g., `LocationRepositoryPort`) |
-| `request_handler.rs` size | Low | 1115 lines - consider splitting |
-| `app_state.rs` size | Medium | 1314 lines - needs factory functions |
+1. **Protocol** (`crates/protocol/src/`): Define request/response DTOs
+2. **App Handler** (`crates/engine-app/src/application/handlers/`): Add handler
+3. **Adapters** (`crates/engine-adapters/src/infrastructure/axum/`): Wire route
+
+### Adding a New Player UI Route
+
+1. **Protocol**: Ensure DTOs exist for data needed
+2. **Player-UI** (`crates/player-ui/src/routes/`): Add route component
+3. **Player-UI** (`crates/player-ui/src/presentation/components/`): Add components
+4. **Player-Runner**: Register route in router
 
 ---
 
-## File Organization Patterns
+## Code Patterns
 
 ### Entity Definition
+
 ```rust
 // crates/domain/src/entities/character.rs
 use serde::{Deserialize, Serialize};
@@ -250,7 +330,6 @@ pub struct Character {
     pub id: CharacterId,
     pub world_id: WorldId,
     pub name: String,
-    // ... fields
 }
 
 impl Character {
@@ -259,13 +338,13 @@ impl Character {
             id: CharacterId::new(),
             world_id,
             name,
-            // ...
         }
     }
 }
 ```
 
 ### Port Trait Definition
+
 ```rust
 // crates/engine-ports/src/outbound/character_repository.rs
 use async_trait::async_trait;
@@ -281,6 +360,7 @@ pub trait CharacterCrudPort: Send + Sync {
 ```
 
 ### Adapter Implementation
+
 ```rust
 // crates/engine-adapters/src/infrastructure/persistence/character_repository.rs
 use async_trait::async_trait;
@@ -303,30 +383,6 @@ impl CharacterCrudPort for Neo4jCharacterRepository {
 
 ---
 
-## Neo4j Cypher Safety
-
-**CRITICAL**: Never concatenate user input into Cypher strings.
-
-```rust
-// CORRECT - parameterized query
-let query = query("MATCH (c:Character {id: $id}) RETURN c")
-    .param("id", id.to_string());
-
-// WRONG - SQL injection vulnerability
-let query = query(&format!("MATCH (c:Character {{id: '{}'}}) RETURN c", id));
-```
-
-Dynamic edge types from validated enums are acceptable:
-```rust
-let edge_type = match role {
-    ActantialRole::Helper => "VIEWS_AS_HELPER",
-    ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
-};
-// Safe - edge_type is from controlled enum, not user input
-```
-
----
-
 ## Key Documentation
 
 | Document | Purpose |
@@ -335,36 +391,32 @@ let edge_type = match role {
 | `docs/architecture/neo4j-schema.md` | Database schema reference |
 | `docs/architecture/queue-system.md` | Queue processing patterns |
 | `docs/architecture/websocket-protocol.md` | Client-server protocol |
-| `docs/progress/ACTIVE_DEVELOPMENT.md` | Current sprint tracking |
-| `docs/progress/MVP.md` | MVP acceptance criteria |
-| `docs/plans/CODE_QUALITY_REMEDIATION_PLAN.md` | Quality improvement tracking |
+| `docs/systems/*.md` | Game system specifications |
+| `crates/engine-runner/README.md` | Engine development guide |
+| `crates/player-runner/README.md` | Player UI development guide |
 
 ---
 
-## Agent-Specific Guidance
+## Testing Guidelines
 
-### For Architecture Work
-- Run `cargo xtask arch-check` before and after changes
-- Check `docs/architecture/hexagonal-architecture.md` for rules
-- Respect whitelisted exemptions in `crates/xtask/src/main.rs`
+### Domain Tests
+- Pure unit tests, no mocking needed
+- Test entity behavior and value object validation
 
-### For Domain Changes
-- No external I/O - inject via ports
-- Use typed IDs (`CharacterId`, not `Uuid`)
-- Implement business logic in entities, not services
+### Port Tests
+- Use `mockall` for mocking port traits
+- Test service orchestration logic
 
-### For Adapter Changes
-- Implement port traits, don't modify them
-- All database queries use parameters
-- Handle errors, don't swallow them
+### Adapter Tests
+- Integration tests with real dependencies (test containers)
+- Verify correct data mapping and query behavior
 
-### For Protocol Changes
-- Add `#[serde(other)]` to enums for forward compatibility
-- Document breaking changes
-- Keep wire format minimal
+### Deterministic Testing
+```rust
+// Use from_uuid() for reproducible IDs
+let id = CharacterId::from_uuid(Uuid::nil());
 
-### For Testing
-- Use `mockall` for mocking ports
-- Domain tests: pure unit tests
-- Adapter tests: integration tests with test containers
-- Use `from_uuid()` for deterministic ID testing
+// Inject fixed time via ClockPort mock
+let mock_clock = MockClockPort::new();
+mock_clock.expect_now().returning(|| fixed_datetime);
+```
