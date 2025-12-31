@@ -227,9 +227,7 @@ These are high-impact known gaps to refactor toward this target architecture:
     - `StagingProposal` exists in both `engine-dto` and `engine-ports`.
 
 See:
-- `docs/plans/PORT_ADAPTER_TECH_DEBT_REMEDIATION.md`
-- `docs/plans/PORT_ADAPTER_TECH_DEBT_VALIDATION.md`
-- `docs/plans/ADDITIONAL_HEXAGONAL_VIOLATIONS.md`
+- `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
 
 ## Enforcement (tooling)
 
@@ -523,7 +521,7 @@ pub struct BadUseCase {
 
 **Exception**: Use cases may depend on `UseCaseContext` (a DTO, not a port trait).
 
-See `docs/plans/PORT_ADAPTER_TECH_DEBT_REMEDIATION.md` for details on existing violations being remediated.
+See `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md` for the single source-of-truth remediation plan.
 
 ---
 

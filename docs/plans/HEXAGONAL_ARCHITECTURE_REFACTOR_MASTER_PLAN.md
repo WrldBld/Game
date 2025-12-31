@@ -454,13 +454,15 @@ When the refactor reaches low-warning state, flip the enforcement switches:
 
 ## Appendix A — Superseded plans
 
-The following documents contain overlapping scope and should be considered superseded once this plan is accepted:
+The following documents contained overlapping scope and are superseded by this plan.
 
-- `docs/plans/PORT_ADAPTER_TECH_DEBT_REMEDIATION.md`
-- `docs/plans/PORT_ADAPTER_TECH_DEBT_VALIDATION.md`
-- `docs/plans/ADDITIONAL_HEXAGONAL_VIOLATIONS.md`
-- `docs/plans/ARCHITECTURE_GAP_REMEDIATION_PLAN.md` (contains relevant items, now merged here)
-- `docs/plans/CHALLENGE_APPROVAL_REFACTORING_PLAN.md` (keep for feature history; hex correctness items belong here)
-- `docs/plans/TECH_DEBT_PHASE_2_PLAN.md` (misc tech debt; hex correctness items belong here)
+They have been deleted after consolidation to keep `docs/plans/` single-source-of-truth:
+
+- `PORT_ADAPTER_TECH_DEBT_REMEDIATION.md`
+- `PORT_ADAPTER_TECH_DEBT_VALIDATION.md`
+- `ADDITIONAL_HEXAGONAL_VIOLATIONS.md`
+- `ARCHITECTURE_GAP_REMEDIATION_PLAN.md`
+- `CHALLENGE_APPROVAL_REFACTORING_PLAN.md`
+- `TECH_DEBT_PHASE_2_PLAN.md`
 
 If there are remaining non-hex items in those plans (feature refactors, performance work), they should be moved into system-specific plans.

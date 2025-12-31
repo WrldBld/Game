@@ -100,7 +100,7 @@ Improve DM workflow. These don't block player gameplay.
 
 For architecture remediation, code quality, and cleanup work, see:
 
-**[ARCHITECTURE_GAP_REMEDIATION_PLAN.md](../plans/ARCHITECTURE_GAP_REMEDIATION_PLAN.md)**
+**[HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md](../plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md)**
 
 Current architecture score: 92/100 → Target: 98/100
 
