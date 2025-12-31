@@ -73,7 +73,7 @@ impl GridMap {
         let base_cost = to_tile.terrain_type.movement_cost();
 
         // Climbing costs extra
-        Some(base_cost + elevation_diff as u32)
+        Some(base_cost.saturating_add(elevation_diff as u32))
     }
 }
 
