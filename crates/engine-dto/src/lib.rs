@@ -15,7 +15,6 @@ pub mod llm;
 pub mod persistence;
 pub mod queue;
 pub mod request_context;
-pub mod staging;
 
 pub use llm::{
 	ChatMessage, FinishReason, ImageData, LlmRequest, LlmResponse, MessageRole, TokenUsage,
@@ -35,4 +34,3 @@ pub use queue::{
 	QueueItem, QueueItemId, QueueItemStatus, SuggestionContext,
 };
 pub use request_context::RequestContext;
-pub use staging::{StagedNpcProposal, StagingProposal};

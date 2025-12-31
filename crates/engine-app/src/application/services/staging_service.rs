@@ -25,8 +25,17 @@ use wrldbldr_engine_ports::outbound::{
     StagingRepositoryPort, StagingServicePort,
 };
 
-// Re-export staging DTOs from engine-dto for backwards compatibility
-pub use wrldbldr_engine_dto::{StagedNpcProposal, StagingProposal};
+fn rule_based_suggestion_to_proposal(suggestion: &RuleBasedSuggestion) -> PortStagedNpcProposal {
+    PortStagedNpcProposal {
+        character_id: suggestion.character_id.to_string(),
+        name: suggestion.character_name.clone(),
+        sprite_asset: None,
+        portrait_asset: None,
+        is_present: suggestion.is_present,
+        is_hidden_from_players: false,
+        reasoning: suggestion.reasoning.clone(),
+    }
+}
 
 /// Configuration for the staging service
 #[derive(Debug, Clone)]
@@ -134,7 +143,7 @@ where
         game_time: &GameTime,
         ttl_hours: i32,
         dm_guidance: Option<&str>,
-    ) -> Result<StagingProposal> {
+    ) -> Result<PortStagingProposal> {
         // Generate request ID
         let request_id = uuid::Uuid::new_v4().to_string();
 
@@ -154,10 +163,10 @@ where
         let npcs_with_relationships = self.context_provider.get_npcs_for_region(region_id).await?;
 
         // Convert rule suggestions to proposals with NPC details
-        let rule_based_npcs: Vec<StagedNpcProposal> = rule_suggestions
+        let rule_based_npcs: Vec<PortStagedNpcProposal> = rule_suggestions
             .iter()
             .map(|s| {
-                let mut proposal = StagedNpcProposal::from(s.clone());
+            let mut proposal = rule_based_suggestion_to_proposal(s);
 
                 // Enrich with sprite/portrait from character data
                 if let Some((character, _)) = npcs_with_relationships
@@ -195,7 +204,7 @@ where
             rule_based_npcs.clone()
         };
 
-        Ok(StagingProposal {
+        Ok(PortStagingProposal {
             request_id,
             region_id: region_id.to_string(),
             location_id: location_id.to_string(),
@@ -315,7 +324,7 @@ where
         location_name: &str,
         game_time: &GameTime,
         guidance: &str,
-    ) -> Result<Vec<StagedNpcProposal>> {
+    ) -> Result<Vec<PortStagedNpcProposal>> {
         // Gather fresh context
         let context = self
             .context_provider
@@ -364,7 +373,7 @@ where
             wrldbldr_domain::value_objects::RegionRelationshipType,
         )],
         dm_guidance: Option<&str>,
-    ) -> Result<Vec<StagedNpcProposal>> {
+    ) -> Result<Vec<PortStagedNpcProposal>> {
         // Resolve prompt templates
         let system_prompt = self
             .prompt_template_service
@@ -412,7 +421,7 @@ where
             wrldbldr_domain::entities::Character,
             wrldbldr_domain::value_objects::RegionRelationshipType,
         )],
-    ) -> Result<Vec<StagedNpcProposal>> {
+    ) -> Result<Vec<PortStagedNpcProposal>> {
         // Extract JSON from response
         let json_str = extract_json_array(response)
             .ok_or_else(|| anyhow::anyhow!("Could not parse LLM response as JSON"))?;
@@ -443,7 +452,7 @@ where
                 (suggestion.is_present, false, suggestion.reasoning.clone())
             };
 
-            let mut proposal = StagedNpcProposal {
+            let mut proposal = PortStagedNpcProposal {
                 character_id: suggestion.character_id.to_string(),
                 name: suggestion.character_name.clone(),
                 sprite_asset: None,
@@ -511,7 +520,7 @@ where
         ttl_hours: i32,
         dm_guidance: Option<String>,
     ) -> Result<PortStagingProposal> {
-        let proposal = self
+        self
             .generate_proposal(
                 world_id,
                 region_id,
@@ -521,43 +530,7 @@ where
                 ttl_hours,
                 dm_guidance.as_deref(),
             )
-            .await?;
-
-        // Convert StagingProposal (engine-dto) to PortStagingProposal (port)
-        Ok(PortStagingProposal {
-            request_id: proposal.request_id,
-            region_id: proposal.region_id,
-            location_id: proposal.location_id,
-            world_id: proposal.world_id,
-            rule_based_npcs: proposal
-                .rule_based_npcs
-                .into_iter()
-                .map(|n| PortStagedNpcProposal {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                    reasoning: n.reasoning,
-                })
-                .collect(),
-            llm_based_npcs: proposal
-                .llm_based_npcs
-                .into_iter()
-                .map(|n| PortStagedNpcProposal {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                    reasoning: n.reasoning,
-                })
-                .collect(),
-            default_ttl_hours: proposal.default_ttl_hours,
-            context: proposal.context,
-        })
+            .await
     }
 
     async fn approve_staging(

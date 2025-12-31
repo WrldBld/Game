@@ -274,6 +274,9 @@ Steps:
 - New arch-check duplication warning no longer reports `StagingProposal`.
 - `cargo check --workspace` passes.
 
+**Progress**
+- ✅ Completed 2025-12-31: migrated staging DTO usage to `engine-ports` and deleted the duplicate `engine-dto` definitions.
+
 ### 2.3 Repeat for all shadow DTOs
 
 Steps:

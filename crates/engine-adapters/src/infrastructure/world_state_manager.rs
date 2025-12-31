@@ -5,11 +5,11 @@ use dashmap::DashMap;
 use uuid::Uuid;
 use wrldbldr_domain::value_objects::{ConversationEntry, DirectorialNotes, PendingApprovalItem};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_dto::StagingProposal;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
 };
+use wrldbldr_engine_ports::outbound::StagingProposal;
 
 /// In-memory implementation of the world state sub-traits.
 ///
@@ -19,7 +19,7 @@ use wrldbldr_engine_ports::outbound::{
 /// # Architecture Note
 ///
 /// This adapter also contains staging approval methods that are NOT part of
-/// the world state port traits because they depend on `StagingProposal` from engine-app.
+/// the world state port traits because they depend on `StagingProposal` (a boundary DTO).
 /// These methods are accessed directly by handlers that need staging functionality.
 pub struct WorldStateManager {
     states: DashMap<WorldId, WorldState>,
