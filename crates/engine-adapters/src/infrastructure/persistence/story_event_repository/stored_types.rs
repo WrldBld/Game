@@ -1,24 +1,18 @@
-//! StoryEvent repository implementation for Neo4j
+//! Storage DTOs for StoryEventType
+//!
+//! These types have serde derives for JSON persistence in Neo4j.
+//! They provide a stable serialization format separate from domain types.
 
-use anyhow::Result;
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::connection::Neo4jConnection;
-use super::parse_uuid_or_nil;
+use super::super::parse_uuid_or_nil;
 use wrldbldr_domain::entities::{
-    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType,
-    InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventInfoImportance,
-    StoryEventType,
+    ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType, ItemSource,
+    MarkerImportance, StoryEventInfoImportance, StoryEventType,
 };
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
-};
-use wrldbldr_engine_ports::outbound::{
-    StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
+    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId,
 };
 
 // ============================================================================
@@ -28,7 +22,7 @@ use wrldbldr_engine_ports::outbound::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
-enum StoredStoryEventType {
+pub(super) enum StoredStoryEventType {
     LocationChange {
         from_location: Option<String>,
         to_location: String,
@@ -155,7 +149,7 @@ enum StoredStoryEventType {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredCombatEventType {
+pub(super) enum StoredCombatEventType {
     Started,
     RoundCompleted,
     CharacterDefeated,
@@ -164,7 +158,7 @@ enum StoredCombatEventType {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredCombatOutcome {
+pub(super) enum StoredCombatOutcome {
     Victory,
     Defeat,
     Fled,
@@ -174,7 +168,7 @@ enum StoredCombatOutcome {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredChallengeEventOutcome {
+pub(super) enum StoredChallengeEventOutcome {
     CriticalSuccess,
     Success,
     PartialSuccess,
@@ -184,7 +178,7 @@ enum StoredChallengeEventOutcome {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "source_type")]
-enum StoredItemSource {
+pub(super) enum StoredItemSource {
     Found { location: String },
     Purchased { from: String, cost: Option<String> },
     Gifted { from: String },
@@ -196,7 +190,7 @@ enum StoredItemSource {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredInfoType {
+pub(super) enum StoredInfoType {
     Lore,
     Quest,
     Character,
@@ -207,7 +201,7 @@ enum StoredInfoType {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredInfoImportance {
+pub(super) enum StoredInfoImportance {
     Minor,
     Notable,
     Major,
@@ -215,7 +209,7 @@ enum StoredInfoImportance {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredMarkerImportance {
+pub(super) enum StoredMarkerImportance {
     Minor,
     Notable,
     Major,
@@ -223,7 +217,7 @@ enum StoredMarkerImportance {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum StoredDmMarkerType {
+pub(super) enum StoredDmMarkerType {
     Note,
     PlotPoint,
     CharacterMoment,
@@ -234,7 +228,10 @@ enum StoredDmMarkerType {
     Custom,
 }
 
-// Conversion from domain to stored types
+// ============================================================================
+// Conversion from domain to stored types (serialization)
+// ============================================================================
+
 impl From<&StoryEventType> for StoredStoryEventType {
     fn from(e: &StoryEventType) -> Self {
         match e {
@@ -584,7 +581,10 @@ impl From<DmMarkerType> for StoredDmMarkerType {
     }
 }
 
+// ============================================================================
 // Conversion from stored to domain types (deserialization)
+// ============================================================================
+
 impl From<StoredStoryEventType> for StoryEventType {
     fn from(s: StoredStoryEventType) -> Self {
         match s {
@@ -971,843 +971,4 @@ impl From<StoredDmMarkerType> for DmMarkerType {
             StoredDmMarkerType::Custom => DmMarkerType::Custom,
         }
     }
-}
-
-/// Repository for StoryEvent operations
-pub struct Neo4jStoryEventRepository {
-    connection: Neo4jConnection,
-}
-
-impl Neo4jStoryEventRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
-    }
-}
-
-// =============================================================================
-// Trait Implementations - Split for Interface Segregation Principle
-// =============================================================================
-// 
-// StoryEventRepositoryPort (34 methods) has been split into 4 focused traits:
-// - StoryEventCrudPort (7 methods) - Core CRUD + state management
-// - StoryEventEdgePort (15 methods) - Edge relationship management
-// - StoryEventQueryPort (10 methods) - Query operations
-// - StoryEventDialoguePort (2 methods) - Dialogue-specific operations
-//
-// The super-trait StoryEventRepositoryPort is automatically satisfied via
-// blanket impl when all 4 traits are implemented.
-// =============================================================================
-
-#[async_trait]
-impl StoryEventCrudPort for Neo4jStoryEventRepository {
-    /// Create a new story event
-    ///
-    /// NOTE: Session, location, scene, involved characters, triggered_by, and recorded_challenge
-    /// associations are now stored as graph edges and must be created separately using the
-    /// edge methods after calling create().
-    async fn create(&self, event: &StoryEvent) -> Result<()> {
-        let stored_event_type: StoredStoryEventType = (&event.event_type).into();
-        let event_type_json = serde_json::to_string(&stored_event_type)?;
-        let tags_json = serde_json::to_string(&event.tags)?;
-
-        let q = query(
-            "MATCH (w:World {id: $world_id})
-            CREATE (e:StoryEvent {
-                id: $id,
-                world_id: $world_id,
-                event_type_json: $event_type_json,
-                timestamp: $timestamp,
-                game_time: $game_time,
-                summary: $summary,
-                is_hidden: $is_hidden,
-                tags_json: $tags_json
-            })
-            CREATE (w)-[:HAS_STORY_EVENT]->(e)
-            RETURN e.id as id",
-        )
-        .param("id", event.id.to_string())
-        .param("world_id", event.world_id.to_string())
-        .param("event_type_json", event_type_json)
-        .param("timestamp", event.timestamp.to_rfc3339())
-        .param("game_time", event.game_time.clone().unwrap_or_default())
-        .param("summary", event.summary.clone())
-        .param("is_hidden", event.is_hidden)
-        .param("tags_json", tags_json);
-
-        self.connection.graph().run(q).await?;
-        tracing::debug!("Created story event: {}", event.id);
-
-        // NOTE: Session, location, scene, involved characters, triggered_by, and
-        // recorded_challenge edges should be created separately using the edge methods
-
-        Ok(())
-    }
-
-    /// Get a story event by ID
-    async fn get(&self, id: StoryEventId) -> Result<Option<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            RETURN e",
-        )
-        .param("id", id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-
-        if let Some(row) = result.next().await? {
-            Ok(Some(row_to_story_event(row)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Update story event summary (DM editing)
-    async fn update_summary(&self, id: StoryEventId, summary: &str) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            SET e.summary = $summary
-            RETURN e.id as id",
-        )
-        .param("id", id.to_string())
-        .param("summary", summary);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Update event visibility
-    async fn set_hidden(&self, id: StoryEventId, is_hidden: bool) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            SET e.is_hidden = $is_hidden
-            RETURN e.id as id",
-        )
-        .param("id", id.to_string())
-        .param("is_hidden", is_hidden);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Update event tags
-    async fn update_tags(&self, id: StoryEventId, tags: Vec<String>) -> Result<bool> {
-        let tags_json = serde_json::to_string(&tags)?;
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            SET e.tags_json = $tags_json
-            RETURN e.id as id",
-        )
-        .param("id", id.to_string())
-        .param("tags_json", tags_json);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Delete a story event (rarely used - events are usually immutable)
-    async fn delete(&self, id: StoryEventId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $id})
-            DETACH DELETE e
-            RETURN count(*) as deleted",
-        )
-        .param("id", id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
-    /// Count events for a world
-    async fn count_by_world(&self, world_id: WorldId) -> Result<u64> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            RETURN count(e) as count",
-        )
-        .param("world_id", world_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let count: i64 = row.get("count")?;
-            Ok(count as u64)
-        } else {
-            Ok(0)
-        }
-    }
-}
-
-#[async_trait]
-impl StoryEventQueryPort for Neo4jStoryEventRepository {
-    /// List story events for a world
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("world_id", world_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List story events for a world with pagination
-    async fn list_by_world_paginated(
-        &self,
-        world_id: WorldId,
-        limit: u32,
-        offset: u32,
-    ) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            RETURN e
-            ORDER BY e.timestamp DESC
-            SKIP $offset
-            LIMIT $limit",
-        )
-        .param("world_id", world_id.to_string())
-        .param("offset", offset as i64)
-        .param("limit", limit as i64);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List visible (non-hidden) story events for a world
-    async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            WHERE e.is_hidden = false
-            RETURN e
-            ORDER BY e.timestamp DESC
-            LIMIT $limit",
-        )
-        .param("world_id", world_id.to_string())
-        .param("limit", limit as i64);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// Search story events by tags
-    async fn search_by_tags(
-        &self,
-        world_id: WorldId,
-        tags: Vec<String>,
-    ) -> Result<Vec<StoryEvent>> {
-        // Note: We store tags as JSON, so we search in the JSON string
-        // A more efficient approach would be to store tags as separate nodes
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            WHERE ANY(tag IN $tags WHERE e.tags_json CONTAINS tag)
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("world_id", world_id.to_string())
-        .param("tags", tags);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// Search story events by text in summary
-    async fn search_by_text(
-        &self,
-        world_id: WorldId,
-        search_text: &str,
-    ) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            WHERE toLower(e.summary) CONTAINS toLower($search_text)
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("world_id", world_id.to_string())
-        .param("search_text", search_text);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List events involving a specific character (via INVOLVES edge)
-    async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:INVOLVES]->(c:Character {id: $char_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("char_id", character_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List events at a specific location (via OCCURRED_AT edge)
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:OCCURRED_AT]->(l:Location {id: $location_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("location_id", location_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List events triggered by a specific narrative event
-    async fn list_by_narrative_event(
-        &self,
-        narrative_event_id: NarrativeEventId,
-    ) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:TRIGGERED_BY_NARRATIVE]->(n:NarrativeEvent {id: $narrative_event_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("narrative_event_id", narrative_event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List events recording a specific challenge
-    async fn list_by_challenge(&self, challenge_id: ChallengeId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:RECORDS_CHALLENGE]->(c:Challenge {id: $challenge_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("challenge_id", challenge_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-
-    /// List events that occurred in a specific scene (via OCCURRED_IN_SCENE edge)
-    async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<StoryEvent>> {
-        let q = query(
-            "MATCH (e:StoryEvent)-[:OCCURRED_IN_SCENE]->(s:Scene {id: $scene_id})
-            RETURN e
-            ORDER BY e.timestamp DESC",
-        )
-        .param("scene_id", scene_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
-        }
-
-        Ok(events)
-    }
-}
-
-#[async_trait]
-impl StoryEventEdgePort for Neo4jStoryEventRepository {
-    /// Set the location where event occurred (creates OCCURRED_AT edge)
-    async fn set_location(&self, event_id: StoryEventId, location_id: LocationId) -> Result<bool> {
-        // First remove any existing location edge
-        let remove_q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:OCCURRED_AT]->(:Location)
-            DELETE r",
-        )
-        .param("event_id", event_id.to_string());
-        let _ = self.connection.graph().run(remove_q).await;
-
-        // Create new edge
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (l:Location {id: $location_id})
-            CREATE (e)-[:OCCURRED_AT]->(l)
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("location_id", location_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get the location where event occurred
-    async fn get_location(&self, event_id: StoryEventId) -> Result<Option<LocationId>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[:OCCURRED_AT]->(l:Location)
-            RETURN l.id as location_id",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let location_id_str: String = row.get("location_id")?;
-            Ok(Some(LocationId::from(Uuid::parse_str(&location_id_str)?)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Remove location association (deletes OCCURRED_AT edge)
-    async fn remove_location(&self, event_id: StoryEventId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:OCCURRED_AT]->(:Location)
-            DELETE r
-            RETURN count(r) as deleted",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
-    // =========================================================================
-    // OCCURRED_IN_SCENE Edge Methods
-    // =========================================================================
-
-    /// Set the scene where event occurred (creates OCCURRED_IN_SCENE edge)
-    async fn set_scene(&self, event_id: StoryEventId, scene_id: SceneId) -> Result<bool> {
-        // First remove any existing scene edge
-        let remove_q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:OCCURRED_IN_SCENE]->(:Scene)
-            DELETE r",
-        )
-        .param("event_id", event_id.to_string());
-        let _ = self.connection.graph().run(remove_q).await;
-
-        // Create new edge
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (s:Scene {id: $scene_id})
-            CREATE (e)-[:OCCURRED_IN_SCENE]->(s)
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("scene_id", scene_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get the scene where event occurred
-    async fn get_scene(&self, event_id: StoryEventId) -> Result<Option<SceneId>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[:OCCURRED_IN_SCENE]->(s:Scene)
-            RETURN s.id as scene_id",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let scene_id_str: String = row.get("scene_id")?;
-            Ok(Some(SceneId::from(Uuid::parse_str(&scene_id_str)?)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Remove scene association (deletes OCCURRED_IN_SCENE edge)
-    async fn remove_scene(&self, event_id: StoryEventId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:OCCURRED_IN_SCENE]->(:Scene)
-            DELETE r
-            RETURN count(r) as deleted",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
-    // =========================================================================
-    // INVOLVES Edge Methods
-    // =========================================================================
-
-    /// Add an involved character (creates INVOLVES edge with role)
-    async fn add_involved_character(
-        &self,
-        event_id: StoryEventId,
-        involved: InvolvedCharacter,
-    ) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (c:Character {id: $character_id})
-            MERGE (e)-[r:INVOLVES]->(c)
-            SET r.role = $role
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("character_id", involved.character_id.to_string())
-        .param("role", involved.role);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get all involved characters for an event
-    async fn get_involved_characters(
-        &self,
-        event_id: StoryEventId,
-    ) -> Result<Vec<InvolvedCharacter>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:INVOLVES]->(c:Character)
-            RETURN c.id as character_id, r.role as role",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut involved = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            let char_id_str: String = row.get("character_id")?;
-            let role: String = row.get("role").unwrap_or_else(|_| "Actor".to_string());
-            involved.push(InvolvedCharacter {
-                character_id: CharacterId::from(Uuid::parse_str(&char_id_str)?),
-                role,
-            });
-        }
-
-        Ok(involved)
-    }
-
-    /// Remove an involved character (deletes INVOLVES edge)
-    async fn remove_involved_character(
-        &self,
-        event_id: StoryEventId,
-        character_id: CharacterId,
-    ) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:INVOLVES]->(c:Character {id: $character_id})
-            DELETE r
-            RETURN count(r) as deleted",
-        )
-        .param("event_id", event_id.to_string())
-        .param("character_id", character_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
-    // =========================================================================
-    // TRIGGERED_BY_NARRATIVE Edge Methods
-    // =========================================================================
-
-    /// Set the narrative event that triggered this story event
-    async fn set_triggered_by(
-        &self,
-        event_id: StoryEventId,
-        narrative_event_id: NarrativeEventId,
-    ) -> Result<bool> {
-        // First remove any existing triggered_by edge
-        let remove_q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:TRIGGERED_BY_NARRATIVE]->(:NarrativeEvent)
-            DELETE r",
-        )
-        .param("event_id", event_id.to_string());
-        let _ = self.connection.graph().run(remove_q).await;
-
-        // Create new edge
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (n:NarrativeEvent {id: $narrative_event_id})
-            CREATE (e)-[:TRIGGERED_BY_NARRATIVE]->(n)
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("narrative_event_id", narrative_event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get the narrative event that triggered this story event
-    async fn get_triggered_by(&self, event_id: StoryEventId) -> Result<Option<NarrativeEventId>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[:TRIGGERED_BY_NARRATIVE]->(n:NarrativeEvent)
-            RETURN n.id as narrative_event_id",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let ne_id_str: String = row.get("narrative_event_id")?;
-            Ok(Some(NarrativeEventId::from(Uuid::parse_str(&ne_id_str)?)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Remove the triggered_by association
-    async fn remove_triggered_by(&self, event_id: StoryEventId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:TRIGGERED_BY_NARRATIVE]->(:NarrativeEvent)
-            DELETE r
-            RETURN count(r) as deleted",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-
-    // =========================================================================
-    // RECORDS_CHALLENGE Edge Methods
-    // =========================================================================
-
-    /// Set the challenge this event records (creates RECORDS_CHALLENGE edge)
-    async fn set_recorded_challenge(
-        &self,
-        event_id: StoryEventId,
-        challenge_id: ChallengeId,
-    ) -> Result<bool> {
-        // First remove any existing recorded_challenge edge
-        let remove_q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:RECORDS_CHALLENGE]->(:Challenge)
-            DELETE r",
-        )
-        .param("event_id", event_id.to_string());
-        let _ = self.connection.graph().run(remove_q).await;
-
-        // Create new edge
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id}), (c:Challenge {id: $challenge_id})
-            CREATE (e)-[:RECORDS_CHALLENGE]->(c)
-            RETURN e.id as id",
-        )
-        .param("event_id", event_id.to_string())
-        .param("challenge_id", challenge_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        Ok(result.next().await?.is_some())
-    }
-
-    /// Get the challenge this event records
-    async fn get_recorded_challenge(&self, event_id: StoryEventId) -> Result<Option<ChallengeId>> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[:RECORDS_CHALLENGE]->(c:Challenge)
-            RETURN c.id as challenge_id",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let challenge_id_str: String = row.get("challenge_id")?;
-            Ok(Some(ChallengeId::from(Uuid::parse_str(&challenge_id_str)?)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Remove the recorded challenge association
-    async fn remove_recorded_challenge(&self, event_id: StoryEventId) -> Result<bool> {
-        let q = query(
-            "MATCH (e:StoryEvent {id: $event_id})-[r:RECORDS_CHALLENGE]->(:Challenge)
-            DELETE r
-            RETURN count(r) as deleted",
-        )
-        .param("event_id", event_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        if let Some(row) = result.next().await? {
-            let deleted: i64 = row.get("deleted")?;
-            Ok(deleted > 0)
-        } else {
-            Ok(false)
-        }
-    }
-}
-
-#[async_trait]
-impl StoryEventDialoguePort for Neo4jStoryEventRepository {
-    /// Get recent dialogue exchanges with a specific NPC
-    ///
-    /// Returns DialogueExchange events involving the specified NPC,
-    /// ordered by timestamp descending (most recent first).
-    ///
-    /// The query filters by event_type containing "DialogueExchange"
-    /// and matches the npc_id field within the event_type_json.
-    async fn get_dialogues_with_npc(
-        &self,
-        world_id: WorldId,
-        npc_id: CharacterId,
-        limit: u32,
-    ) -> Result<Vec<StoryEvent>> {
-        // Query for DialogueExchange events that involve this NPC
-        // The event_type_json contains npc_id as a field
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:HAS_STORY_EVENT]->(e:StoryEvent)
-            WHERE e.event_type_json CONTAINS 'DialogueExchange'
-              AND e.event_type_json CONTAINS $npc_id
-            RETURN e
-            ORDER BY e.timestamp DESC
-            LIMIT $limit",
-        )
-        .param("world_id", world_id.to_string())
-        .param("npc_id", npc_id.to_string())
-        .param("limit", limit as i64);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut events = Vec::new();
-
-        while let Some(row) = result.next().await? {
-            let event = row_to_story_event(row)?;
-            // Double-check it's actually a DialogueExchange with this NPC
-            if let StoryEventType::DialogueExchange {
-                npc_id: event_npc_id,
-                ..
-            } = &event.event_type
-            {
-                if *event_npc_id == npc_id {
-                    events.push(event);
-                }
-            }
-        }
-
-        Ok(events)
-    }
-
-    /// Update or create a SPOKE_TO edge between a PlayerCharacter and an NPC
-    ///
-    /// This edge tracks conversation history metadata for the Staging System.
-    async fn update_spoke_to_edge(
-        &self,
-        pc_id: wrldbldr_domain::PlayerCharacterId,
-        npc_id: CharacterId,
-        topic: Option<String>,
-    ) -> Result<()> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})
-             MATCH (npc:Character {id: $npc_id})
-             MERGE (pc)-[r:SPOKE_TO]->(npc)
-             SET r.last_dialogue_at = datetime(),
-                 r.last_topic = $topic,
-                 r.conversation_count = COALESCE(r.conversation_count, 0) + 1
-             RETURN r.conversation_count as count",
-        )
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id", npc_id.to_string())
-        .param("topic", topic.unwrap_or_default());
-
-        self.connection.graph().run(q).await?;
-        tracing::debug!("Updated SPOKE_TO edge: PC {} -> NPC {}", pc_id, npc_id);
-
-        Ok(())
-    }
-}
-
-// StoryEventRepositoryPort is automatically satisfied via blanket impl
-// in engine-ports since we implement all 4 sub-traits above.
-
-/// Convert a Neo4j row to a StoryEvent
-///
-/// NOTE: scene_id, location_id, involved_characters, and triggered_by
-/// are stored as graph edges, not node properties. Use the edge query methods
-/// to retrieve these associations.
-fn row_to_story_event(row: Row) -> Result<StoryEvent> {
-    let node: neo4rs::Node = row.get("e")?;
-
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let event_type_json: String = node.get("event_type_json")?;
-    let timestamp_str: String = node.get("timestamp")?;
-    let game_time: String = node.get("game_time").unwrap_or_default();
-    let summary: String = node.get("summary")?;
-    let is_hidden: bool = node.get("is_hidden").unwrap_or(false);
-    let tags_json: String = node.get("tags_json").unwrap_or_else(|_| "[]".to_string());
-
-    // Deserialize to stored type, then convert to domain type
-    let stored_event_type: StoredStoryEventType = serde_json::from_str(&event_type_json)?;
-    let event_type: StoryEventType = stored_event_type.into();
-    let tags: Vec<String> = serde_json::from_str(&tags_json)?;
-
-    Ok(StoryEvent {
-        id: StoryEventId::from(Uuid::parse_str(&id_str)?),
-        world_id: WorldId::from(Uuid::parse_str(&world_id_str)?),
-        // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
-        // NOTE: location_id stored as OCCURRED_AT edge
-        event_type,
-        timestamp: DateTime::parse_from_rfc3339(&timestamp_str)?.with_timezone(&Utc),
-        game_time: if game_time.is_empty() {
-            None
-        } else {
-            Some(game_time)
-        },
-        summary,
-        // NOTE: involved_characters now stored as INVOLVES edges
-        is_hidden,
-        tags,
-        // NOTE: triggered_by now stored as TRIGGERED_BY_NARRATIVE edge
-    })
 }
