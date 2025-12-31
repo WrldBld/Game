@@ -89,6 +89,8 @@ impl EventChain {
     pub fn remove_event(&mut self, event_id: &NarrativeEventId, now: DateTime<Utc>) -> bool {
         let original_len = self.events.len();
         self.events.retain(|e| e != event_id);
+        // Also remove from completed_events to prevent stale entries
+        self.completed_events.retain(|e| e != event_id);
         if self.events.len() != original_len {
             self.updated_at = now;
             true
