@@ -175,6 +175,51 @@ tasks:
       - task: clippy
 
   # ===========================================================================
+  # Statistics
+  # ===========================================================================
+
+  stats:
+    desc: "Count lines of code per crate and show total (requires tokei: cargo install tokei)"
+    cmds:
+      - |
+        if command -v tokei > /dev/null 2>&1; then
+          echo "=== Lines of Code Statistics ==="
+          echo ""
+          total=0
+          for crate in crates/*/; do
+            if [ -d "$crate/src" ] || [ -f "$crate/Cargo.toml" ]; then
+              crate_name=$(basename "$crate")
+              rust_lines=$(tokei "$crate" --output json 2>/dev/null | jq -r '.Rust.code // 0' 2>/dev/null || echo "0")
+              if [ "$rust_lines" != "0" ] && [ -n "$rust_lines" ]; then
+                printf "%-25s %8s lines\n" "$crate_name" "$rust_lines"
+                total=$((total + rust_lines))
+              fi
+            fi
+          done
+          echo "─────────────────────────────────────────"
+          printf "%-25s %8s lines\n" "TOTAL" "$total"
+        else
+          echo "Error: tokei is not installed."
+          echo "Install it with: cargo install tokei"
+          echo ""
+          echo "Alternatively, using basic line count:"
+          echo ""
+          total=0
+          for crate in crates/*/; do
+            if [ -d "$crate/src" ]; then
+              crate_name=$(basename "$crate")
+              count=$(find "$crate/src" -name "*.rs" -type f 2>/dev/null | xargs cat 2>/dev/null | wc -l || echo "0")
+              if [ "$count" != "0" ] && [ -n "$count" ]; then
+                printf "%-25s %8s lines\n" "$crate_name" "$count"
+                total=$((total + count))
+              fi
+            fi
+          done
+          echo "─────────────────────────────────────────"
+          printf "%-25s %8s lines\n" "TOTAL" "$total"
+        fi
+
+  # ===========================================================================
   # Frontend Tooling
   # ===========================================================================
 

@@ -30,6 +30,9 @@ pkgs.mkShell {
     # Task runner
     go-task
 
+    # Code statistics
+    tokei
+
     # Process manager for running multiple services
     overmind
     tmux  # Required by overmind
