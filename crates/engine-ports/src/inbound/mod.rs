@@ -54,14 +54,6 @@ pub use app_state_port::AppStatePort;
 pub use use_case_ports::{
     // Challenge port traits
     ChallengeDmApprovalQueuePort,
-    // Connection port traits
-    // Scene port traits
-    // Player action port traits
-    // Staging port traits
-    StagingServiceExtPort,
-    StagingServicePort,
-    StagingStateExtPort,
-    StagingStatePort,
 };
 
 // Re-export types from use_case_ports (which re-exports from outbound)

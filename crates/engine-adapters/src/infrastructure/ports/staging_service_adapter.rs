@@ -1,7 +1,7 @@
 //! Staging Service Adapter
 //!
-//! Implements `StagingServicePort` and `StagingServiceExtPort` (inbound) by wrapping
-//! `StagingServicePort` (outbound).
+//! Implements staging use-case service ports (outbound) by wrapping the
+//! domain-facing `StagingServicePort` (outbound).
 //!
 //! This adapter bridges the use case layer's abstract port interface with the
 //! application's staging service port.
@@ -10,23 +10,20 @@ use std::sync::Arc;
 
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_ports::inbound::{
-    RegeneratedNpc, StagingProposalData, StagingServiceExtPort,
-    StagingServicePort as InboundStagingServicePort,
-};
 use wrldbldr_engine_ports::outbound::{
-    ApprovedNpc, ApprovedNpcData, StagedNpcData, StagedNpcProposal,
-    StagingServicePort as OutboundStagingServicePort,
+    ApprovedNpc, ApprovedNpcData, RegeneratedNpc, StagedNpcData, StagedNpcProposal,
+    StagingProposalData, StagingServicePort as DomainStagingServicePort,
+    StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
 };
 
-/// Adapter that implements staging service ports (inbound) using StagingServicePort (outbound)
+/// Adapter that implements staging use-case ports using the domain staging service.
 pub struct StagingServiceAdapter {
-    staging_service: Arc<dyn OutboundStagingServicePort>,
+    staging_service: Arc<dyn DomainStagingServicePort>,
 }
 
 impl StagingServiceAdapter {
     /// Create a new adapter wrapping the given StagingServicePort
-    pub fn new(staging_service: Arc<dyn OutboundStagingServicePort>) -> Self {
+    pub fn new(staging_service: Arc<dyn DomainStagingServicePort>) -> Self {
         Self { staging_service }
     }
 
@@ -62,7 +59,7 @@ impl StagingServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl InboundStagingServicePort for StagingServiceAdapter {
+impl StagingUseCaseServicePort for StagingServiceAdapter {
     async fn get_current_staging(
         &self,
         region_id: RegionId,
@@ -120,7 +117,7 @@ impl InboundStagingServicePort for StagingServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl StagingServiceExtPort for StagingServiceAdapter {
+impl StagingUseCaseServiceExtPort for StagingServiceAdapter {
     async fn approve_staging(
         &self,
         region_id: RegionId,

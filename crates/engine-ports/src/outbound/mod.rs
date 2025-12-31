@@ -78,6 +78,8 @@ mod sheet_template_service_port;
 mod skill_service_port;
 mod staging_repository_port;
 mod staging_service_port;
+mod staging_state_ports;
+mod staging_use_case_service_ports;
 mod story_event_admin_service_port;
 mod story_event_query_service_port;
 mod story_event_recording_service_port;
@@ -315,6 +317,12 @@ pub use prompt_template_port::{
 pub use settings_port::{SettingsError, SettingsRepositoryPort};
 
 pub use staging_repository_port::{StagedNpcRow, StagingRepositoryPort};
+
+// Staging use-case dependency ports
+pub use staging_state_ports::{StagingStateExtPort, StagingStatePort};
+pub use staging_use_case_service_ports::{
+    StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
+};
 
 pub use suggestion_enqueue_port::{
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,

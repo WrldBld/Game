@@ -69,7 +69,10 @@ use super::builders::SceneBuilder;
 use super::errors::MovementError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{StagingServicePort, StagingStatePort};
+pub use wrldbldr_engine_ports::outbound::{
+    StagingStatePort,
+    StagingUseCaseServicePort as StagingServicePort,
+};
 
 // Import types from engine-ports
 pub use wrldbldr_engine_ports::outbound::{

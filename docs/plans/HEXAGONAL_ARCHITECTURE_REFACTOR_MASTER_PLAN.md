@@ -123,10 +123,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `SceneSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `SceneUseCaseError` | type | crates/engine-ports/src/inbound/scene_use_case_port.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `SceneUseCasePort` | trait | crates/engine-ports/src/inbound/scene_use_case_port.rs | crates/engine-app/src/application/use_cases/scene.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `StagingServiceExtPort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/staging.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `StagingServicePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/movement.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `StagingStateExtPort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/staging.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `StagingStatePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/movement.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `StagingUseCasePort` | trait | crates/engine-ports/src/inbound/staging_use_case_port.rs | crates/engine-app/src/application/use_cases/staging.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `UseCaseContext` | struct | crates/engine-ports/src/inbound/use_case_context.rs | crates/engine-app/src/application/use_cases/challenge.rs, crates/engine-app/src/application/use_cases/inventory.rs, crates/engine-app/src/application/use_cases/mod.rs (+6 more) | inbound (boundary DTO) | Keep in inbound; ensure it does not leak into services |
 | `UseCaseError` | enum | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -275,6 +271,7 @@ Steps:
 - ✅ Continued 2025-12-31: moved challenge use-case dependency ports from `engine-ports` inbound to outbound: `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, and standardized on outbound `NarrativeRollContext`.
 - ✅ Continued 2025-12-31: moved scene directorial-context DTO persistence port from `engine-ports` inbound to outbound (renamed to avoid collision with the domain repo port): `DirectorialContextRepositoryPort` → `DirectorialContextDtoRepositoryPort`.
 - ✅ Continued 2025-12-31: moved scene/connection use-case dependency ports from `engine-ports` inbound to outbound (renamed to avoid collisions): `SceneServicePort` → `SceneWithRelationsQueryPort`, `InteractionServicePort` → `SceneInteractionsQueryPort`, `WorldStatePort` → `WorldStateUpdatePort`, and moved `SceneDmActionQueuePort` to outbound.
+- ✅ Continued 2025-12-31: moved staging use-case dependency ports from `engine-ports` inbound to outbound (renamed to avoid collision with domain staging service): `StagingServicePort` → `StagingUseCaseServicePort`, `StagingServiceExtPort` → `StagingUseCaseServiceExtPort`, and moved `StagingStatePort`/`StagingStateExtPort` to outbound.
 
 ### 3.3 Normalize “context DTOs”
 

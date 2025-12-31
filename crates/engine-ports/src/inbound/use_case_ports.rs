@@ -10,12 +10,6 @@
 //! in `outbound::use_case_types` and re-exported here for convenience.
 
 use async_trait::async_trait;
-use uuid::Uuid;
-
-use wrldbldr_domain::entities::StagedNpc;
-use wrldbldr_domain::{
-    GameTime, LocationId, RegionId, WorldId,
-};
 
 // Re-export types from outbound for use in trait definitions
 pub use crate::outbound::{
@@ -113,110 +107,6 @@ pub trait ChallengeDmApprovalQueuePort: Send + Sync {
 // Staging Ports (from staging.rs and movement.rs)
 // =============================================================================
 
-/// Port for managing pending staging state
-#[async_trait]
-pub trait StagingStatePort: Send + Sync {
-    /// Get current game time for the world
-    fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime>;
-
-    /// Check if there's a pending staging for a region
-    fn has_pending_staging(&self, world_id: &WorldId, region_id: &RegionId) -> bool;
-
-    /// Add a PC to the waiting list for a pending staging
-    fn add_waiting_pc(
-        &self,
-        world_id: &WorldId,
-        region_id: &RegionId,
-        pc_id: Uuid,
-        pc_name: String,
-        user_id: String,
-        client_id: String,
-    );
-
-    /// Store a new pending staging approval
-    fn store_pending_staging(&self, pending: PendingStagingData);
-}
-
-/// Port for staging service operations
-#[async_trait]
-pub trait StagingServicePort: Send + Sync {
-    /// Get current valid staging for a region
-    async fn get_current_staging(
-        &self,
-        region_id: RegionId,
-        game_time: &GameTime,
-    ) -> Result<Option<Vec<StagedNpc>>, String>;
-
-    /// Generate a staging proposal for a region
-    async fn generate_proposal(
-        &self,
-        world_id: WorldId,
-        region_id: RegionId,
-        location_id: LocationId,
-        location_name: &str,
-        game_time: &GameTime,
-        ttl_hours: i32,
-        dm_guidance: Option<&str>,
-    ) -> Result<StagingProposalData, String>;
-}
-
-/// Extended port for staging state management
-#[async_trait]
-pub trait StagingStateExtPort: StagingStatePort {
-    /// Get a pending staging by request ID
-    fn get_pending_staging(
-        &self,
-        world_id: &WorldId,
-        request_id: &str,
-    ) -> Option<PendingStagingInfo>;
-
-    /// Remove a pending staging
-    fn remove_pending_staging(&self, world_id: &WorldId, request_id: &str);
-
-    /// Update the LLM suggestions for a pending staging
-    fn update_llm_suggestions(
-        &self,
-        world_id: &WorldId,
-        request_id: &str,
-        npcs: Vec<RegeneratedNpc>,
-    );
-}
-
-/// Extended staging service port with additional operations
-#[async_trait]
-pub trait StagingServiceExtPort: StagingServicePort {
-    /// Approve staging and persist it
-    async fn approve_staging(
-        &self,
-        region_id: RegionId,
-        location_id: LocationId,
-        world_id: WorldId,
-        game_time: &GameTime,
-        approved_npcs: Vec<ApprovedNpcData>,
-        ttl_hours: i32,
-        source: wrldbldr_domain::entities::StagingSource,
-        approved_by: &str,
-    ) -> Result<Vec<StagedNpc>, String>;
-
-    /// Regenerate LLM suggestions with guidance
-    async fn regenerate_suggestions(
-        &self,
-        world_id: WorldId,
-        region_id: RegionId,
-        location_name: &str,
-        game_time: &GameTime,
-        guidance: &str,
-    ) -> Result<Vec<RegeneratedNpc>, String>;
-
-    /// Pre-stage a region
-    async fn pre_stage_region(
-        &self,
-        region_id: RegionId,
-        location_id: LocationId,
-        world_id: WorldId,
-        game_time: &GameTime,
-        npcs: Vec<ApprovedNpcData>,
-        ttl_hours: i32,
-        dm_user_id: &str,
-    ) -> Result<Vec<StagedNpc>, String>;
-}
+// Note: staging-related dependency ports moved to outbound:
+// - StagingStatePort, StagingStateExtPort
+// - StagingUseCaseServicePort, StagingUseCaseServiceExtPort

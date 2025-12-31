@@ -18,22 +18,22 @@
 //!
 //! # Port Ownership
 //!
-//! Port traits are defined in `engine-ports::inbound::use_case_ports` following
-//! proper hexagonal architecture. This includes:
+//! Use cases depend on **outbound ports** defined in `engine-ports::outbound`.
+//! These are dependency contracts that adapters implement.
 //!
 //! - `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, `ChallengeDmApprovalQueuePort`
 //! - `ConnectionManagerPort`, `DirectorialContextQueryPort`, `PlayerCharacterDtoPort`, `WorldSnapshotJsonPort`
 //! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextDtoRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
-//! - `StagingStatePort`, `StagingServicePort`, `StagingStateExtPort`, `StagingServiceExtPort`
+//! - `StagingStatePort`, `StagingUseCaseServicePort`, `StagingStateExtPort`, `StagingUseCaseServiceExtPort`
 //!
 //! Types used by these ports are defined in `engine-ports::outbound::use_case_types`.
 //!
-//! **Infrastructure ports** (in engine-ports::outbound):
+//! **Other infrastructure ports** (also in engine-ports::outbound):
 //! - Repository traits (`CharacterRepositoryPort`, `LocationRepositoryPort`, etc.)
 //! - External service traits (`LlmPort`, `ComfyUIPort`, `BroadcastPort`)
 //!
-//! See: `docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md` Appendix B
+//! See: `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
 //!
 //! # Architecture Rules
 //!

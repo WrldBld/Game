@@ -26,7 +26,10 @@ use super::builders::SceneBuilder;
 use super::errors::StagingError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{StagingServiceExtPort, StagingStateExtPort};
+pub use wrldbldr_engine_ports::outbound::{
+    StagingStateExtPort,
+    StagingUseCaseServiceExtPort as StagingServiceExtPort,
+};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
