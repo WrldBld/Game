@@ -109,7 +109,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `CreateCharacterRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateLocationRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateWorldRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `InteractionServicePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/scene.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `InventoryUseCasePort` | trait | crates/engine-ports/src/inbound/inventory_use_case_port.rs | crates/engine-app/src/application/use_cases/inventory.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `LocationSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ManageCharacterUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -121,8 +120,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `ObservationUseCasePort` | trait | crates/engine-ports/src/inbound/observation_use_case_port.rs | crates/engine-app/src/application/use_cases/observation.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `PlayerActionUseCasePort` | trait | crates/engine-ports/src/inbound/player_action_use_case_port.rs | crates/engine-app/src/application/use_cases/player_action.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `RequestHandler` | trait | crates/engine-ports/src/inbound/request_handler.rs | crates/engine-app/src/application/handlers/request_handler.rs | inbound (boundary trait) | Keep in inbound; ensure it does not leak into services |
-| `SceneDmActionQueuePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `SceneServicePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/scene.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `SceneSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `SceneUseCaseError` | type | crates/engine-ports/src/inbound/scene_use_case_port.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `SceneUseCasePort` | trait | crates/engine-ports/src/inbound/scene_use_case_port.rs | crates/engine-app/src/application/use_cases/scene.rs | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -134,7 +131,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `UseCaseContext` | struct | crates/engine-ports/src/inbound/use_case_context.rs | crates/engine-app/src/application/use_cases/challenge.rs, crates/engine-app/src/application/use_cases/inventory.rs, crates/engine-app/src/application/use_cases/mod.rs (+6 more) | inbound (boundary DTO) | Keep in inbound; ensure it does not leak into services |
 | `UseCaseError` | enum | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `WorldDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `WorldStatePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/scene.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `WorldSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 
 #### Player inbound taxonomy
@@ -278,6 +274,7 @@ Steps:
 - ✅ Continued 2025-12-31: moved connection DTO ports from `engine-ports` inbound to outbound (renamed to avoid collisions): `WorldServicePort` → `WorldSnapshotJsonPort`, `PlayerCharacterServicePort` → `PlayerCharacterDtoPort`, `DirectorialContextPort` → `DirectorialContextQueryPort`.
 - ✅ Continued 2025-12-31: moved challenge use-case dependency ports from `engine-ports` inbound to outbound: `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, and standardized on outbound `NarrativeRollContext`.
 - ✅ Continued 2025-12-31: moved scene directorial-context DTO persistence port from `engine-ports` inbound to outbound (renamed to avoid collision with the domain repo port): `DirectorialContextRepositoryPort` → `DirectorialContextDtoRepositoryPort`.
+- ✅ Continued 2025-12-31: moved scene/connection use-case dependency ports from `engine-ports` inbound to outbound (renamed to avoid collisions): `SceneServicePort` → `SceneWithRelationsQueryPort`, `InteractionServicePort` → `SceneInteractionsQueryPort`, `WorldStatePort` → `WorldStateUpdatePort`, and moved `SceneDmActionQueuePort` to outbound.
 
 ### 3.3 Normalize “context DTOs”
 

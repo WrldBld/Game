@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::{
-    GameTime, LocationId, RegionId, SceneId, WorldId,
+    GameTime, LocationId, RegionId, WorldId,
 };
 
 // Re-export types from outbound for use in trait definitions
@@ -94,46 +94,14 @@ pub trait ChallengeDmApprovalQueuePort: Send + Sync {
 // Scene Ports (from scene.rs)
 // =============================================================================
 
-/// Port for scene service operations
-#[async_trait]
-pub trait SceneServicePort: Send + Sync {
-    /// Get scene with all relations
-    async fn get_scene_with_relations(
-        &self,
-        scene_id: SceneId,
-    ) -> Result<Option<SceneWithRelations>, String>;
-}
-
-/// Port for interaction service
-#[async_trait]
-pub trait InteractionServicePort: Send + Sync {
-    /// List interactions for a scene
-    async fn list_interactions(&self, scene_id: SceneId) -> Result<Vec<InteractionEntity>, String>;
-}
-
-/// Port for world state management
-pub trait WorldStatePort: Send + Sync {
-    /// Set the current scene for a world
-    fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>);
-
-    /// Set directorial context for a world
-    fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData);
-}
-
+// Note: scene-related dependency ports moved to outbound:
+// - SceneWithRelationsQueryPort
+// - SceneInteractionsQueryPort
+// - WorldStateUpdatePort
+// - SceneDmActionQueuePort
+//
 // Note: DirectorialContextRepositoryPort (use-case DTO persistence) moved to
 // outbound as DirectorialContextDtoRepositoryPort.
-
-/// Port for DM action queue
-#[async_trait]
-pub trait SceneDmActionQueuePort: Send + Sync {
-    /// Enqueue a DM action
-    async fn enqueue_action(
-        &self,
-        world_id: &WorldId,
-        dm_id: String,
-        action: DmAction,
-    ) -> Result<(), String>;
-}
 
 // =============================================================================
 // Player Action Ports (from player_action.rs)

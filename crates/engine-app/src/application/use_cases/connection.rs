@@ -41,8 +41,7 @@ pub use wrldbldr_engine_ports::outbound::{
     SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent, WorldRole,
 };
 
-// WorldStatePort is imported from engine-ports via scene.rs
-pub use super::scene::WorldStatePort;
+pub use wrldbldr_engine_ports::outbound::WorldStateUpdatePort as WorldStatePort;
 
 // =============================================================================
 // Connection Use Case

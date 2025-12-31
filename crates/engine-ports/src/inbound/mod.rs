@@ -57,16 +57,11 @@ pub use use_case_ports::{
     // Connection port traits
     // Scene port traits
     // Player action port traits
-    InteractionServicePort,
-    
-    SceneDmActionQueuePort,
-    SceneServicePort,
     // Staging port traits
     StagingServiceExtPort,
     StagingServicePort,
     StagingStateExtPort,
     StagingStatePort,
-    WorldStatePort,
 };
 
 // Re-export types from use_case_ports (which re-exports from outbound)

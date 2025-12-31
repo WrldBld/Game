@@ -21,27 +21,27 @@ use wrldbldr_engine_ports::inbound::{
     DirectorialContextData,
     DmAction,
     InteractionEntity,
-    InteractionServicePort as InboundInteractionServicePort,
     InteractionTarget,
     LocationEntity,
-    SceneDmActionQueuePort,
     SceneEntity,
-    SceneServicePort as InboundSceneServicePort,
     SceneWithRelations as UseCaseSceneWithRelations,
     TimeContext,
-    WorldStatePort as InboundWorldStatePort, // Use case port
 };
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextDtoRepositoryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
+    SceneDmActionQueuePort,
+    SceneInteractionsQueryPort,
+    SceneWithRelationsQueryPort,
     InteractionServicePort as OutboundInteractionServicePort,
     SceneServicePort as OutboundSceneServicePort, WorldDirectorialPort, WorldScenePort,
+    WorldStateUpdatePort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
-/// Adapter for SceneServicePort (outbound) implementing SceneServicePort (inbound)
+/// Adapter for SceneServicePort (outbound) implementing SceneWithRelationsQueryPort (outbound)
 pub struct SceneServiceAdapter {
     service: Arc<dyn OutboundSceneServicePort>,
 }
@@ -53,7 +53,7 @@ impl SceneServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl InboundSceneServicePort for SceneServiceAdapter {
+impl SceneWithRelationsQueryPort for SceneServiceAdapter {
     async fn get_scene_with_relations(
         &self,
         scene_id: SceneId,
@@ -100,7 +100,7 @@ impl InboundSceneServicePort for SceneServiceAdapter {
     }
 }
 
-/// Adapter for InteractionServicePort (outbound) implementing InteractionServicePort (inbound)
+/// Adapter for InteractionServicePort (outbound) implementing SceneInteractionsQueryPort (outbound)
 pub struct InteractionServiceAdapter {
     service: Arc<dyn OutboundInteractionServicePort>,
 }
@@ -112,7 +112,7 @@ impl InteractionServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl InboundInteractionServicePort for InteractionServiceAdapter {
+impl SceneInteractionsQueryPort for InteractionServiceAdapter {
     async fn list_interactions(&self, scene_id: SceneId) -> Result<Vec<InteractionEntity>, String> {
         match self.service.list_by_scene(scene_id).await {
             Ok(interactions) => Ok(interactions
@@ -152,7 +152,7 @@ impl SceneWorldStateAdapter {
     }
 }
 
-impl InboundWorldStatePort for SceneWorldStateAdapter {
+impl WorldStateUpdatePort for SceneWorldStateAdapter {
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
         WorldScenePort::set_current_scene(self.state.as_ref(), world_id, scene_id);
     }

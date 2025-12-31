@@ -69,6 +69,9 @@ mod repository_port;
 mod scene_repository;
 mod scene_resolution_service_port;
 mod scene_service_port;
+mod scene_dm_action_queue_port;
+mod scene_interactions_query_port;
+mod scene_with_relations_query_port;
 mod settings_port;
 mod settings_service_port;
 mod sheet_template_service_port;
@@ -90,6 +93,7 @@ mod world_exporter_port;
 mod world_snapshot_json_port;
 mod world_service_port;
 mod world_state;
+mod world_state_update_port;
 
 // Actantial context service port - interface for character motivation context
 pub use actantial_context_service_port::ActantialContextServicePort;
@@ -334,6 +338,9 @@ pub use directorial_context_dto_repository_port::DirectorialContextDtoRepository
 
 pub use directorial_context_query_port::DirectorialContextQueryPort;
 
+// Minimal world state updates used by use cases
+pub use world_state_update_port::WorldStateUpdatePort;
+
 // Dialogue context service port - interface for dialogue context operations (LLM/staging)
 pub use dialogue_context_service_port::DialogueContextServicePort;
 #[cfg(any(test, feature = "testing"))]
@@ -344,6 +351,11 @@ pub use narrative_event_service_port::NarrativeEventServicePort;
 
 // Scene service port - interface for scene operations
 pub use scene_service_port::{SceneServicePort, SceneWithRelations};
+
+// Scene use-case DTO query ports
+pub use scene_dm_action_queue_port::SceneDmActionQueuePort;
+pub use scene_interactions_query_port::SceneInteractionsQueryPort;
+pub use scene_with_relations_query_port::SceneWithRelationsQueryPort;
 
 // Disposition service port - interface for NPC disposition operations
 pub use disposition_service_port::DispositionServicePort;

@@ -22,12 +22,11 @@ use wrldbldr_engine_ports::inbound::{SceneUseCasePort, UseCaseContext};
 use super::errors::SceneError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{
-    InteractionServicePort,
-    SceneDmActionQueuePort as DmActionQueuePort, SceneServicePort, WorldStatePort,
+pub use wrldbldr_engine_ports::outbound::{
+    DirectorialContextDtoRepositoryPort, SceneDmActionQueuePort as DmActionQueuePort,
+    SceneInteractionsQueryPort as InteractionServicePort,
+    SceneWithRelationsQueryPort as SceneServicePort, WorldStateUpdatePort as WorldStatePort,
 };
-
-pub use wrldbldr_engine_ports::outbound::DirectorialContextDtoRepositoryPort;
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
