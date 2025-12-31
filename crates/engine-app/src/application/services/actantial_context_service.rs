@@ -23,7 +23,7 @@ use wrldbldr_domain::value_objects::{
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ActantialContextServicePort, CharacterActantialPort, CharacterCrudPort, CharacterWantPort,
-    ClockPort, GoalRepositoryPort, PlayerCharacterRepositoryPort, WantRepositoryPort,
+    ClockPort, GoalRepositoryPort, PlayerCharacterCrudPort, WantRepositoryPort,
 };
 
 // =============================================================================
@@ -195,7 +195,7 @@ pub struct ActantialContextServiceImpl {
     character_crud: Arc<dyn CharacterCrudPort>,
     character_want: Arc<dyn CharacterWantPort>,
     character_actantial: Arc<dyn CharacterActantialPort>,
-    pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
     goal_repo: Arc<dyn GoalRepositoryPort>,
     want_repo: Arc<dyn WantRepositoryPort>,
     /// Clock for time operations (required for testability)
@@ -212,7 +212,7 @@ impl ActantialContextServiceImpl {
         character_crud: Arc<dyn CharacterCrudPort>,
         character_want: Arc<dyn CharacterWantPort>,
         character_actantial: Arc<dyn CharacterActantialPort>,
-        pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
         goal_repo: Arc<dyn GoalRepositoryPort>,
         want_repo: Arc<dyn WantRepositoryPort>,
         clock: Arc<dyn ClockPort>,
@@ -221,7 +221,7 @@ impl ActantialContextServiceImpl {
             character_crud,
             character_want,
             character_actantial,
-            pc_repo,
+            pc_crud,
             goal_repo,
             want_repo,
             clock,
@@ -241,7 +241,7 @@ impl ActantialContextServiceImpl {
             }
             ActantialTarget::Pc(id) => {
                 let pc_id = wrldbldr_domain::PlayerCharacterId::from_uuid(*id);
-                if let Some(pc) = self.pc_repo.get(pc_id).await? {
+                if let Some(pc) = self.pc_crud.get(pc_id).await? {
                     Ok(pc.name)
                 } else {
                     Ok("Unknown PC".to_string())

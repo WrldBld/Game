@@ -152,7 +152,7 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
     // =========================================================================
     let item_service_impl = ItemServiceImpl::new(
         repos.item.clone(),
-        repos.player_character.god.clone(),
+        repos.player_character.inventory.clone(),
         repos.region.item.clone(),
     );
 

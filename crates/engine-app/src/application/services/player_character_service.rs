@@ -12,8 +12,8 @@ use wrldbldr_domain::entities::CharacterSheetData;
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, LocationCrudPort, PlayerCharacterRepositoryPort, PlayerCharacterServicePort,
-    WorldRepositoryPort,
+    ClockPort, LocationCrudPort, PlayerCharacterCrudPort, PlayerCharacterPositionPort,
+    PlayerCharacterQueryPort, PlayerCharacterServicePort, WorldRepositoryPort,
 };
 
 /// Request to create a new player character
@@ -83,7 +83,9 @@ pub trait PlayerCharacterService: Send + Sync {
 /// Default implementation of PlayerCharacterService using port abstractions
 #[derive(Clone)]
 pub struct PlayerCharacterServiceImpl {
-    pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    pc_query: Arc<dyn PlayerCharacterQueryPort>,
+    pc_position: Arc<dyn PlayerCharacterPositionPort>,
     location_repository: Arc<dyn LocationCrudPort>,
     world_repository: Arc<dyn WorldRepositoryPort>,
     clock: Arc<dyn ClockPort>,
@@ -92,13 +94,17 @@ pub struct PlayerCharacterServiceImpl {
 impl PlayerCharacterServiceImpl {
     /// Create a new PlayerCharacterServiceImpl with the given repositories
     pub fn new(
-        pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+        pc_query: Arc<dyn PlayerCharacterQueryPort>,
+        pc_position: Arc<dyn PlayerCharacterPositionPort>,
         location_repository: Arc<dyn LocationCrudPort>,
         world_repository: Arc<dyn WorldRepositoryPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            pc_repository,
+            pc_crud,
+            pc_query,
+            pc_position,
             location_repository,
             world_repository,
             clock,
@@ -160,7 +166,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         // Validate the PC
         pc.validate().map_err(|e| anyhow::anyhow!(e))?;
 
-        self.pc_repository
+        self.pc_crud
             .create(&pc)
             .await
             .context("Failed to create player character in repository")?;
@@ -178,7 +184,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
     #[instrument(skip(self), fields(pc_id = %id))]
     async fn get_pc(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
         debug!(pc_id = %id, "Fetching player character");
-        self.pc_repository
+        self.pc_crud
             .get(id)
             .await
             .context("Failed to get player character from repository")
@@ -193,7 +199,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         debug!(user_id = %user_id, world_id = %world_id, "Fetching player character by user and world");
         // Get all PCs for user in this world and return the first one (active PC)
         let pcs = self
-            .pc_repository
+            .pc_query
             .get_by_user_and_world(user_id, *world_id)
             .await
             .context("Failed to get player character from repository")?;
@@ -203,7 +209,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
     #[instrument(skip(self), fields(world_id = %world_id))]
     async fn get_pcs_by_world(&self, world_id: &WorldId) -> Result<Vec<PlayerCharacter>> {
         debug!(world_id = %world_id, "Fetching player characters for world");
-        self.pc_repository
+        self.pc_query
             .get_all_by_world(*world_id)
             .await
             .context("Failed to get player characters from repository")
@@ -216,7 +222,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         request: UpdatePlayerCharacterRequest,
     ) -> Result<PlayerCharacter> {
         let mut pc = self
-            .pc_repository
+            .pc_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", id))?;
@@ -255,7 +261,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
         pc.touch(self.clock.now()); // Update last_active_at
         pc.validate().map_err(|e| anyhow::anyhow!(e))?;
 
-        self.pc_repository
+        self.pc_crud
             .update(&pc)
             .await
             .context("Failed to update player character in repository")?;
@@ -279,12 +285,12 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
 
         // Verify the PC exists
         let _ = self
-            .pc_repository
+            .pc_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", id))?;
 
-        self.pc_repository
+        self.pc_position
             .update_location(id, location_id)
             .await
             .context("Failed to update player character location in repository")?;
@@ -296,12 +302,12 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
     #[instrument(skip(self), fields(pc_id = %id))]
     async fn delete_pc(&self, id: PlayerCharacterId) -> Result<()> {
         let pc = self
-            .pc_repository
+            .pc_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", id))?;
 
-        self.pc_repository
+        self.pc_crud
             .delete(id)
             .await
             .context("Failed to delete player character from repository")?;
@@ -313,7 +319,7 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
     #[instrument(skip(self), fields(pc_id = %id, skill_id = %skill_id))]
     async fn get_skill_modifier(&self, id: PlayerCharacterId, skill_id: SkillId) -> Result<i32> {
         let pc = self
-            .pc_repository
+            .pc_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", id))?;

@@ -202,7 +202,12 @@ pub async fn new_app_state(
     let item_repo = repos.item.clone();
     let goal_repo = repos.goal.clone();
     let want_repo = repos.want.clone();
-    let scene_repo = repos.scene_repo.clone();
+    // Scene ISP ports
+    let scene_crud = repos.scene.crud.clone();
+    let scene_query = repos.scene.query.clone();
+    let scene_location = repos.scene.location.clone();
+    let scene_featured_character = repos.scene.featured_character.clone();
+    let scene_completion = repos.scene.completion.clone();
 
     // Character ISP ports
     let character_crud = repos.character.crud.clone();
@@ -243,12 +248,17 @@ pub async fn new_app_state(
     let narrative_event_npc = repos.narrative_event.npc.clone();
     let narrative_event_query = repos.narrative_event.query.clone();
 
-    // EventChain ISP ports - extract god trait for now (services use full interface)
-    let event_chain_repo: Arc<dyn wrldbldr_engine_ports::outbound::EventChainRepositoryPort> =
-        Arc::new(repository.event_chains());
+    // EventChain ISP ports
+    let event_chain_crud = repos.event_chain.crud.clone();
+    let event_chain_query = repos.event_chain.query.clone();
+    let event_chain_membership = repos.event_chain.membership.clone();
+    let event_chain_state = repos.event_chain.state.clone();
 
-    // PlayerCharacter - extract god trait (services use full interface)
-    let player_character_repo = repos.player_character.god.clone();
+    // PlayerCharacter ISP ports
+    let pc_crud = repos.player_character.crud.clone();
+    let pc_query = repos.player_character.query.clone();
+    let pc_position = repos.player_character.position.clone();
+    let pc_inventory = repos.player_character.inventory.clone();
 
     // World exporter from infrastructure
     let world_exporter = infra.world_exporter.clone();
@@ -281,12 +291,19 @@ pub async fn new_app_state(
         location_hierarchy: location_hierarchy.clone(),
         location_connection: location_connection.clone(),
         location_map: location_map.clone(),
-        scene_repo: scene_repo.clone(),
+        scene_crud: scene_crud.clone(),
+        scene_query: scene_query.clone(),
+        scene_location: scene_location.clone(),
+        scene_featured_character: scene_featured_character.clone(),
+        scene_completion: scene_completion.clone(),
         skill_repo: skill_repo.clone(),
         interaction_repo: interaction_repo.clone(),
         item_repo: item_repo.clone(),
-        pc_repo: player_character_repo.clone(),
         region_item: region_item.clone(),
+        pc_crud: pc_crud.clone(),
+        pc_query: pc_query.clone(),
+        pc_position: pc_position.clone(),
+        pc_inventory: pc_inventory.clone(),
         flag_repo: flag_repo.clone(),
         observation_repo: observation_repo.clone(),
         sheet_template_repo: sheet_template_repo.clone(),
@@ -347,7 +364,10 @@ pub async fn new_app_state(
 
     let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> =
         Arc::new(SceneServiceImpl::new(
-            scene_repo.clone(),
+            scene_crud.clone(),
+            scene_query.clone(),
+            scene_location.clone(),
+            scene_featured_character.clone(),
             location_crud.clone(),
             character_crud.clone(),
         ));
@@ -400,7 +420,12 @@ pub async fn new_app_state(
     let narrative_event_crud_for_effects = narrative_event_crud.clone();
     let challenge_crud_for_effects = challenge_crud.clone();
 
-    let event_chain_service_impl_for_port = EventChainServiceImpl::new(event_chain_repo);
+    let event_chain_service_impl_for_port = EventChainServiceImpl::new(
+        event_chain_crud,
+        event_chain_query,
+        event_chain_membership,
+        event_chain_state,
+    );
     let event_chain_service: Arc<
         dyn wrldbldr_engine_app::application::services::EventChainService,
     > = Arc::new(event_chain_service_impl_for_port.clone());
@@ -413,26 +438,30 @@ pub async fn new_app_state(
     let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> =
         Arc::new(ItemServiceImpl::new(
             item_repo.clone(),
-            player_character_repo.clone(),
+            pc_inventory.clone(),
             region_item.clone(),
         ));
 
-    let player_character_repo_for_triggers = player_character_repo.clone();
-    let player_character_repo_for_actantial = player_character_repo.clone();
-    let player_character_repo_for_handler = player_character_repo.clone();
+    let pc_crud_for_triggers = pc_crud.clone();
+    let pc_crud_for_actantial = pc_crud.clone();
+    let pc_crud_for_handler = pc_crud.clone();
 
     // Player character service - app-layer trait for AppRequestHandler, port comes from factory
     let player_character_service: Arc<
         dyn wrldbldr_engine_app::application::services::PlayerCharacterService,
     > = Arc::new(PlayerCharacterServiceImpl::new(
-        player_character_repo.clone(),
+        pc_crud.clone(),
+        pc_query.clone(),
+        pc_position.clone(),
         location_crud.clone(),
         world_repo.clone(),
         clock.clone(),
     ));
     // Keep concrete version for ChallengeResolutionService generics
     let player_character_service_impl = PlayerCharacterServiceImpl::new(
-        player_character_repo.clone(),
+        pc_crud.clone(),
+        pc_query.clone(),
+        pc_position.clone(),
         location_crud.clone(),
         world_repo.clone(),
         clock.clone(),
@@ -586,7 +615,8 @@ pub async fn new_app_state(
     let challenge_outcome_approval_service = Arc::new(ChallengeOutcomeApprovalService::new(
         challenge_approval_tx,
         outcome_trigger_service.clone(),
-        player_character_repo_for_triggers.clone(),
+        pc_crud_for_triggers.clone(),
+        pc_inventory.clone(),
         item_repo.clone(),
         prompt_template_service.clone(),
         challenge_outcome_queue.clone(),
@@ -617,10 +647,10 @@ pub async fn new_app_state(
     ));
 
     // Create trigger evaluation service (Phase 2)
-    // Uses ISP: NarrativeEventCrudPort, StoryEventQueryPort, StoryEventEdgePort
+    // Uses ISP: NarrativeEventCrudPort, PlayerCharacterCrudPort, StoryEventQueryPort, StoryEventEdgePort
     let trigger_evaluation_service = Arc::new(TriggerEvaluationService::new(
         narrative_event_crud_for_triggers,
-        player_character_repo_for_triggers,
+        pc_crud_for_triggers,
         story_event_query_for_triggers,
         story_event_edge_for_triggers,
     ));
@@ -675,19 +705,19 @@ pub async fn new_app_state(
         ));
 
     // Create actantial context service (P1.5)
-    // Uses ISP: CharacterCrudPort, CharacterWantPort, CharacterActantialPort
+    // Uses ISP: CharacterCrudPort, CharacterWantPort, CharacterActantialPort, PlayerCharacterCrudPort
     let actantial_context_service = Arc::new(ActantialContextServiceImpl::new(
         character_crud.clone(),
         character_want.clone(),
         character_actantial.clone(),
-        player_character_repo_for_actantial.clone(),
+        pc_crud_for_actantial.clone(),
         goal_repo,
         want_repo,
         clock.clone(),
     ));
 
     // Create prompt context service for building LLM prompts from player actions
-    // Uses ISP: CharacterCrudPort, RegionItemPort
+    // Uses ISP: CharacterCrudPort, PlayerCharacterCrudPort, RegionItemPort
     // PromptContextServiceImpl now implements both app-layer trait and port trait directly
     let prompt_context_service_impl = Arc::new(PromptContextServiceImpl::new(
         world_service.clone(),
@@ -696,7 +726,7 @@ pub async fn new_app_state(
         skill_service.clone(),
         narrative_event_service.clone(),
         character_crud.clone(),
-        player_character_repo_for_actantial,
+        pc_crud_for_actantial,
         region_item.clone(),
         disposition_service.clone(),
         actantial_context_service.clone()
@@ -771,8 +801,10 @@ pub async fn new_app_state(
         world_connection_manager: world_connection_manager.clone(),
         world_state: world_state.clone(),
         clock: clock.clone(),
-        // Repository ports (ISP-split)
-        player_character_repo: player_character_repo_for_handler.clone(),
+        // Repository ports (ISP-split PC traits)
+        pc_crud: pc_crud_for_handler.clone(),
+        pc_position: pc_position.clone(),
+        pc_inventory: pc_inventory.clone(),
         region_crud: region_crud.clone(),
         region_connection: region_connection.clone(),
         region_exit: region_exit.clone(),

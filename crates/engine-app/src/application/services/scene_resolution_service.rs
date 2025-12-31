@@ -20,9 +20,9 @@ use tracing::{debug, info, instrument, warn};
 use wrldbldr_domain::entities::{Scene, SceneCondition};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    FlagRepositoryPort, ObservationRepositoryPort, PlayerCharacterRepositoryPort,
-    SceneRepositoryPort, SceneResolutionResult as PortSceneResolutionResult,
-    SceneResolutionServicePort,
+    FlagRepositoryPort, ObservationRepositoryPort, PlayerCharacterCrudPort,
+    PlayerCharacterInventoryPort, PlayerCharacterQueryPort, SceneCompletionPort, SceneQueryPort,
+    SceneResolutionResult as PortSceneResolutionResult, SceneResolutionServicePort,
 };
 
 /// Result of scene resolution
@@ -49,8 +49,11 @@ pub trait SceneResolutionService: Send + Sync {
 /// Default implementation of SceneResolutionService
 #[derive(Clone)]
 pub struct SceneResolutionServiceImpl {
-    pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-    scene_repository: Arc<dyn SceneRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    pc_query: Arc<dyn PlayerCharacterQueryPort>,
+    pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
+    scene_query: Arc<dyn SceneQueryPort>,
+    scene_completion: Arc<dyn SceneCompletionPort>,
     flag_repository: Arc<dyn FlagRepositoryPort>,
     observation_repository: Arc<dyn ObservationRepositoryPort>,
 }
@@ -58,14 +61,20 @@ pub struct SceneResolutionServiceImpl {
 impl SceneResolutionServiceImpl {
     /// Create a new SceneResolutionServiceImpl with the given repositories
     pub fn new(
-        pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
-        scene_repository: Arc<dyn SceneRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+        pc_query: Arc<dyn PlayerCharacterQueryPort>,
+        pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
+        scene_query: Arc<dyn SceneQueryPort>,
+        scene_completion: Arc<dyn SceneCompletionPort>,
         flag_repository: Arc<dyn FlagRepositoryPort>,
         observation_repository: Arc<dyn ObservationRepositoryPort>,
     ) -> Self {
         Self {
-            pc_repository,
-            scene_repository,
+            pc_crud,
+            pc_query,
+            pc_inventory,
+            scene_query,
+            scene_completion,
             flag_repository,
             observation_repository,
         }
@@ -81,13 +90,13 @@ impl SceneResolutionServiceImpl {
         for condition in conditions {
             let met = match condition {
                 SceneCondition::CompletedScene(scene_id) => {
-                    self.scene_repository
+                    self.scene_completion
                         .is_scene_completed(pc_id, *scene_id)
                         .await?
                 }
                 SceneCondition::HasItem(item_id) => {
                     // Check if PC has this item in their inventory
-                    self.pc_repository
+                    self.pc_inventory
                         .get_inventory_item(pc_id, *item_id)
                         .await?
                         .is_some()
@@ -163,7 +172,7 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
     async fn resolve_scene_for_world(&self, world_id: &WorldId) -> Result<SceneResolutionResult> {
         // Get all PCs in the world
         let pcs = self
-            .pc_repository
+            .pc_query
             .get_all_by_world(*world_id)
             .await
             .context("Failed to get player characters for world")?;
@@ -200,7 +209,7 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
 
             // Find active scene at that location
             let scenes = self
-                .scene_repository
+                .scene_query
                 .list_by_location(location_id)
                 .await
                 .context("Failed to list scenes by location")?;
@@ -230,7 +239,7 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
             // For now, return the scene at the first location (first PC's location)
             let first_location = unique_locations[0];
             let scenes = self
-                .scene_repository
+                .scene_query
                 .list_by_location(first_location)
                 .await
                 .context("Failed to list scenes by location")?;
@@ -249,14 +258,14 @@ impl SceneResolutionService for SceneResolutionServiceImpl {
     async fn resolve_scene_for_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<Scene>> {
         // Get the PC
         let pc = self
-            .pc_repository
+            .pc_crud
             .get(pc_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Player character not found: {}", pc_id))?;
 
         // Find scenes at PC's location
         let scenes = self
-            .scene_repository
+            .scene_query
             .list_by_location(pc.current_location_id)
             .await
             .context("Failed to list scenes by location")?;

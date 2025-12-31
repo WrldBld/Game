@@ -10,7 +10,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{EventChainId, NarrativeEventId, WorldId};
-use wrldbldr_engine_ports::outbound::{EventChainRepositoryPort, EventChainServicePort};
+use wrldbldr_engine_ports::outbound::{
+    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainServicePort,
+    EventChainStatePort,
+};
 
 /// EventChain service trait defining the application use cases
 #[async_trait]
@@ -76,16 +79,37 @@ pub trait EventChainService: Send + Sync {
     async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>>;
 }
 
-/// Default implementation of EventChainService using port abstractions
+/// Default implementation of EventChainService using ISP port abstractions.
+///
+/// This service depends on all four ISP traits because it provides a complete
+/// CRUD + query + membership + state management interface for event chains.
+/// In practice, these traits are implemented by the same repository instance,
+/// so the composition root passes the same Arc to all four parameters.
 #[derive(Clone)]
 pub struct EventChainServiceImpl {
-    repository: Arc<dyn EventChainRepositoryPort>,
+    crud: Arc<dyn EventChainCrudPort>,
+    query: Arc<dyn EventChainQueryPort>,
+    membership: Arc<dyn EventChainMembershipPort>,
+    state: Arc<dyn EventChainStatePort>,
 }
 
 impl EventChainServiceImpl {
-    /// Create a new EventChainServiceImpl with the given repository
-    pub fn new(repository: Arc<dyn EventChainRepositoryPort>) -> Self {
-        Self { repository }
+    /// Create a new EventChainServiceImpl with ISP-compliant repository ports.
+    ///
+    /// All four ports can be the same underlying repository instance, coerced
+    /// to the appropriate trait interface by the composition root.
+    pub fn new(
+        crud: Arc<dyn EventChainCrudPort>,
+        query: Arc<dyn EventChainQueryPort>,
+        membership: Arc<dyn EventChainMembershipPort>,
+        state: Arc<dyn EventChainStatePort>,
+    ) -> Self {
+        Self {
+            crud,
+            query,
+            membership,
+            state,
+        }
     }
 }
 
@@ -94,7 +118,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn get_event_chain(&self, id: EventChainId) -> Result<Option<EventChain>> {
         debug!(chain_id = %id, "Fetching event chain");
-        self.repository
+        self.crud
             .get(id)
             .await
             .context("Failed to get event chain from repository")
@@ -103,7 +127,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn list_event_chains(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
         debug!(world_id = %world_id, "Listing all event chains for world");
-        self.repository
+        self.query
             .list_by_world(world_id)
             .await
             .context("Failed to list event chains from repository")
@@ -112,7 +136,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn list_active(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
         debug!(world_id = %world_id, "Listing active event chains for world");
-        self.repository
+        self.query
             .list_active(world_id)
             .await
             .context("Failed to list active event chains from repository")
@@ -121,7 +145,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
         debug!(world_id = %world_id, "Listing favorite event chains for world");
-        self.repository
+        self.query
             .list_favorites(world_id)
             .await
             .context("Failed to list favorite event chains from repository")
@@ -130,7 +154,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>> {
         debug!(event_id = %event_id, "Getting chains containing event");
-        self.repository
+        self.query
             .get_chains_for_event(event_id)
             .await
             .context("Failed to get chains for event from repository")
@@ -139,7 +163,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self, chain))]
     async fn create_event_chain(&self, chain: EventChain) -> Result<EventChain> {
         info!(chain_id = %chain.id, world_id = %chain.world_id, "Creating event chain");
-        self.repository
+        self.crud
             .create(&chain)
             .await
             .context("Failed to create event chain in repository")?;
@@ -149,7 +173,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self, chain))]
     async fn update_event_chain(&self, chain: EventChain) -> Result<EventChain> {
         info!(chain_id = %chain.id, "Updating event chain");
-        self.repository
+        self.crud
             .update(&chain)
             .await
             .context("Failed to update event chain in repository")?;
@@ -159,7 +183,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn delete_event_chain(&self, id: EventChainId) -> Result<()> {
         info!(chain_id = %id, "Deleting event chain");
-        self.repository
+        self.crud
             .delete(id)
             .await
             .context("Failed to delete event chain from repository")?;
@@ -173,7 +197,7 @@ impl EventChainService for EventChainServiceImpl {
         event_id: NarrativeEventId,
     ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Adding event to chain");
-        self.repository
+        self.membership
             .add_event_to_chain(chain_id, event_id)
             .await
             .context("Failed to add event to chain in repository")?;
@@ -187,7 +211,7 @@ impl EventChainService for EventChainServiceImpl {
         event_id: NarrativeEventId,
     ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Removing event from chain");
-        self.repository
+        self.membership
             .remove_event_from_chain(chain_id, event_id)
             .await
             .context("Failed to remove event from chain in repository")?;
@@ -201,7 +225,7 @@ impl EventChainService for EventChainServiceImpl {
         event_id: NarrativeEventId,
     ) -> Result<()> {
         info!(chain_id = %chain_id, event_id = %event_id, "Completing event in chain");
-        self.repository
+        self.membership
             .complete_event(chain_id, event_id)
             .await
             .context("Failed to complete event in chain in repository")?;
@@ -211,7 +235,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn toggle_favorite(&self, id: EventChainId) -> Result<bool> {
         info!(chain_id = %id, "Toggling favorite status for event chain");
-        self.repository
+        self.state
             .toggle_favorite(id)
             .await
             .context("Failed to toggle favorite status in repository")
@@ -220,7 +244,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn set_active(&self, id: EventChainId, is_active: bool) -> Result<()> {
         info!(chain_id = %id, is_active = is_active, "Setting active status for event chain");
-        self.repository
+        self.state
             .set_active(id, is_active)
             .await
             .context("Failed to set active status in repository")?;
@@ -230,7 +254,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn reset_chain(&self, id: EventChainId) -> Result<()> {
         info!(chain_id = %id, "Resetting chain progress");
-        self.repository
+        self.state
             .reset(id)
             .await
             .context("Failed to reset chain progress in repository")?;
@@ -240,7 +264,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn get_status(&self, id: EventChainId) -> Result<Option<ChainStatus>> {
         debug!(chain_id = %id, "Getting chain status");
-        self.repository
+        self.state
             .get_status(id)
             .await
             .context("Failed to get chain status from repository")
@@ -249,7 +273,7 @@ impl EventChainService for EventChainServiceImpl {
     #[instrument(skip(self))]
     async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>> {
         debug!(world_id = %world_id, "Listing chain statuses for world");
-        self.repository
+        self.state
             .list_statuses(world_id)
             .await
             .context("Failed to list chain statuses from repository")

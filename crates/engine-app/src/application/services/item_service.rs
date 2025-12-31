@@ -15,7 +15,7 @@ use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
 use wrldbldr_domain::error::DomainError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ItemRepositoryPort, ItemServicePort, PlayerCharacterRepositoryPort, RegionItemPort,
+    ItemRepositoryPort, ItemServicePort, PlayerCharacterInventoryPort, RegionItemPort,
 };
 
 /// Request to create a new item
@@ -156,7 +156,7 @@ pub trait ItemService: Send + Sync {
 #[derive(Clone)]
 pub struct ItemServiceImpl {
     item_repository: Arc<dyn ItemRepositoryPort>,
-    pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
     region_item: Arc<dyn RegionItemPort>,
 }
 
@@ -164,12 +164,12 @@ impl ItemServiceImpl {
     /// Create a new ItemServiceImpl with the given repositories
     pub fn new(
         item_repository: Arc<dyn ItemRepositoryPort>,
-        pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         region_item: Arc<dyn RegionItemPort>,
     ) -> Self {
         Self {
             item_repository,
-            pc_repository,
+            pc_inventory,
             region_item,
         }
     }
@@ -269,7 +269,7 @@ impl ItemService for ItemServiceImpl {
         };
 
         // Add to PC inventory
-        self.pc_repository
+        self.pc_inventory
             .add_inventory_item(
                 request.recipient_pc_id,
                 item.id,
@@ -334,7 +334,7 @@ impl ItemService for ItemServiceImpl {
     }
 
     async fn get_pc_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>> {
-        self.pc_repository
+        self.pc_inventory
             .get_inventory(pc_id)
             .await
             .context("Failed to get PC inventory")
@@ -342,7 +342,7 @@ impl ItemService for ItemServiceImpl {
 
     async fn pc_has_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<bool> {
         let item = self
-            .pc_repository
+            .pc_inventory
             .get_inventory_item(pc_id, item_id)
             .await
             .context("Failed to check PC inventory")?;

@@ -146,15 +146,13 @@ pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 
 // Repository ports - Note: Many repository ports have been split into ISP sub-traits.
 // See the *_repository/ modules for the focused trait definitions.
-// God traits have been removed for: Location, Region (use ISP traits instead).
-// God traits pending removal: PlayerCharacter, Scene, EventChain.
+// God traits have been removed for: Location, Region, EventChain, Scene, PlayerCharacter.
+// Use ISP traits from the respective *_repository/ modules instead.
 pub use repository_port::{
-    AssetRepositoryPort, CharacterNode, ContainerInfo, EventChainRepositoryPort, FlagRepositoryPort,
-    GoalRepositoryPort, InteractionRepositoryPort, ItemRepositoryPort,
-    ObservationRepositoryPort, PlayerCharacterRepositoryPort,
-    RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
-    SkillRepositoryPort, SocialNetwork, WantRepositoryPort, WorkflowRepositoryPort,
-    WorldRepositoryPort,
+    AssetRepositoryPort, CharacterNode, ContainerInfo, FlagRepositoryPort, GoalRepositoryPort,
+    InteractionRepositoryPort, ItemRepositoryPort, ObservationRepositoryPort, RelationshipEdge,
+    RelationshipRepositoryPort, SheetTemplateRepositoryPort, SkillRepositoryPort, SocialNetwork,
+    WantRepositoryPort, WorkflowRepositoryPort, WorldRepositoryPort,
 };
 
 // StoryEvent repository ports - split for Interface Segregation Principle (Clean ISP)

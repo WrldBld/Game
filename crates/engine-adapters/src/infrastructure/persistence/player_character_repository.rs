@@ -1,16 +1,21 @@
 //! Player Character repository implementation for Neo4j
+//!
+//! Implements ISP (Interface Segregation Principle) traits:
+//! - PlayerCharacterCrudPort: Core CRUD operations
+//! - PlayerCharacterQueryPort: Query/lookup operations  
+//! - PlayerCharacterPositionPort: Position/movement operations
+//! - PlayerCharacterInventoryPort: Inventory management
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use neo4rs::{query, Row};
+use neo4rs::{query, Node, Row};
 use serde_json;
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
-use neo4rs::Node;
 use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_common::StringExt;
 use wrldbldr_domain::entities::{
@@ -19,7 +24,7 @@ use wrldbldr_domain::entities::{
 use wrldbldr_domain::{ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
-    PlayerCharacterQueryPort, PlayerCharacterRepositoryPort,
+    PlayerCharacterQueryPort,
 };
 
 /// Repository for PlayerCharacter operations
@@ -34,8 +39,12 @@ impl Neo4jPlayerCharacterRepository {
     }
 }
 
+// =============================================================================
+// PlayerCharacterCrudPort Implementation
+// =============================================================================
+
 #[async_trait]
-impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
+impl PlayerCharacterCrudPort for Neo4jPlayerCharacterRepository {
     async fn create(&self, pc: &PlayerCharacter) -> Result<()> {
         let sheet_data_json = if let Some(ref sheet) = pc.sheet_data {
             serde_json::to_string(sheet)?
@@ -110,22 +119,6 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         }
     }
 
-    async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter)-[:AT_LOCATION]->(l:Location {id: $location_id})
-            RETURN pc
-            ORDER BY pc.last_active_at DESC",
-        )
-        .param("location_id", location_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut pcs = Vec::new();
-        while let Some(row) = result.next().await? {
-            pcs.push(parse_player_character_row(row)?);
-        }
-        Ok(pcs)
-    }
-
     async fn update(&self, pc: &PlayerCharacter) -> Result<()> {
         let sheet_data_json = if let Some(ref sheet) = pc.sheet_data {
             serde_json::to_string(sheet)?
@@ -158,6 +151,114 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         Ok(())
     }
 
+    async fn delete(&self, id: PlayerCharacterId) -> Result<()> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $id})
+            DETACH DELETE pc",
+        )
+        .param("id", id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Deleted player character: {}", id);
+        Ok(())
+    }
+
+    async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $id})<-[r:HAS_PC]-(s:Session)
+            DELETE r",
+        )
+        .param("id", id.to_string());
+
+        self.connection.graph().run(q).await?;
+        tracing::debug!("Unbound player character {} from session", id);
+        Ok(())
+    }
+}
+
+// =============================================================================
+// PlayerCharacterQueryPort Implementation
+// =============================================================================
+
+#[async_trait]
+impl PlayerCharacterQueryPort for Neo4jPlayerCharacterRepository {
+    async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter)-[:AT_LOCATION]->(l:Location {id: $location_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("location_id", location_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut pcs = Vec::new();
+        while let Some(row) = result.next().await? {
+            pcs.push(parse_player_character_row(row)?);
+        }
+        Ok(pcs)
+    }
+
+    async fn get_by_user_and_world(
+        &self,
+        user_id: &str,
+        world_id: WorldId,
+    ) -> Result<Vec<PlayerCharacter>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("user_id", user_id)
+        .param("world_id", world_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut pcs = Vec::new();
+        while let Some(row) = result.next().await? {
+            pcs.push(parse_player_character_row(row)?);
+        }
+        Ok(pcs)
+    }
+
+    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter)-[:IN_WORLD]->(w:World {id: $world_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut pcs = Vec::new();
+        while let Some(row) = result.next().await? {
+            pcs.push(parse_player_character_row(row)?);
+        }
+        Ok(pcs)
+    }
+
+    async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {user_id: $user_id})
+            WHERE NOT EXISTS { (s:Session)-[:HAS_PC]->(pc) }
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("user_id", user_id);
+
+        let mut result = self.connection.graph().execute(q).await?;
+        let mut pcs = Vec::new();
+        while let Some(row) = result.next().await? {
+            pcs.push(parse_player_character_row(row)?);
+        }
+        Ok(pcs)
+    }
+}
+
+// =============================================================================
+// PlayerCharacterPositionPort Implementation
+// =============================================================================
+
+#[async_trait]
+impl PlayerCharacterPositionPort for Neo4jPlayerCharacterRepository {
     async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()> {
         // Delete old AT_LOCATION relationship
         let delete_q = query(
@@ -244,89 +345,14 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
         );
         Ok(())
     }
+}
 
-    async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $id})<-[r:HAS_PC]-(s:Session)
-            DELETE r",
-        )
-        .param("id", id.to_string());
+// =============================================================================
+// PlayerCharacterInventoryPort Implementation
+// =============================================================================
 
-        self.connection.graph().run(q).await?;
-        tracing::debug!("Unbound player character {} from session", id);
-        Ok(())
-    }
-
-    async fn get_by_user_and_world(
-        &self,
-        user_id: &str,
-        world_id: WorldId,
-    ) -> Result<Vec<PlayerCharacter>> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
-            RETURN pc
-            ORDER BY pc.last_active_at DESC",
-        )
-        .param("user_id", user_id)
-        .param("world_id", world_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut pcs = Vec::new();
-        while let Some(row) = result.next().await? {
-            pcs.push(parse_player_character_row(row)?);
-        }
-        Ok(pcs)
-    }
-
-    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter)-[:IN_WORLD]->(w:World {id: $world_id})
-            RETURN pc
-            ORDER BY pc.last_active_at DESC",
-        )
-        .param("world_id", world_id.to_string());
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut pcs = Vec::new();
-        while let Some(row) = result.next().await? {
-            pcs.push(parse_player_character_row(row)?);
-        }
-        Ok(pcs)
-    }
-
-    async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {user_id: $user_id})
-            WHERE NOT EXISTS { (s:Session)-[:HAS_PC]->(pc) }
-            RETURN pc
-            ORDER BY pc.last_active_at DESC",
-        )
-        .param("user_id", user_id);
-
-        let mut result = self.connection.graph().execute(q).await?;
-        let mut pcs = Vec::new();
-        while let Some(row) = result.next().await? {
-            pcs.push(parse_player_character_row(row)?);
-        }
-        Ok(pcs)
-    }
-
-    async fn delete(&self, id: PlayerCharacterId) -> Result<()> {
-        let q = query(
-            "MATCH (pc:PlayerCharacter {id: $id})
-            DETACH DELETE pc",
-        )
-        .param("id", id.to_string());
-
-        self.connection.graph().run(q).await?;
-        tracing::debug!("Deleted player character: {}", id);
-        Ok(())
-    }
-
-    // =========================================================================
-    // Inventory Operations
-    // =========================================================================
-
+#[async_trait]
+impl PlayerCharacterInventoryPort for Neo4jPlayerCharacterRepository {
     async fn add_inventory_item(
         &self,
         pc_id: PlayerCharacterId,
@@ -439,6 +465,10 @@ impl PlayerCharacterRepositoryPort for Neo4jPlayerCharacterRepository {
     }
 }
 
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
 /// Parse an InventoryItem from a Neo4j row
 fn row_to_inventory_item(row: &Row, fallback_time: DateTime<Utc>) -> Result<InventoryItem> {
     let item = row_to_item(row)?;
@@ -460,125 +490,6 @@ fn row_to_inventory_item(row: &Row, fallback_time: DateTime<Utc>) -> Result<Inve
         acquired_at,
         acquisition_method,
     })
-}
-
-// =============================================================================
-// ISP Sub-trait Implementations
-// =============================================================================
-
-#[async_trait]
-impl PlayerCharacterCrudPort for Neo4jPlayerCharacterRepository {
-    async fn create(&self, pc: &PlayerCharacter) -> Result<()> {
-        PlayerCharacterRepositoryPort::create(self, pc).await
-    }
-
-    async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
-        PlayerCharacterRepositoryPort::get(self, id).await
-    }
-
-    async fn update(&self, pc: &PlayerCharacter) -> Result<()> {
-        PlayerCharacterRepositoryPort::update(self, pc).await
-    }
-
-    async fn delete(&self, id: PlayerCharacterId) -> Result<()> {
-        PlayerCharacterRepositoryPort::delete(self, id).await
-    }
-
-    async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()> {
-        PlayerCharacterRepositoryPort::unbind_from_session(self, id).await
-    }
-}
-
-#[async_trait]
-impl PlayerCharacterQueryPort for Neo4jPlayerCharacterRepository {
-    async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>> {
-        PlayerCharacterRepositoryPort::get_by_location(self, location_id).await
-    }
-
-    async fn get_by_user_and_world(
-        &self,
-        user_id: &str,
-        world_id: WorldId,
-    ) -> Result<Vec<PlayerCharacter>> {
-        PlayerCharacterRepositoryPort::get_by_user_and_world(self, user_id, world_id).await
-    }
-
-    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
-        PlayerCharacterRepositoryPort::get_all_by_world(self, world_id).await
-    }
-
-    async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>> {
-        PlayerCharacterRepositoryPort::get_unbound_by_user(self, user_id).await
-    }
-}
-
-#[async_trait]
-impl PlayerCharacterPositionPort for Neo4jPlayerCharacterRepository {
-    async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()> {
-        PlayerCharacterRepositoryPort::update_location(self, id, location_id).await
-    }
-
-    async fn update_region(&self, id: PlayerCharacterId, region_id: RegionId) -> Result<()> {
-        PlayerCharacterRepositoryPort::update_region(self, id, region_id).await
-    }
-
-    async fn update_position(
-        &self,
-        id: PlayerCharacterId,
-        location_id: LocationId,
-        region_id: Option<RegionId>,
-    ) -> Result<()> {
-        PlayerCharacterRepositoryPort::update_position(self, id, location_id, region_id).await
-    }
-}
-
-#[async_trait]
-impl PlayerCharacterInventoryPort for Neo4jPlayerCharacterRepository {
-    async fn add_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-        quantity: u32,
-        is_equipped: bool,
-        acquisition_method: Option<AcquisitionMethod>,
-    ) -> Result<()> {
-        PlayerCharacterRepositoryPort::add_inventory_item(
-            self,
-            pc_id,
-            item_id,
-            quantity,
-            is_equipped,
-            acquisition_method,
-        )
-        .await
-    }
-
-    async fn get_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>> {
-        PlayerCharacterRepositoryPort::get_inventory(self, pc_id).await
-    }
-
-    async fn get_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<Option<InventoryItem>> {
-        PlayerCharacterRepositoryPort::get_inventory_item(self, pc_id, item_id).await
-    }
-
-    async fn update_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-        quantity: u32,
-        is_equipped: bool,
-    ) -> Result<()> {
-        PlayerCharacterRepositoryPort::update_inventory_item(self, pc_id, item_id, quantity, is_equipped)
-            .await
-    }
-
-    async fn remove_inventory_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<()> {
-        PlayerCharacterRepositoryPort::remove_inventory_item(self, pc_id, item_id).await
-    }
 }
 
 /// Parse a PlayerCharacter from a Neo4j row

@@ -17,7 +17,8 @@ use tracing::{info, warn};
 use wrldbldr_domain::entities::AcquisitionMethod;
 use wrldbldr_engine_ports::inbound::{InventoryUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, ItemInfo, PlayerCharacterRepositoryPort, RegionItemPort,
+    BroadcastPort, GameEvent, ItemInfo, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
+    RegionItemPort,
 };
 
 use super::errors::InventoryError;
@@ -37,7 +38,8 @@ pub use wrldbldr_engine_ports::outbound::{
 /// Coordinates item equip/unequip/drop/pickup with proper
 /// validation and rollback on failures.
 pub struct InventoryUseCase {
-    pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
     region_item: Arc<dyn RegionItemPort>,
     broadcast: Arc<dyn BroadcastPort>,
 }
@@ -45,12 +47,14 @@ pub struct InventoryUseCase {
 impl InventoryUseCase {
     /// Create a new InventoryUseCase with all dependencies
     pub fn new(
-        pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+        pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         region_item: Arc<dyn RegionItemPort>,
         broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {
         Self {
-            pc_repo,
+            pc_crud,
+            pc_inventory,
             region_item,
             broadcast,
         }
@@ -64,7 +68,7 @@ impl InventoryUseCase {
     ) -> Result<EquipResult, InventoryError> {
         // Get the item from inventory
         let item = self
-            .pc_repo
+            .pc_inventory
             .get_inventory_item(input.pc_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -78,7 +82,7 @@ impl InventoryUseCase {
         let item_name = item.item.name.clone();
 
         // Update the item to be equipped
-        self.pc_repo
+        self.pc_inventory
             .update_inventory_item(
                 input.pc_id,
                 input.item_id,
@@ -122,7 +126,7 @@ impl InventoryUseCase {
     ) -> Result<UnequipResult, InventoryError> {
         // Get the item from inventory
         let item = self
-            .pc_repo
+            .pc_inventory
             .get_inventory_item(input.pc_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -136,7 +140,7 @@ impl InventoryUseCase {
         let item_name = item.item.name.clone();
 
         // Update the item to be unequipped
-        self.pc_repo
+        self.pc_inventory
             .update_inventory_item(
                 input.pc_id,
                 input.item_id,
@@ -180,7 +184,7 @@ impl InventoryUseCase {
     ) -> Result<DropResult, InventoryError> {
         // Get the item from inventory
         let item = self
-            .pc_repo
+            .pc_inventory
             .get_inventory_item(input.pc_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -188,7 +192,7 @@ impl InventoryUseCase {
 
         // Get PC's current region
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.pc_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -218,13 +222,13 @@ impl InventoryUseCase {
         // Update or remove from PC inventory
         let remove_result = if dropped_quantity >= item.quantity {
             // Remove the item entirely from inventory
-            self.pc_repo
+            self.pc_inventory
                 .remove_inventory_item(input.pc_id, input.item_id)
                 .await
         } else {
             // Reduce quantity in inventory
             let new_quantity = item.quantity - dropped_quantity;
-            self.pc_repo
+            self.pc_inventory
                 .update_inventory_item(input.pc_id, input.item_id, new_quantity, item.equipped)
                 .await
         };
@@ -280,7 +284,7 @@ impl InventoryUseCase {
     ) -> Result<PickupResult, InventoryError> {
         // Get PC's current region
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.pc_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -306,7 +310,7 @@ impl InventoryUseCase {
 
         // Check if PC already has this item
         if self
-            .pc_repo
+            .pc_inventory
             .get_inventory_item(input.pc_id, input.item_id)
             .await
             .map_err(|e| InventoryError::Database(e.to_string()))?
@@ -328,7 +332,7 @@ impl InventoryUseCase {
 
         // Add to PC inventory
         let add_result = self
-            .pc_repo
+            .pc_inventory
             .add_inventory_item(
                 input.pc_id,
                 input.item_id,

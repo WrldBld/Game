@@ -23,7 +23,7 @@ use wrldbldr_domain::entities::NpcObservation;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort,
+    PlayerCharacterCrudPort,
 };
 
 use super::errors::ObservationError;
@@ -46,7 +46,7 @@ pub use wrldbldr_engine_ports::outbound::{
 ///
 /// Handles NPC observation tracking and event triggering.
 pub struct ObservationUseCase {
-    pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
     observation_repo: Arc<dyn ObservationRepositoryPort>,
     broadcast: Arc<dyn BroadcastPort>,
@@ -61,14 +61,14 @@ impl ObservationUseCase {
     /// * `clock` - Clock for time operations. Use `SystemClock` in production,
     ///             `MockClockPort` in tests for deterministic behavior.
     pub fn new(
-        pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         broadcast: Arc<dyn BroadcastPort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            pc_repo,
+            pc_crud,
             character_crud,
             observation_repo,
             broadcast,
@@ -161,7 +161,7 @@ impl ObservationUseCase {
 
         // Get PC details (for region and user_id)
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.target_pc_id)
             .await
             .map_err(|e| ObservationError::Database(e.to_string()))?

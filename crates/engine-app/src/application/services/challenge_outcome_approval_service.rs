@@ -31,7 +31,8 @@ use wrldbldr_domain::{CharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
     ChallengeOutcomeApprovalServicePort, ClockPort, ItemRepositoryPort, LlmPort,
-    OutcomeDecision as PortOutcomeDecision, PlayerCharacterRepositoryPort, QueuePort,
+    OutcomeDecision as PortOutcomeDecision, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
+    QueuePort,
 };
 
 /// Result of challenge approval operations
@@ -123,8 +124,10 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     event_sender: mpsc::Sender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
     outcome_trigger_service: Arc<OutcomeTriggerService>,
-    /// Player Character repository for inventory management
-    pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+    /// Player Character CRUD operations (get, update)
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    /// Player Character inventory operations
+    pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
     /// Item repository for creating items
     item_repository: Arc<dyn ItemRepositoryPort>,
     /// LLM port for generating outcome suggestions
@@ -144,7 +147,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     pub fn new(
         event_sender: mpsc::Sender<ChallengeApprovalEvent>,
         outcome_trigger_service: Arc<OutcomeTriggerService>,
-        pc_repository: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+        pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
         prompt_template_service: Arc<PromptTemplateService>,
         queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
@@ -157,7 +161,8 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             queue,
             event_sender,
             outcome_trigger_service,
-            pc_repository,
+            pc_crud,
+            pc_inventory,
             item_repository,
             llm_port,
             settings_service,
@@ -849,7 +854,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         let character_id: wrldbldr_domain::PlayerCharacterId =
                             uuid::Uuid::from(item.character_id).into();
 
-                        self.pc_repository
+                        self.pc_inventory
                             .add_inventory_item(
                                 character_id,
                                 new_item.id,
@@ -918,7 +923,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         };
 
                     // Get the player character
-                    let mut pc = match self.pc_repository.get(pc_id).await {
+                    let mut pc = match self.pc_crud.get(pc_id).await {
                         Ok(Some(pc)) => pc,
                         Ok(None) => {
                             tracing::warn!(
@@ -953,7 +958,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     );
 
                     // Save the updated PC
-                    if let Err(e) = self.pc_repository.update(&pc).await {
+                    if let Err(e) = self.pc_crud.update(&pc).await {
                         tracing::error!(
                             character_id = %resolved_character_id,
                             stat_name = %stat_name,

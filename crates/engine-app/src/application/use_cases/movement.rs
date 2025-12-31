@@ -61,8 +61,8 @@ use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId};
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ClockPort, GameEvent, LocationCrudPort, LocationMapPort,
-    PlayerCharacterRepositoryPort, RegionConnectionPort, RegionCrudPort, StagingPendingEvent,
-    StagingRequiredEvent, WaitingPcData,
+    PlayerCharacterCrudPort, PlayerCharacterPositionPort, RegionConnectionPort, RegionCrudPort,
+    StagingPendingEvent, StagingRequiredEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;
@@ -86,7 +86,8 @@ pub use wrldbldr_engine_ports::outbound::{
 /// Coordinates movement between regions and locations, integrating with
 /// the staging system for NPC presence management.
 pub struct MovementUseCase {
-    pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    pc_position: Arc<dyn PlayerCharacterPositionPort>,
     region_crud: Arc<dyn RegionCrudPort>,
     region_connection: Arc<dyn RegionConnectionPort>,
     location_crud: Arc<dyn LocationCrudPort>,
@@ -101,7 +102,8 @@ pub struct MovementUseCase {
 impl MovementUseCase {
     /// Create a new MovementUseCase with all dependencies
     pub fn new(
-        pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+        pc_position: Arc<dyn PlayerCharacterPositionPort>,
         region_crud: Arc<dyn RegionCrudPort>,
         region_connection: Arc<dyn RegionConnectionPort>,
         location_crud: Arc<dyn LocationCrudPort>,
@@ -113,7 +115,8 @@ impl MovementUseCase {
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            pc_repo,
+            pc_crud,
+            pc_position,
             region_crud,
             region_connection,
             location_crud,
@@ -135,7 +138,7 @@ impl MovementUseCase {
         input: SelectCharacterInput,
     ) -> Result<SelectCharacterResult, MovementError> {
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.pc_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -163,7 +166,7 @@ impl MovementUseCase {
     ) -> Result<MovementResult, MovementError> {
         // Get PC
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.pc_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -196,7 +199,7 @@ impl MovementUseCase {
         }
 
         // Update PC position
-        self.pc_repo
+        self.pc_position
             .update_region(input.pc_id, input.target_region_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?;
@@ -221,7 +224,7 @@ impl MovementUseCase {
     ) -> Result<MovementResult, MovementError> {
         // Get PC
         let pc = self
-            .pc_repo
+            .pc_crud
             .get(input.pc_id)
             .await
             .map_err(|e| MovementError::Database(e.to_string()))?
@@ -243,7 +246,7 @@ impl MovementUseCase {
         let arrival_region_id = arrival_region.id;
 
         // Update PC position (both location and region)
-        self.pc_repo
+        self.pc_position
             .update_position(
                 input.pc_id,
                 input.target_location_id,

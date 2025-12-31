@@ -9,16 +9,14 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::entities::{
-    AcquisitionMethod, Act, ChainStatus, CharacterSheetTemplate, EventChain, GalleryAsset,
-    GenerationBatch, Goal, InteractionRequirement, InteractionTargetType, InteractionTemplate,
-    InventoryItem, Item, NpcObservation, PlayerCharacter, Scene, SceneCharacter, SheetTemplateId,
-    Skill, Want, WorkflowConfiguration, World,
+    Act, CharacterSheetTemplate, GalleryAsset, GenerationBatch, Goal, InteractionRequirement,
+    InteractionTargetType, InteractionTemplate, Item, NpcObservation, SheetTemplateId, Skill, Want,
+    WorkflowConfiguration, World,
 };
 use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{
-    ActId, AssetId, BatchId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
-    NarrativeEventId, PlayerCharacterId, RegionId, RelationshipId, SceneId, SkillId, WantId,
-    WorldId,
+    AssetId, BatchId, CharacterId, GoalId, InteractionId, ItemId, PlayerCharacterId, RegionId,
+    RelationshipId, SceneId, SkillId, WantId, WorldId,
 };
 
 // =============================================================================
@@ -79,93 +77,16 @@ pub trait WorldRepositoryPort: Send + Sync {
 }
 
 // =============================================================================
-// Player Character Repository Port
+// Player Character Repository Port - REMOVED (use ISP traits instead)
 // =============================================================================
-
-/// Repository port for PlayerCharacter operations
-#[async_trait]
-pub trait PlayerCharacterRepositoryPort: Send + Sync {
-    /// Create a new player character
-    async fn create(&self, pc: &PlayerCharacter) -> Result<()>;
-
-    /// Get a player character by ID
-    async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>>;
-
-    /// Get all player characters at a specific location
-    async fn get_by_location(&self, location_id: LocationId) -> Result<Vec<PlayerCharacter>>;
-
-    /// Get all player characters for a user in a world (for PC selection)
-    async fn get_by_user_and_world(
-        &self,
-        user_id: &str,
-        world_id: WorldId,
-    ) -> Result<Vec<PlayerCharacter>>;
-
-    /// Get all player characters in a world
-    async fn get_all_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>>;
-
-    /// Get all unbound player characters for a user (no session)
-    async fn get_unbound_by_user(&self, user_id: &str) -> Result<Vec<PlayerCharacter>>;
-
-    /// Update a player character
-    async fn update(&self, pc: &PlayerCharacter) -> Result<()>;
-
-    /// Update a player character's location (clears region)
-    async fn update_location(&self, id: PlayerCharacterId, location_id: LocationId) -> Result<()>;
-
-    /// Update a player character's region (within current location)
-    async fn update_region(&self, id: PlayerCharacterId, region_id: RegionId) -> Result<()>;
-
-    /// Update both location and region at once
-    async fn update_position(
-        &self,
-        id: PlayerCharacterId,
-        location_id: LocationId,
-        region_id: Option<RegionId>,
-    ) -> Result<()>;
-
-    /// Unbind a player character from its session
-    async fn unbind_from_session(&self, id: PlayerCharacterId) -> Result<()>;
-
-    /// Delete a player character
-    async fn delete(&self, id: PlayerCharacterId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Inventory (POSSESSES edges to Items)
-    // -------------------------------------------------------------------------
-
-    /// Add an item to PC's inventory (creates POSSESSES edge)
-    async fn add_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-        quantity: u32,
-        is_equipped: bool,
-        acquisition_method: Option<AcquisitionMethod>,
-    ) -> Result<()>;
-
-    /// Get all items in PC's inventory
-    async fn get_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<InventoryItem>>;
-
-    /// Get a specific item from PC's inventory
-    async fn get_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<Option<InventoryItem>>;
-
-    /// Update quantity/equipped status of item in PC's inventory
-    async fn update_inventory_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-        quantity: u32,
-        is_equipped: bool,
-    ) -> Result<()>;
-
-    /// Remove an item from PC's inventory (deletes POSSESSES edge)
-    async fn remove_inventory_item(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<()>;
-}
+//
+// PlayerCharacterRepositoryPort has been split into 4 focused traits following ISP:
+// - PlayerCharacterCrudPort: Core CRUD operations (5 methods)
+// - PlayerCharacterQueryPort: Query/lookup operations (4 methods)
+// - PlayerCharacterPositionPort: Position/movement operations (3 methods)
+// - PlayerCharacterInventoryPort: Inventory management (5 methods)
+//
+// See: crate::outbound::player_character_repository
 
 // =============================================================================
 // Location Repository Port - REMOVED (use ISP traits instead)
@@ -180,98 +101,17 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
 // See: crate::outbound::location_repository
 
 // =============================================================================
-// Scene Repository Port
+// Scene Repository Port - REMOVED (use ISP traits instead)
 // =============================================================================
-
-/// Repository port for Scene operations
-#[async_trait]
-pub trait SceneRepositoryPort: Send + Sync {
-    // -------------------------------------------------------------------------
-    // Core CRUD
-    // -------------------------------------------------------------------------
-
-    /// Create a new scene
-    async fn create(&self, scene: &Scene) -> Result<()>;
-
-    /// Get a scene by ID
-    async fn get(&self, id: SceneId) -> Result<Option<Scene>>;
-
-    /// List scenes by act
-    async fn list_by_act(&self, act_id: ActId) -> Result<Vec<Scene>>;
-
-    /// List scenes by location (via AT_LOCATION edge)
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Scene>>;
-
-    /// Update a scene
-    async fn update(&self, scene: &Scene) -> Result<()>;
-
-    /// Delete a scene
-    async fn delete(&self, id: SceneId) -> Result<()>;
-
-    /// Update directorial notes for a scene
-    async fn update_directorial_notes(&self, id: SceneId, notes: &str) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Location (AT_LOCATION edge)
-    // -------------------------------------------------------------------------
-
-    /// Set scene's location (creates AT_LOCATION edge)
-    async fn set_location(&self, scene_id: SceneId, location_id: LocationId) -> Result<()>;
-
-    /// Get scene's location
-    async fn get_location(&self, scene_id: SceneId) -> Result<Option<LocationId>>;
-
-    // -------------------------------------------------------------------------
-    // Featured Characters (FEATURES_CHARACTER edges)
-    // -------------------------------------------------------------------------
-
-    /// Add a featured character to the scene
-    async fn add_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-        scene_char: &SceneCharacter,
-    ) -> Result<()>;
-
-    /// Get all featured characters for a scene
-    async fn get_featured_characters(
-        &self,
-        scene_id: SceneId,
-    ) -> Result<Vec<(CharacterId, SceneCharacter)>>;
-
-    /// Update a featured character's role/cue
-    async fn update_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-        scene_char: &SceneCharacter,
-    ) -> Result<()>;
-
-    /// Remove a featured character from the scene
-    async fn remove_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-    ) -> Result<()>;
-
-    /// Get scenes featuring a specific character
-    async fn get_scenes_for_character(&self, character_id: CharacterId) -> Result<Vec<Scene>>;
-
-    // -------------------------------------------------------------------------
-    // Scene Completion Tracking (COMPLETED_SCENE edge)
-    // -------------------------------------------------------------------------
-
-    /// Mark a scene as completed by a player character
-    async fn mark_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId)
-        -> Result<()>;
-
-    /// Check if a player character has completed a scene
-    async fn is_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId)
-        -> Result<bool>;
-
-    /// Get all scenes completed by a player character
-    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>>;
-}
+//
+// SceneRepositoryPort has been split into 5 focused traits following ISP:
+// - SceneCrudPort: Core CRUD operations (5 methods)
+// - SceneQueryPort: Query by act/location (2 methods)
+// - SceneLocationPort: AT_LOCATION edge management (2 methods)
+// - SceneFeaturedCharacterPort: FEATURES_CHARACTER edges (5 methods)
+// - SceneCompletionPort: COMPLETED_SCENE tracking (3 methods)
+//
+// See: crate::outbound::scene_repository
 
 // =============================================================================
 // Game Flag Repository Port
@@ -645,72 +485,16 @@ pub trait AssetRepositoryPort: Send + Sync {
 // See: crate::outbound::narrative_event_repository
 
 // =============================================================================
-// EventChain Repository Port
+// EventChain Repository Port - REMOVED (use ISP traits instead)
 // =============================================================================
-
-/// Repository port for EventChain operations
-#[async_trait]
-pub trait EventChainRepositoryPort: Send + Sync {
-    /// Create a new event chain
-    async fn create(&self, chain: &EventChain) -> Result<()>;
-
-    /// Get an event chain by ID
-    async fn get(&self, id: EventChainId) -> Result<Option<EventChain>>;
-
-    /// Update an event chain
-    async fn update(&self, chain: &EventChain) -> Result<bool>;
-
-    /// List all event chains for a world
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<EventChain>>;
-
-    /// List active event chains for a world
-    async fn list_active(&self, world_id: WorldId) -> Result<Vec<EventChain>>;
-
-    /// List favorite event chains for a world
-    async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<EventChain>>;
-
-    /// Get chains containing a specific narrative event
-    async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>>;
-
-    /// Add an event to a chain
-    async fn add_event_to_chain(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool>;
-
-    /// Remove an event from a chain
-    async fn remove_event_from_chain(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool>;
-
-    /// Mark an event as completed in a chain
-    async fn complete_event(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool>;
-
-    /// Toggle favorite status
-    async fn toggle_favorite(&self, id: EventChainId) -> Result<bool>;
-
-    /// Set active status
-    async fn set_active(&self, id: EventChainId, is_active: bool) -> Result<bool>;
-
-    /// Reset chain progress
-    async fn reset(&self, id: EventChainId) -> Result<bool>;
-
-    /// Delete an event chain
-    async fn delete(&self, id: EventChainId) -> Result<bool>;
-
-    /// Get chain status summary
-    async fn get_status(&self, id: EventChainId) -> Result<Option<ChainStatus>>;
-
-    /// Get all chain statuses for a world
-    async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>>;
-}
+//
+// EventChainRepositoryPort has been split into 4 focused traits following ISP:
+// - EventChainCrudPort: Core CRUD operations (4 methods)
+// - EventChainQueryPort: Query/lookup operations (4 methods)
+// - EventChainMembershipPort: Event membership management (3 methods)
+// - EventChainStatePort: Status and state management (5 methods)
+//
+// See: crate::outbound::event_chain_repository
 
 // =============================================================================
 // SheetTemplate Repository Port

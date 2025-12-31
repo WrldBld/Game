@@ -36,7 +36,7 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterData, PlayerCharacterRepositoryPort, PromptContextError,
+    CharacterCrudPort, CharacterData, PlayerCharacterCrudPort, PromptContextError,
     PromptContextServicePort, QueueError, RegionItemPort, WorldStatePort,
 };
 
@@ -69,7 +69,7 @@ pub struct PromptContextServiceImpl {
     skill_service: Arc<dyn SkillService>,
     narrative_event_service: Arc<dyn NarrativeEventService>,
     character_crud: Arc<dyn CharacterCrudPort>,
-    pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,
     region_item: Arc<dyn RegionItemPort>,
     disposition_service: Arc<dyn DispositionService>,
     actantial_service: Arc<dyn ActantialContextService>,
@@ -85,7 +85,7 @@ impl PromptContextServiceImpl {
         skill_service: Arc<dyn SkillService>,
         narrative_event_service: Arc<dyn NarrativeEventService>,
         character_crud: Arc<dyn CharacterCrudPort>,
-        pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        pc_crud: Arc<dyn PlayerCharacterCrudPort>,
         region_item: Arc<dyn RegionItemPort>,
         disposition_service: Arc<dyn DispositionService>,
         actantial_service: Arc<dyn ActantialContextService>,
@@ -97,7 +97,7 @@ impl PromptContextServiceImpl {
             skill_service,
             narrative_event_service,
             character_crud,
-            pc_repo,
+            pc_crud,
             region_item,
             disposition_service,
             actantial_service,
@@ -127,7 +127,7 @@ impl PromptContextService for PromptContextServiceImpl {
 
         // 3. Get PC's current region for item context
         let region_id = if let Some(pc_id) = action.pc_id {
-            match self.pc_repo.get(pc_id).await {
+            match self.pc_crud.get(pc_id).await {
                 Ok(Some(pc)) => pc.current_region_id,
                 Ok(None) => {
                     tracing::debug!("PC {} not found for region item context", pc_id);

@@ -44,12 +44,10 @@ use wrldbldr_engine_ports::outbound::{
     StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
     // NarrativeEvent ISP ports
     NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
-    // PlayerCharacter ISP ports
+    // PlayerCharacter ISP ports (god trait removed - use ISP traits instead)
     PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
     PlayerCharacterQueryPort,
-    // PlayerCharacter god trait (still used by many services)
-    PlayerCharacterRepositoryPort,
-    // Scene ISP ports
+    // Scene ISP ports (god trait removed)
     SceneCompletionPort, SceneCrudPort, SceneFeaturedCharacterPort, SceneLocationPort,
     SceneQueryPort,
     // EventChain ISP ports
@@ -58,7 +56,7 @@ use wrldbldr_engine_ports::outbound::{
     RelationshipRepositoryPort, SkillRepositoryPort, InteractionRepositoryPort,
     AssetRepositoryPort, WorkflowRepositoryPort, SheetTemplateRepositoryPort,
     ItemRepositoryPort, GoalRepositoryPort, WantRepositoryPort, FlagRepositoryPort,
-    ObservationRepositoryPort, StagingRepositoryPort, SceneRepositoryPort,
+    ObservationRepositoryPort, StagingRepositoryPort,
 };
 
 /// Macro to reduce boilerplate when coercing a concrete repository to multiple ISP trait objects.
@@ -202,33 +200,27 @@ pub struct NarrativeEventPorts {
 
 /// Container for all PlayerCharacter repository ISP ports.
 ///
-/// These 4 traits cover the full `PlayerCharacterRepositoryPort` interface:
+/// These 4 traits cover the full `PlayerCharacterRepositoryPort` interface (god trait removed):
 /// - `PlayerCharacterCrudPort`: Core CRUD operations (5 methods)
 /// - `PlayerCharacterQueryPort`: Query/lookup operations (4 methods)
 /// - `PlayerCharacterPositionPort`: Position/movement operations (3 methods)
 /// - `PlayerCharacterInventoryPort`: Inventory management (5 methods)
-///
-/// Also provides the "god trait" for services that haven't been updated to use ISP.
 #[allow(dead_code)]
 pub struct PlayerCharacterPorts {
     pub crud: Arc<dyn PlayerCharacterCrudPort>,
     pub query: Arc<dyn PlayerCharacterQueryPort>,
     pub position: Arc<dyn PlayerCharacterPositionPort>,
     pub inventory: Arc<dyn PlayerCharacterInventoryPort>,
-    /// God trait - for services that haven't been updated to use ISP traits yet.
-    /// TODO: Remove once all services use ISP traits.
-    pub god: Arc<dyn PlayerCharacterRepositoryPort>,
 }
 
 /// Container for all Scene repository ISP ports.
 ///
-/// These 5 traits cover the full `SceneRepositoryPort` interface:
+/// These 5 traits cover the full Scene repository interface (god trait removed):
 /// - `SceneCrudPort`: Core CRUD operations (5 methods)
 /// - `SceneQueryPort`: Query by act/location (2 methods)
 /// - `SceneLocationPort`: AT_LOCATION edge management (2 methods)
 /// - `SceneFeaturedCharacterPort`: FEATURES_CHARACTER edges (5 methods)
 /// - `SceneCompletionPort`: COMPLETED_SCENE tracking (3 methods)
-#[allow(dead_code)]
 pub struct ScenePorts {
     pub crud: Arc<dyn SceneCrudPort>,
     pub query: Arc<dyn SceneQueryPort>,
@@ -297,9 +289,6 @@ pub struct RepositoryPorts {
     pub flag: Arc<dyn FlagRepositoryPort>,
     pub observation: Arc<dyn ObservationRepositoryPort>,
     pub staging: Arc<dyn StagingRepositoryPort>,
-    /// Scene god trait - for services that need the full interface.
-    /// The ISP-split traits are available via `scene: ScenePorts`.
-    pub scene_repo: Arc<dyn SceneRepositoryPort>,
 }
 
 /// Creates all repository ports from a Neo4j repository instance.
@@ -397,7 +386,7 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         dyn NarrativeEventQueryPort => narrative_event_query,
     );
 
-    // PlayerCharacter repository - ISP split into 4 traits + god trait
+    // PlayerCharacter repository - ISP split into 4 traits (god trait removed)
     let player_character_concrete = Arc::new(repository.player_characters());
     coerce_isp!(
         player_character_concrete,
@@ -405,10 +394,9 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         dyn PlayerCharacterQueryPort => player_character_query,
         dyn PlayerCharacterPositionPort => player_character_position,
         dyn PlayerCharacterInventoryPort => player_character_inventory,
-        dyn PlayerCharacterRepositoryPort => player_character_god,
     );
 
-    // Scene repository - ISP split into 5 traits + god trait
+    // Scene repository - ISP split into 5 traits (god trait removed)
     let scene_concrete = Arc::new(repository.scenes());
     coerce_isp!(
         scene_concrete,
@@ -417,7 +405,6 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         dyn SceneLocationPort => scene_location,
         dyn SceneFeaturedCharacterPort => scene_featured_character,
         dyn SceneCompletionPort => scene_completion,
-        dyn SceneRepositoryPort => scene_god,
     );
 
     // EventChain repository - ISP split into 4 traits
@@ -491,7 +478,6 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
             query: player_character_query,
             position: player_character_position,
             inventory: player_character_inventory,
-            god: player_character_god,
         },
         scene: ScenePorts {
             crud: scene_crud,
@@ -519,7 +505,6 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
         flag,
         observation,
         staging,
-        scene_repo: scene_god,
     }
 }
 
@@ -651,7 +636,6 @@ mod tests {
             let _ = &ports.query;
             let _ = &ports.position;
             let _ = &ports.inventory;
-            let _ = &ports.god;
         }
         
         fn _verify_scene_ports(ports: &ScenePorts) {
@@ -695,7 +679,6 @@ mod tests {
             let _ = &ports.flag;
             let _ = &ports.observation;
             let _ = &ports.staging;
-            let _ = &ports.scene_repo;
         }
         
         // The existence of this function proves the types are correct at compile time

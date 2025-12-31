@@ -71,8 +71,9 @@ use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
     CharacterCrudPort, ClockPort, DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     InteractionServicePort, LocationCrudPort, LocationMapPort, ObservationRepositoryPort,
-    PlayerActionQueueServicePort, PlayerCharacterRepositoryPort, PlayerCharacterServicePort,
-    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionItemPort, SceneServicePort,
+    PlayerActionQueueServicePort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
+    PlayerCharacterPositionPort, PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort,
+    RegionExitPort, RegionItemPort, SceneServicePort,
     StagingServicePort as OutboundStagingServicePort, WorldServicePort,
 };
 
@@ -174,8 +175,12 @@ pub struct UseCaseDependencies<N: NarrativeEventService + 'static> {
     // =========================================================================
     // Repository Ports (ISP-split)
     // =========================================================================
-    /// Player character repository
-    pub player_character_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    /// Player character CRUD operations
+    pub pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    /// Player character position operations
+    pub pc_position: Arc<dyn PlayerCharacterPositionPort>,
+    /// Player character inventory operations
+    pub pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
     /// Region CRUD port
     pub region_crud: Arc<dyn RegionCrudPort>,
     /// Region connection port
@@ -312,7 +317,8 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // Create Movement Use Case
     // =========================================================================
     let movement_use_case = Arc::new(MovementUseCase::new(
-        deps.player_character_repo.clone(),
+        deps.pc_crud.clone(),
+        deps.pc_position.clone(),
         deps.region_crud.clone(),
         deps.region_connection.clone(),
         deps.location_crud.clone(),
@@ -328,7 +334,8 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // Create Inventory Use Case
     // =========================================================================
     let inventory_use_case = Arc::new(InventoryUseCase::new(
-        deps.player_character_repo.clone(),
+        deps.pc_crud.clone(),
+        deps.pc_inventory.clone(),
         deps.region_item.clone(),
         broadcast.clone(),
     ));
@@ -362,7 +369,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // Create Observation Use Case
     // =========================================================================
     let observation_use_case = Arc::new(ObservationUseCase::new(
-        deps.player_character_repo.clone(),
+        deps.pc_crud.clone(),
         deps.character_crud.clone(),
         deps.observation_repo.clone(),
         broadcast.clone(),
@@ -533,8 +540,10 @@ mod tests {
             let _ = &deps.world_state;
             let _ = &deps.clock;
 
-            // Repository ports
-            let _ = &deps.player_character_repo;
+            // Repository ports (ISP-split PC traits)
+            let _ = &deps.pc_crud;
+            let _ = &deps.pc_position;
+            let _ = &deps.pc_inventory;
             let _ = &deps.region_crud;
             let _ = &deps.region_connection;
             let _ = &deps.region_exit;

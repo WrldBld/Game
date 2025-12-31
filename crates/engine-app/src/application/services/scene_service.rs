@@ -21,7 +21,8 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, LocationCrudPort, SceneRepositoryPort, SceneServicePort,
+    CharacterCrudPort, LocationCrudPort, SceneCrudPort, SceneFeaturedCharacterPort,
+    SceneLocationPort, SceneQueryPort, SceneServicePort,
     SceneWithRelations as PortSceneWithRelations,
 };
 
@@ -109,7 +110,10 @@ pub trait SceneService: Send + Sync {
 /// Default implementation of SceneService using Neo4j repository
 #[derive(Clone)]
 pub struct SceneServiceImpl {
-    scene_repository: Arc<dyn SceneRepositoryPort>,
+    scene_crud: Arc<dyn SceneCrudPort>,
+    scene_query: Arc<dyn SceneQueryPort>,
+    scene_location: Arc<dyn SceneLocationPort>,
+    scene_featured_character: Arc<dyn SceneFeaturedCharacterPort>,
     location_repository: Arc<dyn LocationCrudPort>,
     character_crud: Arc<dyn CharacterCrudPort>,
 }
@@ -117,12 +121,18 @@ pub struct SceneServiceImpl {
 impl SceneServiceImpl {
     /// Create a new SceneServiceImpl with the given repositories
     pub fn new(
-        scene_repository: Arc<dyn SceneRepositoryPort>,
+        scene_crud: Arc<dyn SceneCrudPort>,
+        scene_query: Arc<dyn SceneQueryPort>,
+        scene_location: Arc<dyn SceneLocationPort>,
+        scene_featured_character: Arc<dyn SceneFeaturedCharacterPort>,
         location_repository: Arc<dyn LocationCrudPort>,
         character_crud: Arc<dyn CharacterCrudPort>,
     ) -> Self {
         Self {
-            scene_repository,
+            scene_crud,
+            scene_query,
+            scene_location,
+            scene_featured_character,
             location_repository,
             character_crud,
         }
@@ -198,13 +208,13 @@ impl SceneService for SceneServiceImpl {
         scene.order = request.order;
 
         // Create the scene node
-        self.scene_repository
+        self.scene_crud
             .create(&scene)
             .await
             .context("Failed to create scene in repository")?;
 
         // Create AT_LOCATION edge
-        self.scene_repository
+        self.scene_location
             .set_location(scene.id, request.location_id)
             .await
             .context("Failed to set scene location edge")?;
@@ -212,7 +222,7 @@ impl SceneService for SceneServiceImpl {
         // Create FEATURES_CHARACTER edges for each featured character
         for char_id in &request.featured_characters {
             let scene_char = SceneCharacter::new(SceneCharacterRole::Primary);
-            self.scene_repository
+            self.scene_featured_character
                 .add_featured_character(scene.id, *char_id, &scene_char)
                 .await
                 .context("Failed to add featured character edge")?;
@@ -225,7 +235,7 @@ impl SceneService for SceneServiceImpl {
     #[instrument(skip(self))]
     async fn get_scene(&self, id: SceneId) -> Result<Option<Scene>> {
         debug!(scene_id = %id, "Fetching scene");
-        self.scene_repository
+        self.scene_crud
             .get(id)
             .await
             .context("Failed to get scene from repository")
@@ -235,14 +245,14 @@ impl SceneService for SceneServiceImpl {
     async fn get_scene_with_relations(&self, id: SceneId) -> Result<Option<SceneWithRelations>> {
         debug!(scene_id = %id, "Fetching scene with relations");
 
-        let scene = match self.scene_repository.get(id).await? {
+        let scene = match self.scene_crud.get(id).await? {
             Some(s) => s,
             None => return Ok(None),
         };
 
         // Load the location via AT_LOCATION edge
         let location_id = self
-            .scene_repository
+            .scene_location
             .get_location(id)
             .await?
             .or(Some(scene.location_id)) // Fallback to embedded field during migration
@@ -256,7 +266,7 @@ impl SceneService for SceneServiceImpl {
 
         // Load all featured characters via FEATURES_CHARACTER edges
         let featured_char_edges = self
-            .scene_repository
+            .scene_featured_character
             .get_featured_characters(id)
             .await
             .unwrap_or_default();
@@ -290,7 +300,7 @@ impl SceneService for SceneServiceImpl {
         Self::validate_update_request(&request)?;
 
         let mut scene = self
-            .scene_repository
+            .scene_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", id))?;
@@ -311,7 +321,7 @@ impl SceneService for SceneServiceImpl {
             scene.order = order;
         }
 
-        self.scene_repository
+        self.scene_crud
             .update(&scene)
             .await
             .context("Failed to update scene in repository")?;
@@ -323,12 +333,12 @@ impl SceneService for SceneServiceImpl {
     #[instrument(skip(self))]
     async fn delete_scene(&self, id: SceneId) -> Result<()> {
         let scene = self
-            .scene_repository
+            .scene_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", id))?;
 
-        self.scene_repository
+        self.scene_crud
             .delete(id)
             .await
             .context("Failed to delete scene from repository")?;
@@ -343,13 +353,13 @@ impl SceneService for SceneServiceImpl {
             anyhow::bail!("Directorial notes cannot exceed 10000 characters");
         }
 
-        self.scene_repository
+        self.scene_crud
             .update_directorial_notes(id, &notes)
             .await
             .context("Failed to update directorial notes")?;
 
         // Fetch and return the updated scene
-        self.scene_repository
+        self.scene_crud
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found after update: {}", id))
@@ -358,7 +368,7 @@ impl SceneService for SceneServiceImpl {
     #[instrument(skip(self))]
     async fn list_scenes_by_act(&self, act_id: ActId) -> Result<Vec<Scene>> {
         debug!(act_id = %act_id, "Listing scenes by act");
-        self.scene_repository
+        self.scene_query
             .list_by_act(act_id)
             .await
             .context("Failed to list scenes by act")
@@ -367,7 +377,7 @@ impl SceneService for SceneServiceImpl {
     #[instrument(skip(self))]
     async fn list_scenes_by_location(&self, location_id: LocationId) -> Result<Vec<Scene>> {
         debug!(location_id = %location_id, "Listing scenes by location");
-        self.scene_repository
+        self.scene_query
             .list_by_location(location_id)
             .await
             .context("Failed to list scenes by location")
@@ -383,14 +393,14 @@ impl SceneService for SceneServiceImpl {
             .ok_or_else(|| anyhow::anyhow!("Character not found: {}", character_id))?;
 
         let mut scene = self
-            .scene_repository
+            .scene_crud
             .get(scene_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", scene_id))?;
 
         // Check if already present via edge
         let existing = self
-            .scene_repository
+            .scene_featured_character
             .get_featured_characters(scene_id)
             .await
             .unwrap_or_default();
@@ -399,7 +409,7 @@ impl SceneService for SceneServiceImpl {
         if !already_present {
             // Create FEATURES_CHARACTER edge
             let scene_char = SceneCharacter::new(SceneCharacterRole::Primary);
-            self.scene_repository
+            self.scene_featured_character
                 .add_featured_character(scene_id, character_id, &scene_char)
                 .await
                 .context("Failed to add featured character edge")?;
@@ -407,7 +417,7 @@ impl SceneService for SceneServiceImpl {
             // Update embedded field for backward compatibility
             if !scene.featured_characters.contains(&character_id) {
                 scene.featured_characters.push(character_id);
-                self.scene_repository
+                self.scene_crud
                     .update(&scene)
                     .await
                     .context("Failed to update scene with new character")?;
@@ -426,13 +436,13 @@ impl SceneService for SceneServiceImpl {
         character_id: CharacterId,
     ) -> Result<Scene> {
         let mut scene = self
-            .scene_repository
+            .scene_crud
             .get(scene_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", scene_id))?;
 
         // Remove FEATURES_CHARACTER edge
-        self.scene_repository
+        self.scene_featured_character
             .remove_featured_character(scene_id, character_id)
             .await
             .context("Failed to remove featured character edge")?;
@@ -445,7 +455,7 @@ impl SceneService for SceneServiceImpl {
         {
             scene.featured_characters.remove(pos);
 
-            self.scene_repository
+            self.scene_crud
                 .update(&scene)
                 .await
                 .context("Failed to update scene after removing character")?;
@@ -472,14 +482,14 @@ impl SceneService for SceneServiceImpl {
         }
 
         let mut scene = self
-            .scene_repository
+            .scene_crud
             .get(scene_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", scene_id))?;
 
         // Get current featured characters from edges
         let current_chars = self
-            .scene_repository
+            .scene_featured_character
             .get_featured_characters(scene_id)
             .await
             .unwrap_or_default();
@@ -487,7 +497,7 @@ impl SceneService for SceneServiceImpl {
         // Remove characters no longer in the list
         for (char_id, _) in &current_chars {
             if !character_ids.contains(char_id) {
-                self.scene_repository
+                self.scene_featured_character
                     .remove_featured_character(scene_id, *char_id)
                     .await
                     .context("Failed to remove featured character edge")?;
@@ -499,7 +509,7 @@ impl SceneService for SceneServiceImpl {
         for char_id in &character_ids {
             if !current_char_ids.contains(char_id) {
                 let scene_char = SceneCharacter::new(SceneCharacterRole::Primary);
-                self.scene_repository
+                self.scene_featured_character
                     .add_featured_character(scene_id, *char_id, &scene_char)
                     .await
                     .context("Failed to add featured character edge")?;
@@ -509,7 +519,7 @@ impl SceneService for SceneServiceImpl {
         // Update embedded field for backward compatibility
         scene.featured_characters = character_ids;
 
-        self.scene_repository
+        self.scene_crud
             .update(&scene)
             .await
             .context("Failed to update scene featured characters")?;
@@ -525,14 +535,14 @@ impl SceneService for SceneServiceImpl {
         condition: SceneCondition,
     ) -> Result<Scene> {
         let mut scene = self
-            .scene_repository
+            .scene_crud
             .get(scene_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scene not found: {}", scene_id))?;
 
         scene.entry_conditions.push(condition);
 
-        self.scene_repository
+        self.scene_crud
             .update(&scene)
             .await
             .context("Failed to update scene with new entry condition")?;

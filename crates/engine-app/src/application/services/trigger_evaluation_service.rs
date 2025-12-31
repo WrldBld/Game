@@ -31,7 +31,7 @@ use wrldbldr_engine_ports::outbound::{
     CompletedChallenge as PortCompletedChallenge,
     CompletedNarrativeEvent as PortCompletedNarrativeEvent,
     GameStateSnapshot as PortGameStateSnapshot, ImmediateContext as PortImmediateContext,
-    NarrativeEventCrudPort, PlayerCharacterRepositoryPort, StoryEventEdgePort, StoryEventQueryPort,
+    NarrativeEventCrudPort, PlayerCharacterCrudPort, StoryEventEdgePort, StoryEventQueryPort,
     TriggerEvaluationResult as PortTriggerEvaluationResult, TriggerEvaluationServicePort,
     TriggerSource as PortTriggerSource, TriggeredEventCandidate as PortTriggeredEventCandidate,
 };
@@ -205,11 +205,12 @@ impl GameStateSnapshot {
 ///
 /// This service uses minimal trait dependencies following Interface Segregation:
 /// - `NarrativeEventCrudPort`: For get, list_pending, list_by_world operations
+/// - `PlayerCharacterCrudPort`: For get operations (ISP trait)
 /// - `StoryEventQueryPort`: For list_by_world to find completed challenges
 /// - `StoryEventEdgePort`: For get_recorded_challenge to check challenge completions
 pub struct TriggerEvaluationService {
     narrative_event_crud: Arc<dyn NarrativeEventCrudPort>,
-    player_character_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+    player_character_crud: Arc<dyn PlayerCharacterCrudPort>,
     story_event_query: Arc<dyn StoryEventQueryPort>,
     story_event_edge: Arc<dyn StoryEventEdgePort>,
 }
@@ -220,18 +221,18 @@ impl TriggerEvaluationService {
     /// # Arguments
     ///
     /// * `narrative_event_crud` - For CRUD operations on narrative events
-    /// * `player_character_repo` - For getting player character data
+    /// * `player_character_crud` - For getting player character data (ISP trait)
     /// * `story_event_query` - For querying story events by world
     /// * `story_event_edge` - For getting recorded challenge relationships
     pub fn new(
         narrative_event_crud: Arc<dyn NarrativeEventCrudPort>,
-        player_character_repo: Arc<dyn PlayerCharacterRepositoryPort>,
+        player_character_crud: Arc<dyn PlayerCharacterCrudPort>,
         story_event_query: Arc<dyn StoryEventQueryPort>,
         story_event_edge: Arc<dyn StoryEventEdgePort>,
     ) -> Self {
         Self {
             narrative_event_crud,
-            player_character_repo,
+            player_character_crud,
             story_event_query,
             story_event_edge,
         }
@@ -399,7 +400,7 @@ impl TriggerEvaluationService {
 
         // Get player character location if provided
         if let Some(pc_id) = player_character_id {
-            if let Ok(Some(pc)) = self.player_character_repo.get(pc_id).await {
+            if let Ok(Some(pc)) = self.player_character_crud.get(pc_id).await {
                 snapshot.current_location_id = Some(pc.current_location_id);
                 // TODO: Get inventory from player character when implemented
             }

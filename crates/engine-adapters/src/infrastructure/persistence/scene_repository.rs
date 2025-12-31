@@ -19,7 +19,7 @@ use wrldbldr_domain::entities::{
 use wrldbldr_domain::{ActId, CharacterId, ItemId, LocationId, PlayerCharacterId, SceneId};
 use wrldbldr_engine_ports::outbound::{
     SceneCompletionPort, SceneCrudPort, SceneFeaturedCharacterPort, SceneLocationPort,
-    SceneQueryPort, SceneRepositoryPort,
+    SceneQueryPort,
 };
 
 /// Repository for Scene operations
@@ -662,25 +662,20 @@ impl TryFrom<SceneConditionStored> for SceneCondition {
 }
 
 // =============================================================================
-// SceneRepositoryPort Implementation
+// ISP Trait Implementations
 // =============================================================================
+//
+// SceneRepositoryPort god trait has been removed. All implementations now
+// delegate directly to the inherent methods on Neo4jSceneRepository.
 
 #[async_trait]
-impl SceneRepositoryPort for Neo4jSceneRepository {
+impl SceneCrudPort for Neo4jSceneRepository {
     async fn create(&self, scene: &Scene) -> Result<()> {
         Neo4jSceneRepository::create(self, scene).await
     }
 
     async fn get(&self, id: SceneId) -> Result<Option<Scene>> {
         Neo4jSceneRepository::get(self, id).await
-    }
-
-    async fn list_by_act(&self, act_id: ActId) -> Result<Vec<Scene>> {
-        Neo4jSceneRepository::list_by_act(self, act_id).await
-    }
-
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Scene>> {
-        Neo4jSceneRepository::list_by_location(self, location_id).await
     }
 
     async fn update(&self, scene: &Scene) -> Result<()> {
@@ -694,7 +689,21 @@ impl SceneRepositoryPort for Neo4jSceneRepository {
     async fn update_directorial_notes(&self, id: SceneId, notes: &str) -> Result<()> {
         Neo4jSceneRepository::update_directorial_notes(self, id, notes).await
     }
+}
 
+#[async_trait]
+impl SceneQueryPort for Neo4jSceneRepository {
+    async fn list_by_act(&self, act_id: ActId) -> Result<Vec<Scene>> {
+        Neo4jSceneRepository::list_by_act(self, act_id).await
+    }
+
+    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Scene>> {
+        Neo4jSceneRepository::list_by_location(self, location_id).await
+    }
+}
+
+#[async_trait]
+impl SceneLocationPort for Neo4jSceneRepository {
     async fn set_location(&self, scene_id: SceneId, location_id: LocationId) -> Result<()> {
         Neo4jSceneRepository::set_location(self, scene_id, location_id).await
     }
@@ -702,7 +711,10 @@ impl SceneRepositoryPort for Neo4jSceneRepository {
     async fn get_location(&self, scene_id: SceneId) -> Result<Option<LocationId>> {
         Neo4jSceneRepository::get_location(self, scene_id).await
     }
+}
 
+#[async_trait]
+impl SceneFeaturedCharacterPort for Neo4jSceneRepository {
     async fn add_featured_character(
         &self,
         scene_id: SceneId,
@@ -740,7 +752,10 @@ impl SceneRepositoryPort for Neo4jSceneRepository {
     async fn get_scenes_for_character(&self, character_id: CharacterId) -> Result<Vec<Scene>> {
         Neo4jSceneRepository::get_scenes_for_character(self, character_id).await
     }
+}
 
+#[async_trait]
+impl SceneCompletionPort for Neo4jSceneRepository {
     async fn mark_scene_completed(
         &self,
         pc_id: PlayerCharacterId,
@@ -759,118 +774,5 @@ impl SceneRepositoryPort for Neo4jSceneRepository {
 
     async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>> {
         Neo4jSceneRepository::get_completed_scenes(self, pc_id).await
-    }
-}
-
-// =============================================================================
-// ISP Sub-trait Implementations
-// =============================================================================
-
-#[async_trait]
-impl SceneCrudPort for Neo4jSceneRepository {
-    async fn create(&self, scene: &Scene) -> Result<()> {
-        SceneRepositoryPort::create(self, scene).await
-    }
-
-    async fn get(&self, id: SceneId) -> Result<Option<Scene>> {
-        SceneRepositoryPort::get(self, id).await
-    }
-
-    async fn update(&self, scene: &Scene) -> Result<()> {
-        SceneRepositoryPort::update(self, scene).await
-    }
-
-    async fn delete(&self, id: SceneId) -> Result<()> {
-        SceneRepositoryPort::delete(self, id).await
-    }
-
-    async fn update_directorial_notes(&self, id: SceneId, notes: &str) -> Result<()> {
-        SceneRepositoryPort::update_directorial_notes(self, id, notes).await
-    }
-}
-
-#[async_trait]
-impl SceneQueryPort for Neo4jSceneRepository {
-    async fn list_by_act(&self, act_id: ActId) -> Result<Vec<Scene>> {
-        SceneRepositoryPort::list_by_act(self, act_id).await
-    }
-
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Scene>> {
-        SceneRepositoryPort::list_by_location(self, location_id).await
-    }
-}
-
-#[async_trait]
-impl SceneLocationPort for Neo4jSceneRepository {
-    async fn set_location(&self, scene_id: SceneId, location_id: LocationId) -> Result<()> {
-        SceneRepositoryPort::set_location(self, scene_id, location_id).await
-    }
-
-    async fn get_location(&self, scene_id: SceneId) -> Result<Option<LocationId>> {
-        SceneRepositoryPort::get_location(self, scene_id).await
-    }
-}
-
-#[async_trait]
-impl SceneFeaturedCharacterPort for Neo4jSceneRepository {
-    async fn add_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-        scene_char: &SceneCharacter,
-    ) -> Result<()> {
-        SceneRepositoryPort::add_featured_character(self, scene_id, character_id, scene_char).await
-    }
-
-    async fn get_featured_characters(
-        &self,
-        scene_id: SceneId,
-    ) -> Result<Vec<(CharacterId, SceneCharacter)>> {
-        SceneRepositoryPort::get_featured_characters(self, scene_id).await
-    }
-
-    async fn update_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-        scene_char: &SceneCharacter,
-    ) -> Result<()> {
-        SceneRepositoryPort::update_featured_character(self, scene_id, character_id, scene_char)
-            .await
-    }
-
-    async fn remove_featured_character(
-        &self,
-        scene_id: SceneId,
-        character_id: CharacterId,
-    ) -> Result<()> {
-        SceneRepositoryPort::remove_featured_character(self, scene_id, character_id).await
-    }
-
-    async fn get_scenes_for_character(&self, character_id: CharacterId) -> Result<Vec<Scene>> {
-        SceneRepositoryPort::get_scenes_for_character(self, character_id).await
-    }
-}
-
-#[async_trait]
-impl SceneCompletionPort for Neo4jSceneRepository {
-    async fn mark_scene_completed(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<()> {
-        SceneRepositoryPort::mark_scene_completed(self, pc_id, scene_id).await
-    }
-
-    async fn is_scene_completed(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<bool> {
-        SceneRepositoryPort::is_scene_completed(self, pc_id, scene_id).await
-    }
-
-    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>> {
-        SceneRepositoryPort::get_completed_scenes(self, pc_id).await
     }
 }

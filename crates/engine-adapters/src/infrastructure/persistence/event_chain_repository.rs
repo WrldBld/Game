@@ -15,7 +15,7 @@ use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort,
-    EventChainRepositoryPort, EventChainStatePort,
+    EventChainStatePort,
 };
 
 /// Repository for EventChain operations
@@ -452,127 +452,44 @@ fn row_to_event_chain(row: Row) -> Result<EventChain> {
 }
 
 // =============================================================================
-// EventChainRepositoryPort Implementation
-// =============================================================================
-
-#[async_trait]
-impl EventChainRepositoryPort for Neo4jEventChainRepository {
-    async fn create(&self, chain: &EventChain) -> Result<()> {
-        self.create(chain).await
-    }
-
-    async fn get(&self, id: EventChainId) -> Result<Option<EventChain>> {
-        self.get(id).await
-    }
-
-    async fn update(&self, chain: &EventChain) -> Result<bool> {
-        self.update(chain).await
-    }
-
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        self.list_by_world(world_id).await
-    }
-
-    async fn list_active(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        self.list_active(world_id).await
-    }
-
-    async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        self.list_favorites(world_id).await
-    }
-
-    async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>> {
-        self.get_chains_for_event(event_id).await
-    }
-
-    async fn add_event_to_chain(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool> {
-        self.add_event_to_chain(chain_id, event_id).await
-    }
-
-    async fn remove_event_from_chain(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool> {
-        self.remove_event_from_chain(chain_id, event_id).await
-    }
-
-    async fn complete_event(
-        &self,
-        chain_id: EventChainId,
-        event_id: NarrativeEventId,
-    ) -> Result<bool> {
-        self.complete_event(chain_id, event_id).await
-    }
-
-    async fn toggle_favorite(&self, id: EventChainId) -> Result<bool> {
-        self.toggle_favorite(id).await
-    }
-
-    async fn set_active(&self, id: EventChainId, is_active: bool) -> Result<bool> {
-        self.set_active(id, is_active).await
-    }
-
-    async fn reset(&self, id: EventChainId) -> Result<bool> {
-        self.reset(id).await
-    }
-
-    async fn delete(&self, id: EventChainId) -> Result<bool> {
-        self.delete(id).await
-    }
-
-    async fn get_status(&self, id: EventChainId) -> Result<Option<ChainStatus>> {
-        self.get_status(id).await
-    }
-
-    async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>> {
-        self.list_statuses(world_id).await
-    }
-}
-
-// =============================================================================
 // ISP Sub-trait Implementations
 // =============================================================================
 
 #[async_trait]
 impl EventChainCrudPort for Neo4jEventChainRepository {
     async fn create(&self, chain: &EventChain) -> Result<()> {
-        EventChainRepositoryPort::create(self, chain).await
+        Neo4jEventChainRepository::create(self, chain).await
     }
 
     async fn get(&self, id: EventChainId) -> Result<Option<EventChain>> {
-        EventChainRepositoryPort::get(self, id).await
+        Neo4jEventChainRepository::get(self, id).await
     }
 
     async fn update(&self, chain: &EventChain) -> Result<bool> {
-        EventChainRepositoryPort::update(self, chain).await
+        Neo4jEventChainRepository::update(self, chain).await
     }
 
     async fn delete(&self, id: EventChainId) -> Result<bool> {
-        EventChainRepositoryPort::delete(self, id).await
+        Neo4jEventChainRepository::delete(self, id).await
     }
 }
 
 #[async_trait]
 impl EventChainQueryPort for Neo4jEventChainRepository {
     async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        EventChainRepositoryPort::list_by_world(self, world_id).await
+        Neo4jEventChainRepository::list_by_world(self, world_id).await
     }
 
     async fn list_active(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        EventChainRepositoryPort::list_active(self, world_id).await
+        Neo4jEventChainRepository::list_active(self, world_id).await
     }
 
     async fn list_favorites(&self, world_id: WorldId) -> Result<Vec<EventChain>> {
-        EventChainRepositoryPort::list_favorites(self, world_id).await
+        Neo4jEventChainRepository::list_favorites(self, world_id).await
     }
 
     async fn get_chains_for_event(&self, event_id: NarrativeEventId) -> Result<Vec<EventChain>> {
-        EventChainRepositoryPort::get_chains_for_event(self, event_id).await
+        Neo4jEventChainRepository::get_chains_for_event(self, event_id).await
     }
 }
 
@@ -583,7 +500,7 @@ impl EventChainMembershipPort for Neo4jEventChainRepository {
         chain_id: EventChainId,
         event_id: NarrativeEventId,
     ) -> Result<bool> {
-        EventChainRepositoryPort::add_event_to_chain(self, chain_id, event_id).await
+        Neo4jEventChainRepository::add_event_to_chain(self, chain_id, event_id).await
     }
 
     async fn remove_event_from_chain(
@@ -591,7 +508,7 @@ impl EventChainMembershipPort for Neo4jEventChainRepository {
         chain_id: EventChainId,
         event_id: NarrativeEventId,
     ) -> Result<bool> {
-        EventChainRepositoryPort::remove_event_from_chain(self, chain_id, event_id).await
+        Neo4jEventChainRepository::remove_event_from_chain(self, chain_id, event_id).await
     }
 
     async fn complete_event(
@@ -599,29 +516,29 @@ impl EventChainMembershipPort for Neo4jEventChainRepository {
         chain_id: EventChainId,
         event_id: NarrativeEventId,
     ) -> Result<bool> {
-        EventChainRepositoryPort::complete_event(self, chain_id, event_id).await
+        Neo4jEventChainRepository::complete_event(self, chain_id, event_id).await
     }
 }
 
 #[async_trait]
 impl EventChainStatePort for Neo4jEventChainRepository {
     async fn toggle_favorite(&self, id: EventChainId) -> Result<bool> {
-        EventChainRepositoryPort::toggle_favorite(self, id).await
+        Neo4jEventChainRepository::toggle_favorite(self, id).await
     }
 
     async fn set_active(&self, id: EventChainId, is_active: bool) -> Result<bool> {
-        EventChainRepositoryPort::set_active(self, id, is_active).await
+        Neo4jEventChainRepository::set_active(self, id, is_active).await
     }
 
     async fn reset(&self, id: EventChainId) -> Result<bool> {
-        EventChainRepositoryPort::reset(self, id).await
+        Neo4jEventChainRepository::reset(self, id).await
     }
 
     async fn get_status(&self, id: EventChainId) -> Result<Option<ChainStatus>> {
-        EventChainRepositoryPort::get_status(self, id).await
+        Neo4jEventChainRepository::get_status(self, id).await
     }
 
     async fn list_statuses(&self, world_id: WorldId) -> Result<Vec<ChainStatus>> {
-        EventChainRepositoryPort::list_statuses(self, world_id).await
+        Neo4jEventChainRepository::list_statuses(self, world_id).await
     }
 }

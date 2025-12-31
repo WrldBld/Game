@@ -51,12 +51,21 @@ use wrldbldr_engine_ports::outbound::{
     LocationMapPort,
     LocationServicePort,
     ObservationRepositoryPort,
-    PlayerCharacterRepositoryPort,
+    // PlayerCharacter ISP ports
+    PlayerCharacterCrudPort,
+    PlayerCharacterInventoryPort,
+    PlayerCharacterPositionPort,
+    PlayerCharacterQueryPort,
     PlayerCharacterServicePort,
     RegionItemPort,
     RelationshipRepositoryPort,
     RelationshipServicePort,
-    SceneRepositoryPort,
+    // Scene ISP ports (no god trait)
+    SceneCompletionPort,
+    SceneCrudPort,
+    SceneFeaturedCharacterPort,
+    SceneLocationPort,
+    SceneQueryPort,
     SceneResolutionServicePort,
     SceneServicePort,
     SettingsServicePort,
@@ -107,8 +116,12 @@ pub struct CoreServiceDependencies {
     pub location_connection: Arc<dyn LocationConnectionPort>,
     pub location_map: Arc<dyn LocationMapPort>,
 
-    // Scene service dependencies
-    pub scene_repo: Arc<dyn SceneRepositoryPort>,
+    // Scene service dependencies (ISP split)
+    pub scene_crud: Arc<dyn SceneCrudPort>,
+    pub scene_query: Arc<dyn SceneQueryPort>,
+    pub scene_location: Arc<dyn SceneLocationPort>,
+    pub scene_featured_character: Arc<dyn SceneFeaturedCharacterPort>,
+    pub scene_completion: Arc<dyn SceneCompletionPort>,
 
     // Skill service dependencies
     pub skill_repo: Arc<dyn SkillRepositoryPort>,
@@ -118,8 +131,13 @@ pub struct CoreServiceDependencies {
 
     // Item service dependencies
     pub item_repo: Arc<dyn ItemRepositoryPort>,
-    pub pc_repo: Arc<dyn PlayerCharacterRepositoryPort>,
     pub region_item: Arc<dyn RegionItemPort>,
+
+    // PlayerCharacter ISP traits (used by Item, PC, and SceneResolution services)
+    pub pc_crud: Arc<dyn PlayerCharacterCrudPort>,
+    pub pc_query: Arc<dyn PlayerCharacterQueryPort>,
+    pub pc_position: Arc<dyn PlayerCharacterPositionPort>,
+    pub pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
 
     // Scene resolution service dependencies
     pub flag_repo: Arc<dyn FlagRepositoryPort>,
@@ -244,8 +262,17 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
     let clock = deps.clock;
     let location_crud = deps.location_crud;
     let character_crud = deps.character_crud;
-    let pc_repo = deps.pc_repo;
-    let scene_repo = deps.scene_repo;
+    // PC ISP ports
+    let pc_crud = deps.pc_crud;
+    let pc_query = deps.pc_query;
+    let pc_position = deps.pc_position;
+    let pc_inventory = deps.pc_inventory;
+    // Scene ISP ports
+    let scene_crud = deps.scene_crud;
+    let scene_query = deps.scene_query;
+    let scene_location = deps.scene_location;
+    let scene_featured_character = deps.scene_featured_character;
+    let scene_completion = deps.scene_completion;
 
     // World Service
     // Dependencies: WorldRepo, WorldExporter, SettingsService, Clock
@@ -281,9 +308,15 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
     let location_service: Arc<dyn LocationServicePort> = Arc::new(location_service_impl);
 
     // Scene Service
-    // Dependencies: SceneRepo, LocationCrud, CharacterCrud
-    let scene_service_impl =
-        SceneServiceImpl::new(scene_repo.clone(), location_crud.clone(), character_crud);
+    // Dependencies: SceneCrud, SceneQuery, SceneLocation, SceneFeaturedCharacter, LocationCrud, CharacterCrud
+    let scene_service_impl = SceneServiceImpl::new(
+        scene_crud,
+        scene_query.clone(),
+        scene_location,
+        scene_featured_character,
+        location_crud.clone(),
+        character_crud,
+    );
     let scene_service: Arc<dyn SceneServicePort> = Arc::new(scene_service_impl);
 
     // Skill Service
@@ -303,21 +336,35 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
         Arc::new(relationship_service_impl);
 
     // Item Service
-    // Dependencies: ItemRepo, PCRepo, RegionItem
-    let item_service_impl = ItemServiceImpl::new(deps.item_repo, pc_repo.clone(), deps.region_item);
+    // Dependencies: ItemRepo, PCInventory, RegionItem
+    let item_service_impl =
+        ItemServiceImpl::new(deps.item_repo, pc_inventory.clone(), deps.region_item);
     let item_service: Arc<dyn ItemServicePort> = Arc::new(item_service_impl);
 
     // Player Character Service
-    // Dependencies: PCRepo, LocationCrud, WorldRepo, Clock
-    let player_character_service_impl =
-        PlayerCharacterServiceImpl::new(pc_repo.clone(), location_crud, world_repo, clock);
+    // Dependencies: PC ISP (Crud, Query, Position), LocationCrud, WorldRepo, Clock
+    let player_character_service_impl = PlayerCharacterServiceImpl::new(
+        pc_crud.clone(),
+        pc_query.clone(),
+        pc_position,
+        location_crud,
+        world_repo,
+        clock,
+    );
     let player_character_service: Arc<dyn PlayerCharacterServicePort> =
         Arc::new(player_character_service_impl);
 
     // Scene Resolution Service
-    // Dependencies: PCRepo, SceneRepo, FlagRepo, ObservationRepo
-    let scene_resolution_service_impl =
-        SceneResolutionServiceImpl::new(pc_repo, scene_repo, deps.flag_repo, deps.observation_repo);
+    // Dependencies: PC ISP (Crud, Query, Inventory), SceneQuery, SceneCompletion, FlagRepo, ObservationRepo
+    let scene_resolution_service_impl = SceneResolutionServiceImpl::new(
+        pc_crud,
+        pc_query,
+        pc_inventory,
+        scene_query,
+        scene_completion,
+        deps.flag_repo,
+        deps.observation_repo,
+    );
     let scene_resolution_service: Arc<dyn SceneResolutionServicePort> =
         Arc::new(scene_resolution_service_impl);
 
@@ -370,8 +417,12 @@ mod tests {
             let _: &Arc<dyn LocationConnectionPort> = &deps.location_connection;
             let _: &Arc<dyn LocationMapPort> = &deps.location_map;
 
-            // Scene service deps
-            let _: &Arc<dyn SceneRepositoryPort> = &deps.scene_repo;
+            // Scene service deps (ISP split)
+            let _: &Arc<dyn SceneCrudPort> = &deps.scene_crud;
+            let _: &Arc<dyn SceneQueryPort> = &deps.scene_query;
+            let _: &Arc<dyn SceneLocationPort> = &deps.scene_location;
+            let _: &Arc<dyn SceneFeaturedCharacterPort> = &deps.scene_featured_character;
+            let _: &Arc<dyn SceneCompletionPort> = &deps.scene_completion;
 
             // Skill service deps
             let _: &Arc<dyn SkillRepositoryPort> = &deps.skill_repo;
@@ -381,8 +432,13 @@ mod tests {
 
             // Item service deps
             let _: &Arc<dyn ItemRepositoryPort> = &deps.item_repo;
-            let _: &Arc<dyn PlayerCharacterRepositoryPort> = &deps.pc_repo;
             let _: &Arc<dyn RegionItemPort> = &deps.region_item;
+
+            // PC ISP ports (used by Item, PC, and SceneResolution services)
+            let _: &Arc<dyn PlayerCharacterCrudPort> = &deps.pc_crud;
+            let _: &Arc<dyn PlayerCharacterQueryPort> = &deps.pc_query;
+            let _: &Arc<dyn PlayerCharacterPositionPort> = &deps.pc_position;
+            let _: &Arc<dyn PlayerCharacterInventoryPort> = &deps.pc_inventory;
 
             // Scene resolution deps
             let _: &Arc<dyn FlagRepositoryPort> = &deps.flag_repo;
