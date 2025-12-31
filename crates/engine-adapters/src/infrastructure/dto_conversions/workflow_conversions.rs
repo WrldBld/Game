@@ -18,7 +18,11 @@ use wrldbldr_protocol::{
 pub fn workflow_analysis_to_dto(value: WorkflowAnalysis) -> WorkflowAnalysisDto {
     WorkflowAnalysisDto {
         node_count: value.node_count,
-        inputs: value.inputs.into_iter().map(workflow_input_to_dto).collect(),
+        inputs: value
+            .inputs
+            .into_iter()
+            .map(workflow_input_to_dto)
+            .collect(),
         text_inputs: value
             .text_inputs
             .into_iter()
@@ -121,8 +125,8 @@ pub fn workflow_config_from_export_dto(
 ) -> anyhow::Result<WorkflowConfiguration> {
     use std::str::FromStr;
     use uuid::Uuid;
-    use wrldbldr_domain::WorkflowConfigId;
     use wrldbldr_domain::entities::WorkflowSlot;
+    use wrldbldr_domain::WorkflowConfigId;
 
     let id = Uuid::parse_str(&value.id)
         .map(WorkflowConfigId::from_uuid)

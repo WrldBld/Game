@@ -91,7 +91,9 @@ pub fn WorldSelectRoute() -> Element {
 }
 
 /// Load user role from localStorage, defaults to Player
-fn load_role_from_storage(platform: &dyn wrldbldr_player_ports::outbound::PlatformPort) -> ParticipantRole {
+fn load_role_from_storage(
+    platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
+) -> ParticipantRole {
     if let Some(role_str) = platform.storage_load(storage_keys::ROLE) {
         match role_str.as_str() {
             "DungeonMaster" => return ParticipantRole::DungeonMaster,

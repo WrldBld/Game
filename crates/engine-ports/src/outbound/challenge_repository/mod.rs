@@ -42,7 +42,9 @@ mod mock {
     use wrldbldr_domain::entities::{
         ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,
     };
-    use wrldbldr_domain::{Challenge, ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId};
+    use wrldbldr_domain::{
+        Challenge, ChallengeId, LocationId, RegionId, SceneId, SkillId, WorldId,
+    };
 
     mock! {
         /// Mock implementation of all Challenge repository traits for testing.

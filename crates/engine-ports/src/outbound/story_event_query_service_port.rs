@@ -98,11 +98,8 @@ pub trait StoryEventQueryServicePort: Send + Sync {
     ///
     /// * `world_id` - The world to search within
     /// * `search_text` - Text to search for in summaries
-    async fn search_by_text(
-        &self,
-        world_id: WorldId,
-        search_text: &str,
-    ) -> Result<Vec<StoryEvent>>;
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str)
+        -> Result<Vec<StoryEvent>>;
 
     /// List events involving a specific character.
     ///

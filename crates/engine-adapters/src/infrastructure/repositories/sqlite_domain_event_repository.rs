@@ -10,7 +10,9 @@ use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 
 use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{ClockPort, DomainEventRepositoryError, DomainEventRepositoryPort};
+use wrldbldr_engine_ports::outbound::{
+    ClockPort, DomainEventRepositoryError, DomainEventRepositoryPort,
+};
 use wrldbldr_protocol::AppEvent;
 
 use crate::infrastructure::event_bus::domain_event_mapper::{
@@ -31,7 +33,10 @@ impl SqliteDomainEventRepository {
     /// # Arguments
     /// * `pool` - SQLite connection pool
     /// * `clock` - Clock for time operations
-    pub async fn new(pool: SqlitePool, clock: Arc<dyn ClockPort>) -> Result<Self, DomainEventRepositoryError> {
+    pub async fn new(
+        pool: SqlitePool,
+        clock: Arc<dyn ClockPort>,
+    ) -> Result<Self, DomainEventRepositoryError> {
         // Create the app_events table if it doesn't exist
         sqlx::query(
             r#"

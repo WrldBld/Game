@@ -19,8 +19,7 @@ use wrldbldr_engine_ports::outbound::{
 };
 
 /// Request to create a new item
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CreateItemRequest {
     pub name: String,
     pub description: Option<String>,
@@ -30,7 +29,6 @@ pub struct CreateItemRequest {
     pub can_contain_items: bool,
     pub container_limit: Option<u32>,
 }
-
 
 /// Request to give an item to a player character
 #[derive(Debug, Clone)]
@@ -413,7 +411,9 @@ impl ItemService for ItemServiceImpl {
         self.item_repository
             .add_item_to_container(container_id, item_id, quantity)
             .await
-            .map_err(|e| DomainError::constraint(format!("Failed to add item to container: {}", e)))?;
+            .map_err(|e| {
+                DomainError::constraint(format!("Failed to add item to container: {}", e))
+            })?;
 
         info!(
             container_id = %container_id,

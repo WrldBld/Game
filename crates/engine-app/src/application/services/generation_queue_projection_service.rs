@@ -285,9 +285,10 @@ impl GenerationQueueProjectionServicePort for GenerationQueueProjectionService {
             .map(|b| {
                 // Calculate completed_count from progress (0-100%)
                 let item_count = b.batch.count as usize;
-                let completed_count = b.batch.progress.map_or(0, |p| {
-                    ((p as usize) * item_count / 100).min(item_count)
-                });
+                let completed_count = b
+                    .batch
+                    .progress
+                    .map_or(0, |p| ((p as usize) * item_count / 100).min(item_count));
                 PortGenerationBatchSnapshot {
                     id: b.batch.id,
                     world_id: b.batch.world_id,

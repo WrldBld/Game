@@ -58,9 +58,17 @@ define_id_parser!(parse_skill_id, SkillId, "skill");
 define_id_parser!(parse_scene_id, SceneId, "scene");
 define_id_parser!(parse_act_id, ActId, "act");
 define_id_parser!(parse_challenge_id, ChallengeId, "challenge");
-define_id_parser!(parse_narrative_event_id, NarrativeEventId, "narrative_event");
+define_id_parser!(
+    parse_narrative_event_id,
+    NarrativeEventId,
+    "narrative_event"
+);
 define_id_parser!(parse_event_chain_id, EventChainId, "event_chain");
-define_id_parser!(parse_player_character_id, PlayerCharacterId, "player_character");
+define_id_parser!(
+    parse_player_character_id,
+    PlayerCharacterId,
+    "player_character"
+);
 define_id_parser!(parse_interaction_id, InteractionId, "interaction");
 define_id_parser!(parse_goal_id, GoalId, "goal");
 define_id_parser!(parse_want_id, WantId, "want");
@@ -175,9 +183,7 @@ pub fn convert_want_visibility(data: WantVisibilityData) -> WantVisibility {
 ///
 /// This conversion lives in the application layer (not protocol) to maintain
 /// the separation between domain and wire-format types.
-pub fn to_protocol_game_time(
-    game_time: &wrldbldr_domain::GameTime,
-) -> wrldbldr_protocol::GameTime {
+pub fn to_protocol_game_time(game_time: &wrldbldr_domain::GameTime) -> wrldbldr_protocol::GameTime {
     use chrono::Timelike;
     let current = game_time.current();
     wrldbldr_protocol::GameTime::new(

@@ -69,7 +69,10 @@ pub struct EventInfrastructure {
 ///
 /// # Returns
 /// * `EventInfrastructure` with all event components
-pub async fn create_event_infrastructure(config: &AppConfig, clock: Arc<dyn ClockPort>) -> Result<EventInfrastructure> {
+pub async fn create_event_infrastructure(
+    config: &AppConfig,
+    clock: Arc<dyn ClockPort>,
+) -> Result<EventInfrastructure> {
     // =========================================================================
     // SQLite event database
     // =========================================================================
@@ -91,8 +94,10 @@ pub async fn create_event_infrastructure(config: &AppConfig, clock: Arc<dyn Cloc
         .map_err(|e| anyhow::anyhow!("Failed to initialize domain event repository: {}", e))?;
 
     // Generation read state repository shares the same pool
-    let generation_read_state_repository_impl =
-        SqliteGenerationReadStateRepository::new(domain_event_repository_impl.pool().clone(), clock);
+    let generation_read_state_repository_impl = SqliteGenerationReadStateRepository::new(
+        domain_event_repository_impl.pool().clone(),
+        clock,
+    );
     generation_read_state_repository_impl.init_schema().await?;
     let generation_read_state_repository: Arc<dyn GenerationReadStatePort> =
         Arc::new(generation_read_state_repository_impl);

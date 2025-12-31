@@ -122,8 +122,239 @@ fn arch_check() -> anyhow::Result<()> {
     check_player_app_protocol_isolation()?;
     check_player_ports_protocol_isolation()?;
     check_no_glob_reexports()?;
+    check_app_does_not_depend_on_inbound_ports()?;
+    check_no_engine_dto_shadowing_engine_ports_types()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
+    Ok(())
+}
+
+/// Check for likely DTO shadowing: types with the same name declared in both
+/// `engine-dto` and `engine-ports`.
+///
+/// This is intended to catch cases like `StagingProposal` being duplicated in both crates.
+///
+/// This is a heuristic check:
+/// - It only looks for `pub struct|enum|type` declarations.
+/// - It only compares by simple type name (no module path).
+///
+/// It runs in WARNING mode initially to avoid blocking while the refactor is in-flight.
+fn check_no_engine_dto_shadowing_engine_ports_types() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let engine_dto_dir = workspace_root.join("crates/engine-dto/src");
+    let engine_ports_dir = workspace_root.join("crates/engine-ports/src");
+
+    if !engine_dto_dir.exists() || !engine_ports_dir.exists() {
+        return Ok(());
+    }
+
+    // Capture public declarations. Keep it simple and robust.
+    // Examples matched:
+    //   pub struct Foo
+    //   pub enum Bar
+    //   pub type Baz = ...;
+    let pub_type_re =
+        regex_lite::Regex::new(r"(?m)^\s*pub\s+(?:struct|enum|type)\s+([A-Za-z_][A-Za-z0-9_]*)\b")
+            .context("compiling pub type capture regex")?;
+
+    let dto_types = collect_public_type_names(&engine_dto_dir, &pub_type_re)?;
+    let port_types = collect_public_type_names(&engine_ports_dir, &pub_type_re)?;
+
+    // Explicitly allowed duplicate names (keep list short; document why).
+    // Most duplicates should be removed by moving the DTO to the owning boundary.
+    let allowed_duplicates: HashSet<&str> = HashSet::from([
+        // Example placeholder; keep empty unless we have a justified exception.
+        // "SomeSharedName",
+    ]);
+
+    let mut collisions: Vec<String> = dto_types
+        .keys()
+        .filter(|name| port_types.contains_key(*name))
+        .filter(|name| !allowed_duplicates.contains(name.as_str()))
+        .cloned()
+        .collect();
+    collisions.sort();
+
+    if !collisions.is_empty() {
+        eprintln!(
+            "Potential DTO duplication: public types declared in BOTH engine-dto and engine-ports ({} names)",
+            collisions.len()
+        );
+        eprintln!(
+            "  Architecture rule: port boundary DTOs must not be shadow-copied in engine-dto"
+        );
+        eprintln!("  Fix: move the type to the owning port module (or remove the duplicate and use the port DTO)");
+        eprintln!();
+
+        for name in &collisions {
+            let dto_locs = dto_types.get(name).cloned().unwrap_or_default();
+            let port_locs = port_types.get(name).cloned().unwrap_or_default();
+
+            eprintln!("  - {name}");
+            for loc in dto_locs.iter().take(3) {
+                eprintln!("      engine-dto:  {loc}");
+            }
+            if dto_locs.len() > 3 {
+                eprintln!("      engine-dto:  (+{} more)", dto_locs.len() - 3);
+            }
+            for loc in port_locs.iter().take(3) {
+                eprintln!("      engine-ports:{loc}");
+            }
+            if port_locs.len() > 3 {
+                eprintln!("      engine-ports:(+{} more)", port_locs.len() - 3);
+            }
+        }
+
+        eprintln!();
+        eprintln!("Note: This check is in WARNING mode (target architecture rule).");
+        // TODO: Uncomment after refactor:
+        // anyhow::bail!("arch-check failed: engine-dto shadows engine-ports types");
+    }
+
+    Ok(())
+}
+
+fn collect_public_type_names(
+    dir: &std::path::Path,
+    pub_type_re: &regex_lite::Regex,
+) -> anyhow::Result<HashMap<String, Vec<String>>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+
+    for entry in walkdir_rs_files(dir)? {
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        for cap in pub_type_re.captures_iter(&contents) {
+            let Some(name) = cap.get(1).map(|m| m.as_str()) else {
+                continue;
+            };
+
+            out.entry(name.to_string())
+                .or_default()
+                .push(entry.display().to_string());
+        }
+    }
+
+    Ok(out)
+}
+
+/// Check that application layer code does not depend on *inbound* ports.
+///
+/// Target architecture rule:
+/// - Inbound ports are what the application offers; they are implemented by app use cases.
+/// - Outbound ports are what the application needs; they are depended on by app code.
+///
+/// Therefore, application code should not import traits from `*-ports/src/inbound/`.
+///
+/// This is a **future-architecture** enforcement check. It intentionally focuses on
+/// import patterns (cheap + stable) rather than full semantic analysis.
+fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    // We only enforce within application source code.
+    // (Runners may legitimately reference inbound ports for wiring; adapters call inbound ports.)
+    let enforced_dirs = [
+        workspace_root.join("crates/engine-app/src"),
+        workspace_root.join("crates/player-app/src"),
+    ];
+
+    // Import patterns to flag:
+    //   use wrldbldr_engine_ports::inbound::...
+    //   use wrldbldr_player_ports::inbound::...
+    // and the fully-qualified path usage variants.
+    let engine_inbound_use_re = regex_lite::Regex::new(r"\buse\s+wrldbldr_engine_ports::inbound::")
+        .context("compiling engine inbound port import regex")?;
+    let player_inbound_use_re = regex_lite::Regex::new(r"\buse\s+wrldbldr_player_ports::inbound::")
+        .context("compiling player inbound port import regex")?;
+
+    let engine_inbound_fqn_re = regex_lite::Regex::new(r"\bwrldbldr_engine_ports::inbound::")
+        .context("compiling engine inbound port fqn regex")?;
+    let player_inbound_fqn_re = regex_lite::Regex::new(r"\bwrldbldr_player_ports::inbound::")
+        .context("compiling player inbound port fqn regex")?;
+
+    // Allowlist: application files that are allowed to reference inbound port modules.
+    // Keep this list very small and justify with comments.
+    //
+    // NOTE: This check is designed to be tightened over time. Prefer moving shared request/response
+    // DTOs into neutral modules (or `outbound`) rather than growing this list.
+    let allowlist_files: HashSet<&str> = [
+        "mod.rs", // module declarations and re-exports
+    ]
+    .into_iter()
+    .collect();
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for dir in enforced_dirs {
+        if !dir.exists() {
+            continue;
+        }
+
+        for entry in walkdir_rs_files(&dir)? {
+            let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+            if allowlist_files.contains(file_name) {
+                continue;
+            }
+
+            let contents = std::fs::read_to_string(&entry)
+                .with_context(|| format!("reading {}", entry.display()))?;
+
+            // Scan lines so we can ignore comments and report an actionable location.
+            for (line_idx, line) in contents.lines().enumerate() {
+                let trimmed = line.trim();
+
+                if trimmed.starts_with("//")
+                    || trimmed.starts_with("/*")
+                    || trimmed.starts_with('*')
+                {
+                    continue;
+                }
+
+                if engine_inbound_use_re.is_match(line)
+                    || player_inbound_use_re.is_match(line)
+                    || engine_inbound_fqn_re.is_match(line)
+                    || player_inbound_fqn_re.is_match(line)
+                {
+                    violations.push(format!(
+                        "{}:{}: application code depends on inbound ports (use outbound ports instead)\n    {}",
+                        entry.display(),
+                        line_idx + 1,
+                        trimmed
+                    ));
+                    break;
+                }
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!(
+            "Inbound-port dependency violations ({} files):",
+            violations.len()
+        );
+        eprintln!("  Architecture rule: application layer must not depend on inbound ports");
+        eprintln!("  Fix: move the dependency to an outbound port / DTO, or push it to the boundary layer");
+        eprintln!();
+        for v in &violations {
+            eprintln!("  - {v}");
+        }
+
+        // Start in WARNING mode so we can land the rule before the refactor completes.
+        // Switch to enforce mode after the inbound/outbound taxonomy cleanup is complete.
+        eprintln!();
+        eprintln!("Note: This check is in WARNING mode (target architecture rule).");
+        // TODO: Uncomment after refactor:
+        // anyhow::bail!("arch-check failed: application code depends on inbound ports");
+    }
+
     Ok(())
 }
 
@@ -251,9 +482,7 @@ fn walkdir_rs_files(dir: &std::path::Path) -> anyhow::Result<Vec<std::path::Path
                 continue;
             }
 
-            if metadata.is_file()
-                && entry_path.extension().and_then(|s| s.to_str()) == Some("rs")
-            {
+            if metadata.is_file() && entry_path.extension().and_then(|s| s.to_str()) == Some("rs") {
                 out.push(entry_path);
             }
         }
@@ -718,9 +947,9 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
 
     // Shared Kernel whitelist: files that legitimately use protocol types at the boundary
     let shared_kernel_files: HashSet<&str> = [
-        "request_port.rs",          // RequestPort trait uses RequestPayload/ResponseResult
-        "game_connection_port.rs",  // WebSocket connection uses protocol message types
-        "mock_game_connection.rs",  // Testing infrastructure mirrors connection port
+        "request_port.rs",         // RequestPort trait uses RequestPayload/ResponseResult
+        "game_connection_port.rs", // WebSocket connection uses protocol message types
+        "mock_game_connection.rs", // Testing infrastructure mirrors connection port
         "player_events.rs", // Re-exports wire-format types from protocol (single source of truth)
         "session_types.rs", // Ports-layer types with bidirectional protocol conversions
     ]
@@ -767,13 +996,17 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
             "Player-ports protocol isolation violations ({} files):",
             violations.len()
         );
-        eprintln!("  Shared Kernel pattern: Only designated boundary files may use protocol types.");
+        eprintln!(
+            "  Shared Kernel pattern: Only designated boundary files may use protocol types."
+        );
         eprintln!("  Whitelisted files: request_port.rs, game_connection_port.rs, mock_game_connection.rs");
         eprintln!();
         for v in &violations {
             eprintln!("  - {v}");
         }
-        anyhow::bail!("arch-check failed: player-ports imports protocol types in non-Shared-Kernel files");
+        anyhow::bail!(
+            "arch-check failed: player-ports imports protocol types in non-Shared-Kernel files"
+        );
     }
 
     Ok(())
@@ -888,7 +1121,10 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         ("wrldbldr-domain", HashSet::from(["wrldbldr-domain-types"])),
         // Protocol (API contract) depends on domain-types for shared vocabulary
         // NOTE: wrldbldr-domain dependency was removed - From impls moved to adapters
-        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain-types"])),
+        (
+            "wrldbldr-protocol",
+            HashSet::from(["wrldbldr-domain-types"]),
+        ),
         (
             "wrldbldr-engine-dto",
             HashSet::from([

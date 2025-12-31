@@ -174,8 +174,14 @@ impl CharacterInventoryPort for Neo4jCharacterRepository {
         equipped: bool,
         acquisition_method: Option<AcquisitionMethod>,
     ) -> Result<()> {
-        self.add_inventory_item_impl(character_id, item_id, quantity, equipped, acquisition_method)
-            .await
+        self.add_inventory_item_impl(
+            character_id,
+            item_id,
+            quantity,
+            equipped,
+            acquisition_method,
+        )
+        .await
     }
 
     async fn get_inventory(&self, character_id: CharacterId) -> Result<Vec<InventoryItem>> {

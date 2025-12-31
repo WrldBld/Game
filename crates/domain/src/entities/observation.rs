@@ -56,7 +56,10 @@ impl std::str::FromStr for ObservationType {
             "direct" => Ok(ObservationType::Direct),
             "heard_about" | "heardabout" => Ok(ObservationType::HeardAbout),
             "deduced" => Ok(ObservationType::Deduced),
-            _ => Err(DomainError::parse(format!("Invalid observation type: {}", s))),
+            _ => Err(DomainError::parse(format!(
+                "Invalid observation type: {}",
+                s
+            ))),
         }
     }
 }

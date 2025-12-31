@@ -2,7 +2,9 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEvent, WorldId};
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEvent, WorldId,
+};
 
 /// Query operations for StoryEvent entities.
 ///
@@ -33,10 +35,12 @@ pub trait StoryEventQueryPort: Send + Sync {
     async fn list_visible(&self, world_id: WorldId, limit: u32) -> Result<Vec<StoryEvent>>;
 
     /// Search story events by tags
-    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>) -> Result<Vec<StoryEvent>>;
+    async fn search_by_tags(&self, world_id: WorldId, tags: Vec<String>)
+        -> Result<Vec<StoryEvent>>;
 
     /// Search story events by text in summary
-    async fn search_by_text(&self, world_id: WorldId, search_text: &str) -> Result<Vec<StoryEvent>>;
+    async fn search_by_text(&self, world_id: WorldId, search_text: &str)
+        -> Result<Vec<StoryEvent>>;
 
     /// List events involving a specific character
     async fn list_by_character(&self, character_id: CharacterId) -> Result<Vec<StoryEvent>>;

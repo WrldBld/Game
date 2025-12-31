@@ -11,9 +11,7 @@ use wrldbldr_domain::entities::{
     ChainedEvent, EventEffect, EventOutcome, NarrativeTrigger, NarrativeTriggerType,
     OutcomeCondition,
 };
-use wrldbldr_domain::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId,
-};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId};
 
 // ============================================================================
 // Stored Types (Serializable DTOs)
@@ -366,15 +364,8 @@ impl From<&EventOutcome> for StoredEventOutcome {
             name: o.name.clone(),
             label: o.label.clone(),
             description: o.description.clone(),
-            condition: o
-                .condition
-                .as_ref()
-                .map(StoredOutcomeCondition::from),
-            effects: o
-                .effects
-                .iter()
-                .map(StoredEventEffect::from)
-                .collect(),
+            condition: o.condition.as_ref().map(StoredOutcomeCondition::from),
+            effects: o.effects.iter().map(StoredEventEffect::from).collect(),
             chain_events: o
                 .chain_events
                 .iter()
@@ -731,16 +722,8 @@ impl From<StoredEventOutcome> for EventOutcome {
             label: s.label,
             description: s.description,
             condition: s.condition.map(OutcomeCondition::from),
-            effects: s
-                .effects
-                .into_iter()
-                .map(EventEffect::from)
-                .collect(),
-            chain_events: s
-                .chain_events
-                .into_iter()
-                .map(ChainedEvent::from)
-                .collect(),
+            effects: s.effects.into_iter().map(EventEffect::from).collect(),
+            chain_events: s.chain_events.into_iter().map(ChainedEvent::from).collect(),
             timeline_summary: s.timeline_summary,
         }
     }

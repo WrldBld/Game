@@ -13,7 +13,9 @@ use wrldbldr_protocol::{
 };
 
 use super::common::{parse_event_chain_id, parse_narrative_event_id, parse_world_id};
-use crate::application::dto::{ChainStatusResponseDto, EventChainResponseDto, NarrativeEventResponseDto};
+use crate::application::dto::{
+    ChainStatusResponseDto, EventChainResponseDto, NarrativeEventResponseDto,
+};
 use crate::application::services::{EventChainService, NarrativeEventService};
 
 // =============================================================================
@@ -201,9 +203,7 @@ pub async fn update_narrative_event(
     // Fetch existing event first
     let existing = match narrative_event_service.get(id).await {
         Ok(Some(e)) => e,
-        Ok(None) => {
-            return ResponseResult::error(ErrorCode::NotFound, "Narrative event not found")
-        }
+        Ok(None) => return ResponseResult::error(ErrorCode::NotFound, "Narrative event not found"),
         Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
     };
     // Apply updates

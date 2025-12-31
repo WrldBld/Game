@@ -15,7 +15,8 @@ pub trait SceneCompletionPort: Send + Sync {
         -> Result<()>;
 
     /// Check if a player character has completed a scene
-    async fn is_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId) -> Result<bool>;
+    async fn is_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId)
+        -> Result<bool>;
 
     /// Get all scenes completed by a player character
     async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>>;

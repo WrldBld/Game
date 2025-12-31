@@ -25,8 +25,6 @@
 pub mod clock;
 pub mod dto_conversions;
 
-#[cfg(any(test, feature = "testing"))]
-pub mod testing;
 pub mod comfyui;
 pub mod config;
 pub mod context_budget;
@@ -44,6 +42,8 @@ pub mod repositories;
 pub mod settings_loader;
 pub mod state_broadcast;
 pub mod suggestion_enqueue_adapter;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 pub mod websocket;
 pub mod websocket_event_subscriber;
 pub mod world_connection_manager;
@@ -80,5 +80,3 @@ pub use wrldbldr_engine_ports::outbound::DmInfo;
 
 // Re-export settings loader
 pub use settings_loader::load_settings_from_env;
-
-

@@ -1,5 +1,14 @@
 # Port Adapter Tech Debt Remediation Plan
 
+> **Validation Addendum (gemini-refactor / 2025-12-31)**
+>
+> This remediation plan largely matches the current codebase, but some items below are a mix of:
+> - **Verified facts** (confirmed by direct inspection / searches), and
+> - **Interpretation/taxonomy** (e.g., what is considered “inbound” vs “outbound”), and
+> - **Estimates** (counts/impact that aren’t directly evidenced in this document).
+>
+> Where we have hard evidence on this branch, we include it inline.
+
 ## Executive Summary
 
 The codebase has accumulated structural tech debt in multiple areas that violate hexagonal architecture principles. This document consolidates all identified issues and provides a prioritized remediation plan.
@@ -7,15 +16,24 @@ The codebase has accumulated structural tech debt in multiple areas that violate
 **Total Impact**:
 - 8 of 10 use cases with port adapter anti-pattern
 - 17 unnecessary adapter structs to delete
-- 8 services with concrete type dependencies (validated)
+- 9 services with concrete type dependencies (validated)
+- 1 use case depending on concrete use case (new)
+- 2 composition layer concrete dependencies (new)
+- 2 services using app-layer traits instead of ports (new)
 - 5 IoC violations (services creating other services)
 - 1 duplicate mock implementation
 - 5 glob re-exports (already flagged by arch-check)
 - 5 additional anti-patterns (handlers with logic, swallowed errors, etc.)
 
-**Total Effort Estimate**: 5-6 days
+**Total Effort Estimate**: 6-7 days
 
-**Last Updated**: Validated by automated analysis
+**Last Updated**: Validated by automated analysis + 3 additional issues identified
+
+**Validation status (this branch)**:
+- ✅ `crates/engine-adapters/src/infrastructure/ports/` directory exists with 9 files (see `docs/plans/PORT_ADAPTER_TECH_DEBT_VALIDATION.md`).
+- ✅ `PlayerActionUseCase` currently depends on concrete `Arc<MovementUseCase>` (see `crates/engine-app/src/application/use_cases/player_action.rs`).
+- ✅ `crates/engine-dto/src/lib.rs` contains 5 glob re-exports; `cargo xtask arch-check` reports these 5 instances (warning mode).
+- ⚠️ “8 of 10 use cases / 17 adapters to delete / 96 files affected” appear to be derived from a script or prior analysis; they’re plausible, but this doc does not include the underlying evidence. Treat as estimates unless re-generated.
 
 ---
 
@@ -24,7 +42,10 @@ The codebase has accumulated structural tech debt in multiple areas that violate
 | Priority | Issue | Count | Effort |
 |----------|-------|-------|--------|
 | **P1** | Use cases depending on inbound ports | 8 use cases, 17 adapters | 2-3 days |
-| **P1** | Services depending on concrete types | 8 services (validated) | 0.5 day |
+| **P1** | Services depending on concrete types | 9 services (validated) | 0.5 day |
+| **P1** | Use case depending on concrete use case | 1 use case | 0.25 day |
+| **P1** | Composition layer concrete dependencies | 2 locations | 0.25 day |
+| **P2** | Services using app-layer traits vs ports | 2 services | 0.5 day |
 | **P2** | IoC violations (services creating services) | 5 locations | 0.5 day |
 | **P2** | Handler with business logic | 1 location | 0.5 day |
 | **P2** | Swallowed errors | 2 locations | 0.25 day |
@@ -58,6 +79,10 @@ CURRENT (wrong):
       → implemented by → PortAdapter (unnecessary layer)
         → wraps → OutboundPort
           → implemented by → Service
+
+**Validation note**: On `gemini-refactor`, the *fact* that several use cases depend on traits under `wrldbldr_engine_ports::inbound::*` is confirmed (e.g. `ChallengeUseCase`, `MovementUseCase`, `SceneUseCase`, `ConnectionUseCase`).
+
+However, whether this is *architecturally wrong* depends on whether those traits are truly “primary/inbound ports” (implemented by driving adapters) vs “secondary/outbound ports” that simply live under the `inbound` module. This plan’s recommended fixes (move/rename) are still reasonable, but the violation is partly a **port taxonomy mismatch** rather than a pure dependency-direction proof.
 ```
 
 ### Affected Use Cases
@@ -152,7 +177,7 @@ Application services should depend on port traits (`Arc<dyn SomePort>`), not con
 | `OutcomeSuggestionService` | `outcome_suggestion_service.rs` | `Arc<PromptTemplateService>` | ✅ Verified |
 | `AppRequestHandler` | `handlers/request_handler.rs` | `Arc<SheetTemplateService>`, `Arc<GenerationQueueProjectionService>` | ✅ Verified |
 | `GenerationQueueProjectionService` | `generation_queue_projection_service.rs` | `AssetServiceImpl` (concrete) | ✅ Verified |
-| `LLMService` | `llm/mod.rs` | `Arc<PromptTemplateService>` | ✅ **Added** (was missed) |
+| `LLMService` | `llm/mod.rs` | `Arc<PromptTemplateService>` | ✅ Verified |
 
 ### Services Incorrectly Listed (Now Removed)
 
@@ -182,7 +207,151 @@ Application services should depend on port traits (`Arc<dyn SomePort>`), not con
 
 ---
 
-## Issue 3: IoC Violations - Services Creating Other Services (P2)
+## Issue 3: Use Case Depending on Concrete Use Case (P1)
+
+### The Problem
+
+`PlayerActionUseCase` depends on `Arc<MovementUseCase>` (concrete type) instead of the port trait `Arc<dyn MovementUseCasePort>`. This violates Dependency Inversion Principle and creates tight coupling between use cases.
+
+### Location
+
+`crates/engine-app/src/application/use_cases/player_action.rs:46`
+
+### Current Code
+
+```rust
+pub struct PlayerActionUseCase {
+    movement: Arc<MovementUseCase>,  // Should be Arc<dyn MovementUseCasePort>
+    // ...
+}
+```
+
+### Impact
+
+- Violates Dependency Inversion Principle
+- Makes `PlayerActionUseCase` harder to test (can't mock MovementUseCase)
+- Creates coupling between use cases
+- Prevents swapping implementations
+
+### Fix
+
+1. `MovementUseCasePort` already exists in `engine-ports/src/inbound/movement_use_case_port.rs`
+2. Change `PlayerActionUseCase` dependency from `Arc<MovementUseCase>` to `Arc<dyn MovementUseCasePort>`
+3. Update composition layer (`use_cases.rs`) to wire port trait instead of concrete type
+4. Update constructor signature
+
+### Related to Issue 1
+
+This is a variant of Issue 1 - use cases should depend on abstractions (ports), not concrete implementations.
+
+---
+
+## Issue 4: Composition Layer Concrete Type Dependencies (P1)
+
+### The Problem
+
+The composition layer stores both port traits and concrete types for the same services, violating hexagonal architecture. The composition layer should only depend on ports, not concrete implementations.
+
+### Locations
+
+1. **AssetServicePorts** (`crates/engine-runner/src/composition/factories/asset_services.rs:143`):
+   ```rust
+   pub generation_queue_projection_service_concrete: Arc<GenerationQueueProjectionService>,
+   ```
+   Comment says: "needed by AppRequestHandler"
+
+2. **UseCaseDependencies** (`crates/engine-runner/src/composition/factories/use_cases.rs:233`):
+   ```rust
+   pub narrative_event_approval_service: Arc<NarrativeEventApprovalService<N>>,
+   ```
+   Comment says: "concrete type for NarrativeEventUseCase generics"
+
+### Impact
+
+- Composition layer should only depend on ports, not concrete types
+- Creates tight coupling between composition and app layers
+- Makes testing harder
+- Violates hexagonal architecture boundaries
+
+### Root Cause
+
+These concrete dependencies exist because:
+- `AppRequestHandler` depends on concrete `Arc<GenerationQueueProjectionService>` (Issue 2)
+- `NarrativeEventUseCase` depends on concrete `Arc<NarrativeEventApprovalService<N>>` (Issue 1)
+
+### Fix
+
+1. Fix root causes first (Issues 1 and 2)
+2. Remove concrete type fields from composition layer structs
+3. Wire only port traits in composition layer
+4. Update all callers to use port traits
+
+### Note
+
+This issue will be resolved automatically once Issues 1 and 2 are fixed, as the composition layer won't need to store concrete types anymore.
+
+---
+
+## Issue 5: Services Using App-Layer Traits vs Port Traits (P2)
+
+### The Problem
+
+Some services use app-layer service traits (`Arc<dyn WorldService>`, `Arc<dyn ChallengeService>`, etc.) instead of port traits (`Arc<dyn WorldServicePort>`, `Arc<dyn ChallengeServicePort>`, etc.).
+
+### Affected Services
+
+| Service | File | App-Layer Traits Used |
+|---------|------|----------------------|
+| `PromptContextServiceImpl` | `prompt_context_service.rs:66-75` | `Arc<dyn WorldService>`, `Arc<dyn ChallengeService>`, `Arc<dyn SkillService>`, `Arc<dyn NarrativeEventService>`, `Arc<dyn DispositionService>`, `Arc<dyn ActantialContextService>` |
+| `DmActionProcessorService` | `dm_action_processor_service.rs:54-58` | `Arc<dyn NarrativeEventService>`, `Arc<dyn SceneService>`, `Arc<dyn InteractionService>` |
+
+### Analysis
+
+- These are trait objects, not concrete types, so it's better than concrete dependencies
+- However, app-layer service traits are defined in `engine-app`, creating a dependency from services to app-layer abstractions
+- Port traits in `engine-ports` are the proper abstraction boundary for hexagonal architecture
+- Port traits already exist for all these services:
+  - `WorldServicePort` ✅
+  - `ChallengeServicePort` ✅
+  - `SkillServicePort` ✅
+  - `NarrativeEventServicePort` ✅
+  - `DispositionServicePort` ✅
+  - `ActantialContextServicePort` ✅
+  - `SceneServicePort` ✅
+  - `InteractionServicePort` ✅
+
+### Impact
+
+- Less severe than concrete dependencies (still testable via trait objects)
+- But violates hexagonal architecture principle: services should depend on ports, not app-layer abstractions
+- Creates circular dependency risk: `engine-app/services` → `engine-app/services` (via traits)
+- Port traits are the proper boundary between layers
+
+### Fix
+
+1. Update `PromptContextServiceImpl` to use port traits:
+   - `Arc<dyn WorldService>` → `Arc<dyn WorldServicePort>`
+   - `Arc<dyn ChallengeService>` → `Arc<dyn ChallengeServicePort>`
+   - `Arc<dyn SkillService>` → `Arc<dyn SkillServicePort>`
+   - `Arc<dyn NarrativeEventService>` → `Arc<dyn NarrativeEventServicePort>`
+   - `Arc<dyn DispositionService>` → `Arc<dyn DispositionServicePort>`
+   - `Arc<dyn ActantialContextService>` → `Arc<dyn ActantialContextServicePort>`
+
+2. Update `DmActionProcessorService` to use port traits:
+   - `Arc<dyn NarrativeEventService>` → `Arc<dyn NarrativeEventServicePort>`
+   - `Arc<dyn SceneService>` → `Arc<dyn SceneServicePort>`
+   - `Arc<dyn InteractionService>` → `Arc<dyn InteractionServicePort>`
+
+3. Update composition layer to wire port traits instead of app-layer service traits
+4. Update constructor signatures
+
+### Priority
+
+P2 - Less severe than concrete type dependencies (Issue 2), but still an architectural violation that should be fixed for hexagonal architecture purity.
+
+---
+
+## Issue 6: IoC Violations - Services Creating Other Services (P2)
 
 ### The Problem
 
@@ -207,7 +376,7 @@ Violations 3-5 are inside `tokio::spawn()` blocks, making them harder to refacto
 
 ---
 
-## Issue 4: Handler with Business Logic (P2)
+## Issue 7: Handler with Business Logic (P2)
 
 ### Location
 `crates/engine-adapters/src/infrastructure/http/asset_routes.rs` - `queue_generation()` (lines 325-420)
@@ -223,7 +392,7 @@ Extract to `AssetGenerationService.queue_batch()` in application layer.
 
 ---
 
-## Issue 5: Swallowed Errors (P2)
+## Issue 8: Swallowed Errors (P2)
 
 ### Location
 `crates/engine-app/src/application/handlers/challenge_handler.rs` - lines 154-156 and 214-216
@@ -242,7 +411,7 @@ Propagate errors or return partial success response with warnings.
 
 ---
 
-## Issue 6: Duplicate MockGameConnectionPort (P2)
+## Issue 9: Duplicate MockGameConnectionPort (P2)
 
 ### Problem
 Two nearly identical mock implementations:
@@ -259,7 +428,7 @@ Delete from `player-ports/outbound/testing/`, keep only in `player-adapters`.
 
 ---
 
-## Issue 7: Direct rand Usage (P3)
+## Issue 10: Direct rand Usage (P3)
 
 ### Location
 `crates/engine-adapters/src/infrastructure/http/workflow_helpers.rs` - lines 8 and 103
@@ -277,7 +446,7 @@ Accept `Arc<dyn RandomPort>` as parameter or move to application layer.
 
 ---
 
-## Issue 8: Multiple Arc<Mutex> Anti-Pattern (P3)
+## Issue 11: Multiple Arc<Mutex> Anti-Pattern (P3)
 
 ### Location
 `crates/engine-adapters/src/infrastructure/comfyui.rs` - lines 53-55 and 141-143
@@ -298,7 +467,7 @@ Consolidate into single `Arc<RwLock<CircuitBreakerInner>>`.
 
 ---
 
-## Issue 9: Partial Batch Queue Failure (P3)
+## Issue 12: Partial Batch Queue Failure (P3)
 
 ### Location
 `crates/engine-adapters/src/infrastructure/http/asset_routes.rs` - lines 370-406
@@ -311,7 +480,7 @@ Use transaction pattern (all-or-nothing) or track failed enqueues in batch statu
 
 ---
 
-## Issue 10: Glob Re-Exports (P3)
+## Issue 13: Glob Re-Exports (P3)
 
 ### Location
 `engine-dto/src/lib.rs` - lines 20-24
@@ -355,7 +524,7 @@ Apply same transformation to:
 - `ConnectionUseCase`
 - `SceneUseCase`
 - `MovementUseCase`
-- `PlayerActionUseCase`
+- `PlayerActionUseCase` (also fix Issue 3: change `Arc<MovementUseCase>` to `Arc<dyn MovementUseCasePort>`)
 - `StagingApprovalUseCase`
 - `NarrativeEventUseCase`
 
@@ -381,6 +550,10 @@ Update services to use existing port traits instead of concrete types:
 | `AppRequestHandler` | `Arc<dyn SheetTemplateServicePort>`, `Arc<dyn GenerationQueueProjectionServicePort>` |
 | `GenerationQueueProjectionService` | `Arc<dyn AssetServicePort>` |
 | `LLMService` | `Arc<dyn PromptTemplateServicePort>` |
+
+**Also fix Issue 5 (App-layer traits):**
+- `PromptContextServiceImpl`: Change all app-layer service traits to port traits
+- `DmActionProcessorService`: Change app-layer service traits to port traits
 
 ### Phase 6: Fix IoC Violations (Day 3)
 
@@ -411,6 +584,11 @@ Update all composition files:
 - `engine-runner/src/composition/factories/queue_services.rs`
 - `engine-runner/src/composition/factories/asset_services.rs`
 
+**Also fix Issue 4 (Composition concrete types):**
+- Remove `generation_queue_projection_service_concrete` from `AssetServicePorts` (after fixing Issue 2)
+- Remove `narrative_event_approval_service` concrete type from `UseCaseDependencies` (after fixing Issue 1)
+- Wire only port traits in composition layer
+
 ### Phase 10: Test Migration (Day 5)
 
 1. Update test imports from inbound to outbound mock types
@@ -421,7 +599,10 @@ Update all composition files:
 
 Add rules to `cargo xtask arch-check`:
 - Use cases should not import from `engine-ports/inbound/` except for `UseCaseContext`
+- Use cases should not depend on concrete use case types (must use port traits)
 - Services should not import concrete service types from same layer
+- Services should prefer port traits over app-layer service traits
+- Composition layer must not store concrete service types
 - No glob re-exports
 
 ---
@@ -459,15 +640,18 @@ crates/player-ports/src/outbound/testing/mock_game_connection.rs
 ## Success Criteria
 
 1. All use cases depend only on outbound ports (except `UseCaseContext`)
-2. All services depend on port traits, not concrete types
-3. No services create other services internally
-4. `engine-adapters/infrastructure/ports/` directory deleted
-5. No duplicate port trait names between inbound/outbound
-6. No duplicate mock implementations
-7. No glob re-exports
-8. No swallowed errors in handlers
-9. `cargo xtask arch-check` passes with new rules
-10. All existing tests pass
+2. All use cases depend on port traits, not concrete use case types
+3. All services depend on port traits, not concrete types
+4. Services prefer port traits over app-layer service traits
+5. No services create other services internally
+6. Composition layer stores only port traits, no concrete types
+7. `engine-adapters/infrastructure/ports/` directory deleted
+8. No duplicate port trait names between inbound/outbound
+9. No duplicate mock implementations
+10. No glob re-exports
+11. No swallowed errors in handlers
+12. `cargo xtask arch-check` passes with new rules
+13. All existing tests pass
 
 ---
 

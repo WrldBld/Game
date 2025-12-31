@@ -101,7 +101,10 @@ pub async fn extract_dm_context(
 ///
 /// Returns None if connection not found or not connected to a world.
 /// Does NOT check DM status - use `extract_dm_context_opt` for that.
-pub async fn extract_context_opt(state: &dyn AppStatePort, client_id: Uuid) -> Option<UseCaseContext> {
+pub async fn extract_context_opt(
+    state: &dyn AppStatePort,
+    client_id: Uuid,
+) -> Option<UseCaseContext> {
     let conn = state
         .connection_context()
         .get_connection_by_client_id(&client_id.to_string())

@@ -144,8 +144,7 @@ impl AppConfig {
                     .unwrap_or(30),
             },
 
-            server_host: std::env::var("SERVER_HOST")
-                .unwrap_or_else(|_| "0.0.0.0".to_string()),
+            server_host: std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             asset_base_path: std::env::var("ASSET_BASE_PATH")
                 .unwrap_or_else(|_| "./data/assets".to_string()),
             generated_assets_path: std::env::var("GENERATED_ASSETS_PATH")

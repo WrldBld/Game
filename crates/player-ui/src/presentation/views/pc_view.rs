@@ -33,7 +33,6 @@ use wrldbldr_player_app::application::dto::{
     DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
 };
 
-
 /// Player Character View - visual novel gameplay interface
 ///
 /// Connection handling and back navigation are provided by WorldSessionLayout wrapper.

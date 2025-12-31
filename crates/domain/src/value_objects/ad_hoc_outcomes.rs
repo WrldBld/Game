@@ -64,8 +64,14 @@ mod tests {
 
         assert_eq!(outcomes.success, "You succeed!");
         assert_eq!(outcomes.failure, "You fail!");
-        assert_eq!(outcomes.critical_success, Some("Critical success!".to_string()));
-        assert_eq!(outcomes.critical_failure, Some("Critical failure!".to_string()));
+        assert_eq!(
+            outcomes.critical_success,
+            Some("Critical success!".to_string())
+        );
+        assert_eq!(
+            outcomes.critical_failure,
+            Some("Critical failure!".to_string())
+        );
     }
 
     #[test]

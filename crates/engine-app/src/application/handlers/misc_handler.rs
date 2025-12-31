@@ -30,10 +30,7 @@ use crate::application::services::{
 // =============================================================================
 
 /// Handle ListSkills request
-pub async fn list_skills(
-    skill_service: &Arc<dyn SkillService>,
-    world_id: &str,
-) -> ResponseResult {
+pub async fn list_skills(skill_service: &Arc<dyn SkillService>, world_id: &str) -> ResponseResult {
     let id = match parse_world_id(world_id) {
         Ok(id) => id,
         Err(e) => return e,
@@ -210,7 +207,10 @@ pub async fn create_relationship(
         .parse()
         .unwrap_or_else(|_| RelationshipType::Custom(data.relationship_type.clone()));
     let relationship = Relationship::new(from_id, to_id, relationship_type);
-    match relationship_service.create_relationship(&relationship).await {
+    match relationship_service
+        .create_relationship(&relationship)
+        .await
+    {
         Ok(()) => ResponseResult::success(serde_json::json!({
             "id": relationship.id.to_string(),
             "from_character_id": data.from_character_id,
@@ -388,7 +388,10 @@ pub async fn set_npc_relationship(
         Err(e) => return e,
     };
     let rel_level = parse_relationship_level(&relationship);
-    match disposition_service.set_relationship(nid, pid, rel_level).await {
+    match disposition_service
+        .set_relationship(nid, pid, rel_level)
+        .await
+    {
         Ok(state) => {
             let dto = npc_disposition_to_dto(&state);
             ResponseResult::success(dto)

@@ -149,6 +149,11 @@ tasks:
     cmds:
       - cargo xtask arch-check
 
+  arch:inventories:
+    desc: Regenerate authoritative inventories in the master refactor plan
+    cmds:
+      - python3 scripts/refresh_hex_arch_inventories.py {{.CLI_ARGS}}
+
   # ===========================================================================
   # Code Quality
   # ===========================================================================

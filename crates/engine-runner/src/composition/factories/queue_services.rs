@@ -98,9 +98,8 @@ pub struct QueueServiceContext {
         >,
     >,
     pub dm_action_queue_service: Arc<DmActionQueueService<QueueBackendEnum<DmActionData>>>,
-    pub llm_queue_service: Arc<
-        LLMQueueService<QueueBackendEnum<LlmRequestData>, OllamaClient, InProcessNotifier>,
-    >,
+    pub llm_queue_service:
+        Arc<LLMQueueService<QueueBackendEnum<LlmRequestData>, OllamaClient, InProcessNotifier>>,
     pub asset_generation_queue_service: Arc<
         AssetGenerationQueueService<
             QueueBackendEnum<AssetGenerationData>,
@@ -125,7 +124,8 @@ pub struct QueueServiceDependencies<'a> {
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
-    pub dialogue_context_service: Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort>,
+    pub dialogue_context_service:
+        Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort>,
     pub generation_event_tx: mpsc::Sender<GenerationEvent>,
     // App-layer services needed for DmActionProcessorService
     pub narrative_event_service: Arc<dyn NarrativeEventService>,

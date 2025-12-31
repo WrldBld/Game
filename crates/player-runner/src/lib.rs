@@ -8,15 +8,12 @@ use wrldbldr_player_ports::outbound::{GameConnectionPort, PlatformPort, RawApiPo
 pub mod config {
     use std::str::FromStr;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    #[derive(Default)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
     pub enum ShellKind {
         #[default]
         Desktop,
         Mobile,
     }
-
-    
 
     impl FromStr for ShellKind {
         type Err = String;
@@ -30,13 +27,10 @@ pub mod config {
         }
     }
 
-    #[derive(Clone, Debug)]
-    #[derive(Default)]
+    #[derive(Clone, Debug, Default)]
     pub struct RunnerConfig {
         pub shell: ShellKind,
     }
-
-    
 }
 
 use config::RunnerConfig;

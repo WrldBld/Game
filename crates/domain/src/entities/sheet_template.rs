@@ -1764,24 +1764,56 @@ impl CharacterSheetTemplate {
                 .with_layout(SectionLayout::Grid { columns: 2 })
                 .with_order(0)
                 .with_field(
-                    SheetField::new("HNT", "Hunt", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Track, ambush, or shoot from a distance")
-                        .with_order(0),
+                    SheetField::new(
+                        "HNT",
+                        "Hunt",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Track, ambush, or shoot from a distance")
+                    .with_order(0),
                 )
                 .with_field(
-                    SheetField::new("STD", "Study", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Scrutinize details, research, analyze")
-                        .with_order(1),
+                    SheetField::new(
+                        "STD",
+                        "Study",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Scrutinize details, research, analyze")
+                    .with_order(1),
                 )
                 .with_field(
-                    SheetField::new("SRV", "Survey", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Observe, spot trouble, gather information")
-                        .with_order(2),
+                    SheetField::new(
+                        "SRV",
+                        "Survey",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Observe, spot trouble, gather information")
+                    .with_order(2),
                 )
                 .with_field(
-                    SheetField::new("TNK", "Tinker", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Fiddle with devices, mechanisms, pick locks")
-                        .with_order(3),
+                    SheetField::new(
+                        "TNK",
+                        "Tinker",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Fiddle with devices, mechanisms, pick locks")
+                    .with_order(3),
                 ),
         )
         // Prowess Actions
@@ -1791,24 +1823,56 @@ impl CharacterSheetTemplate {
                 .with_layout(SectionLayout::Grid { columns: 2 })
                 .with_order(1)
                 .with_field(
-                    SheetField::new("FNS", "Finesse", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Delicate manipulation, subtle misdirection")
-                        .with_order(0),
+                    SheetField::new(
+                        "FNS",
+                        "Finesse",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Delicate manipulation, subtle misdirection")
+                    .with_order(0),
                 )
                 .with_field(
-                    SheetField::new("PRW", "Prowl", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Move stealthily, infiltrate, climb")
-                        .with_order(1),
+                    SheetField::new(
+                        "PRW",
+                        "Prowl",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Move stealthily, infiltrate, climb")
+                    .with_order(1),
                 )
                 .with_field(
-                    SheetField::new("SKR", "Skirmish", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Close-quarters combat, melee fighting")
-                        .with_order(2),
+                    SheetField::new(
+                        "SKR",
+                        "Skirmish",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Close-quarters combat, melee fighting")
+                    .with_order(2),
                 )
                 .with_field(
-                    SheetField::new("WRK", "Wreck", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Smash, breach, destroy with brute force")
-                        .with_order(3),
+                    SheetField::new(
+                        "WRK",
+                        "Wreck",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Smash, breach, destroy with brute force")
+                    .with_order(3),
                 ),
         )
         // Resolve Actions
@@ -1818,24 +1882,56 @@ impl CharacterSheetTemplate {
                 .with_layout(SectionLayout::Grid { columns: 2 })
                 .with_order(2)
                 .with_field(
-                    SheetField::new("ATN", "Attune", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Connect with the supernatural, channel spirits")
-                        .with_order(0),
+                    SheetField::new(
+                        "ATN",
+                        "Attune",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Connect with the supernatural, channel spirits")
+                    .with_order(0),
                 )
                 .with_field(
-                    SheetField::new("CMD", "Command", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Order, compel obedience, intimidate")
-                        .with_order(1),
+                    SheetField::new(
+                        "CMD",
+                        "Command",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Order, compel obedience, intimidate")
+                    .with_order(1),
                 )
                 .with_field(
-                    SheetField::new("CNS", "Consort", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Socialize, gain access through connections")
-                        .with_order(2),
+                    SheetField::new(
+                        "CNS",
+                        "Consort",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Socialize, gain access through connections")
+                    .with_order(2),
                 )
                 .with_field(
-                    SheetField::new("SWY", "Sway", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Influence through charm, reason, or deception")
-                        .with_order(3),
+                    SheetField::new(
+                        "SWY",
+                        "Sway",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Influence through charm, reason, or deception")
+                    .with_order(3),
                 ),
         )
         // Stress & Trauma
@@ -1845,14 +1941,30 @@ impl CharacterSheetTemplate {
                 .with_layout(SectionLayout::Grid { columns: 2 })
                 .with_order(3)
                 .with_field(
-                    SheetField::new("STRESS", "Stress", FieldType::Number { min: Some(0), max: Some(9), default: Some(0) })
-                        .with_description("Current stress level (max 9)")
-                        .with_order(0),
+                    SheetField::new(
+                        "STRESS",
+                        "Stress",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(9),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Current stress level (max 9)")
+                    .with_order(0),
                 )
                 .with_field(
-                    SheetField::new("TRAUMA", "Trauma", FieldType::Number { min: Some(0), max: Some(4), default: Some(0) })
-                        .with_description("Permanent trauma (4 = retirement)")
-                        .with_order(1),
+                    SheetField::new(
+                        "TRAUMA",
+                        "Trauma",
+                        FieldType::Number {
+                            min: Some(0),
+                            max: Some(4),
+                            default: Some(0),
+                        },
+                    )
+                    .with_description("Permanent trauma (4 = retirement)")
+                    .with_order(1),
                 ),
         )
         // Harm
@@ -1862,29 +1974,64 @@ impl CharacterSheetTemplate {
                 .with_layout(SectionLayout::Vertical)
                 .with_order(4)
                 .with_field(
-                    SheetField::new("HARM_3", "Level 3 Harm", FieldType::Text { multiline: false, max_length: Some(50) })
-                        .with_description("Fatal/Catastrophic (need help)")
-                        .with_order(0),
+                    SheetField::new(
+                        "HARM_3",
+                        "Level 3 Harm",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(50),
+                        },
+                    )
+                    .with_description("Fatal/Catastrophic (need help)")
+                    .with_order(0),
                 )
                 .with_field(
-                    SheetField::new("HARM_2A", "Level 2 Harm", FieldType::Text { multiline: false, max_length: Some(50) })
-                        .with_description("Serious (-1 dice)")
-                        .with_order(1),
+                    SheetField::new(
+                        "HARM_2A",
+                        "Level 2 Harm",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(50),
+                        },
+                    )
+                    .with_description("Serious (-1 dice)")
+                    .with_order(1),
                 )
                 .with_field(
-                    SheetField::new("HARM_2B", "Level 2 Harm", FieldType::Text { multiline: false, max_length: Some(50) })
-                        .with_description("Serious (-1 dice)")
-                        .with_order(2),
+                    SheetField::new(
+                        "HARM_2B",
+                        "Level 2 Harm",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(50),
+                        },
+                    )
+                    .with_description("Serious (-1 dice)")
+                    .with_order(2),
                 )
                 .with_field(
-                    SheetField::new("HARM_1A", "Level 1 Harm", FieldType::Text { multiline: false, max_length: Some(50) })
-                        .with_description("Lesser (reduced effect)")
-                        .with_order(3),
+                    SheetField::new(
+                        "HARM_1A",
+                        "Level 1 Harm",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(50),
+                        },
+                    )
+                    .with_description("Lesser (reduced effect)")
+                    .with_order(3),
                 )
                 .with_field(
-                    SheetField::new("HARM_1B", "Level 1 Harm", FieldType::Text { multiline: false, max_length: Some(50) })
-                        .with_description("Lesser (reduced effect)")
-                        .with_order(4),
+                    SheetField::new(
+                        "HARM_1B",
+                        "Level 1 Harm",
+                        FieldType::Text {
+                            multiline: false,
+                            max_length: Some(50),
+                        },
+                    )
+                    .with_description("Lesser (reduced effect)")
+                    .with_order(4),
                 ),
         )
     }

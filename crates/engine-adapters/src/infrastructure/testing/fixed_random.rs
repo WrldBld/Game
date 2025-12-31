@@ -44,27 +44,21 @@ impl FixedRandomPort {
 
 impl RandomPort for FixedRandomPort {
     fn random_f64(&self) -> f64 {
-        let idx = self
-            .index
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let idx = self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let value = self.values[idx % self.values.len()];
         // Normalize to [0.0, 1.0) based on a reasonable max
         (value as f64 / 100.0).clamp(0.0, 0.999999)
     }
 
     fn random_range(&self, min: i32, max: i32) -> i32 {
-        let idx = self
-            .index
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let idx = self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let value = self.values[idx % self.values.len()];
         // Clamp to the requested range
         value.clamp(min, max)
     }
 
     fn random_i64(&self) -> i64 {
-        let idx = self
-            .index
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let idx = self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let value = self.values[idx % self.values.len()];
         value as i64
     }

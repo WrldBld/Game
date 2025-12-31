@@ -127,7 +127,8 @@ impl CircuitBreaker {
 
         if *failure_count >= CIRCUIT_BREAKER_FAILURE_THRESHOLD {
             *state = CircuitBreakerState::Open {
-                until: self.clock.now() + chrono::Duration::seconds(CIRCUIT_BREAKER_OPEN_DURATION_SECS),
+                until: self.clock.now()
+                    + chrono::Duration::seconds(CIRCUIT_BREAKER_OPEN_DURATION_SECS),
             };
         }
     }

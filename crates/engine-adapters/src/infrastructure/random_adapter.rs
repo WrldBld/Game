@@ -52,11 +52,7 @@ mod tests {
         let rng = ThreadRngAdapter::new();
         for _ in 0..100 {
             let value = rng.random_f64();
-            assert!(
-                value >= 0.0 && value < 1.0,
-                "Value {} out of range",
-                value
-            );
+            assert!(value >= 0.0 && value < 1.0, "Value {} out of range", value);
         }
     }
 }

@@ -306,8 +306,6 @@ impl WorldStateManager {
     }
 }
 
-
-
 // === WorldTimePort Implementation ===
 
 impl WorldTimePort for WorldStateManager {

@@ -462,7 +462,7 @@ where
                 workflow_id: i.payload.workflow_id,
                 prompt: i.payload.prompt,
                 count: i.payload.count,
-                negative_prompt: None, // Not stored in domain
+                negative_prompt: None,    // Not stored in domain
                 style_reference_id: None, // Not stored in domain
             },
             priority: i.priority,
@@ -522,7 +522,7 @@ where
                 workflow_id: i.payload.workflow_id,
                 prompt: i.payload.prompt,
                 count: i.payload.count,
-                negative_prompt: None, // Not stored in domain
+                negative_prompt: None,    // Not stored in domain
                 style_reference_id: None, // Not stored in domain
             },
             priority: i.priority,
@@ -551,7 +551,7 @@ where
                     workflow_id: i.payload.workflow_id,
                     prompt: i.payload.prompt,
                     count: i.payload.count,
-                    negative_prompt: None, // Not stored in domain
+                    negative_prompt: None,    // Not stored in domain
                     style_reference_id: None, // Not stored in domain
                 },
                 priority: i.priority,

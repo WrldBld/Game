@@ -67,7 +67,10 @@ impl std::str::FromStr for RegionFrequency {
             "often" => Ok(RegionFrequency::Often),
             "sometimes" | "" => Ok(RegionFrequency::Sometimes),
             "rarely" => Ok(RegionFrequency::Rarely),
-            _ => Err(DomainError::parse(format!("Invalid region frequency: {}", s))),
+            _ => Err(DomainError::parse(format!(
+                "Invalid region frequency: {}",
+                s
+            ))),
         }
     }
 }

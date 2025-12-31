@@ -1,123 +1,278 @@
-# Hexagonal Architecture
+# Hexagonal Architecture (Target)
 
-## Overview
+> **Status**: Canonical architecture spec for WrldBldr.
+>
+> This document defines the **target** hexagonal architecture we’re refactoring toward.
+> It is written to be:
+> - **Internally consistent**
+> - **Enforceable** via crate boundaries + `cargo xtask arch-check`
+> - **Easy to follow** for new contributors and AI agents
+>
+> If you only read one doc before making architectural changes, read this one.
 
-WrldBldr uses hexagonal (ports & adapters) architecture to separate business logic from external concerns. This enables testing, flexibility, and clean dependencies.
+## Goals
 
-The architecture also incorporates a **Shared Kernel** pattern for the Engine-Player communication boundary, where the `protocol` crate defines wire-format types that must be identical on both sides.
+1. **Clear dependency direction**: business logic never depends on infrastructure.
+2. **Stable boundaries**: domain + ports are long-lived; adapters are replaceable.
+3. **No type duplication**: each “kind” of data has a single canonical home.
+4. **WASM-friendly player**: keep wire-format and player contracts small and stable.
+5. **Mechanical enforcement**: where possible, rules are enforced by tooling.
 
----
+## The hexagon (one sentence)
 
-## Architecture Diagram
+**Use cases** implement the app’s API (inbound ports) and orchestrate domain logic by calling **outbound ports**, which are implemented by adapters.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              WrldBldr Architecture                               │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │                           SHARED KERNEL                                     │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  protocol (wrldbldr-protocol)                                        │   │ │
-│  │  │  ├── Wire-format DTOs (REST + WebSocket)                             │   │ │
-│  │  │  ├── ClientMessage / ServerMessage enums                             │   │ │
-│  │  │  ├── RequestPayload / ResponseResult                                 │   │ │
-│  │  │  └── No business logic - pure serialization types                    │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  common (wrldbldr-common)                                            │   │ │
-│  │  │  ├── Pure utility functions (datetime parsing, string helpers)       │   │ │
-│  │  │  ├── No domain type dependencies                                     │   │ │
-│  │  │  └── WASM compatible, minimal dependencies (only chrono)             │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                      │                                           │
-│                    ┌─────────────────┴─────────────────┐                        │
-│                    │                                   │                        │
-│                    ▼                                   ▼                        │
-│  ┌─────────────────────────────────┐   ┌─────────────────────────────────┐     │
-│  │         ENGINE SIDE              │   │         PLAYER SIDE             │     │
-│  ├─────────────────────────────────┤   ├─────────────────────────────────┤     │
-│  │                                 │   │                                 │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   domain (innermost)      │  │   │  │   (shares domain crate)   │  │     │
-│  │  │   Pure business entities  │  │   │  │                           │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-ports            │  │   │  │   player-ports            │  │     │
-│  │  │   Port trait definitions  │  │   │  │   Port trait definitions  │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-app              │  │   │  │   player-app              │  │     │
-│  │  │   Use cases & services    │  │   │  │   Use cases & services    │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-adapters         │  │   │  │   player-adapters         │  │     │
-│  │  │   Neo4j, HTTP, WebSocket  │  │   │  │   HTTP/WS clients, UI     │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-runner           │  │   │  │   player-runner           │  │     │
-│  │  │   Composition root        │  │   │  │   Composition root        │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │                                 │   │              │                  │     │
-│  └─────────────────────────────────┘   │  ┌───────────────────────────┐  │     │
-│                                        │  │   player-ui               │  │     │
-│                                        │  │   Dioxus presentation     │  │     │
-│                                        │  └───────────────────────────┘  │     │
-│                                        └─────────────────────────────────┘     │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+## Crates and layers
 
----
+WrldBldr enforces boundaries primarily through **crate dependencies**.
 
-## Layer Structure
+### Domain (innermost)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DEPENDENCY RULES                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   Domain Layer (innermost)                                                  │
-│   ├── Contains: Entities, Value Objects, Domain Services                    │
-│   ├── Depends on: NOTHING external                                          │
-│   ├── Rule: Pure Rust, no framework dependencies                            │
-│   └── Purity: No I/O (rand, Utc::now, env vars) - use injected ports        │
-│                                                                             │
-│   Ports Layer                                                               │
-│   ├── Contains: Trait definitions (inbound + outbound)                      │
-│   ├── Depends on: Domain only                                               │
-│   ├── Exception: May use Shared Kernel (protocol) for wire-format types     │
-│   └── Rule: Interfaces only, no implementations                             │
-│                                                                             │
-│   Application Layer                                                         │
-│   ├── Contains: Services, Use Cases, DTOs                                   │
-│   ├── Depends on: Domain, Ports                                             │
-│   └── Rule: Orchestrates domain logic via ports                             │
-│                                                                             │
-│   Adapters Layer (outermost)                                                │
-│   ├── Contains: Repositories, External clients, HTTP/WS handlers            │
-│   ├── Depends on: Application, Ports, Protocol                              │
-│   └── Rule: Implements ports, translates external types                     │
-│                                                                             │
-│   Runner Layer                                                              │
-│   ├── Contains: main(), composition root, CLI                               │
-│   ├── Depends on: All layers (wires everything together)                    │
-│   └── Rule: Only place where concrete types are constructed                 │
-│                                                                             │
-│   Presentation Layer (Player only)                                          │
-│   ├── Contains: UI Components, Views, Reactive State                        │
-│   ├── Depends on: Application services (via signals)                        │
-│   └── Rule: Calls services, never adapters directly                         │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+- `crates/domain-types` — shared vocabulary (archetypes, story structures)
+- `crates/domain` — entities, value objects, invariants, typed IDs
+
+**Domain must be pure**:
+- no framework crates (tokio/axum/neo4rs/etc.)
+- no I/O
+- no `Utc::now()` (inject clock)
+- no randomness (inject random)
+
+### Shared kernel
+
+- `crates/protocol` — Engine ↔ Player wire-format types (Serde DTOs)
+- `crates/common` — pure helpers (WASM-safe)
+
+**Protocol is not domain**:
+- protocol types are for serialization and version-tolerant communication
+- business semantics belong in `domain`, not `protocol`
+
+### Ports (contracts)
+
+- `crates/engine-ports`
+- `crates/player-ports`
+
+Ports contain **traits + boundary DTOs**. No implementations.
+
+### Application (use cases + services)
+
+- `crates/engine-app`
+- `crates/player-app`
+
+Application code implements inbound ports and uses outbound ports.
+
+### Adapters (infrastructure)
+
+- `crates/engine-adapters` — Neo4j, Axum handlers, WebSocket server, LLM/ComfyUI clients
+- `crates/player-adapters` — WebSocket client, storage, platform connectors
+
+Adapters implement outbound ports and translate between:
+- protocol DTOs ↔ app/port DTOs
+- DB rows/records ↔ domain entities
+
+### Runners (composition roots)
+
+- `crates/engine-runner`
+- `crates/player-runner`
+
+Only runners are allowed to construct concrete implementations and wire everything together.
+
+## Dependency rules (MUST)
+
+### Crate dependency direction
+
+Allowed dependency edges:
+
+- `domain` → (`domain-types`, `common`*)
+- `{engine,player}-ports` → `domain` (and very limited `protocol`, see whitelist)
+- `{engine,player}-app` → `domain`, `{engine,player}-ports`
+- `{engine,player}-adapters` → `{engine,player}-ports`, `domain`, `protocol`, external crates
+- `{engine,player}-runner` → everything
+- `player-ui` → `protocol`, `player-app` (presentation boundary)
+
+\* `common` in domain should remain tiny and pure; prefer not depending on it unless necessary.
+
+### Inbound vs outbound ports (canonical meaning)
+
+This repository uses the terms **inbound** and **outbound** in a strict sense:
+
+- **Inbound ports (driving ports)**
+    - Define what the application *offers* to the outside world.
+    - Called by: adapters (HTTP/WS handlers), UI/presentation.
+    - Implemented by: application (use cases).
+    - Examples: `MovementUseCasePort`, `SceneUseCasePort`, `ChallengeUseCasePort`.
+
+- **Outbound ports (driven ports)**
+    - Define what the application *needs* from the outside world.
+    - Implemented by: adapters.
+    - Depended on by: application (use cases/services).
+    - Examples: repositories (`*CrudPort`), `ClockPort`, `RandomPort`, `BroadcastPort`, `LlmPort`.
+
+**Hard rule**:
+> Application **use cases and services may depend only on outbound ports** (plus domain + simple context DTOs).
+
+### Naming and location rule
+
+- Inbound ports live in:
+    - `crates/engine-ports/src/inbound/`
+    - `crates/player-ports/src/inbound/`
+
+- Outbound ports live in:
+    - `crates/engine-ports/src/outbound/`
+    - `crates/player-ports/src/outbound/`
+
+If a trait is a dependency of use cases/services, it belongs in **outbound**.
+
+This resolves the current ambiguity where “service-ish” traits live under `inbound`.
+
+## DTO ownership model (no duplication)
+
+To avoid type duplication and adapter/app confusion, every DTO must have a single canonical home.
+
+### 1) Domain types
+
+If it has business semantics and invariants, it belongs in `domain`.
+
+Examples:
+- `Challenge`, `NarrativeEvent`, `Staging`
+- typed IDs (`WorldId`, `CharacterId`)
+
+### 2) Protocol types
+
+If it is part of Engine ↔ Player communication, it belongs in `protocol`.
+
+Rules:
+- protocol types are **Serde-focused**
+- add `#[serde(other)]` variants for forward-compatible enums
+- do not import protocol into domain
+
+### 3) Port boundary DTOs
+
+If it is used *inside the engine* across app↔adapter boundaries, it belongs with the port that owns it:
+
+- `engine-ports/src/outbound/...` for outbound port DTOs
+- `engine-ports/src/inbound/...` for inbound request/response DTOs
+
+These DTOs should be stable and (where possible) independent of protocol.
+
+### 4) Engine-internal DTOs (`engine-dto`)
+
+`engine-dto` exists for **engine-internal** data that is not protocol, not domain, and not a port boundary.
+
+Good candidates:
+- queue payloads that are internal to the engine runner/services
+- persistence snapshots and projections
+- internal handler context objects
+
+**Not allowed**:
+- duplicating DTOs that already exist as port DTOs (example: duplicate `StagingProposal`)
+
+**Target rule**:
+> No “shadow copies” of port DTOs in `engine-dto`.
+
+### Practical rule of thumb
+
+If you have to write a conversion like:
+- `engine_dto::X` ↔ `engine_ports::...::X`
+
+…that’s usually a smell and a sign the DTO has the wrong owner.
+
+## System-to-boundary mapping
+
+WrldBldr’s systems map naturally to use cases (inbound ports) and to a small set of outbound ports.
+
+### Core (foundational) systems
+
+- **Navigation**: locations, regions, movement
+    - Use cases: movement, region/location browsing
+    - Ports: location/region CRUD, connections, time/clock
+
+- **Character**: PCs/NPCs, stats, inventory
+    - Use cases: inventory operations, character selection
+    - Ports: character CRUD, inventory CRUD, item repository
+
+### AI + DM approval systems
+
+- **Challenge**: dice rolls, outcomes, triggers
+    - Use cases: submit roll, trigger challenge, approve outcomes
+    - Ports: challenge repository, broadcast, approval queue, rule system, RNG/clock
+
+- **Narrative**: triggers, effects, event chains
+    - Use cases: approve narrative suggestions, browse library
+    - Ports: narrative CRUD, trigger evaluation inputs, broadcast, approval queue
+
+- **Dialogue**: LLM suggestions, tool calls
+    - Use cases: submit player action, DM approve tool/event/challenge suggestions
+    - Ports: LLM port, tool execution, queues
+
+- **Staging (NPC presence)**
+    - Use cases: staging approval, pre-staging, movement integration
+    - Ports: staging repository, NPC relationships, narrative context providers, clock
+
+### Asset system
+
+- **Asset**: ComfyUI generation, workflow config, gallery assets
+    - Use cases: queue generation, retry, cancel, set active assets
+    - Ports: workflow repository, generation queue, storage/file system adapter, ComfyUI client
+
+## Known current violations (tracked)
+
+These are high-impact known gaps to refactor toward this target architecture:
+
+- **Port taxonomy drift**: some traits currently under `engine-ports/inbound` are used as outbound dependencies.
+- **Port adapter anti-pattern**: wrapper adapters exist in `engine-adapters/src/infrastructure/ports/`.
+- **Concrete dependencies in application**:
+    - use cases depending on concrete use cases
+    - services depending on concrete service types instead of ports
+- **DTO duplication**:
+    - `StagingProposal` exists in both `engine-dto` and `engine-ports`.
+
+See:
+- `docs/plans/PORT_ADAPTER_TECH_DEBT_REMEDIATION.md`
+- `docs/plans/PORT_ADAPTER_TECH_DEBT_VALIDATION.md`
+- `docs/plans/ADDITIONAL_HEXAGONAL_VIOLATIONS.md`
+
+## Enforcement (tooling)
+
+### Existing
+
+- `cargo xtask arch-check` is the canonical boundary enforcement gate.
+
+### Target (add over time)
+
+We will extend checks to enforce:
+
+1. No use-case or service depends on a trait from `engine-ports/src/inbound/` other than:
+     - the inbound port it implements
+     - `UseCaseContext` (DTO)
+
+2. No `engine-dto` type duplicates a port DTO (by name or via explicit “X ↔ X” conversions).
+
+3. No composition root stores concrete types where a port trait exists.
+
+## FAQ
+
+### “Can the player depend on the domain crate?”
+
+It can today, but it carries a cost (WASM size and accidental coupling). The target direction is:
+
+- Player UI and player-app should prefer `protocol` types.
+- If player needs shared semantics, use `domain-types` (small) instead of full `domain`.
+
+This will be revisited as part of the protocol↔domain decoupling work.
+
+### “Where do I put a new DTO?”
+
+- If it’s wire format: `protocol`
+- If it’s business semantics: `domain`
+- If it’s app↔adapter contract: the owning port module (`engine-ports`)
+- If it’s internal glue: `engine-dto`
+
+## Edit policy
+
+- This document is the **source of truth**.
+- If the codebase contradicts this document, we either:
+    - refactor the code to match, or
+    - document an explicit exception (with a link to an ADR / plan).
 
 ---
 

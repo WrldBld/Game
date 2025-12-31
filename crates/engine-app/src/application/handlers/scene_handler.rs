@@ -22,10 +22,7 @@ use crate::application::services::{
 // =============================================================================
 
 /// Handle ListScenes request
-pub async fn list_scenes(
-    scene_service: &Arc<dyn SceneService>,
-    act_id: &str,
-) -> ResponseResult {
+pub async fn list_scenes(scene_service: &Arc<dyn SceneService>, act_id: &str) -> ResponseResult {
     let id = match parse_act_id(act_id) {
         Ok(id) => id,
         Err(e) => return e,
@@ -40,10 +37,7 @@ pub async fn list_scenes(
 }
 
 /// Handle GetScene request
-pub async fn get_scene(
-    scene_service: &Arc<dyn SceneService>,
-    scene_id: &str,
-) -> ResponseResult {
+pub async fn get_scene(scene_service: &Arc<dyn SceneService>, scene_id: &str) -> ResponseResult {
     let id = match parse_scene_id(scene_id) {
         Ok(id) => id,
         Err(e) => return e,

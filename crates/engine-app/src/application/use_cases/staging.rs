@@ -18,8 +18,8 @@ use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::{CharacterId, GameTime, WorldId};
 use wrldbldr_engine_ports::inbound::{StagingUseCasePort, UseCaseContext};
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationCrudPort,
-    NpcPresenceData, RegionCrudPort, StagingReadyEvent, WaitingPcData,
+    BroadcastPort, CharacterCrudPort, ClockPort, GameEvent, LocationCrudPort, NpcPresenceData,
+    RegionCrudPort, StagingReadyEvent, WaitingPcData,
 };
 
 use super::builders::SceneBuilder;

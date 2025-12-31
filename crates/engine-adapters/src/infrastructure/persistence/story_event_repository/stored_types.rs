@@ -11,9 +11,7 @@ use wrldbldr_domain::entities::{
     ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType, ItemSource,
     MarkerImportance, StoryEventInfoImportance, StoryEventType,
 };
-use wrldbldr_domain::{
-    ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId,
-};
+use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId};
 
 // ============================================================================
 // Storage DTOs for StoryEventType

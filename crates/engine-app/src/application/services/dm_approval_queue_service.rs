@@ -25,10 +25,10 @@ use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, World
 use wrldbldr_engine_ports::outbound::{
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
     ApprovalQueuePort, ApprovalRequest, ApprovalUrgency as PortApprovalUrgency,
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, ClockPort,
-    DialogueContextServicePort, DmApprovalDecision as PortDmApprovalDecision,
-    DmApprovalQueueServicePort, NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError,
-    QueueItem, QueueItemId, QueueItemStatus,
+    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, ClockPort, DialogueContextServicePort,
+    DmApprovalDecision as PortDmApprovalDecision, DmApprovalQueueServicePort,
+    NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError, QueueItem, QueueItemId,
+    QueueItemStatus,
 };
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
@@ -838,11 +838,10 @@ fn convert_port_to_domain_approval(request: &ApprovalRequest) -> ApprovalRequest
         decision_type: convert_port_decision_type(request.decision_type.clone()),
         urgency: convert_port_urgency(request.urgency),
         pc_id: request.pc_id.map(PlayerCharacterId::from_uuid),
-        npc_id: request.npc_id.as_ref().and_then(|s| {
-            uuid::Uuid::parse_str(s)
-                .ok()
-                .map(CharacterId::from_uuid)
-        }),
+        npc_id: request
+            .npc_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok().map(CharacterId::from_uuid)),
         npc_name: request.npc_name.clone(),
         proposed_dialogue: request.proposed_dialogue.clone(),
         internal_reasoning: request.internal_reasoning.clone(),
@@ -893,12 +892,14 @@ fn convert_port_to_domain_approval(request: &ApprovalRequest) -> ApprovalRequest
             }
         }),
         player_dialogue: request.player_dialogue.clone(),
-        scene_id: request.scene_id.as_ref().and_then(|s| {
-            uuid::Uuid::parse_str(s).ok().map(SceneId::from_uuid)
-        }),
-        location_id: request.location_id.as_ref().and_then(|s| {
-            uuid::Uuid::parse_str(s).ok().map(LocationId::from_uuid)
-        }),
+        scene_id: request
+            .scene_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok().map(SceneId::from_uuid)),
+        location_id: request
+            .location_id
+            .as_ref()
+            .and_then(|s| uuid::Uuid::parse_str(s).ok().map(LocationId::from_uuid)),
         game_time: request.game_time.clone(),
         topics: request.topics.clone(),
     }
@@ -960,11 +961,21 @@ where
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
         Ok(item.map(|i| {
-            convert_domain_to_port_approval(&i.payload, i.id, i.priority, i.created_at, i.updated_at)
+            convert_domain_to_port_approval(
+                &i.payload,
+                i.id,
+                i.priority,
+                i.created_at,
+                i.updated_at,
+            )
         }))
     }
 
-    async fn complete(&self, id: uuid::Uuid, decision: PortDmApprovalDecision) -> anyhow::Result<()> {
+    async fn complete(
+        &self,
+        id: uuid::Uuid,
+        decision: PortDmApprovalDecision,
+    ) -> anyhow::Result<()> {
         // Get the item first to extract world_id
         let item = self
             .queue
@@ -1012,7 +1023,13 @@ where
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
         Ok(item.map(|i| {
-            convert_domain_to_port_approval(&i.payload, i.id, i.priority, i.created_at, i.updated_at)
+            convert_domain_to_port_approval(
+                &i.payload,
+                i.id,
+                i.priority,
+                i.created_at,
+                i.updated_at,
+            )
         }))
     }
 
@@ -1054,7 +1071,10 @@ where
     }
 
     async fn depth(&self) -> anyhow::Result<usize> {
-        self.queue.depth().await.map_err(|e| anyhow::anyhow!("{}", e))
+        self.queue
+            .depth()
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     async fn list_by_status(

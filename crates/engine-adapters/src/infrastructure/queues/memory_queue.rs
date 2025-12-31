@@ -74,9 +74,9 @@ where
         for (idx, item) in items.iter().enumerate() {
             let is_ready = match item.status {
                 QueueItemStatus::Pending => true,
-                QueueItemStatus::Delayed => item
-                    .scheduled_at
-                    .is_some_and(|scheduled| scheduled <= now),
+                QueueItemStatus::Delayed => {
+                    item.scheduled_at.is_some_and(|scheduled| scheduled <= now)
+                }
                 _ => false,
             };
 
@@ -117,9 +117,9 @@ where
         for item in items.iter() {
             let is_ready = match item.status {
                 QueueItemStatus::Pending => true,
-                QueueItemStatus::Delayed => item
-                    .scheduled_at
-                    .is_some_and(|scheduled| scheduled <= now),
+                QueueItemStatus::Delayed => {
+                    item.scheduled_at.is_some_and(|scheduled| scheduled <= now)
+                }
                 _ => false,
             };
 

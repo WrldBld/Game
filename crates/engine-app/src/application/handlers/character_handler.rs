@@ -28,7 +28,8 @@ pub async fn list_characters(
     };
     match character_service.list_characters(id).await {
         Ok(characters) => {
-            let dtos: Vec<CharacterResponseDto> = characters.into_iter().map(|c| c.into()).collect();
+            let dtos: Vec<CharacterResponseDto> =
+                characters.into_iter().map(|c| c.into()).collect();
             ResponseResult::success(dtos)
         }
         Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),

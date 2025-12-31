@@ -711,11 +711,12 @@ pub struct SheetSection {
 pub enum SectionLayout {
     #[default]
     Vertical,
-    Grid { columns: u8 },
+    Grid {
+        columns: u8,
+    },
     Flow,
     TwoColumn,
 }
-
 
 /// A field in the character sheet
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

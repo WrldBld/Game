@@ -24,7 +24,6 @@ use wrldbldr_player_app::application::dto::{
     ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
 
-
 /// The original Director mode content (directing gameplay)
 #[component]
 pub fn DirectorModeContent() -> Element {

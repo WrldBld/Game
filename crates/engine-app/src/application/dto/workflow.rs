@@ -10,8 +10,8 @@ use uuid::Uuid;
 use wrldbldr_common::datetime::parse_datetime_or;
 
 use wrldbldr_domain::entities::{WorkflowConfiguration, WorkflowSlot};
-use wrldbldr_domain_types::analyze_workflow;
 use wrldbldr_domain::WorkflowConfigId;
+use wrldbldr_domain_types::analyze_workflow;
 use wrldbldr_protocol::{
     WorkflowConfigExportDto, WorkflowConfigFullResponseDto, WorkflowConfigResponseDto,
 };
@@ -125,5 +125,3 @@ pub fn workflow_config_from_export_dto(
         updated_at,
     })
 }
-
-

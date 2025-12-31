@@ -441,9 +441,7 @@ impl StoryEventService for StoryEventServiceImpl {
             .add_involved_character(event_id, InvolvedCharacter::actor(character_id))
             .await?;
         if let Some(cid) = challenge_id {
-            self.edge
-                .set_recorded_challenge(event_id, cid)
-                .await?;
+            self.edge.set_recorded_challenge(event_id, cid).await?;
         }
 
         self.publish_event_created(&event).await;
@@ -1013,8 +1011,7 @@ impl StoryEventServicePort for StoryEventServiceImpl {
 
     async fn list_by_world(&self, world_id: WorldId, limit: usize) -> Result<Vec<StoryEvent>> {
         // Use list_by_world_paginated with limit
-        StoryEventService::list_by_world_paginated(self, world_id, limit as u32, 0)
-            .await
+        StoryEventService::list_by_world_paginated(self, world_id, limit as u32, 0).await
     }
 
     async fn record_event(
@@ -1287,8 +1284,14 @@ impl StoryEventRecordingServicePort for StoryEventServiceImpl {
         session_name: Option<String>,
         players_present: Vec<String>,
     ) -> Result<StoryEventId> {
-        StoryEventService::record_session_started(self, world_id, session_number, session_name, players_present)
-            .await
+        StoryEventService::record_session_started(
+            self,
+            world_id,
+            session_number,
+            session_name,
+            players_present,
+        )
+        .await
     }
 
     async fn record_session_ended(

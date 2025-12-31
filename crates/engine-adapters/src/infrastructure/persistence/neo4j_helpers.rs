@@ -90,9 +90,7 @@ impl NodeExt for Node {
     }
 
     fn get_optional_string(&self, field: &str) -> Option<String> {
-        self.get::<String>(field)
-            .ok()
-            .and_then(|s| s.into_option())
+        self.get::<String>(field).ok().and_then(|s| s.into_option())
     }
 
     fn get_string_or(&self, field: &str, default: &str) -> String {

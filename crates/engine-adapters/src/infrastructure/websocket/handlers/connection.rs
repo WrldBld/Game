@@ -82,7 +82,10 @@ pub async fn handle_join_world(
 }
 
 /// Handles LeaveWorld requests by delegating to ConnectionUseCase.
-pub async fn handle_leave_world(state: &dyn AppStatePort, client_id: Uuid) -> Option<ServerMessage> {
+pub async fn handle_leave_world(
+    state: &dyn AppStatePort,
+    client_id: Uuid,
+) -> Option<ServerMessage> {
     let _ = state.connection_use_case().leave_world(client_id).await;
     None // No response needed
 }

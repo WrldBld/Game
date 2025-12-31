@@ -1389,7 +1389,10 @@ pub fn handle_server_message(
         }
 
         // Catch-all for unhandled or future event types
-        PlayerEvent::Raw { message_type, payload } => {
+        PlayerEvent::Raw {
+            message_type,
+            payload,
+        } => {
             tracing::debug!(
                 message_type = %message_type,
                 "Received unhandled raw event type"

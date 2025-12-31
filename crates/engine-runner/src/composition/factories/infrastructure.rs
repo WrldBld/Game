@@ -173,9 +173,12 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
     // =========================================================================
     // Prompt template service
     // =========================================================================
-    let prompt_template_repository_impl = SqlitePromptTemplateRepository::new(settings_pool.clone())
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialize prompt template repository: {}", e))?;
+    let prompt_template_repository_impl =
+        SqlitePromptTemplateRepository::new(settings_pool.clone())
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to initialize prompt template repository: {}", e)
+            })?;
     let prompt_template_repository: Arc<dyn PromptTemplateRepositoryPort> =
         Arc::new(prompt_template_repository_impl);
     let prompt_template_service_concrete = Arc::new(PromptTemplateService::new(
@@ -187,11 +190,12 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
     // =========================================================================
     // Directorial context repository
     // =========================================================================
-    let directorial_context_repo_impl = SqliteDirectorialContextRepository::new(settings_pool.clone())
-        .await
-        .map_err(|e| {
-            anyhow::anyhow!("Failed to initialize directorial context repository: {}", e)
-        })?;
+    let directorial_context_repo_impl =
+        SqliteDirectorialContextRepository::new(settings_pool.clone())
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to initialize directorial context repository: {}", e)
+            })?;
     let directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort> =
         Arc::new(directorial_context_repo_impl);
     tracing::info!("Initialized directorial context repository");

@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use wrldbldr_domain::{Character, CharacterId, FrequencyLevel, LocationId, RegionId};
 use wrldbldr_domain::value_objects::{RegionRelationship, RegionShift};
+use wrldbldr_domain::{Character, CharacterId, FrequencyLevel, LocationId, RegionId};
 
 /// Character-Location relationship operations.
 ///

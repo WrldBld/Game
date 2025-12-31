@@ -142,9 +142,7 @@ impl<RC: RegionCrudPort, RN: RegionNpcPort, N: NarrativeEventCrudPort>
         &self,
         region_id: RegionId,
     ) -> Result<Vec<(Character, RegionRelationshipType)>> {
-        self.region_npc
-            .get_npcs_related_to_region(region_id)
-            .await
+        self.region_npc.get_npcs_related_to_region(region_id).await
     }
 
     /// Get active narrative events relevant to staging

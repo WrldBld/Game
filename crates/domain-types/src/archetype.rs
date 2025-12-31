@@ -29,7 +29,6 @@ pub enum CampbellArchetype {
     Ally,
 }
 
-
 impl CampbellArchetype {
     /// Returns a description of this archetype's narrative function
     pub fn description(&self) -> &'static str {

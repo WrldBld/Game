@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use wrldbldr_domain::{CharacterId, CharacterWant, Want, WantId};
 use wrldbldr_domain::value_objects::WantTarget;
+use wrldbldr_domain::{CharacterId, CharacterWant, Want, WantId};
 
 /// Want management operations for Character entities.
 ///

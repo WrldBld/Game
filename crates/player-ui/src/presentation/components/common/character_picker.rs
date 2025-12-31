@@ -110,10 +110,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!(
-                            "Failed to load PCs (may not have active world): {:?}",
-                            e
-                        );
+                        tracing::warn!("Failed to load PCs (may not have active world): {:?}", e);
                     }
                 }
 

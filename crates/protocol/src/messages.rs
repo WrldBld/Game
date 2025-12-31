@@ -872,8 +872,6 @@ pub enum CharacterPosition {
     Unknown,
 }
 
-
-
 /// Available interaction
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InteractionData {

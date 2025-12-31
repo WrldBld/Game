@@ -515,18 +515,18 @@ fn row_to_scene(row: Row) -> Result<Scene> {
 
     // JSON fields - required
     let time_context: TimeContext = node.get_json::<TimeContextStored>("time_context")?.into();
-    let entry_conditions: Vec<SceneCondition> =
-        node.get_json::<Vec<SceneConditionStored>>("entry_conditions")?
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<_>>>()?;
+    let entry_conditions: Vec<SceneCondition> = node
+        .get_json::<Vec<SceneConditionStored>>("entry_conditions")?
+        .into_iter()
+        .map(TryInto::try_into)
+        .collect::<Result<Vec<_>>>()?;
 
     // JSON fields - optional/with defaults
-    let featured_characters: Vec<CharacterId> =
-        node.get_json_or_default::<Vec<String>>("featured_characters")
-            .into_iter()
-            .filter_map(|s| uuid::Uuid::parse_str(&s).ok().map(CharacterId::from_uuid))
-            .collect();
+    let featured_characters: Vec<CharacterId> = node
+        .get_json_or_default::<Vec<String>>("featured_characters")
+        .into_iter()
+        .filter_map(|s| uuid::Uuid::parse_str(&s).ok().map(CharacterId::from_uuid))
+        .collect();
 
     // Optional string field
     let backdrop_override = node.get_optional_string("backdrop_override");

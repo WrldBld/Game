@@ -184,7 +184,13 @@ impl<T: GameConnectionPort + ?Sized> DmControlPort for T {
         ttl_hours: i32,
         source: &str,
     ) -> anyhow::Result<()> {
-        GameConnectionPort::send_staging_approval(self, request_id, approved_npcs, ttl_hours, source)
+        GameConnectionPort::send_staging_approval(
+            self,
+            request_id,
+            approved_npcs,
+            ttl_hours,
+            source,
+        )
     }
 
     fn request_staging_regenerate(&self, request_id: &str, guidance: &str) -> anyhow::Result<()> {

@@ -11,8 +11,10 @@ mod asset_generation_queue_service_port;
 mod asset_service_port;
 mod broadcast_port;
 mod challenge_outcome_approval_service_port;
+mod challenge_repository;
 mod challenge_resolution_service_port;
 mod challenge_service_port;
+mod character_repository;
 mod character_service_port;
 mod clock_port;
 mod comfyui_port;
@@ -25,6 +27,7 @@ mod dm_approval_queue_service_port;
 mod domain_event_repository_port;
 mod environment_port;
 mod event_bus_port;
+mod event_chain_repository;
 mod event_chain_service_port;
 mod event_effect_executor_port;
 mod event_notifier_port;
@@ -37,19 +40,13 @@ mod interaction_service_port;
 mod item_service_port;
 mod llm_port;
 mod llm_queue_service_port;
+mod location_repository;
 mod location_service_port;
 mod narrative_event_approval_service_port;
 mod narrative_event_repository;
 mod narrative_event_service_port;
-mod challenge_repository;
-mod character_repository;
-mod event_chain_repository;
-mod location_repository;
-mod player_character_repository;
-mod region_repository;
-mod scene_repository;
-mod story_event_repository;
 mod player_action_queue_service_port;
+mod player_character_repository;
 mod player_character_service_port;
 mod prompt_context_service_port;
 mod prompt_template_port;
@@ -57,9 +54,11 @@ mod prompt_template_service_port;
 mod queue_notification_port;
 mod queue_port;
 mod random_port;
+mod region_repository;
 mod region_service_port;
 mod relationship_service_port;
 mod repository_port;
+mod scene_repository;
 mod scene_resolution_service_port;
 mod scene_service_port;
 mod settings_port;
@@ -71,6 +70,7 @@ mod staging_service_port;
 mod story_event_admin_service_port;
 mod story_event_query_service_port;
 mod story_event_recording_service_port;
+mod story_event_repository;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
 mod trigger_evaluation_service_port;
@@ -95,9 +95,9 @@ pub use challenge_service_port::MockChallengeServicePort;
 pub use clock_port::ClockPort;
 
 // Random port - RNG abstraction for deterministic testing
-pub use random_port::RandomPort;
 #[cfg(any(test, feature = "testing"))]
 pub use random_port::MockRandomPort;
+pub use random_port::RandomPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
@@ -161,11 +161,11 @@ pub use repository_port::{
 // - StoryEventEdgePort: Edge relationship management (15 methods)
 // - StoryEventQueryPort: Query operations (10 methods)
 // - StoryEventDialoguePort: Dialogue-specific operations (2 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_repository::MockStoryEventRepository;
 pub use story_event_repository::{
     StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use story_event_repository::MockStoryEventRepository;
 
 // NarrativeEvent repository ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -173,11 +173,11 @@ pub use story_event_repository::MockStoryEventRepository;
 // - NarrativeEventTiePort: Scene/Location/Act relationships (9 methods)
 // - NarrativeEventNpcPort: Featured NPC management (5 methods)
 // - NarrativeEventQueryPort: Query by relationships (4 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_repository::MockNarrativeEventRepository;
 pub use narrative_event_repository::{
     NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use narrative_event_repository::MockNarrativeEventRepository;
 
 // Character repository ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -205,12 +205,12 @@ pub use character_repository::{
 // - ChallengeScenePort: Scene relationship management (3 methods)
 // - ChallengePrerequisitePort: Prerequisite chain management (4 methods)
 // - ChallengeAvailabilityPort: Location/region availability + unlocks (9 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_repository::MockChallengeRepository;
 pub use challenge_repository::{
     ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
     ChallengeSkillPort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use challenge_repository::MockChallengeRepository;
 
 // Location repository ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -234,13 +234,13 @@ pub use location_repository::{
 // - RegionExitPort: Region-to-location exits (3 methods)
 // - RegionNpcPort: NPC relationship queries (1 method)
 // - RegionItemPort: Item placement in regions (3 stub methods)
-pub use region_repository::{
-    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionItemPort, RegionNpcPort,
-};
 #[cfg(any(test, feature = "testing"))]
 pub use region_repository::{
     MockRegionConnectionPort, MockRegionCrudPort, MockRegionExitPort, MockRegionItemPort,
     MockRegionNpcPort, MockRegionRepository,
+};
+pub use region_repository::{
+    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionItemPort, RegionNpcPort,
 };
 
 // PlayerCharacter repository ports - split for Interface Segregation Principle (Clean ISP)
@@ -249,12 +249,12 @@ pub use region_repository::{
 // - PlayerCharacterQueryPort: Query/lookup operations (4 methods)
 // - PlayerCharacterPositionPort: Position/movement operations (3 methods)
 // - PlayerCharacterInventoryPort: Inventory management (5 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use player_character_repository::MockPlayerCharacterRepository;
 pub use player_character_repository::{
     PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
     PlayerCharacterQueryPort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use player_character_repository::MockPlayerCharacterRepository;
 
 // Scene repository ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -263,12 +263,12 @@ pub use player_character_repository::MockPlayerCharacterRepository;
 // - SceneLocationPort: AT_LOCATION edge management (2 methods)
 // - SceneFeaturedCharacterPort: FEATURES_CHARACTER edges (5 methods)
 // - SceneCompletionPort: COMPLETED_SCENE tracking (3 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use scene_repository::MockSceneRepository;
 pub use scene_repository::{
     SceneCompletionPort, SceneCrudPort, SceneFeaturedCharacterPort, SceneLocationPort,
     SceneQueryPort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use scene_repository::MockSceneRepository;
 
 // EventChain repository ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -276,11 +276,11 @@ pub use scene_repository::MockSceneRepository;
 // - EventChainQueryPort: Query/lookup operations (4 methods)
 // - EventChainMembershipPort: Event membership management (3 methods)
 // - EventChainStatePort: Status and state management (5 methods)
+#[cfg(any(test, feature = "testing"))]
+pub use event_chain_repository::MockEventChainRepository;
 pub use event_chain_repository::{
     EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainStatePort,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use event_chain_repository::MockEventChainRepository;
 
 pub use prompt_template_port::{
     PromptTemplateError, PromptTemplateRepositoryPort, PromptTemplateSource, ResolvedPromptTemplate,
@@ -382,12 +382,12 @@ pub use game_events::{
 // - ConnectionContextPort: Resolve client/connection context (7 methods)
 // - ConnectionBroadcastPort: Broadcast messages (4 methods)
 // - ConnectionLifecyclePort: Connection lifecycle (1 method)
+#[cfg(any(test, feature = "testing"))]
+pub use world_connection_manager::MockWorldConnectionManager;
 pub use world_connection_manager::{
     ConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext, ConnectionContextPort,
     ConnectionLifecyclePort, ConnectionManagerError, ConnectionQueryPort, ConnectionStats, DmInfo,
 };
-#[cfg(any(test, feature = "testing"))]
-pub use world_connection_manager::MockWorldConnectionManager;
 
 // WorldState ports - split for Interface Segregation Principle (Clean ISP)
 // Services should depend only on the specific traits they need:
@@ -499,8 +499,8 @@ pub use player_action_queue_service_port::{
 #[cfg(any(test, feature = "testing"))]
 pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
 pub use dm_approval_queue_service_port::{
-    ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency,
-    DmApprovalDecision, DmApprovalQueueServicePort,
+    ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency, DmApprovalDecision,
+    DmApprovalQueueServicePort,
 };
 // Re-export protocol types for API compatibility
 pub use wrldbldr_protocol::{

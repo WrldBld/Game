@@ -30,7 +30,9 @@ use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWo
 use wrldbldr_engine_app::application::services::{
     DMApprovalQueueService, DmActionQueueService, ItemServiceImpl,
 };
-use wrldbldr_engine_ports::outbound::{DmActionProcessorPort, DmActionResult, QueueNotificationPort};
+use wrldbldr_engine_ports::outbound::{
+    DmActionProcessorPort, DmActionResult, QueueNotificationPort,
+};
 use wrldbldr_protocol::{ProposedToolInfo, ServerMessage};
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
@@ -169,8 +171,10 @@ pub async fn dm_action_worker(
                 async move {
                     // Delegate business logic to application layer via port
                     let action_type = format!("{:?}", action.action);
-                    let action_data = serde_json::to_value(&action.action)
-                        .map_err(|e: serde_json::Error| wrldbldr_engine_ports::outbound::QueueError::Backend(e.to_string()))?;
+                    let action_data =
+                        serde_json::to_value(&action.action).map_err(|e: serde_json::Error| {
+                            wrldbldr_engine_ports::outbound::QueueError::Backend(e.to_string())
+                        })?;
 
                     match processor
                         .process_action(&action_type, action_data, action.world_id, &action.dm_id)
@@ -276,9 +280,7 @@ async fn broadcast_dm_action_result(
                 message: format!(
                     "Narrative event '{}' has been triggered{}",
                     event_name,
-                    outcome
-                        .map(|o| format!(": {}", o))
-                        .unwrap_or_default()
+                    outcome.map(|o| format!(": {}", o)).unwrap_or_default()
                 ),
             };
             world_connection_manager
@@ -310,13 +312,40 @@ fn parse_scene_update_from_json(scene_data: Value) -> Result<ServerMessage, ()> 
     let interactions = scene_data.get("interactions").ok_or(())?;
 
     let scene_data_result = SceneData {
-        id: scene.get("id").and_then(Value::as_str).ok_or(())?.to_string(),
-        name: scene.get("name").and_then(Value::as_str).ok_or(())?.to_string(),
-        location_id: scene.get("location_id").and_then(Value::as_str).ok_or(())?.to_string(),
-        location_name: scene.get("location_name").and_then(Value::as_str).ok_or(())?.to_string(),
-        backdrop_asset: scene.get("backdrop_asset").and_then(Value::as_str).map(String::from),
-        time_context: scene.get("time_context").and_then(Value::as_str).unwrap_or("Unspecified").to_string(),
-        directorial_notes: scene.get("directorial_notes").and_then(Value::as_str).unwrap_or("").to_string(),
+        id: scene
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or(())?
+            .to_string(),
+        name: scene
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or(())?
+            .to_string(),
+        location_id: scene
+            .get("location_id")
+            .and_then(Value::as_str)
+            .ok_or(())?
+            .to_string(),
+        location_name: scene
+            .get("location_name")
+            .and_then(Value::as_str)
+            .ok_or(())?
+            .to_string(),
+        backdrop_asset: scene
+            .get("backdrop_asset")
+            .and_then(Value::as_str)
+            .map(String::from),
+        time_context: scene
+            .get("time_context")
+            .and_then(Value::as_str)
+            .unwrap_or("Unspecified")
+            .to_string(),
+        directorial_notes: scene
+            .get("directorial_notes")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
     };
 
     let characters: Vec<CharacterData> = characters
@@ -327,10 +356,19 @@ fn parse_scene_update_from_json(scene_data: Value) -> Result<ServerMessage, ()> 
             Some(CharacterData {
                 id: c.get("id")?.as_str()?.to_string(),
                 name: c.get("name")?.as_str()?.to_string(),
-                sprite_asset: c.get("sprite_asset").and_then(Value::as_str).map(String::from),
-                portrait_asset: c.get("portrait_asset").and_then(Value::as_str).map(String::from),
+                sprite_asset: c
+                    .get("sprite_asset")
+                    .and_then(Value::as_str)
+                    .map(String::from),
+                portrait_asset: c
+                    .get("portrait_asset")
+                    .and_then(Value::as_str)
+                    .map(String::from),
                 position: CharacterPosition::Center,
-                is_speaking: c.get("is_speaking").and_then(Value::as_bool).unwrap_or(false),
+                is_speaking: c
+                    .get("is_speaking")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
                 emotion: c.get("emotion").and_then(Value::as_str).map(String::from),
             })
         })
@@ -345,8 +383,14 @@ fn parse_scene_update_from_json(scene_data: Value) -> Result<ServerMessage, ()> 
                 id: i.get("id")?.as_str()?.to_string(),
                 name: i.get("name")?.as_str()?.to_string(),
                 interaction_type: i.get("interaction_type")?.as_str()?.to_string(),
-                target_name: i.get("target_name").and_then(Value::as_str).map(String::from),
-                is_available: i.get("is_available").and_then(Value::as_bool).unwrap_or(true),
+                target_name: i
+                    .get("target_name")
+                    .and_then(Value::as_str)
+                    .map(String::from),
+                is_available: i
+                    .get("is_available")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
             })
         })
         .collect();

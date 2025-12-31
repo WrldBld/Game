@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use wrldbldr_domain::{ActantialRole, ActantialView, CharacterId, PlayerCharacterId, WantId};
 use wrldbldr_domain::value_objects::ActantialTarget;
+use wrldbldr_domain::{ActantialRole, ActantialView, CharacterId, PlayerCharacterId, WantId};
 
 /// Actantial view management operations for Character entities.
 ///

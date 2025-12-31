@@ -167,9 +167,7 @@ impl RequestHandler for AppRequestHandler {
             // =================================================================
             // World Operations
             // =================================================================
-            RequestPayload::ListWorlds => {
-                world_handler::list_worlds(&self.world_service).await
-            }
+            RequestPayload::ListWorlds => world_handler::list_worlds(&self.world_service).await,
             RequestPayload::GetWorld { world_id } => {
                 world_handler::get_world(&self.world_service, &world_id).await
             }
@@ -315,12 +313,22 @@ impl RequestHandler for AppRequestHandler {
                 .await
             }
             RequestPayload::DeleteRegionConnection { from_id, to_id } => {
-                region_handler::delete_region_connection(&self.region_service, &ctx, &from_id, &to_id)
-                    .await
+                region_handler::delete_region_connection(
+                    &self.region_service,
+                    &ctx,
+                    &from_id,
+                    &to_id,
+                )
+                .await
             }
             RequestPayload::UnlockRegionConnection { from_id, to_id } => {
-                region_handler::unlock_region_connection(&self.region_service, &ctx, &from_id, &to_id)
-                    .await
+                region_handler::unlock_region_connection(
+                    &self.region_service,
+                    &ctx,
+                    &from_id,
+                    &to_id,
+                )
+                .await
             }
             RequestPayload::GetRegionExits { region_id } => {
                 region_handler::get_region_exits(&self.region_service, &region_id).await
@@ -347,8 +355,13 @@ impl RequestHandler for AppRequestHandler {
                 region_id,
                 location_id,
             } => {
-                region_handler::delete_region_exit(&self.region_service, &ctx, &region_id, &location_id)
-                    .await
+                region_handler::delete_region_exit(
+                    &self.region_service,
+                    &ctx,
+                    &region_id,
+                    &location_id,
+                )
+                .await
             }
             RequestPayload::ListSpawnPoints { world_id } => {
                 region_handler::list_spawn_points(&self.region_crud, &world_id).await
@@ -644,8 +657,12 @@ impl RequestHandler for AppRequestHandler {
                 player_handler::get_player_character(&self.player_character_service, &pc_id).await
             }
             RequestPayload::DeletePlayerCharacter { pc_id } => {
-                player_handler::delete_player_character(&self.player_character_service, &ctx, &pc_id)
-                    .await
+                player_handler::delete_player_character(
+                    &self.player_character_service,
+                    &ctx,
+                    &pc_id,
+                )
+                .await
             }
             RequestPayload::CreatePlayerCharacter { world_id, data } => {
                 player_handler::create_player_character(
@@ -760,8 +777,13 @@ impl RequestHandler for AppRequestHandler {
                 page,
                 page_size,
             } => {
-                story_handler::list_story_events(&self.story_event_service, &world_id, page, page_size)
-                    .await
+                story_handler::list_story_events(
+                    &self.story_event_service,
+                    &world_id,
+                    page,
+                    page_size,
+                )
+                .await
             }
             RequestPayload::GetStoryEvent { event_id } => {
                 story_handler::get_story_event(&self.story_event_service, &event_id).await
@@ -810,8 +832,12 @@ impl RequestHandler for AppRequestHandler {
                 misc_handler::get_social_network(&self.relationship_service, &world_id).await
             }
             RequestPayload::DeleteRelationship { relationship_id } => {
-                misc_handler::delete_relationship(&self.relationship_service, &ctx, &relationship_id)
-                    .await
+                misc_handler::delete_relationship(
+                    &self.relationship_service,
+                    &ctx,
+                    &relationship_id,
+                )
+                .await
             }
             RequestPayload::CreateRelationship { data } => {
                 misc_handler::create_relationship(&self.relationship_service, &ctx, data).await

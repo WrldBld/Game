@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 use wrldbldr_domain::value_objects::{DispositionLevel, NpcDispositionState};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 /// NPC disposition and relationship operations.
 ///

@@ -94,12 +94,12 @@ impl EventChain {
     pub fn remove_event(&mut self, event_id: &NarrativeEventId, now: DateTime<Utc>) -> bool {
         // Find the position of the event before removing it
         let position = self.events.iter().position(|e| e == event_id);
-        
+
         let original_len = self.events.len();
         self.events.retain(|e| e != event_id);
         // Also remove from completed_events to prevent stale entries
         self.completed_events.retain(|e| e != event_id);
-        
+
         if self.events.len() != original_len {
             // Adjust current_position if we removed an event at or before it
             if let Some(pos) = position {
@@ -127,7 +127,7 @@ impl EventChain {
         // Clamp current_position to valid range after reordering
         let max_position = event_ids.len().saturating_sub(1) as u32;
         self.current_position = self.current_position.min(max_position);
-        
+
         self.events = event_ids;
         self.updated_at = now;
     }

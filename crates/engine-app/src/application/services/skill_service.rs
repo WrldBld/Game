@@ -287,11 +287,7 @@ impl SkillServicePort for SkillServiceImpl {
         SkillService::get_skill(self, skill_id).await
     }
 
-    async fn create_skill(
-        &self,
-        world_id: WorldId,
-        request: CreateSkillRequest,
-    ) -> Result<Skill> {
+    async fn create_skill(&self, world_id: WorldId, request: CreateSkillRequest) -> Result<Skill> {
         SkillService::create_skill(self, world_id, request).await
     }
 

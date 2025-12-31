@@ -101,7 +101,9 @@ pub async fn get_workflow_config(
         })?;
 
     let analysis = analyze_workflow(&config.workflow_json);
-    Ok(Json(workflow_config_to_full_response_dto(&config, analysis)))
+    Ok(Json(workflow_config_to_full_response_dto(
+        &config, analysis,
+    )))
 }
 
 /// Create or update a workflow configuration
@@ -136,7 +138,10 @@ pub async fn save_workflow_config(
     };
 
     let analysis = analyze_workflow(&config.workflow_json);
-    Ok((status, Json(workflow_config_to_full_response_dto(&config, analysis))))
+    Ok((
+        status,
+        Json(workflow_config_to_full_response_dto(&config, analysis)),
+    ))
 }
 
 /// Delete a workflow configuration
@@ -190,7 +195,9 @@ pub async fn update_workflow_defaults(
         })?;
 
     let analysis = analyze_workflow(&config.workflow_json);
-    Ok(Json(workflow_config_to_full_response_dto(&config, analysis)))
+    Ok(Json(workflow_config_to_full_response_dto(
+        &config, analysis,
+    )))
 }
 
 /// Analyze a workflow JSON without saving

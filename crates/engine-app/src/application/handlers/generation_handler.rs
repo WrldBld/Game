@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::RequestContext;
 use wrldbldr_engine_ports::outbound::{
-    GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext,
-    SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext, SuggestionEnqueuePort,
+    SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
     ActantialRoleData, CreateItemData, ErrorCode, ResponseResult, SuggestionContextData,

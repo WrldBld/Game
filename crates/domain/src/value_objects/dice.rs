@@ -637,7 +637,9 @@ mod tests {
     fn test_dice_roll_input_manual() {
         let input = DiceRollInput::ManualResult(18);
         // Manual result ignores RNG
-        let result = input.resolve(|_, _| panic!("should not be called")).unwrap();
+        let result = input
+            .resolve(|_, _| panic!("should not be called"))
+            .unwrap();
         assert!(result.is_manual());
         assert_eq!(result.total, 18);
     }

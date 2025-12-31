@@ -131,12 +131,10 @@ mod tests {
     fn test_conversation_entry_constructors() {
         let now = Utc::now();
 
-        let player =
-            ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), now);
+        let player = ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), now);
         assert!(matches!(player.speaker, Speaker::Player { .. }));
 
-        let npc =
-            ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into(), now);
+        let npc = ConversationEntry::npc("npc1".into(), "Merchant".into(), "Welcome!".into(), now);
         assert!(matches!(npc.speaker, Speaker::Npc { .. }));
 
         let system = ConversationEntry::system("Game saved.".into(), now);

@@ -119,9 +119,7 @@ fn convert_port_action_type(action: PortDmActionType) -> DmActionType {
         } => {
             // Convert simplified port DmDecision to full domain DmApprovalDecision
             let domain_decision = match decision {
-                DmDecision::Accept => {
-                    wrldbldr_domain::value_objects::DmApprovalDecision::Accept
-                }
+                DmDecision::Accept => wrldbldr_domain::value_objects::DmApprovalDecision::Accept,
                 DmDecision::Reject { feedback } => {
                     wrldbldr_domain::value_objects::DmApprovalDecision::Reject { feedback }
                 }
@@ -162,9 +160,9 @@ fn convert_domain_action_type(action: DmActionType) -> PortDmActionType {
             // Note: AcceptWithRecipients and AcceptWithModification map to Accept (lossy)
             let port_decision = match decision {
                 wrldbldr_domain::value_objects::DmApprovalDecision::Accept => DmDecision::Accept,
-                wrldbldr_domain::value_objects::DmApprovalDecision::AcceptWithRecipients { .. } => {
-                    DmDecision::Accept
-                }
+                wrldbldr_domain::value_objects::DmApprovalDecision::AcceptWithRecipients {
+                    ..
+                } => DmDecision::Accept,
                 wrldbldr_domain::value_objects::DmApprovalDecision::AcceptWithModification {
                     ..
                 } => DmDecision::Accept,
@@ -180,18 +178,14 @@ fn convert_domain_action_type(action: DmActionType) -> PortDmActionType {
                 decision: port_decision,
             }
         }
-        DmActionType::DirectNpcControl { npc_id, dialogue } => {
-            PortDmActionType::DirectNpcControl {
-                npc_id: npc_id.to_string(),
-                dialogue,
-            }
-        }
+        DmActionType::DirectNpcControl { npc_id, dialogue } => PortDmActionType::DirectNpcControl {
+            npc_id: npc_id.to_string(),
+            dialogue,
+        },
         DmActionType::TriggerEvent { event_id } => PortDmActionType::TriggerEvent { event_id },
-        DmActionType::TransitionScene { scene_id } => {
-            PortDmActionType::TransitionScene {
-                scene_id: scene_id.to_uuid(),
-            }
-        }
+        DmActionType::TransitionScene { scene_id } => PortDmActionType::TransitionScene {
+            scene_id: scene_id.to_uuid(),
+        },
     }
 }
 

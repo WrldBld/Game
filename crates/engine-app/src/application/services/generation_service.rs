@@ -87,8 +87,6 @@ pub enum GenerationEvent {
     },
 }
 
-
-
 /// Generation service for managing asset generation
 pub struct GenerationService {
     /// ComfyUI client for sending generation requests

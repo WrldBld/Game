@@ -100,40 +100,39 @@ pub async fn create_player_character(
 
     // If starting_region_id is provided, use it to get the location
     // Otherwise, we need to find a spawn point or return an error
-    let (starting_location_id, starting_region_id) = if let Some(ref region_id_str) =
-        data.starting_region_id
-    {
-        let region_id = match parse_region_id(region_id_str) {
-            Ok(id) => id,
-            Err(e) => return e,
+    let (starting_location_id, starting_region_id) =
+        if let Some(ref region_id_str) = data.starting_region_id {
+            let region_id = match parse_region_id(region_id_str) {
+                Ok(id) => id,
+                Err(e) => return e,
+            };
+            // Fetch the region to get its location_id
+            match region_crud.get(region_id).await {
+                Ok(Some(region)) => (region.location_id, Some(region_id)),
+                Ok(None) => {
+                    return ResponseResult::error(
+                        ErrorCode::NotFound,
+                        format!("Starting region not found: {}", region_id_str),
+                    )
+                }
+                Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        } else {
+            // No starting region provided - try to find a spawn point in the world
+            match region_crud.list_spawn_points(wid).await {
+                Ok(spawn_points) if !spawn_points.is_empty() => {
+                    let spawn = &spawn_points[0];
+                    (spawn.location_id, Some(spawn.id))
+                }
+                Ok(_) => {
+                    return ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "No starting_region_id provided and no spawn points found in world",
+                    );
+                }
+                Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
         };
-        // Fetch the region to get its location_id
-        match region_crud.get(region_id).await {
-            Ok(Some(region)) => (region.location_id, Some(region_id)),
-            Ok(None) => {
-                return ResponseResult::error(
-                    ErrorCode::NotFound,
-                    format!("Starting region not found: {}", region_id_str),
-                )
-            }
-            Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-        }
-    } else {
-        // No starting region provided - try to find a spawn point in the world
-        match region_crud.list_spawn_points(wid).await {
-            Ok(spawn_points) if !spawn_points.is_empty() => {
-                let spawn = &spawn_points[0];
-                (spawn.location_id, Some(spawn.id))
-            }
-            Ok(_) => {
-                return ResponseResult::error(
-                    ErrorCode::BadRequest,
-                    "No starting_region_id provided and no spawn points found in world",
-                );
-            }
-            Err(e) => return ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-        }
-    };
 
     // Get user_id from context or data
     let user_id = data.user_id.clone().unwrap_or_else(|| ctx.user_id.clone());

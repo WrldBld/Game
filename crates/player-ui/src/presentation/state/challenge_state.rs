@@ -9,8 +9,7 @@ use crate::presentation::components::tactical::PlayerSkillData;
 /// Roll submission status for challenge outcomes (P3.3/P3.4)
 ///
 /// Tracks the state of a submitted roll as it goes through DM approval.
-#[derive(Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum RollSubmissionStatus {
     /// No roll has been submitted
     #[default]
@@ -27,7 +26,6 @@ pub enum RollSubmissionStatus {
     /// Result has been displayed, ready to close
     Dismissed,
 }
-
 
 /// Challenge prompt data shown to player
 #[derive(Debug, Clone, PartialEq)]

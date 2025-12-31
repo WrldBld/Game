@@ -37,7 +37,6 @@ pub enum MonomythStage {
     ReturnWithElixir,
 }
 
-
 impl MonomythStage {
     /// Returns the PascalCase string representation of this stage
     pub fn as_str(&self) -> &'static str {

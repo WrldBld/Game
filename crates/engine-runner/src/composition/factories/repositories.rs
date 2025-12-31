@@ -28,35 +28,71 @@ use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::persistence::Neo4jRepository;
 use wrldbldr_engine_ports::outbound::{
+    AssetRepositoryPort,
+    // Challenge ISP ports
+    ChallengeAvailabilityPort,
+    ChallengeCrudPort,
+    ChallengePrerequisitePort,
+    ChallengeScenePort,
+    ChallengeSkillPort,
+    // Character ISP ports
+    CharacterActantialPort,
+    CharacterCrudPort,
+    CharacterDispositionPort,
+    CharacterInventoryPort,
+    CharacterLocationPort,
+    CharacterWantPort,
+    // EventChain ISP ports
+    EventChainCrudPort,
+    EventChainMembershipPort,
+    EventChainQueryPort,
+    EventChainStatePort,
+    FlagRepositoryPort,
+    GoalRepositoryPort,
+    InteractionRepositoryPort,
+    ItemRepositoryPort,
+    // Location ISP ports
+    LocationConnectionPort,
+    LocationCrudPort,
+    LocationHierarchyPort,
+    LocationMapPort,
+    // NarrativeEvent ISP ports
+    NarrativeEventCrudPort,
+    NarrativeEventNpcPort,
+    NarrativeEventQueryPort,
+    NarrativeEventTiePort,
+    ObservationRepositoryPort,
+    // PlayerCharacter ISP ports (god trait removed - use ISP traits instead)
+    PlayerCharacterCrudPort,
+    PlayerCharacterInventoryPort,
+    PlayerCharacterPositionPort,
+    PlayerCharacterQueryPort,
+    // Region ISP ports
+    RegionConnectionPort,
+    RegionCrudPort,
+    RegionExitPort,
+    RegionItemPort,
+    RegionNpcPort,
+    // Non-ISP repository ports (single trait per entity)
+    RelationshipRepositoryPort,
+    // Scene ISP ports (god trait removed)
+    SceneCompletionPort,
+    SceneCrudPort,
+    SceneFeaturedCharacterPort,
+    SceneLocationPort,
+    SceneQueryPort,
+    SheetTemplateRepositoryPort,
+    SkillRepositoryPort,
+    StagingRepositoryPort,
+    // StoryEvent ISP ports
+    StoryEventCrudPort,
+    StoryEventDialoguePort,
+    StoryEventEdgePort,
+    StoryEventQueryPort,
+    WantRepositoryPort,
+    WorkflowRepositoryPort,
     // World repository (non-ISP)
     WorldRepositoryPort,
-    // Character ISP ports
-    CharacterActantialPort, CharacterCrudPort, CharacterDispositionPort, CharacterInventoryPort,
-    CharacterLocationPort, CharacterWantPort,
-    // Location ISP ports
-    LocationConnectionPort, LocationCrudPort, LocationHierarchyPort, LocationMapPort,
-    // Region ISP ports
-    RegionConnectionPort, RegionCrudPort, RegionExitPort, RegionItemPort, RegionNpcPort,
-    // Challenge ISP ports
-    ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
-    ChallengeSkillPort,
-    // StoryEvent ISP ports
-    StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
-    // NarrativeEvent ISP ports
-    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
-    // PlayerCharacter ISP ports (god trait removed - use ISP traits instead)
-    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
-    PlayerCharacterQueryPort,
-    // Scene ISP ports (god trait removed)
-    SceneCompletionPort, SceneCrudPort, SceneFeaturedCharacterPort, SceneLocationPort,
-    SceneQueryPort,
-    // EventChain ISP ports
-    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainStatePort,
-    // Non-ISP repository ports (single trait per entity)
-    RelationshipRepositoryPort, SkillRepositoryPort, InteractionRepositoryPort,
-    AssetRepositoryPort, WorkflowRepositoryPort, SheetTemplateRepositoryPort,
-    ItemRepositoryPort, GoalRepositoryPort, WantRepositoryPort, FlagRepositoryPort,
-    ObservationRepositoryPort, StagingRepositoryPort,
 };
 
 /// Macro to reduce boilerplate when coercing a concrete repository to multiple ISP trait objects.
@@ -90,8 +126,6 @@ macro_rules! coerce_isp {
         )+
     };
 }
-
-
 
 // ============================================================================
 // ISP Port Container Structs
@@ -424,7 +458,8 @@ pub fn create_repository_ports(repository: &Neo4jRepository) -> RepositoryPorts 
     let interaction: Arc<dyn InteractionRepositoryPort> = Arc::new(repository.interactions());
     let asset: Arc<dyn AssetRepositoryPort> = Arc::new(repository.assets());
     let workflow: Arc<dyn WorkflowRepositoryPort> = Arc::new(repository.workflows());
-    let sheet_template: Arc<dyn SheetTemplateRepositoryPort> = Arc::new(repository.sheet_templates());
+    let sheet_template: Arc<dyn SheetTemplateRepositoryPort> =
+        Arc::new(repository.sheet_templates());
     let item: Arc<dyn ItemRepositoryPort> = Arc::new(repository.items());
     let goal: Arc<dyn GoalRepositoryPort> = Arc::new(repository.goals());
     let want: Arc<dyn WantRepositoryPort> = Arc::new(repository.wants());
@@ -521,17 +556,17 @@ mod tests {
     fn test_coerce_isp_macro_syntax() {
         // Create a mock struct that implements multiple traits
         struct MockMultiTrait;
-        
+
         trait TraitA: Send + Sync {}
         trait TraitB: Send + Sync {}
         trait TraitC: Send + Sync {}
-        
+
         impl TraitA for MockMultiTrait {}
         impl TraitB for MockMultiTrait {}
         impl TraitC for MockMultiTrait {}
-        
+
         let concrete = Arc::new(MockMultiTrait);
-        
+
         // Use the macro to coerce to multiple trait objects
         coerce_isp!(
             concrete,
@@ -539,7 +574,7 @@ mod tests {
             dyn TraitB => trait_b,
             dyn TraitC => trait_c,
         );
-        
+
         // Verify the variables were created with correct types
         let _: Arc<dyn TraitA> = trait_a;
         let _: Arc<dyn TraitB> = trait_b;
@@ -552,11 +587,11 @@ mod tests {
         struct MockSingle;
         trait SingleTrait: Send + Sync {}
         impl SingleTrait for MockSingle {}
-        
+
         let concrete = Arc::new(MockSingle);
-        
+
         coerce_isp!(concrete, dyn SingleTrait => single);
-        
+
         let _: Arc<dyn SingleTrait> = single;
     }
 
@@ -566,12 +601,12 @@ mod tests {
         struct MockTrailing;
         trait TrailingTrait: Send + Sync {}
         impl TrailingTrait for MockTrailing {}
-        
+
         let concrete = Arc::new(MockTrailing);
-        
+
         // With trailing comma
         coerce_isp!(concrete, dyn TrailingTrait => with_comma,);
-        
+
         let _: Arc<dyn TrailingTrait> = with_comma;
     }
 
@@ -584,7 +619,7 @@ mod tests {
         // This test verifies the struct field names at compile time.
         // We can't actually instantiate RepositoryPorts without a real
         // Neo4j connection, but we can verify the type structure exists.
-        
+
         fn _verify_character_ports(ports: &CharacterPorts) {
             let _ = &ports.crud;
             let _ = &ports.want;
@@ -593,14 +628,14 @@ mod tests {
             let _ = &ports.location;
             let _ = &ports.disposition;
         }
-        
+
         fn _verify_location_ports(ports: &LocationPorts) {
             let _ = &ports.crud;
             let _ = &ports.hierarchy;
             let _ = &ports.connection;
             let _ = &ports.map;
         }
-        
+
         fn _verify_region_ports(ports: &RegionPorts) {
             let _ = &ports.crud;
             let _ = &ports.connection;
@@ -608,7 +643,7 @@ mod tests {
             let _ = &ports.npc;
             let _ = &ports.item;
         }
-        
+
         fn _verify_challenge_ports(ports: &ChallengePorts) {
             let _ = &ports.crud;
             let _ = &ports.skill;
@@ -616,28 +651,28 @@ mod tests {
             let _ = &ports.prerequisite;
             let _ = &ports.availability;
         }
-        
+
         fn _verify_story_event_ports(ports: &StoryEventPorts) {
             let _ = &ports.crud;
             let _ = &ports.edge;
             let _ = &ports.query;
             let _ = &ports.dialogue;
         }
-        
+
         fn _verify_narrative_event_ports(ports: &NarrativeEventPorts) {
             let _ = &ports.crud;
             let _ = &ports.tie;
             let _ = &ports.npc;
             let _ = &ports.query;
         }
-        
+
         fn _verify_player_character_ports(ports: &PlayerCharacterPorts) {
             let _ = &ports.crud;
             let _ = &ports.query;
             let _ = &ports.position;
             let _ = &ports.inventory;
         }
-        
+
         fn _verify_scene_ports(ports: &ScenePorts) {
             let _ = &ports.crud;
             let _ = &ports.query;
@@ -645,14 +680,14 @@ mod tests {
             let _ = &ports.featured_character;
             let _ = &ports.completion;
         }
-        
+
         fn _verify_event_chain_ports(ports: &EventChainPorts) {
             let _ = &ports.crud;
             let _ = &ports.query;
             let _ = &ports.membership;
             let _ = &ports.state;
         }
-        
+
         fn _verify_repository_ports(ports: &RepositoryPorts) {
             // ISP-split groups
             _verify_character_ports(&ports.character);
@@ -664,7 +699,7 @@ mod tests {
             _verify_player_character_ports(&ports.player_character);
             _verify_scene_ports(&ports.scene);
             _verify_event_chain_ports(&ports.event_chain);
-            
+
             // Non-ISP ports
             let _ = &ports.world;
             let _ = &ports.relationship;
@@ -680,7 +715,7 @@ mod tests {
             let _ = &ports.observation;
             let _ = &ports.staging;
         }
-        
+
         // The existence of this function proves the types are correct at compile time
         let _ = _verify_repository_ports;
     }

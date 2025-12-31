@@ -68,10 +68,7 @@ pub async fn get_sheet_template(
             let dto: SheetTemplateResponseDto = template.into();
             ResponseResult::success(dto)
         }
-        Ok(None) => ResponseResult::error(
-            ErrorCode::NotFound,
-            "No sheet template found for world",
-        ),
+        Ok(None) => ResponseResult::error(ErrorCode::NotFound, "No sheet template found for world"),
         Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
     }
 }

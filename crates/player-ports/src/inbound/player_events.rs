@@ -63,8 +63,6 @@ pub enum CharacterPosition {
     OffScreen,
 }
 
-
-
 /// Available interaction
 #[derive(Debug, Clone, PartialEq)]
 pub struct InteractionData {
@@ -923,4 +921,3 @@ impl PlayerEvent {
         }
     }
 }
-

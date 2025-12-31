@@ -20,8 +20,9 @@ use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingCo
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
-    NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort, StagedNpcProposal as PortStagedNpcProposal,
-    StagingProposal as PortStagingProposal, StagingRepositoryPort, StagingServicePort,
+    NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort,
+    StagedNpcProposal as PortStagedNpcProposal, StagingProposal as PortStagingProposal,
+    StagingRepositoryPort, StagingServicePort,
 };
 
 // Re-export staging DTOs from engine-dto for backwards compatibility

@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
-
 use super::connection::Neo4jConnection;
 use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{

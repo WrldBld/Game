@@ -27,11 +27,11 @@ pub(crate) fn row_to_character(row: Row) -> Result<Character> {
     let current_archetype: CampbellArchetype = current_archetype_str
         .parse()
         .unwrap_or(CampbellArchetype::Ally);
-    let archetype_history: Vec<ArchetypeChange> =
-        node.get_json::<Vec<ArchetypeChangeStored>>("archetype_history")?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+    let archetype_history: Vec<ArchetypeChange> = node
+        .get_json::<Vec<ArchetypeChangeStored>>("archetype_history")?
+        .into_iter()
+        .map(Into::into)
+        .collect();
     let stats = node.get_json::<StatBlockStored>("stats")?.into();
     let default_disposition = default_disposition_str
         .parse()

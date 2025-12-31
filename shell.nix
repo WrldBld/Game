@@ -45,6 +45,11 @@ pkgs.mkShell {
     # Node.js (for Tailwind CSS)
     nodejs_20
     nodePackages.npm
+
+    # Python (for repo tooling / scripts)
+    python3
+    python3Packages.pip
+    python3Packages.virtualenv
   ] 
   # macOS-specific dependencies
   # Note: Apple frameworks are automatically provided by the system SDK

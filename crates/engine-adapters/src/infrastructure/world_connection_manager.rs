@@ -27,9 +27,9 @@ use uuid::Uuid;
 
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ConnectedUserInfo as PortConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext as PortConnectionContext,
-    ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    ConnectionStats as PortConnectionStats, DmInfo,
+    ConnectedUserInfo as PortConnectedUserInfo, ConnectionBroadcastPort,
+    ConnectionContext as PortConnectionContext, ConnectionContextPort, ConnectionLifecyclePort,
+    ConnectionQueryPort, ConnectionStats as PortConnectionStats, DmInfo,
     WorldRole as PortWorldRole,
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
@@ -997,7 +997,8 @@ impl ConnectionContextPort for WorldConnectionManager {
     }
 
     async fn is_spectator_by_client_id(&self, client_id: &str) -> bool {
-        let conn = match WorldConnectionManager::get_connection_by_client_id(self, client_id).await {
+        let conn = match WorldConnectionManager::get_connection_by_client_id(self, client_id).await
+        {
             Some(c) => c,
             None => return false,
         };
@@ -1043,7 +1044,10 @@ impl ConnectionBroadcastPort for WorldConnectionManager {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
             WorldConnectionManager::broadcast_to_world(self, world_id, server_msg).await;
         } else {
-            tracing::warn!("Failed to deserialize broadcast message for world {}", world_id);
+            tracing::warn!(
+                "Failed to deserialize broadcast message for world {}",
+                world_id
+            );
         }
     }
 
@@ -1051,7 +1055,10 @@ impl ConnectionBroadcastPort for WorldConnectionManager {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
             WorldConnectionManager::broadcast_to_dms(self, world_id, server_msg).await;
         } else {
-            tracing::warn!("Failed to deserialize broadcast message for DMs in world {}", world_id);
+            tracing::warn!(
+                "Failed to deserialize broadcast message for DMs in world {}",
+                world_id
+            );
         }
     }
 
@@ -1059,14 +1066,18 @@ impl ConnectionBroadcastPort for WorldConnectionManager {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
             WorldConnectionManager::broadcast_to_players(self, world_id, server_msg).await;
         } else {
-            tracing::warn!("Failed to deserialize broadcast message for players in world {}", world_id);
+            tracing::warn!(
+                "Failed to deserialize broadcast message for players in world {}",
+                world_id
+            );
         }
     }
 
     async fn broadcast_to_all_worlds(&self, message: serde_json::Value) {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
             for world_id in WorldConnectionManager::get_all_world_ids(self).await {
-                WorldConnectionManager::broadcast_to_world(self, world_id, server_msg.clone()).await;
+                WorldConnectionManager::broadcast_to_world(self, world_id, server_msg.clone())
+                    .await;
             }
         } else {
             tracing::warn!("Failed to deserialize broadcast message for all worlds");

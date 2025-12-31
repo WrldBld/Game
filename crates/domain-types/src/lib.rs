@@ -48,21 +48,43 @@ pub use asset_types::{AssetType, ChangeType, EntityType};
 // Rule system types
 mod rule_system;
 pub use rule_system::{
-    // Core rule system types
-    DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
-    SuccessComparison,
     // Narrative resolution types
-    BladesPoolThresholds, DifficultyDescriptor, DifficultyLadder, EffectLevel, EffectTickConfig,
-    LadderEntry, NarrativeDiceConfig, NarrativeDiceType, NarrativeResolutionConfig,
-    NarrativeResolutionStyle, NarrativeThresholds, Position, PositionEffectConfig,
+    BladesPoolThresholds,
+    // Core rule system types
+    DiceSystem,
+    DifficultyDescriptor,
+    DifficultyLadder,
+    EffectLevel,
+    EffectTickConfig,
+    LadderEntry,
+    NarrativeDiceConfig,
+    NarrativeDiceType,
+    NarrativeResolutionConfig,
+    NarrativeResolutionStyle,
+    NarrativeThresholds,
+    Position,
+    PositionEffectConfig,
+    RuleSystemConfig,
+    RuleSystemType,
+    RuleSystemVariant,
+    StatDefinition,
+    SuccessComparison,
 };
 
 // Workflow types
 mod workflow;
 pub use workflow::{
-    // Types
-    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis, WorkflowInput,
-    WorkflowSlot,
     // Pure analysis functions
-    analyze_workflow, auto_detect_prompt_mappings, find_nodes_by_type, validate_workflow,
+    analyze_workflow,
+    auto_detect_prompt_mappings,
+    find_nodes_by_type,
+    validate_workflow,
+    // Types
+    InputDefault,
+    InputType,
+    PromptMapping,
+    PromptMappingType,
+    WorkflowAnalysis,
+    WorkflowInput,
+    WorkflowSlot,
 };

@@ -256,7 +256,12 @@ impl Challenge {
     }
 
     /// Evaluate using PbtA-style fixed thresholds
-    fn evaluate_pbta(&self, roll: i32, modifier: i32, thresholds: &NarrativeThresholds) -> OutcomeType {
+    fn evaluate_pbta(
+        &self,
+        roll: i32,
+        modifier: i32,
+        thresholds: &NarrativeThresholds,
+    ) -> OutcomeType {
         let total = roll + modifier;
 
         // Check critical success first (if configured)
@@ -387,7 +392,6 @@ pub enum ChallengeType {
     /// Multi-roll challenge requiring accumulated successes
     ComplexChallenge,
 }
-
 
 impl ChallengeType {
     pub fn display_name(&self) -> &'static str {
@@ -1001,9 +1005,7 @@ mod tests {
             "Test",
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(
-            ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"),
-        );
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
 
         // Roll 8 + modifier 3 = 11, >= 10 = full success
         let (outcome_type, _) = challenge.evaluate_roll(8, 3);
@@ -1065,9 +1067,7 @@ mod tests {
             "Test",
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(
-            ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"),
-        );
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
 
         // Custom thresholds: 12+ success, 8+ partial
         let config = NarrativeResolutionConfig {
@@ -1082,15 +1082,18 @@ mod tests {
         };
 
         // Roll 7 + 4 = 11, below 12 but >= 8 = partial with custom thresholds
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(7, 4, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(7, 4, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Partial);
 
         // Roll 8 + 4 = 12, >= 12 = success with custom thresholds
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(8, 4, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(8, 4, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Success);
 
         // Roll 4 + 3 = 7, below 8 = failure with custom thresholds
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Failure);
     }
 
@@ -1111,19 +1114,23 @@ mod tests {
         let config = NarrativeResolutionConfig::fate_core();
 
         // Roll 2 (4dF result) + 3 (skill) = 5, vs Hard (+4) = +1 shift = Success
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(2, 3, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(2, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Success);
 
         // Roll 1 + 3 = 4, vs Hard (+4) = 0 shifts = Tie (Partial)
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(1, 3, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(1, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Partial);
 
         // Roll 4 + 3 = 7, vs Hard (+4) = +3 shifts = Succeed with Style (Critical)
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
 
         // Roll -2 + 3 = 1, vs Hard (+4) = -3 shifts = Failure
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(-2, 3, Some(&config), None, None, None);
+        let (outcome_type, _) =
+            challenge.evaluate_roll_narrative(-2, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Failure);
     }
 
@@ -1146,35 +1153,60 @@ mod tests {
         // Pool with highest 6 = Full success
         let dice = vec![3, 6, 2];
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            6, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+            6,
+            0,
+            Some(&config),
+            Some(Position::Risky),
+            Some(EffectLevel::Standard),
+            Some(&dice),
         );
         assert_eq!(outcome_type, OutcomeType::Success);
 
         // Pool with highest 5 = Partial success
         let dice = vec![2, 5, 1];
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            5, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+            5,
+            0,
+            Some(&config),
+            Some(Position::Risky),
+            Some(EffectLevel::Standard),
+            Some(&dice),
         );
         assert_eq!(outcome_type, OutcomeType::Partial);
 
         // Pool with highest 4 = Partial success
         let dice = vec![4, 2, 1];
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            4, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+            4,
+            0,
+            Some(&config),
+            Some(Position::Risky),
+            Some(EffectLevel::Standard),
+            Some(&dice),
         );
         assert_eq!(outcome_type, OutcomeType::Partial);
 
         // Pool with highest 3 = Failure
         let dice = vec![3, 1, 2];
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            3, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+            3,
+            0,
+            Some(&config),
+            Some(Position::Risky),
+            Some(EffectLevel::Standard),
+            Some(&dice),
         );
         assert_eq!(outcome_type, OutcomeType::Failure);
 
         // Pool with two 6s = Critical success
         let dice = vec![6, 6, 2];
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            6, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+            6,
+            0,
+            Some(&config),
+            Some(Position::Risky),
+            Some(EffectLevel::Standard),
+            Some(&dice),
         );
         assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
     }
@@ -1204,7 +1236,13 @@ mod tests {
         assert_eq!(ladder.value_for(&DifficultyDescriptor::Hard), Some(4));
         assert_eq!(ladder.value_for(&DifficultyDescriptor::Impossible), Some(8));
 
-        assert_eq!(ladder.display_name_for(&DifficultyDescriptor::Moderate), Some("Fair"));
-        assert_eq!(ladder.display_name_for(&DifficultyDescriptor::Hard), Some("Great"));
+        assert_eq!(
+            ladder.display_name_for(&DifficultyDescriptor::Moderate),
+            Some("Fair")
+        );
+        assert_eq!(
+            ladder.display_name_for(&DifficultyDescriptor::Hard),
+            Some("Great")
+        );
     }
 }

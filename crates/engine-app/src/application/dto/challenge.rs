@@ -25,7 +25,6 @@ pub enum ChallengeTypeDto {
     ComplexChallenge,
 }
 
-
 impl From<ChallengeTypeDto> for ChallengeType {
     fn from(value: ChallengeTypeDto) -> Self {
         match value {

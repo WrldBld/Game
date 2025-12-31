@@ -228,5 +228,4 @@ mod tests {
         assert_eq!(data.name, "Test NPC");
         assert!(data.is_present);
     }
-
 }

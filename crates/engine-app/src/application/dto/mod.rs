@@ -121,8 +121,6 @@ pub use player_character::{
     CreatePlayerCharacterRequestDto, PlayerCharacterResponseDto, UpdatePlayerCharacterRequestDto,
 };
 
-
-
 // Suggestion DTOs
 pub use suggestion::{SuggestionRequestDto, UnifiedSuggestionRequestDto};
 

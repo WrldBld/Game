@@ -20,7 +20,6 @@ pub enum RuleSystemType {
     Custom,
 }
 
-
 /// Known presets for rule systems
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -43,7 +42,6 @@ pub enum RuleSystemVariant {
     // Custom
     Custom(String),
 }
-
 
 impl RuleSystemVariant {
     /// Get the display name for this variant
@@ -160,7 +158,8 @@ impl RuleSystemConfig {
             ],
             dice_system: DiceSystem::D20,
             success_comparison: SuccessComparison::GreaterOrEqual,
-            skill_check_formula: "1d20 + ability modifier + proficiency (if proficient)".to_string(),
+            skill_check_formula: "1d20 + ability modifier + proficiency (if proficient)"
+                .to_string(),
             description: "Roll d20, add modifiers. Meet or beat the DC to succeed.".to_string(),
             narrative_config: None,
         }

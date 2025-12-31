@@ -112,7 +112,7 @@ impl ChallengeUseCase {
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?
             .ok_or_else(|| ChallengeError::ResolutionFailed("World not found".to_string()))?;
-        
+
         let narrative_config = world
             .rule_system
             .narrative_config
@@ -121,13 +121,14 @@ impl ChallengeUseCase {
             .unwrap_or_default();
 
         // Convert input narrative context to port type (position/effect from client)
-        let port_context = input.narrative_context.as_ref().map(|ctx| {
-            PortNarrativeRollContext {
+        let port_context = input
+            .narrative_context
+            .as_ref()
+            .map(|ctx| PortNarrativeRollContext {
                 position: ctx.position,
                 effect: ctx.effect,
                 dice_results: ctx.dice_results.clone(),
-            }
-        });
+            });
 
         let result = self
             .resolution_service
@@ -203,7 +204,7 @@ impl ChallengeUseCase {
             .await
             .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?
             .ok_or_else(|| ChallengeError::ResolutionFailed("World not found".to_string()))?;
-        
+
         let narrative_config = world
             .rule_system
             .narrative_config
@@ -212,13 +213,14 @@ impl ChallengeUseCase {
             .unwrap_or_default();
 
         // Convert input narrative context to port type (position/effect from client)
-        let port_context = input.narrative_context.as_ref().map(|ctx| {
-            PortNarrativeRollContext {
+        let port_context = input
+            .narrative_context
+            .as_ref()
+            .map(|ctx| PortNarrativeRollContext {
                 position: ctx.position,
                 effect: ctx.effect,
                 dice_results: ctx.dice_results.clone(),
-            }
-        });
+            });
 
         let result = self
             .resolution_service

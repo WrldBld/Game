@@ -1049,19 +1049,64 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalServicePort
                 .filter_map(|t| {
                     // Convert ProposedTool to OutcomeTriggerRequestDto based on tool name
                     let name_lower = t.name.to_lowercase();
-                    if name_lower.contains("reveal_information") || name_lower.contains("revealinformation") {
-                        let info = t.arguments.get("info").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let persist = t.arguments.get("persist").and_then(|v| v.as_bool()).unwrap_or(false);
-                        Some(crate::application::dto::OutcomeTriggerRequestDto::RevealInformation { info, persist })
-                    } else if name_lower.contains("enable_challenge") || name_lower.contains("enablechallenge") {
-                        let challenge_id = t.arguments.get("challenge_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        Some(crate::application::dto::OutcomeTriggerRequestDto::EnableChallenge { challenge_id })
-                    } else if name_lower.contains("disable_challenge") || name_lower.contains("disablechallenge") {
-                        let challenge_id = t.arguments.get("challenge_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        Some(crate::application::dto::OutcomeTriggerRequestDto::DisableChallenge { challenge_id })
+                    if name_lower.contains("reveal_information")
+                        || name_lower.contains("revealinformation")
+                    {
+                        let info = t
+                            .arguments
+                            .get("info")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let persist = t
+                            .arguments
+                            .get("persist")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        Some(
+                            crate::application::dto::OutcomeTriggerRequestDto::RevealInformation {
+                                info,
+                                persist,
+                            },
+                        )
+                    } else if name_lower.contains("enable_challenge")
+                        || name_lower.contains("enablechallenge")
+                    {
+                        let challenge_id = t
+                            .arguments
+                            .get("challenge_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        Some(
+                            crate::application::dto::OutcomeTriggerRequestDto::EnableChallenge {
+                                challenge_id,
+                            },
+                        )
+                    } else if name_lower.contains("disable_challenge")
+                        || name_lower.contains("disablechallenge")
+                    {
+                        let challenge_id = t
+                            .arguments
+                            .get("challenge_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        Some(
+                            crate::application::dto::OutcomeTriggerRequestDto::DisableChallenge {
+                                challenge_id,
+                            },
+                        )
                     } else if name_lower.contains("custom") {
-                        let description = t.arguments.get("description").and_then(|v| v.as_str()).unwrap_or(&t.description).to_string();
-                        Some(crate::application::dto::OutcomeTriggerRequestDto::Custom { description })
+                        let description = t
+                            .arguments
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&t.description)
+                            .to_string();
+                        Some(crate::application::dto::OutcomeTriggerRequestDto::Custom {
+                            description,
+                        })
                     } else {
                         None
                     }

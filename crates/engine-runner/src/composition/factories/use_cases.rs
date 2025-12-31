@@ -282,15 +282,17 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create broadcast adapter (shared by all use cases)
     // =========================================================================
-    let broadcast_adapter =
-        Arc::new(WebSocketBroadcastAdapter::new(deps.world_connection_manager.clone()));
+    let broadcast_adapter = Arc::new(WebSocketBroadcastAdapter::new(
+        deps.world_connection_manager.clone(),
+    ));
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
     // =========================================================================
     // Create DM notification adapter
     // =========================================================================
-    let dm_notification_adapter =
-        Arc::new(DmNotificationAdapter::new(deps.world_connection_manager.clone()));
+    let dm_notification_adapter = Arc::new(DmNotificationAdapter::new(
+        deps.world_connection_manager.clone(),
+    ));
 
     // =========================================================================
     // Create staging adapters
@@ -299,8 +301,9 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
         deps.world_state.clone(),
         deps.clock.clone(),
     ));
-    let staging_service_adapter =
-        Arc::new(StagingServiceAdapter::new(deps.staging_service_port.clone()));
+    let staging_service_adapter = Arc::new(StagingServiceAdapter::new(
+        deps.staging_service_port.clone(),
+    ));
 
     // =========================================================================
     // Create shared scene builder
@@ -357,8 +360,10 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create Player Action Use Case
     // =========================================================================
-    let player_action_queue_adapter =
-        Arc::new(PlayerActionQueueAdapter::new(deps.player_action_queue_service_port.clone(), deps.clock.clone()));
+    let player_action_queue_adapter = Arc::new(PlayerActionQueueAdapter::new(
+        deps.player_action_queue_service_port.clone(),
+        deps.clock.clone(),
+    ));
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
         player_action_queue_adapter.clone(),
@@ -379,13 +384,15 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create Challenge Use Case
     // =========================================================================
-    let challenge_resolution_adapter =
-        Arc::new(ChallengeResolutionAdapter::new(deps.challenge_resolution_service_port.clone()));
+    let challenge_resolution_adapter = Arc::new(ChallengeResolutionAdapter::new(
+        deps.challenge_resolution_service_port.clone(),
+    ));
     let challenge_outcome_adapter = Arc::new(ChallengeOutcomeApprovalAdapter::new(
         deps.challenge_outcome_approval_service_port.clone(),
     ));
-    let challenge_dm_queue_adapter =
-        Arc::new(ChallengeDmApprovalQueueAdapter::new(deps.dm_approval_queue_service_port.clone()));
+    let challenge_dm_queue_adapter = Arc::new(ChallengeDmApprovalQueueAdapter::new(
+        deps.dm_approval_queue_service_port.clone(),
+    ));
 
     let challenge_use_case = Arc::new(ChallengeUseCase::new(
         challenge_resolution_adapter.clone(),
@@ -399,12 +406,13 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // Create Scene Use Case
     // =========================================================================
     let scene_service_adapter = Arc::new(SceneServiceAdapter::new(deps.scene_service_port.clone()));
-    let interaction_service_adapter =
-        Arc::new(InteractionServiceAdapter::new(deps.interaction_service_port.clone()));
-    let scene_world_state_adapter =
-        Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
-    let directorial_context_adapter =
-        Arc::new(DirectorialContextAdapter::new(deps.directorial_context_repo.clone()));
+    let interaction_service_adapter = Arc::new(InteractionServiceAdapter::new(
+        deps.interaction_service_port.clone(),
+    ));
+    let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
+    let directorial_context_adapter = Arc::new(DirectorialContextAdapter::new(
+        deps.directorial_context_repo.clone(),
+    ));
     let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
 
     let scene_use_case = Arc::new(SceneUseCase::new(
@@ -418,13 +426,16 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create Connection Use Case
     // =========================================================================
-    let connection_manager_adapter =
-        Arc::new(ConnectionManagerAdapter::new(deps.world_connection_manager.clone()));
+    let connection_manager_adapter = Arc::new(ConnectionManagerAdapter::new(
+        deps.world_connection_manager.clone(),
+    ));
     let world_service_adapter = Arc::new(WorldServiceAdapter::new(deps.world_service_port.clone()));
-    let pc_service_adapter =
-        Arc::new(PlayerCharacterServiceAdapter::new(deps.player_character_service_port.clone()));
-    let connection_directorial_adapter =
-        Arc::new(ConnectionDirectorialContextAdapter::new(deps.directorial_context_repo.clone()));
+    let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(
+        deps.player_character_service_port.clone(),
+    ));
+    let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
+        deps.directorial_context_repo.clone(),
+    ));
     let connection_world_state_adapter =
         Arc::new(ConnectionWorldStateAdapter::new(deps.world_state.clone()));
 
@@ -576,7 +587,9 @@ mod tests {
         }
 
         // The existence of this function proves the types are correct at compile time
-        let _ = _verify_dependencies::<wrldbldr_engine_app::application::services::NarrativeEventServiceImpl>;
+        let _ = _verify_dependencies::<
+            wrldbldr_engine_app::application::services::NarrativeEventServiceImpl,
+        >;
     }
 
     /// Verify the number of use cases matches expectations.

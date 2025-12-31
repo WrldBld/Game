@@ -44,11 +44,7 @@ async fn queue_health_check(State(state): State<Arc<dyn AppStatePort>>) -> Json<
         .await
         .unwrap_or(0);
 
-    let approvals_pending = state
-        .dm_approval_queue_service()
-        .depth()
-        .await
-        .unwrap_or(0);
+    let approvals_pending = state.dm_approval_queue_service().depth().await.unwrap_or(0);
 
     let asset_pending = state
         .asset_generation_queue_service()

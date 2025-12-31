@@ -265,8 +265,7 @@ pub struct SpectateTargetResult {
 // =============================================================================
 
 /// Time context for scenes
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum TimeContext {
     #[default]
     Unspecified,
@@ -275,17 +274,14 @@ pub enum TimeContext {
     Custom(String),
 }
 
-
 /// Directorial context data for scene management
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DirectorialContextData {
     pub npc_motivations: Vec<NpcMotivation>,
     pub scene_mood: Option<String>,
     pub pacing: Option<String>,
     pub dm_notes: Option<String>,
 }
-
 
 /// NPC motivation data for directorial context
 #[derive(Debug, Clone, Serialize, Deserialize)]

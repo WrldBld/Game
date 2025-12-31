@@ -171,4 +171,3 @@ pub struct InteractionRequirement {
     /// Whether the required item is consumed when the interaction is used
     pub consumed: bool,
 }
-

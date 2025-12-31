@@ -190,10 +190,7 @@ impl Neo4jCharacterRepository {
     }
 
     /// Get the resolved target of a want
-    pub(crate) async fn get_want_target_impl(
-        &self,
-        want_id: WantId,
-    ) -> Result<Option<WantTarget>> {
+    pub(crate) async fn get_want_target_impl(&self, want_id: WantId) -> Result<Option<WantTarget>> {
         // Query for TARGETS edge to any of the possible target types
         let q = query(
             "MATCH (w:Want {id: $want_id})-[:TARGETS]->(target)

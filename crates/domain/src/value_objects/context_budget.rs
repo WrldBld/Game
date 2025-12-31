@@ -243,8 +243,7 @@ impl ContextBudgetConfig {
 // ============================================================================
 
 /// Token counting configuration
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum TokenCountMethod {
     /// Simple character-based approximation: 1 token ≈ 4 characters
     /// Fast but less accurate, good for quick estimates
@@ -257,7 +256,6 @@ pub enum TokenCountMethod {
     #[default]
     Hybrid,
 }
-
 
 /// Token counter for estimating LLM token usage
 ///

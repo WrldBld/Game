@@ -308,11 +308,7 @@ pub async fn handle_select_outcome_branch(
         modified_description,
     };
 
-    match state
-        .challenge_use_case()
-        .select_branch(ctx, input)
-        .await
-    {
+    match state.challenge_use_case().select_branch(ctx, input).await {
         Ok(()) => None,
         Err(e) => Some(e.into_server_error()),
     }

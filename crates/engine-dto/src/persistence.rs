@@ -22,11 +22,19 @@ use wrldbldr_domain::{ChallengeId, SceneId, WorldId};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DifficultyRequestDto {
-    Dc { value: u32 },
-    Percentage { value: u32 },
-    Descriptor { value: String },
+    Dc {
+        value: u32,
+    },
+    Percentage {
+        value: u32,
+    },
+    Descriptor {
+        value: String,
+    },
     Opposed,
-    Custom { value: String },
+    Custom {
+        value: String,
+    },
     #[serde(other)]
     Unknown,
 }

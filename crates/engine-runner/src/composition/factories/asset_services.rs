@@ -39,9 +39,9 @@ use wrldbldr_engine_app::application::services::{
     AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, AssetServicePort, ClockPort, ComfyUIPort,
-    DomainEventRepositoryPort, FileStoragePort, GenerationQueueProjectionServicePort,
-    GenerationReadStatePort, GenerationServicePort, WorkflowRepositoryPort, WorkflowServicePort,
+    AssetRepositoryPort, AssetServicePort, ClockPort, ComfyUIPort, DomainEventRepositoryPort,
+    FileStoragePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
+    GenerationServicePort, WorkflowRepositoryPort, WorkflowServicePort,
 };
 
 /// Dependencies required for creating asset services.
@@ -220,11 +220,12 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
     // =========================================================================
     // Generation Queue Projection Service
     // =========================================================================
-    let generation_queue_projection_service_concrete = Arc::new(GenerationQueueProjectionService::new(
-        asset_service_concrete.clone(),
-        deps.domain_event_repository,
-        deps.generation_read_state_repository,
-    ));
+    let generation_queue_projection_service_concrete =
+        Arc::new(GenerationQueueProjectionService::new(
+            asset_service_concrete.clone(),
+            deps.domain_event_repository,
+            deps.generation_read_state_repository,
+        ));
     let generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort> =
         generation_queue_projection_service_concrete.clone();
     tracing::debug!("Created generation queue projection service");

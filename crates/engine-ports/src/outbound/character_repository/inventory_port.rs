@@ -46,9 +46,6 @@ pub trait CharacterInventoryPort: Send + Sync {
     ) -> Result<()>;
 
     /// Remove an item from inventory
-    async fn remove_inventory_item(
-        &self,
-        character_id: CharacterId,
-        item_id: ItemId,
-    ) -> Result<()>;
+    async fn remove_inventory_item(&self, character_id: CharacterId, item_id: ItemId)
+        -> Result<()>;
 }

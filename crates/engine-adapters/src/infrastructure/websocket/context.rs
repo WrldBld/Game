@@ -236,7 +236,11 @@ define_ws_id_parser!(parse_location_id, LocationId, "location");
 define_ws_id_parser!(parse_character_id, CharacterId, "character");
 define_ws_id_parser!(parse_item_id, ItemId, "item");
 define_ws_id_parser!(parse_challenge_id, ChallengeId, "challenge");
-define_ws_id_parser!(parse_narrative_event_id, NarrativeEventId, "narrative_event");
+define_ws_id_parser!(
+    parse_narrative_event_id,
+    NarrativeEventId,
+    "narrative_event"
+);
 define_ws_id_parser!(parse_scene_id, SceneId, "scene");
 
 // =============================================================================

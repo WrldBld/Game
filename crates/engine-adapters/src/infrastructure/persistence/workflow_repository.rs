@@ -200,17 +200,17 @@ impl Neo4jWorkflowRepository {
 
         let workflow_json: serde_json::Value = row.get_json_or_default("workflow_json");
 
-        let prompt_mappings: Vec<PromptMapping> =
-            row.get_json_or_default::<Vec<PromptMappingDto>>("prompt_mappings")
-                .into_iter()
-                .map(Into::into)
-                .collect();
+        let prompt_mappings: Vec<PromptMapping> = row
+            .get_json_or_default::<Vec<PromptMappingDto>>("prompt_mappings")
+            .into_iter()
+            .map(Into::into)
+            .collect();
 
-        let input_defaults: Vec<InputDefault> =
-            row.get_json_or_default::<Vec<InputDefaultDto>>("input_defaults")
-                .into_iter()
-                .map(Into::into)
-                .collect();
+        let input_defaults: Vec<InputDefault> = row
+            .get_json_or_default::<Vec<InputDefaultDto>>("input_defaults")
+            .into_iter()
+            .map(Into::into)
+            .collect();
 
         let locked_inputs: Vec<String> = row.get_json_or_default("locked_inputs");
 

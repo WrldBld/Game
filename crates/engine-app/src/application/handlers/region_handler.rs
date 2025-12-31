@@ -46,10 +46,7 @@ pub async fn list_regions(
 }
 
 /// Handle GetRegion request
-pub async fn get_region(
-    region_crud: &Arc<dyn RegionCrudPort>,
-    region_id: &str,
-) -> ResponseResult {
+pub async fn get_region(region_crud: &Arc<dyn RegionCrudPort>, region_id: &str) -> ResponseResult {
     let id = match parse_region_id(region_id) {
         Ok(id) => id,
         Err(e) => return e,
@@ -88,7 +85,8 @@ pub async fn create_region(
         Err(e) => return e,
     };
     // Create region entity
-    let mut region = Region::new(lid, data.name).with_description(data.description.unwrap_or_default());
+    let mut region =
+        Region::new(lid, data.name).with_description(data.description.unwrap_or_default());
     // Set spawn point if specified
     if data.is_spawn_point.unwrap_or(false) {
         region.is_spawn_point = true;

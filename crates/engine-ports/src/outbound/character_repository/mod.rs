@@ -56,14 +56,14 @@ mod mock {
     use super::*;
     use async_trait::async_trait;
     use mockall::mock;
+    use wrldbldr_domain::value_objects::{
+        ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship, RegionShift,
+        WantTarget,
+    };
     use wrldbldr_domain::{
         AcquisitionMethod, ActantialRole, ActantialView, Character, CharacterId, CharacterWant,
         FrequencyLevel, InventoryItem, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId,
         Want, WantId, WorldId,
-    };
-    use wrldbldr_domain::value_objects::{
-        ActantialTarget, DispositionLevel, NpcDispositionState, RegionRelationship, RegionShift,
-        WantTarget,
     };
 
     mock! {

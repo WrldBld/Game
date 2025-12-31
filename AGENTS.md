@@ -1,8 +1,16 @@
 # WrldBldr Agent Guidelines
 
-## Project Overview
+## Canonical architecture (read this first)
 
-WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tabletop roleplaying games.
+The source of truth is:
+
+- `docs/architecture/hexagonal-architecture.md` (**Hexagonal Architecture (Target)**)
+
+The single source-of-truth refactor plan to reach that target is:
+
+- `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
+
+This file (`AGENTS.md`) is a practical, high-signal summary for agents.
 
 ### Key Facts
 - **~650 Rust files** across 15 workspace crates
@@ -80,7 +88,8 @@ WrldBldr is a **hexagonal-architecture Rust game engine** for AI-powered tableto
 
 ## Architecture Rules (STRICT)
 
-These rules are enforced by `cargo xtask arch-check`. **Always run this before committing.**
+These rules are enforced (and will increasingly be enforced) by `cargo xtask arch-check`.
+**Always run this before committing.**
 
 ### 1. Domain Layer Purity
 
@@ -105,8 +114,8 @@ These rules are enforced by `cargo xtask arch-check`. **Always run this before c
 **Location**: `crates/engine-ports/`, `crates/player-ports/`
 
 **DO**:
-- Define traits (interfaces) only
-- Depend only on domain types
+- Define traits (interfaces) and small boundary DTOs only
+- Depend only on domain (and limited `protocol` only when explicitly whitelisted)
 - Use `#[async_trait]` for async traits
 - Follow Interface Segregation - small, focused traits
 
@@ -114,6 +123,13 @@ These rules are enforced by `cargo xtask arch-check`. **Always run this before c
 - Add implementations (blanket impls, default impls with logic)
 - Import from adapters or app layers
 - Import protocol types (except whitelisted boundary files)
+
+**Inbound vs outbound meaning (canonical)**:
+
+- **Inbound ports** define what the application offers (implemented by use cases; called by handlers/UI).
+- **Outbound ports** define what the application needs (implemented by adapters; depended on by use cases/services).
+
+If a trait is a dependency of a use case or service, it belongs in **outbound**.
 
 **Pattern**: Split large traits into focused sub-traits:
 ```rust
@@ -146,14 +162,17 @@ trait CharacterRepository { /* everything */ }
 **Location**: `crates/engine-app/`, `crates/player-app/`
 
 **DO**:
-- Orchestrate domain objects via port abstractions
-- Depend on domain, ports
-- Use protocol types only in handlers (boundary layer)
+- Orchestrate domain objects via **outbound port** abstractions
+- Depend on domain + ports
+- Keep protocol types at the boundary (handlers/adapters)
 
 **DON'T**:
 - Import adapter implementations directly
+- Store/use concrete adapter types in services/use cases
 - Perform direct I/O (database, HTTP, filesystem)
 - Duplicate domain logic - delegate to entities
+
+**Red flag**: application code depending on concrete types when a port exists.
 
 ### 5. Protocol Import Rules
 
@@ -162,10 +181,23 @@ trait CharacterRepository { /* everything */ }
 | domain | FORBIDDEN | Pure business logic |
 | *-ports | FORBIDDEN (except whitelisted) | Infrastructure contracts |
 | *-app/use_cases | FORBIDDEN | Business orchestration |
-| *-app/services | App-layer DTOs only | Service isolation |
+| *-app/services | FORBIDDEN | Business orchestration |
 | *-app/handlers | ALLOWED | Boundary layer |
 | *-adapters | ALLOWED | Wire-format conversion |
 | player-ui | ALLOWED | Presentation boundary |
+
+Note: The target direction is to keep `protocol` at the boundary (handlers/adapters/UI). If a port needs a protocol type, it must be explicitly whitelisted and justified.
+
+### 6. DTO ownership (no duplication)
+
+Single source of truth per DTO:
+
+- Business semantics/invariants → `domain`
+- Engine↔Player wire format → `protocol`
+- App↔adapter contracts → `engine-ports`/`player-ports`
+- Engine-internal glue only → `engine-dto`
+
+Avoid “shadow copies” like `engine_dto::X` duplicating `engine_ports::...::X`.
 
 ### 6. No Shim Import Paths
 

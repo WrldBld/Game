@@ -12,28 +12,24 @@ use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
-
+use super::factories::{
+    create_asset_services, create_core_services, create_use_cases, AssetServiceDependencies,
+    CoreServiceDependencies, UseCaseDependencies,
+};
 use wrldbldr_engine_app::application::handlers::AppRequestHandler;
 use wrldbldr_engine_app::application::services::generation_service::GenerationEvent;
 use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, staging_service::StagingService,
-    ActantialContextServiceImpl, AssetGenerationQueueService,
-    ChallengeApprovalEvent, ChallengeOutcomeApprovalService, ChallengeServiceImpl,
-    CharacterServiceImpl, DMApprovalQueueService, DispositionServiceImpl,
-    DmActionQueueService, EventChainServiceImpl, EventEffectExecutor,
-    InteractionServiceImpl, ItemServiceImpl, LLMQueueService,
+    ActantialContextServiceImpl, AssetGenerationQueueService, ChallengeApprovalEvent,
+    ChallengeOutcomeApprovalService, ChallengeServiceImpl, CharacterServiceImpl,
+    DMApprovalQueueService, DispositionServiceImpl, DmActionQueueService, EventChainServiceImpl,
+    EventEffectExecutor, InteractionServiceImpl, ItemServiceImpl, LLMQueueService,
     LocationServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
     OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
-    PromptContextServiceImpl, RegionServiceImpl, RelationshipServiceImpl,
-    SceneServiceImpl, SheetTemplateService,
-    SkillServiceImpl, StoryEventServiceImpl, TriggerEvaluationService,
+    PromptContextServiceImpl, RegionServiceImpl, RelationshipServiceImpl, SceneServiceImpl,
+    SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, TriggerEvaluationService,
     WorldServiceImpl,
 };
-use super::factories::{
-    AssetServiceDependencies, CoreServiceDependencies, UseCaseDependencies,
-    create_asset_services, create_core_services, create_use_cases,
-};
-
 
 // Import composition layer types
 use wrldbldr_engine_composition::{
@@ -43,32 +39,15 @@ use wrldbldr_engine_composition::{
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort,
-    BroadcastPort,
-    ChallengeOutcomeApprovalServicePort,
-    ChallengeResolutionServicePort,
-    ChallengeServicePort,
-    ComfyUIPort,
-    DispositionServicePort,
-    DmActionProcessorPort,
-    DomainEventRepositoryPort,
-    EventBusPort,
-    EventChainServicePort,
-    EventEffectExecutorPort,
-    EventNotifierPort,
-    GenerationReadStatePort,
-    NarrativeEventApprovalServicePort,
-    NarrativeEventServicePort,
-    PromptContextServicePort,
-    PromptTemplateServicePort,
-    RegionItemPort,
-    SettingsServicePort,
-    StagingServicePort,
-    StoryEventServicePort,
-    TriggerEvaluationServicePort,
-    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
-    WorldScenePort, WorldTimePort,
+    ActantialContextServicePort, BroadcastPort, ChallengeOutcomeApprovalServicePort,
+    ChallengeResolutionServicePort, ChallengeServicePort, ComfyUIPort, ConnectionBroadcastPort,
+    ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort, DispositionServicePort,
+    DmActionProcessorPort, DomainEventRepositoryPort, EventBusPort, EventChainServicePort,
+    EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
+    NarrativeEventApprovalServicePort, NarrativeEventServicePort, PromptContextServicePort,
+    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
+    StoryEventServicePort, TriggerEvaluationServicePort, WorldApprovalPort, WorldConversationPort,
+    WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs
@@ -95,13 +74,8 @@ use wrldbldr_engine_adapters::infrastructure::queues::{InProcessNotifier, QueueB
 #[derive(Clone)]
 pub struct WorkerServices {
     /// LLM queue service with `run_worker()` method
-    pub llm_queue_service: Arc<
-        LLMQueueService<
-            QueueBackendEnum<LlmRequestData>,
-            OllamaClientType,
-            InProcessNotifier,
-        >,
-    >,
+    pub llm_queue_service:
+        Arc<LLMQueueService<QueueBackendEnum<LlmRequestData>, OllamaClientType, InProcessNotifier>>,
 
     /// Asset generation queue service with `run_worker()` method
     pub asset_generation_queue_service: Arc<
@@ -148,8 +122,6 @@ pub struct WorkerServices {
     /// Broadcast port for publishing game events
     pub broadcast: Arc<dyn BroadcastPort>,
 }
-
-
 
 /// Creates a new AppState with all services initialized.
 ///
@@ -372,8 +344,9 @@ pub async fn new_app_state(
             character_crud.clone(),
         ));
 
-    let skill_service: Arc<dyn wrldbldr_engine_app::application::services::SkillService> =
-        Arc::new(SkillServiceImpl::new(skill_repo.clone(), world_repo.clone()));
+    let skill_service: Arc<dyn wrldbldr_engine_app::application::services::SkillService> = Arc::new(
+        SkillServiceImpl::new(skill_repo.clone(), world_repo.clone()),
+    );
 
     let interaction_service: Arc<
         dyn wrldbldr_engine_app::application::services::InteractionService,
@@ -435,12 +408,9 @@ pub async fn new_app_state(
     // Note: Asset services are created later using the asset_services factory (after event_infra)
 
     // Item service - app-layer trait for AppRequestHandler, port comes from factory
-    let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> =
-        Arc::new(ItemServiceImpl::new(
-            item_repo.clone(),
-            pc_inventory.clone(),
-            region_item.clone(),
-        ));
+    let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = Arc::new(
+        ItemServiceImpl::new(item_repo.clone(), pc_inventory.clone(), region_item.clone()),
+    );
 
     let pc_crud_for_triggers = pc_crud.clone();
     let pc_crud_for_actantial = pc_crud.clone();
@@ -514,10 +484,10 @@ pub async fn new_app_state(
     let story_event_service: Arc<
         dyn wrldbldr_engine_app::application::services::StoryEventService,
     > = story_event_service_impl.clone();
-    let story_event_service_port: Arc<dyn StoryEventServicePort> =
-        story_event_service_impl.clone();
-    let dialogue_context_service: Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort> =
-        story_event_service_impl.clone();
+    let story_event_service_port: Arc<dyn StoryEventServicePort> = story_event_service_impl.clone();
+    let dialogue_context_service: Arc<
+        dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort,
+    > = story_event_service_impl.clone();
 
     // Create narrative event service with event bus
     // Uses ISP sub-traits: crud, tie, npc, query
@@ -546,8 +516,8 @@ pub async fn new_app_state(
     // ===========================================================================
     // Level 2b: Queue Services (using factory)
     // ===========================================================================
-    let queue_service_ctx = super::factories::create_queue_services(
-        super::factories::QueueServiceDependencies {
+    let queue_service_ctx =
+        super::factories::create_queue_services(super::factories::QueueServiceDependencies {
             config: &config,
             infra: &infra,
             repos: &repos,
@@ -557,8 +527,7 @@ pub async fn new_app_state(
             narrative_event_service: narrative_event_service.clone(),
             scene_service: scene_service.clone(),
             interaction_service: interaction_service.clone(),
-        },
-    )?;
+        })?;
 
     // Extract port versions (for AppState)
     let player_action_queue_service_port = queue_service_ctx.player_action_queue_service_port;
@@ -599,10 +568,12 @@ pub async fn new_app_state(
     let asset_service_port = asset_services.asset_service.clone();
     let workflow_config_service_port = asset_services.workflow_config_service.clone();
     let generation_service = asset_services.generation_service.clone();
-    let generation_queue_projection_service = asset_services.generation_queue_projection_service.clone();
+    let generation_queue_projection_service =
+        asset_services.generation_queue_projection_service.clone();
     // Keep concrete generation_queue_projection_service for AppRequestHandler
-    let generation_queue_projection_service_concrete =
-        asset_services.generation_queue_projection_service_concrete.clone();
+    let generation_queue_projection_service_concrete = asset_services
+        .generation_queue_projection_service_concrete
+        .clone();
 
     // Create challenge outcome approval service (P3.3) - must be created before resolution service
     // Wire LLM port for suggestion generation, settings service for branch count,
@@ -741,7 +712,8 @@ pub async fn new_app_state(
         prompt_context_service_impl;
 
     // Clone generation services for use in request handler
-    let generation_queue_projection_for_handler = generation_queue_projection_service_concrete.clone();
+    let generation_queue_projection_for_handler =
+        generation_queue_projection_service_concrete.clone();
     let generation_read_state_for_handler = generation_read_state_repository.clone();
 
     // Create suggestion enqueue adapter for AI suggestions

@@ -24,7 +24,9 @@ use wrldbldr_domain::value_objects::{
     DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_ports::outbound::{CharacterDispositionPort, ClockPort, DispositionServicePort};
+use wrldbldr_engine_ports::outbound::{
+    CharacterDispositionPort, ClockPort, DispositionServicePort,
+};
 
 /// Disposition service trait defining the application use cases
 #[async_trait]
@@ -152,7 +154,8 @@ impl DispositionService for DispositionServiceImpl {
         debug!(npc_id = %npc_id, pc_id = %pc_id, disposition = ?disposition, "Setting NPC disposition");
 
         // Get or create the disposition state
-        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
+        let mut disposition_state =
+            DispositionService::get_disposition(self, npc_id, pc_id).await?;
 
         // Update the disposition
         disposition_state.set_disposition(disposition, reason, self.clock.now());
@@ -174,7 +177,8 @@ impl DispositionService for DispositionServiceImpl {
     ) -> Result<NpcDispositionState> {
         debug!(npc_id = %npc_id, pc_id = %pc_id, outcome = ?outcome, "Applying interaction outcome");
 
-        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
+        let mut disposition_state =
+            DispositionService::get_disposition(self, npc_id, pc_id).await?;
 
         let now = self.clock.now();
         match outcome {
@@ -302,7 +306,8 @@ impl DispositionService for DispositionServiceImpl {
     ) -> Result<NpcDispositionState> {
         debug!(npc_id = %npc_id, pc_id = %pc_id, relationship = ?relationship, "Setting NPC relationship");
 
-        let mut disposition_state = DispositionService::get_disposition(self, npc_id, pc_id).await?;
+        let mut disposition_state =
+            DispositionService::get_disposition(self, npc_id, pc_id).await?;
         disposition_state.relationship = relationship;
 
         // Adjust relationship_points to match the new level

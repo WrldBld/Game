@@ -108,7 +108,9 @@ pub async fn set_challenge_favorite(
         Err(e) => return e,
     };
     match challenge_service.toggle_favorite(id).await {
-        Ok(is_favorite) => ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite })),
+        Ok(is_favorite) => {
+            ResponseResult::success(serde_json::json!({ "is_favorite": is_favorite }))
+        }
         Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
     }
 }

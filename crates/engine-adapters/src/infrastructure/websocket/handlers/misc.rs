@@ -6,9 +6,9 @@
 
 use uuid::Uuid;
 
-use wrldbldr_engine_ports::inbound::AppStatePort;
 use crate::infrastructure::websocket::IntoServerError;
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::outbound::{
     ShareNpcLocationInput, TriggerApproachInput, TriggerLocationEventInput,
 };

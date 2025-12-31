@@ -927,7 +927,9 @@ pub fn info_to_challenge_suggestion(info: ChallengeSuggestionInfo) -> ChallengeS
 }
 
 /// Convert domain ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
-pub fn outcomes_to_info(outcomes: DomainChallengeSuggestionOutcomes) -> ChallengeSuggestionOutcomes {
+pub fn outcomes_to_info(
+    outcomes: DomainChallengeSuggestionOutcomes,
+) -> ChallengeSuggestionOutcomes {
     ChallengeSuggestionOutcomes {
         success: outcomes.success,
         failure: outcomes.failure,

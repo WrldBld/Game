@@ -61,7 +61,6 @@ pub use use_case_ports::{
     ChallengeDmApprovalQueuePort,
     ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort,
-    NarrativeRollContext,
     // Connection port traits
     ConnectionManagerPort,
     DirectorialContextPort,
@@ -70,6 +69,7 @@ pub use use_case_ports::{
     // Player action port traits
     DmNotificationPort,
     InteractionServicePort,
+    NarrativeRollContext,
     PlayerActionQueuePort,
     PlayerCharacterServicePort,
     SceneDmActionQueuePort,

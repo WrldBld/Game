@@ -38,9 +38,7 @@ pub async fn list_character_assets(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(
-        assets.into_iter().map(gallery_asset_to_dto).collect(),
-    ))
+    Ok(Json(assets.into_iter().map(gallery_asset_to_dto).collect()))
 }
 
 /// Upload an asset to a character's gallery
@@ -75,10 +73,7 @@ pub async fn upload_character_asset(
         asset.is_active = true;
     }
 
-    Ok((
-        StatusCode::CREATED,
-        Json(gallery_asset_to_dto(asset)),
-    ))
+    Ok((StatusCode::CREATED, Json(gallery_asset_to_dto(asset))))
 }
 
 /// Activate an asset in a character's gallery
@@ -146,12 +141,7 @@ pub async fn list_location_assets(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(
-        assets
-            .into_iter()
-            .map(gallery_asset_to_dto)
-            .collect(),
-    ))
+    Ok(Json(assets.into_iter().map(gallery_asset_to_dto).collect()))
 }
 
 /// Upload an asset to a location's gallery
@@ -186,10 +176,7 @@ pub async fn upload_location_asset(
         asset.is_active = true;
     }
 
-    Ok((
-        StatusCode::CREATED,
-        Json(gallery_asset_to_dto(asset)),
-    ))
+    Ok((StatusCode::CREATED, Json(gallery_asset_to_dto(asset))))
 }
 
 /// Activate an asset in a location's gallery
@@ -239,12 +226,7 @@ pub async fn list_item_assets(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(
-        assets
-            .into_iter()
-            .map(gallery_asset_to_dto)
-            .collect(),
-    ))
+    Ok(Json(assets.into_iter().map(gallery_asset_to_dto).collect()))
 }
 
 /// Upload an asset to an item's gallery
@@ -279,10 +261,7 @@ pub async fn upload_item_asset(
         asset.is_active = true;
     }
 
-    Ok((
-        StatusCode::CREATED,
-        Json(gallery_asset_to_dto(asset)),
-    ))
+    Ok((StatusCode::CREATED, Json(gallery_asset_to_dto(asset))))
 }
 
 /// Activate an asset in an item's gallery
@@ -325,7 +304,13 @@ pub async fn delete_item_asset(
 pub async fn queue_generation(
     State(state): State<Arc<dyn AppStatePort>>,
     Json(req): Json<GenerateAssetRequestDto>,
-) -> Result<(StatusCode, Json<wrldbldr_protocol::GenerationBatchResponseDto>), (StatusCode, String)> {
+) -> Result<
+    (
+        StatusCode,
+        Json<wrldbldr_protocol::GenerationBatchResponseDto>,
+    ),
+    (StatusCode, String),
+> {
     let world_uuid = Uuid::parse_str(&req.world_id)
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world_id".to_string()))?;
     let world_id = WorldId::from_uuid(world_uuid);
@@ -413,10 +398,7 @@ pub async fn queue_generation(
         batch.count
     );
 
-    Ok((
-        StatusCode::CREATED,
-        Json(generation_batch_to_dto(batch)),
-    ))
+    Ok((StatusCode::CREATED, Json(generation_batch_to_dto(batch))))
 }
 
 /// List the generation queue for a specific world
@@ -435,10 +417,7 @@ pub async fn list_queue(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(
-        batches
-            .into_iter()
-            .map(generation_batch_to_dto)
-            .collect(),
+        batches.into_iter().map(generation_batch_to_dto).collect(),
     ))
 }
 
@@ -453,10 +432,7 @@ pub async fn list_ready_batches(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(
-        batches
-            .into_iter()
-            .map(generation_batch_to_dto)
-            .collect(),
+        batches.into_iter().map(generation_batch_to_dto).collect(),
     ))
 }
 

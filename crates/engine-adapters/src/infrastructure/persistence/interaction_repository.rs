@@ -186,15 +186,17 @@ impl Neo4jInteractionRepository {
 fn row_to_interaction(row: Row) -> Result<InteractionTemplate> {
     let node: neo4rs::Node = row.get("i")?;
 
-    let interaction_type: InteractionType =
-        node.get_json::<InteractionTypeStored>("interaction_type")?.into();
-    let target: InteractionTarget =
-        node.get_json::<InteractionTargetStored>("target")?.try_into()?;
-    let conditions: Vec<InteractionCondition> =
-        node.get_json::<Vec<InteractionConditionStored>>("conditions")?
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<_>>>()?;
+    let interaction_type: InteractionType = node
+        .get_json::<InteractionTypeStored>("interaction_type")?
+        .into();
+    let target: InteractionTarget = node
+        .get_json::<InteractionTargetStored>("target")?
+        .try_into()?;
+    let conditions: Vec<InteractionCondition> = node
+        .get_json::<Vec<InteractionConditionStored>>("conditions")?
+        .into_iter()
+        .map(TryInto::try_into)
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(InteractionTemplate {
         id: parse_typed_id(&node, "id")?,

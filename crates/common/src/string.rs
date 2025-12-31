@@ -108,10 +108,7 @@ mod tests {
 
     #[test]
     fn test_string_ext_into_option() {
-        assert_eq!(
-            "hello".to_string().into_option(),
-            Some("hello".to_string())
-        );
+        assert_eq!("hello".to_string().into_option(), Some("hello".to_string()));
         assert_eq!(String::new().into_option(), None);
     }
 

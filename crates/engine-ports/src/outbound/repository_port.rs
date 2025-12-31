@@ -461,7 +461,7 @@ pub trait AssetRepositoryPort: Send + Sync {
 // =============================================================================
 // StoryEvent Repository Port - MOVED to story_event_repository module
 // =============================================================================
-// 
+//
 // StoryEventRepositoryPort has been split into 4 focused traits following ISP:
 // - StoryEventCrudPort (7 methods) - Core CRUD + state management
 // - StoryEventEdgePort (15 methods) - Edge relationship management
@@ -474,9 +474,9 @@ pub trait AssetRepositoryPort: Send + Sync {
 // =============================================================================
 // NarrativeEvent Repository Port - MOVED to narrative_event_repository module
 // =============================================================================
-// 
+//
 // NarrativeEventRepositoryPort has been split into 4 focused traits following ISP:
-// - NarrativeEventCrudPort (12 methods) - Core CRUD + state management  
+// - NarrativeEventCrudPort (12 methods) - Core CRUD + state management
 // - NarrativeEventTiePort (9 methods) - Scene/Location/Act relationships
 // - NarrativeEventNpcPort (5 methods) - Featured NPC management
 // - NarrativeEventQueryPort (4 methods) - Query by relationships

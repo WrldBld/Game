@@ -24,17 +24,21 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
     let mut is_saving = use_signal(|| false);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 
-    let importance_options = [("minor", "Minor", "Low priority note"),
+    let importance_options = [
+        ("minor", "Minor", "Low priority note"),
         ("normal", "Normal", "Standard note"),
         ("major", "Major", "Important plot point"),
-        ("critical", "Critical", "Critical story moment")];
+        ("critical", "Critical", "Critical story moment"),
+    ];
 
-    let marker_type_options = [("note", "Note", "📝"),
+    let marker_type_options = [
+        ("note", "Note", "📝"),
         ("plot_point", "Plot Point", "⭐"),
         ("foreshadowing", "Foreshadowing", "🔮"),
         ("session_break", "Session Break", "⏸️"),
         ("chapter_break", "Chapter Break", "📖"),
-        ("recap", "Recap", "📋")];
+        ("recap", "Recap", "📋"),
+    ];
 
     let can_save = !title.read().trim().is_empty();
 
