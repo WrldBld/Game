@@ -9,6 +9,7 @@ use wrldbldr_domain::{CharacterId, ItemId};
 use wrldbldr_engine_ports::outbound::CharacterInventoryPort;
 
 use super::super::converters::row_to_item;
+use super::super::neo4j_helpers::RowExt;
 use super::Neo4jCharacterRepository;
 
 impl Neo4jCharacterRepository {
@@ -66,15 +67,11 @@ impl Neo4jCharacterRepository {
             let quantity: i64 = row.get("quantity")?;
             let equipped: bool = row.get("equipped")?;
             let acquired_at_str: String = row.get("acquired_at")?;
-            let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
+            let acquisition_method = row
+                .get_optional_string("acquisition_method")
+                .and_then(|s| s.parse().ok());
 
             let acquired_at = parse_datetime_or(&acquired_at_str, self.clock.now());
-
-            let acquisition_method = if acquisition_method_str.is_empty() {
-                None
-            } else {
-                acquisition_method_str.parse().ok()
-            };
 
             inventory.push(InventoryItem {
                 item,
@@ -109,15 +106,11 @@ impl Neo4jCharacterRepository {
             let quantity: i64 = row.get("quantity")?;
             let equipped: bool = row.get("equipped")?;
             let acquired_at_str: String = row.get("acquired_at")?;
-            let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
+            let acquisition_method = row
+                .get_optional_string("acquisition_method")
+                .and_then(|s| s.parse().ok());
 
             let acquired_at = parse_datetime_or(&acquired_at_str, self.clock.now());
-
-            let acquisition_method = if acquisition_method_str.is_empty() {
-                None
-            } else {
-                acquisition_method_str.parse().ok()
-            };
 
             Ok(Some(InventoryItem {
                 item,

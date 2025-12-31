@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use super::neo4j_helpers::{parse_typed_id, NodeExt};
+use super::neo4j_helpers::{parse_typed_id, NodeExt, RowExt};
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId};
 use wrldbldr_engine_ports::outbound::{ClockPort, StagedNpcRow, StagingRepositoryPort};
@@ -342,8 +342,6 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
         while let Some(row) = result.next().await? {
             let character_id_str: String = row.get("character_id")?;
             let name: String = row.get("name")?;
-            let sprite_asset: String = row.get("sprite_asset").unwrap_or_default();
-            let portrait_asset: String = row.get("portrait_asset").unwrap_or_default();
             let is_present: bool = row.get("is_present")?;
             let is_hidden_from_players: bool = row.get("is_hidden_from_players")?;
             let reasoning: String = row.get("reasoning")?;
@@ -353,16 +351,8 @@ impl StagingRepositoryPort for Neo4jStagingRepository {
             npcs.push(StagedNpcRow {
                 character_id,
                 name,
-                sprite_asset: if sprite_asset.is_empty() {
-                    None
-                } else {
-                    Some(sprite_asset)
-                },
-                portrait_asset: if portrait_asset.is_empty() {
-                    None
-                } else {
-                    Some(portrait_asset)
-                },
+                sprite_asset: row.get_optional_string("sprite_asset"),
+                portrait_asset: row.get_optional_string("portrait_asset"),
                 is_present,
                 is_hidden_from_players,
                 reasoning,

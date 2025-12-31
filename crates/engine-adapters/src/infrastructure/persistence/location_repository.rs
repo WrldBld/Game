@@ -12,7 +12,7 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_region;
-use super::neo4j_helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
+use super::neo4j_helpers::{parse_optional_typed_id, parse_typed_id, NodeExt, RowExt};
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
 use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
@@ -638,9 +638,7 @@ fn row_to_connection(row: Row) -> Result<LocationConnection> {
     let travel_time: i64 = row.get("travel_time")?;
 
     // Optional fields
-    let description: String = row.get("description").unwrap_or_default();
     let is_locked: bool = row.get("is_locked").unwrap_or(false);
-    let lock_description: String = row.get("lock_description").unwrap_or_default();
 
     let from_id = uuid::Uuid::parse_str(&from_id_str)?;
     let to_id = uuid::Uuid::parse_str(&to_id_str)?;
@@ -649,19 +647,11 @@ fn row_to_connection(row: Row) -> Result<LocationConnection> {
         from_location: LocationId::from_uuid(from_id),
         to_location: LocationId::from_uuid(to_id),
         connection_type,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
+        description: row.get_optional_string("description"),
         bidirectional,
         travel_time: travel_time as u32,
         is_locked,
-        lock_description: if lock_description.is_empty() {
-            None
-        } else {
-            Some(lock_description)
-        },
+        lock_description: row.get_optional_string("lock_description"),
     })
 }
 

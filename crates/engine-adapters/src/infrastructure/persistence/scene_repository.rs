@@ -12,7 +12,7 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
-use super::neo4j_helpers::{parse_typed_id, NodeExt};
+use super::neo4j_helpers::{parse_typed_id, NodeExt, RowExt};
 use wrldbldr_domain::entities::{
     Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
 };
@@ -358,18 +358,13 @@ impl Neo4jSceneRepository {
         while let Some(row) = result.next().await? {
             let char_id_str: String = row.get("character_id")?;
             let role_str: String = row.get("role")?;
-            let entrance_cue: String = row.get("entrance_cue").unwrap_or_default();
 
             let char_id = CharacterId::from_uuid(uuid::Uuid::parse_str(&char_id_str)?);
             let role = role_str.parse().unwrap_or(SceneCharacterRole::Secondary);
 
             let scene_char = SceneCharacter {
                 role,
-                entrance_cue: if entrance_cue.is_empty() {
-                    None
-                } else {
-                    Some(entrance_cue)
-                },
+                entrance_cue: row.get_optional_string("entrance_cue"),
             };
 
             characters.push((char_id, scene_char));
@@ -513,11 +508,9 @@ fn row_to_scene(row: Row) -> Result<Scene> {
     let order_num: i64 = node.get("order_num")?;
 
     // location_id may not exist in newer schemas - default to a placeholder
-    let location_id_str = node.get_string_or("location_id", "");
-    let location_id = if location_id_str.is_empty() {
-        LocationId::new() // Placeholder - should be fetched via AT_LOCATION edge
-    } else {
-        LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)?)
+    let location_id = match node.get_optional_string("location_id") {
+        Some(s) => LocationId::from_uuid(uuid::Uuid::parse_str(&s)?),
+        None => LocationId::new(), // Placeholder - should be fetched via AT_LOCATION edge
     };
 
     // JSON fields - required

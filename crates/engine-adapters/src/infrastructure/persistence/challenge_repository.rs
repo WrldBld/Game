@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-use super::neo4j_helpers::{parse_typed_id, NodeExt};
+use super::neo4j_helpers::{parse_typed_id, NodeExt, RowExt};
 use wrldbldr_domain::entities::{
     Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,
     ChallengeType,
@@ -568,16 +568,11 @@ impl ChallengeAvailabilityPort for Neo4jChallengeRepository {
         while let Some(row) = result.next().await? {
             let location_id_str: String = row.get("location_id")?;
             let always_available: bool = row.get("always_available").unwrap_or(true);
-            let time_restriction: String = row.get("time_restriction").unwrap_or_default();
 
             availabilities.push(ChallengeLocationAvailability {
                 location_id: LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)?),
                 always_available,
-                time_restriction: if time_restriction.is_empty() {
-                    None
-                } else {
-                    Some(time_restriction)
-                },
+                time_restriction: row.get_optional_string("time_restriction"),
             });
         }
 
@@ -672,16 +667,11 @@ impl ChallengeAvailabilityPort for Neo4jChallengeRepository {
         while let Some(row) = result.next().await? {
             let region_id_str: String = row.get("region_id")?;
             let always_available: bool = row.get("always_available").unwrap_or(true);
-            let time_restriction: String = row.get("time_restriction").unwrap_or_default();
 
             availabilities.push(ChallengeRegionAvailability {
                 region_id: RegionId::from_uuid(uuid::Uuid::parse_str(&region_id_str)?),
                 always_available,
-                time_restriction: if time_restriction.is_empty() {
-                    None
-                } else {
-                    Some(time_restriction)
-                },
+                time_restriction: row.get_optional_string("time_restriction"),
             });
         }
 

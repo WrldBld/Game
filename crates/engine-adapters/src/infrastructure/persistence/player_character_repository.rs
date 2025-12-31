@@ -16,6 +16,7 @@ use serde_json;
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
+use super::neo4j_helpers::{parse_optional_typed_id, NodeExt};
 use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_common::StringExt;
 use wrldbldr_domain::entities::{
@@ -512,12 +513,7 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
     );
 
     let name: String = node.get("name").context("Missing name")?;
-    let description: Option<String> = node.get("description").ok().flatten();
-    let description = if description.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-        None
-    } else {
-        description
-    };
+    let description = node.get_optional_string("description");
 
     let sheet_data_str: String = node.get("sheet_data").unwrap_or_default();
     let sheet_data = if sheet_data_str.is_empty() || sheet_data_str == "{}" {
@@ -538,15 +534,7 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
     );
 
     // current_region_id is optional
-    let current_region_id_str: String = node.get("current_region_id").unwrap_or_default();
-    let current_region_id = if current_region_id_str.is_empty() {
-        None
-    } else {
-        Some(RegionId::from_uuid(
-            uuid::Uuid::parse_str(&current_region_id_str)
-                .context("Invalid UUID for current_region_id")?,
-        ))
-    };
+    let current_region_id: Option<RegionId> = parse_optional_typed_id(&node, "current_region_id")?;
 
     let starting_location_id_str: String = node
         .get("starting_location_id")
@@ -556,23 +544,8 @@ fn parse_player_character_row(row: Row) -> Result<PlayerCharacter> {
             .context("Invalid UUID for starting_location_id")?,
     );
 
-    let sprite_asset: Option<String> = node.get("sprite_asset").ok().flatten();
-    let sprite_asset = if sprite_asset.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-        None
-    } else {
-        sprite_asset
-    };
-
-    let portrait_asset: Option<String> = node.get("portrait_asset").ok().flatten();
-    let portrait_asset = if portrait_asset
-        .as_ref()
-        .map(|s| s.is_empty())
-        .unwrap_or(true)
-    {
-        None
-    } else {
-        portrait_asset
-    };
+    let sprite_asset = node.get_optional_string("sprite_asset");
+    let portrait_asset = node.get_optional_string("portrait_asset");
 
     let created_at_str: String = node.get("created_at").context("Missing created_at")?;
     let created_at = DateTime::parse_from_rfc3339(&created_at_str)

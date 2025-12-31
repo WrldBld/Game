@@ -151,6 +151,9 @@ pub trait RowExt {
     /// Get a required UUID column and parse it.
     fn get_uuid(&self, column: &str) -> Result<Uuid>;
 
+    /// Get an optional string column, returning None if empty or missing.
+    fn get_optional_string(&self, column: &str) -> Option<String>;
+
     /// Get a string column with a default value if missing.
     fn get_string_or(&self, column: &str, default: &str) -> String;
 
@@ -176,6 +179,12 @@ impl RowExt for Row {
             .get(column)
             .with_context(|| format!("Missing column: {}", column))?;
         Uuid::parse_str(&s).with_context(|| format!("Invalid UUID in column '{}': {}", column, s))
+    }
+
+    fn get_optional_string(&self, column: &str) -> Option<String> {
+        self.get::<String>(column)
+            .ok()
+            .and_then(|s| s.into_option())
     }
 
     fn get_string_or(&self, column: &str, default: &str) -> String {

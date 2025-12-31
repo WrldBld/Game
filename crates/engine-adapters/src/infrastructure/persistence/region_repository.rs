@@ -14,7 +14,7 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_region};
-use super::neo4j_helpers::{parse_typed_id, NodeExt};
+use super::neo4j_helpers::{parse_typed_id, NodeExt, RowExt};
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
 use wrldbldr_domain::value_objects::{
     CampbellArchetype, DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift,
@@ -403,10 +403,10 @@ impl Neo4jRegionRepository {
 fn row_to_region_connection(row: Row) -> Result<RegionConnection> {
     let from_id_str: String = row.get("from_id")?;
     let to_id_str: String = row.get("to_id")?;
-    let description: String = row.get("description").unwrap_or_default();
+    let description = row.get_optional_string("description");
     let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
     let is_locked: bool = row.get("is_locked").unwrap_or(false);
-    let lock_description: String = row.get("lock_description").unwrap_or_default();
+    let lock_description = row.get_optional_string("lock_description");
 
     let from_id = uuid::Uuid::parse_str(&from_id_str)?;
     let to_id = uuid::Uuid::parse_str(&to_id_str)?;
@@ -414,18 +414,10 @@ fn row_to_region_connection(row: Row) -> Result<RegionConnection> {
     Ok(RegionConnection {
         from_region: RegionId::from_uuid(from_id),
         to_region: RegionId::from_uuid(to_id),
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
+        description,
         bidirectional,
         is_locked,
-        lock_description: if lock_description.is_empty() {
-            None
-        } else {
-            Some(lock_description)
-        },
+        lock_description,
     })
 }
 
@@ -433,7 +425,7 @@ fn row_to_region_exit(row: Row) -> Result<RegionExit> {
     let from_id_str: String = row.get("from_id")?;
     let to_location_id_str: String = row.get("to_location_id")?;
     let arrival_region_id_str: String = row.get("arrival_region_id")?;
-    let description: String = row.get("description").unwrap_or_default();
+    let description = row.get_optional_string("description");
     let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
 
     let from_id = uuid::Uuid::parse_str(&from_id_str)?;
@@ -444,11 +436,7 @@ fn row_to_region_exit(row: Row) -> Result<RegionExit> {
         from_region: RegionId::from_uuid(from_id),
         to_location: LocationId::from_uuid(to_location_id),
         arrival_region_id: RegionId::from_uuid(arrival_region_id),
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
+        description,
         bidirectional,
     })
 }
