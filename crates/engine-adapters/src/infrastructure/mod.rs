@@ -74,7 +74,9 @@ pub use wrldbldr_engine_ports::outbound::{
 };
 
 // Re-export world connection manager types
-pub use world_connection_manager::{BroadcastError, DmInfo, WorldConnectionManager};
+pub use world_connection_manager::{BroadcastError, WorldConnectionManager};
+// Re-export DmInfo from ports (canonical definition)
+pub use wrldbldr_engine_ports::outbound::DmInfo;
 
 // Re-export settings loader
 pub use settings_loader::load_settings_from_env;

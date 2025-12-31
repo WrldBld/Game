@@ -104,7 +104,9 @@ pub use narrative_event_approval_service::{
 };
 
 // Re-export skill service types
-pub use skill_service::{CreateSkillRequest, SkillService, SkillServiceImpl, UpdateSkillRequest};
+pub use skill_service::{SkillService, SkillServiceImpl};
+// Re-export request types from ports (canonical definitions)
+pub use wrldbldr_engine_ports::outbound::{CreateSkillRequest, UpdateSkillRequest};
 
 // Re-export interaction service types (used in HTTP routes)
 pub use interaction_service::{InteractionService, InteractionServiceImpl};

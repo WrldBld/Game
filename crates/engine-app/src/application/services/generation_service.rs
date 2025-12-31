@@ -18,8 +18,8 @@ use wrldbldr_domain::entities::{
 };
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort,
-    GenerationRequest as PortGenerationRequest, GenerationServicePort,
+    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, GenerationRequest,
+    GenerationServicePort,
 };
 
 /// Events emitted by the generation service
@@ -80,18 +80,7 @@ pub enum GenerationEvent {
     },
 }
 
-/// Request to generate assets
-#[derive(Debug, Clone)]
-pub struct GenerationRequest {
-    pub world_id: WorldId,
-    pub entity_type: EntityType,
-    pub entity_id: String,
-    pub asset_type: AssetType,
-    pub prompt: String,
-    pub negative_prompt: Option<String>,
-    pub count: u8,
-    pub style_reference_id: Option<AssetId>,
-}
+
 
 /// Generation service for managing asset generation
 pub struct GenerationService {
@@ -681,21 +670,9 @@ impl GenerationService {
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
 impl GenerationServicePort for GenerationService {
-    async fn generate_asset(&self, request: PortGenerationRequest) -> Result<GenerationBatch> {
-        // Convert port request to internal request
-        let internal_request = GenerationRequest {
-            world_id: request.world_id,
-            entity_type: request.entity_type,
-            entity_id: request.entity_id,
-            asset_type: request.asset_type,
-            prompt: request.prompt,
-            negative_prompt: request.negative_prompt,
-            count: request.count,
-            style_reference_id: request.style_reference_id,
-        };
-
+    async fn generate_asset(&self, request: GenerationRequest) -> Result<GenerationBatch> {
         // Queue and return the batch
-        let batch_id = self.queue_generation(internal_request).await?;
+        let batch_id = self.queue_generation(request).await?;
         self.get_batch_status(batch_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created batch"))

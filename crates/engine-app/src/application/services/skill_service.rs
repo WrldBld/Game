@@ -9,32 +9,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use wrldbldr_domain::entities::{default_skills_for_variant, Skill, SkillCategory};
+use wrldbldr_domain::entities::{default_skills_for_variant, Skill};
 use wrldbldr_domain::{SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CreateSkillRequest as PortCreateSkillRequest, SkillRepositoryPort, SkillServicePort,
-    UpdateSkillRequest as PortUpdateSkillRequest, WorldRepositoryPort,
+    CreateSkillRequest, SkillRepositoryPort, SkillServicePort, UpdateSkillRequest,
+    WorldRepositoryPort,
 };
-
-/// Request to create a new skill
-#[derive(Debug, Clone)]
-pub struct CreateSkillRequest {
-    pub name: String,
-    pub description: String,
-    pub category: SkillCategory,
-    pub base_attribute: Option<String>,
-}
-
-/// Request to update an existing skill
-#[derive(Debug, Clone)]
-pub struct UpdateSkillRequest {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub category: Option<SkillCategory>,
-    pub base_attribute: Option<String>,
-    pub is_hidden: Option<bool>,
-    pub order: Option<u32>,
-}
 
 /// Skill service trait defining the application use cases
 #[async_trait]
@@ -310,33 +290,13 @@ impl SkillServicePort for SkillServiceImpl {
     async fn create_skill(
         &self,
         world_id: WorldId,
-        request: PortCreateSkillRequest,
+        request: CreateSkillRequest,
     ) -> Result<Skill> {
-        // Convert port request to service request
-        let service_request = CreateSkillRequest {
-            name: request.name,
-            description: request.description,
-            category: request.category,
-            base_attribute: request.base_attribute,
-        };
-        SkillService::create_skill(self, world_id, service_request).await
+        SkillService::create_skill(self, world_id, request).await
     }
 
-    async fn update_skill(
-        &self,
-        skill_id: SkillId,
-        request: PortUpdateSkillRequest,
-    ) -> Result<Skill> {
-        // Convert port request to service request
-        let service_request = UpdateSkillRequest {
-            name: request.name,
-            description: request.description,
-            category: request.category,
-            base_attribute: request.base_attribute,
-            is_hidden: request.is_hidden,
-            order: request.order,
-        };
-        SkillService::update_skill(self, skill_id, service_request).await
+    async fn update_skill(&self, skill_id: SkillId, request: UpdateSkillRequest) -> Result<Skill> {
+        SkillService::update_skill(self, skill_id, request).await
     }
 
     async fn update_visibility(&self, skill_id: SkillId, is_hidden: bool) -> Result<Skill> {
@@ -355,6 +315,7 @@ impl SkillServicePort for SkillServiceImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_domain::entities::SkillCategory;
 
     #[test]
     fn test_create_skill_request_validation() {

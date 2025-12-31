@@ -29,7 +29,7 @@ use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
     ConnectedUserInfo as PortConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext as PortConnectionContext,
     ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    ConnectionStats as PortConnectionStats, DmInfo as PortDmInfo,
+    ConnectionStats as PortConnectionStats, DmInfo,
     WorldRole as PortWorldRole,
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
@@ -62,18 +62,6 @@ pub enum BroadcastError {
 
     #[error("User not found: {0}")]
     UserNotFound(String),
-}
-
-// =============================================================================
-// DM Info
-// =============================================================================
-
-/// Information about the DM in a world
-#[derive(Debug, Clone)]
-pub struct DmInfo {
-    pub user_id: String,
-    pub username: Option<String>,
-    pub connection_count: usize,
 }
 
 // =============================================================================
@@ -946,13 +934,8 @@ impl ConnectionQueryPort for WorldConnectionManager {
         WorldConnectionManager::has_dm(self, &world_id.to_uuid()).await
     }
 
-    async fn get_dm_info(&self, world_id: &WorldId) -> Option<PortDmInfo> {
-        let info = WorldConnectionManager::get_dm_info(self, &world_id.to_uuid()).await?;
-        Some(PortDmInfo {
-            user_id: info.user_id,
-            username: info.username,
-            connection_count: info.connection_count,
-        })
+    async fn get_dm_info(&self, world_id: &WorldId) -> Option<DmInfo> {
+        WorldConnectionManager::get_dm_info(self, &world_id.to_uuid()).await
     }
 
     async fn get_connected_users(&self, world_id: WorldId) -> Vec<PortConnectedUserInfo> {
