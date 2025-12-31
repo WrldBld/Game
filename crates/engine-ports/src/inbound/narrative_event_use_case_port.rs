@@ -42,7 +42,7 @@
 
 use async_trait::async_trait;
 
-use super::use_case_errors::NarrativeEventError;
+use crate::outbound::NarrativeEventError;
 use super::UseCaseContext;
 use crate::outbound::{NarrativeEventDecisionResult, NarrativeEventSuggestionDecisionInput};
 

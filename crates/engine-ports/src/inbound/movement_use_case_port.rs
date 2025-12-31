@@ -39,7 +39,7 @@
 
 use async_trait::async_trait;
 
-use super::use_case_errors::MovementError;
+use crate::outbound::MovementError;
 use super::UseCaseContext;
 use crate::outbound::{
     ExitToLocationInput, MoveToRegionInput, MovementResult, SelectCharacterInput,

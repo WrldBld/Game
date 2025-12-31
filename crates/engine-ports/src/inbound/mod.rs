@@ -12,7 +12,6 @@ pub mod request_handler;
 pub mod scene_use_case_port;
 pub mod staging_use_case_port;
 pub mod use_case_context;
-pub mod use_case_errors;
 pub mod use_case_ports;
 pub mod use_cases;
 
@@ -49,11 +48,7 @@ pub use use_case_context::UseCaseContext;
 // App state port - interface for accessing application services
 pub use app_state_port::AppStatePort;
 
-// Re-export all use case error types
-pub use use_case_errors::{
-    ActionError, ChallengeError, InventoryError, MovementError, NarrativeEventError,
-    ObservationError, SceneError, StagingError,
-};
+// Note: use-case errors live in outbound ports and should be imported from there.
 
 // Re-export all use case port traits
 pub use use_case_ports::{

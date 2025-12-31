@@ -74,6 +74,7 @@ mod story_event_repository;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
 mod trigger_evaluation_service_port;
+mod use_case_errors;
 mod use_case_types;
 mod workflow_service_port;
 mod world_connection_manager;
@@ -98,6 +99,11 @@ pub use clock_port::ClockPort;
 #[cfg(any(test, feature = "testing"))]
 pub use random_port::MockRandomPort;
 pub use random_port::RandomPort;
+
+pub use use_case_errors::{
+    ActionError, ChallengeError, InventoryError, NarrativeEventError, ObservationError, SceneError,
+    StagingError,
+};
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};

@@ -20,7 +20,7 @@ use async_trait::async_trait;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
-use super::use_case_errors::StagingError;
+use crate::outbound::StagingError;
 use super::UseCaseContext;
 use crate::outbound::{
     ApproveInput, ApproveResult, PreStageInput, PreStageResult, RegenerateInput,

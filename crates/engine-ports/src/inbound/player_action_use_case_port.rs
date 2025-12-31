@@ -39,7 +39,7 @@
 
 use async_trait::async_trait;
 
-use super::use_case_errors::ActionError;
+use crate::outbound::ActionError;
 use super::UseCaseContext;
 use crate::outbound::{ActionResult, PlayerActionInput};
 

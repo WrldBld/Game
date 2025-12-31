@@ -21,8 +21,7 @@
 use thiserror::Error;
 use wrldbldr_domain::{CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId};
 
-// Re-export ErrorCode, ConnectionError, and MovementError from within the crate
-pub use crate::outbound::{ConnectionError, ErrorCode, MovementError};
+use super::ErrorCode;
 
 // =============================================================================
 // Staging Errors
@@ -394,7 +393,9 @@ mod tests {
 
     #[test]
     fn test_movement_error_codes() {
-        let err = MovementError::PcNotFound(PlayerCharacterId::from_uuid(uuid::Uuid::nil()));
+        let err = crate::outbound::MovementError::PcNotFound(PlayerCharacterId::from_uuid(
+            uuid::Uuid::nil(),
+        ));
         assert_eq!(err.code(), "PC_NOT_FOUND");
         assert!(err.to_string().contains("Player character not found"));
     }
