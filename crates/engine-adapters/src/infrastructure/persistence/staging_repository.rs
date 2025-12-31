@@ -18,8 +18,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
-
-use wrldbldr_common::datetime::parse_datetime_or;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, StagingId, WorldId};
 use wrldbldr_engine_ports::outbound::{ClockPort, StagedNpcRow, StagingRepositoryPort};
@@ -37,46 +36,34 @@ impl Neo4jStagingRepository {
     /// Helper to convert a Neo4j row to a Staging entity (without NPCs)
     fn row_to_staging(&self, row: Row) -> Result<Staging> {
         let node: neo4rs::Node = row.get("s")?;
+        let now = self.clock.now();
 
-        let id_str: String = node.get("id")?;
-        let region_id_str: String = node.get("region_id")?;
-        let location_id_str: String = node.get("location_id")?;
-        let world_id_str: String = node.get("world_id")?;
-        let game_time_str: String = node.get("game_time")?;
-        let approved_at_str: String = node.get("approved_at")?;
+        let id: StagingId = parse_typed_id(&node, "id")?;
+        let region_id: RegionId = parse_typed_id(&node, "region_id")?;
+        let location_id: LocationId = parse_typed_id(&node, "location_id")?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id")?;
+
         let ttl_hours: i64 = node.get("ttl_hours")?;
         let approved_by: String = node.get("approved_by")?;
         let source_str: String = node.get("source")?;
-        let dm_guidance: String = node.get("dm_guidance").unwrap_or_default();
         let is_active: bool = node.get("is_active")?;
 
-        let id = uuid::Uuid::parse_str(&id_str)?;
-        let region_id = uuid::Uuid::parse_str(&region_id_str)?;
-        let location_id = uuid::Uuid::parse_str(&location_id_str)?;
-        let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
-        let game_time = parse_datetime_or(&game_time_str, self.clock.now());
-
-        let approved_at = parse_datetime_or(&approved_at_str, self.clock.now());
-
+        let game_time = node.get_datetime_or("game_time", now);
+        let approved_at = node.get_datetime_or("approved_at", now);
         let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
 
         Ok(Staging {
-            id: StagingId::from_uuid(id),
-            region_id: RegionId::from_uuid(region_id),
-            location_id: LocationId::from_uuid(location_id),
-            world_id: WorldId::from_uuid(world_id),
+            id,
+            region_id,
+            location_id,
+            world_id,
             npcs: Vec::new(), // NPCs loaded separately via get_staged_npcs
             game_time,
             approved_at,
             ttl_hours: ttl_hours as i32,
             approved_by,
             source,
-            dm_guidance: if dm_guidance.is_empty() {
-                None
-            } else {
-                Some(dm_guidance)
-            },
+            dm_guidance: node.get_optional_string("dm_guidance"),
             is_active,
         })
     }

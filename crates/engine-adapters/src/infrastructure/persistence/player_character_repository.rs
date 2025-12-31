@@ -12,6 +12,7 @@ use super::connection::Neo4jConnection;
 use super::converters::row_to_item;
 use neo4rs::Node;
 use wrldbldr_common::datetime::parse_datetime_or;
+use wrldbldr_common::StringExt;
 use wrldbldr_domain::entities::{
     AcquisitionMethod, CharacterSheetData, InventoryItem, PlayerCharacter,
 };
@@ -444,15 +445,13 @@ fn row_to_inventory_item(row: &Row, fallback_time: DateTime<Utc>) -> Result<Inve
     let quantity: i64 = row.get("quantity")?;
     let equipped: bool = row.get("equipped")?;
     let acquired_at_str: String = row.get("acquired_at")?;
-    let acquisition_method_str: String = row.get("acquisition_method").unwrap_or_default();
-
     let acquired_at = parse_datetime_or(&acquired_at_str, fallback_time);
 
-    let acquisition_method = if acquisition_method_str.is_empty() {
-        None
-    } else {
-        acquisition_method_str.parse().ok()
-    };
+    let acquisition_method = row
+        .get::<String>("acquisition_method")
+        .ok()
+        .and_then(|s| s.into_option())
+        .and_then(|s| s.parse::<AcquisitionMethod>().ok());
 
     Ok(InventoryItem {
         item,

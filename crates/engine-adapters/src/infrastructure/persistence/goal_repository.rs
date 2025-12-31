@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::Goal;
 use wrldbldr_domain::{GoalId, WorldId};
 use wrldbldr_engine_ports::outbound::GoalRepositoryPort;
@@ -153,20 +154,16 @@ impl Neo4jGoalRepository {
 fn row_to_goal(row: Row) -> Result<Goal> {
     let node: neo4rs::Node = row.get("g")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    let id: GoalId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
+    let description = node.get_optional_string("description");
 
     Ok(Goal {
-        id: GoalId::from_uuid(uuid::Uuid::parse_str(&id_str)?),
-        world_id: WorldId::from_uuid(uuid::Uuid::parse_str(&world_id_str)?),
+        id,
+        world_id,
         name,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
+        description,
     })
 }
 

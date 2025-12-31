@@ -21,11 +21,9 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use neo4rs::Row;
-use wrldbldr_common::datetime::parse_datetime_or;
-use wrldbldr_domain::{
-    entities::{Item, MapBounds, Region, Want, WantVisibility},
-    ItemId, LocationId, RegionId, WantId, WorldId,
-};
+use wrldbldr_domain::entities::{Item, MapBounds, Region, Want, WantVisibility};
+
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 
 /// Convert a Neo4j row to an Item entity.
 ///
@@ -44,45 +42,16 @@ use wrldbldr_domain::{
 pub fn row_to_item(row: &Row) -> Result<Item> {
     let node: neo4rs::Node = row.get("i")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let item_type: String = node.get("item_type").unwrap_or_default();
-    let is_unique: bool = node.get("is_unique").unwrap_or(false);
-    let properties: String = node.get("properties").unwrap_or_default();
-    let can_contain_items: bool = node.get("can_contain_items").unwrap_or(false);
-    let container_limit: i64 = node.get("container_limit").unwrap_or(-1);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
-
     Ok(Item {
-        id: ItemId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
-        name,
-        description: if description.is_empty() {
-            None
-        } else {
-            Some(description)
-        },
-        item_type: if item_type.is_empty() {
-            None
-        } else {
-            Some(item_type)
-        },
-        is_unique,
-        properties: if properties.is_empty() {
-            None
-        } else {
-            Some(properties)
-        },
-        can_contain_items,
-        container_limit: if container_limit < 0 {
-            None
-        } else {
-            Some(container_limit as u32)
-        },
+        id: parse_typed_id(&node, "id")?,
+        world_id: parse_typed_id(&node, "world_id")?,
+        name: node.get("name")?,
+        description: node.get_optional_string("description"),
+        item_type: node.get_optional_string("item_type"),
+        is_unique: node.get_bool_or("is_unique", false),
+        properties: node.get_optional_string("properties"),
+        can_contain_items: node.get_bool_or("can_contain_items", false),
+        container_limit: node.get_positive_i64("container_limit"),
     })
 }
 
@@ -106,13 +75,8 @@ pub fn row_to_item(row: &Row) -> Result<Item> {
 pub fn row_to_want(row: &Row, fallback_time: DateTime<Utc>) -> Result<Want> {
     let node: neo4rs::Node = row.get("w")?;
 
-    let id_str: String = node.get("id")?;
-    let description: String = node.get("description")?;
-    let intensity: f64 = node.get("intensity")?;
-    let created_at_str: String = node.get("created_at")?;
-
     // Handle visibility - try new field first, fall back to legacy known_to_player
-    let visibility = if let Ok(vis_str) = node.get::<String>("visibility") {
+    let visibility = if let Some(vis_str) = node.get_optional_string("visibility") {
         match vis_str.as_str() {
             "Known" => WantVisibility::Known,
             "Suspected" => WantVisibility::Suspected,
@@ -120,29 +84,18 @@ pub fn row_to_want(row: &Row, fallback_time: DateTime<Utc>) -> Result<Want> {
         }
     } else {
         // Legacy: convert from known_to_player bool
-        let known_to_player: bool = node.get("known_to_player").unwrap_or(false);
+        let known_to_player = node.get_bool_or("known_to_player", false);
         WantVisibility::from_known_to_player(known_to_player)
     };
 
-    // Behavioral guidance fields (optional)
-    let deflection_behavior: Option<String> = node
-        .get("deflection_behavior")
-        .ok()
-        .filter(|s: &String| !s.is_empty());
-    let tells_json: String = node.get("tells").unwrap_or_else(|_| "[]".to_string());
-    let tells: Vec<String> = serde_json::from_str(&tells_json).unwrap_or_default();
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let created_at = parse_datetime_or(&created_at_str, fallback_time);
-
     Ok(Want {
-        id: WantId::from_uuid(id),
-        description,
-        intensity: intensity as f32,
+        id: parse_typed_id(&node, "id")?,
+        description: node.get("description")?,
+        intensity: node.get_f64_or("intensity", 0.5) as f32,
         visibility,
-        created_at,
-        deflection_behavior,
-        tells,
+        created_at: node.get_datetime_or("created_at", fallback_time),
+        deflection_behavior: node.get_optional_string("deflection_behavior"),
+        tells: node.get_json_or_default("tells"),
     })
 }
 
@@ -163,52 +116,28 @@ pub fn row_to_want(row: &Row, fallback_time: DateTime<Utc>) -> Result<Want> {
 pub fn row_to_region(row: &Row) -> Result<Region> {
     let node: neo4rs::Node = row.get("r")?;
 
-    let id_str: String = node.get("id")?;
-    let location_id_str: String = node.get("location_id")?;
-    let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let backdrop_asset: String = node.get("backdrop_asset").unwrap_or_default();
-    let atmosphere: String = node.get("atmosphere").unwrap_or_default();
-    let map_bounds_json: String = node.get("map_bounds").unwrap_or_default();
-    let is_spawn_point: bool = node.get("is_spawn_point").unwrap_or(false);
-    let order: i64 = node.get("order").unwrap_or(0);
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let location_id = uuid::Uuid::parse_str(&location_id_str)?;
-
-    // Parse map_bounds from JSON
-    let map_bounds = if map_bounds_json.is_empty() {
-        None
-    } else {
-        serde_json::from_str::<serde_json::Value>(&map_bounds_json)
-            .ok()
-            .and_then(|v| {
-                Some(MapBounds {
-                    x: v.get("x")?.as_u64()? as u32,
-                    y: v.get("y")?.as_u64()? as u32,
-                    width: v.get("width")?.as_u64()? as u32,
-                    height: v.get("height")?.as_u64()? as u32,
-                })
+    // Parse map_bounds from JSON - needs custom handling for nested structure
+    let map_bounds: Option<MapBounds> = node
+        .get_optional_string("map_bounds")
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+        .and_then(|v| {
+            Some(MapBounds {
+                x: v.get("x")?.as_u64()? as u32,
+                y: v.get("y")?.as_u64()? as u32,
+                width: v.get("width")?.as_u64()? as u32,
+                height: v.get("height")?.as_u64()? as u32,
             })
-    };
+        });
 
     Ok(Region {
-        id: RegionId::from_uuid(id),
-        location_id: LocationId::from_uuid(location_id),
-        name,
-        description,
-        backdrop_asset: if backdrop_asset.is_empty() {
-            None
-        } else {
-            Some(backdrop_asset)
-        },
-        atmosphere: if atmosphere.is_empty() {
-            None
-        } else {
-            Some(atmosphere)
-        },
+        id: parse_typed_id(&node, "id")?,
+        location_id: parse_typed_id(&node, "location_id")?,
+        name: node.get("name")?,
+        description: node.get_string_or("description", ""),
+        backdrop_asset: node.get_optional_string("backdrop_asset"),
+        atmosphere: node.get_optional_string("atmosphere"),
         map_bounds,
-        is_spawn_point,
-        order: order as u32,
+        is_spawn_point: node.get_bool_or("is_spawn_point", false),
+        order: node.get_i64_or("order", 0) as u32,
     })
 }

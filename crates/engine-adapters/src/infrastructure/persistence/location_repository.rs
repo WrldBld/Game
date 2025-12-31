@@ -12,6 +12,7 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::row_to_region;
+use super::neo4j_helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, MapBounds, Region};
 use wrldbldr_domain::{GridMapId, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
@@ -573,21 +574,20 @@ impl Neo4jLocationRepository {
 fn row_to_location(row: Row) -> Result<Location> {
     let node: neo4rs::Node = row.get("l")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    // Required fields
+    let id: LocationId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
     let description: String = node.get("description")?;
     let location_type_str: String = node.get("location_type")?;
-    let backdrop_asset: String = node.get("backdrop_asset").unwrap_or_default();
-    let map_asset: String = node.get("map_asset").unwrap_or_default();
-    let parent_map_bounds_json: String = node.get("parent_map_bounds").unwrap_or_default();
-    let default_region_id_str: String = node.get("default_region_id").unwrap_or_default();
-    let atmosphere: String = node.get("atmosphere").unwrap_or_default();
-    let presence_cache_ttl_hours: i64 = node.get("presence_cache_ttl_hours").unwrap_or(3);
-    let use_llm_presence: bool = node.get("use_llm_presence").unwrap_or(true);
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
+    // Optional fields
+    let backdrop_asset = node.get_optional_string("backdrop_asset");
+    let map_asset = node.get_optional_string("map_asset");
+    let atmosphere = node.get_optional_string("atmosphere");
+    let presence_cache_ttl_hours = node.get_i64_or("presence_cache_ttl_hours", 3);
+    let use_llm_presence = node.get_bool_or("use_llm_presence", true);
+    let default_region_id: Option<RegionId> = parse_optional_typed_id(&node, "default_region_id")?;
 
     let location_type = match location_type_str.as_str() {
         "Interior" => LocationType::Interior,
@@ -597,6 +597,7 @@ fn row_to_location(row: Row) -> Result<Location> {
     };
 
     // Parse parent_map_bounds from JSON
+    let parent_map_bounds_json = node.get_string_or("parent_map_bounds", "");
     let parent_map_bounds = if parent_map_bounds_json.is_empty() {
         None
     } else {
@@ -612,50 +613,32 @@ fn row_to_location(row: Row) -> Result<Location> {
             })
     };
 
-    // Parse default_region_id
-    let default_region_id = if default_region_id_str.is_empty() {
-        None
-    } else {
-        uuid::Uuid::parse_str(&default_region_id_str)
-            .ok()
-            .map(RegionId::from_uuid)
-    };
-
     Ok(Location {
-        id: LocationId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
+        id,
+        world_id,
         name,
         description,
         location_type,
-        backdrop_asset: if backdrop_asset.is_empty() {
-            None
-        } else {
-            Some(backdrop_asset)
-        },
-        map_asset: if map_asset.is_empty() {
-            None
-        } else {
-            Some(map_asset)
-        },
+        backdrop_asset,
+        map_asset,
         parent_map_bounds,
         default_region_id,
-        atmosphere: if atmosphere.is_empty() {
-            None
-        } else {
-            Some(atmosphere)
-        },
+        atmosphere,
         presence_cache_ttl_hours: presence_cache_ttl_hours as i32,
         use_llm_presence,
     })
 }
 
 fn row_to_connection(row: Row) -> Result<LocationConnection> {
+    // Required fields - note: these come from the row directly, not a node
     let from_id_str: String = row.get("from_id")?;
     let to_id_str: String = row.get("to_id")?;
     let connection_type: String = row.get("connection_type")?;
-    let description: String = row.get("description").unwrap_or_default();
     let bidirectional: bool = row.get("bidirectional")?;
     let travel_time: i64 = row.get("travel_time")?;
+
+    // Optional fields
+    let description: String = row.get("description").unwrap_or_default();
     let is_locked: bool = row.get("is_locked").unwrap_or(false);
     let lock_description: String = row.get("lock_description").unwrap_or_default();
 

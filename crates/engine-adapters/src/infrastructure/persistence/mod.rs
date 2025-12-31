@@ -34,6 +34,7 @@ mod character_repository;
 mod connection;
 pub(crate) mod converters;
 mod directorial_context_repository;
+pub(crate) mod neo4j_helpers;
 mod event_chain_repository;
 mod flag_repository;
 mod goal_repository;

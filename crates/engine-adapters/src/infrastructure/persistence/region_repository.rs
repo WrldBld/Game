@@ -14,6 +14,7 @@ use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
 use super::converters::{row_to_item, row_to_region};
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{Character, Item, Region, RegionConnection, RegionExit, StatBlock};
 use wrldbldr_domain::value_objects::{
     CampbellArchetype, DispositionLevel, RegionFrequency, RegionRelationshipType, RegionShift,
@@ -654,20 +655,17 @@ impl RegionItemPort for Neo4jRegionRepository {
 fn row_to_character_for_presence(row: Row) -> Result<Character> {
     let node: neo4rs::Node = row.get("c")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    let id: CharacterId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let sprite_asset: Option<String> = node.get("sprite_asset").ok();
-    let portrait_asset: Option<String> = node.get("portrait_asset").ok();
-    let base_archetype_str: String = node.get("base_archetype").unwrap_or_default();
-    let current_archetype_str: String = node.get("current_archetype").unwrap_or_default();
-    let is_alive: bool = node.get("is_alive").unwrap_or(true);
-    let is_active: bool = node.get("is_active").unwrap_or(true);
+    let description = node.get_string_or("description", "").to_string();
+    let sprite_asset = node.get_optional_string("sprite_asset");
+    let portrait_asset = node.get_optional_string("portrait_asset");
+    let base_archetype_str = node.get_string_or("base_archetype", "");
+    let current_archetype_str = node.get_string_or("current_archetype", "");
+    let is_alive = node.get_bool_or("is_alive", true);
+    let is_active = node.get_bool_or("is_active", true);
     let default_disposition_str: String = node.get("default_disposition")?;
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
 
     let base_archetype: CampbellArchetype = base_archetype_str
         .parse()
@@ -684,20 +682,12 @@ fn row_to_character_for_presence(row: Row) -> Result<Character> {
         .unwrap_or(DispositionLevel::Neutral);
 
     Ok(Character {
-        id: CharacterId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
+        id,
+        world_id,
         name,
         description,
-        sprite_asset: if sprite_asset.as_ref().is_none_or(|s| s.is_empty()) {
-            None
-        } else {
-            sprite_asset
-        },
-        portrait_asset: if portrait_asset.as_ref().is_none_or(|s| s.is_empty()) {
-            None
-        } else {
-            portrait_asset
-        },
+        sprite_asset,
+        portrait_asset,
         base_archetype,
         current_archetype,
         archetype_history: vec![],

@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::NodeExt;
 use wrldbldr_domain::entities::{CharacterSheetTemplate, SheetTemplateId};
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_dto::SheetTemplateStorageDto;
@@ -175,8 +176,7 @@ impl Neo4jSheetTemplateRepository {
 fn row_to_template(row: Row) -> Result<CharacterSheetTemplate> {
     let node: neo4rs::Node = row.get("t")?;
 
-    let template_data: String = node.get("template_data")?;
-    let stored: SheetTemplateStorageDto = serde_json::from_str(&template_data)?;
+    let stored: SheetTemplateStorageDto = node.get_json("template_data")?;
     let template: CharacterSheetTemplate =
         stored.try_into().map_err(|e: String| anyhow::anyhow!(e))?;
 

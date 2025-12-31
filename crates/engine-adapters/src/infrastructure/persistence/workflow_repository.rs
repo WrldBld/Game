@@ -6,9 +6,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::query;
-use uuid::Uuid;
-use wrldbldr_common::datetime::parse_datetime_or;
 
+use super::neo4j_helpers::RowExt;
 use crate::infrastructure::persistence::Neo4jConnection;
 use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::WorkflowConfigId;
@@ -188,46 +187,35 @@ impl Neo4jWorkflowRepository {
 
     /// Convert a Neo4j row to a WorkflowConfiguration
     fn row_to_config(&self, row: &neo4rs::Row) -> Result<WorkflowConfiguration> {
-        let id_str: String = row.get("id").unwrap_or_default();
-        let id = Uuid::parse_str(&id_str)
-            .map(WorkflowConfigId::from_uuid)
+        let id = row
+            .get_uuid("id")
+            .map(WorkflowConfigId::from)
             .unwrap_or_else(|_| WorkflowConfigId::new());
 
-        let slot_str: String = row.get("slot").unwrap_or_default();
+        let slot_str = row.get_string_or("slot", "");
         let slot = WorkflowSlot::from_str(&slot_str)
             .map_err(|e| anyhow::anyhow!("Invalid workflow slot: {}", e))?;
 
-        let name: String = row.get("name").unwrap_or_default();
+        let name = row.get_string_or("name", "");
 
-        let workflow_json_str: String = row.get("workflow_json").unwrap_or_default();
-        let workflow_json: serde_json::Value = serde_json::from_str(&workflow_json_str)
-            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+        let workflow_json: serde_json::Value = row.get_json_or_default("workflow_json");
 
-        let prompt_mappings_str: String = row.get("prompt_mappings").unwrap_or_default();
         let prompt_mappings: Vec<PromptMapping> =
-            serde_json::from_str::<Vec<PromptMappingDto>>(&prompt_mappings_str)
-                .unwrap_or_default()
+            row.get_json_or_default::<Vec<PromptMappingDto>>("prompt_mappings")
                 .into_iter()
                 .map(Into::into)
                 .collect();
 
-        let input_defaults_str: String = row.get("input_defaults").unwrap_or_default();
         let input_defaults: Vec<InputDefault> =
-            serde_json::from_str::<Vec<InputDefaultDto>>(&input_defaults_str)
-                .unwrap_or_default()
+            row.get_json_or_default::<Vec<InputDefaultDto>>("input_defaults")
                 .into_iter()
                 .map(Into::into)
                 .collect();
 
-        let locked_inputs_str: String = row.get("locked_inputs").unwrap_or_default();
-        let locked_inputs: Vec<String> =
-            serde_json::from_str(&locked_inputs_str).unwrap_or_default();
+        let locked_inputs: Vec<String> = row.get_json_or_default("locked_inputs");
 
-        let created_at_str: String = row.get("created_at").unwrap_or_default();
-        let created_at = parse_datetime_or(&created_at_str, self.clock.now());
-
-        let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-        let updated_at = parse_datetime_or(&updated_at_str, self.clock.now());
+        let created_at = row.get_datetime_or("created_at", self.clock.now());
+        let updated_at = row.get_datetime_or("updated_at", self.clock.now());
 
         Ok(WorkflowConfiguration {
             id,

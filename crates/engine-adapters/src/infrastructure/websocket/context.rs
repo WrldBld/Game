@@ -212,50 +212,32 @@ pub fn parse_uuid(id: &str, entity: &str) -> Result<Uuid, ServerMessage> {
     Uuid::parse_str(id).map_err(|_| invalid_id_error(entity, id))
 }
 
-/// Parse a string as WorldId
-pub fn parse_world_id(id: &str) -> Result<WorldId, ServerMessage> {
-    parse_uuid(id, "world").map(WorldId::from_uuid)
+/// Macro to generate typed ID parsing functions for WebSocket handlers.
+///
+/// Each generated function:
+/// - Takes a string slice
+/// - Parses it as a UUID
+/// - Wraps in the typed ID
+/// - Returns ServerMessage error on failure
+macro_rules! define_ws_id_parser {
+    ($fn_name:ident, $id_type:ty, $entity_name:literal) => {
+        #[doc = concat!("Parse a ", $entity_name, " ID string into a ", stringify!($id_type))]
+        pub fn $fn_name(id: &str) -> Result<$id_type, ServerMessage> {
+            parse_uuid(id, $entity_name).map(<$id_type>::from_uuid)
+        }
+    };
 }
 
-/// Parse a string as PlayerCharacterId
-pub fn parse_player_character_id(id: &str) -> Result<PlayerCharacterId, ServerMessage> {
-    parse_uuid(id, "PC").map(PlayerCharacterId::from_uuid)
-}
-
-/// Parse a string as RegionId
-pub fn parse_region_id(id: &str) -> Result<RegionId, ServerMessage> {
-    parse_uuid(id, "region").map(RegionId::from_uuid)
-}
-
-/// Parse a string as LocationId
-pub fn parse_location_id(id: &str) -> Result<LocationId, ServerMessage> {
-    parse_uuid(id, "location").map(LocationId::from_uuid)
-}
-
-/// Parse a string as CharacterId (NPC)
-pub fn parse_character_id(id: &str) -> Result<CharacterId, ServerMessage> {
-    parse_uuid(id, "character").map(CharacterId::from_uuid)
-}
-
-/// Parse a string as ItemId
-pub fn parse_item_id(id: &str) -> Result<ItemId, ServerMessage> {
-    parse_uuid(id, "item").map(ItemId::from_uuid)
-}
-
-/// Parse a string as ChallengeId
-pub fn parse_challenge_id(id: &str) -> Result<ChallengeId, ServerMessage> {
-    parse_uuid(id, "challenge").map(ChallengeId::from_uuid)
-}
-
-/// Parse a string as NarrativeEventId
-pub fn parse_narrative_event_id(id: &str) -> Result<NarrativeEventId, ServerMessage> {
-    parse_uuid(id, "narrative_event").map(NarrativeEventId::from_uuid)
-}
-
-/// Parse a string as SceneId
-pub fn parse_scene_id(id: &str) -> Result<SceneId, ServerMessage> {
-    parse_uuid(id, "scene").map(SceneId::from_uuid)
-}
+// Generate all typed ID parsers for WebSocket handlers
+define_ws_id_parser!(parse_world_id, WorldId, "world");
+define_ws_id_parser!(parse_player_character_id, PlayerCharacterId, "PC");
+define_ws_id_parser!(parse_region_id, RegionId, "region");
+define_ws_id_parser!(parse_location_id, LocationId, "location");
+define_ws_id_parser!(parse_character_id, CharacterId, "character");
+define_ws_id_parser!(parse_item_id, ItemId, "item");
+define_ws_id_parser!(parse_challenge_id, ChallengeId, "challenge");
+define_ws_id_parser!(parse_narrative_event_id, NarrativeEventId, "narrative_event");
+define_ws_id_parser!(parse_scene_id, SceneId, "scene");
 
 // =============================================================================
 // Tests

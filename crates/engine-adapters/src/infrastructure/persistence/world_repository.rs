@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::RuleSystemConfig;
-use wrldbldr_common::datetime::parse_datetime_or;
 use wrldbldr_domain::{ActId, GameTime, WorldId};
 use wrldbldr_engine_ports::outbound::{ClockPort, WorldRepositoryPort};
 
@@ -60,10 +60,7 @@ impl Neo4jWorldRepository {
     pub async fn get(&self, id: WorldId) -> Result<Option<World>> {
         let q = query(
             "MATCH (w:World {id: $id})
-            RETURN w.id as id, w.name as name, w.description as description,
-                   w.rule_system as rule_system, w.game_time as game_time,
-                   w.game_time_paused as game_time_paused, w.created_at as created_at,
-                   w.updated_at as updated_at",
+            RETURN w",
         )
         .param("id", id.to_string());
 
@@ -80,10 +77,7 @@ impl Neo4jWorldRepository {
     pub async fn list(&self) -> Result<Vec<World>> {
         let q = query(
             "MATCH (w:World)
-            RETURN w.id as id, w.name as name, w.description as description,
-                   w.rule_system as rule_system, w.game_time as game_time,
-                   w.game_time_paused as game_time_paused, w.created_at as created_at,
-                   w.updated_at as updated_at
+            RETURN w
             ORDER BY w.name",
         );
 
@@ -171,8 +165,7 @@ impl Neo4jWorldRepository {
     pub async fn get_acts(&self, world_id: WorldId) -> Result<Vec<Act>> {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:CONTAINS_ACT]->(a:Act)
-            RETURN a.id as id, a.world_id as world_id, a.name as name,
-                   a.stage as stage, a.description as description, a.order_num as order_num
+            RETURN a
             ORDER BY a.order_num",
         )
         .param("world_id", world_id.to_string());
@@ -190,36 +183,31 @@ impl Neo4jWorldRepository {
 
 impl Neo4jWorldRepository {
     fn row_to_world(&self, row: Row) -> Result<World> {
-        let id_str: String = row.get("id")?;
-        let name: String = row.get("name")?;
-        let description: String = row.get("description")?;
-        let rule_system_json: String = row.get("rule_system")?;
-        let created_at_str: String = row.get("created_at")?;
-        let updated_at_str: String = row.get("updated_at")?;
+        let node: neo4rs::Node = row.get("w")?;
+        let fallback = self.clock.now();
+
+        let id: WorldId = parse_typed_id(&node, "id")?;
+        let name: String = node.get("name")?;
+        let description: String = node.get("description")?;
+        let rule_system: RuleSystemConfig = node.get_json("rule_system")?;
+        let created_at = node.get_datetime_or("created_at", fallback);
+        let updated_at = node.get_datetime_or("updated_at", fallback);
 
         // GameTime fields - use defaults for backwards compatibility with existing DBs
-        let game_time_str: Option<String> = row.get("game_time").ok();
-        let game_time_paused: bool = row.get("game_time_paused").unwrap_or(true);
-
-        let id = uuid::Uuid::parse_str(&id_str)?;
-        // Domain RuleSystemConfig now has serde derives, deserialize directly
-        let rule_system: RuleSystemConfig = serde_json::from_str(&rule_system_json)?;
-        let created_at =
-            chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
-        let updated_at =
-            chrono::DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&chrono::Utc);
+        let game_time_paused = node.get_bool_or("game_time_paused", true);
 
         // Parse game time or create new with current time via injected clock
-        let mut game_time = if let Some(ref gt_str) = game_time_str {
-            let dt = parse_datetime_or(gt_str, self.clock.now());
+        let mut game_time = if let Some(gt_str) = node.get_optional_string("game_time") {
+            let dt = node.get_datetime_or("game_time", fallback);
+            let _ = gt_str; // used get_optional_string to check existence
             GameTime::starting_at(dt)
         } else {
-            GameTime::new(self.clock.now())
+            GameTime::new(fallback)
         };
         game_time.set_paused(game_time_paused);
 
         Ok(World {
-            id: WorldId::from_uuid(id),
+            id,
             name,
             description,
             rule_system,
@@ -231,35 +219,20 @@ impl Neo4jWorldRepository {
 }
 
 fn row_to_act(row: Row) -> Result<Act> {
-    let id_str: String = row.get("id")?;
-    let world_id_str: String = row.get("world_id")?;
-    let name: String = row.get("name")?;
-    let stage_str: String = row.get("stage")?;
-    let description: String = row.get("description")?;
-    let order_num: i64 = row.get("order_num")?;
+    let node: neo4rs::Node = row.get("a")?;
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = uuid::Uuid::parse_str(&world_id_str)?;
+    let id: ActId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
+    let name: String = node.get("name")?;
+    let stage_str: String = node.get("stage")?;
+    let description: String = node.get("description")?;
+    let order_num = node.get_i64_or("order_num", 0);
 
-    let stage = match stage_str.as_str() {
-        "OrdinaryWorld" => MonomythStage::OrdinaryWorld,
-        "CallToAdventure" => MonomythStage::CallToAdventure,
-        "RefusalOfTheCall" => MonomythStage::RefusalOfTheCall,
-        "MeetingTheMentor" => MonomythStage::MeetingTheMentor,
-        "CrossingTheThreshold" => MonomythStage::CrossingTheThreshold,
-        "TestsAlliesEnemies" => MonomythStage::TestsAlliesEnemies,
-        "ApproachToInnermostCave" => MonomythStage::ApproachToInnermostCave,
-        "Ordeal" => MonomythStage::Ordeal,
-        "Reward" => MonomythStage::Reward,
-        "TheRoadBack" => MonomythStage::TheRoadBack,
-        "Resurrection" => MonomythStage::Resurrection,
-        "ReturnWithElixir" => MonomythStage::ReturnWithElixir,
-        _ => MonomythStage::OrdinaryWorld,
-    };
+    let stage: MonomythStage = stage_str.parse().unwrap_or_default();
 
     Ok(Act {
-        id: ActId::from_uuid(id),
-        world_id: WorldId::from_uuid(world_id),
+        id,
+        world_id,
         name,
         stage,
         description,

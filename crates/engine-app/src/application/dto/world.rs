@@ -92,20 +92,10 @@ impl From<Act> for ActResponseDto {
     }
 }
 
+/// Parse a monomyth stage from a string.
+///
+/// Delegates to `MonomythStage::from_str`, returning `OrdinaryWorld` as default.
+#[inline]
 pub fn parse_monomyth_stage(s: &str) -> MonomythStage {
-    match s {
-        "OrdinaryWorld" => MonomythStage::OrdinaryWorld,
-        "CallToAdventure" => MonomythStage::CallToAdventure,
-        "RefusalOfTheCall" => MonomythStage::RefusalOfTheCall,
-        "MeetingTheMentor" => MonomythStage::MeetingTheMentor,
-        "CrossingTheThreshold" => MonomythStage::CrossingTheThreshold,
-        "TestsAlliesEnemies" => MonomythStage::TestsAlliesEnemies,
-        "ApproachToInnermostCave" => MonomythStage::ApproachToInnermostCave,
-        "Ordeal" => MonomythStage::Ordeal,
-        "Reward" => MonomythStage::Reward,
-        "TheRoadBack" => MonomythStage::TheRoadBack,
-        "Resurrection" => MonomythStage::Resurrection,
-        "ReturnWithElixir" => MonomythStage::ReturnWithElixir,
-        _ => MonomythStage::OrdinaryWorld,
-    }
+    s.parse().unwrap_or_default()
 }

@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use neo4rs::{query, Row};
 use uuid::Uuid;
-use wrldbldr_common::StringExt;
+
+use super::neo4j_helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
 
 use super::connection::Neo4jConnection;
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
@@ -401,22 +402,27 @@ impl Neo4jEventChainRepository {
 /// Convert a Neo4j row to an EventChain
 fn row_to_event_chain(row: Row) -> Result<EventChain> {
     let node: neo4rs::Node = row.get("c")?;
+    let now = Utc::now();
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    // Required fields
+    let id: EventChainId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
-    let events_strs: Vec<String> = node.get("events").unwrap_or_default();
-    let is_active: bool = node.get("is_active").unwrap_or(true);
-    let current_position: i64 = node.get("current_position").unwrap_or(0);
-    let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
-    let act_id_str: String = node.get("act_id").unwrap_or_default();
-    let tags_json: String = node.get("tags_json").unwrap_or_else(|_| "[]".to_string());
-    let color: String = node.get("color").unwrap_or_default();
-    let is_favorite: bool = node.get("is_favorite").unwrap_or(false);
-    let created_at_str: String = node.get("created_at")?;
-    let updated_at_str: String = node.get("updated_at")?;
 
+    // Optional/defaulted fields
+    let description: String = node.get_string_or("description", "");
+    let events_strs: Vec<String> = node.get("events").unwrap_or_default();
+    let is_active: bool = node.get_bool_or("is_active", true);
+    let current_position: i64 = node.get_i64_or("current_position", 0);
+    let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
+    let act_id: Option<ActId> = parse_optional_typed_id(&node, "act_id")?;
+    let tags: Vec<String> = node.get_json_or_default("tags_json");
+    let color: Option<String> = node.get_optional_string("color");
+    let is_favorite: bool = node.get_bool_or("is_favorite", false);
+    let created_at: DateTime<Utc> = node.get_datetime_or("created_at", now);
+    let updated_at: DateTime<Utc> = node.get_datetime_or("updated_at", now);
+
+    // Parse event ID arrays
     let events: Vec<NarrativeEventId> = events_strs
         .iter()
         .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
@@ -427,27 +433,21 @@ fn row_to_event_chain(row: Row) -> Result<EventChain> {
         .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
         .collect();
 
-    let tags: Vec<String> = serde_json::from_str(&tags_json)?;
-
     Ok(EventChain {
-        id: EventChainId::from(Uuid::parse_str(&id_str)?),
-        world_id: WorldId::from(Uuid::parse_str(&world_id_str)?),
+        id,
+        world_id,
         name,
         description,
         events,
         is_active,
         current_position: current_position as u32,
         completed_events,
-        act_id: if act_id_str.is_empty() {
-            None
-        } else {
-            Uuid::parse_str(&act_id_str).ok().map(ActId::from)
-        },
+        act_id,
         tags,
-        color: color.into_option(),
+        color,
         is_favorite,
-        created_at: DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc),
-        updated_at: DateTime::parse_from_rfc3339(&updated_at_str)?.with_timezone(&Utc),
+        created_at,
+        updated_at,
     })
 }
 

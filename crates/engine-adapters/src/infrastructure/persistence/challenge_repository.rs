@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{
     Challenge, ChallengeLocationAvailability, ChallengePrerequisite, ChallengeRegionAvailability,
     ChallengeType,
@@ -783,37 +784,32 @@ impl ChallengeAvailabilityPort for Neo4jChallengeRepository {
 fn row_to_challenge(row: Row) -> Result<Challenge> {
     let node: neo4rs::Node = row.get("c")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    let id: ChallengeId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
+    let description: String = node.get_string_or("description", "");
     let challenge_type_str: String = node.get("challenge_type")?;
-    let difficulty_json: String = node.get("difficulty_json")?;
-    let outcomes_json: String = node.get("outcomes_json")?;
-    let triggers_json: String = node.get("triggers_json")?;
-    let active: bool = node.get("active").unwrap_or(true);
-    let order: i64 = node.get("challenge_order").unwrap_or(0);
-    let is_favorite: bool = node.get("is_favorite").unwrap_or(false);
-    let tags_json: String = node.get("tags_json").unwrap_or_else(|_| "[]".to_string());
+    let difficulty: DifficultyRequestDto = node.get_json("difficulty_json")?;
+    let outcomes: OutcomesRequestDto = node.get_json("outcomes_json")?;
+    let triggers: Vec<TriggerConditionRequestDto> = node.get_json("triggers_json")?;
+    let active: bool = node.get_bool_or("active", true);
+    let order: i64 = node.get_i64_or("challenge_order", 0);
+    let is_favorite: bool = node.get_bool_or("is_favorite", false);
+    let tags: Vec<String> = node.get_json_or_default("tags_json");
 
     Ok(Challenge {
-        id: ChallengeId::from_uuid(uuid::Uuid::parse_str(&id_str)?),
-        world_id: WorldId::from_uuid(uuid::Uuid::parse_str(&world_id_str)?),
+        id,
+        world_id,
         name,
         description,
         challenge_type: parse_challenge_type(&challenge_type_str),
-        difficulty: serde_json::from_str::<DifficultyRequestDto>(&difficulty_json)?.into(),
-        outcomes: serde_json::from_str::<OutcomesRequestDto>(&outcomes_json)?.into(),
-        trigger_conditions: serde_json::from_str::<Vec<TriggerConditionRequestDto>>(
-            &triggers_json,
-        )?
-        .into_iter()
-        .map(Into::into)
-        .collect(),
+        difficulty: difficulty.into(),
+        outcomes: outcomes.into(),
+        trigger_conditions: triggers.into_iter().map(Into::into).collect(),
         active,
         order: order as u32,
         is_favorite,
-        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        tags,
     })
 }
 

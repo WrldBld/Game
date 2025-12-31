@@ -6,6 +6,7 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{
     InteractionCondition, InteractionTarget, InteractionTemplate, InteractionType,
 };
@@ -77,16 +78,7 @@ impl Neo4jInteractionRepository {
     pub async fn get(&self, id: InteractionId) -> Result<Option<InteractionTemplate>> {
         let q = query(
             "MATCH (i:Interaction {id: $id})
-            RETURN i.id as id,
-                   i.scene_id as scene_id,
-                   i.name as name,
-                   i.interaction_type as interaction_type,
-                   i.target as target,
-                   i.prompt_hints as prompt_hints,
-                   i.allowed_tools as allowed_tools,
-                   i.conditions as conditions,
-                   i.is_available as is_available,
-                   i.order as order",
+            RETURN i",
         )
         .param("id", id.to_string());
 
@@ -103,16 +95,7 @@ impl Neo4jInteractionRepository {
     pub async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<InteractionTemplate>> {
         let q = query(
             "MATCH (i:Interaction {scene_id: $scene_id})
-            RETURN i.id as id,
-                   i.scene_id as scene_id,
-                   i.name as name,
-                   i.interaction_type as interaction_type,
-                   i.target as target,
-                   i.prompt_hints as prompt_hints,
-                   i.allowed_tools as allowed_tools,
-                   i.conditions as conditions,
-                   i.is_available as is_available,
-                   i.order as order
+            RETURN i
             ORDER BY i.order",
         )
         .param("scene_id", scene_id.to_string());
@@ -201,41 +184,29 @@ impl Neo4jInteractionRepository {
 }
 
 fn row_to_interaction(row: Row) -> Result<InteractionTemplate> {
-    let id_str: String = row.get("id")?;
-    let scene_id_str: String = row.get("scene_id")?;
-    let name: String = row.get("name")?;
-    let type_json: String = row.get("interaction_type")?;
-    let target_json: String = row.get("target")?;
-    let prompt_hints: String = row.get("prompt_hints")?;
-    let allowed_tools_json: String = row.get("allowed_tools")?;
-    let conditions_json: String = row.get("conditions")?;
-    let is_available: bool = row.get("is_available")?;
-    let order: i64 = row.get("order")?;
+    let node: neo4rs::Node = row.get("i")?;
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let scene_id = uuid::Uuid::parse_str(&scene_id_str)?;
     let interaction_type: InteractionType =
-        serde_json::from_str::<InteractionTypeStored>(&type_json)?.into();
+        node.get_json::<InteractionTypeStored>("interaction_type")?.into();
     let target: InteractionTarget =
-        serde_json::from_str::<InteractionTargetStored>(&target_json)?.try_into()?;
-    let allowed_tools: Vec<String> = serde_json::from_str(&allowed_tools_json)?;
+        node.get_json::<InteractionTargetStored>("target")?.try_into()?;
     let conditions: Vec<InteractionCondition> =
-        serde_json::from_str::<Vec<InteractionConditionStored>>(&conditions_json)?
+        node.get_json::<Vec<InteractionConditionStored>>("conditions")?
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>>>()?;
 
     Ok(InteractionTemplate {
-        id: InteractionId::from_uuid(id),
-        scene_id: SceneId::from_uuid(scene_id),
-        name,
+        id: parse_typed_id(&node, "id")?,
+        scene_id: parse_typed_id(&node, "scene_id")?,
+        name: node.get("name")?,
         interaction_type,
         target,
-        prompt_hints,
-        allowed_tools,
+        prompt_hints: node.get_string_or("prompt_hints", ""),
+        allowed_tools: node.get_json_or_default("allowed_tools"),
         conditions,
-        is_available,
-        order: order as u32,
+        is_available: node.get_bool_or("is_available", true),
+        order: node.get_i64_or("order", 0) as u32,
     })
 }
 

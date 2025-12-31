@@ -12,6 +12,7 @@ use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{
     Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
 };
@@ -504,52 +505,46 @@ impl Neo4jSceneRepository {
 fn row_to_scene(row: Row) -> Result<Scene> {
     let node: neo4rs::Node = row.get("s")?;
 
-    let id_str: String = node.get("id")?;
-    let act_id_str: String = node.get("act_id")?;
+    // Required fields using parse_typed_id
+    let id: SceneId = parse_typed_id(&node, "id")?;
+    let act_id: ActId = parse_typed_id(&node, "act_id")?;
     let name: String = node.get("name")?;
-    // location_id may not exist in newer schemas - default to a placeholder
-    let location_id_str: String = node.get("location_id").unwrap_or_default();
-    let time_context_json: String = node.get("time_context")?;
-    let backdrop_override: String = node.get("backdrop_override")?;
-    let entry_conditions_json: String = node.get("entry_conditions")?;
-    // featured_characters may not exist in newer schemas
-    let featured_characters_json: String = node
-        .get("featured_characters")
-        .unwrap_or_else(|_| "[]".to_string());
     let directorial_notes: String = node.get("directorial_notes")?;
     let order_num: i64 = node.get("order_num")?;
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let act_id = uuid::Uuid::parse_str(&act_id_str)?;
+    // location_id may not exist in newer schemas - default to a placeholder
+    let location_id_str = node.get_string_or("location_id", "");
     let location_id = if location_id_str.is_empty() {
         LocationId::new() // Placeholder - should be fetched via AT_LOCATION edge
     } else {
         LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)?)
     };
-    let time_context: TimeContext =
-        serde_json::from_str::<TimeContextStored>(&time_context_json)?.into();
+
+    // JSON fields - required
+    let time_context: TimeContext = node.get_json::<TimeContextStored>("time_context")?.into();
     let entry_conditions: Vec<SceneCondition> =
-        serde_json::from_str::<Vec<SceneConditionStored>>(&entry_conditions_json)?
+        node.get_json::<Vec<SceneConditionStored>>("entry_conditions")?
             .into_iter()
             .map(TryInto::try_into)
             .collect::<Result<Vec<_>>>()?;
+
+    // JSON fields - optional/with defaults
     let featured_characters: Vec<CharacterId> =
-        serde_json::from_str::<Vec<String>>(&featured_characters_json)?
+        node.get_json_or_default::<Vec<String>>("featured_characters")
             .into_iter()
             .filter_map(|s| uuid::Uuid::parse_str(&s).ok().map(CharacterId::from_uuid))
             .collect();
 
+    // Optional string field
+    let backdrop_override = node.get_optional_string("backdrop_override");
+
     Ok(Scene {
-        id: SceneId::from_uuid(id),
-        act_id: ActId::from_uuid(act_id),
+        id,
+        act_id,
         name,
         location_id,
         time_context,
-        backdrop_override: if backdrop_override.is_empty() {
-            None
-        } else {
-            Some(backdrop_override)
-        },
+        backdrop_override,
         entry_conditions,
         featured_characters,
         directorial_notes,

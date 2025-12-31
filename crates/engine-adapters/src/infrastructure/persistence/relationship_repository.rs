@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use wrldbldr_common::datetime::parse_datetime_or;
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id_from_row, RowExt};
 
 use wrldbldr_domain::value_objects::{
     FamilyRelation, Relationship, RelationshipEvent, RelationshipType,
@@ -469,33 +470,22 @@ impl Neo4jRelationshipRepository {
 }
 
 fn row_to_relationship(row: Row, fallback_time: DateTime<Utc>) -> Result<Relationship> {
-    let id_str: String = row.get("id")?;
-    let from_id_str: String = row.get("from_id")?;
-    let to_id_str: String = row.get("to_id")?;
-    let rel_type_json: String = row.get("rel_type")?;
-    let sentiment: f64 = row.get("sentiment")?;
-    let history_json: String = row.get("history")?;
-    let known_to_player: bool = row.get("known_to_player")?;
-
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let from_id = uuid::Uuid::parse_str(&from_id_str)?;
-    let to_id = uuid::Uuid::parse_str(&to_id_str)?;
     let relationship_type: RelationshipType =
-        serde_json::from_str::<RelationshipTypeStored>(&rel_type_json)?.into();
-    let history: Vec<RelationshipEvent> =
-        serde_json::from_str::<Vec<RelationshipEventStored>>(&history_json)?
-            .into_iter()
-            .map(|stored| stored.into_event(fallback_time))
-            .collect();
+        row.get_json::<RelationshipTypeStored>("rel_type")?.into();
+    let history: Vec<RelationshipEvent> = row
+        .get_json::<Vec<RelationshipEventStored>>("history")?
+        .into_iter()
+        .map(|stored| stored.into_event(fallback_time))
+        .collect();
 
     Ok(Relationship {
-        id: RelationshipId::from_uuid(id),
-        from_character: CharacterId::from_uuid(from_id),
-        to_character: CharacterId::from_uuid(to_id),
+        id: parse_typed_id_from_row(&row, "id")?,
+        from_character: parse_typed_id_from_row(&row, "from_id")?,
+        to_character: parse_typed_id_from_row(&row, "to_id")?,
         relationship_type,
-        sentiment: sentiment as f32,
+        sentiment: row.get_f64_or("sentiment", 0.0) as f32,
         history,
-        known_to_player,
+        known_to_player: row.get_bool_or("known_to_player", false),
     })
 }
 

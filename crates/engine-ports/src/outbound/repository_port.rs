@@ -9,17 +9,16 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::entities::WorkflowSlot;
 use wrldbldr_domain::entities::{
-    AcquisitionMethod, Act, ChainStatus, Character, CharacterSheetTemplate,
-    EventChain, GalleryAsset, GenerationBatch, Goal, InteractionRequirement,
-    InteractionTargetType, InteractionTemplate, InventoryItem, Item, Location, LocationConnection,
-    NpcObservation, PlayerCharacter, Region, RegionConnection, RegionExit, Scene, SceneCharacter,
-    SheetTemplateId, Skill, Want, WorkflowConfiguration, World,
+    AcquisitionMethod, Act, ChainStatus, CharacterSheetTemplate, EventChain, GalleryAsset,
+    GenerationBatch, Goal, InteractionRequirement, InteractionTargetType, InteractionTemplate,
+    InventoryItem, Item, NpcObservation, PlayerCharacter, Scene, SceneCharacter, SheetTemplateId,
+    Skill, Want, WorkflowConfiguration, World,
 };
-use wrldbldr_domain::value_objects::{RegionRelationshipType, Relationship};
+use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{
-    ActId, AssetId, BatchId, CharacterId, EventChainId, GoalId, GridMapId,
-    InteractionId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId,
-    RelationshipId, SceneId, SkillId, WantId, WorldId,
+    ActId, AssetId, BatchId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
+    NarrativeEventId, PlayerCharacterId, RegionId, RelationshipId, SceneId, SkillId, WantId,
+    WorldId,
 };
 
 // =============================================================================
@@ -169,89 +168,16 @@ pub trait PlayerCharacterRepositoryPort: Send + Sync {
 }
 
 // =============================================================================
-// Location Repository Port
+// Location Repository Port - REMOVED (use ISP traits instead)
 // =============================================================================
-
-/// Repository port for Location operations
-#[async_trait]
-pub trait LocationRepositoryPort: Send + Sync {
-    // -------------------------------------------------------------------------
-    // Core CRUD
-    // -------------------------------------------------------------------------
-
-    /// Create a new location
-    async fn create(&self, location: &Location) -> Result<()>;
-
-    /// Get a location by ID
-    async fn get(&self, id: LocationId) -> Result<Option<Location>>;
-
-    /// List all locations in a world
-    async fn list(&self, world_id: WorldId) -> Result<Vec<Location>>;
-
-    /// Update a location
-    async fn update(&self, location: &Location) -> Result<()>;
-
-    /// Delete a location
-    async fn delete(&self, id: LocationId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Location Hierarchy (CONTAINS_LOCATION edges)
-    // -------------------------------------------------------------------------
-
-    /// Set a location's parent (creates CONTAINS_LOCATION edge)
-    async fn set_parent(&self, child_id: LocationId, parent_id: LocationId) -> Result<()>;
-
-    /// Remove a location's parent (deletes CONTAINS_LOCATION edge)
-    async fn remove_parent(&self, child_id: LocationId) -> Result<()>;
-
-    /// Get a location's parent
-    async fn get_parent(&self, location_id: LocationId) -> Result<Option<Location>>;
-
-    /// Get a location's children
-    async fn get_children(&self, location_id: LocationId) -> Result<Vec<Location>>;
-
-    // -------------------------------------------------------------------------
-    // Location Connections (CONNECTED_TO edges)
-    // -------------------------------------------------------------------------
-
-    /// Create a connection between locations
-    async fn create_connection(&self, connection: &LocationConnection) -> Result<()>;
-
-    /// Get all connections from a location
-    async fn get_connections(&self, location_id: LocationId) -> Result<Vec<LocationConnection>>;
-
-    /// Update a connection's properties
-    async fn update_connection(&self, connection: &LocationConnection) -> Result<()>;
-
-    /// Delete a connection between locations
-    async fn delete_connection(&self, from: LocationId, to: LocationId) -> Result<()>;
-
-    /// Unlock a connection (set is_locked = false)
-    async fn unlock_connection(&self, from: LocationId, to: LocationId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Grid Map (HAS_TACTICAL_MAP edge)
-    // -------------------------------------------------------------------------
-
-    /// Set a location's tactical map
-    async fn set_grid_map(&self, location_id: LocationId, grid_map_id: GridMapId) -> Result<()>;
-
-    /// Remove a location's tactical map
-    async fn remove_grid_map(&self, location_id: LocationId) -> Result<()>;
-
-    /// Get a location's tactical map ID
-    async fn get_grid_map_id(&self, location_id: LocationId) -> Result<Option<GridMapId>>;
-
-    // -------------------------------------------------------------------------
-    // Regions (HAS_REGION edges to Region nodes)
-    // -------------------------------------------------------------------------
-
-    /// Create a region within a location
-    async fn create_region(&self, location_id: LocationId, region: &Region) -> Result<()>;
-
-    /// Get all regions in a location
-    async fn get_regions(&self, location_id: LocationId) -> Result<Vec<Region>>;
-}
+//
+// LocationRepositoryPort has been split into 4 focused traits following ISP:
+// - LocationCrudPort: Core CRUD operations (5 methods)
+// - LocationHierarchyPort: Parent-child relationships (4 methods)
+// - LocationConnectionPort: Navigation connections (5 methods)
+// - LocationMapPort: Grid maps and regions (5 methods)
+//
+// See: crate::outbound::location_repository
 
 // =============================================================================
 // Scene Repository Port
@@ -842,94 +768,17 @@ pub trait WorkflowRepositoryPort: Send + Sync {
 }
 
 // =============================================================================
-// Region Repository Port
+// Region Repository Port - REMOVED (use ISP traits instead)
 // =============================================================================
-
-/// Repository port for Region operations
-#[async_trait]
-pub trait RegionRepositoryPort: Send + Sync {
-    /// Get a region by ID
-    async fn get(&self, id: RegionId) -> Result<Option<Region>>;
-
-    /// List all regions in a location
-    async fn list_by_location(&self, location_id: LocationId) -> Result<Vec<Region>>;
-
-    /// List all spawn point regions in a world
-    async fn list_spawn_points(&self, world_id: WorldId) -> Result<Vec<Region>>;
-
-    /// Get all NPCs with relationships to a region (for presence determination)
-    async fn get_npcs_related_to_region(
-        &self,
-        region_id: RegionId,
-    ) -> Result<Vec<(Character, RegionRelationshipType)>>;
-
-    /// Update a region
-    async fn update(&self, region: &Region) -> Result<()>;
-
-    /// Delete a region
-    async fn delete(&self, id: RegionId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Region Connections (CONNECTED_TO_REGION edges)
-    // -------------------------------------------------------------------------
-
-    /// Create a connection between two regions
-    async fn create_connection(&self, connection: &RegionConnection) -> Result<()>;
-
-    /// Get all connections from a region
-    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>>;
-
-    /// Delete a connection between two regions
-    async fn delete_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
-
-    /// Unlock a locked connection between two regions
-    async fn unlock_connection(&self, from: RegionId, to: RegionId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Region Exits (EXITS_TO_LOCATION edges)
-    // -------------------------------------------------------------------------
-
-    /// Create an exit from a region to another location
-    async fn create_exit(&self, exit: &RegionExit) -> Result<()>;
-
-    /// Get all exits from a region
-    async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>>;
-
-    /// Delete an exit from a region to a location
-    async fn delete_exit(&self, from_region: RegionId, to_location: LocationId) -> Result<()>;
-
-    // -------------------------------------------------------------------------
-    // Region Item Placement (Future - US-REGION-ITEMS)
-    // -------------------------------------------------------------------------
-
-    /// Add an item to a region (stub - not yet implemented)
-    ///
-    /// This will create a `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
-    /// Future implementation should enforce region.max_items capacity.
-    async fn add_item_to_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
-        Err(anyhow::anyhow!(
-            "Region item placement not yet implemented - see US-REGION-ITEMS"
-        ))
-    }
-
-    /// Get all items in a region (stub - not yet implemented)
-    ///
-    /// Returns items linked via `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
-    async fn get_region_items(&self, _region_id: RegionId) -> Result<Vec<Item>> {
-        Err(anyhow::anyhow!(
-            "Region item placement not yet implemented - see US-REGION-ITEMS"
-        ))
-    }
-
-    /// Remove an item from a region (stub - not yet implemented)
-    ///
-    /// Deletes the `(Region)-[:CONTAINS_ITEM]->(Item)` edge.
-    async fn remove_item_from_region(&self, _region_id: RegionId, _item_id: ItemId) -> Result<()> {
-        Err(anyhow::anyhow!(
-            "Region item placement not yet implemented - see US-REGION-ITEMS"
-        ))
-    }
-}
+//
+// RegionRepositoryPort has been split into 5 focused traits following ISP:
+// - RegionCrudPort: Core CRUD operations (5 methods)
+// - RegionConnectionPort: Region-to-region connections (4 methods)
+// - RegionExitPort: Region-to-location exits (3 methods)
+// - RegionNpcPort: NPC relationship queries (1 method)
+// - RegionItemPort: Item placement in regions (3 stub methods)
+//
+// See: crate::outbound::region_repository
 
 // =============================================================================
 // Observation Repository Port

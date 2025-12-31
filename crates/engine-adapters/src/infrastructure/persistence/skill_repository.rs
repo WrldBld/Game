@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{Skill, SkillCategory};
 use wrldbldr_domain::{SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::SkillRepositoryPort;
@@ -137,27 +138,23 @@ impl Neo4jSkillRepository {
 fn row_to_skill(row: Row) -> Result<Skill> {
     let node: neo4rs::Node = row.get("s")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    let id: SkillId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let name: String = node.get("name")?;
-    let description: String = node.get("description").unwrap_or_default();
+    let description: String = node.get_string_or("description", "");
     let category_str: String = node.get("category")?;
-    let base_attribute: String = node.get("base_attribute").unwrap_or_default();
-    let is_custom: bool = node.get("is_custom").unwrap_or(false);
-    let is_hidden: bool = node.get("is_hidden").unwrap_or(false);
-    let order: i64 = node.get("skill_order").unwrap_or(0);
+    let base_attribute: Option<String> = node.get_optional_string("base_attribute");
+    let is_custom: bool = node.get_bool_or("is_custom", false);
+    let is_hidden: bool = node.get_bool_or("is_hidden", false);
+    let order: i64 = node.get_i64_or("skill_order", 0);
 
     Ok(Skill {
-        id: SkillId::from_uuid(uuid::Uuid::parse_str(&id_str)?),
-        world_id: WorldId::from_uuid(uuid::Uuid::parse_str(&world_id_str)?),
+        id,
+        world_id,
         name,
         description,
         category: parse_skill_category(&category_str),
-        base_attribute: if base_attribute.is_empty() {
-            None
-        } else {
-            Some(base_attribute)
-        },
+        base_attribute,
         is_custom,
         is_hidden,
         order: order as u32,

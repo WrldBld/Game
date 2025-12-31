@@ -7,9 +7,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
 use serde::{Deserialize, Serialize};
-use wrldbldr_common::StringExt;
+
 
 use super::connection::Neo4jConnection;
+use super::neo4j_helpers::{parse_typed_id, NodeExt};
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
@@ -477,65 +478,58 @@ impl Neo4jAssetRepository {
 fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset> {
     let node: neo4rs::Node = row.get("a")?;
 
-    let id_str: String = node.get("id")?;
+    let id: AssetId = parse_typed_id(&node, "id")?;
     let entity_type_str: String = node.get("entity_type")?;
     let entity_id: String = node.get("entity_id")?;
     let asset_type_str: String = node.get("asset_type")?;
     let file_path: String = node.get("file_path")?;
     let is_active: bool = node.get("is_active")?;
-    let label: String = node.get("label")?;
-    let generation_metadata_json: String = node.get("generation_metadata")?;
+    let label = node.get_optional_string("label");
     let created_at_str: String = node.get("created_at")?;
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
     let entity_type = parse_entity_type(&entity_type_str);
     let asset_type = AssetType::from_str(&asset_type_str)
         .map_err(|e| anyhow::anyhow!("Invalid asset type: {}", e))?;
-    let generation_metadata: Option<GenerationMetadata> = if generation_metadata_json.is_empty() {
-        None
-    } else {
-        serde_json::from_str::<GenerationMetadataStored>(&generation_metadata_json)
-            .ok()
-            .map(Into::into)
-    };
+    let generation_metadata: Option<GenerationMetadata> = node
+        .get_json_or_default::<Option<GenerationMetadataStored>>("generation_metadata")
+        .map(Into::into);
     let created_at =
         chrono::DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&chrono::Utc);
 
     Ok(GalleryAsset {
-        id: AssetId::from_uuid(id),
+        id,
         entity_type,
         entity_id,
         asset_type,
         file_path,
         is_active,
-        label: label.into_option(),
+        label,
         generation_metadata,
         created_at,
     })
 }
 
 fn row_to_generation_batch(row: Row) -> Result<GenerationBatch> {
+    use super::neo4j_helpers::parse_optional_typed_id;
     use wrldbldr_domain::WorldId;
 
     let node: neo4rs::Node = row.get("b")?;
 
-    let id_str: String = node.get("id")?;
-    let world_id_str: String = node.get("world_id")?;
+    let id: BatchId = parse_typed_id(&node, "id")?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let entity_type_str: String = node.get("entity_type")?;
     let entity_id: String = node.get("entity_id")?;
     let asset_type_str: String = node.get("asset_type")?;
     let workflow: String = node.get("workflow")?;
     let prompt: String = node.get("prompt")?;
-    let negative_prompt: String = node.get("negative_prompt")?;
-    let count: i64 = node.get("count")?;
+    let negative_prompt = node.get_optional_string("negative_prompt");
+    let count = node.get_i64_or("count", 1);
     let status_json: String = node.get("status")?;
-    let assets_json: String = node.get("assets")?;
-    let style_reference_id_str: String = node.get("style_reference_id")?;
+    let assets_json = node.get_string_or("assets", "[]");
+    let style_reference_id: Option<AssetId> = parse_optional_typed_id(&node, "style_reference_id")?;
     let requested_at_str: String = node.get("requested_at")?;
-    let completed_at_str: String = node.get("completed_at")?;
+    let completed_at_str = node.get_optional_string("completed_at");
 
-    let id = uuid::Uuid::parse_str(&id_str)?;
-    let world_id = WorldId::from_uuid(uuid::Uuid::parse_str(&world_id_str)?);
     let entity_type = parse_entity_type(&entity_type_str);
     let asset_type = AssetType::from_str(&asset_type_str)
         .map_err(|e| anyhow::anyhow!("Invalid asset type: {}", e))?;
@@ -544,36 +538,21 @@ fn row_to_generation_batch(row: Row) -> Result<GenerationBatch> {
         .into_iter()
         .filter_map(|s| uuid::Uuid::parse_str(&s).ok().map(AssetId::from_uuid))
         .collect();
-    let style_reference_id = if style_reference_id_str.is_empty() {
-        None
-    } else {
-        uuid::Uuid::parse_str(&style_reference_id_str)
-            .ok()
-            .map(AssetId::from_uuid)
-    };
     let requested_at =
         chrono::DateTime::parse_from_rfc3339(&requested_at_str)?.with_timezone(&chrono::Utc);
-    let completed_at = if completed_at_str.is_empty() {
-        None
-    } else {
-        chrono::DateTime::parse_from_rfc3339(&completed_at_str)
-            .ok()
-            .map(|t| t.with_timezone(&chrono::Utc))
-    };
+    let completed_at = completed_at_str
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|t| t.with_timezone(&chrono::Utc));
 
     Ok(GenerationBatch {
-        id: BatchId::from_uuid(id),
+        id,
         world_id,
         entity_type,
         entity_id,
         asset_type,
         workflow,
         prompt,
-        negative_prompt: if negative_prompt.is_empty() {
-            None
-        } else {
-            Some(negative_prompt)
-        },
+        negative_prompt,
         count: count as u8,
         status,
         assets,

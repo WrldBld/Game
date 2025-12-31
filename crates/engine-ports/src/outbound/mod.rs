@@ -144,12 +144,14 @@ pub use llm_port::{
 
 pub use queue_notification_port::{QueueNotificationPort, WaitResult};
 
-// Repository ports - Note: CharacterRepositoryPort and ChallengeRepositoryPort have been
-// split into ISP sub-traits (see character_repository/ and challenge_repository/)
+// Repository ports - Note: Many repository ports have been split into ISP sub-traits.
+// See the *_repository/ modules for the focused trait definitions.
+// God traits have been removed for: Location, Region (use ISP traits instead).
+// God traits pending removal: PlayerCharacter, Scene, EventChain.
 pub use repository_port::{
     AssetRepositoryPort, CharacterNode, ContainerInfo, EventChainRepositoryPort, FlagRepositoryPort,
-    GoalRepositoryPort, InteractionRepositoryPort, ItemRepositoryPort, LocationRepositoryPort,
-    ObservationRepositoryPort, PlayerCharacterRepositoryPort, RegionRepositoryPort,
+    GoalRepositoryPort, InteractionRepositoryPort, ItemRepositoryPort,
+    ObservationRepositoryPort, PlayerCharacterRepositoryPort,
     RelationshipEdge, RelationshipRepositoryPort, SceneRepositoryPort, SheetTemplateRepositoryPort,
     SkillRepositoryPort, SocialNetwork, WantRepositoryPort, WorkflowRepositoryPort,
     WorldRepositoryPort,
