@@ -84,6 +84,13 @@ impl ChallengeOutcomeApprovalPort for ChallengeOutcomeApprovalAdapter {
             .await
             .map_err(|e| e.to_string())
     }
+
+    async fn get_by_id(
+        &self,
+        _request_id: &str,
+    ) -> Result<Option<wrldbldr_engine_ports::outbound::ApprovalItem>, String> {
+        Ok(None)
+    }
 }
 
 // =============================================================================
