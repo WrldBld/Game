@@ -57,13 +57,11 @@ pub use use_case_ports::{
     ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort,
     // Connection port traits
-    DirectorialContextPort,
     // Scene port traits
     DirectorialContextRepositoryPort,
     // Player action port traits
     InteractionServicePort,
     NarrativeRollContext,
-    PlayerCharacterServicePort,
     SceneDmActionQueuePort,
     SceneServicePort,
     // Staging port traits
@@ -71,7 +69,6 @@ pub use use_case_ports::{
     StagingServicePort,
     StagingStateExtPort,
     StagingStatePort,
-    WorldServicePort,
     WorldStatePort,
 };
 

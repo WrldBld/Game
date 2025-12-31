@@ -29,8 +29,8 @@ use super::errors::ConnectionError;
 use crate::application::services::{JoinValidation, WorldSessionPolicy};
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{
-    DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
+pub use wrldbldr_engine_ports::outbound::{
+    DirectorialContextQueryPort, PlayerCharacterDtoPort, WorldSnapshotJsonPort,
 };
 
 pub use wrldbldr_engine_ports::outbound::ConnectionManagerPort;
@@ -51,9 +51,9 @@ pub use super::scene::WorldStatePort;
 /// Use case for connection operations
 pub struct ConnectionUseCase {
     connection_manager: Arc<dyn ConnectionManagerPort>,
-    world_service: Arc<dyn WorldServicePort>,
-    pc_service: Arc<dyn PlayerCharacterServicePort>,
-    directorial_repo: Arc<dyn DirectorialContextPort>,
+    world_service: Arc<dyn WorldSnapshotJsonPort>,
+    pc_service: Arc<dyn PlayerCharacterDtoPort>,
+    directorial_repo: Arc<dyn DirectorialContextQueryPort>,
     world_state: Arc<dyn WorldStatePort>,
     broadcast: Arc<dyn BroadcastPort>,
     session_policy: WorldSessionPolicy,
@@ -63,9 +63,9 @@ impl ConnectionUseCase {
     /// Create a new ConnectionUseCase with all dependencies
     pub fn new(
         connection_manager: Arc<dyn ConnectionManagerPort>,
-        world_service: Arc<dyn WorldServicePort>,
-        pc_service: Arc<dyn PlayerCharacterServicePort>,
-        directorial_repo: Arc<dyn DirectorialContextPort>,
+        world_service: Arc<dyn WorldSnapshotJsonPort>,
+        pc_service: Arc<dyn PlayerCharacterDtoPort>,
+        directorial_repo: Arc<dyn DirectorialContextQueryPort>,
         world_state: Arc<dyn WorldStatePort>,
         broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {

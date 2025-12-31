@@ -21,6 +21,7 @@ mod comfyui_port;
 mod connection_manager_port;
 mod dialogue_context_service_port;
 mod directorial_context_port;
+mod directorial_context_query_port;
 mod disposition_service_port;
 mod dm_action_processor_port;
 mod dm_action_queue_service_port;
@@ -49,6 +50,7 @@ mod narrative_event_repository;
 mod narrative_event_service_port;
 mod player_action_queue_port;
 mod player_action_queue_service_port;
+mod player_character_dto_port;
 mod player_character_repository;
 mod player_character_service_port;
 mod prompt_context_service_port;
@@ -82,6 +84,7 @@ mod use_case_types;
 mod workflow_service_port;
 mod world_connection_manager;
 mod world_exporter_port;
+mod world_snapshot_json_port;
 mod world_service_port;
 mod world_state;
 
@@ -321,6 +324,8 @@ pub use world_exporter_port::{
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
 
+pub use directorial_context_query_port::DirectorialContextQueryPort;
+
 // Dialogue context service port - interface for dialogue context operations (LLM/staging)
 pub use dialogue_context_service_port::DialogueContextServicePort;
 #[cfg(any(test, feature = "testing"))]
@@ -351,6 +356,8 @@ pub use interaction_service_port::MockInteractionServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use world_service_port::MockWorldServicePort;
 pub use world_service_port::WorldServicePort;
+
+pub use world_snapshot_json_port::WorldSnapshotJsonPort;
 
 // Character service port - interface for character operations
 pub use character_service_port::CharacterServicePort;
@@ -424,6 +431,8 @@ pub use item_service_port::MockItemServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use player_character_service_port::MockPlayerCharacterServicePort;
 pub use player_character_service_port::PlayerCharacterServicePort;
+
+pub use player_character_dto_port::PlayerCharacterDtoPort;
 
 // Story event service port - interface for story event operations
 #[cfg(any(test, feature = "testing"))]

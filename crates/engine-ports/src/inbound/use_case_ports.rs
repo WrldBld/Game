@@ -196,26 +196,10 @@ pub trait ChallengeDmApprovalQueuePort: Send + Sync {
 // Connection Ports (from connection.rs)
 // =============================================================================
 
-/// Port for world service operations
-#[async_trait]
-pub trait WorldServicePort: Send + Sync {
-    /// Export world snapshot
-    async fn export_world_snapshot(&self, world_id: WorldId) -> Result<serde_json::Value, String>;
-}
-
-/// Port for player character service
-#[async_trait]
-pub trait PlayerCharacterServicePort: Send + Sync {
-    /// Get PC by ID
-    async fn get_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<PcData>, String>;
-}
-
-/// Port for directorial context
-#[async_trait]
-pub trait DirectorialContextPort: Send + Sync {
-    /// Get directorial context
-    async fn get(&self, world_id: &WorldId) -> Result<Option<DirectorialContextData>, String>;
-}
+// Note: connection-related DTO ports moved to outbound:
+// - WorldSnapshotJsonPort
+// - PlayerCharacterDtoPort
+// - DirectorialContextQueryPort
 
 // =============================================================================
 // Scene Ports (from scene.rs)

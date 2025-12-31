@@ -6,34 +6,31 @@
 //!
 //! ConnectionManagerAdapter is in a separate file (connection_manager_adapter.rs)
 //! as it was created earlier. This file contains the remaining adapters for:
-//! - WorldServicePort
-//! - PlayerCharacterServicePort
-//! - DirectorialContextPort
+//! - WorldSnapshotJsonPort
+//! - PlayerCharacterDtoPort
+//! - DirectorialContextQueryPort
 //! - WorldStatePort (consolidated from ConnectionWorldStatePort and SceneWorldStatePort)
 
 use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_ports::inbound::{
-    DirectorialContextData,
-    DirectorialContextPort,
-    NpcMotivation,
-    PcData,
-    PlayerCharacterServicePort as InboundPlayerCharacterServicePort,
-    WorldServicePort as InboundWorldServicePort,
-    WorldStatePort as InboundWorldStatePort, // Use case port (set_current_scene, set_directorial_context)
-};
+use wrldbldr_engine_ports::inbound::WorldStatePort as InboundWorldStatePort; // Use case port (set_current_scene, set_directorial_context)
 use wrldbldr_engine_ports::outbound::{
+    DirectorialContextData, DirectorialContextQueryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
-    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort, WorldDirectorialPort,
-    WorldScenePort, WorldServicePort as OutboundWorldServicePort,
+    NpcMotivation, PcData,
+    PlayerCharacterDtoPort,
+    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
+    WorldDirectorialPort, WorldScenePort,
+    WorldServicePort as OutboundWorldServicePort,
+    WorldSnapshotJsonPort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
-/// Adapter for WorldServicePort (outbound) implementing WorldServicePort (inbound)
+/// Adapter for WorldServicePort implementing WorldSnapshotJsonPort.
 pub struct WorldServiceAdapter {
     service: Arc<dyn OutboundWorldServicePort>,
 }
@@ -45,7 +42,7 @@ impl WorldServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl InboundWorldServicePort for WorldServiceAdapter {
+impl WorldSnapshotJsonPort for WorldServiceAdapter {
     async fn export_world_snapshot(&self, world_id: WorldId) -> Result<serde_json::Value, String> {
         match self.service.export_world_snapshot(world_id).await {
             Ok(snapshot) => {
@@ -57,7 +54,7 @@ impl InboundWorldServicePort for WorldServiceAdapter {
     }
 }
 
-/// Adapter for PlayerCharacterServicePort (outbound) implementing PlayerCharacterServicePort (inbound)
+/// Adapter for PlayerCharacterServicePort implementing PlayerCharacterDtoPort.
 pub struct PlayerCharacterServiceAdapter {
     service: Arc<dyn OutboundPlayerCharacterServicePort>,
 }
@@ -69,7 +66,7 @@ impl PlayerCharacterServiceAdapter {
 }
 
 #[async_trait::async_trait]
-impl InboundPlayerCharacterServicePort for PlayerCharacterServiceAdapter {
+impl PlayerCharacterDtoPort for PlayerCharacterServiceAdapter {
     async fn get_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<PcData>, String> {
         match self.service.get_player_character(pc_id).await {
             Ok(Some(pc)) => Ok(Some(PcData {
@@ -89,7 +86,7 @@ impl InboundPlayerCharacterServicePort for PlayerCharacterServiceAdapter {
     }
 }
 
-/// Adapter for DirectorialContextRepositoryPort implementing DirectorialContextPort
+/// Adapter for DirectorialContextRepositoryPort implementing DirectorialContextQueryPort.
 pub struct ConnectionDirectorialContextAdapter {
     repo: Arc<dyn PortDirectorialContextRepositoryPort>,
 }
@@ -101,7 +98,7 @@ impl ConnectionDirectorialContextAdapter {
 }
 
 #[async_trait::async_trait]
-impl DirectorialContextPort for ConnectionDirectorialContextAdapter {
+impl DirectorialContextQueryPort for ConnectionDirectorialContextAdapter {
     async fn get(&self, world_id: &WorldId) -> Result<Option<DirectorialContextData>, String> {
         match self.repo.get(world_id).await {
             Ok(Some(notes)) => {

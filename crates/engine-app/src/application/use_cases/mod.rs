@@ -22,7 +22,7 @@
 //! proper hexagonal architecture. This includes:
 //!
 //! - `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, `ChallengeDmApprovalQueuePort`
-//! - `ConnectionManagerPort`, `DirectorialContextPort`, `PlayerCharacterServicePort`, `WorldServicePort`
+//! - `ConnectionManagerPort`, `DirectorialContextQueryPort`, `PlayerCharacterDtoPort`, `WorldSnapshotJsonPort`
 //! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
 //! - `StagingStatePort`, `StagingServicePort`, `StagingStateExtPort`, `StagingServiceExtPort`
@@ -111,9 +111,9 @@ pub use challenge::{
 
 pub use connection::{
     ConnectedUser, ConnectionInfo, ConnectionManagerPort, ConnectionUseCase,
-    DirectorialContextPort, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
-    PlayerCharacterServicePort, SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent,
-    WorldRole, WorldServicePort,
+    DirectorialContextQueryPort, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
+    PlayerCharacterDtoPort, SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent,
+    WorldRole, WorldSnapshotJsonPort,
 };
 
 pub use inventory::{
