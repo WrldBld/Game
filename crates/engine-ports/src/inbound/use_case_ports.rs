@@ -15,7 +15,7 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::StagedNpc;
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{
-    ActionId, CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
+    CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
 };
 
 // Re-export types from outbound for use in trait definitions
@@ -274,37 +274,7 @@ pub trait SceneDmActionQueuePort: Send + Sync {
 // Player Action Ports (from player_action.rs)
 // =============================================================================
 
-/// Port for player action queue operations
-#[async_trait]
-pub trait PlayerActionQueuePort: Send + Sync {
-    /// Enqueue an action
-    async fn enqueue_action(
-        &self,
-        world_id: &WorldId,
-        player_id: String,
-        pc_id: Option<PlayerCharacterId>,
-        action_type: String,
-        target: Option<String>,
-        dialogue: Option<String>,
-    ) -> Result<ActionId, String>;
-
-    /// Get current queue depth
-    async fn depth(&self) -> Result<usize, String>;
-}
-
-/// Port for sending messages to DM
-#[async_trait]
-pub trait DmNotificationPort: Send + Sync {
-    /// Send action queued notification to DM
-    async fn notify_action_queued(
-        &self,
-        world_id: &WorldId,
-        action_id: String,
-        player_name: String,
-        action_type: String,
-        queue_depth: usize,
-    );
-}
+// Note: PlayerActionQueuePort and DmNotificationPort are outbound ports.
 
 // =============================================================================
 // Staging Ports (from staging.rs and movement.rs)

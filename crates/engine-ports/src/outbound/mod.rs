@@ -24,6 +24,7 @@ mod directorial_context_port;
 mod disposition_service_port;
 mod dm_action_processor_port;
 mod dm_action_queue_service_port;
+mod dm_notification_port;
 mod dm_approval_queue_service_port;
 mod domain_event_repository_port;
 mod environment_port;
@@ -46,6 +47,7 @@ mod location_service_port;
 mod narrative_event_approval_service_port;
 mod narrative_event_repository;
 mod narrative_event_service_port;
+mod player_action_queue_port;
 mod player_action_queue_service_port;
 mod player_character_repository;
 mod player_character_service_port;
@@ -114,6 +116,8 @@ pub use environment_port::EnvironmentPort;
 
 // DM action processor - interface for processing DM actions
 pub use dm_action_processor_port::{DmActionProcessorPort, DmActionResult};
+
+pub use dm_notification_port::DmNotificationPort;
 
 pub use comfyui_port::{
     ComfyUIPort, GeneratedImage, HistoryResponse, NodeOutput, PromptHistory, PromptStatus,
@@ -503,6 +507,8 @@ pub use player_action_queue_service_port::MockPlayerActionQueueServicePort;
 pub use player_action_queue_service_port::{
     PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
 };
+
+pub use player_action_queue_port::PlayerActionQueuePort;
 
 // DM approval queue service port - interface for DM approval queue operations
 #[cfg(any(test, feature = "testing"))]

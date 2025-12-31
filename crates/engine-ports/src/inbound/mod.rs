@@ -61,10 +61,8 @@ pub use use_case_ports::{
     // Scene port traits
     DirectorialContextRepositoryPort,
     // Player action port traits
-    DmNotificationPort,
     InteractionServicePort,
     NarrativeRollContext,
-    PlayerActionQueuePort,
     PlayerCharacterServicePort,
     SceneDmActionQueuePort,
     SceneServicePort,

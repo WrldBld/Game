@@ -26,9 +26,9 @@ use super::errors::ActionError;
 use super::movement::{ExitToLocationInput, MoveToRegionInput, MovementResult, MovementUseCase};
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{
-    DmNotificationPort, PlayerActionQueuePort, PlayerActionUseCasePort,
-};
+pub use wrldbldr_engine_ports::inbound::PlayerActionUseCasePort;
+
+pub use wrldbldr_engine_ports::outbound::{DmNotificationPort, PlayerActionQueuePort};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
