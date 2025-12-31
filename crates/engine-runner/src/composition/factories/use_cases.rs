@@ -102,36 +102,6 @@ pub struct UseCaseContext {
 
     /// Request handler for request/response CRUD operations
     pub request_handler: Arc<dyn RequestHandler>,
-
-    // =========================================================================
-    // Adapters (available for introspection/testing)
-    // =========================================================================
-    /// WebSocket broadcast adapter (concrete)
-    pub broadcast_adapter: Arc<WebSocketBroadcastAdapter>,
-    /// Staging service adapter
-    pub staging_service_adapter: Arc<StagingServiceAdapter>,
-    /// Player action queue adapter
-    pub player_action_queue_adapter: Arc<PlayerActionQueueAdapter>,
-    /// Challenge resolution adapter
-    pub challenge_resolution_adapter: Arc<ChallengeResolutionAdapter>,
-    /// Challenge outcome approval adapter
-    pub challenge_outcome_adapter: Arc<ChallengeOutcomeApprovalAdapter>,
-    /// Challenge DM approval queue adapter
-    pub challenge_dm_queue_adapter: Arc<ChallengeDmApprovalQueueAdapter>,
-    /// Scene service adapter
-    pub scene_service_adapter: Arc<SceneServiceAdapter>,
-    /// Interaction service adapter
-    pub interaction_service_adapter: Arc<InteractionServiceAdapter>,
-    /// Directorial context adapter
-    pub directorial_context_adapter: Arc<DirectorialContextAdapter>,
-    /// World service adapter
-    pub world_service_adapter: Arc<WorldServiceAdapter>,
-    /// Player character service adapter
-    pub pc_service_adapter: Arc<PlayerCharacterServiceAdapter>,
-    /// Connection directorial context adapter
-    pub connection_directorial_adapter: Arc<ConnectionDirectorialContextAdapter>,
-    /// Scene builder (shared)
-    pub scene_builder: Arc<SceneBuilder>,
 }
 
 /// Dependencies required for creating use cases.
@@ -441,21 +411,6 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
         use_cases: composition_use_cases,
         broadcast,
         request_handler: deps.request_handler,
-
-        // Adapters
-        broadcast_adapter,
-        staging_service_adapter,
-        player_action_queue_adapter,
-        challenge_resolution_adapter,
-        challenge_outcome_adapter,
-        challenge_dm_queue_adapter,
-        scene_service_adapter,
-        interaction_service_adapter,
-        directorial_context_adapter,
-        world_service_adapter,
-        pc_service_adapter,
-        connection_directorial_adapter,
-        scene_builder,
     }
 }
 
@@ -474,21 +429,6 @@ mod tests {
             let _ = &ctx.use_cases;
             let _ = &ctx.broadcast;
             let _ = &ctx.request_handler;
-
-            // Adapters
-            let _ = &ctx.broadcast_adapter;
-            let _ = &ctx.staging_service_adapter;
-            let _ = &ctx.player_action_queue_adapter;
-            let _ = &ctx.challenge_resolution_adapter;
-            let _ = &ctx.challenge_outcome_adapter;
-            let _ = &ctx.challenge_dm_queue_adapter;
-            let _ = &ctx.scene_service_adapter;
-            let _ = &ctx.interaction_service_adapter;
-            let _ = &ctx.directorial_context_adapter;
-            let _ = &ctx.world_service_adapter;
-            let _ = &ctx.pc_service_adapter;
-            let _ = &ctx.connection_directorial_adapter;
-            let _ = &ctx.scene_builder;
         }
 
         // The existence of this function proves the types are correct at compile time
@@ -562,25 +502,4 @@ mod tests {
         assert_eq!(expected_use_cases.len(), 9);
     }
 
-    /// Verify adapter count matches expectations.
-    #[test]
-    fn test_adapter_count() {
-        // Document the expected adapters
-        let expected_adapters = [
-            "WebSocketBroadcastAdapter",
-            "StagingServiceAdapter",
-            "PlayerActionQueueAdapter",
-            "ChallengeResolutionAdapter",
-            "ChallengeOutcomeApprovalAdapter",
-            "ChallengeDmApprovalQueueAdapter",
-            "SceneServiceAdapter",
-            "InteractionServiceAdapter",
-            "DirectorialContextAdapter",
-            "WorldServiceAdapter",
-            "PlayerCharacterServiceAdapter",
-            "ConnectionDirectorialContextAdapter",
-        ];
-
-        assert_eq!(expected_adapters.len(), 12);
-    }
 }

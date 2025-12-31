@@ -138,7 +138,7 @@ fn arch_check() -> anyhow::Result<()> {
 ///
 /// Notes:
 /// - Only scans `crates/engine-runner/src/composition/factories/**`.
-/// - Skips `use_cases.rs` for now (known intentional concrete wiring).
+/// - No file excludes (Phase 7 enforcement).
 fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -158,11 +158,6 @@ fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Resul
     let mut violations: Vec<String> = Vec::new();
 
     for entry in walkdir_rs_files(&factories_dir)? {
-        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if matches!(file_name, "use_cases.rs") {
-            continue;
-        }
-
         let contents = std::fs::read_to_string(&entry)
             .with_context(|| format!("reading {}", entry.display()))?;
         let sanitized = sanitize_rust_for_scan(&contents);
