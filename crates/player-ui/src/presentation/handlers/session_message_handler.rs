@@ -12,7 +12,7 @@ use crate::presentation::state::{
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
-use wrldbldr_player_ports::inbound::{
+use wrldbldr_player_ports::outbound::player_events::{
     CharacterData, CharacterPosition, ConnectedUser, NpcPresenceData, PlayerEvent, SceneData,
 };
 use wrldbldr_player_ports::outbound::PlatformPort;

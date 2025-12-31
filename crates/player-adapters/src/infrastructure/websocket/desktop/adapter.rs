@@ -9,7 +9,7 @@ use std::sync::{
 
 use anyhow::Result;
 
-use wrldbldr_player_ports::inbound::PlayerEvent;
+use wrldbldr_player_ports::outbound::player_events::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 use wrldbldr_player_ports::session_types as app;
 use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};

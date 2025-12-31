@@ -9,7 +9,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use wrldbldr_player_ports::inbound::PlayerEvent;
+use wrldbldr_player_ports::outbound::player_events::PlayerEvent;
 use wrldbldr_player_ports::outbound::{ConnectionState, GameConnectionPort};
 use wrldbldr_player_ports::session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,

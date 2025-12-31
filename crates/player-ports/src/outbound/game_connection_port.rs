@@ -205,7 +205,10 @@ pub trait GameConnectionPort: Send + Sync {
     ///
     /// The adapter translates wire-format `ServerMessage` to application-layer
     /// `PlayerEvent` before invoking this callback.
-    fn on_message(&self, callback: Box<dyn FnMut(crate::inbound::PlayerEvent) + Send + 'static>);
+    fn on_message(
+        &self,
+        callback: Box<dyn FnMut(crate::outbound::player_events::PlayerEvent) + Send + 'static>,
+    );
 
     /// Send a request and await the response
     ///

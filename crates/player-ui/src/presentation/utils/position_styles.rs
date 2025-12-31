@@ -4,7 +4,7 @@
 //! This keeps presentation/styling logic in the UI layer, following hexagonal
 //! architecture principles.
 
-use wrldbldr_player_ports::inbound::CharacterPosition;
+use wrldbldr_player_ports::outbound::player_events::CharacterPosition;
 
 /// Extension trait for CharacterPosition styling
 pub trait CharacterPositionStyle {

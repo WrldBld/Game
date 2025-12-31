@@ -5,7 +5,7 @@
 //! This module re-exports them for backwards compatibility.
 
 // Re-export all types from the ports layer
-pub use wrldbldr_player_ports::inbound::{
+pub use wrldbldr_player_ports::outbound::player_events::{
     ActantialViewData, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, CharacterData,
     CharacterPosition, ConnectedUser, DialogueChoice, EntityChangedData, GameTime, GoalData,
     InteractionData, JoinError, NarrativeEventSuggestionInfo, NavigationData, NavigationExit,

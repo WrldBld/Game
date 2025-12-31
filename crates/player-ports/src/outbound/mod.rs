@@ -11,6 +11,7 @@
 pub mod api_port;
 pub mod game_connection;
 pub mod game_connection_port;
+pub mod player_events;
 pub mod platform;
 pub mod platform_port;
 pub mod raw_api_port;

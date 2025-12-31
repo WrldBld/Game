@@ -156,38 +156,7 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 
 #### Player inbound taxonomy
 
-| Item | Kind | Defined in | Used in app/UI (examples) | Suggested target | Notes |
-|---|---|---|---|---|---|
-| `ActantialViewData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `CharacterData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `CharacterPosition` | enum | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs, crates/player-ui/src/presentation/utils/position_styles.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `ConnectedUser` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `DialogueChoice` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `EntityChangedData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `GameTime` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `GoalData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `InteractionData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `JoinError` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NavigationData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NavigationExit` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NavigationTarget` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NpcDispositionData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NpcPresenceData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `NpcPresentInfo` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `OutcomeBranchData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `OutcomeDetailData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `PlayerEvent` | enum | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-app/src/application/services/session_service.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `PreviousStagingInfo` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `RegionData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `RegionItemData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `ResponseResult` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `SceneData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs, crates/player-ui/src/presentation/handlers/session_message_handler.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `SplitPartyLocation` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `StagedNpcInfo` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `WaitingPcInfo` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `WantData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `WantTargetData` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
-| `WorldRole` | struct | crates/player-ports/src/inbound/player_events.rs | crates/player-app/src/application/dto/player_events.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
+_No player inbound items found (unexpected)._ 
 
 _Regenerate with `task arch:inventories`._
 
@@ -204,14 +173,7 @@ _Regenerate with `task arch:inventories`._
 
 | Type name | engine-dto (examples) | engine-ports (examples) | Suggested owner | Notes |
 |---|---|---|---|---|
-| `ApprovalItem` | crates/engine-dto/src/queue.rs | crates/engine-ports/src/outbound/use_case_types.rs | engine-ports (likely boundary DTO) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `LlmResponse` | crates/engine-dto/src/llm.rs | crates/engine-ports/src/outbound/llm_queue_service_port.rs | engine-dto (likely internal glue) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `OutcomeDetail` | crates/engine-dto/src/queue.rs | crates/engine-ports/src/outbound/use_case_types.rs | TBD | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `QueueItem` | crates/engine-dto/src/queue.rs | crates/engine-ports/src/outbound/queue_port.rs | engine-dto (likely internal glue) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `QueueItemId` | crates/engine-dto/src/queue.rs | crates/engine-ports/src/outbound/queue_port.rs | engine-dto (likely internal glue) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `QueueItemStatus` | crates/engine-dto/src/queue.rs | crates/engine-ports/src/outbound/queue_port.rs | engine-dto (likely internal glue) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `StagedNpcProposal` | crates/engine-dto/src/staging.rs | crates/engine-ports/src/outbound/staging_service_port.rs | engine-ports (likely boundary DTO) | Pick one canonical definition; delete the shadow copy; migrate imports |
-| `StagingProposal` | crates/engine-dto/src/staging.rs | crates/engine-ports/src/outbound/staging_service_port.rs | engine-ports (likely boundary DTO) | Pick one canonical definition; delete the shadow copy; migrate imports |
+| _(none)_ |  |  |  |  |
 
 _Regenerate with `task arch:inventories`._
 

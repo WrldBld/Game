@@ -9,7 +9,7 @@
 //! All 65 ServerMessage variants are explicitly handled - none fall through to Raw.
 //! The Raw variant is available for future extensibility but currently unused.
 
-use wrldbldr_player_ports::inbound::{
+use wrldbldr_player_ports::outbound::player_events::{
     ActantialViewData, CharacterData, CharacterPosition, ConnectedUser, DialogueChoice,
     EntityChangedData, GameTime, GoalData, InteractionData, JoinError, NavigationData,
     NavigationExit, NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo,

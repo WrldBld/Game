@@ -28,7 +28,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use crate::inbound::PlayerEvent;
+use crate::outbound::player_events::PlayerEvent;
 use crate::outbound::{ConnectionState, GameConnectionPort};
 use crate::session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
