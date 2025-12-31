@@ -235,6 +235,9 @@ Steps:
 **Verify**
 - `cargo xtask arch-check` shows **0 glob re-export violations**.
 
+**Progress**
+- ✅ Completed 2025-12-31: removed glob re-exports from `crates/engine-dto/src/lib.rs`.
+
 **Stop condition**
 - Glob re-export check can be moved from warning-mode to enforcement.
 
