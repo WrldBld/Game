@@ -37,7 +37,8 @@ use wrldbldr_engine_adapters::infrastructure::{
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateRepositoryPort,
-    RandomPort, SettingsRepositoryPort, WorldExporterPort,
+    PromptTemplateServicePort, RandomPort, SettingsRepositoryPort, SettingsServicePort,
+    WorldExporterPort,
 };
 
 /// Infrastructure context containing all foundational dependencies.
@@ -74,11 +75,11 @@ pub struct InfrastructureContext {
     // =========================================================================
     // Settings & Configuration Services
     // =========================================================================
-    /// Settings service (concrete version for services needing direct access)
-    pub settings_service_concrete: Arc<SettingsService>,
+    /// Settings service (port version)
+    pub settings_service: Arc<dyn SettingsServicePort>,
 
-    /// Prompt template service (concrete version for LLMQueueService)
-    pub prompt_template_service_concrete: Arc<PromptTemplateService>,
+    /// Prompt template service (port version)
+    pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 
     /// Directorial context repository
     pub directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
@@ -165,7 +166,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
 
     let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn =
         Arc::new(load_settings_from_env);
-    let settings_service_concrete = Arc::new(SettingsService::new(
+    let settings_service: Arc<dyn SettingsServicePort> = Arc::new(SettingsService::new(
         settings_repository.clone(),
         settings_loader,
     ));
@@ -181,7 +182,8 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
             })?;
     let prompt_template_repository: Arc<dyn PromptTemplateRepositoryPort> =
         Arc::new(prompt_template_repository_impl);
-    let prompt_template_service_concrete = Arc::new(PromptTemplateService::new(
+    let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
+        Arc::new(PromptTemplateService::new(
         prompt_template_repository.clone(),
         environment.clone(),
     ));
@@ -214,8 +216,8 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         world_exporter,
         llm_client,
         comfyui_client,
-        settings_service_concrete,
-        prompt_template_service_concrete,
+        settings_service,
+        prompt_template_service,
         directorial_context_repo,
         world_connection_manager,
         world_state,

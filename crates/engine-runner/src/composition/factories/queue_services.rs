@@ -182,7 +182,7 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
         queue_backends.queue_factory.config().llm_batch_size,
         queue_backends.queue_factory.llm_notifier(),
         generation_event_tx,
-        infra.prompt_template_service_concrete.clone(),
+        infra.prompt_template_service.clone(),
     ));
 
     let file_storage: Arc<dyn FileStoragePort> = Arc::new(TokioFileStorageAdapter::new());

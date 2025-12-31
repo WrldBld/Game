@@ -152,8 +152,8 @@ pub async fn new_app_state(
     let repository = infra.neo4j.clone();
     let llm_client = infra.llm_client.clone();
     let comfyui_client = infra.comfyui_client.clone();
-    let settings_service = infra.settings_service_concrete.clone();
-    let prompt_template_service = infra.prompt_template_service_concrete.clone();
+    let settings_service = infra.settings_service.clone();
+    let prompt_template_service = infra.prompt_template_service.clone();
     let directorial_context_repo = infra.directorial_context_repo.clone();
     let world_connection_manager = infra.world_connection_manager.clone();
     let world_state = infra.world_state.clone();

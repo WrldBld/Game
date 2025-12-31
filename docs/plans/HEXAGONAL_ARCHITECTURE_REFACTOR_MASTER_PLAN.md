@@ -391,6 +391,9 @@ Steps:
 
 ### 7.1 Composition must not store concrete types when a port exists
 
+Progress:
+- ✅ 2025-12-31: `InfrastructureContext` now stores `Arc<dyn SettingsServicePort>` and `Arc<dyn PromptTemplateServicePort>` (no concrete service storage); updated `AppState` and queue-service wiring.
+
 Steps:
 1. In `engine-runner` factories and containers:
    - remove fields holding both `Arc<dyn Port>` and `Arc<Concrete>` versions
