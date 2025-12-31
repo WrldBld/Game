@@ -12,6 +12,7 @@ mod asset_service_port;
 mod broadcast_port;
 mod challenge_outcome_approval_port;
 mod challenge_outcome_approval_service_port;
+mod challenge_dm_approval_queue_port;
 mod challenge_repository;
 mod challenge_resolution_port;
 mod challenge_resolution_service_port;
@@ -121,6 +122,7 @@ pub use use_case_errors::{
 };
 
 pub use challenge_outcome_approval_port::ChallengeOutcomeApprovalPort;
+pub use challenge_dm_approval_queue_port::ChallengeDmApprovalQueuePort;
 pub use challenge_resolution_port::ChallengeResolutionPort;
 
 // DomainEvent repository - domain-layer interface for event storage

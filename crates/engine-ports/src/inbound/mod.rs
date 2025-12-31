@@ -50,12 +50,6 @@ pub use app_state_port::AppStatePort;
 
 // Note: use-case errors live in outbound ports and should be imported from there.
 
-// Re-export all use case port traits
-pub use use_case_ports::{
-    // Challenge port traits
-    ChallengeDmApprovalQueuePort,
-};
-
 // Re-export types from use_case_ports (which re-exports from outbound)
 pub use use_case_ports::{
     // Challenge types

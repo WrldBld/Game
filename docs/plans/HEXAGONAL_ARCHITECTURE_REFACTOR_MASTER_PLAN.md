@@ -102,7 +102,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | Item | Kind | Defined in | Used in app/UI (examples) | Suggested target | Notes |
 |---|---|---|---|---|---|
 | `AppStatePort` | trait | crates/engine-ports/src/inbound/app_state_port.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ChallengeDmApprovalQueuePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ChallengeUseCasePort` | trait | crates/engine-ports/src/inbound/challenge_use_case_port.rs | crates/engine-app/src/application/use_cases/challenge.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CharacterSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `ConnectionUseCasePort` | trait | crates/engine-ports/src/inbound/connection_use_case_port.rs | crates/engine-app/src/application/use_cases/connection.rs | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -272,6 +271,7 @@ Steps:
 - ✅ Continued 2025-12-31: moved scene directorial-context DTO persistence port from `engine-ports` inbound to outbound (renamed to avoid collision with the domain repo port): `DirectorialContextRepositoryPort` → `DirectorialContextDtoRepositoryPort`.
 - ✅ Continued 2025-12-31: moved scene/connection use-case dependency ports from `engine-ports` inbound to outbound (renamed to avoid collisions): `SceneServicePort` → `SceneWithRelationsQueryPort`, `InteractionServicePort` → `SceneInteractionsQueryPort`, `WorldStatePort` → `WorldStateUpdatePort`, and moved `SceneDmActionQueuePort` to outbound.
 - ✅ Continued 2025-12-31: moved staging use-case dependency ports from `engine-ports` inbound to outbound (renamed to avoid collision with domain staging service): `StagingServicePort` → `StagingUseCaseServicePort`, `StagingServiceExtPort` → `StagingUseCaseServiceExtPort`, and moved `StagingStatePort`/`StagingStateExtPort` to outbound.
+- ✅ Continued 2025-12-31: moved `ChallengeDmApprovalQueuePort` (challenge use-case dependency) from `engine-ports` inbound to outbound and updated adapters/use case imports.
 
 ### 3.3 Normalize “context DTOs”
 

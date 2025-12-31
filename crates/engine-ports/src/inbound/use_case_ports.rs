@@ -9,8 +9,6 @@
 //! Note: The types used by these traits (DTOs, result types, etc.) are defined
 //! in `outbound::use_case_types` and re-exported here for convenience.
 
-use async_trait::async_trait;
-
 // Re-export types from outbound for use in trait definitions
 pub use crate::outbound::{
     // Challenge types
@@ -62,18 +60,11 @@ pub use crate::outbound::{
 // Challenge Ports (from challenge.rs)
 // =============================================================================
 
-// Note: ChallengeResolutionPort, ChallengeOutcomeApprovalPort, and NarrativeRollContext
-// are outbound ports/types.
-
-/// Port for DM approval queue operations
-#[async_trait]
-pub trait ChallengeDmApprovalQueuePort: Send + Sync {
-    /// Get an approval item by ID
-    async fn get_by_id(&self, request_id: &str) -> Result<Option<ApprovalItem>, String>;
-
-    /// Discard a challenge from the queue
-    async fn discard_challenge(&self, dm_id: &str, request_id: &str);
-}
+// Note: challenge-related dependency ports live in outbound:
+// - ChallengeResolutionPort
+// - ChallengeOutcomeApprovalPort
+// - ChallengeDmApprovalQueuePort
+// - NarrativeRollContext
 
 // =============================================================================
 // Connection Ports (from connection.rs)
