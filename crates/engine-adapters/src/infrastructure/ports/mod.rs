@@ -58,7 +58,7 @@ pub use challenge_adapters::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
 };
 pub use connection_adapters::{
-    ConnectionDirectorialContextAdapter, ConnectionWorldStateAdapter,
+    ConnectionDirectorialContextAdapter,
     PlayerCharacterServiceAdapter, WorldServiceAdapter,
 };
 pub use connection_manager_adapter::ConnectionManagerAdapter;

@@ -13,21 +13,17 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::{DirectorialNotes, DomainNpcMotivation, PacingGuidance};
+use wrldbldr_domain::value_objects::{DirectorialNotes, PacingGuidance};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_engine_ports::outbound::WorldStateUpdatePort as InboundWorldStatePort; // Use case port (set_current_scene, set_directorial_context)
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextData, DirectorialContextQueryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
     NpcMotivation, PcData,
     PlayerCharacterDtoPort,
     PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
-    WorldDirectorialPort, WorldScenePort,
     WorldServicePort as OutboundWorldServicePort,
     WorldSnapshotJsonPort,
 };
-
-use crate::infrastructure::websocket::directorial_converters::parse_tone;
 use crate::infrastructure::WorldStateManager;
 
 /// Adapter for WorldServicePort implementing WorldSnapshotJsonPort.
@@ -145,61 +141,6 @@ impl DirectorialContextQueryPort for ConnectionDirectorialContextAdapter {
             Ok(None) => Ok(None),
             Err(e) => Err(e.to_string()),
         }
-    }
-}
-
-/// Adapter for WorldStateManager implementing WorldStatePort
-///
-/// This adapter implements the consolidated WorldStatePort (formerly split between
-/// ConnectionWorldStatePort and SceneWorldStatePort).
-pub struct ConnectionWorldStateAdapter {
-    state: Arc<WorldStateManager>,
-}
-
-impl ConnectionWorldStateAdapter {
-    pub fn new(state: Arc<WorldStateManager>) -> Self {
-        Self { state }
-    }
-}
-
-impl InboundWorldStatePort for ConnectionWorldStateAdapter {
-    fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
-        WorldScenePort::set_current_scene(self.state.as_ref(), world_id, scene_id);
-    }
-
-    fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
-        // Convert use case DirectorialContextData to domain DirectorialNotes
-        let npc_motivations = context
-            .npc_motivations
-            .into_iter()
-            .map(|m| {
-                let motivation =
-                    DomainNpcMotivation::new(m.emotional_state.unwrap_or_default(), m.motivation);
-                (m.character_id, motivation)
-            })
-            .collect();
-
-        let notes = DirectorialNotes {
-            general_notes: context.dm_notes.unwrap_or_default(),
-            tone: parse_tone(&context.scene_mood.unwrap_or_default()),
-            npc_motivations,
-            forbidden_topics: Vec::new(),
-            allowed_tools: Vec::new(),
-            suggested_beats: Vec::new(),
-            pacing: context
-                .pacing
-                .as_ref()
-                .map(|p| match p.to_lowercase().as_str() {
-                    "fast" => PacingGuidance::Fast,
-                    "slow" => PacingGuidance::Slow,
-                    "building" => PacingGuidance::Building,
-                    "urgent" => PacingGuidance::Urgent,
-                    _ => PacingGuidance::Natural,
-                })
-                .unwrap_or(PacingGuidance::Natural),
-        };
-
-        WorldDirectorialPort::set_directorial_context(self.state.as_ref(), world_id, notes);
     }
 }
 

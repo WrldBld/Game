@@ -307,6 +307,9 @@ Steps:
 - No remaining references to `engine-adapters/src/infrastructure/ports/` in codebase.
 - `cargo check --workspace`.
 
+**Progress**
+- ✅ Started 2025-12-31: removed the forwarding wrapper `ConnectionWorldStateAdapter`; rewired composition to reuse `SceneWorldStateAdapter` directly.
+
 **Stop condition**
 - That directory is deleted (or contains only legitimate boundary code, not forwarders).
 

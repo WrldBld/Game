@@ -42,7 +42,7 @@ use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
-    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter, ConnectionWorldStateAdapter,
+    ConnectionDirectorialContextAdapter, ConnectionManagerAdapter,
     DirectorialContextAdapter, DmActionQueuePlaceholder, DmNotificationAdapter,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
     SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
@@ -143,7 +143,7 @@ pub struct UseCaseContext {
     /// Connection directorial context adapter
     pub connection_directorial_adapter: Arc<ConnectionDirectorialContextAdapter>,
     /// Connection world state adapter
-    pub connection_world_state_adapter: Arc<ConnectionWorldStateAdapter>,
+    pub connection_world_state_adapter: Arc<SceneWorldStateAdapter>,
     /// Scene builder (shared)
     pub scene_builder: Arc<SceneBuilder>,
 }
@@ -436,8 +436,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
         deps.directorial_context_repo.clone(),
     ));
-    let connection_world_state_adapter =
-        Arc::new(ConnectionWorldStateAdapter::new(deps.world_state.clone()));
+    let connection_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
 
     let connection_use_case = Arc::new(ConnectionUseCase::new(
         connection_manager_adapter.clone(),
@@ -632,7 +631,7 @@ mod tests {
             "WorldServiceAdapter",
             "PlayerCharacterServiceAdapter",
             "ConnectionDirectorialContextAdapter",
-            "ConnectionWorldStateAdapter",
+            "SceneWorldStateAdapter",
         ];
 
         assert_eq!(expected_adapters.len(), 17);
