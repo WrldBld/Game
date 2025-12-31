@@ -81,7 +81,7 @@ use wrldbldr_engine_ports::inbound::{
     PlayerActionUseCasePort, RequestHandler, SceneUseCasePort, StagingUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
+    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ClockPort, ComfyUIPort,
     ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
     DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort,
@@ -436,6 +436,12 @@ pub struct AppState {
     /// Orchestrates gathering context from world snapshot, conversation history,
     /// challenges, narrative events, etc. to build complete prompt requests.
     pub prompt_context_service: Arc<dyn PromptContextServicePort>,
+
+    /// Clock for time operations.
+    ///
+    /// Provides consistent time across the application, enabling
+    /// deterministic testing and time simulation.
+    pub clock: Arc<dyn ClockPort>,
 }
 
 impl AppState {
@@ -474,6 +480,7 @@ impl AppState {
     /// * `directorial_context_repo` - Directorial context repository implementation
     /// * `use_cases` - Use cases container
     /// * `prompt_context_service` - Prompt context service implementation
+    /// * `clock` - Clock implementation for time operations
     ///
     /// # Example
     ///
@@ -507,6 +514,7 @@ impl AppState {
     ///     Arc::new(directorial_context_repo) as Arc<dyn DirectorialContextRepositoryPort>,
     ///     use_cases,
     ///     Arc::new(prompt_context_service) as Arc<dyn PromptContextServicePort>,
+    ///     Arc::new(system_clock) as Arc<dyn ClockPort>,
     /// );
     /// ```
     #[allow(clippy::too_many_arguments)]
@@ -538,6 +546,7 @@ impl AppState {
         directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
         use_cases: UseCases,
         prompt_context_service: Arc<dyn PromptContextServicePort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             config,
@@ -567,6 +576,7 @@ impl AppState {
             directorial_context_repo,
             use_cases,
             prompt_context_service,
+            clock,
         }
     }
 }
@@ -723,6 +733,11 @@ impl AppStatePort for AppState {
     fn world_lifecycle(&self) -> Arc<dyn WorldLifecyclePort> {
         self.world_lifecycle.clone()
     }
+
+    // Infrastructure Ports
+    fn clock(&self) -> Arc<dyn ClockPort> {
+        self.clock.clone()
+    }
 }
 
 impl std::fmt::Debug for AppState {
@@ -764,6 +779,7 @@ impl std::fmt::Debug for AppState {
                 "prompt_context_service",
                 &"Arc<dyn PromptContextServicePort>",
             )
+            .field("clock", &"Arc<dyn ClockPort>")
             .finish()
     }
 }

@@ -4,21 +4,28 @@
 //! suggestions) so the Engine can reconstruct read/unread state across
 //! devices and sessions.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 
-use wrldbldr_engine_ports::outbound::{GenerationReadKind, GenerationReadStatePort};
+use wrldbldr_engine_ports::outbound::{ClockPort, GenerationReadKind, GenerationReadStatePort};
 
 /// SQLite implementation of GenerationReadStatePort
 pub struct SqliteGenerationReadStateRepository {
     pool: SqlitePool,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl SqliteGenerationReadStateRepository {
     /// Create a new repository backed by the given SqlitePool.
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+    ///
+    /// # Arguments
+    /// * `pool` - SQLite connection pool
+    /// * `clock` - Clock for time operations
+    pub fn new(pool: SqlitePool, clock: Arc<dyn ClockPort>) -> Self {
+        Self { pool, clock }
     }
 
     /// Ensure the underlying table exists.
@@ -55,7 +62,7 @@ impl GenerationReadStatePort for SqliteGenerationReadStateRepository {
             GenerationReadKind::Suggestion => "suggestion",
         };
 
-        let now = chrono::Utc::now().timestamp();
+        let now = self.clock.now().timestamp();
 
         sqlx::query(
             r#"

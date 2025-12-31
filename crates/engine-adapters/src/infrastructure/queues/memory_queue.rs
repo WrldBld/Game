@@ -12,14 +12,15 @@ use tokio::sync::RwLock;
 
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
-    QueueNotificationPort, QueuePort,
+    ApprovalQueuePort, ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId,
+    QueueItemStatus, QueueNotificationPort, QueuePort,
 };
 
 /// In-memory queue implementation
 pub struct InMemoryQueue<T, N: QueueNotificationPort> {
     items: Arc<RwLock<Vec<QueueItem<T>>>>,
     notifier: N,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl<T, N: QueueNotificationPort> InMemoryQueue<T, N> {
@@ -33,10 +34,11 @@ impl<T, N: QueueNotificationPort> InMemoryQueue<T, N>
 where
     T: Send + Sync + Clone + Serialize + DeserializeOwned,
 {
-    pub fn new(_queue_name: impl Into<String>, notifier: N) -> Self {
+    pub fn new(_queue_name: impl Into<String>, notifier: N, clock: Arc<dyn ClockPort>) -> Self {
         Self {
             items: Arc::new(RwLock::new(Vec::new())),
             notifier,
+            clock,
         }
     }
 }
@@ -61,7 +63,7 @@ where
 
     async fn dequeue(&self) -> Result<Option<QueueItem<T>>, QueueError> {
         let mut items = self.items.write().await;
-        let now = Utc::now();
+        let now = self.clock.now();
 
         // Find the highest priority pending item (or delayed item that's ready)
         let mut best_idx: Option<usize> = None;
@@ -95,7 +97,7 @@ where
         if let Some(idx) = best_idx {
             let mut item = items.remove(idx);
             item.status = QueueItemStatus::Processing;
-            item.updated_at = Utc::now();
+            item.updated_at = self.clock.now();
             item.attempts += 1;
             Ok(Some(item))
         } else {
@@ -105,7 +107,7 @@ where
 
     async fn peek(&self) -> Result<Option<QueueItem<T>>, QueueError> {
         let items = self.items.read().await;
-        let now = Utc::now();
+        let now = self.clock.now();
 
         let mut best_item: Option<QueueItem<T>> = None;
         let mut best_priority = u8::MIN;
@@ -142,7 +144,7 @@ where
         let mut items = self.items.write().await;
         if let Some(item) = items.iter_mut().find(|i| i.id == id) {
             item.status = QueueItemStatus::Completed;
-            item.updated_at = Utc::now();
+            item.updated_at = self.clock.now();
             Ok(())
         } else {
             Err(QueueError::NotFound(id.to_string()))
@@ -154,7 +156,7 @@ where
         if let Some(item) = items.iter_mut().find(|i| i.id == id) {
             item.status = QueueItemStatus::Failed;
             item.error_message = Some(error.to_string());
-            item.updated_at = Utc::now();
+            item.updated_at = self.clock.now();
             Ok(())
         } else {
             Err(QueueError::NotFound(id.to_string()))
@@ -166,7 +168,7 @@ where
         if let Some(item) = items.iter_mut().find(|i| i.id == id) {
             item.status = QueueItemStatus::Delayed;
             item.scheduled_at = Some(until);
-            item.updated_at = Utc::now();
+            item.updated_at = self.clock.now();
             Ok(())
         } else {
             Err(QueueError::NotFound(id.to_string()))
@@ -200,7 +202,7 @@ where
 
     async fn cleanup(&self, older_than: Duration) -> Result<usize, QueueError> {
         let mut items = self.items.write().await;
-        let cutoff = Utc::now() - older_than;
+        let cutoff = self.clock.now() - older_than;
         let initial_len = items.len();
 
         items.retain(|item| {
@@ -289,7 +291,7 @@ where
 
     async fn expire_old(&self, older_than: Duration) -> Result<usize, QueueError> {
         let mut items = self.items.write().await;
-        let cutoff = Utc::now() - older_than;
+        let cutoff = self.clock.now() - older_than;
         let mut expired_count = 0;
 
         for item in items.iter_mut() {
@@ -299,7 +301,7 @@ where
             ) && item.created_at < cutoff
             {
                 item.status = QueueItemStatus::Expired;
-                item.updated_at = Utc::now();
+                item.updated_at = self.clock.now();
                 expired_count += 1;
             }
         }

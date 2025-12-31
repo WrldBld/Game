@@ -46,7 +46,7 @@ use crate::inbound::{
     SceneUseCasePort, StagingUseCasePort,
 };
 use crate::outbound::{
-    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ComfyUIPort,
+    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ClockPort, ComfyUIPort,
     ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
     DmApprovalQueueServicePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
     GenerationServicePort, LlmQueueServicePort, PlayerActionQueueServicePort,
@@ -216,4 +216,11 @@ pub trait AppStatePort: Send + Sync {
 
     /// Get the world lifecycle port for world initialization/cleanup
     fn world_lifecycle(&self) -> Arc<dyn WorldLifecyclePort>;
+
+    // =========================================================================
+    // Infrastructure Ports
+    // =========================================================================
+
+    /// Get the clock port for time operations
+    fn clock(&self) -> Arc<dyn ClockPort>;
 }

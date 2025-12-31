@@ -29,7 +29,7 @@ use wrldbldr_engine_app::application::services::{
     LLMQueueService, NarrativeEventService, PlayerActionQueueService, SceneService,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, DmActionProcessorPort, DmActionQueueServicePort,
+    AssetGenerationQueueServicePort, ClockPort, DmActionProcessorPort, DmActionQueueServicePort,
     DmApprovalQueueServicePort, FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort,
     QueuePort,
 };
@@ -51,8 +51,11 @@ pub struct QueueBackends {
 }
 
 /// Creates queue backends (can run in parallel with event_infra).
-pub async fn create_queue_backends(config: &AppConfig) -> Result<QueueBackends> {
-    let queue_factory = QueueFactory::new(config.queue.clone()).await?;
+pub async fn create_queue_backends(
+    config: &AppConfig,
+    clock: Arc<dyn ClockPort>,
+) -> Result<QueueBackends> {
+    let queue_factory = QueueFactory::new(config.queue.clone(), clock).await?;
     tracing::info!("Queue backend: {}", queue_factory.config().backend);
 
     let player_action_queue = queue_factory.create_player_action_queue().await?;

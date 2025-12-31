@@ -14,7 +14,7 @@ use wrldbldr_engine_ports::inbound::{
     PendingStagingData, PendingStagingInfo, ProposedNpc, RegeneratedNpc, StagingStateExtPort,
     StagingStatePort, WaitingPcInfo,
 };
-use wrldbldr_engine_ports::outbound::StagedNpcData;
+use wrldbldr_engine_ports::outbound::{ClockPort, StagedNpcData};
 
 use crate::infrastructure::{
     WaitingPc, WorldPendingStagingApproval, WorldStateManager, WorldTimePort,
@@ -23,12 +23,13 @@ use crate::infrastructure::{
 /// Adapter that implements staging state ports using WorldStateManager
 pub struct StagingStateAdapter {
     world_state: Arc<WorldStateManager>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl StagingStateAdapter {
     /// Create a new adapter wrapping the given WorldStateManager
-    pub fn new(world_state: Arc<WorldStateManager>) -> Self {
-        Self { world_state }
+    pub fn new(world_state: Arc<WorldStateManager>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { world_state, clock }
     }
 
     /// Convert domain StagedNpcData to infrastructure proposal NPCs (StagedNpcProposal)
@@ -151,6 +152,7 @@ impl StagingStatePort for StagingStateAdapter {
             pending.region_name,
             pending.location_name,
             proposal,
+            self.clock.now(),
         );
 
         // Add waiting PCs

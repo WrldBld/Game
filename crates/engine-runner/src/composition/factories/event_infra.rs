@@ -19,7 +19,7 @@ use wrldbldr_engine_app::application::services::{
     generation_service::GenerationEvent, ChallengeApprovalEvent,
 };
 use wrldbldr_engine_ports::outbound::{
-    DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
+    ClockPort, DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
 };
 
 /// Buffer size for event channels (provides backpressure)
@@ -65,10 +65,11 @@ pub struct EventInfrastructure {
 ///
 /// # Arguments
 /// * `config` - Application configuration (for SQLite path)
+/// * `clock` - Clock for time operations
 ///
 /// # Returns
 /// * `EventInfrastructure` with all event components
-pub async fn create_event_infrastructure(config: &AppConfig) -> Result<EventInfrastructure> {
+pub async fn create_event_infrastructure(config: &AppConfig, clock: Arc<dyn ClockPort>) -> Result<EventInfrastructure> {
     // =========================================================================
     // SQLite event database
     // =========================================================================
@@ -85,13 +86,13 @@ pub async fn create_event_infrastructure(config: &AppConfig) -> Result<EventInfr
     // =========================================================================
     // Domain event repository
     // =========================================================================
-    let domain_event_repository_impl = SqliteDomainEventRepository::new(event_pool)
+    let domain_event_repository_impl = SqliteDomainEventRepository::new(event_pool, clock.clone())
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialize domain event repository: {}", e))?;
 
     // Generation read state repository shares the same pool
     let generation_read_state_repository_impl =
-        SqliteGenerationReadStateRepository::new(domain_event_repository_impl.pool().clone());
+        SqliteGenerationReadStateRepository::new(domain_event_repository_impl.pool().clone(), clock);
     generation_read_state_repository_impl.init_schema().await?;
     let generation_read_state_repository: Arc<dyn GenerationReadStatePort> =
         Arc::new(generation_read_state_repository_impl);

@@ -8,12 +8,13 @@ use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
-    QueueNotificationPort, QueuePort,
+    ApprovalQueuePort, ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId,
+    QueueItemStatus, QueueNotificationPort, QueuePort,
 };
 
 /// SQLite queue implementation
@@ -22,6 +23,7 @@ pub struct SqliteQueue<T, N: QueueNotificationPort> {
     queue_name: String,
     batch_size: usize,
     notifier: N,
+    clock: Arc<dyn ClockPort>,
     _phantom: std::marker::PhantomData<T>,
 }
 
@@ -41,6 +43,7 @@ where
         queue_name: impl Into<String>,
         batch_size: usize,
         notifier: N,
+        clock: Arc<dyn ClockPort>,
     ) -> Result<Self, QueueError> {
         let queue_name = queue_name.into();
 
@@ -125,6 +128,7 @@ where
             queue_name,
             batch_size,
             notifier,
+            clock,
             _phantom: std::marker::PhantomData,
         })
     }
@@ -228,7 +232,7 @@ where
         let id = uuid::Uuid::new_v4();
         let payload_json = serde_json::to_string(&payload)
             .map_err(|e| QueueError::Backend(format!("Serialization error: {}", e)))?;
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
 
         // Extract world_id from payload JSON if present
@@ -267,7 +271,7 @@ where
     }
 
     async fn dequeue(&self) -> Result<Option<QueueItem<T>>, QueueError> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
 
         // Use atomic UPDATE with subquery to avoid TOCTOU race condition.
@@ -313,7 +317,7 @@ where
     }
 
     async fn peek(&self) -> Result<Option<QueueItem<T>>, QueueError> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
 
         let row = sqlx::query(
@@ -342,7 +346,7 @@ where
     }
 
     async fn complete(&self, id: QueueItemId) -> Result<(), QueueError> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
 
         let result = sqlx::query(
@@ -367,7 +371,7 @@ where
     }
 
     async fn fail(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
 
         let result = sqlx::query(
@@ -393,7 +397,7 @@ where
     }
 
     async fn delay(&self, id: QueueItemId, until: DateTime<Utc>) -> Result<(), QueueError> {
-        let now = Utc::now();
+        let now = self.clock.now();
         let now_str = now.to_rfc3339();
         let until_str = until.to_rfc3339();
 
@@ -482,7 +486,7 @@ where
     }
 
     async fn cleanup(&self, older_than: Duration) -> Result<usize, QueueError> {
-        let cutoff = Utc::now() - older_than;
+        let cutoff = self.clock.now() - older_than;
         let cutoff_str = cutoff.to_rfc3339();
 
         let result = sqlx::query(
@@ -565,9 +569,9 @@ where
     }
 
     async fn expire_old(&self, older_than: Duration) -> Result<usize, QueueError> {
-        let cutoff = Utc::now() - older_than;
+        let cutoff = self.clock.now() - older_than;
         let cutoff_str = cutoff.to_rfc3339();
-        let now_str = Utc::now().to_rfc3339();
+        let now_str = self.clock.now_rfc3339();
 
         let result = sqlx::query(
             r#"

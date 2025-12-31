@@ -5,7 +5,6 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -345,7 +344,7 @@ pub async fn queue_generation(
         &req.workflow,
         &req.prompt,
         req.count,
-        Utc::now(),
+        state.clock().now(),
     );
 
     if let Some(neg) = req.negative_prompt {
@@ -638,7 +637,7 @@ pub async fn retry_batch(
         style_reference_id: original_batch.style_reference_id,
     };
 
-    let new_batch = retry_request.into_batch(chrono::Utc::now());
+    let new_batch = retry_request.into_batch(state.clock().now());
 
     // Create the new batch
     let created_batch = state

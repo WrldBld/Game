@@ -200,7 +200,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
     // Connection & state infrastructure
     // =========================================================================
     let world_connection_manager = new_shared_manager();
-    let world_state = Arc::new(WorldStateManager::new());
+    let world_state = Arc::new(WorldStateManager::new(clock.clone()));
     tracing::info!("Initialized world connection and state managers");
 
     Ok(InfrastructureContext {

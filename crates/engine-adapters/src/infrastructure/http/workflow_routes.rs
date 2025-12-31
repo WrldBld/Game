@@ -222,7 +222,7 @@ pub async fn export_workflows(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let export = export_configs(&configs, chrono::Utc::now());
+    let export = export_configs(&configs, state.clock().now());
     Ok(Json(export))
 }
 

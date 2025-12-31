@@ -4,10 +4,9 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::inbound::{DmNotificationPort, PlayerActionQueuePort};
-use wrldbldr_engine_ports::outbound::{PlayerAction, PlayerActionQueueServicePort};
+use wrldbldr_engine_ports::outbound::{ClockPort, PlayerAction, PlayerActionQueueServicePort};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
@@ -15,11 +14,12 @@ use crate::infrastructure::world_connection_manager::SharedWorldConnectionManage
 /// Adapter for PlayerActionQueueServicePort (outbound) implementing PlayerActionQueuePort (inbound)
 pub struct PlayerActionQueueAdapter {
     service: Arc<dyn PlayerActionQueueServicePort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl PlayerActionQueueAdapter {
-    pub fn new(service: Arc<dyn PlayerActionQueueServicePort>) -> Self {
-        Self { service }
+    pub fn new(service: Arc<dyn PlayerActionQueueServicePort>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { service, clock }
     }
 }
 
@@ -41,7 +41,7 @@ impl PlayerActionQueuePort for PlayerActionQueueAdapter {
             action_type,
             target,
             dialogue,
-            timestamp: Utc::now(),
+            timestamp: self.clock.now(),
         };
 
         self.service

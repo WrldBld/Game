@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use uuid::Uuid;
@@ -5,7 +7,7 @@ use wrldbldr_domain::value_objects::{ConversationEntry, DirectorialNotes, Pendin
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_dto::StagingProposal;
 use wrldbldr_engine_ports::outbound::{
-    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
 };
 
@@ -21,6 +23,7 @@ use wrldbldr_engine_ports::outbound::{
 /// These methods are accessed directly by handlers that need staging functionality.
 pub struct WorldStateManager {
     states: DashMap<WorldId, WorldState>,
+    clock: Arc<dyn ClockPort>,
 }
 
 struct WorldState {
@@ -107,6 +110,7 @@ impl WorldPendingStagingApproval {
         region_name: String,
         location_name: String,
         proposal: StagingProposal,
+        created_at: DateTime<Utc>,
     ) -> Self {
         Self {
             request_id,
@@ -117,7 +121,7 @@ impl WorldPendingStagingApproval {
             location_name,
             proposal,
             waiting_pcs: Vec::new(),
-            created_at: Utc::now(),
+            created_at,
         }
     }
 
@@ -141,9 +145,10 @@ impl WorldPendingStagingApproval {
 }
 
 impl WorldStateManager {
-    pub fn new() -> Self {
+    pub fn new(clock: Arc<dyn ClockPort>) -> Self {
         Self {
             states: DashMap::new(),
+            clock,
         }
     }
 
@@ -191,13 +196,14 @@ impl WorldStateManager {
 
     /// Add a pending staging approval
     pub fn add_pending_staging(&self, world_id: &WorldId, approval: WorldPendingStagingApproval) {
+        let now = self.clock.now();
         self.states
             .entry(*world_id)
             .and_modify(|state| {
                 state.pending_staging_approvals.push(approval.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::new(Utc::now()),
+                game_time: GameTime::new(now),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: vec![approval],
@@ -300,11 +306,7 @@ impl WorldStateManager {
     }
 }
 
-impl Default for WorldStateManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 // === WorldTimePort Implementation ===
 
@@ -341,6 +343,7 @@ impl WorldTimePort for WorldStateManager {
 
 impl WorldConversationPort for WorldStateManager {
     fn add_conversation(&self, world_id: &WorldId, entry: ConversationEntry) {
+        let now = self.clock.now();
         self.states
             .entry(*world_id)
             .and_modify(|state| {
@@ -353,7 +356,7 @@ impl WorldConversationPort for WorldStateManager {
                 }
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::new(Utc::now()),
+                game_time: GameTime::new(now),
                 conversation_history: vec![entry],
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
@@ -390,13 +393,14 @@ impl WorldConversationPort for WorldStateManager {
 
 impl WorldApprovalPort for WorldStateManager {
     fn add_pending_approval(&self, world_id: &WorldId, item: PendingApprovalItem) {
+        let now = self.clock.now();
         self.states
             .entry(*world_id)
             .and_modify(|state| {
                 state.pending_approvals.push(item.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::new(Utc::now()),
+                game_time: GameTime::new(now),
                 conversation_history: Vec::new(),
                 pending_approvals: vec![item],
                 pending_staging_approvals: Vec::new(),
@@ -437,13 +441,14 @@ impl WorldScenePort for WorldStateManager {
     }
 
     fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
+        let now = self.clock.now();
         self.states
             .entry(*world_id)
             .and_modify(|state| {
                 state.current_scene_id = scene_id.clone();
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::new(Utc::now()),
+                game_time: GameTime::new(now),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),
@@ -463,13 +468,14 @@ impl WorldDirectorialPort for WorldStateManager {
     }
 
     fn set_directorial_context(&self, world_id: &WorldId, notes: DirectorialNotes) {
+        let now = self.clock.now();
         self.states
             .entry(*world_id)
             .and_modify(|state| {
                 state.directorial_context = Some(notes.clone());
             })
             .or_insert_with(|| WorldState {
-                game_time: GameTime::new(Utc::now()),
+                game_time: GameTime::new(now),
                 conversation_history: Vec::new(),
                 pending_approvals: Vec::new(),
                 pending_staging_approvals: Vec::new(),

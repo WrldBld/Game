@@ -15,6 +15,7 @@ use wrldbldr_domain::value_objects::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
 };
+use wrldbldr_engine_ports::outbound::ClockPort;
 
 /// Enum wrapper for queue backends to enable runtime selection
 /// This allows us to use different backends while maintaining type safety
@@ -230,6 +231,7 @@ where
 pub struct QueueFactory {
     config: QueueConfig,
     sqlite_pool: Option<SqlitePool>,
+    clock: Arc<dyn ClockPort>,
     // Shared notifiers per queue type
     player_action_notifier: InProcessNotifier,
     dm_action_notifier: InProcessNotifier,
@@ -241,7 +243,7 @@ pub struct QueueFactory {
 
 impl QueueFactory {
     /// Create a new queue factory
-    pub async fn new(config: QueueConfig) -> Result<Self> {
+    pub async fn new(config: QueueConfig, clock: Arc<dyn ClockPort>) -> Result<Self> {
         let sqlite_pool = if config.backend == "sqlite" {
             // Ensure data directory exists
             if let Some(parent) = std::path::Path::new(&config.sqlite_path).parent() {
@@ -261,6 +263,7 @@ impl QueueFactory {
         Ok(Self {
             config,
             sqlite_pool,
+            clock,
             player_action_notifier: InProcessNotifier::new("player_actions"),
             dm_action_notifier: InProcessNotifier::new("dm_actions"),
             llm_notifier: InProcessNotifier::new("llm_requests"),
@@ -308,6 +311,7 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "player_actions",
                 self.player_action_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
@@ -319,6 +323,7 @@ impl QueueFactory {
                     "player_actions",
                     1,
                     self.player_action_notifier.clone(),
+                    self.clock.clone(),
                 )
                 .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
@@ -333,6 +338,7 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "llm_requests",
                 self.llm_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
@@ -344,6 +350,7 @@ impl QueueFactory {
                     "llm_requests",
                     self.config.llm_batch_size,
                     self.llm_notifier.clone(),
+                    self.clock.clone(),
                 )
                 .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
@@ -358,6 +365,7 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "dm_actions",
                 self.dm_action_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
@@ -369,6 +377,7 @@ impl QueueFactory {
                     "dm_actions",
                     1,
                     self.dm_action_notifier.clone(),
+                    self.clock.clone(),
                 )
                 .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
@@ -385,6 +394,7 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "asset_generation",
                 self.asset_generation_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
@@ -396,6 +406,7 @@ impl QueueFactory {
                     "asset_generation",
                     self.config.asset_batch_size,
                     self.asset_generation_notifier.clone(),
+                    self.clock.clone(),
                 )
                 .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
@@ -412,15 +423,21 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "approvals",
                 self.approval_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
                     .sqlite_pool
                     .as_ref()
                     .context("SQLite pool not initialized")?;
-                let queue =
-                    SqliteQueue::new(pool.clone(), "approvals", 1, self.approval_notifier.clone())
-                        .await?;
+                let queue = SqliteQueue::new(
+                    pool.clone(),
+                    "approvals",
+                    1,
+                    self.approval_notifier.clone(),
+                    self.clock.clone(),
+                )
+                .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))
             }
             backend => anyhow::bail!("Unsupported queue backend: {}", backend),
@@ -438,6 +455,7 @@ impl QueueFactory {
             "memory" => Ok(Arc::new(QueueBackendEnum::Memory(InMemoryQueue::new(
                 "challenge_outcomes",
                 self.challenge_outcome_notifier.clone(),
+                self.clock.clone(),
             )))),
             "sqlite" => {
                 let pool = self
@@ -449,6 +467,7 @@ impl QueueFactory {
                     "challenge_outcomes",
                     1,
                     self.challenge_outcome_notifier.clone(),
+                    self.clock.clone(),
                 )
                 .await?;
                 Ok(Arc::new(QueueBackendEnum::Sqlite(queue)))

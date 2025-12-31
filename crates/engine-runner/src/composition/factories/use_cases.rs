@@ -290,7 +290,10 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     // Create staging adapters
     // =========================================================================
-    let staging_state_adapter = Arc::new(StagingStateAdapter::new(deps.world_state.clone()));
+    let staging_state_adapter = Arc::new(StagingStateAdapter::new(
+        deps.world_state.clone(),
+        deps.clock.clone(),
+    ));
     let staging_service_adapter =
         Arc::new(StagingServiceAdapter::new(deps.staging_service_port.clone()));
 
@@ -348,7 +351,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // Create Player Action Use Case
     // =========================================================================
     let player_action_queue_adapter =
-        Arc::new(PlayerActionQueueAdapter::new(deps.player_action_queue_service_port.clone()));
+        Arc::new(PlayerActionQueueAdapter::new(deps.player_action_queue_service_port.clone(), deps.clock.clone()));
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
         player_action_queue_adapter.clone(),

@@ -454,8 +454,8 @@ pub async fn new_app_state(
     // Level 2: Event Infrastructure + Queue Backends (parallel)
     // ===========================================================================
     let (event_infra, queue_backends) = tokio::try_join!(
-        super::factories::create_event_infrastructure(&config),
-        super::factories::queue_services::create_queue_backends(&config),
+        super::factories::create_event_infrastructure(&config, clock.clone()),
+        super::factories::queue_services::create_queue_backends(&config, clock.clone()),
     )?;
 
     // Extract event infrastructure components
@@ -922,6 +922,7 @@ pub async fn new_app_state(
         directorial_context_repo.clone(),
         composition_use_cases,
         prompt_context_service_port,
+        clock.clone(),
     );
 
     // ===========================================================================

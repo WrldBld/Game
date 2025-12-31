@@ -3,12 +3,14 @@
 //! This adapter implements DomainEventRepositoryPort, converting domain events
 //! to/from the wire format (AppEvent) for persistent storage.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 
 use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{DomainEventRepositoryError, DomainEventRepositoryPort};
+use wrldbldr_engine_ports::outbound::{ClockPort, DomainEventRepositoryError, DomainEventRepositoryPort};
 use wrldbldr_protocol::AppEvent;
 
 use crate::infrastructure::event_bus::domain_event_mapper::{
@@ -20,11 +22,16 @@ use crate::infrastructure::event_bus::domain_event_mapper::{
 /// Stores events as AppEvent JSON (wire format) but exposes DomainEvent at the boundary.
 pub struct SqliteDomainEventRepository {
     pool: SqlitePool,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl SqliteDomainEventRepository {
     /// Create a new repository and ensure the table exists
-    pub async fn new(pool: SqlitePool) -> Result<Self, DomainEventRepositoryError> {
+    ///
+    /// # Arguments
+    /// * `pool` - SQLite connection pool
+    /// * `clock` - Clock for time operations
+    pub async fn new(pool: SqlitePool, clock: Arc<dyn ClockPort>) -> Result<Self, DomainEventRepositoryError> {
         // Create the app_events table if it doesn't exist
         sqlx::query(
             r#"
@@ -53,7 +60,7 @@ impl SqliteDomainEventRepository {
         .await
         .map_err(|e| DomainEventRepositoryError::StorageError(e.to_string()))?;
 
-        Ok(Self { pool })
+        Ok(Self { pool, clock })
     }
 
     /// Expose underlying pool for related repositories that share the same DB.
@@ -70,7 +77,7 @@ impl DomainEventRepositoryPort for SqliteDomainEventRepository {
         let event_type = app_event.event_type();
         let payload = serde_json::to_string(&app_event)
             .map_err(|e| DomainEventRepositoryError::SerializationError(e.to_string()))?;
-        let created_at = Utc::now().to_rfc3339();
+        let created_at = self.clock.now().to_rfc3339();
 
         let result = sqlx::query(
             r#"
