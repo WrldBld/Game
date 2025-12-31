@@ -139,9 +139,6 @@ pub struct AssetServicePorts {
     /// Generation queue projection service (port trait)
     pub generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort>,
 
-    /// Concrete asset service (needed by some services that require the concrete type)
-    pub asset_service_concrete: AssetServiceImpl,
-
     /// Concrete generation queue projection service (needed by AppRequestHandler)
     pub generation_queue_projection_service_concrete: Arc<GenerationQueueProjectionService>,
 }
@@ -239,7 +236,6 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
         workflow_config_service,
         generation_service,
         generation_queue_projection_service,
-        asset_service_concrete,
         generation_queue_projection_service_concrete,
     }
 }
@@ -263,7 +259,6 @@ mod tests {
                 &ports.generation_queue_projection_service;
 
             // Concrete types
-            let _: &AssetServiceImpl = &ports.asset_service_concrete;
             let _: &Arc<GenerationQueueProjectionService> =
                 &ports.generation_queue_projection_service_concrete;
         }

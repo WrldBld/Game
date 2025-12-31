@@ -113,7 +113,6 @@ pub struct QueueServiceContext {
     // DM Action Processor (for WorkerServices)
     // =========================================================================
     pub dm_action_processor_port: Arc<dyn DmActionProcessorPort>,
-    pub dm_action_processor: Arc<DmActionProcessorService>,
 }
 
 /// Dependencies for queue service creation (needs core services).
@@ -233,8 +232,7 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
         dm_approval_queue_service,
         challenge_outcome_queue: queue_backends.challenge_outcome_queue.clone(),
         // DM action processor
-        dm_action_processor_port: dm_action_processor.clone(),
-        dm_action_processor,
+        dm_action_processor_port: dm_action_processor,
     })
 }
 

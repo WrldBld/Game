@@ -19,7 +19,7 @@ use wrldbldr_engine_app::application::services::{
     generation_service::GenerationEvent, ChallengeApprovalEvent,
 };
 use wrldbldr_engine_ports::outbound::{
-    DomainEventRepositoryPort, EventBusPort, EventNotifierPort, GenerationReadStatePort,
+    DomainEventRepositoryPort, EventBusPort, GenerationReadStatePort,
 };
 
 /// Buffer size for event channels (provides backpressure)
@@ -31,9 +31,6 @@ const EVENT_CHANNEL_BUFFER: usize = 256;
 pub struct EventInfrastructure {
     /// Domain event bus for publish-subscribe
     pub event_bus: Arc<dyn EventBusPort>,
-
-    /// Event notifier for WebSocket client notifications
-    pub event_notifier: Arc<dyn EventNotifierPort>,
 
     /// Concrete event notifier (needed by services that require Clone)
     pub event_notifier_concrete: InProcessEventNotifier,
@@ -106,7 +103,6 @@ pub async fn create_event_infrastructure(config: &AppConfig) -> Result<EventInfr
     // Event notifier and bus
     // =========================================================================
     let event_notifier_concrete = InProcessEventNotifier::new();
-    let event_notifier: Arc<dyn EventNotifierPort> = Arc::new(event_notifier_concrete.clone());
     let event_bus: Arc<dyn EventBusPort> = Arc::new(SqliteEventBus::new(
         domain_event_repository.clone(),
         event_notifier_concrete.clone(),
@@ -125,7 +121,6 @@ pub async fn create_event_infrastructure(config: &AppConfig) -> Result<EventInfr
 
     Ok(EventInfrastructure {
         event_bus,
-        event_notifier,
         event_notifier_concrete,
         domain_event_repository,
         generation_read_state_repository,
@@ -150,7 +145,7 @@ mod tests {
         // Verify the struct has expected fields with correct types
         fn _verify_types(infra: &EventInfrastructure) {
             let _: &Arc<dyn EventBusPort> = &infra.event_bus;
-            let _: &Arc<dyn EventNotifierPort> = &infra.event_notifier;
+            let _: &InProcessEventNotifier = &infra.event_notifier_concrete;
             let _: &Arc<dyn DomainEventRepositoryPort> = &infra.domain_event_repository;
             let _: &Arc<dyn GenerationReadStatePort> = &infra.generation_read_state_repository;
         }

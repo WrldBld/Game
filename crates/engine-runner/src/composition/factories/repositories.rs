@@ -93,8 +93,14 @@ macro_rules! coerce_isp {
     };
 }
 
-// Re-export the macro for use within this crate
-pub use coerce_isp;
+
+
+// ============================================================================
+// ISP Port Container Structs
+// ============================================================================
+// These structs are preparatory infrastructure for gradual ISP migration.
+// Not all fields are used yet, but they enable services to incrementally
+// adopt ISP traits instead of "god traits".
 
 /// Container for all Character repository ISP ports.
 ///
@@ -105,6 +111,7 @@ pub use coerce_isp;
 /// - `CharacterInventoryPort`: Inventory management (5 methods)
 /// - `CharacterLocationPort`: Location relationships (13 methods)
 /// - `CharacterDispositionPort`: NPC disposition tracking (6 methods)
+#[allow(dead_code)]
 pub struct CharacterPorts {
     pub crud: Arc<dyn CharacterCrudPort>,
     pub want: Arc<dyn CharacterWantPort>,
@@ -121,6 +128,7 @@ pub struct CharacterPorts {
 /// - `LocationHierarchyPort`: Parent-child relationships (4 methods)
 /// - `LocationConnectionPort`: Navigation connections (5 methods)
 /// - `LocationMapPort`: Grid maps and regions (5 methods)
+#[allow(dead_code)]
 pub struct LocationPorts {
     pub crud: Arc<dyn LocationCrudPort>,
     pub hierarchy: Arc<dyn LocationHierarchyPort>,
@@ -136,6 +144,7 @@ pub struct LocationPorts {
 /// - `RegionExitPort`: Region-to-location exits (3 methods)
 /// - `RegionNpcPort`: NPC relationship queries (1 method)
 /// - `RegionItemPort`: Item placement in regions (3 methods)
+#[allow(dead_code)]
 pub struct RegionPorts {
     pub crud: Arc<dyn RegionCrudPort>,
     pub connection: Arc<dyn RegionConnectionPort>,
@@ -152,6 +161,7 @@ pub struct RegionPorts {
 /// - `ChallengeScenePort`: Scene relationship management (3 methods)
 /// - `ChallengePrerequisitePort`: Prerequisite chain management (4 methods)
 /// - `ChallengeAvailabilityPort`: Location/region availability + unlocks (9 methods)
+#[allow(dead_code)]
 pub struct ChallengePorts {
     pub crud: Arc<dyn ChallengeCrudPort>,
     pub skill: Arc<dyn ChallengeSkillPort>,
@@ -167,6 +177,7 @@ pub struct ChallengePorts {
 /// - `StoryEventEdgePort`: Edge relationship management (15 methods)
 /// - `StoryEventQueryPort`: Query operations (10 methods)
 /// - `StoryEventDialoguePort`: Dialogue-specific operations (2 methods)
+#[allow(dead_code)]
 pub struct StoryEventPorts {
     pub crud: Arc<dyn StoryEventCrudPort>,
     pub edge: Arc<dyn StoryEventEdgePort>,
@@ -181,6 +192,7 @@ pub struct StoryEventPorts {
 /// - `NarrativeEventTiePort`: Scene/Location/Act relationships (9 methods)
 /// - `NarrativeEventNpcPort`: Featured NPC management (5 methods)
 /// - `NarrativeEventQueryPort`: Query by relationships (4 methods)
+#[allow(dead_code)]
 pub struct NarrativeEventPorts {
     pub crud: Arc<dyn NarrativeEventCrudPort>,
     pub tie: Arc<dyn NarrativeEventTiePort>,
@@ -197,6 +209,7 @@ pub struct NarrativeEventPorts {
 /// - `PlayerCharacterInventoryPort`: Inventory management (5 methods)
 ///
 /// Also provides the "god trait" for services that haven't been updated to use ISP.
+#[allow(dead_code)]
 pub struct PlayerCharacterPorts {
     pub crud: Arc<dyn PlayerCharacterCrudPort>,
     pub query: Arc<dyn PlayerCharacterQueryPort>,
@@ -215,6 +228,7 @@ pub struct PlayerCharacterPorts {
 /// - `SceneLocationPort`: AT_LOCATION edge management (2 methods)
 /// - `SceneFeaturedCharacterPort`: FEATURES_CHARACTER edges (5 methods)
 /// - `SceneCompletionPort`: COMPLETED_SCENE tracking (3 methods)
+#[allow(dead_code)]
 pub struct ScenePorts {
     pub crud: Arc<dyn SceneCrudPort>,
     pub query: Arc<dyn SceneQueryPort>,
@@ -230,6 +244,7 @@ pub struct ScenePorts {
 /// - `EventChainQueryPort`: Query/lookup operations (4 methods)
 /// - `EventChainMembershipPort`: Event membership management (3 methods)
 /// - `EventChainStatePort`: Status and state management (5 methods)
+#[allow(dead_code)]
 pub struct EventChainPorts {
     pub crud: Arc<dyn EventChainCrudPort>,
     pub query: Arc<dyn EventChainQueryPort>,
@@ -255,6 +270,7 @@ pub struct EventChainPorts {
 /// // Access non-ISP ports
 /// let world_repo = repos.world.clone();
 /// ```
+#[allow(dead_code)]
 pub struct RepositoryPorts {
     // ISP-split repository port groups
     pub character: CharacterPorts,

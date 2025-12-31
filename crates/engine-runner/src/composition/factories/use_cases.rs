@@ -95,6 +95,7 @@ use wrldbldr_engine_ports::outbound::{
 ///
 /// ## Adapters (available for introspection/testing)
 /// - Various port adapters wrapping services and managers
+#[allow(dead_code)]
 pub struct UseCaseContext {
     /// The composition-layer UseCases container (port-typed)
     pub use_cases: UseCases,

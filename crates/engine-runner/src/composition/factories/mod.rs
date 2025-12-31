@@ -11,8 +11,7 @@
 //! Level 2: event_infra      - Event bus, domain events, channels (parallel with queues)
 //! Level 2: queue_services   - Queue backends and queue services (parallel with events)
 //! Level 3: core_services    - Core domain services (World, Character, Location, etc.)
-//! Level 4: game_services    - Game services (Challenge, Narrative, Staging, etc.) [NOT YET WIRED]
-//! Level 4: asset_services   - Asset services (Asset, Workflow, Generation) [parallel with game_services]
+//! Level 4: asset_services   - Asset services (Asset, Workflow, Generation)
 //! Level 5: use_cases        - Use cases with adapters
 //! ```
 //!
@@ -25,7 +24,6 @@
 pub mod asset_services;
 pub mod core_services;
 pub mod event_infra;
-pub mod game_services;
 pub mod infrastructure;
 pub mod queue_services;
 pub mod repositories;

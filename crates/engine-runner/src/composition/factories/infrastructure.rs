@@ -37,8 +37,7 @@ use wrldbldr_engine_adapters::infrastructure::{
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateRepositoryPort,
-    PromptTemplateServicePort, RandomPort, SettingsRepositoryPort, SettingsServicePort,
-    WorldExporterPort,
+    RandomPort, SettingsRepositoryPort, WorldExporterPort,
 };
 
 /// Infrastructure context containing all foundational dependencies.
@@ -53,9 +52,6 @@ pub struct InfrastructureContext {
     // =========================================================================
     /// System clock for timestamps
     pub clock: Arc<dyn ClockPort>,
-
-    /// Environment variable access
-    pub environment: Arc<dyn EnvironmentPort>,
 
     /// Random number generator for dice rolls
     pub rng: Arc<dyn RandomPort>,
@@ -75,26 +71,11 @@ pub struct InfrastructureContext {
     /// ComfyUI client (concrete for workers)
     pub comfyui_client: ComfyUIClient,
 
-    /// SQLite pool for settings/templates (shared)
-    pub settings_pool: SqlitePool,
-
     // =========================================================================
     // Settings & Configuration Services
     // =========================================================================
-    /// Settings repository
-    pub settings_repository: Arc<dyn SettingsRepositoryPort>,
-
-    /// Settings service (port version for general use)
-    pub settings_service: Arc<dyn SettingsServicePort>,
-
     /// Settings service (concrete version for services needing direct access)
     pub settings_service_concrete: Arc<SettingsService>,
-
-    /// Prompt template repository
-    pub prompt_template_repository: Arc<dyn PromptTemplateRepositoryPort>,
-
-    /// Prompt template service (port version for general use)
-    pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 
     /// Prompt template service (concrete version for LLMQueueService)
     pub prompt_template_service_concrete: Arc<PromptTemplateService>,
@@ -187,7 +168,6 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         settings_repository.clone(),
         settings_loader,
     ));
-    let settings_service: Arc<dyn SettingsServicePort> = settings_service_concrete.clone();
 
     // =========================================================================
     // Prompt template service
@@ -201,8 +181,6 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         prompt_template_repository.clone(),
         environment.clone(),
     ));
-    let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
-        prompt_template_service_concrete.clone();
     tracing::info!("Initialized prompt template service");
 
     // =========================================================================
@@ -226,18 +204,12 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
 
     Ok(InfrastructureContext {
         clock,
-        environment,
         rng,
         neo4j,
         world_exporter,
         llm_client,
         comfyui_client,
-        settings_pool,
-        settings_repository,
-        settings_service,
         settings_service_concrete,
-        prompt_template_repository,
-        prompt_template_service,
         prompt_template_service_concrete,
         directorial_context_repo,
         world_connection_manager,

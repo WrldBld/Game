@@ -9,7 +9,6 @@ use std::sync::Arc;
 use anyhow::Result;
 
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
-use wrldbldr_engine_adapters::infrastructure::export::Neo4jWorldExporter;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 
@@ -251,9 +250,8 @@ pub async fn new_app_state(
     // PlayerCharacter - extract god trait (services use full interface)
     let player_character_repo = repos.player_character.god.clone();
 
-    // Create world exporter
-    let world_exporter: Arc<dyn wrldbldr_engine_ports::outbound::WorldExporterPort> =
-        Arc::new(Neo4jWorldExporter::new(repository.clone()));
+    // World exporter from infrastructure
+    let world_exporter = infra.world_exporter.clone();
 
     // Create flag repository for scene condition evaluation
     let flag_repo: Arc<dyn wrldbldr_engine_ports::outbound::FlagRepositoryPort> =
@@ -273,7 +271,7 @@ pub async fn new_app_state(
     // Note: scene_repo available if scene resolution service needs it in the future
     let core_service_ports = create_core_services(CoreServiceDependencies {
         world_repo: world_repo.clone(),
-        world_exporter,
+        world_exporter: world_exporter.clone(),
         settings_service: settings_service.clone(),
         clock: clock.clone(),
         character_crud: character_crud.clone(),
@@ -318,7 +316,7 @@ pub async fn new_app_state(
     let world_service: Arc<dyn wrldbldr_engine_app::application::services::WorldService> =
         Arc::new(WorldServiceImpl::new(
             world_repo.clone(),
-            Arc::new(Neo4jWorldExporter::new(repository.clone())),
+            world_exporter.clone(),
             settings_service.clone(),
             clock.clone(),
         ));
