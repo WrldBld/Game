@@ -3,13 +3,22 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use uuid::Uuid;
-use wrldbldr_domain::value_objects::{ConversationEntry, DirectorialNotes, PendingApprovalItem};
+use wrldbldr_domain::value_objects::{
+    ConversationEntry, DirectorialNotes, DomainNpcMotivation, PendingApprovalItem, PacingGuidance,
+};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
 };
 use wrldbldr_engine_ports::outbound::StagingProposal;
+use wrldbldr_engine_ports::outbound::{
+    DirectorialContextData, PendingStagingData, PendingStagingInfo, RegeneratedNpc,
+    StagedNpcData, StagedNpcProposal, StagingStateExtPort, StagingStatePort, WaitingPcInfo,
+    WorldStateUpdatePort,
+};
+
+use crate::infrastructure::websocket::directorial_converters::parse_tone;
 
 /// In-memory implementation of the world state sub-traits.
 ///
@@ -303,6 +312,226 @@ impl WorldStateManager {
                 .find(|p| &p.region_id == region_id)
                 .map(f)
         })
+    }
+}
+
+fn staged_npc_data_to_proposal_npc(npc: &StagedNpcData) -> StagedNpcProposal {
+    StagedNpcProposal {
+        character_id: npc.character_id.to_string(),
+        name: npc.name.clone(),
+        sprite_asset: npc.sprite_asset.clone(),
+        portrait_asset: npc.portrait_asset.clone(),
+        is_present: npc.is_present,
+        is_hidden_from_players: npc.is_hidden_from_players,
+        reasoning: npc.reasoning.clone(),
+    }
+}
+
+fn waiting_pc_to_info(pc: &WaitingPc) -> WaitingPcInfo {
+    WaitingPcInfo {
+        pc_id: wrldbldr_domain::PlayerCharacterId::from_uuid(pc.pc_id),
+        pc_name: pc.pc_name.clone(),
+        user_id: pc.user_id.clone(),
+    }
+}
+
+fn approval_to_info(approval: &WorldPendingStagingApproval) -> PendingStagingInfo {
+    PendingStagingInfo {
+        request_id: approval.request_id.clone(),
+        world_id: approval.world_id,
+        region_id: approval.region_id,
+        location_id: approval.location_id,
+        region_name: approval.region_name.clone(),
+        location_name: approval.location_name.clone(),
+        waiting_pcs: approval.waiting_pcs.iter().map(waiting_pc_to_info).collect(),
+        rule_based_npcs: approval
+            .proposal
+            .rule_based_npcs
+            .iter()
+            .map(|npc| wrldbldr_engine_ports::outbound::ProposedNpc {
+                character_id: npc.character_id.clone(),
+                name: npc.name.clone(),
+                sprite_asset: npc.sprite_asset.clone(),
+                portrait_asset: npc.portrait_asset.clone(),
+                is_present: npc.is_present,
+                is_hidden_from_players: npc.is_hidden_from_players,
+                reasoning: npc.reasoning.clone(),
+            })
+            .collect(),
+        llm_based_npcs: approval
+            .proposal
+            .llm_based_npcs
+            .iter()
+            .map(|npc| wrldbldr_engine_ports::outbound::ProposedNpc {
+                character_id: npc.character_id.clone(),
+                name: npc.name.clone(),
+                sprite_asset: npc.sprite_asset.clone(),
+                portrait_asset: npc.portrait_asset.clone(),
+                is_present: npc.is_present,
+                is_hidden_from_players: npc.is_hidden_from_players,
+                reasoning: npc.reasoning.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn directorial_context_to_notes(context: DirectorialContextData) -> DirectorialNotes {
+    let npc_motivations = context
+        .npc_motivations
+        .into_iter()
+        .map(|m| {
+            let motivation = DomainNpcMotivation::new(
+                m.emotional_state.unwrap_or_default(),
+                m.motivation,
+            );
+            (m.character_id, motivation)
+        })
+        .collect();
+
+    DirectorialNotes {
+        general_notes: context.dm_notes.unwrap_or_default(),
+        tone: parse_tone(&context.scene_mood.unwrap_or_default()),
+        npc_motivations,
+        forbidden_topics: Vec::new(),
+        allowed_tools: Vec::new(),
+        suggested_beats: Vec::new(),
+        pacing: context
+            .pacing
+            .as_ref()
+            .map(|p| match p.to_lowercase().as_str() {
+                "fast" => PacingGuidance::Fast,
+                "slow" => PacingGuidance::Slow,
+                "building" => PacingGuidance::Building,
+                "urgent" => PacingGuidance::Urgent,
+                _ => PacingGuidance::Natural,
+            })
+            .unwrap_or(PacingGuidance::Natural),
+    }
+}
+
+impl WorldStateUpdatePort for WorldStateManager {
+    fn set_current_scene(&self, world_id: &WorldId, scene_id: Option<String>) {
+        WorldScenePort::set_current_scene(self, world_id, scene_id);
+    }
+
+    fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData) {
+        let notes = directorial_context_to_notes(context);
+        WorldDirectorialPort::set_directorial_context(self, world_id, notes);
+    }
+}
+
+#[async_trait::async_trait]
+impl StagingStatePort for WorldStateManager {
+    fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime> {
+        WorldTimePort::get_game_time(self, world_id)
+    }
+
+    fn has_pending_staging(&self, world_id: &WorldId, region_id: &RegionId) -> bool {
+        WorldStateManager::get_pending_staging_for_region(self, world_id, region_id).is_some()
+    }
+
+    fn add_waiting_pc(
+        &self,
+        world_id: &WorldId,
+        region_id: &RegionId,
+        pc_id: uuid::Uuid,
+        pc_name: String,
+        user_id: String,
+        client_id: String,
+    ) {
+        WorldStateManager::add_waiting_pc_to_staging(
+            self,
+            world_id,
+            region_id,
+            pc_id,
+            pc_name,
+            user_id,
+            client_id,
+        );
+    }
+
+    fn store_pending_staging(&self, pending: PendingStagingData) {
+        let proposal = StagingProposal {
+            request_id: pending.request_id.clone(),
+            region_id: pending.region_id.to_string(),
+            location_id: pending.location_id.to_string(),
+            world_id: pending.world_id.to_string(),
+            rule_based_npcs: pending
+                .rule_based_npcs
+                .iter()
+                .map(staged_npc_data_to_proposal_npc)
+                .collect(),
+            llm_based_npcs: pending
+                .llm_based_npcs
+                .iter()
+                .map(staged_npc_data_to_proposal_npc)
+                .collect(),
+            default_ttl_hours: pending.default_ttl_hours,
+            context: wrldbldr_domain::value_objects::StagingContext::new("", "", "", "", ""),
+        };
+
+        let mut approval = WorldPendingStagingApproval::new(
+            pending.request_id,
+            pending.region_id,
+            pending.location_id,
+            pending.world_id,
+            pending.region_name,
+            pending.location_name,
+            proposal,
+            self.clock.now(),
+        );
+
+        for pc in &pending.waiting_pcs {
+            approval.add_waiting_pc(
+                *pc.pc_id.as_uuid(),
+                pc.pc_name.clone(),
+                pc.user_id.clone(),
+                String::new(),
+            );
+        }
+
+        WorldStateManager::add_pending_staging(self, &pending.world_id, approval);
+    }
+}
+
+#[async_trait::async_trait]
+impl StagingStateExtPort for WorldStateManager {
+    fn get_pending_staging(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+    ) -> Option<PendingStagingInfo> {
+        WorldStateManager::get_pending_staging_by_request_id(self, world_id, request_id)
+            .as_ref()
+            .map(approval_to_info)
+    }
+
+    fn remove_pending_staging(&self, world_id: &WorldId, request_id: &str) {
+        let _ = WorldStateManager::remove_pending_staging(self, world_id, request_id);
+    }
+
+    fn update_llm_suggestions(&self, world_id: &WorldId, request_id: &str, npcs: Vec<RegeneratedNpc>) {
+        if let Some(pending) = WorldStateManager::get_pending_staging_by_request_id(self, world_id, request_id) {
+            let _ = WorldStateManager::with_pending_staging_for_region_mut(
+                self,
+                world_id,
+                &pending.region_id,
+                |approval| {
+                    approval.proposal.llm_based_npcs = npcs
+                        .iter()
+                        .map(|npc| StagedNpcProposal {
+                            character_id: npc.character_id.clone(),
+                            name: npc.name.clone(),
+                            sprite_asset: npc.sprite_asset.clone(),
+                            portrait_asset: npc.portrait_asset.clone(),
+                            is_present: npc.is_present,
+                            is_hidden_from_players: npc.is_hidden_from_players,
+                            reasoning: npc.reasoning.clone(),
+                        })
+                        .collect();
+                },
+            );
+        }
     }
 }
 

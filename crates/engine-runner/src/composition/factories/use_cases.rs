@@ -45,7 +45,7 @@ use wrldbldr_engine_adapters::infrastructure::ports::{
     ConnectionDirectorialContextAdapter,
     DirectorialContextAdapter, DmActionQueuePlaceholder,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
-    SceneServiceAdapter, SceneWorldStateAdapter, StagingServiceAdapter, StagingStateAdapter,
+    SceneServiceAdapter, StagingServiceAdapter,
     WorldServiceAdapter,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
@@ -112,8 +112,6 @@ pub struct UseCaseContext {
     // =========================================================================
     /// WebSocket broadcast adapter (concrete)
     pub broadcast_adapter: Arc<WebSocketBroadcastAdapter>,
-    /// Staging state adapter
-    pub staging_state_adapter: Arc<StagingStateAdapter>,
     /// Staging service adapter
     pub staging_service_adapter: Arc<StagingServiceAdapter>,
     /// Player action queue adapter
@@ -128,8 +126,6 @@ pub struct UseCaseContext {
     pub scene_service_adapter: Arc<SceneServiceAdapter>,
     /// Interaction service adapter
     pub interaction_service_adapter: Arc<InteractionServiceAdapter>,
-    /// Scene world state adapter
-    pub scene_world_state_adapter: Arc<SceneWorldStateAdapter>,
     /// Directorial context adapter
     pub directorial_context_adapter: Arc<DirectorialContextAdapter>,
     /// World service adapter
@@ -138,8 +134,6 @@ pub struct UseCaseContext {
     pub pc_service_adapter: Arc<PlayerCharacterServiceAdapter>,
     /// Connection directorial context adapter
     pub connection_directorial_adapter: Arc<ConnectionDirectorialContextAdapter>,
-    /// Connection world state adapter
-    pub connection_world_state_adapter: Arc<SceneWorldStateAdapter>,
     /// Scene builder (shared)
     pub scene_builder: Arc<SceneBuilder>,
 }
@@ -284,12 +278,8 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
     // =========================================================================
-    // Create staging adapters
+    // Create staging service adapter
     // =========================================================================
-    let staging_state_adapter = Arc::new(StagingStateAdapter::new(
-        deps.world_state.clone(),
-        deps.clock.clone(),
-    ));
     let staging_service_adapter = Arc::new(StagingServiceAdapter::new(
         deps.staging_service_port.clone(),
     ));
@@ -316,7 +306,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
         deps.location_crud.clone(),
         deps.location_map.clone(),
         staging_service_adapter.clone(),
-        staging_state_adapter.clone(),
+        deps.world_state.clone(),
         broadcast.clone(),
         scene_builder.clone(),
         deps.clock.clone(),
@@ -337,7 +327,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     // =========================================================================
     let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
         staging_service_adapter.clone(),
-        staging_state_adapter.clone(),
+        deps.world_state.clone(),
         deps.character_crud.clone(),
         deps.region_crud.clone(),
         deps.location_crud.clone(),
@@ -398,7 +388,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let interaction_service_adapter = Arc::new(InteractionServiceAdapter::new(
         deps.interaction_service_port.clone(),
     ));
-    let scene_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
     let directorial_context_adapter = Arc::new(DirectorialContextAdapter::new(
         deps.directorial_context_repo.clone(),
     ));
@@ -407,7 +396,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let scene_use_case = Arc::new(SceneUseCase::new(
         scene_service_adapter.clone(),
         interaction_service_adapter.clone(),
-        scene_world_state_adapter.clone(),
+        deps.world_state.clone(),
         directorial_context_adapter.clone(),
         dm_action_queue_placeholder,
     ));
@@ -422,14 +411,13 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
     let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
         deps.directorial_context_repo.clone(),
     ));
-    let connection_world_state_adapter = Arc::new(SceneWorldStateAdapter::new(deps.world_state.clone()));
 
     let connection_use_case = Arc::new(ConnectionUseCase::new(
         deps.world_connection_manager.clone(),
         world_service_adapter.clone(),
         pc_service_adapter.clone(),
         connection_directorial_adapter.clone(),
-        connection_world_state_adapter.clone(),
+        deps.world_state.clone(),
         broadcast.clone(),
     ));
 
@@ -466,7 +454,6 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
 
         // Adapters
         broadcast_adapter,
-        staging_state_adapter,
         staging_service_adapter,
         player_action_queue_adapter,
         challenge_resolution_adapter,
@@ -474,12 +461,10 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
         challenge_dm_queue_adapter,
         scene_service_adapter,
         interaction_service_adapter,
-        scene_world_state_adapter,
         directorial_context_adapter,
         world_service_adapter,
         pc_service_adapter,
         connection_directorial_adapter,
-        connection_world_state_adapter,
         scene_builder,
     }
 }
@@ -502,7 +487,6 @@ mod tests {
 
             // Adapters
             let _ = &ctx.broadcast_adapter;
-            let _ = &ctx.staging_state_adapter;
             let _ = &ctx.staging_service_adapter;
             let _ = &ctx.player_action_queue_adapter;
             let _ = &ctx.challenge_resolution_adapter;
@@ -510,12 +494,10 @@ mod tests {
             let _ = &ctx.challenge_dm_queue_adapter;
             let _ = &ctx.scene_service_adapter;
             let _ = &ctx.interaction_service_adapter;
-            let _ = &ctx.scene_world_state_adapter;
             let _ = &ctx.directorial_context_adapter;
             let _ = &ctx.world_service_adapter;
             let _ = &ctx.pc_service_adapter;
             let _ = &ctx.connection_directorial_adapter;
-            let _ = &ctx.connection_world_state_adapter;
             let _ = &ctx.scene_builder;
         }
 
@@ -598,7 +580,6 @@ mod tests {
         // Document the expected adapters
         let expected_adapters = [
             "WebSocketBroadcastAdapter",
-            "StagingStateAdapter",
             "StagingServiceAdapter",
             "PlayerActionQueueAdapter",
             "ChallengeResolutionAdapter",
@@ -606,14 +587,12 @@ mod tests {
             "ChallengeDmApprovalQueueAdapter",
             "SceneServiceAdapter",
             "InteractionServiceAdapter",
-            "SceneWorldStateAdapter",
             "DirectorialContextAdapter",
             "WorldServiceAdapter",
             "PlayerCharacterServiceAdapter",
             "ConnectionDirectorialContextAdapter",
-            "SceneWorldStateAdapter",
         ];
 
-        assert_eq!(expected_adapters.len(), 15);
+        assert_eq!(expected_adapters.len(), 12);
     }
 }

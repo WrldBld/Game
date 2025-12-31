@@ -18,9 +18,9 @@
 //!
 //! Adapter Layer (this module)
 //!     │
-//!     ├── StagingStateAdapter ─────────► WorldStateManager
+//!     ├── (direct impl) StagingStatePort ─► WorldStateManager
 //!     ├── StagingServiceAdapter ───────► StagingService
-//!     ├── ConnectionManagerAdapter ────► WorldConnectionManager
+//!     ├── (direct impl) ConnectionManagerPort ─► WorldConnectionManager
 //!     ├── SceneServiceAdapter ─────────► SceneService
 //!     ├── InteractionServiceAdapter ───► InteractionService
 //!     ├── WorldServiceAdapter ─────────► WorldService
@@ -35,9 +35,9 @@
 //!
 //! # Implementation Status
 //!
-//! - [x] StagingStateAdapter - For MovementUseCase, StagingApprovalUseCase
+//! - [x] (direct impl) StagingStatePort - For MovementUseCase, StagingApprovalUseCase
 //! - [x] StagingServiceAdapter - For MovementUseCase, StagingApprovalUseCase
-//! - [x] ConnectionManagerAdapter - For ConnectionUseCase
+//! - [x] (direct impl) ConnectionManagerPort - For ConnectionUseCase
 //! - [x] PlayerActionAdapters - For PlayerActionUseCase
 //! - [x] ObservationAdapters - For ObservationUseCase
 //! - [x] ChallengeAdapters - For ChallengeUseCase (adapters created, wiring pending)
@@ -47,7 +47,6 @@
 mod challenge_adapters;
 mod player_action_adapters;
 mod staging_service_adapter;
-mod staging_state_adapter;
 
 mod connection_adapters;
 mod scene_adapters;
@@ -63,7 +62,6 @@ pub use connection_adapters::{
 pub use player_action_adapters::PlayerActionQueueAdapter;
 pub use scene_adapters::{
     DirectorialContextAdapter, DmActionQueuePlaceholder, InteractionServiceAdapter,
-    SceneServiceAdapter, SceneWorldStateAdapter,
+    SceneServiceAdapter,
 };
 pub use staging_service_adapter::StagingServiceAdapter;
-pub use staging_state_adapter::StagingStateAdapter;
