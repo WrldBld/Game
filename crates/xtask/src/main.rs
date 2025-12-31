@@ -124,9 +124,380 @@ fn arch_check() -> anyhow::Result<()> {
     check_no_glob_reexports()?;
     check_app_does_not_depend_on_inbound_ports()?;
     check_no_engine_dto_shadowing_engine_ports_types()?;
+    check_engine_app_no_internal_service_construction()?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
+}
+
+/// Phase 6: enforce IoC rule that application-layer code (engine-app) does not
+/// construct other services internally.
+///
+/// Specifically: forbid `*Service::new(...)` in `crates/engine-app/src/application/**`
+/// outside of `#[cfg(test)]` items.
+fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let app_dir = workspace_root.join("crates/engine-app/src/application");
+    if !app_dir.exists() {
+        return Ok(());
+    }
+
+    let service_new_re = regex_lite::Regex::new(r"\b[A-Za-z0-9_]+Service::new\s*\(")
+        .context("compiling service-new regex")?;
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for entry in walkdir_rs_files(&app_dir)? {
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        for cap in service_new_re.captures_iter(&sanitized) {
+            let Some(mat) = cap.get(0) else {
+                continue;
+            };
+            let start = mat.range().start;
+
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "  - {}:{}: {}",
+                entry.display(),
+                line_no,
+                line.trim_end()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("arch-check failed: engine-app application layer constructs services (Phase 6 IoC)");
+        eprintln!("Forbidden pattern: `*Service::new(...)` outside `#[cfg(test)]`\n");
+        for v in violations.iter().take(20) {
+            eprintln!("{v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed");
+    }
+
+    Ok(())
+}
+
+fn offset_is_in_ranges(offset: usize, ranges: &[(usize, usize)]) -> bool {
+    ranges.iter().any(|(start, end)| *start <= offset && offset < *end)
+}
+
+fn line_at_offset<'a>(contents: &'a str, offset: usize) -> (usize, &'a str) {
+    let offset = offset.min(contents.len());
+    let line_no = contents[..offset].bytes().filter(|b| *b == b'\n').count() + 1;
+    let line_start = contents[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_end = contents[offset..]
+        .find('\n')
+        .map(|i| offset + i)
+        .unwrap_or(contents.len());
+    (line_no, &contents[line_start..line_end])
+}
+
+/// Produce a scan-friendly version of a Rust source file where comments and
+/// string/char literals are replaced with spaces (newlines preserved).
+///
+/// This avoids false positives when enforcing code-pattern checks.
+fn sanitize_rust_for_scan(contents: &str) -> String {
+    let bytes = contents.as_bytes();
+    let mut out: Vec<u8> = bytes.to_vec();
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum State {
+        Normal,
+        LineComment,
+        BlockComment { depth: usize },
+        String,
+        Char,
+        RawString { hashes: usize },
+    }
+
+    let mut state = State::Normal;
+    let mut i = 0usize;
+    while i < out.len() {
+        match state {
+            State::Normal => {
+                if out[i] == b'/' && i + 1 < out.len() && out[i + 1] == b'/' {
+                    out[i] = b' ';
+                    out[i + 1] = b' ';
+                    i += 2;
+                    state = State::LineComment;
+                    continue;
+                }
+                if out[i] == b'/' && i + 1 < out.len() && out[i + 1] == b'*' {
+                    out[i] = b' ';
+                    out[i + 1] = b' ';
+                    i += 2;
+                    state = State::BlockComment { depth: 1 };
+                    continue;
+                }
+
+                // Raw string literal: r###" ... "###
+                if out[i] == b'r' {
+                    let mut j = i + 1;
+                    while j < out.len() && out[j] == b'#' {
+                        j += 1;
+                    }
+                    if j < out.len() && out[j] == b'"' {
+                        let hashes = j - (i + 1);
+                        out[i] = b' ';
+                        for k in (i + 1)..=j {
+                            out[k] = b' ';
+                        }
+                        i = j + 1;
+                        state = State::RawString { hashes };
+                        continue;
+                    }
+                }
+
+                if out[i] == b'"' {
+                    out[i] = b' ';
+                    i += 1;
+                    state = State::String;
+                    continue;
+                }
+
+                if out[i] == b'\'' {
+                    out[i] = b' ';
+                    i += 1;
+                    state = State::Char;
+                    continue;
+                }
+
+                i += 1;
+            }
+            State::LineComment => {
+                if out[i] == b'\n' {
+                    i += 1;
+                    state = State::Normal;
+                } else {
+                    out[i] = b' ';
+                    i += 1;
+                }
+            }
+            State::BlockComment { mut depth } => {
+                if out[i] == b'\n' {
+                    i += 1;
+                    state = State::BlockComment { depth };
+                    continue;
+                }
+
+                if out[i] == b'/' && i + 1 < out.len() && out[i + 1] == b'*' {
+                    out[i] = b' ';
+                    out[i + 1] = b' ';
+                    depth += 1;
+                    i += 2;
+                    state = State::BlockComment { depth };
+                    continue;
+                }
+
+                if out[i] == b'*' && i + 1 < out.len() && out[i + 1] == b'/' {
+                    out[i] = b' ';
+                    out[i + 1] = b' ';
+                    depth = depth.saturating_sub(1);
+                    i += 2;
+                    if depth == 0 {
+                        state = State::Normal;
+                    } else {
+                        state = State::BlockComment { depth };
+                    }
+                    continue;
+                }
+
+                out[i] = b' ';
+                i += 1;
+                state = State::BlockComment { depth };
+            }
+            State::String => {
+                if out[i] == b'\n' {
+                    i += 1;
+                    continue;
+                }
+
+                if out[i] == b'\\' {
+                    out[i] = b' ';
+                    if i + 1 < out.len() {
+                        out[i + 1] = b' ';
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                }
+
+                if out[i] == b'"' {
+                    out[i] = b' ';
+                    i += 1;
+                    state = State::Normal;
+                    continue;
+                }
+
+                out[i] = b' ';
+                i += 1;
+            }
+            State::Char => {
+                if out[i] == b'\n' {
+                    i += 1;
+                    continue;
+                }
+
+                if out[i] == b'\\' {
+                    out[i] = b' ';
+                    if i + 1 < out.len() {
+                        out[i + 1] = b' ';
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                }
+
+                if out[i] == b'\'' {
+                    out[i] = b' ';
+                    i += 1;
+                    state = State::Normal;
+                    continue;
+                }
+
+                out[i] = b' ';
+                i += 1;
+            }
+            State::RawString { hashes } => {
+                if out[i] == b'\n' {
+                    i += 1;
+                    continue;
+                }
+
+                if out[i] == b'"' {
+                    // End marker is '"' followed by `hashes` number of '#'
+                    let mut ok = true;
+                    for h in 0..hashes {
+                        let idx = i + 1 + h;
+                        if idx >= out.len() || out[idx] != b'#' {
+                            ok = false;
+                            break;
+                        }
+                    }
+
+                    if ok {
+                        out[i] = b' ';
+                        for h in 0..hashes {
+                            out[i + 1 + h] = b' ';
+                        }
+                        i += 1 + hashes;
+                        state = State::Normal;
+                        continue;
+                    }
+                }
+
+                out[i] = b' ';
+                i += 1;
+            }
+        }
+    }
+
+    // Safety: we only replaced bytes with ASCII spaces, preserving valid UTF-8.
+    String::from_utf8(out).unwrap_or_else(|_| contents.to_string())
+}
+
+/// Identify `#[cfg(test)]` (and common variants containing `test`) items and
+/// return byte ranges to skip when scanning for forbidden production patterns.
+fn collect_cfg_test_item_ranges(sanitized: &str) -> Vec<(usize, usize)> {
+    let bytes = sanitized.as_bytes();
+    let mut ranges = Vec::new();
+    let mut i = 0usize;
+
+    while i + 1 < bytes.len() {
+        if bytes[i] != b'#' || bytes[i + 1] != b'[' {
+            i += 1;
+            continue;
+        }
+
+        let attr_start = i;
+        let Some(rel_end) = sanitized[i + 2..].find(']') else {
+            break;
+        };
+        let attr_end = i + 2 + rel_end; // index of ']'
+        let attr = &sanitized[attr_start..=attr_end];
+
+        // Heuristic: treat any cfg attribute containing the token `test` as test-only.
+        // Examples:
+        // - #[cfg(test)]
+        // - #[cfg(any(test, feature = "..."))]
+        let is_cfg = attr.contains("cfg") || attr.contains("cfg_attr");
+        let is_test = attr.contains("test");
+
+        if !is_cfg || !is_test {
+            i = attr_end + 1;
+            continue;
+        }
+
+        // Move to the start of the following item.
+        let mut j = attr_end + 1;
+        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+            j += 1;
+        }
+
+        // Skip an item that ends with ';' before any '{'
+        let next_semi = sanitized[j..].find(';').map(|o| j + o);
+        let next_brace = sanitized[j..].find('{').map(|o| j + o);
+
+        if let Some(semi) = next_semi {
+            if next_brace.is_none() || semi < next_brace.unwrap() {
+                ranges.push((attr_start, semi + 1));
+                i = semi + 1;
+                continue;
+            }
+        }
+
+        let Some(brace) = next_brace else {
+            // No obvious item body; skip just the attribute.
+            ranges.push((attr_start, attr_end + 1));
+            i = attr_end + 1;
+            continue;
+        };
+
+        // Balance braces to find the end of the item body.
+        let mut depth = 0usize;
+        let mut k = brace;
+        while k < bytes.len() {
+            match bytes[k] {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        ranges.push((attr_start, k + 1));
+                        i = k + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            k += 1;
+        }
+
+        if k >= bytes.len() {
+            // Unbalanced braces; fall back to skipping only the attribute.
+            ranges.push((attr_start, attr_end + 1));
+            i = attr_end + 1;
+        }
+    }
+
+    ranges
 }
 
 /// Check for likely DTO shadowing: types with the same name declared in both

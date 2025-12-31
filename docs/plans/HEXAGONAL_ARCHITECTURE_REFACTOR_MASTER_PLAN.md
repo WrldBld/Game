@@ -383,7 +383,7 @@ Steps:
 2. For spawned tasks that lazily construct services, refactor to use injected factories or injected ports.
 
 **Verify**
-- `cargo xtask arch-check` (extend with a check if needed: forbid `::new(` of known services inside `engine-app`).
+- `cargo xtask arch-check` (includes a check that forbids `*Service::new(...)` inside `crates/engine-app/src/application/**` outside `#[cfg(test)]`).
 
 ---
 
