@@ -17,10 +17,8 @@ use wrldbldr_domain::value_objects::{
     PlayerActionData,
 };
 use wrldbldr_engine_adapters::infrastructure::{
-    comfyui::ComfyUIClient,
     config::AppConfig,
-    ollama::OllamaClient,
-    queues::{InProcessNotifier, QueueBackendEnum, QueueFactory},
+    queues::{QueueBackendEnum, QueueFactory},
     TokioFileStorageAdapter,
 };
 use wrldbldr_engine_app::application::services::{
@@ -36,6 +34,7 @@ use wrldbldr_engine_ports::outbound::{
 
 use super::repositories::RepositoryPorts;
 use super::InfrastructureContext;
+use crate::composition::queue_worker_services::QueueWorkerServices;
 
 /// Queue backends created from QueueFactory.
 ///
@@ -76,45 +75,14 @@ pub async fn create_queue_backends(
     })
 }
 
-/// Queue service context with both port and concrete types.
-pub struct QueueServiceContext {
-    // =========================================================================
-    // Port Versions (for AppState)
-    // =========================================================================
+/// Queue service ports for AppState (ports only).
+pub struct QueueServicePorts {
     pub player_action_queue_service_port: Arc<dyn PlayerActionQueueServicePort>,
     pub dm_action_queue_service_port: Arc<dyn DmActionQueueServicePort>,
     pub llm_queue_service_port: Arc<dyn LlmQueueServicePort>,
     pub asset_generation_queue_service_port: Arc<dyn AssetGenerationQueueServicePort>,
     pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueServicePort>,
     pub challenge_outcome_queue_port: Arc<dyn QueuePort<ChallengeOutcomeData>>,
-
-    // =========================================================================
-    // Concrete Versions (for WorkerServices)
-    // =========================================================================
-    pub player_action_queue_service: Arc<
-        PlayerActionQueueService<
-            QueueBackendEnum<PlayerActionData>,
-            QueueBackendEnum<LlmRequestData>,
-        >,
-    >,
-    pub dm_action_queue_service: Arc<DmActionQueueService<QueueBackendEnum<DmActionData>>>,
-    pub llm_queue_service:
-        Arc<LLMQueueService<QueueBackendEnum<LlmRequestData>, OllamaClient, InProcessNotifier>>,
-    pub asset_generation_queue_service: Arc<
-        AssetGenerationQueueService<
-            QueueBackendEnum<AssetGenerationData>,
-            ComfyUIClient,
-            InProcessNotifier,
-        >,
-    >,
-    pub dm_approval_queue_service:
-        Arc<DMApprovalQueueService<QueueBackendEnum<ApprovalRequestData>, ItemServiceImpl>>,
-    pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
-
-    // =========================================================================
-    // DM Action Processor (for WorkerServices)
-    // =========================================================================
-    pub dm_action_processor_port: Arc<dyn DmActionProcessorPort>,
 }
 
 /// Dependencies for queue service creation (needs core services).
@@ -134,7 +102,9 @@ pub struct QueueServiceDependencies<'a> {
 }
 
 /// Creates queue services (needs dialogue_context_service from core services).
-pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<QueueServiceContext> {
+pub fn create_queue_services(
+    deps: QueueServiceDependencies<'_>,
+) -> Result<(QueueServicePorts, QueueWorkerServices)> {
     let QueueServiceDependencies {
         config,
         infra,
@@ -209,7 +179,8 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
     // =========================================================================
     // This service handles the business logic for DM actions (approval decisions,
     // direct NPC control, event triggering, scene transitions)
-    let dm_action_processor = Arc::new(DmActionProcessorService::new(
+    let dm_action_processor: Arc<dyn DmActionProcessorPort> =
+        Arc::new(DmActionProcessorService::new(
         dm_approval_queue_service.clone(),
         narrative_event_service,
         scene_service,
@@ -219,24 +190,26 @@ pub fn create_queue_services(deps: QueueServiceDependencies<'_>) -> Result<Queue
 
     tracing::info!("Initialized queue services");
 
-    Ok(QueueServiceContext {
-        // Port versions
+    let ports = QueueServicePorts {
         player_action_queue_service_port: player_action_queue_service.clone(),
         dm_action_queue_service_port: dm_action_queue_service.clone(),
         llm_queue_service_port: llm_queue_service.clone(),
         asset_generation_queue_service_port: asset_generation_queue_service.clone(),
         dm_approval_queue_service_port: dm_approval_queue_service.clone(),
         challenge_outcome_queue_port: queue_backends.challenge_outcome_queue.clone(),
-        // Concrete versions
-        player_action_queue_service,
-        dm_action_queue_service,
+    };
+
+    let workers = QueueWorkerServices {
         llm_queue_service,
         asset_generation_queue_service,
+        player_action_queue_service,
+        dm_action_queue_service,
         dm_approval_queue_service,
         challenge_outcome_queue: queue_backends.challenge_outcome_queue.clone(),
-        // DM action processor
-        dm_action_processor_port: dm_action_processor,
-    })
+        dm_action_processor,
+    };
+
+    Ok((ports, workers))
 }
 
 #[cfg(test)]
@@ -244,8 +217,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_queue_service_context_types() {
-        fn _assert_port_types(ctx: &QueueServiceContext) {
+    fn test_queue_service_ports_types() {
+        fn _assert_port_types(ctx: &QueueServicePorts) {
             let _: &Arc<dyn PlayerActionQueueServicePort> = &ctx.player_action_queue_service_port;
             let _: &Arc<dyn DmActionQueueServicePort> = &ctx.dm_action_queue_service_port;
             let _: &Arc<dyn LlmQueueServicePort> = &ctx.llm_queue_service_port;
@@ -253,7 +226,6 @@ mod tests {
                 &ctx.asset_generation_queue_service_port;
             let _: &Arc<dyn DmApprovalQueueServicePort> = &ctx.dm_approval_queue_service_port;
             let _: &Arc<dyn QueuePort<ChallengeOutcomeData>> = &ctx.challenge_outcome_queue_port;
-            let _: &Arc<dyn DmActionProcessorPort> = &ctx.dm_action_processor_port;
         }
     }
 }

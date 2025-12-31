@@ -25,6 +25,7 @@
 
 pub mod app_state;
 pub mod factories;
+pub mod queue_worker_services;
 pub mod services;
 
 pub use app_state::{new_adapter_state, AppStatePort};

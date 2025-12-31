@@ -138,8 +138,7 @@ fn arch_check() -> anyhow::Result<()> {
 ///
 /// Notes:
 /// - Only scans `crates/engine-runner/src/composition/factories/**`.
-/// - Skips `queue_services.rs` and `use_cases.rs` for now (they intentionally carry
-///   concrete worker services/adapters).
+/// - Skips `use_cases.rs` for now (known intentional concrete wiring).
 fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -160,7 +159,7 @@ fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Resul
 
     for entry in walkdir_rs_files(&factories_dir)? {
         let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if matches!(file_name, "queue_services.rs" | "use_cases.rs") {
+        if matches!(file_name, "use_cases.rs") {
             continue;
         }
 

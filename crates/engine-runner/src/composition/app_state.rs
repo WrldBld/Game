@@ -518,7 +518,7 @@ pub async fn new_app_state(
     // ===========================================================================
     // Level 2b: Queue Services (using factory)
     // ===========================================================================
-    let queue_service_ctx =
+    let (queue_service_ports, queue_worker_services) =
         super::factories::create_queue_services(super::factories::QueueServiceDependencies {
             config: &config,
             infra: &infra,
@@ -532,23 +532,24 @@ pub async fn new_app_state(
         })?;
 
     // Extract port versions (for AppState)
-    let player_action_queue_service_port = queue_service_ctx.player_action_queue_service_port;
-    let dm_action_queue_service_port = queue_service_ctx.dm_action_queue_service_port;
-    let llm_queue_service_port = queue_service_ctx.llm_queue_service_port;
-    let asset_generation_queue_service_port = queue_service_ctx.asset_generation_queue_service_port;
-    let dm_approval_queue_service_port = queue_service_ctx.dm_approval_queue_service_port;
-    let challenge_outcome_queue_port = queue_service_ctx.challenge_outcome_queue_port;
+    let player_action_queue_service_port = queue_service_ports.player_action_queue_service_port;
+    let dm_action_queue_service_port = queue_service_ports.dm_action_queue_service_port;
+    let llm_queue_service_port = queue_service_ports.llm_queue_service_port;
+    let asset_generation_queue_service_port =
+        queue_service_ports.asset_generation_queue_service_port;
+    let dm_approval_queue_service_port = queue_service_ports.dm_approval_queue_service_port;
+    let challenge_outcome_queue_port = queue_service_ports.challenge_outcome_queue_port;
 
     // Extract concrete versions (for WorkerServices and adapters)
-    let player_action_queue_service = queue_service_ctx.player_action_queue_service;
-    let dm_action_queue_service = queue_service_ctx.dm_action_queue_service;
-    let llm_queue_service = queue_service_ctx.llm_queue_service;
-    let asset_generation_queue_service = queue_service_ctx.asset_generation_queue_service;
-    let dm_approval_queue_service = queue_service_ctx.dm_approval_queue_service;
-    let challenge_outcome_queue = queue_service_ctx.challenge_outcome_queue;
+    let player_action_queue_service = queue_worker_services.player_action_queue_service;
+    let dm_action_queue_service = queue_worker_services.dm_action_queue_service;
+    let llm_queue_service = queue_worker_services.llm_queue_service;
+    let asset_generation_queue_service = queue_worker_services.asset_generation_queue_service;
+    let dm_approval_queue_service = queue_worker_services.dm_approval_queue_service;
+    let challenge_outcome_queue = queue_worker_services.challenge_outcome_queue;
 
     // DM action processor
-    let dm_action_processor = queue_service_ctx.dm_action_processor_port;
+    let dm_action_processor = queue_worker_services.dm_action_processor;
 
     // ===========================================================================
     // Level 2c: Asset Services (using factory)
