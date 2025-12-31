@@ -484,7 +484,7 @@ pub use staging_service_port::{
 pub use llm_queue_service_port::MockLlmQueueServicePort;
 pub use llm_queue_service_port::{
     ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueServicePort,
-    LlmRequestType, LlmResponse as LlmQueueResponse, NarrativeEventSuggestion, ProposedToolCall,
+    LlmQueueResponse, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
     SuggestionContext as LlmSuggestionContext,
 };
 

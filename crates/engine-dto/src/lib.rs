@@ -17,8 +17,8 @@ pub mod queue;
 pub mod request_context;
 
 pub use llm::{
-	ChatMessage, FinishReason, ImageData, LlmRequest, LlmResponse, MessageRole, TokenUsage,
-	ToolCall, ToolDefinition,
+	ChatMessage, FinishReason, ImageData, LlmRequest, MessageRole, TokenUsage, ToolCall,
+	ToolDefinition,
 };
 pub use persistence::{
 	DifficultyRequestDto, FieldTypeDto, InputDefaultDto, ItemListTypeDto, OutcomeRequestDto,
@@ -27,10 +27,10 @@ pub use persistence::{
 	TriggerConditionRequestDto, TriggerTypeRequestDto,
 };
 pub use queue::{
-	ApprovalItem, AssetGenerationItem, ChallengeOutcomeApprovalItem, ChallengeSuggestionInfo,
+	AssetGenerationItem, ChallengeOutcomeApprovalItem, ChallengeSuggestionInfo,
 	ChallengeSuggestionOutcomes, DecisionType, DecisionUrgency, DMAction, DMActionItem,
 	DmApprovalDecision, EnhancedChallengeSuggestion, EnhancedOutcomes, LLMRequestItem,
-	LLMRequestType, NarrativeEventSuggestionInfo, OutcomeDetail, PlayerActionItem, ProposedToolInfo,
-	QueueItem, QueueItemId, QueueItemStatus, SuggestionContext,
+	LLMRequestType, NarrativeEventSuggestionInfo, PlayerActionItem, ProposedToolInfo,
+	SuggestionContext,
 };
 pub use request_context::RequestContext;

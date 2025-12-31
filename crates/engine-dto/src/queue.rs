@@ -16,7 +16,7 @@ pub use wrldbldr_protocol::{
     ProposedToolInfo,
 };
 
-pub type QueueItemId = Uuid;
+pub(crate) type QueueItemId = Uuid;
 
 // ============================================================================
 // Generic Queue Infrastructure Types
@@ -24,7 +24,7 @@ pub type QueueItemId = Uuid;
 
 /// Generic queue item with metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueueItem<T> {
+pub(crate) struct QueueItem<T> {
     pub id: QueueItemId,
     pub payload: T,
     pub status: QueueItemStatus,
@@ -60,7 +60,7 @@ impl<T> QueueItem<T> {
 /// Status of a queue item
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum QueueItemStatus {
+pub(crate) enum QueueItemStatus {
     Pending,
     Processing,
     Completed,
@@ -182,7 +182,7 @@ pub struct AssetGenerationItem {
 
 /// Decision awaiting DM approval
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApprovalItem {
+pub(crate) struct ApprovalItem {
     pub world_id: Uuid,
     pub source_action_id: Uuid,
     pub decision_type: DecisionType,
@@ -333,19 +333,19 @@ pub struct EnhancedChallengeSuggestion {
 pub struct EnhancedOutcomes {
     /// Outcome for natural 20 or exceptional success (optional)
     #[serde(default)]
-    pub critical_success: Option<OutcomeDetail>,
+    pub critical_success: Option<EnhancedOutcomeDetail>,
     /// Outcome for meeting or exceeding the DC
-    pub success: OutcomeDetail,
+    pub success: EnhancedOutcomeDetail,
     /// Outcome for failing to meet the DC
-    pub failure: OutcomeDetail,
+    pub failure: EnhancedOutcomeDetail,
     /// Outcome for natural 1 or catastrophic failure (optional)
     #[serde(default)]
-    pub critical_failure: Option<OutcomeDetail>,
+    pub critical_failure: Option<EnhancedOutcomeDetail>,
 }
 
 /// Detailed outcome information including narrative and tool calls
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OutcomeDetail {
+pub struct EnhancedOutcomeDetail {
     /// Narrative flavor text describing what happens
     pub flavor_text: String,
     /// Scene direction (what actions/changes occur)

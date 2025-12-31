@@ -66,9 +66,9 @@ pub struct LlmQueueItem {
     pub callback_id: String,
 }
 
-/// LLM response - result of processing an LLM request
+/// LLM queue response - result of processing an LLM request
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmResponse {
+pub struct LlmQueueResponse {
     /// NPC dialogue text
     pub npc_dialogue: String,
     /// Internal reasoning (shown to DM only)
@@ -144,7 +144,7 @@ pub trait LlmQueueServicePort: Send + Sync {
     /// Mark an item as successfully completed
     ///
     /// The result is provided for logging/auditing purposes.
-    async fn complete(&self, id: Uuid, result: LlmResponse) -> anyhow::Result<()>;
+    async fn complete(&self, id: Uuid, result: LlmQueueResponse) -> anyhow::Result<()>;
 
     /// Mark an item as failed
     ///

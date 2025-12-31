@@ -285,6 +285,9 @@ Steps:
    - remove duplicate
    - add tests where conversions changed
 
+**Progress**
+- ✅ Completed 2025-12-31: reduced DTO shadowing warnings to zero (removed public engine-dto shadow types for `ApprovalItem`, `QueueItem*`, `OutcomeDetail`, and resolved the `LlmResponse` name collision).
+
 **Stop condition**
 - DTO shadowing warnings go to zero.
 - The DTO shadowing check can be switched from warning to enforcement.
