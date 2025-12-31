@@ -258,11 +258,13 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    // We only enforce within application source code.
-    // (Runners may legitimately reference inbound ports for wiring; adapters call inbound ports.)
+    // We only enforce within application-internal code.
+    // Handlers are boundary code and are expected to call inbound ports.
+    // Use cases implement inbound ports and will naturally reference inbound traits.
+    // So for now, we restrict this check to *services* only.
     let enforced_dirs = [
-        workspace_root.join("crates/engine-app/src"),
-        workspace_root.join("crates/player-app/src"),
+        workspace_root.join("crates/engine-app/src/application/services"),
+        workspace_root.join("crates/player-app/src/application/services"),
     ];
 
     // Import patterns to flag:
@@ -279,17 +281,6 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
     let player_inbound_fqn_re = regex_lite::Regex::new(r"\bwrldbldr_player_ports::inbound::")
         .context("compiling player inbound port fqn regex")?;
 
-    // Allowlist: application files that are allowed to reference inbound port modules.
-    // Keep this list very small and justify with comments.
-    //
-    // NOTE: This check is designed to be tightened over time. Prefer moving shared request/response
-    // DTOs into neutral modules (or `outbound`) rather than growing this list.
-    let allowlist_files: HashSet<&str> = [
-        "mod.rs", // module declarations and re-exports
-    ]
-    .into_iter()
-    .collect();
-
     let mut violations: Vec<String> = Vec::new();
 
     for dir in enforced_dirs {
@@ -298,12 +289,6 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
         }
 
         for entry in walkdir_rs_files(&dir)? {
-            let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-            if allowlist_files.contains(file_name) {
-                continue;
-            }
-
             let contents = std::fs::read_to_string(&entry)
                 .with_context(|| format!("reading {}", entry.display()))?;
 
@@ -336,21 +321,21 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!(
+        println!(
             "Inbound-port dependency violations ({} files):",
             violations.len()
         );
-        eprintln!("  Architecture rule: application layer must not depend on inbound ports");
-        eprintln!("  Fix: move the dependency to an outbound port / DTO, or push it to the boundary layer");
-        eprintln!();
+        println!("  Architecture rule: application layer must not depend on inbound ports");
+        println!("  Fix: move the dependency to an outbound port / DTO, or push it to the boundary layer");
+        println!();
         for v in &violations {
-            eprintln!("  - {v}");
+            println!("  - {v}");
         }
 
         // Start in WARNING mode so we can land the rule before the refactor completes.
         // Switch to enforce mode after the inbound/outbound taxonomy cleanup is complete.
-        eprintln!();
-        eprintln!("Note: This check is in WARNING mode (target architecture rule).");
+        println!();
+        println!("Note: This check is in WARNING mode (target architecture rule).");
         // TODO: Uncomment after refactor:
         // anyhow::bail!("arch-check failed: application code depends on inbound ports");
     }
