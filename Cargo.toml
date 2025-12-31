@@ -13,6 +13,7 @@ repository = "https://github.com/WrldBld/Game"
 # Centralize ALL dependencies here
 [workspace.dependencies]
 # Internal crates
+wrldbldr-common = { path = "crates/common", version = "0.1.0" }
 wrldbldr-domain-types = { path = "crates/domain-types", version = "0.1.0" }
 wrldbldr-domain = { path = "crates/domain", version = "0.1.0" }
 wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }

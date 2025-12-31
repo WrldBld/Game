@@ -882,6 +882,8 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     HashMap::from([
         // Innermost layer: shared vocabulary types with zero internal deps
         ("wrldbldr-domain-types", HashSet::from([])),
+        // Common utilities crate: pure functions, no internal deps
+        ("wrldbldr-common", HashSet::from([])),
         // Domain layer depends on domain-types for shared vocabulary
         ("wrldbldr-domain", HashSet::from(["wrldbldr-domain-types"])),
         // Protocol (API contract) depends on domain-types for shared vocabulary
