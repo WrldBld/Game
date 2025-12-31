@@ -552,13 +552,15 @@ cargo clippy --workspace --all-targets
 
 | Metric | Before | After | Actual |
 |--------|--------|-------|--------|
-| `Utc::now()` in production | 92 | 0 | 13 (acceptable*) |
+| `Utc::now()` in production | 92 | 0 | 4 (clock impls only) |
 | Largest impl file | 2,073 lines | <400 lines | ~385 lines ✓ |
 | Duplicate patterns | 97 | 0 | 0 ✓ |
 | arch-check | Passes | Passes | Passes ✓ |
 | All tests | Pass | Pass | 294 pass ✓ |
 
-*Remaining 13 `Utc::now()` calls are in acceptable locations: clock implementation (3), test mock (1), circuit breaker infra (7), error fallbacks (2)
+*Remaining 4 `Utc::now()` calls are ONLY in clock implementations:
+- `clock.rs` (3): SystemClock implementation - this IS the ClockPort provider
+- `mock_clock.rs` (1): Test mock Default impl
 
 **Note on file sizes**: `stored_types.rs` files are ~950 lines each but contain only enum/struct definitions for Neo4j persistence, not implementation logic. The largest *implementation* files (trait impls, business logic) are ~385 lines.
 
@@ -637,3 +639,4 @@ Each part is atomic:
 | Dec 31, 2024 | Part 6 COMPLETE: Migrated datetime/string patterns to common crate |
 | Dec 31, 2024 | Part 7 COMPLETE: Updated AGENTS.md and hexagonal-architecture.md |
 | Dec 31, 2024 | All 3 known minor issues RESOLVED: QueueItem::new_with_time(), dead code annotations, import consistency |
+| Dec 31, 2024 | ComfyUI circuit breaker ClockPort injection: Reduced Utc::now() from 11 to 4 (clock impls only) |

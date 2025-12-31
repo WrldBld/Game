@@ -139,7 +139,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
     // External clients
     // =========================================================================
     let llm_client = OllamaClient::new(&config.ollama_base_url, &config.ollama_model);
-    let comfyui_client = ComfyUIClient::new(&config.comfyui_base_url);
+    let comfyui_client = ComfyUIClient::new(&config.comfyui_base_url, clock.clone());
     tracing::info!("Initialized LLM and ComfyUI clients");
 
     // =========================================================================

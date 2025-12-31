@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use wrldbldr_domain::value_objects::ComfyUIConfig;
 use wrldbldr_engine_ports::outbound::{
-    ComfyUIPort, GeneratedImage, HistoryResponse as PortHistoryResponse,
+    ClockPort, ComfyUIPort, GeneratedImage, HistoryResponse as PortHistoryResponse,
     NodeOutput as PortNodeOutput, PromptHistory as PortPromptHistory,
     PromptStatus as PortPromptStatus, QueuePromptResponse,
 };
@@ -48,19 +48,32 @@ enum CircuitBreakerState {
 }
 
 /// Circuit breaker for ComfyUI operations
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct CircuitBreaker {
     state: Arc<Mutex<CircuitBreakerState>>,
     failure_count: Arc<Mutex<u8>>,
     last_failure: Arc<Mutex<Option<DateTime<Utc>>>>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl std::fmt::Debug for CircuitBreaker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CircuitBreaker")
+            .field("state", &self.state)
+            .field("failure_count", &self.failure_count)
+            .field("last_failure", &self.last_failure)
+            .field("clock", &"<ClockPort>")
+            .finish()
+    }
 }
 
 impl CircuitBreaker {
-    fn new() -> Self {
+    fn new(clock: Arc<dyn ClockPort>) -> Self {
         Self {
             state: Arc::new(Mutex::new(CircuitBreakerState::Closed)),
             failure_count: Arc::new(Mutex::new(0)),
             last_failure: Arc::new(Mutex::new(None)),
+            clock,
         }
     }
 
@@ -69,7 +82,7 @@ impl CircuitBreaker {
         let state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         match *state {
             CircuitBreakerState::Open { until } => {
-                if Utc::now() < until {
+                if self.clock.now() < until {
                     true
                 } else {
                     // Circuit should transition to half-open, but we'll check on next call
@@ -85,7 +98,7 @@ impl CircuitBreaker {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         match *state {
             CircuitBreakerState::Open { until } => {
-                if Utc::now() >= until {
+                if self.clock.now() >= until {
                     // Transition to half-open
                     *state = CircuitBreakerState::HalfOpen;
                     Ok(())
@@ -110,11 +123,11 @@ impl CircuitBreaker {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         let mut failure_count = self.failure_count.lock().unwrap_or_else(|p| p.into_inner());
         *failure_count += 1;
-        *self.last_failure.lock().unwrap_or_else(|p| p.into_inner()) = Some(Utc::now());
+        *self.last_failure.lock().unwrap_or_else(|p| p.into_inner()) = Some(self.clock.now());
 
         if *failure_count >= CIRCUIT_BREAKER_FAILURE_THRESHOLD {
             *state = CircuitBreakerState::Open {
-                until: Utc::now() + chrono::Duration::seconds(CIRCUIT_BREAKER_OPEN_DURATION_SECS),
+                until: self.clock.now() + chrono::Duration::seconds(CIRCUIT_BREAKER_OPEN_DURATION_SECS),
             };
         }
     }
@@ -128,20 +141,22 @@ pub struct ComfyUIClient {
     config: Arc<Mutex<ComfyUIConfig>>,
     circuit_breaker: Arc<CircuitBreaker>,
     last_health_check: Arc<Mutex<Option<(DateTime<Utc>, bool)>>>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ComfyUIClient {
-    pub fn new(base_url: &str) -> Self {
-        Self::with_config(base_url, ComfyUIConfig::default())
+    pub fn new(base_url: &str, clock: Arc<dyn ClockPort>) -> Self {
+        Self::with_config(base_url, ComfyUIConfig::default(), clock)
     }
 
-    pub fn with_config(base_url: &str, config: ComfyUIConfig) -> Self {
+    pub fn with_config(base_url: &str, config: ComfyUIConfig, clock: Arc<dyn ClockPort>) -> Self {
         Self {
             client: Client::new(),
             base_url: base_url.trim_end_matches('/').to_string(),
             config: Arc::new(Mutex::new(config)),
-            circuit_breaker: Arc::new(CircuitBreaker::new()),
+            circuit_breaker: Arc::new(CircuitBreaker::new(clock.clone())),
             last_health_check: Arc::new(Mutex::new(None)),
+            clock,
         }
     }
 
@@ -169,7 +184,7 @@ impl ComfyUIClient {
                 .lock()
                 .unwrap_or_else(|p| p.into_inner());
             if let Some((timestamp, result)) = cache.as_ref() {
-                let age = Utc::now().signed_duration_since(*timestamp);
+                let age = self.clock.now().signed_duration_since(*timestamp);
                 if age.num_seconds() < 5 {
                     return Ok(*result);
                 }
@@ -186,7 +201,7 @@ impl ComfyUIClient {
                 .last_health_check
                 .lock()
                 .unwrap_or_else(|p| p.into_inner());
-            *cache = Some((Utc::now(), is_healthy));
+            *cache = Some((self.clock.now(), is_healthy));
         }
 
         if is_healthy {
@@ -290,7 +305,7 @@ impl ComfyUIClient {
             .lock()
             .unwrap_or_else(|p| p.into_inner());
         if let Some((timestamp, is_healthy)) = cache.as_ref() {
-            let age = Utc::now().signed_duration_since(*timestamp);
+            let age = self.clock.now().signed_duration_since(*timestamp);
             if age.num_seconds() < HEALTH_CHECK_CACHE_TTL_SECS {
                 if *is_healthy {
                     ComfyUIConnectionState::Connected
