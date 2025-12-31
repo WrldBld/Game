@@ -184,7 +184,7 @@ impl StringExt for String {
 
 ## Part 3: ClockPort Injection
 
-**Status**: READY  
+**Status**: IN PROGRESS (persistence layer complete, commit 6308334)  
 **Effort**: 6-8 hours  
 **Priority**: HIGH (testability + architecture compliance)
 
@@ -192,8 +192,8 @@ impl StringExt for String {
 
 Validation confirmed:
 - **92 total occurrences** of `Utc::now()` in production code
-  - 46 in persistence layer
-  - 39 in other adapters (queues, HTTP, etc.)
+  - 46 in persistence layer - **DONE**
+  - 39 in other adapters (queues, HTTP, etc.) - remaining
   - 3 in engine-app (dto/workflow.rs + world_snapshot.rs)
 - ClockPort trait has `now()` and `now_rfc3339()` methods
 - Services already use constructor injection pattern
@@ -587,3 +587,4 @@ Each part is atomic:
 | Dec 31, 2024 | Validation round 1: Corrected counts, added facade step, added RandomPort |
 | Dec 31, 2024 | Validation round 2: Part 1 already complete, Part 4 deferred, parallelization enabled, story_event can split independently, corrected Neo4jRepository location, added world_snapshot.rs violation |
 | Dec 31, 2024 | Part 2 COMPLETE: Created wrldbldr-common crate with datetime and string utilities |
+| Dec 31, 2024 | Part 3 (persistence) COMPLETE: Injected ClockPort into 12 Neo4j repositories, replaced 46 Utc::now() calls |
