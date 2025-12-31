@@ -585,88 +585,14 @@ impl<
                             tracing::warn!("Failed to send SuggestionQueued event: {}", e);
                         }
 
-                        // Create suggestion service
                         use crate::application::services::SuggestionService;
-                        let suggestion_service = SuggestionService::new(
+                        let result = SuggestionService::suggest_field_with(
                             (*llm_client_clone).clone(),
                             prompt_template_service_clone.clone(),
-                        );
-
-                        // Process based on field type
-                        let result = match field_type.as_str() {
-                            "character_name" => {
-                                suggestion_service.suggest_character_names(&context).await
-                            }
-                            "character_description" => {
-                                suggestion_service
-                                    .suggest_character_description(&context)
-                                    .await
-                            }
-                            "character_wants" => {
-                                suggestion_service.suggest_character_wants(&context).await
-                            }
-                            "character_fears" => {
-                                suggestion_service.suggest_character_fears(&context).await
-                            }
-                            "character_backstory" => {
-                                suggestion_service
-                                    .suggest_character_backstory(&context)
-                                    .await
-                            }
-                            "location_name" => {
-                                suggestion_service.suggest_location_names(&context).await
-                            }
-                            "location_description" => {
-                                suggestion_service
-                                    .suggest_location_description(&context)
-                                    .await
-                            }
-                            "location_atmosphere" => {
-                                suggestion_service
-                                    .suggest_location_atmosphere(&context)
-                                    .await
-                            }
-                            "location_features" => {
-                                suggestion_service.suggest_location_features(&context).await
-                            }
-                            "location_secrets" => {
-                                suggestion_service.suggest_location_secrets(&context).await
-                            }
-                            // Actantial Model suggestions
-                            "deflection_behavior" => {
-                                suggestion_service
-                                    .suggest_deflection_behavior(&context)
-                                    .await
-                            }
-                            "behavioral_tells" => {
-                                suggestion_service.suggest_behavioral_tells(&context).await
-                            }
-                            "want_description" => {
-                                suggestion_service.suggest_want_description(&context).await
-                            }
-                            "actantial_reason" => {
-                                suggestion_service.suggest_actantial_reason(&context).await
-                            }
-                            _ => {
-                                let error =
-                                    format!("Unknown suggestion field type: {}", field_type);
-                                tracing::error!("{}", error);
-                                if let Err(e) = generation_event_tx_clone.try_send(
-                                    GenerationEvent::SuggestionFailed {
-                                        request_id: request_id.clone(),
-                                        field_type: field_type_clone.clone(),
-                                        error: error.clone(),
-                                        world_id: Some(world_id_clone),
-                                    },
-                                ) {
-                                    tracing::warn!("Failed to send SuggestionFailed event: {}", e);
-                                }
-                                if let Err(e) = queue_clone.fail(item_id, &error).await {
-                                    tracing::error!("Failed to mark queue item as failed: {}", e);
-                                }
-                                return;
-                            }
-                        };
+                            field_type.as_str(),
+                            &context,
+                        )
+                        .await;
 
                         match result {
                             Ok(suggestions) => {

@@ -31,20 +31,101 @@ impl<L: LlmPort> SuggestionService<L> {
         }
     }
 
-    async fn resolve_optional_world_template(&self, world_id: Option<WorldId>, key: &str) -> String {
+    async fn resolve_optional_world_template_with(
+        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> String {
         match world_id {
             Some(world_id) => {
-                self.prompt_template_service
+                prompt_template_service
                     .resolve_for_world_with_source(world_id, key)
                     .await
                     .value
             }
-            None => self
-                .prompt_template_service
-                .resolve_with_source(key)
-                .await
-                .value,
+            None => prompt_template_service.resolve_with_source(key).await.value,
         }
+    }
+
+    async fn generate_list_with(llm: &L, prompt: &str, expected_count: usize) -> Result<Vec<String>> {
+        let request = LlmRequest::new(vec![ChatMessage {
+            role: MessageRole::User,
+            content: prompt.to_string(),
+        }])
+        .with_temperature(0.9) // High creativity for suggestions
+        .with_max_tokens(Some(1000));
+
+        let response = llm
+            .generate(request)
+            .await
+            .map_err(|e| anyhow::anyhow!("LLM error: {}", e))?;
+
+        // Parse the response into individual suggestions
+        let suggestions: Vec<String> = response
+            .content
+            .split('\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                // Remove common list prefixes
+                let s = s.trim_start_matches(|c: char| {
+                    c.is_numeric() || c == '.' || c == ')' || c == '-'
+                });
+                s.trim().to_string()
+            })
+            .filter(|s| !s.is_empty())
+            .take(expected_count)
+            .collect();
+
+        Ok(suggestions)
+    }
+
+    /// Generate suggestions for a given field type without constructing a SuggestionService.
+    ///
+    /// This is intended for orchestrators (e.g., queue workers) that shouldn't call
+    /// `SuggestionService::new()` internally (Phase 6 IoC cleanup).
+    pub async fn suggest_field_with(
+        llm: L,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        field_type: &str,
+        context: &SuggestionContext,
+    ) -> Result<Vec<String>> {
+        let (prompt_key, expected_count) = match field_type {
+            "character_name" => (prompt_keys::SUGGESTION_CHARACTER_NAME, 5),
+            "character_description" => (prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION, 3),
+            "character_wants" => (prompt_keys::SUGGESTION_CHARACTER_WANTS, 4),
+            "character_fears" => (prompt_keys::SUGGESTION_CHARACTER_FEARS, 4),
+            "character_backstory" => (prompt_keys::SUGGESTION_CHARACTER_BACKSTORY, 2),
+            "location_name" => (prompt_keys::SUGGESTION_LOCATION_NAME, 5),
+            "location_description" => (prompt_keys::SUGGESTION_LOCATION_DESCRIPTION, 3),
+            "location_atmosphere" => (prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE, 4),
+            "location_features" => (prompt_keys::SUGGESTION_LOCATION_FEATURES, 5),
+            "location_secrets" => (prompt_keys::SUGGESTION_LOCATION_SECRETS, 3),
+            // Actantial Model suggestions
+            "deflection_behavior" => (prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR, 3),
+            "behavioral_tells" => (prompt_keys::SUGGESTION_BEHAVIORAL_TELLS, 3),
+            "want_description" => (prompt_keys::SUGGESTION_WANT_DESCRIPTION, 3),
+            "actantial_reason" => (prompt_keys::SUGGESTION_ACTANTIAL_REASON, 3),
+            other => {
+                return Err(anyhow::anyhow!(
+                    "Unknown suggestion field type: {}",
+                    other
+                ));
+            }
+        };
+
+        let world_id = Self::parse_world_id(context.world_id.as_ref());
+        let template =
+            Self::resolve_optional_world_template_with(&prompt_template_service, world_id, prompt_key)
+                .await;
+        let prompt = Self::apply_placeholders(&template, context);
+
+        Self::generate_list_with(&llm, &prompt, expected_count).await
+    }
+
+    async fn resolve_optional_world_template(&self, world_id: Option<WorldId>, key: &str) -> String {
+        Self::resolve_optional_world_template_with(&self.prompt_template_service, world_id, key)
+            .await
     }
 
     /// Parse world_id from optional string
@@ -281,37 +362,7 @@ impl<L: LlmPort> SuggestionService<L> {
 
     /// Internal method to generate a list of suggestions
     async fn generate_list(&self, prompt: &str, expected_count: usize) -> Result<Vec<String>> {
-        let request = LlmRequest::new(vec![ChatMessage {
-            role: MessageRole::User,
-            content: prompt.to_string(),
-        }])
-        .with_temperature(0.9) // High creativity for suggestions
-        .with_max_tokens(Some(1000));
-
-        let response = self
-            .llm
-            .generate(request)
-            .await
-            .map_err(|e| anyhow::anyhow!("LLM error: {}", e))?;
-
-        // Parse the response into individual suggestions
-        let suggestions: Vec<String> = response
-            .content
-            .split('\n')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| {
-                // Remove common list prefixes
-                let s = s.trim_start_matches(|c: char| {
-                    c.is_numeric() || c == '.' || c == ')' || c == '-'
-                });
-                s.trim().to_string()
-            })
-            .filter(|s| !s.is_empty())
-            .take(expected_count)
-            .collect();
-
-        Ok(suggestions)
+        Self::generate_list_with(&self.llm, prompt, expected_count).await
     }
 }
 
