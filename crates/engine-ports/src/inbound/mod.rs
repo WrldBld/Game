@@ -56,7 +56,6 @@ pub use use_case_ports::{
     ChallengeDmApprovalQueuePort,
     // Connection port traits
     // Scene port traits
-    DirectorialContextRepositoryPort,
     // Player action port traits
     InteractionServicePort,
     

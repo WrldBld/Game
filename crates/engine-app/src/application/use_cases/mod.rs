@@ -23,7 +23,7 @@
 //!
 //! - `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, `ChallengeDmApprovalQueuePort`
 //! - `ConnectionManagerPort`, `DirectorialContextQueryPort`, `PlayerCharacterDtoPort`, `WorldSnapshotJsonPort`
-//! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextRepositoryPort`, `SceneDmActionQueuePort`
+//! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextDtoRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
 //! - `StagingStatePort`, `StagingServicePort`, `StagingStateExtPort`, `StagingServiceExtPort`
 //!
@@ -136,7 +136,7 @@ pub use player_action::{
 
 pub use scene::{
     CharacterData as SceneCharacterData, CharacterEntity, DirectorialContextData,
-    DirectorialContextRepositoryPort, DirectorialUpdateResult, DmAction,
+    DirectorialContextDtoRepositoryPort, DirectorialUpdateResult, DmAction,
     DmActionQueuePort as SceneDmActionQueuePort, InteractionData as SceneInteractionData,
     InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity, NpcMotivation,
     RequestSceneChangeInput, SceneApprovalDecision, SceneApprovalDecisionInput,

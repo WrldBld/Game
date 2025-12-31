@@ -109,7 +109,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `CreateCharacterRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateLocationRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateWorldRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `DirectorialContextRepositoryPort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/scene.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `InteractionServicePort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/scene.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `InventoryUseCasePort` | trait | crates/engine-ports/src/inbound/inventory_use_case_port.rs | crates/engine-app/src/application/use_cases/inventory.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `LocationSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -278,6 +277,7 @@ Steps:
 - ✅ Continued 2025-12-31: moved `PlayerActionQueuePort` and `DmNotificationPort` from `engine-ports` inbound (`use_case_ports.rs`) to `engine-ports` outbound.
 - ✅ Continued 2025-12-31: moved connection DTO ports from `engine-ports` inbound to outbound (renamed to avoid collisions): `WorldServicePort` → `WorldSnapshotJsonPort`, `PlayerCharacterServicePort` → `PlayerCharacterDtoPort`, `DirectorialContextPort` → `DirectorialContextQueryPort`.
 - ✅ Continued 2025-12-31: moved challenge use-case dependency ports from `engine-ports` inbound to outbound: `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, and standardized on outbound `NarrativeRollContext`.
+- ✅ Continued 2025-12-31: moved scene directorial-context DTO persistence port from `engine-ports` inbound to outbound (renamed to avoid collision with the domain repo port): `DirectorialContextRepositoryPort` → `DirectorialContextDtoRepositoryPort`.
 
 ### 3.3 Normalize “context DTOs”
 

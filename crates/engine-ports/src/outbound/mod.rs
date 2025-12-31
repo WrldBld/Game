@@ -23,6 +23,7 @@ mod comfyui_port;
 mod connection_manager_port;
 mod dialogue_context_service_port;
 mod directorial_context_port;
+mod directorial_context_dto_repository_port;
 mod directorial_context_query_port;
 mod disposition_service_port;
 mod dm_action_processor_port;
@@ -328,6 +329,8 @@ pub use world_exporter_port::{
 };
 
 pub use directorial_context_port::DirectorialContextRepositoryPort;
+
+pub use directorial_context_dto_repository_port::DirectorialContextDtoRepositoryPort;
 
 pub use directorial_context_query_port::DirectorialContextQueryPort;
 

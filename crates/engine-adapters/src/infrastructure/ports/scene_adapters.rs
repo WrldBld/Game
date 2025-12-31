@@ -19,7 +19,6 @@ use wrldbldr_domain::{
 use wrldbldr_engine_ports::inbound::{
     CharacterEntity,
     DirectorialContextData,
-    DirectorialContextRepositoryPort,
     DmAction,
     InteractionEntity,
     InteractionServicePort as InboundInteractionServicePort,
@@ -33,6 +32,7 @@ use wrldbldr_engine_ports::inbound::{
     WorldStatePort as InboundWorldStatePort, // Use case port
 };
 use wrldbldr_engine_ports::outbound::{
+    DirectorialContextDtoRepositoryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
     InteractionServicePort as OutboundInteractionServicePort,
     SceneServicePort as OutboundSceneServicePort, WorldDirectorialPort, WorldScenePort,
@@ -193,7 +193,7 @@ impl InboundWorldStatePort for SceneWorldStateAdapter {
     }
 }
 
-/// Adapter for DirectorialContextRepositoryPort
+/// Adapter for DirectorialContextDtoRepositoryPort
 pub struct DirectorialContextAdapter {
     repo: Arc<dyn PortDirectorialContextRepositoryPort>,
 }
@@ -205,7 +205,7 @@ impl DirectorialContextAdapter {
 }
 
 #[async_trait::async_trait]
-impl DirectorialContextRepositoryPort for DirectorialContextAdapter {
+impl DirectorialContextDtoRepositoryPort for DirectorialContextAdapter {
     async fn save(
         &self,
         world_id: &WorldId,

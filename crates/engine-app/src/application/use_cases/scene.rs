@@ -23,9 +23,11 @@ use super::errors::SceneError;
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
-    DirectorialContextRepositoryPort, InteractionServicePort,
+    InteractionServicePort,
     SceneDmActionQueuePort as DmActionQueuePort, SceneServicePort, WorldStatePort,
 };
+
+pub use wrldbldr_engine_ports::outbound::DirectorialContextDtoRepositoryPort;
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -46,7 +48,7 @@ pub struct SceneUseCase {
     scene_service: Arc<dyn SceneServicePort>,
     interaction_service: Arc<dyn InteractionServicePort>,
     world_state: Arc<dyn WorldStatePort>,
-    directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
+    directorial_repo: Arc<dyn DirectorialContextDtoRepositoryPort>,
     dm_action_queue: Arc<dyn DmActionQueuePort>,
 }
 
@@ -56,7 +58,7 @@ impl SceneUseCase {
         scene_service: Arc<dyn SceneServicePort>,
         interaction_service: Arc<dyn InteractionServicePort>,
         world_state: Arc<dyn WorldStatePort>,
-        directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
+        directorial_repo: Arc<dyn DirectorialContextDtoRepositoryPort>,
         dm_action_queue: Arc<dyn DmActionQueuePort>,
     ) -> Self {
         Self {

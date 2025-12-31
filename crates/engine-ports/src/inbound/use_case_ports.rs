@@ -120,16 +120,8 @@ pub trait WorldStatePort: Send + Sync {
     fn set_directorial_context(&self, world_id: &WorldId, context: DirectorialContextData);
 }
 
-/// Port for directorial context persistence
-#[async_trait]
-pub trait DirectorialContextRepositoryPort: Send + Sync {
-    /// Save directorial context
-    async fn save(
-        &self,
-        world_id: &WorldId,
-        context: &DirectorialContextData,
-    ) -> Result<(), String>;
-}
+// Note: DirectorialContextRepositoryPort (use-case DTO persistence) moved to
+// outbound as DirectorialContextDtoRepositoryPort.
 
 /// Port for DM action queue
 #[async_trait]
