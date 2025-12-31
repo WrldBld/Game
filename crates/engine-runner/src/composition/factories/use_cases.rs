@@ -19,10 +19,8 @@
 //!
 //! # Generic Type Constraints
 //!
-//! Some use cases are generic over their service types (e.g., `NarrativeEventUseCase<N>`).
-//! The factory accepts concrete service implementations and lets Rust infer the
-//! generic parameters. The returned `UseCaseContext` uses port trait objects where
-//! possible for maximum flexibility.
+//! This factory prefers port trait objects for maximum flexibility and to
+//! enforce dependency inversion.
 //!
 //! # Use Case Categories
 //!
@@ -52,9 +50,6 @@ use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapt
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
 
-use wrldbldr_engine_app::application::services::{
-    NarrativeEventApprovalService, NarrativeEventService,
-};
 use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
     ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
@@ -71,6 +66,7 @@ use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
     CharacterCrudPort, ClockPort, DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     InteractionServicePort, LocationCrudPort, LocationMapPort, ObservationRepositoryPort,
+    NarrativeEventApprovalServicePort,
     PlayerActionQueueServicePort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
     PlayerCharacterPositionPort, PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort,
     RegionExitPort, RegionItemPort, SceneServicePort,
@@ -143,15 +139,11 @@ pub struct UseCaseContext {
 /// This struct groups all the dependencies that must be provided
 /// to `create_use_cases()`. Dependencies are organized by category.
 ///
-/// # Type Parameters
-///
-/// * `N` - NarrativeEventService implementation type (used by NarrativeEventApprovalService)
-///
 /// # Lifetime
 ///
 /// All fields are `Arc<dyn Trait>` or `Arc<ConcreteType>` to support shared ownership
 /// across async handlers and enable testing with mock implementations.
-pub struct UseCaseDependencies<N: NarrativeEventService + 'static> {
+pub struct UseCaseDependencies {
     // =========================================================================
     // Infrastructure
     // =========================================================================
@@ -217,10 +209,10 @@ pub struct UseCaseDependencies<N: NarrativeEventService + 'static> {
     pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueServicePort>,
 
     // =========================================================================
-    // Concrete Services (required for generic use cases)
+    // Service Ports (outbound)
     // =========================================================================
-    /// Narrative event approval service (concrete type for NarrativeEventUseCase generics)
-    pub narrative_event_approval_service: Arc<NarrativeEventApprovalService<N>>,
+    /// Narrative event approval service port
+    pub narrative_event_approval_service: Arc<dyn NarrativeEventApprovalServicePort>,
 
     // =========================================================================
     // Request Handler
@@ -266,9 +258,7 @@ pub struct UseCaseDependencies<N: NarrativeEventService + 'static> {
 ///     // ...
 /// );
 /// ```
-pub fn create_use_cases<N: NarrativeEventService + 'static>(
-    deps: UseCaseDependencies<N>,
-) -> UseCaseContext {
+pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create broadcast adapter (shared by all use cases)
     // =========================================================================
@@ -509,7 +499,7 @@ mod tests {
     #[test]
     fn test_use_case_dependencies_structure() {
         // This test verifies the generic struct by checking field names at compile time
-        fn _verify_dependencies<N: NarrativeEventService + 'static>(deps: &UseCaseDependencies<N>) {
+        fn _verify_dependencies(deps: &UseCaseDependencies) {
             // Infrastructure
             let _ = &deps.world_connection_manager;
             let _ = &deps.world_state;
@@ -542,7 +532,7 @@ mod tests {
             let _ = &deps.challenge_outcome_approval_service_port;
             let _ = &deps.dm_approval_queue_service_port;
 
-            // Concrete services
+            // Service ports (outbound)
             let _ = &deps.narrative_event_approval_service;
 
             // Request handler
@@ -550,9 +540,7 @@ mod tests {
         }
 
         // The existence of this function proves the types are correct at compile time
-        let _ = _verify_dependencies::<
-            wrldbldr_engine_app::application::services::NarrativeEventServiceImpl,
-        >;
+        let _ = _verify_dependencies;
     }
 
     /// Verify the number of use cases matches expectations.

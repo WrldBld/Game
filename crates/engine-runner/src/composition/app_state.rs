@@ -39,13 +39,15 @@ use wrldbldr_engine_composition::{
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort, BroadcastPort, ChallengeOutcomeApprovalServicePort,
+    ActantialContextServicePort, ApprovalRequestLookupPort, BroadcastPort,
+    ChallengeOutcomeApprovalServicePort,
     ChallengeResolutionServicePort, ChallengeServicePort, ComfyUIPort, ConnectionBroadcastPort,
     ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort, DispositionServicePort,
     DmActionProcessorPort, DomainEventRepositoryPort, EventBusPort, EventChainServicePort,
     EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
     NarrativeEventApprovalServicePort, NarrativeEventServicePort, PromptContextServicePort,
-    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
+    OutcomeTriggerServicePort, PromptTemplateServicePort, RegionItemPort, SettingsServicePort,
+    StagingServicePort,
     StoryEventServicePort, TriggerEvaluationServicePort, WorldApprovalPort, WorldConversationPort,
     WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
@@ -585,14 +587,14 @@ pub async fn new_app_state(
     let llm_for_suggestions = Arc::new(llm_client.clone());
     let challenge_outcome_approval_service = Arc::new(ChallengeOutcomeApprovalService::new(
         challenge_approval_tx,
-        outcome_trigger_service.clone(),
+        outcome_trigger_service.clone() as Arc<dyn OutcomeTriggerServicePort>,
         pc_crud_for_triggers.clone(),
         pc_inventory.clone(),
         item_repo.clone(),
         prompt_template_service.clone(),
         challenge_outcome_queue.clone(),
         llm_for_suggestions,
-        settings_service.clone(),
+        settings_service.clone() as Arc<dyn SettingsServicePort>,
         clock.clone(),
     ));
 
@@ -604,8 +606,8 @@ pub async fn new_app_state(
         Arc::new(challenge_service_impl.clone()),
         Arc::new(skill_service_impl.clone()),
         Arc::new(player_character_service_impl.clone()),
-        dm_approval_queue_service.clone(),
-        challenge_outcome_approval_service.clone(),
+        dm_approval_queue_service.clone() as Arc<dyn ApprovalRequestLookupPort>,
+        challenge_outcome_approval_service.clone() as Arc<dyn ChallengeOutcomeApprovalServicePort>,
         clock.clone(),
         rng.clone(),
     ));
@@ -797,8 +799,8 @@ pub async fn new_app_state(
         challenge_resolution_service_port: challenge_resolution_service.clone(),
         challenge_outcome_approval_service_port: challenge_outcome_approval_service.clone(),
         dm_approval_queue_service_port: dm_approval_queue_service_port.clone(),
-        // Concrete services (for generic use cases)
-        narrative_event_approval_service: narrative_event_approval_service.clone(),
+        narrative_event_approval_service: narrative_event_approval_service.clone()
+            as Arc<dyn NarrativeEventApprovalServicePort>,
         // Request handler
         request_handler: request_handler.clone(),
     });

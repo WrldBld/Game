@@ -13,7 +13,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::application::services::generation_service::GenerationEvent;
 use crate::application::services::llm::LLMService;
-use crate::application::services::PromptTemplateService;
 use crate::application::services::SuggestionContext;
 use wrldbldr_domain::value_objects::{
     ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeSuggestion,
@@ -25,6 +24,7 @@ use wrldbldr_engine_ports::outbound::{
     LlmQueueRequest, LlmQueueResponse, LlmQueueServicePort, LlmRequestType as PortLlmRequestType,
     LlmSuggestionContext as PortSuggestionContext, NarrativeEventCrudPort, ProcessingQueuePort,
     QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort, SkillRepositoryPort,
+    PromptTemplateServicePort,
 };
 
 /// Priority constant for queue operations
@@ -37,7 +37,6 @@ pub struct LLMQueueService<
     N: QueueNotificationPort,
 > {
     pub(crate) queue: Arc<Q>,
-    llm_service: Arc<LLMService<L>>,
     llm_client: Arc<L>, // Keep for SuggestionService
     approval_queue: Arc<dyn ApprovalQueuePort<ApprovalRequestData>>,
     challenge_crud: Arc<dyn ChallengeCrudPort>,
@@ -47,7 +46,7 @@ pub struct LLMQueueService<
     semaphore: Arc<Semaphore>,
     notifier: N,
     generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 }
 
 impl<
@@ -85,14 +84,10 @@ impl<
         batch_size: usize,
         notifier: N,
         generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
-        prompt_template_service: Arc<PromptTemplateService>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
     ) -> Self {
         Self {
             queue,
-            llm_service: Arc::new(LLMService::new(
-                Arc::clone(&llm_client),
-                prompt_template_service.clone(),
-            )),
             llm_client,
             approval_queue,
             challenge_crud,
@@ -202,7 +197,6 @@ impl<
             // Process in spawned task - acquire permit inside the task for proper lifetime
             // Clone all needed data before spawning to avoid lifetime issues
             let semaphore = self.semaphore.clone();
-            let llm_service_clone = self.llm_service.clone();
             let llm_client_clone = self.llm_client.clone();
             let queue_clone = self.queue.clone();
             let approval_queue_clone = self.approval_queue.clone();
@@ -225,6 +219,11 @@ impl<
                     }
                 };
 
+                let llm_service = LLMService::new(
+                    Arc::clone(&llm_client_clone),
+                    prompt_template_service_clone.clone(),
+                );
+
                 match &request.request_type {
                     LlmRequestType::NpcResponse { action_item_id } => {
                         // Process NPC response request
@@ -236,9 +235,7 @@ impl<
                             }
                             return;
                         };
-                        match llm_service_clone
-                            .generate_npc_response(prompt.clone())
-                            .await
+                        match llm_service.generate_npc_response(prompt.clone()).await
                         {
                             Ok(response) => {
                                 // Create approval item for DM

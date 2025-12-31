@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::application::services::{
-    build_staging_prompt, PromptTemplateService, StagingContextProvider, StoryEventService,
+    build_staging_prompt, StagingContextProvider, StoryEventService,
 };
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
@@ -21,6 +21,7 @@ use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
     NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort,
+    PromptTemplateServicePort,
     StagedNpcProposal as PortStagedNpcProposal, StagingProposal as PortStagingProposal,
     StagingRepositoryPort, StagingServicePort,
 };
@@ -70,7 +71,7 @@ where
     staging_repository: Arc<S>,
     context_provider: StagingContextProvider<RC, RN, N>,
     llm_port: Arc<L>,
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
     clock: Arc<dyn ClockPort>,
     config: StagingServiceConfig,
 }
@@ -90,7 +91,7 @@ where
         narrative_event_repository: Arc<N>,
         story_event_service: Arc<dyn StoryEventService>,
         llm_port: Arc<L>,
-        prompt_template_service: Arc<PromptTemplateService>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         let context_provider = StagingContextProvider::new(
@@ -377,16 +378,19 @@ where
         // Resolve prompt templates
         let system_prompt = self
             .prompt_template_service
-            .resolve_for_world(world_id, prompt_keys::STAGING_SYSTEM_PROMPT)
-            .await;
+            .resolve_for_world_with_source(world_id, prompt_keys::STAGING_SYSTEM_PROMPT)
+            .await
+            .value;
         let role_instructions = self
             .prompt_template_service
-            .resolve_for_world(world_id, prompt_keys::STAGING_ROLE_INSTRUCTIONS)
-            .await;
+            .resolve_for_world_with_source(world_id, prompt_keys::STAGING_ROLE_INSTRUCTIONS)
+            .await
+            .value;
         let response_format = self
             .prompt_template_service
-            .resolve_for_world(world_id, prompt_keys::STAGING_RESPONSE_FORMAT)
-            .await;
+            .resolve_for_world_with_source(world_id, prompt_keys::STAGING_RESPONSE_FORMAT)
+            .await
+            .value;
 
         // Build the prompt with configurable templates
         let prompt = build_staging_prompt(

@@ -7,10 +7,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::application::dto::{OutcomeBranchDto, OutcomeSuggestionRequest};
-use crate::application::services::PromptTemplateService;
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::LlmPort;
+use wrldbldr_engine_ports::outbound::{LlmPort, PromptTemplateServicePort};
 
 /// Error type for outcome suggestion operations
 #[derive(Debug, thiserror::Error)]
@@ -24,15 +23,31 @@ pub enum SuggestionError {
 /// Service for generating LLM-powered outcome suggestions
 pub struct OutcomeSuggestionService<L: LlmPort> {
     llm: Arc<L>,
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 }
 
 impl<L: LlmPort> OutcomeSuggestionService<L> {
     /// Create a new outcome suggestion service
-    pub fn new(llm: Arc<L>, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+    pub fn new(llm: Arc<L>, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
         Self {
             llm,
             prompt_template_service,
+        }
+    }
+
+    async fn resolve_optional_world_template_with(
+        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> String {
+        match world_id {
+            Some(world_id) => {
+                prompt_template_service
+                    .resolve_for_world_with_source(world_id, key)
+                    .await
+                    .value
+            }
+            None => prompt_template_service.resolve_with_source(key).await.value,
         }
     }
 
@@ -48,9 +63,19 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         &self,
         request: &OutcomeSuggestionRequest,
     ) -> Result<Vec<String>, SuggestionError> {
+        Self::generate_suggestions_with(self.llm.clone(), self.prompt_template_service.clone(), request)
+            .await
+    }
+
+    pub async fn generate_suggestions_with(
+        llm: Arc<L>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        request: &OutcomeSuggestionRequest,
+    ) -> Result<Vec<String>, SuggestionError> {
         let world_id = Self::parse_world_id(request.world_id.as_ref());
-        let system_prompt = self.build_system_prompt(world_id).await;
-        let user_prompt = self.build_user_prompt(request);
+        let system_prompt =
+            Self::build_system_prompt_with(&prompt_template_service, world_id).await;
+        let user_prompt = Self::build_user_prompt_static(request);
 
         use wrldbldr_engine_ports::outbound::{ChatMessage, LlmRequest};
 
@@ -61,16 +86,12 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             .with_temperature(0.8) // Higher temperature for creativity
             .with_max_tokens(Some(500));
 
-        let response = self
-            .llm
+        let response = llm
             .generate(llm_request)
             .await
             .map_err(|e| SuggestionError::LlmError(format!("{:?}", e)))?;
 
-        // Parse suggestions from response
-        let suggestions = self.parse_suggestions(&response.content)?;
-
-        Ok(suggestions)
+        Self::parse_suggestions_content(&response.content)
     }
 
     /// Generate outcome branches with structured data
@@ -88,11 +109,28 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         branch_count: usize,
         tokens_per_branch: u32,
     ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
+        Self::generate_branches_with(
+            self.llm.clone(),
+            self.prompt_template_service.clone(),
+            request,
+            branch_count,
+            tokens_per_branch,
+        )
+        .await
+    }
+
+    pub async fn generate_branches_with(
+        llm: Arc<L>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        request: &OutcomeSuggestionRequest,
+        branch_count: usize,
+        tokens_per_branch: u32,
+    ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
         let world_id = Self::parse_world_id(request.world_id.as_ref());
-        let system_prompt = self
-            .build_branch_system_prompt(world_id, branch_count)
-            .await;
-        let user_prompt = self.build_branch_user_prompt(request, branch_count);
+        let system_prompt =
+            Self::build_branch_system_prompt_with(&prompt_template_service, world_id, branch_count)
+                .await;
+        let user_prompt = Self::build_branch_user_prompt_static(request, branch_count);
 
         use wrldbldr_engine_ports::outbound::{ChatMessage, LlmRequest};
 
@@ -106,59 +144,42 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
             .with_temperature(0.8)
             .with_max_tokens(Some(max_tokens));
 
-        let response = self
-            .llm
+        let response = llm
             .generate(llm_request)
             .await
             .map_err(|e| SuggestionError::LlmError(format!("{:?}", e)))?;
 
-        // Parse branches from response
-        let branches = self.parse_branches(&response.content, branch_count)?;
-
-        Ok(branches)
+        Self::parse_branches_content(&response.content, branch_count)
     }
 
-    /// Build the system prompt for outcome generation (async for template resolution)
-    async fn build_system_prompt(&self, world_id: Option<WorldId>) -> String {
-        match world_id {
-            Some(wid) => {
-                self.prompt_template_service
-                    .resolve_for_world(wid, prompt_keys::OUTCOME_SYSTEM_PROMPT)
-                    .await
-            }
-            None => {
-                self.prompt_template_service
-                    .resolve(prompt_keys::OUTCOME_SYSTEM_PROMPT)
-                    .await
-            }
-        }
+    async fn build_system_prompt_with(
+        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        world_id: Option<WorldId>,
+    ) -> String {
+        Self::resolve_optional_world_template_with(
+            prompt_template_service,
+            world_id,
+            prompt_keys::OUTCOME_SYSTEM_PROMPT,
+        )
+        .await
     }
 
-    /// Build the system prompt for branch generation (async for template resolution)
-    async fn build_branch_system_prompt(
-        &self,
+    async fn build_branch_system_prompt_with(
+        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
         world_id: Option<WorldId>,
         branch_count: usize,
     ) -> String {
-        let template = match world_id {
-            Some(wid) => {
-                self.prompt_template_service
-                    .resolve_for_world(wid, prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
-                    .await
-            }
-            None => {
-                self.prompt_template_service
-                    .resolve(prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT)
-                    .await
-            }
-        };
+        let template = Self::resolve_optional_world_template_with(
+            prompt_template_service,
+            world_id,
+            prompt_keys::OUTCOME_BRANCH_SYSTEM_PROMPT,
+        )
+        .await;
 
-        // Replace the {branch_count} placeholder
         template.replace("{branch_count}", &branch_count.to_string())
     }
 
-    /// Build the user prompt for a specific request
-    fn build_user_prompt(&self, request: &OutcomeSuggestionRequest) -> String {
+    fn build_user_prompt_static(request: &OutcomeSuggestionRequest) -> String {
         let mut prompt = format!(
             "Generate 3 alternative {} outcome descriptions for:\n\n\
             Challenge: {}\n\
@@ -185,9 +206,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         prompt
     }
 
-    /// Build the user prompt for branch generation
-    fn build_branch_user_prompt(
-        &self,
+    fn build_branch_user_prompt_static(
         request: &OutcomeSuggestionRequest,
         branch_count: usize,
     ) -> String {
@@ -221,8 +240,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         prompt
     }
 
-    /// Parse suggestions from LLM response
-    fn parse_suggestions(&self, content: &str) -> Result<Vec<String>, SuggestionError> {
+    fn parse_suggestions_content(content: &str) -> Result<Vec<String>, SuggestionError> {
         let suggestions: Vec<String> = content
             .lines()
             .map(|line| line.trim())
@@ -247,9 +265,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         Ok(suggestions)
     }
 
-    /// Parse branches from LLM response
-    fn parse_branches(
-        &self,
+    fn parse_branches_content(
         content: &str,
         expected_count: usize,
     ) -> Result<Vec<OutcomeBranchDto>, SuggestionError> {
@@ -352,9 +368,10 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::services::PromptTemplateService;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, FinishReason, PromptTemplateError, PromptTemplateRepositoryPort,
-        ToolDefinition,
+        PromptTemplateServicePort, ToolDefinition,
     };
 
     /// Mock environment for tests
@@ -370,7 +387,8 @@ mod tests {
         let mock_repo: Arc<dyn PromptTemplateRepositoryPort> =
             Arc::new(MockPromptTemplateRepository);
         let mock_env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
-        let prompt_template_service = Arc::new(PromptTemplateService::new(mock_repo, mock_env));
+        let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
+            Arc::new(PromptTemplateService::new(mock_repo, mock_env));
         OutcomeSuggestionService {
             llm: Arc::new(MockLlm),
             prompt_template_service,

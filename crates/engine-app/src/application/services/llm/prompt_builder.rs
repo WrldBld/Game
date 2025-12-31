@@ -24,19 +24,19 @@ use wrldbldr_domain::value_objects::{
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 
-use crate::application::services::PromptTemplateService;
+use wrldbldr_engine_ports::outbound::PromptTemplateServicePort;
 
 /// Prompt builder with configurable template support
 ///
 /// Resolves prompt templates from the `PromptTemplateService` with priority:
 /// World DB → Global DB → Env → Default
 pub struct PromptBuilder {
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 }
 
 impl PromptBuilder {
     /// Create a new prompt builder
-    pub fn new(prompt_template_service: Arc<PromptTemplateService>) -> Self {
+    pub fn new(prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
         Self {
             prompt_template_service,
         }
@@ -47,10 +47,15 @@ impl PromptBuilder {
         match world_id {
             Some(wid) => {
                 self.prompt_template_service
-                    .resolve_for_world(wid, key)
+                    .resolve_for_world_with_source(wid, key)
                     .await
+                    .value
             }
-            None => self.prompt_template_service.resolve(key).await,
+            None => self
+                .prompt_template_service
+                .resolve_with_source(key)
+                .await
+                .value,
         }
     }
 
@@ -501,8 +506,11 @@ pub fn build_conversation_history(history: &[ConversationTurn]) -> Vec<ChatMessa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::services::PromptTemplateService;
     use std::sync::Arc;
-    use wrldbldr_engine_ports::outbound::{EnvironmentPort, PromptTemplateRepositoryPort};
+    use wrldbldr_engine_ports::outbound::{
+        EnvironmentPort, PromptTemplateRepositoryPort, PromptTemplateServicePort,
+    };
 
     // Mock environment for testing
     struct MockEnvironmentPort;
@@ -588,7 +596,8 @@ mod tests {
     fn create_test_prompt_builder() -> PromptBuilder {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
-        let service = Arc::new(PromptTemplateService::new(repo, env));
+        let service: Arc<dyn PromptTemplateServicePort> =
+            Arc::new(PromptTemplateService::new(repo, env));
         PromptBuilder::new(service)
     }
 

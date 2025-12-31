@@ -345,14 +345,34 @@ Steps:
    - depend on `Arc<dyn Port>`
 2. Update construction in composition root.
 
+**Progress**
+- ✅ 2025-12-31: inverted prompt-template usage across services to depend on `PromptTemplateServicePort`.
+- ✅ 2025-12-31: removed concrete service dependencies in challenge services by introducing/using ports:
+   - `ApprovalRequestLookupPort` (protocol-free approval payload lookup)
+   - `ChallengeOutcomeApprovalServicePort`
+   - `OutcomeTriggerServicePort` + port-level `StateChange`
+   - `SettingsServicePort`
+- ✅ 2025-12-31: removed the last concrete dependency in a use case (`NarrativeEventUseCase` now depends on `NarrativeEventApprovalServicePort` and is no longer generic).
+
 **Verify**
 - Grep: no `Arc<ConcreteService>` in `engine-app/src/application/services/**` constructors (except when constructing the service itself internally, which should be rare and usually removed).
+- `cargo check --workspace`
+- `cargo xtask arch-check`
+
+**Stop condition**
+- No `engine-app` use case depends on another use case’s concrete type.
+- No `engine-app` service depends on another service’s concrete type.
 
 ---
 
 ## Phase 6 — Fix IoC violations (services constructing services)
 
 **Goal**: only composition roots construct; services don’t new() other services.
+
+Progress:
+- ✅ 2025-12-31: removed internal `ToolExecutionService::new()` construction from `DMApprovalQueueService` (no longer stores a ToolExecutionService field; uses a unit-struct instance at execution sites).
+- ✅ 2025-12-31: removed internal `OutcomeSuggestionService::new()` construction from `ChallengeOutcomeApprovalService` tasks by switching call sites to dependency-injected associated functions.
+- ✅ 2025-12-31: verified `cargo check --workspace` and `cargo xtask arch-check`.
 
 Steps:
 1. For each violation where service calls `OtherService::new()`:

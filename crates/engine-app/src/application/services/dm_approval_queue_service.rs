@@ -23,6 +23,7 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
+    ApprovalRequestLookupPort,
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
     ApprovalQueuePort, ApprovalRequest, ApprovalUrgency as PortApprovalUrgency,
     ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, ClockPort, DialogueContextServicePort,
@@ -37,7 +38,6 @@ const MAX_RETRY_COUNT: u32 = 3;
 /// Service for managing the DM approval queue
 pub struct DMApprovalQueueService<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> {
     pub(crate) queue: Arc<Q>,
-    tool_execution_service: ToolExecutionService,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
     dialogue_context_service: Arc<dyn DialogueContextServicePort>,
     /// Item service for creating items and managing inventory
@@ -67,7 +67,6 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
     ) -> Self {
         Self {
             queue,
-            tool_execution_service: ToolExecutionService::new(),
             dialogue_context_service,
             item_service,
             clock,
@@ -191,6 +190,8 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
         approval: &ApprovalRequestData,
         item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
+        let tool_execution_service = ToolExecutionService;
+
         // Record dialogue exchange as a story event
         self.record_dialogue_event(world_id, approval, &approval.proposed_dialogue)
             .await;
@@ -211,7 +212,7 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
                 // Convert ProposedTool to GameTool
                 // Parse the tool arguments JSON to determine tool type
                 if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
-                    if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
+                    if let Err(e) = tool_execution_service.execute_tool(&game_tool).await {
                         tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
                         // Continue with other tools even if one fails
                     } else {
@@ -241,6 +242,8 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
         _rejected_tools: &[String],
         item_recipients: HashMap<String, Vec<String>>,
     ) -> Result<ApprovalOutcome, QueueError> {
+        let tool_execution_service = ToolExecutionService;
+
         // Record dialogue exchange as a story event (with modified dialogue)
         self.record_dialogue_event(world_id, approval, modified_dialogue)
             .await;
@@ -261,7 +264,7 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
                     .await;
                     executed_tools.push(tool.name.clone());
                 } else if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
-                    if let Err(e) = self.tool_execution_service.execute_tool(&game_tool).await {
+                    if let Err(e) = tool_execution_service.execute_tool(&game_tool).await {
                         tracing::warn!("Failed to execute tool {}: {}", tool.name, e);
                     } else {
                         executed_tools.push(tool.name.clone());
@@ -1128,5 +1131,23 @@ where
     ) -> Result<ApprovalOutcome, QueueError> {
         // Delegate to the existing process_decision method
         self.process_decision(world_id, item_id, decision).await
+    }
+}
+
+// ============================================================================
+// ApprovalRequestLookupPort Implementation
+// ============================================================================
+
+#[async_trait]
+impl<Q, I> ApprovalRequestLookupPort for DMApprovalQueueService<Q, I>
+where
+    Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
+    I: ItemService + Send + Sync + 'static,
+{
+    async fn get_by_id(&self, id: &str) -> anyhow::Result<Option<ApprovalRequestData>> {
+        let maybe_item = DMApprovalQueueService::<Q, I>::get_by_id(self, id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        Ok(maybe_item.map(|i| i.payload))
     }
 }

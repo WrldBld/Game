@@ -14,20 +14,18 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::application::dto::{OutcomeTriggerRequestDto, PendingChallengeResolutionDto};
-use crate::application::services::{
-    ChallengeOutcomeApprovalService, ChallengeService, DMApprovalQueueService, ItemService,
-    PlayerCharacterService, SkillService,
-};
+use crate::application::services::{ChallengeService, PlayerCharacterService, SkillService};
 use tracing::{debug, info};
 use wrldbldr_domain::entities::{Difficulty, OutcomeType};
-use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRollInput};
+use wrldbldr_domain::value_objects::{
+    AdHocOutcomes, ChallengeOutcomeData, DiceRollInput, ProposedTool,
+};
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
-use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ChallengeResolutionServicePort, ClockPort, DiceInputType,
-    DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution, RandomPort,
-    RollResult as PortRollResult,
+    ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
+    ClockPort, DiceInputType, DiceRoll as PortDiceRoll,
+    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
 };
 
 // ============================================================================
@@ -170,8 +168,6 @@ struct ChallengePreamble {
     character_id: String,
 }
 
-use wrldbldr_engine_ports::outbound::LlmPort;
-
 /// Service responsible for challenge-related flows.
 ///
 /// This service returns typed results and delegates all broadcasting to the use case layer.
@@ -187,35 +183,27 @@ use wrldbldr_engine_ports::outbound::LlmPort;
 /// - Does NOT construct `ServerMessage` (hexagonal architecture compliance)
 /// - All challenge outcomes go through DM approval (no `has_dm()` bypass)
 ///
-/// Generic over `L: LlmPort` for LLM-powered suggestion generation via the approval service.
-/// Generic over `I: ItemService` for item operations in the DM approval queue.
 pub struct ChallengeResolutionService<
     S: ChallengeService,
     K: SkillService,
-    Q: ApprovalQueuePort<ApprovalRequestData>,
     P: PlayerCharacterService,
-    L: LlmPort,
-    I: ItemService,
 > {
     challenge_service: Arc<S>,
     skill_service: Arc<K>,
     player_character_service: Arc<P>,
-    dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
-    challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
+    approval_request_lookup: Arc<dyn ApprovalRequestLookupPort>,
+    challenge_outcome_approval_service: Arc<dyn ChallengeOutcomeApprovalServicePort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
     /// Random number generator for dice rolls (required for testability)
     rng: Arc<dyn RandomPort>,
 }
 
-impl<S, K, Q, P, L, I> ChallengeResolutionService<S, K, Q, P, L, I>
+impl<S, K, P> ChallengeResolutionService<S, K, P>
 where
     S: ChallengeService,
     K: SkillService,
-    Q: ApprovalQueuePort<ApprovalRequestData>,
     P: PlayerCharacterService,
-    L: LlmPort + 'static,
-    I: ItemService,
 {
     /// Create a new challenge resolution service
     ///
@@ -230,8 +218,8 @@ where
         challenge_service: Arc<S>,
         skill_service: Arc<K>,
         player_character_service: Arc<P>,
-        dm_approval_queue_service: Arc<DMApprovalQueueService<Q, I>>,
-        challenge_outcome_approval_service: Arc<ChallengeOutcomeApprovalService<L>>,
+        approval_request_lookup: Arc<dyn ApprovalRequestLookupPort>,
+        challenge_outcome_approval_service: Arc<dyn ChallengeOutcomeApprovalServicePort>,
         clock: Arc<dyn ClockPort>,
         rng: Arc<dyn RandomPort>,
     ) -> Self {
@@ -239,7 +227,7 @@ where
             challenge_service,
             skill_service,
             player_character_service,
-            dm_approval_queue_service,
+            approval_request_lookup,
             challenge_outcome_approval_service,
             clock,
             rng,
@@ -422,14 +410,21 @@ where
             })
             .collect();
 
-        // Build PendingChallengeResolutionDto for approval queue
-        let resolution = PendingChallengeResolutionDto {
+        // Parse character_id into domain type used by ChallengeOutcomeData
+        let character_uuid = uuid::Uuid::parse_str(&character_id)
+            .ok()
+            .map(CharacterId::from)
+            .unwrap_or_else(CharacterId::new);
+
+        // Build ChallengeOutcomeData for approval queue (domain type)
+        let resolution = ChallengeOutcomeData {
             resolution_id: resolution_id.clone(),
+            world_id,
             challenge_id: challenge_id_str.to_string(),
             challenge_name: challenge.name.clone(),
             challenge_description: challenge.description.clone(),
             skill_name: skill_name.clone(),
-            character_id: character_id.clone(),
+            character_id: character_uuid,
             character_name: player_name.clone(),
             roll,
             modifier,
@@ -439,17 +434,23 @@ where
             outcome_triggers: outcome
                 .triggers
                 .iter()
-                .cloned()
-                .map(OutcomeTriggerRequestDto::from)
+                .map(|t| ProposedTool {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    name: format!("{:?}", t),
+                    description: String::new(),
+                    arguments: serde_json::json!({}),
+                })
                 .collect(),
             roll_breakdown: roll_breakdown.clone(),
-            individual_rolls: individual_rolls.clone(),
-            timestamp: self.now().to_rfc3339(),
+            timestamp: self.now(),
+            suggestions: None,
+            is_generating_suggestions: false,
         };
 
         // Queue for DM approval
-        self.challenge_outcome_approval_service
-            .queue_for_approval(&world_id, resolution)
+        let queued_resolution_id = self
+            .challenge_outcome_approval_service
+            .queue_for_approval(world_id, resolution)
             .await
             .map_err(|e| ChallengeResolutionError::ApprovalQueueFailed(e.to_string()))?;
 
@@ -461,7 +462,7 @@ where
 
         // Return result for broadcasting by use case layer
         Ok(RollSubmissionResult {
-            resolution_id,
+            resolution_id: queued_resolution_id,
             challenge_id: challenge_id_str.to_string(),
             challenge_name: challenge.name.clone(),
             challenge_description: Some(challenge.description.clone()),
@@ -751,9 +752,9 @@ where
             return Ok(None);
         }
 
-        // Look up the approval item
-        let approval_item = self
-            .dm_approval_queue_service
+        // Look up the approval request payload
+        let approval_request = self
+            .approval_request_lookup
             .get_by_id(&request_id)
             .await
             .map_err(|e| ChallengeResolutionError::ApprovalLookupError(e.to_string()))?
@@ -764,9 +765,8 @@ where
                 ))
             })?;
 
-        // Get challenge suggestion from the approval item
-        let challenge_suggestion = approval_item
-            .payload
+        // Get challenge suggestion from the approval request
+        let challenge_suggestion = approval_request
             .challenge_suggestion
             .as_ref()
             .ok_or_else(|| {
@@ -924,15 +924,12 @@ use async_trait::async_trait;
 ///
 /// This exposes challenge resolution methods to infrastructure adapters.
 #[async_trait]
-impl<S, K, Q, P, L, I> ChallengeResolutionServicePort
-    for ChallengeResolutionService<S, K, Q, P, L, I>
+impl<S, K, P> ChallengeResolutionServicePort
+    for ChallengeResolutionService<S, K, P>
 where
     S: ChallengeService + 'static,
     K: SkillService + 'static,
-    Q: ApprovalQueuePort<ApprovalRequestData> + 'static,
     P: PlayerCharacterService + 'static,
-    L: LlmPort + 'static,
-    I: ItemService + 'static,
 {
     async fn start_resolution(
         &self,

@@ -16,9 +16,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{NarrativeEventUseCasePort, UseCaseContext};
-use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent};
-
-use crate::application::services::{NarrativeEventApprovalService, NarrativeEventService};
+use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent, NarrativeEventApprovalServicePort};
 
 use super::errors::NarrativeEventError;
 
@@ -32,14 +30,14 @@ pub use wrldbldr_engine_ports::outbound::{
 // Use Case
 // =============================================================================
 
-pub struct NarrativeEventUseCase<N: NarrativeEventService> {
-    approval_service: Arc<NarrativeEventApprovalService<N>>,
+pub struct NarrativeEventUseCase {
+    approval_service: Arc<dyn NarrativeEventApprovalServicePort>,
     broadcast_port: Arc<dyn BroadcastPort>,
 }
 
-impl<N: NarrativeEventService> NarrativeEventUseCase<N> {
+impl NarrativeEventUseCase {
     pub fn new(
-        approval_service: Arc<NarrativeEventApprovalService<N>>,
+        approval_service: Arc<dyn NarrativeEventApprovalServicePort>,
         broadcast_port: Arc<dyn BroadcastPort>,
     ) -> Self {
         Self {
@@ -103,7 +101,7 @@ impl<N: NarrativeEventService> NarrativeEventUseCase<N> {
 // =============================================================================
 
 #[async_trait]
-impl<N: NarrativeEventService> NarrativeEventUseCasePort for NarrativeEventUseCase<N> {
+impl NarrativeEventUseCasePort for NarrativeEventUseCase {
     async fn handle_suggestion_decision(
         &self,
         ctx: UseCaseContext,

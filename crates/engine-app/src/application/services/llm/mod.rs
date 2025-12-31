@@ -24,12 +24,12 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::{DirectorialNotes, GamePromptRequest};
-use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
+use wrldbldr_engine_ports::outbound::{
+    ChatMessage, LlmPort, LlmRequest, MessageRole, PromptTemplateServicePort, ToolCall,
+};
 
 use tool_definitions::get_game_tool_definitions;
 use tool_parser::parse_tool_calls_from_response;
-
-use crate::application::services::PromptTemplateService;
 
 /// Service for generating AI-powered game responses
 ///
@@ -76,7 +76,7 @@ pub struct LLMService<L: LlmPort> {
 
 impl<L: LlmPort> LLMService<L> {
     /// Create a new LLM service with the provided client and prompt template service
-    pub fn new(ollama: Arc<L>, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+    pub fn new(ollama: Arc<L>, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
         Self {
             ollama,
             prompt_builder: PromptBuilder::new(prompt_template_service),
@@ -343,11 +343,12 @@ pub enum LLMServiceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::services::PromptTemplateService;
     use wrldbldr_domain::WorldId;
     use wrldbldr_engine_dto::FinishReason;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, LlmResponse, PromptTemplateError, PromptTemplateRepositoryPort,
-        ToolDefinition,
+        PromptTemplateServicePort, ToolDefinition,
     };
 
     /// Mock environment for tests
@@ -443,7 +444,8 @@ mod tests {
     fn create_test_service() -> LLMService<MockLlm> {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
-        let prompt_service = Arc::new(PromptTemplateService::new(repo, env));
+        let prompt_service: Arc<dyn PromptTemplateServicePort> =
+            Arc::new(PromptTemplateService::new(repo, env));
         LLMService::new(Arc::new(MockLlm), prompt_service)
     }
 

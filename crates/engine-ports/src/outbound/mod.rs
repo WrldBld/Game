@@ -7,6 +7,7 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod actantial_context_service_port;
+mod approval_request_lookup_port;
 mod asset_generation_queue_service_port;
 mod asset_service_port;
 mod broadcast_port;
@@ -75,6 +76,7 @@ mod scene_interactions_query_port;
 mod scene_with_relations_query_port;
 mod settings_port;
 mod settings_service_port;
+mod state_change;
 mod sheet_template_service_port;
 mod skill_service_port;
 mod staging_repository_port;
@@ -87,6 +89,7 @@ mod story_event_recording_service_port;
 mod story_event_repository;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
+mod outcome_trigger_service_port;
 mod trigger_evaluation_service_port;
 mod use_case_errors;
 mod use_case_types;
@@ -102,6 +105,20 @@ mod world_state_update_port;
 pub use actantial_context_service_port::ActantialContextServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use actantial_context_service_port::MockActantialContextServicePort;
+
+pub use approval_request_lookup_port::ApprovalRequestLookupPort;
+#[cfg(any(test, feature = "testing"))]
+pub use approval_request_lookup_port::MockApprovalRequestLookupPort;
+
+// State change DTOs (tool/trigger execution results)
+pub use state_change::StateChange;
+
+// Outcome trigger execution
+pub use outcome_trigger_service_port::{
+    OutcomeTriggerExecutionResult, OutcomeTriggerServicePort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use outcome_trigger_service_port::MockOutcomeTriggerServicePort;
 
 // Challenge service port - interface for challenge operations
 pub use challenge_service_port::ChallengeServicePort;

@@ -7,21 +7,13 @@
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
-use crate::application::services::tool_execution_service::StateChange;
 use wrldbldr_domain::entities::OutcomeTrigger;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::ChallengeCrudPort;
+use wrldbldr_engine_ports::outbound::{
+    ChallengeCrudPort, OutcomeTriggerExecutionResult, OutcomeTriggerServicePort, StateChange,
+};
 
-/// Result of executing outcome triggers
-#[derive(Debug, Clone)]
-pub struct TriggerExecutionResult {
-    /// Number of triggers executed
-    pub trigger_count: usize,
-    /// State changes that occurred
-    pub state_changes: Vec<StateChange>,
-    /// Any errors that occurred (non-fatal)
-    pub warnings: Vec<String>,
-}
+use async_trait::async_trait;
 
 /// Service for executing outcome triggers
 pub struct OutcomeTriggerService {
@@ -44,13 +36,13 @@ impl OutcomeTriggerService {
     #[instrument(skip(self))]
     pub async fn execute_triggers(
         &self,
-        triggers: &[OutcomeTrigger],
+        triggers: Vec<OutcomeTrigger>,
         _world_id: WorldId,
-    ) -> TriggerExecutionResult {
+    ) -> OutcomeTriggerExecutionResult {
         let mut state_changes = Vec::new();
         let mut warnings = Vec::new();
 
-        for trigger in triggers {
+        for trigger in &triggers {
             match self.execute_single_trigger(trigger).await {
                 Ok(changes) => state_changes.extend(changes),
                 Err(e) => {
@@ -66,7 +58,7 @@ impl OutcomeTriggerService {
             "Executed outcome triggers"
         );
 
-        TriggerExecutionResult {
+        OutcomeTriggerExecutionResult {
             trigger_count: triggers.len(),
             state_changes,
             warnings,
@@ -165,6 +157,21 @@ impl OutcomeTriggerService {
     }
 }
 
+// =============================================================================
+// Port implementation
+// =============================================================================
+
+#[async_trait]
+impl OutcomeTriggerServicePort for OutcomeTriggerService {
+    async fn execute_triggers(
+        &self,
+        triggers: Vec<OutcomeTrigger>,
+        world_id: WorldId,
+    ) -> OutcomeTriggerExecutionResult {
+        OutcomeTriggerService::execute_triggers(self, triggers, world_id).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,7 +186,7 @@ mod tests {
 
         let triggers = vec![OutcomeTrigger::reveal("A secret passage is revealed!")];
 
-        let result = service.execute_triggers(&triggers, world_id).await;
+        let result = service.execute_triggers(triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 1);
         assert_eq!(result.state_changes.len(), 1);
@@ -201,7 +208,7 @@ mod tests {
             item_description: Some("A blade that glows blue".to_string()),
         }];
 
-        let result = service.execute_triggers(&triggers, world_id).await;
+        let result = service.execute_triggers(triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 1);
         assert!(matches!(
@@ -225,7 +232,7 @@ mod tests {
             OutcomeTrigger::modify_stat("reputation", 10),
         ];
 
-        let result = service.execute_triggers(&triggers, world_id).await;
+        let result = service.execute_triggers(triggers, world_id).await;
 
         assert_eq!(result.trigger_count, 3);
         assert_eq!(result.state_changes.len(), 3);

@@ -21,18 +21,16 @@ use crate::application::dto::{OutcomeSuggestionRequest, PendingChallengeResoluti
 use crate::application::services::challenge_approval_events::{
     ChallengeApprovalEvent, OutcomeBranchData, OutcomeTriggerData,
 };
-use crate::application::services::tool_execution_service::StateChange;
-use crate::application::services::{
-    OutcomeSuggestionService, OutcomeTriggerService, PromptTemplateService, SettingsService,
-};
+use crate::application::services::OutcomeSuggestionService;
 use async_trait::async_trait;
 use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
     ChallengeOutcomeApprovalServicePort, ClockPort, ItemRepositoryPort, LlmPort,
-    OutcomeDecision as PortOutcomeDecision, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
-    QueuePort,
+    OutcomeDecision as PortOutcomeDecision, OutcomeTriggerServicePort, PlayerCharacterCrudPort,
+    PlayerCharacterInventoryPort, PromptTemplateServicePort, QueuePort, SettingsServicePort,
+    StateChange,
 };
 
 /// Result of challenge approval operations
@@ -123,7 +121,7 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Event channel sender for broadcasting events (bounded channel)
     event_sender: mpsc::Sender<ChallengeApprovalEvent>,
     /// Outcome trigger service for executing triggers
-    outcome_trigger_service: Arc<OutcomeTriggerService>,
+    outcome_trigger_service: Arc<dyn OutcomeTriggerServicePort>,
     /// Player Character CRUD operations (get, update)
     pc_crud: Arc<dyn PlayerCharacterCrudPort>,
     /// Player Character inventory operations
@@ -133,9 +131,9 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// LLM port for generating outcome suggestions
     llm_port: Arc<L>,
     /// Settings service for configurable values
-    settings_service: Arc<SettingsService>,
+    settings_service: Arc<dyn SettingsServicePort>,
     /// Prompt template service for resolving prompt templates
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
@@ -146,14 +144,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// All dependencies are required - there are no optional features.
     pub fn new(
         event_sender: mpsc::Sender<ChallengeApprovalEvent>,
-        outcome_trigger_service: Arc<OutcomeTriggerService>,
+        outcome_trigger_service: Arc<dyn OutcomeTriggerServicePort>,
         pc_crud: Arc<dyn PlayerCharacterCrudPort>,
         pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
-        prompt_template_service: Arc<PromptTemplateService>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
         queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
         llm_port: Arc<L>,
-        settings_service: Arc<SettingsService>,
+        settings_service: Arc<dyn SettingsServicePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -321,9 +319,13 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                 let world_id_owned = *world_id;
 
                 tokio::spawn(async move {
-                    let suggestion_service =
-                        OutcomeSuggestionService::new(llm, prompt_template_service);
-                    match suggestion_service.generate_suggestions(&request).await {
+                    match OutcomeSuggestionService::<L>::generate_suggestions_with(
+                        llm,
+                        prompt_template_service,
+                        &request,
+                    )
+                    .await
+                    {
                         Ok(suggestions) => {
                             // Update suggestions in pending map
                             let mut pending_guard = pending.write().await;
@@ -448,7 +450,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
 
             let result = self
                 .outcome_trigger_service
-                .execute_triggers(&domain_triggers, *world_id)
+                .execute_triggers(domain_triggers, *world_id)
                 .await;
 
             // Process state changes from trigger execution
@@ -717,10 +719,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         let world_id_owned = *world_id;
 
         tokio::spawn(async move {
-            let suggestion_service = OutcomeSuggestionService::new(llm, prompt_template_service);
-            match suggestion_service
-                .generate_branches(&request, branch_count, tokens_per_branch)
-                .await
+            match OutcomeSuggestionService::<L>::generate_branches_with(
+                llm,
+                prompt_template_service,
+                &request,
+                branch_count,
+                tokens_per_branch,
+            )
+            .await
             {
                 Ok(branches) => {
                     // Update pending item

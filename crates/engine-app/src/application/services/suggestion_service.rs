@@ -10,23 +10,40 @@ use std::sync::Arc;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::application::services::PromptTemplateService;
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole};
+use wrldbldr_engine_ports::outbound::{
+    ChatMessage, LlmPort, LlmRequest, MessageRole, PromptTemplateServicePort,
+};
 
 /// Service for generating content suggestions
 pub struct SuggestionService<L: LlmPort> {
     llm: L,
-    prompt_template_service: Arc<PromptTemplateService>,
+    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
 }
 
 impl<L: LlmPort> SuggestionService<L> {
     /// Create a new suggestion service
-    pub fn new(llm: L, prompt_template_service: Arc<PromptTemplateService>) -> Self {
+    pub fn new(llm: L, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
         Self {
             llm,
             prompt_template_service,
+        }
+    }
+
+    async fn resolve_optional_world_template(&self, world_id: Option<WorldId>, key: &str) -> String {
+        match world_id {
+            Some(world_id) => {
+                self.prompt_template_service
+                    .resolve_for_world_with_source(world_id, key)
+                    .await
+                    .value
+            }
+            None => self
+                .prompt_template_service
+                .resolve_with_source(key)
+                .await
+                .value,
         }
     }
 
@@ -64,8 +81,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_NAME)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_NAME)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
@@ -78,11 +94,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(
-                world_id.as_ref(),
-                prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION,
-            )
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -95,8 +107,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_WANTS)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_WANTS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
@@ -109,8 +120,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_CHARACTER_FEARS)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_FEARS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
@@ -123,11 +133,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(
-                world_id.as_ref(),
-                prompt_keys::SUGGESTION_CHARACTER_BACKSTORY,
-            )
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_BACKSTORY)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 2).await
@@ -137,8 +143,7 @@ impl<L: LlmPort> SuggestionService<L> {
     pub async fn suggest_location_names(&self, context: &SuggestionContext) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_NAME)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_LOCATION_NAME)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
@@ -151,11 +156,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(
-                world_id.as_ref(),
-                prompt_keys::SUGGESTION_LOCATION_DESCRIPTION,
-            )
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_LOCATION_DESCRIPTION)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -168,11 +169,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(
-                world_id.as_ref(),
-                prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE,
-            )
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_LOCATION_ATMOSPHERE)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 4).await
@@ -185,8 +182,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_FEATURES)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_LOCATION_FEATURES)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 5).await
@@ -199,8 +195,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_LOCATION_SECRETS)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_LOCATION_SECRETS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -221,11 +216,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(
-                world_id.as_ref(),
-                prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR,
-            )
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_DEFLECTION_BEHAVIOR)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -244,8 +235,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_BEHAVIORAL_TELLS)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_BEHAVIORAL_TELLS)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -264,8 +254,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_WANT_DESCRIPTION)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_WANT_DESCRIPTION)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
@@ -284,8 +273,7 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .prompt_template_service
-            .resolve_optional_world(world_id.as_ref(), prompt_keys::SUGGESTION_ACTANTIAL_REASON)
+            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_ACTANTIAL_REASON)
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await
