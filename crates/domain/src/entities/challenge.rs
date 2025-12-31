@@ -138,7 +138,10 @@ impl Challenge {
     ///   total >= DC = success
     /// - Percentage-based (D100): Roll 1 = crit success, Roll 100 = crit failure,
     ///   roll <= target = success (lower is better)
-    /// - Descriptor-based (Narrative): Roll >= 11 on 2d6 = success
+    /// - Descriptor-based (Narrative/PbtA): 2d6 + modifier
+    ///   - 10+ = full success
+    ///   - 7-9 = partial success
+    ///   - 6- = miss/failure
     /// - Opposed: Always returns success (actual comparison done elsewhere)
     /// - Custom: Always returns success (DM adjudicates)
     pub fn evaluate_roll(&self, roll: i32, modifier: i32) -> (OutcomeType, &Outcome) {
@@ -169,9 +172,13 @@ impl Challenge {
                 }
             }
             Difficulty::Descriptor(_) => {
-                // Narrative systems: 2d6 + modifier >= 11 = success
-                if (roll + modifier) >= 11 {
+                // PbtA-style narrative systems: 2d6 + modifier
+                // 10+ = full success, 7-9 = partial success, 6- = miss
+                let total = roll + modifier;
+                if total >= 10 {
                     OutcomeType::Success
+                } else if total >= 7 {
+                    OutcomeType::Partial
                 } else {
                     OutcomeType::Failure
                 }
@@ -873,14 +880,33 @@ mod tests {
             "Test",
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+        .with_outcomes(
+            ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"),
+        );
 
-        // Roll 8 + modifier 3 = 11, meets threshold
+        // Roll 8 + modifier 3 = 11, >= 10 = full success
         let (outcome_type, _) = challenge.evaluate_roll(8, 3);
         assert_eq!(outcome_type, OutcomeType::Success);
 
-        // Roll 6 + modifier 2 = 8, below threshold
-        let (outcome_type, _) = challenge.evaluate_roll(6, 2);
+        // Roll 5 + modifier 5 = 10, >= 10 = full success
+        let (outcome_type, _) = challenge.evaluate_roll(5, 5);
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Roll 5 + modifier 3 = 8, 7-9 = partial success
+        let (outcome_type, outcome) = challenge.evaluate_roll(5, 3);
+        assert_eq!(outcome_type, OutcomeType::Partial);
+        assert_eq!(outcome.description, "Partial!");
+
+        // Roll 4 + modifier 3 = 7, 7-9 = partial success
+        let (outcome_type, _) = challenge.evaluate_roll(4, 3);
+        assert_eq!(outcome_type, OutcomeType::Partial);
+
+        // Roll 3 + modifier 3 = 6, 6- = failure
+        let (outcome_type, _) = challenge.evaluate_roll(3, 3);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+
+        // Roll 2 + modifier 1 = 3, 6- = failure
+        let (outcome_type, _) = challenge.evaluate_roll(2, 1);
         assert_eq!(outcome_type, OutcomeType::Failure);
     }
 
