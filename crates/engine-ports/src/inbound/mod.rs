@@ -54,14 +54,12 @@ pub use app_state_port::AppStatePort;
 pub use use_case_ports::{
     // Challenge port traits
     ChallengeDmApprovalQueuePort,
-    ChallengeOutcomeApprovalPort,
-    ChallengeResolutionPort,
     // Connection port traits
     // Scene port traits
     DirectorialContextRepositoryPort,
     // Player action port traits
     InteractionServicePort,
-    NarrativeRollContext,
+    
     SceneDmActionQueuePort,
     SceneServicePort,
     // Staging port traits

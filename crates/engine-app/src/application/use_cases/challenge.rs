@@ -36,8 +36,11 @@ use super::errors::ChallengeError;
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
-    ChallengeDmApprovalQueuePort as DmApprovalQueuePort, ChallengeOutcomeApprovalPort,
-    ChallengeResolutionPort, ChallengeUseCasePort,
+    ChallengeDmApprovalQueuePort as DmApprovalQueuePort, ChallengeUseCasePort,
+};
+
+pub use wrldbldr_engine_ports::outbound::{
+    ChallengeOutcomeApprovalPort, ChallengeResolutionPort,
     NarrativeRollContext as PortNarrativeRollContext,
 };
 

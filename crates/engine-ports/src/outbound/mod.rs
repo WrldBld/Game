@@ -10,8 +10,10 @@ mod actantial_context_service_port;
 mod asset_generation_queue_service_port;
 mod asset_service_port;
 mod broadcast_port;
+mod challenge_outcome_approval_port;
 mod challenge_outcome_approval_service_port;
 mod challenge_repository;
+mod challenge_resolution_port;
 mod challenge_resolution_service_port;
 mod challenge_service_port;
 mod character_repository;
@@ -110,6 +112,9 @@ pub use use_case_errors::{
     ActionError, ChallengeError, InventoryError, NarrativeEventError, ObservationError, SceneError,
     StagingError,
 };
+
+pub use challenge_outcome_approval_port::ChallengeOutcomeApprovalPort;
+pub use challenge_resolution_port::ChallengeResolutionPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
@@ -571,6 +576,7 @@ pub use use_case_types::{
     ConnectionInfo,
     CreateAdHocInput,
     DiceInputType,
+    NarrativeRollContext,
     DirectorialContextData,
     DirectorialUpdateResult,
     DiscardChallengeInput,

@@ -13,9 +13,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::StagedNpc;
-use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{
-    CharacterId, GameTime, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
+    GameTime, LocationId, RegionId, SceneId, WorldId,
 };
 
 // Re-export types from outbound for use in trait definitions
@@ -69,118 +68,8 @@ pub use crate::outbound::{
 // Challenge Ports (from challenge.rs)
 // =============================================================================
 
-/// Narrative context for roll evaluation (Blades in the Dark style)
-#[derive(Debug, Clone, Default)]
-pub struct NarrativeRollContext {
-    /// Position for Blades-style resolution (Controlled, Risky, Desperate)
-    pub position: Option<Position>,
-    /// Effect level for Blades-style resolution (Limited, Standard, Great, etc.)
-    pub effect: Option<EffectLevel>,
-    /// Individual dice results (for critical detection in d6 pools)
-    pub dice_results: Option<Vec<i32>>,
-}
-
-/// Port for challenge resolution operations
-///
-/// This abstracts the ChallengeResolutionService for use case consumption.
-/// Methods include `world_id` to support world-scoped challenge resolution.
-#[async_trait]
-pub trait ChallengeResolutionPort: Send + Sync {
-    /// Handle a dice roll submission
-    ///
-    /// # Arguments
-    /// * `world_id` - The world this challenge belongs to
-    /// * `pc_id` - The player character making the roll
-    /// * `challenge_id` - The challenge ID as a string
-    /// * `roll` - The raw dice roll value
-    /// * `narrative_config` - Narrative resolution config from the world's rule system
-    /// * `narrative_context` - Context for Blades-style resolution (position/effect from client)
-    async fn handle_roll(
-        &self,
-        world_id: &WorldId,
-        pc_id: PlayerCharacterId,
-        challenge_id: String,
-        roll: i32,
-        narrative_config: &NarrativeResolutionConfig,
-        narrative_context: Option<&NarrativeRollContext>,
-    ) -> Result<RollResultData, String>;
-
-    /// Handle dice input (formula or manual)
-    ///
-    /// # Arguments
-    /// * `world_id` - The world this challenge belongs to
-    /// * `pc_id` - The player character making the roll
-    /// * `challenge_id` - The challenge ID as a string
-    /// * `input_type` - The dice input (formula like "1d20+5" or manual value)
-    /// * `narrative_config` - Narrative resolution config from the world's rule system
-    /// * `narrative_context` - Context for Blades-style resolution (position/effect from client)
-    async fn handle_roll_input(
-        &self,
-        world_id: &WorldId,
-        pc_id: PlayerCharacterId,
-        challenge_id: String,
-        input_type: DiceInputType,
-        narrative_config: &NarrativeResolutionConfig,
-        narrative_context: Option<&NarrativeRollContext>,
-    ) -> Result<RollResultData, String>;
-
-    /// Trigger a challenge against a target
-    async fn trigger_challenge(
-        &self,
-        world_id: &WorldId,
-        challenge_id: String,
-        target_character_id: CharacterId,
-    ) -> Result<TriggerResult, String>;
-
-    /// Handle DM's decision on a suggestion
-    async fn handle_suggestion_decision(
-        &self,
-        world_id: &WorldId,
-        request_id: String,
-        approved: bool,
-        modified_difficulty: Option<String>,
-    ) -> Result<(), String>;
-
-    /// Create an ad-hoc challenge
-    async fn create_adhoc_challenge(
-        &self,
-        world_id: &WorldId,
-        challenge_name: String,
-        skill_name: String,
-        difficulty: String,
-        target_pc_id: PlayerCharacterId,
-        outcomes: AdHocOutcomes,
-    ) -> Result<AdHocResult, String>;
-}
-
-/// Port for challenge outcome approval operations
-#[async_trait]
-pub trait ChallengeOutcomeApprovalPort: Send + Sync {
-    /// Process DM's decision on an outcome
-    async fn process_decision(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        decision: OutcomeDecision,
-    ) -> Result<(), String>;
-
-    /// Request outcome branches
-    async fn request_branches(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        guidance: Option<String>,
-    ) -> Result<(), String>;
-
-    /// Select a specific branch
-    async fn select_branch(
-        &self,
-        world_id: &WorldId,
-        resolution_id: &str,
-        branch_id: &str,
-        modified_description: Option<String>,
-    ) -> Result<(), String>;
-}
+// Note: ChallengeResolutionPort, ChallengeOutcomeApprovalPort, and NarrativeRollContext
+// are outbound ports/types.
 
 /// Port for DM approval queue operations
 #[async_trait]
