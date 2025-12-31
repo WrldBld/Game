@@ -311,6 +311,7 @@ Steps:
 - ✅ Started 2025-12-31: removed the forwarding wrapper `ConnectionWorldStateAdapter`; rewired composition to reuse `SceneWorldStateAdapter` directly.
 - ✅ Continued 2025-12-31: removed wrapper adapters `ConnectionManagerAdapter` and `DmNotificationAdapter` by implementing `ConnectionManagerPort` and `DmNotificationPort` directly on `WorldConnectionManager`.
 - ✅ Continued 2025-12-31: implemented `WorldStateUpdatePort`, `StagingStatePort`, and `StagingStateExtPort` directly on `WorldStateManager`; removed wrappers `SceneWorldStateAdapter` and `StagingStateAdapter` and rewired composition to use `world_state` directly.
+- ✅ Continued 2025-12-31: deleted `engine-adapters/src/infrastructure/ports/` by flattening it into `engine-adapters/src/infrastructure/ports.rs` + sibling module files (keeping the module path `infrastructure::ports` stable).
 
 **Stop condition**
 - That directory is deleted (or contains only legitimate boundary code, not forwarders).
