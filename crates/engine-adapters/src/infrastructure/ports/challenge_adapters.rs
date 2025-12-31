@@ -19,9 +19,10 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::value_objects::NarrativeResolutionConfig;
 use wrldbldr_engine_ports::inbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
-    ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType,
+    ChallengeOutcomeApprovalPort, ChallengeResolutionPort, DiceInputType, NarrativeRollContext,
     RollResultData as RollResult, TriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{
@@ -161,11 +162,15 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
         pc_id: PlayerCharacterId,
         challenge_id: String,
         roll: i32,
+        _narrative_config: &NarrativeResolutionConfig,
+        _narrative_context: Option<&NarrativeRollContext>,
     ) -> Result<RollResult, String> {
         let uuid = uuid::Uuid::parse_str(&challenge_id).map_err(|e| e.to_string())?;
         let challenge_id_parsed = wrldbldr_domain::ChallengeId::from_uuid(uuid);
 
         // Start a resolution and immediately submit the roll
+        // TODO: Pass narrative_config and narrative_context to the service port
+        // once ChallengeResolutionServicePort is extended to support them
         let resolution_id = self
             .service
             .start_resolution(challenge_id_parsed, pc_id)
@@ -204,11 +209,15 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
         pc_id: PlayerCharacterId,
         challenge_id: String,
         input_type: DiceInputType,
+        _narrative_config: &NarrativeResolutionConfig,
+        _narrative_context: Option<&NarrativeRollContext>,
     ) -> Result<RollResult, String> {
         let uuid = uuid::Uuid::parse_str(&challenge_id).map_err(|e| e.to_string())?;
         let challenge_id_parsed = wrldbldr_domain::ChallengeId::from_uuid(uuid);
 
         // Start a resolution and immediately submit the roll
+        // TODO: Pass narrative_config and narrative_context to the service port
+        // once ChallengeResolutionServicePort is extended to support them
         let resolution_id = self
             .service
             .start_resolution(challenge_id_parsed, pc_id)

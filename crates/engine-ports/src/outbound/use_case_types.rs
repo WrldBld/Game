@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use wrldbldr_domain::value_objects::{EffectLevel, Position};
 use wrldbldr_domain::{
     CharacterId, GameTime, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
 };
@@ -503,11 +504,28 @@ pub struct ApprovalItem {
 // Challenge Input Types
 // =============================================================================
 
+/// Context for narrative roll evaluation (Blades in the Dark style)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct NarrativeRollContext {
+    /// Position for Blades-style resolution (Controlled, Risky, Desperate)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<Position>,
+    /// Effect level for Blades-style resolution (Limited, Standard, Great, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effect: Option<EffectLevel>,
+    /// Individual dice results (for critical detection in d6 pools)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dice_results: Option<Vec<i32>>,
+}
+
 /// Input for submitting a dice roll
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitRollInput {
     pub challenge_id: String,
     pub roll: i32,
+    /// Optional narrative context for Blades-style resolution (position/effect chosen by player/DM)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub narrative_context: Option<NarrativeRollContext>,
 }
 
 /// Input for submitting dice input (formula or manual)
@@ -515,6 +533,9 @@ pub struct SubmitRollInput {
 pub struct SubmitDiceInputInput {
     pub challenge_id: String,
     pub input_type: DiceInputType,
+    /// Optional narrative context for Blades-style resolution (position/effect chosen by player/DM)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub narrative_context: Option<NarrativeRollContext>,
 }
 
 /// Input for triggering a challenge

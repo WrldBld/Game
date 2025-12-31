@@ -39,6 +39,7 @@ pub enum RuleSystemVariant {
     KidsOnBikes,
     FateCore,
     PoweredByApocalypse,
+    BladesInTheDark,
     // Custom
     Custom(String),
 }
@@ -57,6 +58,7 @@ impl RuleSystemVariant {
             Self::KidsOnBikes => "Kids on Bikes",
             Self::FateCore => "FATE Core",
             Self::PoweredByApocalypse => "Powered by the Apocalypse",
+            Self::BladesInTheDark => "Blades in the Dark",
             Self::Custom(name) => name,
         }
     }
@@ -66,9 +68,10 @@ impl RuleSystemVariant {
         match self {
             Self::Dnd5e | Self::Pathfinder2e | Self::GenericD20 => RuleSystemType::D20,
             Self::CallOfCthulhu7e | Self::RuneQuest | Self::GenericD100 => RuleSystemType::D100,
-            Self::KidsOnBikes | Self::FateCore | Self::PoweredByApocalypse => {
-                RuleSystemType::Narrative
-            }
+            Self::KidsOnBikes
+            | Self::FateCore
+            | Self::PoweredByApocalypse
+            | Self::BladesInTheDark => RuleSystemType::Narrative,
             Self::Custom(_) => RuleSystemType::Custom,
         }
     }
@@ -79,7 +82,12 @@ impl RuleSystemVariant {
             RuleSystemType::D20 => vec![Self::Dnd5e, Self::Pathfinder2e, Self::GenericD20],
             RuleSystemType::D100 => vec![Self::CallOfCthulhu7e, Self::RuneQuest, Self::GenericD100],
             RuleSystemType::Narrative => {
-                vec![Self::KidsOnBikes, Self::FateCore, Self::PoweredByApocalypse]
+                vec![
+                    Self::KidsOnBikes,
+                    Self::FateCore,
+                    Self::PoweredByApocalypse,
+                    Self::BladesInTheDark,
+                ]
             }
             RuleSystemType::Custom => vec![],
         }
@@ -106,6 +114,10 @@ pub struct RuleSystemConfig {
     pub success_comparison: SuccessComparison,
     /// Formula for skill checks (display only)
     pub skill_check_formula: String,
+    /// Configuration for narrative resolution systems (PbtA, Fate, Blades)
+    /// Only used when system_type is Narrative
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub narrative_config: Option<NarrativeResolutionConfig>,
 }
 
 impl Default for RuleSystemConfig {
@@ -127,6 +139,7 @@ impl RuleSystemConfig {
             RuleSystemVariant::KidsOnBikes => Self::kids_on_bikes(),
             RuleSystemVariant::FateCore => Self::fate_core(),
             RuleSystemVariant::PoweredByApocalypse => Self::powered_by_apocalypse(),
+            RuleSystemVariant::BladesInTheDark => Self::blades_in_the_dark(),
             RuleSystemVariant::Custom(name) => Self::custom(name),
         }
     }
@@ -149,6 +162,7 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::GreaterOrEqual,
             skill_check_formula: "1d20 + ability modifier + proficiency (if proficient)".to_string(),
             description: "Roll d20, add modifiers. Meet or beat the DC to succeed.".to_string(),
+            narrative_config: None,
         }
     }
 
@@ -171,6 +185,7 @@ impl RuleSystemConfig {
             skill_check_formula: "1d20 + modifier vs DC (4 degrees of success)".to_string(),
             description: "Roll d20 + modifier. Crit success on DC+10, crit fail on DC-10."
                 .to_string(),
+            narrative_config: None,
         }
     }
 
@@ -192,6 +207,7 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::GreaterOrEqual,
             skill_check_formula: "1d20 + modifier vs DC".to_string(),
             description: "Roll d20, add modifiers. Meet or beat the DC to succeed.".to_string(),
+            narrative_config: None,
         }
     }
 
@@ -217,6 +233,7 @@ impl RuleSystemConfig {
             skill_check_formula: "Roll d100 ≤ skill value".to_string(),
             description: "Roll d100. Regular success ≤ skill, Hard ≤ half, Extreme ≤ fifth."
                 .to_string(),
+            narrative_config: None,
         }
     }
 
@@ -239,6 +256,7 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::LessOrEqual,
             skill_check_formula: "Roll d100 ≤ skill value".to_string(),
             description: "Roll d100 under skill. Critical on 1/20th, special on 1/5th.".to_string(),
+            narrative_config: None,
         }
     }
 
@@ -260,6 +278,7 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::LessOrEqual,
             skill_check_formula: "Roll d100 ≤ skill value".to_string(),
             description: "Roll d100 and compare to skill value. Lower is better.".to_string(),
+            narrative_config: None,
         }
     }
 
@@ -282,6 +301,11 @@ impl RuleSystemConfig {
             skill_check_formula: "Roll stat die vs difficulty (1-6 scale)".to_string(),
             description: "Roll your stat die. Higher stat = bigger die. Narrative outcomes."
                 .to_string(),
+            // Kids on Bikes uses a custom system, default to PbtA-like
+            narrative_config: Some(NarrativeResolutionConfig {
+                style: NarrativeResolutionStyle::Custom,
+                ..Default::default()
+            }),
         }
     }
 
@@ -303,6 +327,7 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::Narrative,
             skill_check_formula: "4dF + approach vs difficulty ladder".to_string(),
             description: "Roll 4 Fate dice (+/-/blank) + approach. Compare to ladder.".to_string(),
+            narrative_config: Some(NarrativeResolutionConfig::fate_core()),
         }
     }
 
@@ -324,6 +349,45 @@ impl RuleSystemConfig {
             skill_check_formula: "2d6 + stat: 10+ full success, 7-9 partial, 6- miss".to_string(),
             description: "Roll 2d6 + stat. 10+ success, 7-9 success with cost, 6- trouble."
                 .to_string(),
+            narrative_config: Some(NarrativeResolutionConfig::pbta()),
+        }
+    }
+
+    /// Blades in the Dark preset
+    pub fn blades_in_the_dark() -> Self {
+        Self {
+            name: "Blades in the Dark".to_string(),
+            system_type: RuleSystemType::Narrative,
+            variant: RuleSystemVariant::BladesInTheDark,
+            stat_definitions: vec![
+                // Actions are grouped by attributes
+                // Insight
+                StatDefinition::new("Hunt", "HNT", 0, 4, 0),
+                StatDefinition::new("Study", "STD", 0, 4, 0),
+                StatDefinition::new("Survey", "SRV", 0, 4, 0),
+                StatDefinition::new("Tinker", "TNK", 0, 4, 0),
+                // Prowess
+                StatDefinition::new("Finesse", "FNS", 0, 4, 0),
+                StatDefinition::new("Prowl", "PRW", 0, 4, 0),
+                StatDefinition::new("Skirmish", "SKR", 0, 4, 0),
+                StatDefinition::new("Wreck", "WRK", 0, 4, 0),
+                // Resolve
+                StatDefinition::new("Attune", "ATN", 0, 4, 0),
+                StatDefinition::new("Command", "CMD", 0, 4, 0),
+                StatDefinition::new("Consort", "CNS", 0, 4, 0),
+                StatDefinition::new("Sway", "SWY", 0, 4, 0),
+            ],
+            dice_system: DiceSystem::DicePool {
+                die_type: 6,
+                success_threshold: 6,
+            },
+            success_comparison: SuccessComparison::Narrative,
+            skill_check_formula: "d6 pool (action rating): 6=success, 4-5=partial, 1-3=failure"
+                .to_string(),
+            description:
+                "Roll d6 pool equal to action rating. Position sets risk, Effect sets impact."
+                    .to_string(),
+            narrative_config: Some(NarrativeResolutionConfig::blades()),
         }
     }
 
@@ -338,7 +402,15 @@ impl RuleSystemConfig {
             success_comparison: SuccessComparison::Narrative,
             skill_check_formula: "Custom resolution".to_string(),
             description: "A custom rule system. Define your own stats and mechanics.".to_string(),
+            narrative_config: Some(NarrativeResolutionConfig::default()),
         }
+    }
+
+    /// Get the narrative resolution config, or a default if not set
+    pub fn narrative_config_or_default(&self) -> NarrativeResolutionConfig {
+        self.narrative_config
+            .clone()
+            .unwrap_or_else(NarrativeResolutionConfig::default)
     }
 }
 
@@ -397,4 +469,605 @@ pub enum DiceSystem {
     Fate,
     /// Custom dice expression
     Custom(String),
+}
+
+// =============================================================================
+// Narrative Resolution System
+// =============================================================================
+
+/// Configuration for narrative/fiction-first resolution systems.
+///
+/// Supports three major styles:
+/// - PbtA: Fixed thresholds (10+/7-9/6-), 2d6+stat
+/// - Ladder: Descriptor maps to target number, NdF+skill vs target (Fate)
+/// - Blades: Position determines consequences, Effect determines progress
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NarrativeResolutionConfig {
+    /// The narrative resolution style
+    pub style: NarrativeResolutionStyle,
+
+    /// Thresholds for outcome tiers (used by PbtA and Custom styles)
+    #[serde(default)]
+    pub thresholds: NarrativeThresholds,
+
+    /// Difficulty ladder mapping descriptors to target values (used by Ladder style)
+    #[serde(default)]
+    pub ladder: DifficultyLadder,
+
+    /// Dice configuration for narrative systems
+    #[serde(default)]
+    pub dice_config: NarrativeDiceConfig,
+
+    /// Position/Effect configuration (used by Blades style)
+    #[serde(default)]
+    pub position_effect: PositionEffectConfig,
+}
+
+impl Default for NarrativeResolutionConfig {
+    fn default() -> Self {
+        Self::pbta()
+    }
+}
+
+impl NarrativeResolutionConfig {
+    /// Standard PbtA configuration (2d6, 10+/7-9/6-)
+    pub fn pbta() -> Self {
+        Self {
+            style: NarrativeResolutionStyle::PbtA,
+            thresholds: NarrativeThresholds::default(),
+            ladder: DifficultyLadder::default(),
+            dice_config: NarrativeDiceConfig::pbta(),
+            position_effect: PositionEffectConfig::default(),
+        }
+    }
+
+    /// Standard Fate Core configuration (4dF, ladder)
+    pub fn fate_core() -> Self {
+        Self {
+            style: NarrativeResolutionStyle::Ladder,
+            thresholds: NarrativeThresholds::default(),
+            ladder: DifficultyLadder::fate_core(),
+            dice_config: NarrativeDiceConfig::fate(4),
+            position_effect: PositionEffectConfig::default(),
+        }
+    }
+
+    /// Standard Blades in the Dark configuration (d6 pool, position/effect)
+    pub fn blades() -> Self {
+        Self {
+            style: NarrativeResolutionStyle::Blades,
+            thresholds: NarrativeThresholds::default(),
+            ladder: DifficultyLadder::default(),
+            dice_config: NarrativeDiceConfig::blades(),
+            position_effect: PositionEffectConfig::default(),
+        }
+    }
+
+    /// Get the display formula for the current dice configuration
+    pub fn dice_formula(&self) -> &str {
+        &self.dice_config.display_formula
+    }
+}
+
+/// The narrative resolution style determines how rolls are evaluated
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NarrativeResolutionStyle {
+    /// PbtA: Fixed thresholds (10+/7-9/6-), descriptor affects narrative only
+    #[default]
+    PbtA,
+    /// Ladder: Descriptor maps to target number, compare roll vs ladder (Fate)
+    Ladder,
+    /// Blades: Position determines consequence severity, Effect determines progress
+    Blades,
+    /// Custom: Use configurable thresholds with any dice system
+    Custom,
+}
+
+impl NarrativeResolutionStyle {
+    /// Get display name for this style
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::PbtA => "PbtA (2d6+stat)",
+            Self::Ladder => "Fate/Ladder (NdF vs target)",
+            Self::Blades => "Blades (d6 pool, Position/Effect)",
+            Self::Custom => "Custom",
+        }
+    }
+
+    /// Get description for this style
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::PbtA => "Roll 2d6 + stat. 10+ = full success, 7-9 = partial, 6- = miss.",
+            Self::Ladder => "Roll Fudge dice + skill vs difficulty ladder. Shifts determine outcome.",
+            Self::Blades => "Roll d6 pool, take highest. Position sets consequence severity, Effect sets progress.",
+            Self::Custom => "Custom thresholds and dice configuration.",
+        }
+    }
+}
+
+/// Configurable thresholds for PbtA-style resolution
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NarrativeThresholds {
+    /// Total needed for critical success (optional, default: None)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub critical_success: Option<i32>,
+
+    /// Total needed for full success (default: 10)
+    pub full_success: i32,
+
+    /// Total needed for partial success (default: 7)
+    pub partial_success: i32,
+
+    /// Total at or below which is critical failure (optional, default: None)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub critical_failure: Option<i32>,
+}
+
+impl Default for NarrativeThresholds {
+    fn default() -> Self {
+        Self {
+            critical_success: None, // PbtA doesn't have crit by default
+            full_success: 10,
+            partial_success: 7,
+            critical_failure: None,
+        }
+    }
+}
+
+impl NarrativeThresholds {
+    /// Create thresholds with optional critical values
+    pub fn with_criticals(
+        full_success: i32,
+        partial_success: i32,
+        critical_success: Option<i32>,
+        critical_failure: Option<i32>,
+    ) -> Self {
+        Self {
+            critical_success,
+            full_success,
+            partial_success,
+            critical_failure,
+        }
+    }
+}
+
+/// Dice configuration for narrative systems
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NarrativeDiceConfig {
+    /// Type of dice system
+    pub dice_type: NarrativeDiceType,
+
+    /// Number of dice to roll (e.g., 2 for 2d6, 4 for 4dF)
+    pub dice_count: u8,
+
+    /// Display formula for UI (e.g., "2d6", "4dF", "d6 pool")
+    pub display_formula: String,
+}
+
+impl Default for NarrativeDiceConfig {
+    fn default() -> Self {
+        Self::pbta()
+    }
+}
+
+impl NarrativeDiceConfig {
+    /// Standard PbtA dice (2d6)
+    pub fn pbta() -> Self {
+        Self {
+            dice_type: NarrativeDiceType::Standard { sides: 6 },
+            dice_count: 2,
+            display_formula: "2d6".to_string(),
+        }
+    }
+
+    /// Fate dice with configurable count
+    pub fn fate(count: u8) -> Self {
+        Self {
+            dice_type: NarrativeDiceType::Fudge,
+            dice_count: count,
+            display_formula: format!("{}dF", count),
+        }
+    }
+
+    /// Blades-style d6 pool
+    pub fn blades() -> Self {
+        Self {
+            dice_type: NarrativeDiceType::Pool { sides: 6 },
+            dice_count: 0, // Pool size determined by action rating
+            display_formula: "d6 pool".to_string(),
+        }
+    }
+
+    /// Custom dice configuration
+    pub fn custom(dice_type: NarrativeDiceType, count: u8, formula: impl Into<String>) -> Self {
+        Self {
+            dice_type,
+            dice_count: count,
+            display_formula: formula.into(),
+        }
+    }
+}
+
+/// Types of dice for narrative systems
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NarrativeDiceType {
+    /// Standard numbered dice (d6, d10, etc.) - sum all dice
+    Standard { sides: u8 },
+
+    /// Fudge/Fate dice (+1, -1, 0) - sum all dice
+    Fudge,
+
+    /// Dice pool - roll multiple, take highest (Blades style)
+    Pool { sides: u8 },
+}
+
+impl NarrativeDiceType {
+    /// Get description of this dice type
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Standard { .. } => "Sum all dice rolled",
+            Self::Fudge => "Fudge dice: +1, -1, or 0 per die",
+            Self::Pool { .. } => "Roll pool, take highest die",
+        }
+    }
+}
+
+/// Difficulty ladder for Fate-style systems
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DifficultyLadder {
+    /// Ladder entries mapping descriptors to values
+    pub entries: Vec<LadderEntry>,
+
+    /// Shifts needed for success with style (default: 3)
+    pub style_threshold: i32,
+
+    /// Shift value that counts as a tie (default: 0)
+    pub tie_threshold: i32,
+}
+
+impl Default for DifficultyLadder {
+    fn default() -> Self {
+        Self::fate_core()
+    }
+}
+
+impl DifficultyLadder {
+    /// Standard Fate Core ladder
+    pub fn fate_core() -> Self {
+        Self {
+            entries: vec![
+                LadderEntry::new(DifficultyDescriptor::Trivial, -2, "Terrible"),
+                LadderEntry::new(DifficultyDescriptor::Easy, 0, "Mediocre"),
+                LadderEntry::new(DifficultyDescriptor::Routine, 1, "Average"),
+                LadderEntry::new(DifficultyDescriptor::Moderate, 2, "Fair"),
+                LadderEntry::new(DifficultyDescriptor::Challenging, 3, "Good"),
+                LadderEntry::new(DifficultyDescriptor::Hard, 4, "Great"),
+                LadderEntry::new(DifficultyDescriptor::VeryHard, 5, "Superb"),
+                LadderEntry::new(DifficultyDescriptor::Extreme, 6, "Fantastic"),
+                LadderEntry::new(DifficultyDescriptor::Impossible, 8, "Legendary"),
+            ],
+            style_threshold: 3,
+            tie_threshold: 0,
+        }
+    }
+
+    /// Look up ladder value for a descriptor
+    pub fn value_for(&self, descriptor: &DifficultyDescriptor) -> Option<i32> {
+        self.entries
+            .iter()
+            .find(|e| &e.descriptor == descriptor)
+            .map(|e| e.value)
+    }
+
+    /// Get display name for a descriptor from the ladder
+    pub fn display_name_for(&self, descriptor: &DifficultyDescriptor) -> Option<&str> {
+        self.entries
+            .iter()
+            .find(|e| &e.descriptor == descriptor)
+            .map(|e| e.display_name.as_str())
+    }
+}
+
+/// Single entry in a difficulty ladder
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LadderEntry {
+    /// The difficulty descriptor this maps
+    pub descriptor: DifficultyDescriptor,
+
+    /// The numeric value for this descriptor
+    pub value: i32,
+
+    /// Display name (e.g., "Fair", "Great", "Legendary")
+    pub display_name: String,
+}
+
+impl LadderEntry {
+    pub fn new(
+        descriptor: DifficultyDescriptor,
+        value: i32,
+        display_name: impl Into<String>,
+    ) -> Self {
+        Self {
+            descriptor,
+            value,
+            display_name: display_name.into(),
+        }
+    }
+}
+
+/// Descriptive difficulty for narrative systems (also used as ladder keys)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DifficultyDescriptor {
+    Trivial,
+    Easy,
+    Routine,
+    Moderate,
+    Challenging,
+    Hard,
+    VeryHard,
+    Extreme,
+    Impossible,
+    // PbtA-style position indicators (alternative to Position enum for simpler use)
+    Risky,
+    Desperate,
+}
+
+impl DifficultyDescriptor {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Trivial => "Trivial",
+            Self::Easy => "Easy",
+            Self::Routine => "Routine",
+            Self::Moderate => "Moderate",
+            Self::Challenging => "Challenging",
+            Self::Hard => "Hard",
+            Self::VeryHard => "Very Hard",
+            Self::Extreme => "Extreme",
+            Self::Impossible => "Impossible",
+            Self::Risky => "Risky",
+            Self::Desperate => "Desperate",
+        }
+    }
+
+    /// Get all standard descriptors (excluding position indicators)
+    pub fn standard_descriptors() -> Vec<Self> {
+        vec![
+            Self::Trivial,
+            Self::Easy,
+            Self::Routine,
+            Self::Moderate,
+            Self::Challenging,
+            Self::Hard,
+            Self::VeryHard,
+            Self::Extreme,
+            Self::Impossible,
+        ]
+    }
+}
+
+// =============================================================================
+// Position/Effect System (Blades in the Dark style)
+// =============================================================================
+
+/// Position/Effect configuration for Blades-style resolution
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionEffectConfig {
+    /// Thresholds for Blades-style d6 pool (highest die)
+    pub pool_thresholds: BladesPoolThresholds,
+
+    /// Effect levels and their clock tick values
+    pub effect_ticks: EffectTickConfig,
+
+    /// Whether to enable the critical rule (multiple 6s)
+    pub enable_critical: bool,
+
+    /// Minimum dice for critical (default: 2 sixes needed)
+    pub critical_dice_count: u8,
+}
+
+impl Default for PositionEffectConfig {
+    fn default() -> Self {
+        Self {
+            pool_thresholds: BladesPoolThresholds::default(),
+            effect_ticks: EffectTickConfig::default(),
+            enable_critical: true,
+            critical_dice_count: 2,
+        }
+    }
+}
+
+/// Thresholds for Blades d6 pool resolution
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BladesPoolThresholds {
+    /// Highest die value for full success (default: 6)
+    pub full_success: i32,
+
+    /// Minimum die value for partial success (default: 4)
+    pub partial_success_min: i32,
+
+    /// Maximum die value for partial success (default: 5)
+    pub partial_success_max: i32,
+    // Below partial_success_min is failure
+}
+
+impl Default for BladesPoolThresholds {
+    fn default() -> Self {
+        Self {
+            full_success: 6,
+            partial_success_min: 4,
+            partial_success_max: 5,
+        }
+    }
+}
+
+/// Effect tick configuration for progress clocks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectTickConfig {
+    pub extreme_ticks: u8,
+    pub great_ticks: u8,
+    pub standard_ticks: u8,
+    pub limited_ticks: u8,
+    pub zero_ticks: u8,
+}
+
+impl Default for EffectTickConfig {
+    fn default() -> Self {
+        Self {
+            extreme_ticks: 4,
+            great_ticks: 3,
+            standard_ticks: 2,
+            limited_ticks: 1,
+            zero_ticks: 0,
+        }
+    }
+}
+
+/// Position level for Blades-style resolution.
+/// Determines consequence severity on partial success or failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Position {
+    /// You act on your terms, exploit dominant advantage. Minor consequences.
+    Controlled,
+
+    /// Standard risk - you go head to head. Moderate consequences.
+    #[default]
+    Risky,
+
+    /// You overreach, in serious trouble. Severe consequences.
+    Desperate,
+}
+
+impl Position {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Controlled => "Controlled",
+            Self::Risky => "Risky",
+            Self::Desperate => "Desperate",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Controlled => "You act on your terms. Minor consequences on failure.",
+            Self::Risky => "You go head to head. Moderate consequences on failure.",
+            Self::Desperate => "You're in serious trouble. Severe consequences on failure.",
+        }
+    }
+
+    /// Get consequence severity description for each outcome type at this position
+    pub fn consequence_severity(&self) -> &'static str {
+        match self {
+            Self::Controlled => "minor complication, reduced effect, or worse position",
+            Self::Risky => "harm, complication, reduced effect, or desperate position",
+            Self::Desperate => "severe harm, serious complication, or lost opportunity",
+        }
+    }
+
+    /// Get all position variants
+    pub fn all() -> Vec<Self> {
+        vec![Self::Controlled, Self::Risky, Self::Desperate]
+    }
+}
+
+/// Effect level for Blades-style resolution.
+/// Determines how much progress is made on success.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectLevel {
+    /// No effect possible
+    Zero,
+
+    /// Partial or weak effect
+    Limited,
+
+    /// Normal expected effect
+    #[default]
+    Standard,
+
+    /// More than usual effect
+    Great,
+
+    /// Extraordinary effect (beyond great, from critical)
+    Extreme,
+}
+
+impl EffectLevel {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Zero => "Zero",
+            Self::Limited => "Limited",
+            Self::Standard => "Standard",
+            Self::Great => "Great",
+            Self::Extreme => "Extreme",
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Zero => "No effect possible in this situation.",
+            Self::Limited => "Partial or weak effect. Less progress than normal.",
+            Self::Standard => "Normal expected effect for this action.",
+            Self::Great => "You achieve more than usual. Extra benefit.",
+            Self::Extreme => "Extraordinary effect. Maximum possible impact.",
+        }
+    }
+
+    /// Get clock ticks for this effect level
+    pub fn ticks(&self, config: &EffectTickConfig) -> u8 {
+        match self {
+            Self::Zero => config.zero_ticks,
+            Self::Limited => config.limited_ticks,
+            Self::Standard => config.standard_ticks,
+            Self::Great => config.great_ticks,
+            Self::Extreme => config.extreme_ticks,
+        }
+    }
+
+    /// Increase effect level (for critical success)
+    pub fn increase(&self) -> Self {
+        match self {
+            Self::Zero => Self::Limited,
+            Self::Limited => Self::Standard,
+            Self::Standard => Self::Great,
+            Self::Great | Self::Extreme => Self::Extreme,
+        }
+    }
+
+    /// Decrease effect level (for reduced effect consequence)
+    pub fn decrease(&self) -> Self {
+        match self {
+            Self::Extreme => Self::Great,
+            Self::Great => Self::Standard,
+            Self::Standard => Self::Limited,
+            Self::Limited | Self::Zero => Self::Zero,
+        }
+    }
+
+    /// Get all effect level variants (excluding Zero for normal selection)
+    pub fn selectable() -> Vec<Self> {
+        vec![Self::Limited, Self::Standard, Self::Great]
+    }
+
+    /// Get all effect level variants
+    pub fn all() -> Vec<Self> {
+        vec![
+            Self::Zero,
+            Self::Limited,
+            Self::Standard,
+            Self::Great,
+            Self::Extreme,
+        ]
+    }
 }

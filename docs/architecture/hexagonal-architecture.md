@@ -329,17 +329,46 @@ pub struct MyService {
 │  INBOUND PORTS (Driving)                                        │
 │  ├── Define: What the app offers to external actors             │
 │  ├── Called by: Adapters (HTTP handlers, WebSocket handlers)    │
+│  ├── Implemented by: Use cases in application layer             │
 │  ├── Example: ChallengeUseCasePort, MovementUseCasePort         │
 │  └── Location: {crate}-ports/src/inbound/                       │
 │                                                                 │
 │  OUTBOUND PORTS (Driven)                                        │
 │  ├── Define: What the app needs from external systems           │
 │  ├── Implemented by: Adapters (Neo4j repos, HTTP clients)       │
+│  ├── Depended on by: Use cases and services                     │
 │  ├── Example: CharacterCrudPort, BroadcastPort, ClockPort       │
 │  └── Location: {crate}-ports/src/outbound/                      │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Use Case Dependency Rule
+
+**Use cases MUST depend only on outbound ports, never on inbound ports.**
+
+```rust
+// CORRECT: Use case depends on outbound ports
+pub struct InventoryUseCase {
+    pc_crud: Arc<dyn PlayerCharacterCrudPort>,      // outbound
+    pc_inventory: Arc<dyn PlayerCharacterInventoryPort>, // outbound
+    broadcast: Arc<dyn BroadcastPort>,              // outbound
+}
+
+// WRONG: Use case depends on inbound port
+pub struct BadUseCase {
+    some_service: Arc<dyn SomeInboundPort>,  // ANTI-PATTERN
+}
+```
+
+**Why?**
+- Inbound ports define what the application *offers* - use cases *implement* them
+- Outbound ports define what the application *needs* - use cases *depend on* them
+- Depending on inbound ports creates circular abstractions
+
+**Exception**: Use cases may depend on `UseCaseContext` (a DTO, not a port trait).
+
+See `docs/plans/PORT_ADAPTER_TECH_DEBT_REMEDIATION.md` for details on existing violations being remediated.
 
 ---
 

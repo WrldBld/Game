@@ -18,6 +18,12 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 
+// Re-export narrative resolution types from domain-types
+pub use wrldbldr_domain_types::{
+    DifficultyDescriptor, DifficultyLadder, EffectLevel, NarrativeResolutionConfig,
+    NarrativeResolutionStyle, NarrativeThresholds, Position,
+};
+
 /// A challenge that can be triggered during gameplay
 ///
 /// ## Graph Relationships (via repository edge methods)
@@ -138,13 +144,40 @@ impl Challenge {
     ///   total >= DC = success
     /// - Percentage-based (D100): Roll 1 = crit success, Roll 100 = crit failure,
     ///   roll <= target = success (lower is better)
-    /// - Descriptor-based (Narrative/PbtA): 2d6 + modifier
-    ///   - 10+ = full success
-    ///   - 7-9 = partial success
-    ///   - 6- = miss/failure
+    /// - Descriptor-based (Narrative): Uses configurable narrative resolution
     /// - Opposed: Always returns success (actual comparison done elsewhere)
     /// - Custom: Always returns success (DM adjudicates)
+    ///
+    /// # Backward Compatibility
+    /// This method maintains the original signature for existing callers.
+    /// For full narrative resolution support, use `evaluate_roll_narrative`.
     pub fn evaluate_roll(&self, roll: i32, modifier: i32) -> (OutcomeType, &Outcome) {
+        self.evaluate_roll_narrative(roll, modifier, None, None, None, None)
+    }
+
+    /// Evaluate a dice roll with full narrative resolution support.
+    ///
+    /// # Arguments
+    /// * `roll` - The raw roll value (sum of dice, or highest die for pools)
+    /// * `modifier` - The modifier to apply (skill bonus, stat modifier, etc.)
+    /// * `narrative_config` - Optional narrative resolution configuration
+    /// * `position` - Optional position for Blades-style resolution
+    /// * `effect` - Optional effect level for Blades-style resolution
+    /// * `dice_results` - Optional individual dice results (for critical detection in pools)
+    ///
+    /// # Narrative Resolution Styles
+    /// - **PbtA**: Fixed thresholds (configurable, default 10+/7-9/6-)
+    /// - **Ladder**: Compare roll to descriptor's ladder value (Fate-style)
+    /// - **Blades**: d6 pool with Position/Effect determining consequences
+    pub fn evaluate_roll_narrative(
+        &self,
+        roll: i32,
+        modifier: i32,
+        narrative_config: Option<&NarrativeResolutionConfig>,
+        position: Option<Position>,
+        effect: Option<EffectLevel>,
+        dice_results: Option<&[i32]>,
+    ) -> (OutcomeType, &Outcome) {
         let outcome_type = match &self.difficulty {
             Difficulty::DC(dc) => {
                 // D20 system: Natural 20 = crit success, Natural 1 = crit failure
@@ -171,17 +204,20 @@ impl Challenge {
                     OutcomeType::Failure
                 }
             }
-            Difficulty::Descriptor(_) => {
-                // PbtA-style narrative systems: 2d6 + modifier
-                // 10+ = full success, 7-9 = partial success, 6- = miss
-                let total = roll + modifier;
-                if total >= 10 {
-                    OutcomeType::Success
-                } else if total >= 7 {
-                    OutcomeType::Partial
-                } else {
-                    OutcomeType::Failure
-                }
+            Difficulty::Descriptor(descriptor) => {
+                // Use narrative config if provided, otherwise default PbtA
+                let default_config = NarrativeResolutionConfig::default();
+                let config = narrative_config.unwrap_or(&default_config);
+
+                self.evaluate_narrative_roll(
+                    roll,
+                    modifier,
+                    descriptor,
+                    config,
+                    position.unwrap_or_default(),
+                    effect.unwrap_or_default(),
+                    dice_results,
+                )
             }
             Difficulty::Opposed | Difficulty::Custom(_) => {
                 // Opposed/Custom: Always return success as placeholder
@@ -191,7 +227,128 @@ impl Challenge {
         };
 
         // Return the appropriate outcome reference based on outcome type
-        let outcome = match outcome_type {
+        let outcome = self.outcome_for_type(outcome_type);
+        (outcome_type, outcome)
+    }
+
+    /// Evaluate a narrative roll based on resolution style
+    fn evaluate_narrative_roll(
+        &self,
+        roll: i32,
+        modifier: i32,
+        descriptor: &DifficultyDescriptor,
+        config: &NarrativeResolutionConfig,
+        _position: Position,
+        effect: EffectLevel,
+        dice_results: Option<&[i32]>,
+    ) -> OutcomeType {
+        match config.style {
+            NarrativeResolutionStyle::PbtA | NarrativeResolutionStyle::Custom => {
+                self.evaluate_pbta(roll, modifier, &config.thresholds)
+            }
+            NarrativeResolutionStyle::Ladder => {
+                self.evaluate_ladder(roll, modifier, descriptor, &config.ladder)
+            }
+            NarrativeResolutionStyle::Blades => {
+                self.evaluate_blades(dice_results, effect, &config.position_effect)
+            }
+        }
+    }
+
+    /// Evaluate using PbtA-style fixed thresholds
+    fn evaluate_pbta(&self, roll: i32, modifier: i32, thresholds: &NarrativeThresholds) -> OutcomeType {
+        let total = roll + modifier;
+
+        // Check critical success first (if configured)
+        if let Some(crit) = thresholds.critical_success {
+            if total >= crit && self.outcomes.critical_success.is_some() {
+                return OutcomeType::CriticalSuccess;
+            }
+        }
+
+        // Check critical failure (if configured)
+        if let Some(crit_fail) = thresholds.critical_failure {
+            if total <= crit_fail && self.outcomes.critical_failure.is_some() {
+                return OutcomeType::CriticalFailure;
+            }
+        }
+
+        // Standard PbtA resolution
+        if total >= thresholds.full_success {
+            OutcomeType::Success
+        } else if total >= thresholds.partial_success {
+            OutcomeType::Partial
+        } else {
+            OutcomeType::Failure
+        }
+    }
+
+    /// Evaluate using Fate-style ladder comparison
+    fn evaluate_ladder(
+        &self,
+        roll: i32,
+        modifier: i32,
+        descriptor: &DifficultyDescriptor,
+        ladder: &DifficultyLadder,
+    ) -> OutcomeType {
+        let total = roll + modifier;
+        // Default to Fair (+2) if descriptor not in ladder
+        let target = ladder.value_for(descriptor).unwrap_or(2);
+        let shifts = total - target;
+
+        if shifts >= ladder.style_threshold {
+            // Succeed with style = critical success in our system
+            OutcomeType::CriticalSuccess
+        } else if shifts > ladder.tie_threshold {
+            OutcomeType::Success
+        } else if shifts == ladder.tie_threshold {
+            // Tie = partial success (success at minor cost)
+            OutcomeType::Partial
+        } else {
+            OutcomeType::Failure
+        }
+    }
+
+    /// Evaluate using Blades-style d6 pool (highest die)
+    fn evaluate_blades(
+        &self,
+        dice_results: Option<&[i32]>,
+        effect: EffectLevel,
+        config: &wrldbldr_domain_types::PositionEffectConfig,
+    ) -> OutcomeType {
+        let dice = dice_results.unwrap_or(&[]);
+        let highest = dice.iter().max().copied().unwrap_or(0);
+        let thresholds = &config.pool_thresholds;
+
+        // Check for critical (multiple max dice, typically 6s)
+        let max_die_count = dice
+            .iter()
+            .filter(|&&d| d == thresholds.full_success)
+            .count();
+        let is_critical =
+            config.enable_critical && max_die_count >= config.critical_dice_count as usize;
+
+        if is_critical {
+            // Critical = success with increased effect
+            OutcomeType::CriticalSuccess
+        } else if highest >= thresholds.full_success {
+            OutcomeType::Success
+        } else if highest >= thresholds.partial_success_min
+            && highest <= thresholds.partial_success_max
+        {
+            OutcomeType::Partial
+        } else {
+            // For Blades, failure severity depends on Position (handled by caller)
+            // We just return the base failure outcome
+            // Effect level is already captured for clock tick calculation
+            let _ = effect; // Acknowledge effect is used contextually
+            OutcomeType::Failure
+        }
+    }
+
+    /// Get the outcome reference for an outcome type
+    fn outcome_for_type(&self, outcome_type: OutcomeType) -> &Outcome {
+        match outcome_type {
             OutcomeType::CriticalSuccess => self
                 .outcomes
                 .critical_success
@@ -209,9 +366,7 @@ impl Challenge {
                 .critical_failure
                 .as_ref()
                 .unwrap_or(&self.outcomes.failure),
-        };
-
-        (outcome_type, outcome)
+        }
     }
 }
 
@@ -340,41 +495,7 @@ impl Difficulty {
     }
 }
 
-/// Descriptive difficulty for narrative systems
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum DifficultyDescriptor {
-    Trivial,
-    Easy,
-    Routine,
-    Moderate,
-    Challenging,
-    Hard,
-    VeryHard,
-    Extreme,
-    Impossible,
-    // PbtA-style
-    Risky,
-    Desperate,
-}
-
-impl DifficultyDescriptor {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Self::Trivial => "Trivial",
-            Self::Easy => "Easy",
-            Self::Routine => "Routine",
-            Self::Moderate => "Moderate",
-            Self::Challenging => "Challenging",
-            Self::Hard => "Hard",
-            Self::VeryHard => "Very Hard",
-            Self::Extreme => "Extreme",
-            Self::Impossible => "Impossible",
-            Self::Risky => "Risky",
-            Self::Desperate => "Desperate",
-        }
-    }
-}
+// DifficultyDescriptor is now imported from wrldbldr_domain_types
 
 /// Outcomes for a challenge
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -934,5 +1055,156 @@ mod tests {
             Difficulty::parse("Very Hard"),
             Difficulty::Custom("Very Hard".to_string())
         );
+    }
+
+    #[test]
+    fn test_evaluate_roll_narrative_pbta_custom_thresholds() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(
+            world_id,
+            "Test",
+            Difficulty::Descriptor(DifficultyDescriptor::Moderate),
+        )
+        .with_outcomes(
+            ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"),
+        );
+
+        // Custom thresholds: 12+ success, 8+ partial
+        let config = NarrativeResolutionConfig {
+            style: NarrativeResolutionStyle::PbtA,
+            thresholds: NarrativeThresholds {
+                critical_success: None,
+                full_success: 12,
+                partial_success: 8,
+                critical_failure: None,
+            },
+            ..Default::default()
+        };
+
+        // Roll 7 + 4 = 11, below 12 but >= 8 = partial with custom thresholds
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(7, 4, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Partial);
+
+        // Roll 8 + 4 = 12, >= 12 = success with custom thresholds
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(8, 4, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Roll 4 + 3 = 7, below 8 = failure with custom thresholds
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+    }
+
+    #[test]
+    fn test_evaluate_roll_narrative_fate_ladder() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(
+            world_id,
+            "Test",
+            Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 in Fate ladder
+        )
+        .with_outcomes(
+            ChallengeOutcomes::simple("Success!", "Failure!")
+                .with_partial("Tie!")
+                .with_critical_success("Style!"),
+        );
+
+        let config = NarrativeResolutionConfig::fate_core();
+
+        // Roll 2 (4dF result) + 3 (skill) = 5, vs Hard (+4) = +1 shift = Success
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(2, 3, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Roll 1 + 3 = 4, vs Hard (+4) = 0 shifts = Tie (Partial)
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(1, 3, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Partial);
+
+        // Roll 4 + 3 = 7, vs Hard (+4) = +3 shifts = Succeed with Style (Critical)
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
+
+        // Roll -2 + 3 = 1, vs Hard (+4) = -3 shifts = Failure
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(-2, 3, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Failure);
+    }
+
+    #[test]
+    fn test_evaluate_roll_narrative_blades_pool() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(
+            world_id,
+            "Test",
+            Difficulty::Descriptor(DifficultyDescriptor::Risky),
+        )
+        .with_outcomes(
+            ChallengeOutcomes::simple("Success!", "Failure!")
+                .with_partial("Partial!")
+                .with_critical_success("Critical!"),
+        );
+
+        let config = NarrativeResolutionConfig::blades();
+
+        // Pool with highest 6 = Full success
+        let dice = vec![3, 6, 2];
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(
+            6, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+        );
+        assert_eq!(outcome_type, OutcomeType::Success);
+
+        // Pool with highest 5 = Partial success
+        let dice = vec![2, 5, 1];
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(
+            5, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+        );
+        assert_eq!(outcome_type, OutcomeType::Partial);
+
+        // Pool with highest 4 = Partial success
+        let dice = vec![4, 2, 1];
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(
+            4, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+        );
+        assert_eq!(outcome_type, OutcomeType::Partial);
+
+        // Pool with highest 3 = Failure
+        let dice = vec![3, 1, 2];
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(
+            3, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+        );
+        assert_eq!(outcome_type, OutcomeType::Failure);
+
+        // Pool with two 6s = Critical success
+        let dice = vec![6, 6, 2];
+        let (outcome_type, _) = challenge.evaluate_roll_narrative(
+            6, 0, Some(&config), Some(Position::Risky), Some(EffectLevel::Standard), Some(&dice)
+        );
+        assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
+    }
+
+    #[test]
+    fn test_effect_level_increase_decrease() {
+        assert_eq!(EffectLevel::Zero.increase(), EffectLevel::Limited);
+        assert_eq!(EffectLevel::Limited.increase(), EffectLevel::Standard);
+        assert_eq!(EffectLevel::Standard.increase(), EffectLevel::Great);
+        assert_eq!(EffectLevel::Great.increase(), EffectLevel::Extreme);
+        assert_eq!(EffectLevel::Extreme.increase(), EffectLevel::Extreme);
+
+        assert_eq!(EffectLevel::Extreme.decrease(), EffectLevel::Great);
+        assert_eq!(EffectLevel::Great.decrease(), EffectLevel::Standard);
+        assert_eq!(EffectLevel::Standard.decrease(), EffectLevel::Limited);
+        assert_eq!(EffectLevel::Limited.decrease(), EffectLevel::Zero);
+        assert_eq!(EffectLevel::Zero.decrease(), EffectLevel::Zero);
+    }
+
+    #[test]
+    fn test_difficulty_ladder_lookup() {
+        let ladder = DifficultyLadder::fate_core();
+
+        assert_eq!(ladder.value_for(&DifficultyDescriptor::Trivial), Some(-2));
+        assert_eq!(ladder.value_for(&DifficultyDescriptor::Easy), Some(0));
+        assert_eq!(ladder.value_for(&DifficultyDescriptor::Moderate), Some(2));
+        assert_eq!(ladder.value_for(&DifficultyDescriptor::Hard), Some(4));
+        assert_eq!(ladder.value_for(&DifficultyDescriptor::Impossible), Some(8));
+
+        assert_eq!(ladder.display_name_for(&DifficultyDescriptor::Moderate), Some("Fair"));
+        assert_eq!(ladder.display_name_for(&DifficultyDescriptor::Hard), Some("Great"));
     }
 }

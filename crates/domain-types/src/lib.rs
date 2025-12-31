@@ -48,8 +48,13 @@ pub use asset_types::{AssetType, ChangeType, EntityType};
 // Rule system types
 mod rule_system;
 pub use rule_system::{
+    // Core rule system types
     DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
     SuccessComparison,
+    // Narrative resolution types
+    BladesPoolThresholds, DifficultyDescriptor, DifficultyLadder, EffectLevel, EffectTickConfig,
+    LadderEntry, NarrativeDiceConfig, NarrativeDiceType, NarrativeResolutionConfig,
+    NarrativeResolutionStyle, NarrativeThresholds, Position, PositionEffectConfig,
 };
 
 // Workflow types

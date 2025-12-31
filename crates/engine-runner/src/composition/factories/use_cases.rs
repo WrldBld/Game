@@ -392,6 +392,7 @@ pub fn create_use_cases<N: NarrativeEventService + 'static>(
         challenge_outcome_adapter.clone(),
         challenge_dm_queue_adapter.clone(),
         broadcast.clone(),
+        deps.world_service_port.clone(),
     ));
 
     // =========================================================================

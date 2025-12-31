@@ -407,6 +407,9 @@ impl SheetTemplateStorageDto {
             RuleSystemVariant::PoweredByApocalypse => {
                 serde_json::Value::String("PoweredByApocalypse".to_string())
             }
+            RuleSystemVariant::BladesInTheDark => {
+                serde_json::Value::String("BladesInTheDark".to_string())
+            }
             RuleSystemVariant::Custom(name) => serde_json::json!({ "Custom": name }),
         }
     }
@@ -423,6 +426,7 @@ impl SheetTemplateStorageDto {
                 "KidsOnBikes" => RuleSystemVariant::KidsOnBikes,
                 "FateCore" => RuleSystemVariant::FateCore,
                 "PoweredByApocalypse" => RuleSystemVariant::PoweredByApocalypse,
+                "BladesInTheDark" => RuleSystemVariant::BladesInTheDark,
                 other => RuleSystemVariant::Custom(other.to_string()),
             },
             serde_json::Value::Object(map) => {

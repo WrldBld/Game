@@ -64,8 +64,13 @@ pub use prompt_templates::{
 pub use region::{RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
 pub use relationship::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};
 pub use rule_system::{
+    // Core rule system types
     DiceSystem, RuleSystemConfig, RuleSystemType, RuleSystemVariant, StatDefinition,
     SuccessComparison,
+    // Narrative resolution types
+    BladesPoolThresholds, DifficultyDescriptor, DifficultyLadder, EffectLevel, EffectTickConfig,
+    LadderEntry, NarrativeDiceConfig, NarrativeDiceType, NarrativeResolutionConfig,
+    NarrativeResolutionStyle, NarrativeThresholds, Position, PositionEffectConfig,
 };
 pub use settings::{settings_metadata, AppSettings, SettingsFieldMetadata};
 pub use staging_context::{

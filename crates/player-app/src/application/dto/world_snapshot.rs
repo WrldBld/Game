@@ -262,6 +262,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
                 RuleSystemVariant::KidsOnBikes,
                 RuleSystemVariant::FateCore,
                 RuleSystemVariant::PoweredByApocalypse,
+                RuleSystemVariant::BladesInTheDark,
             ],
             RuleSystemType::Custom => vec![],
         }
@@ -280,6 +281,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
             RuleSystemVariant::KidsOnBikes => "Kids on Bikes",
             RuleSystemVariant::FateCore => "FATE Core",
             RuleSystemVariant::PoweredByApocalypse => "Powered by the Apocalypse",
+            RuleSystemVariant::BladesInTheDark => "Blades in the Dark",
             RuleSystemVariant::Custom(_) => "Custom",
         }
     }
@@ -295,6 +297,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
             RuleSystemVariant::KidsOnBikes => "Six stats representing tropes",
             RuleSystemVariant::FateCore => "Aspects, skills, and stunts",
             RuleSystemVariant::PoweredByApocalypse => "2d6 with 3 outcome tiers",
+            RuleSystemVariant::BladesInTheDark => "Position/Effect with d6 pools",
             RuleSystemVariant::Custom(_) => "Custom configuration",
         }
     }

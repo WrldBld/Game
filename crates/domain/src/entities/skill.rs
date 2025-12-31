@@ -150,6 +150,7 @@ pub fn default_skills_for_variant(world_id: WorldId, variant: &RuleSystemVariant
         RuleSystemVariant::KidsOnBikes => kids_on_bikes_skills(world_id),
         RuleSystemVariant::FateCore => fate_core_skills(world_id),
         RuleSystemVariant::PoweredByApocalypse => pbta_skills(world_id),
+        RuleSystemVariant::BladesInTheDark => blades_skills(world_id),
         RuleSystemVariant::Custom(_) => vec![],
     }
 }
@@ -536,5 +537,62 @@ fn pbta_skills(world_id: WorldId) -> Vec<Skill> {
             .with_base_attribute("Weird")
             .with_description("Tap into the psychic maelstrom")
             .with_order(9),
+    ]
+}
+
+// Blades in the Dark (actions as "skills", grouped by attribute)
+fn blades_skills(world_id: WorldId) -> Vec<Skill> {
+    vec![
+        // Insight actions
+        Skill::new(world_id, "Hunt", SkillCategory::Approach)
+            .with_base_attribute("Insight")
+            .with_description("Track, ambush, or shoot from a distance")
+            .with_order(1),
+        Skill::new(world_id, "Study", SkillCategory::Approach)
+            .with_base_attribute("Insight")
+            .with_description("Scrutinize details, research, analyze")
+            .with_order(2),
+        Skill::new(world_id, "Survey", SkillCategory::Approach)
+            .with_base_attribute("Insight")
+            .with_description("Observe, spot trouble, gather information")
+            .with_order(3),
+        Skill::new(world_id, "Tinker", SkillCategory::Approach)
+            .with_base_attribute("Insight")
+            .with_description("Fiddle with devices, mechanisms, pick locks")
+            .with_order(4),
+        // Prowess actions
+        Skill::new(world_id, "Finesse", SkillCategory::Approach)
+            .with_base_attribute("Prowess")
+            .with_description("Delicate manipulation, subtle misdirection")
+            .with_order(5),
+        Skill::new(world_id, "Prowl", SkillCategory::Approach)
+            .with_base_attribute("Prowess")
+            .with_description("Move stealthily, infiltrate, climb")
+            .with_order(6),
+        Skill::new(world_id, "Skirmish", SkillCategory::Approach)
+            .with_base_attribute("Prowess")
+            .with_description("Close-quarters combat, melee fighting")
+            .with_order(7),
+        Skill::new(world_id, "Wreck", SkillCategory::Approach)
+            .with_base_attribute("Prowess")
+            .with_description("Smash, breach, destroy with brute force")
+            .with_order(8),
+        // Resolve actions
+        Skill::new(world_id, "Attune", SkillCategory::Approach)
+            .with_base_attribute("Resolve")
+            .with_description("Connect with the supernatural, channel spirits")
+            .with_order(9),
+        Skill::new(world_id, "Command", SkillCategory::Approach)
+            .with_base_attribute("Resolve")
+            .with_description("Order, compel obedience, intimidate")
+            .with_order(10),
+        Skill::new(world_id, "Consort", SkillCategory::Approach)
+            .with_base_attribute("Resolve")
+            .with_description("Socialize, gain access through connections")
+            .with_order(11),
+        Skill::new(world_id, "Sway", SkillCategory::Approach)
+            .with_base_attribute("Resolve")
+            .with_description("Influence through charm, reason, or deception")
+            .with_order(12),
     ]
 }

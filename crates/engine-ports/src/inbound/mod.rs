@@ -61,6 +61,7 @@ pub use use_case_ports::{
     ChallengeDmApprovalQueuePort,
     ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort,
+    NarrativeRollContext,
     // Connection port traits
     ConnectionManagerPort,
     DirectorialContextPort,

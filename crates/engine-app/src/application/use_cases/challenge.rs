@@ -29,7 +29,7 @@ use tracing::{debug, info};
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo,
+    BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo, WorldServicePort,
 };
 
 use super::errors::ChallengeError;
@@ -38,6 +38,7 @@ use super::errors::ChallengeError;
 pub use wrldbldr_engine_ports::inbound::{
     ChallengeDmApprovalQueuePort as DmApprovalQueuePort, ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort, ChallengeUseCasePort,
+    NarrativeRollContext as PortNarrativeRollContext,
 };
 
 // Re-export types from engine-ports for backwards compatibility
@@ -63,6 +64,7 @@ pub struct ChallengeUseCase {
     outcome_approval: Arc<dyn ChallengeOutcomeApprovalPort>,
     approval_queue: Arc<dyn DmApprovalQueuePort>,
     broadcast: Arc<dyn BroadcastPort>,
+    world_service: Arc<dyn WorldServicePort>,
 }
 
 impl ChallengeUseCase {
@@ -72,12 +74,14 @@ impl ChallengeUseCase {
         outcome_approval: Arc<dyn ChallengeOutcomeApprovalPort>,
         approval_queue: Arc<dyn DmApprovalQueuePort>,
         broadcast: Arc<dyn BroadcastPort>,
+        world_service: Arc<dyn WorldServicePort>,
     ) -> Self {
         Self {
             resolution_service,
             outcome_approval,
             approval_queue,
             broadcast,
+            world_service,
         }
     }
 
@@ -101,9 +105,40 @@ impl ChallengeUseCase {
             "Submitting challenge roll"
         );
 
+        // Fetch world's narrative resolution config from rule system
+        let world = self
+            .world_service
+            .get_world(ctx.world_id)
+            .await
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?
+            .ok_or_else(|| ChallengeError::ResolutionFailed("World not found".to_string()))?;
+        
+        let narrative_config = world
+            .rule_system
+            .narrative_config
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+
+        // Convert input narrative context to port type (position/effect from client)
+        let port_context = input.narrative_context.as_ref().map(|ctx| {
+            PortNarrativeRollContext {
+                position: ctx.position,
+                effect: ctx.effect,
+                dice_results: ctx.dice_results.clone(),
+            }
+        });
+
         let result = self
             .resolution_service
-            .handle_roll(&ctx.world_id, pc_id, input.challenge_id.clone(), input.roll)
+            .handle_roll(
+                &ctx.world_id,
+                pc_id,
+                input.challenge_id.clone(),
+                input.roll,
+                &narrative_config,
+                port_context.as_ref(),
+            )
             .await
             .map_err(ChallengeError::ResolutionFailed)?;
 
@@ -161,6 +196,30 @@ impl ChallengeUseCase {
             "Submitting dice input"
         );
 
+        // Fetch world's narrative resolution config from rule system
+        let world = self
+            .world_service
+            .get_world(ctx.world_id)
+            .await
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?
+            .ok_or_else(|| ChallengeError::ResolutionFailed("World not found".to_string()))?;
+        
+        let narrative_config = world
+            .rule_system
+            .narrative_config
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+
+        // Convert input narrative context to port type (position/effect from client)
+        let port_context = input.narrative_context.as_ref().map(|ctx| {
+            PortNarrativeRollContext {
+                position: ctx.position,
+                effect: ctx.effect,
+                dice_results: ctx.dice_results.clone(),
+            }
+        });
+
         let result = self
             .resolution_service
             .handle_roll_input(
@@ -168,6 +227,8 @@ impl ChallengeUseCase {
                 pc_id,
                 input.challenge_id.clone(),
                 input.input_type,
+                &narrative_config,
+                port_context.as_ref(),
             )
             .await
             .map_err(ChallengeError::ResolutionFailed)?;

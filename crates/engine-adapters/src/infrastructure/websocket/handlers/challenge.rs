@@ -44,7 +44,11 @@ pub async fn handle_challenge_roll(
         pc_id: Some(pc_id),
     };
 
-    let input = SubmitRollInput { challenge_id, roll };
+    let input = SubmitRollInput {
+        challenge_id,
+        roll,
+        narrative_context: None,
+    };
 
     match state.challenge_use_case().submit_roll(ctx, input).await {
         Ok(_) => None, // Use case broadcasts to DM + players
@@ -74,6 +78,7 @@ pub async fn handle_challenge_roll_input(
     let input = SubmitDiceInputInput {
         challenge_id,
         input_type: to_use_case_dice_input(input_type),
+        narrative_context: None,
     };
 
     match state

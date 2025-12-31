@@ -21,6 +21,7 @@ use crate::application::services::{
 };
 use tracing::{debug, info};
 use wrldbldr_domain::entities::{Difficulty, OutcomeType};
+use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::value_objects::{AdHocOutcomes, ApprovalRequestData, DiceRollInput};
 use wrldbldr_domain::{ChallengeId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
@@ -145,6 +146,17 @@ pub struct AdHocChallengeResult {
 }
 
 // DiceInputType is imported from engine-ports
+
+/// Narrative context for roll evaluation (Blades in the Dark style)
+#[derive(Debug, Clone, Default)]
+pub struct NarrativeRollContext {
+    /// Position for Blades-style resolution (Controlled, Risky, Desperate)
+    pub position: Option<Position>,
+    /// Effect level for Blades-style resolution (Limited, Standard, Great, etc.)
+    pub effect: Option<EffectLevel>,
+    /// Individual dice results (for critical detection in d6 pools)
+    pub dice_results: Option<Vec<i32>>,
+}
 
 /// Preamble data gathered for challenge resolution.
 /// This struct holds the common data needed by both `handle_roll` and `handle_roll_input`.
@@ -470,21 +482,37 @@ where
     /// Handle a player submitting a challenge roll (legacy method with simple integer roll).
     ///
     /// Returns the roll submission result for broadcasting by the use case layer.
+    ///
+    /// # Arguments
+    /// * `world_id` - The world this challenge belongs to
+    /// * `pc_id` - The player character making the roll
+    /// * `challenge_id_str` - The challenge ID as a string
+    /// * `roll` - The raw dice roll value
+    /// * `narrative_config` - Narrative resolution config from the world's rule system.
+    /// * `narrative_context` - Optional context for Blades-style resolution (position/effect)
     pub async fn handle_roll(
         &self,
         world_id: &WorldId,
         pc_id: &PlayerCharacterId,
         challenge_id_str: String,
         roll: i32,
+        narrative_config: &NarrativeResolutionConfig,
+        narrative_context: Option<&NarrativeRollContext>,
     ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
         // Gather common preamble data
         let preamble = self
             .gather_challenge_preamble(world_id, pc_id, &challenge_id_str, "legacy roll")
             .await?;
 
-        // Evaluate challenge result using domain method
-        let (outcome_type, outcome) =
-            preamble.challenge.evaluate_roll(roll, preamble.character_modifier);
+        // Evaluate challenge result using domain method with narrative support
+        let (outcome_type, outcome) = preamble.challenge.evaluate_roll_narrative(
+            roll,
+            preamble.character_modifier,
+            Some(narrative_config),
+            narrative_context.and_then(|ctx| ctx.position),
+            narrative_context.and_then(|ctx| ctx.effect),
+            narrative_context.and_then(|ctx| ctx.dice_results.as_deref()),
+        );
 
         // Queue for DM approval and return result
         self.queue_for_approval(
@@ -509,12 +537,22 @@ where
     /// This is the enhanced version that supports dice formulas like "1d20+5".
     ///
     /// Returns the roll submission result for broadcasting by the use case layer.
+    ///
+    /// # Arguments
+    /// * `world_id` - The world this challenge belongs to
+    /// * `pc_id` - The player character making the roll
+    /// * `challenge_id_str` - The challenge ID as a string
+    /// * `dice_input` - The dice input (formula like "1d20+5" or manual value)
+    /// * `narrative_config` - Narrative resolution config from the world's rule system.
+    /// * `narrative_context` - Optional context for Blades-style resolution (position/effect)
     pub async fn handle_roll_input(
         &self,
         world_id: &WorldId,
         pc_id: &PlayerCharacterId,
         challenge_id_str: String,
         dice_input: DiceInputType,
+        narrative_config: &NarrativeResolutionConfig,
+        narrative_context: Option<&NarrativeRollContext>,
     ) -> Result<RollSubmissionResult, ChallengeResolutionError> {
         // Gather common preamble data
         let preamble = self
@@ -542,9 +580,23 @@ where
             roll_result.dice_total // For formula, use just the dice total
         };
 
-        // Evaluate challenge result using domain method
-        let (outcome_type, outcome) =
-            preamble.challenge.evaluate_roll(raw_roll, preamble.character_modifier);
+        // Build dice results for Blades-style critical detection
+        // Merge individual rolls from the dice formula with any provided in narrative context
+        let dice_results = if !roll_result.is_manual() {
+            Some(roll_result.individual_rolls.clone())
+        } else {
+            narrative_context.and_then(|ctx| ctx.dice_results.clone())
+        };
+
+        // Evaluate challenge result using domain method with narrative support
+        let (outcome_type, outcome) = preamble.challenge.evaluate_roll_narrative(
+            raw_roll,
+            preamble.character_modifier,
+            Some(narrative_config),
+            narrative_context.and_then(|ctx| ctx.position),
+            narrative_context.and_then(|ctx| ctx.effect),
+            dice_results.as_deref(),
+        );
 
         // Queue for DM approval and return result
         self.queue_for_approval(

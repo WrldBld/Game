@@ -312,7 +312,8 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
                     | RuleSystemVariant::GenericD100 => "D100",
                     RuleSystemVariant::KidsOnBikes
                     | RuleSystemVariant::FateCore
-                    | RuleSystemVariant::PoweredByApocalypse => "Narrative",
+                    | RuleSystemVariant::PoweredByApocalypse
+                    | RuleSystemVariant::BladesInTheDark => "Narrative",
                     RuleSystemVariant::Custom(_) => "Custom",
                 };
                 let variant_str = format!("{:?}", variant);
