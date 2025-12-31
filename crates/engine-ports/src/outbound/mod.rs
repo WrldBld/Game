@@ -18,6 +18,7 @@ mod character_repository;
 mod character_service_port;
 mod clock_port;
 mod comfyui_port;
+mod connection_manager_port;
 mod dialogue_context_service_port;
 mod directorial_context_port;
 mod disposition_service_port;
@@ -118,6 +119,8 @@ pub use comfyui_port::{
     ComfyUIPort, GeneratedImage, HistoryResponse, NodeOutput, PromptHistory, PromptStatus,
     QueuePromptResponse,
 };
+
+pub use connection_manager_port::ConnectionManagerPort;
 
 pub use event_bus_port::{EventBusError, EventBusPort};
 

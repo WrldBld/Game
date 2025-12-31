@@ -57,7 +57,6 @@ pub use use_case_ports::{
     ChallengeOutcomeApprovalPort,
     ChallengeResolutionPort,
     // Connection port traits
-    ConnectionManagerPort,
     DirectorialContextPort,
     // Scene port traits
     DirectorialContextRepositoryPort,

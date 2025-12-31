@@ -8,9 +8,9 @@ use uuid::Uuid;
 
 use tokio::sync::broadcast;
 use wrldbldr_domain::PlayerCharacterId;
-use wrldbldr_engine_ports::inbound::{
-    ConnectedUser, ConnectionInfo, ConnectionManagerPort, UserJoinedEvent,
-    WorldRole as UseCaseWorldRole,
+use wrldbldr_engine_ports::{
+    inbound::{ConnectedUser, ConnectionInfo, UserJoinedEvent, WorldRole as UseCaseWorldRole},
+    outbound::ConnectionManagerPort,
 };
 use wrldbldr_protocol::{ServerMessage, WorldRole as ProtocolWorldRole};
 

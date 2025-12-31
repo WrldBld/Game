@@ -30,8 +30,10 @@ use crate::application::services::{JoinValidation, WorldSessionPolicy};
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::{
-    ConnectionManagerPort, DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
+    DirectorialContextPort, PlayerCharacterServicePort, WorldServicePort,
 };
+
+pub use wrldbldr_engine_ports::outbound::ConnectionManagerPort;
 
 // Import types from engine-ports
 pub use wrldbldr_engine_ports::outbound::{

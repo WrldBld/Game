@@ -107,7 +107,6 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 | `ChallengeResolutionPort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/challenge.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `ChallengeUseCasePort` | trait | crates/engine-ports/src/inbound/challenge_use_case_port.rs | crates/engine-app/src/application/use_cases/challenge.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CharacterSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ConnectionManagerPort` | trait | crates/engine-ports/src/inbound/use_case_ports.rs | crates/engine-app/src/application/use_cases/connection.rs | outbound (misplaced today) | Move to outbound; update app deps; remove inbound re-export |
 | `ConnectionUseCasePort` | trait | crates/engine-ports/src/inbound/connection_use_case_port.rs | crates/engine-app/src/application/use_cases/connection.rs | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateCharacterRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
 | `CreateLocationRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
@@ -283,6 +282,7 @@ Steps:
 
 **Progress**
 - ✅ Started 2025-12-31: moved use-case error enums (`ActionError`, `ChallengeError`, `InventoryError`, `NarrativeEventError`, `ObservationError`, `SceneError`, `StagingError`) from `engine-ports` inbound to outbound, and updated imports.
+- ✅ Continued 2025-12-31: moved `ConnectionManagerPort` from `engine-ports` inbound (`use_case_ports.rs`) to `engine-ports` outbound.
 
 ### 3.3 Normalize “context DTOs”
 
