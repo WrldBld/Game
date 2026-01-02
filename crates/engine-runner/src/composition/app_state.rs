@@ -24,11 +24,11 @@ use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, staging_service::StagingService,
     ActantialContextServiceImpl, AssetGenerationQueueService, ChallengeApprovalEvent,
     ChallengeOutcomeApprovalService, ChallengeServiceImpl, DMApprovalQueueService,
-    DispositionServiceImpl, DmActionQueueService, EventChainServiceImpl, EventEffectExecutor,
-    ItemServiceImpl, LLMQueueService, NarrativeEventApprovalService, NarrativeEventServiceImpl,
+    DispositionServiceImpl, DmActionQueueService, EventEffectExecutor, ItemServiceImpl,
+    LLMQueueService, NarrativeEventApprovalService, NarrativeEventServiceImpl,
     OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
     PromptContextServiceImpl, RegionServiceImpl, SheetTemplateService, SkillServiceImpl,
-    StoryEventServiceImpl, TriggerEvaluationService,
+    TriggerEvaluationService,
 };
 
 // Import composition layer types
@@ -40,15 +40,15 @@ use wrldbldr_engine_composition::{
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
     ActantialContextServicePort, ApprovalRequestLookupPort, BroadcastPort,
-    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, ChallengeServicePort,
-    ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
+    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, ComfyUIPort,
+    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
     ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DispositionServicePort,
     DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort, EventBusPort,
-    EventChainServicePort, EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
-    NarrativeEventApprovalServicePort, NarrativeEventServicePort, OutcomeTriggerServicePort,
-    PromptContextServicePort, PromptTemplateServicePort, RegionItemPort, SettingsServicePort,
-    StagingServicePort, StoryEventServicePort, TriggerEvaluationServicePort, WorldApprovalPort,
-    WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
+    EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
+    NarrativeEventApprovalServicePort, OutcomeTriggerServicePort, PromptContextServicePort,
+    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
+    TriggerEvaluationServicePort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
+    WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs
@@ -320,39 +320,6 @@ pub async fn new_app_state(
     // Keep relationship_repo for effects (EventEffectExecutor needs it)
     let relationship_repo_for_effects = relationship_repo.clone();
 
-    // StoryEvent ISP ports needed for services (will be used after event_bus is created)
-    let story_event_crud_for_service = story_event_crud.clone();
-    let story_event_edge_for_service = story_event_edge.clone();
-    let story_event_query_for_service = story_event_query.clone();
-    let story_event_dialogue_for_service = story_event_dialogue.clone();
-
-    // Challenge service - app-layer trait for AppRequestHandler, and port for GameServices
-    // Note: ChallengeService is a game service, not a core service, so not in core_services factory
-    let challenge_service_for_port = ChallengeServiceImpl::new(
-        challenge_crud.clone(),
-        challenge_skill.clone(),
-        challenge_scene.clone(),
-        challenge_prerequisite.clone(),
-        challenge_availability.clone(),
-    );
-    let challenge_service: Arc<dyn wrldbldr_engine_app::application::services::ChallengeService> =
-        Arc::new(challenge_service_for_port.clone());
-    let challenge_service_port: Arc<dyn ChallengeServicePort> =
-        Arc::new(challenge_service_for_port);
-    // Keep concrete version for ChallengeResolutionService generics
-    let challenge_service_impl = ChallengeServiceImpl::new(
-        challenge_crud.clone(),
-        challenge_skill.clone(),
-        challenge_scene.clone(),
-        challenge_prerequisite.clone(),
-        challenge_availability.clone(),
-    );
-
-    // NarrativeEvent ISP ports needed for services (will be created after event_bus)
-    let narrative_event_crud_for_service = narrative_event_crud.clone();
-    let narrative_event_tie_for_service = narrative_event_tie.clone();
-    let narrative_event_npc_for_service = narrative_event_npc.clone();
-    let narrative_event_query_for_service = narrative_event_query.clone();
     // Repos needed for trigger evaluation service (Phase 2) - uses only specific ISP traits
     let narrative_event_crud_for_triggers = narrative_event_crud.clone();
     let story_event_query_for_triggers = story_event_query.clone();
@@ -361,19 +328,18 @@ pub async fn new_app_state(
     let narrative_event_crud_for_effects = narrative_event_crud.clone();
     let challenge_crud_for_effects = challenge_crud.clone();
 
-    let event_chain_service_impl_for_port = EventChainServiceImpl::new(
-        event_chain_crud,
-        event_chain_query,
-        event_chain_membership,
-        event_chain_state,
+    // Keep concrete version for ChallengeResolutionService generics
+    // TODO(Phase 2A.3): Refactor ChallengeResolutionService to use port traits instead
+    let challenge_service_impl = ChallengeServiceImpl::new(
+        challenge_crud.clone(),
+        challenge_skill.clone(),
+        challenge_scene.clone(),
+        challenge_prerequisite.clone(),
+        challenge_availability.clone(),
     );
-    let event_chain_service: Arc<
-        dyn wrldbldr_engine_app::application::services::EventChainService,
-    > = Arc::new(event_chain_service_impl_for_port.clone());
-    let event_chain_service_port: Arc<dyn EventChainServicePort> =
-        Arc::new(event_chain_service_impl_for_port);
 
-    // Note: Asset services are created later using the asset_services factory (after event_infra)
+    // Note: Game services (Challenge, EventChain, StoryEvent, NarrativeEvent) are created
+    // after event_infra using the game_services factory (Level 3b)
 
     // Item service and Player character service now come from core_service_ports - NO DUPLICATION!
 
@@ -423,48 +389,57 @@ pub async fn new_app_state(
     // Note: queue_backends is passed to create_queue_services() by reference,
     // then individual queues are extracted from QueueServiceContext as needed
 
-    // Create story event service with event bus
-    // Uses ISP sub-traits: crud, edge, query, dialogue
-    let story_event_service_impl = Arc::new(StoryEventServiceImpl::new(
-        story_event_crud_for_service.clone(),
-        story_event_edge_for_service.clone(),
-        story_event_query_for_service.clone(),
-        story_event_dialogue_for_service.clone(),
-        event_bus.clone(),
-        clock.clone(),
-    ));
-    // Cast to various ISP ports - StoryEventServiceImpl implements all of them
-    let story_event_service: Arc<
-        dyn wrldbldr_engine_app::application::services::StoryEventService,
-    > = story_event_service_impl.clone();
-    let story_event_service_port: Arc<dyn StoryEventServicePort> = story_event_service_impl.clone();
-    let dialogue_context_service: Arc<
-        dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort,
-    > = story_event_service_impl.clone();
+    // ===========================================================================
+    // Level 3b: Game Services (using factory)
+    // ===========================================================================
+    let game_service_ports =
+        super::factories::create_game_services(super::factories::GameServiceDependencies {
+            // Challenge ISP ports
+            challenge_crud: challenge_crud.clone(),
+            challenge_skill: challenge_skill.clone(),
+            challenge_scene: challenge_scene.clone(),
+            challenge_prerequisite: challenge_prerequisite.clone(),
+            challenge_availability: challenge_availability.clone(),
+            // EventChain ISP ports
+            event_chain_crud,
+            event_chain_query,
+            event_chain_membership,
+            event_chain_state,
+            // StoryEvent ISP ports
+            story_event_crud: story_event_crud.clone(),
+            story_event_edge: story_event_edge.clone(),
+            story_event_query: story_event_query.clone(),
+            story_event_dialogue: story_event_dialogue.clone(),
+            // NarrativeEvent ISP ports
+            narrative_event_crud: narrative_event_crud.clone(),
+            narrative_event_tie: narrative_event_tie.clone(),
+            narrative_event_npc: narrative_event_npc.clone(),
+            narrative_event_query: narrative_event_query.clone(),
+            // Shared dependencies
+            event_bus: event_bus.clone(),
+            clock: clock.clone(),
+        });
 
-    // Create narrative event service with event bus
-    // Uses ISP sub-traits: crud, tie, npc, query
-    // Create both trait object and concrete impl (impl needed for NarrativeEventApprovalService generics)
+    // Extract game service ports and app-layer traits
+    let challenge_service_port = game_service_ports.challenge_service_port;
+    let challenge_service = game_service_ports.challenge_service;
+    let event_chain_service_port = game_service_ports.event_chain_service_port;
+    let event_chain_service = game_service_ports.event_chain_service;
+    let story_event_service_port = game_service_ports.story_event_service_port;
+    let story_event_service = game_service_ports.story_event_service;
+    let dialogue_context_service = game_service_ports.dialogue_context_service;
+    let narrative_event_service_port = game_service_ports.narrative_event_service_port;
+    let narrative_event_service = game_service_ports.narrative_event_service;
+
+    // Keep concrete version for NarrativeEventApprovalService generics
+    // TODO(Phase 2A.3): Refactor NarrativeEventApprovalService to use port traits instead
     let narrative_event_service_impl = NarrativeEventServiceImpl::new(
-        narrative_event_crud_for_service.clone(),
-        narrative_event_tie_for_service.clone(),
-        narrative_event_npc_for_service.clone(),
-        narrative_event_query_for_service.clone(),
+        narrative_event_crud.clone(),
+        narrative_event_tie.clone(),
+        narrative_event_npc.clone(),
+        narrative_event_query.clone(),
         event_bus.clone(),
     );
-    // Clone for port version
-    let narrative_event_service_impl_for_port = NarrativeEventServiceImpl::new(
-        narrative_event_crud_for_service.clone(),
-        narrative_event_tie_for_service.clone(),
-        narrative_event_npc_for_service.clone(),
-        narrative_event_query_for_service.clone(),
-        event_bus.clone(),
-    );
-    let narrative_event_service: Arc<
-        dyn wrldbldr_engine_app::application::services::NarrativeEventService,
-    > = Arc::new(narrative_event_service_impl_for_port.clone());
-    let narrative_event_service_port: Arc<dyn NarrativeEventServicePort> =
-        Arc::new(narrative_event_service_impl_for_port);
 
     // ===========================================================================
     // Level 2b: Queue Services (using factory)

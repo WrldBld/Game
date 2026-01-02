@@ -12,10 +12,10 @@ This is the consolidated plan addressing all architectural issues identified in 
 | Track | Completed | Remaining | Next Priority |
 |-------|-----------|-----------|---------------|
 | A: Engine Domain/DTOs | 3/3 | 0 | **COMPLETE** |
-| B: Composition/Ports | 3/4 | 1 | 2A.2 (Game Services Factory) |
+| B: Composition/Ports | 4/4 | 0 | **COMPLETE** |
 | C: Player/Docs | 3/3 | 0 | **COMPLETE** |
 | D: Code Quality | 3/3 | 0 | **COMPLETE** |
-| **Total** | **12/13** | **1** | |
+| **Total** | **13/13** | **0** | **ALL COMPLETE** |
 
 ### Completed Phases
 
@@ -31,9 +31,10 @@ This is the consolidated plan addressing all architectural issues identified in 
 | 2B | Port naming corrections (6 files renamed) | `ec6f463` | 2026-01-02 |
 | 2D | Document protocol exceptions | `ec6f463` | 2026-01-02 |
 | 3C | Documentation updates (AGENTS.md) | `6ec166f` | 2026-01-02 |
-| 1B | DTO Consolidation (ApprovalDecision) | TBD | 2026-01-02 |
-| 2A.1 | Core services dual-trait pattern | TBD | 2026-01-02 |
-| 3B | UI Error Feedback Audit | TBD | 2026-01-02 |
+| 1B | DTO Consolidation (ApprovalDecision) | `69d8ede` | 2026-01-02 |
+| 2A.1 | Core services dual-trait pattern | `69d8ede` | 2026-01-02 |
+| 3B | UI Error Feedback Audit | `69d8ede` | 2026-01-02 |
+| 2A.2 | Game services factory | TBD | 2026-01-02 |
 
 ---
 
@@ -485,13 +486,13 @@ When this plan is complete, all of the following will be true:
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
 | 2A.1 | Core Services Dual-Trait Pattern | Medium | None | **DONE** |
-| 2A.2 | Game Services Factory | Medium | 2A.1 | Pending |
+| 2A.2 | Game Services Factory | Medium | 2A.1 | **DONE** |
 | 2B | Port Naming Corrections | Small | None | **DONE** |
 | 2C | Fix player_events.rs Docstring | Small | None | **DONE** |
 | 2D | Document Protocol Exceptions | Small | None | **DONE** |
 
-**Note on 2A.1**: **COMPLETED 2026-01-02**: Extended `CoreServicePorts` to return both `*ServicePort` and `*Service` trait versions from single instances. Eliminates 9 duplicate service instantiations. `app_state.rs` reduced from 977 to 934 lines.
-**Note on 2A.2**: Will extract ChallengeService, NarrativeEventService, EventChainService creation to `game_services.rs` factory.
+**Note on 2A.1**: **COMPLETED 2026-01-02**: Extended `CoreServicePorts` to return both `*ServicePort` and `*Service` trait versions from single instances. Eliminates 9 duplicate service instantiations.
+**Note on 2A.2**: **COMPLETED 2026-01-02**: Created `game_services.rs` factory for Challenge, EventChain, StoryEvent, NarrativeEvent services. `app_state.rs` reduced from 977 to 909 lines (68 lines saved total from Phase 2A).
 **Note on 2B**: ~~Rename ports_*.rs files to *_port_adapters.rs pattern.~~ **COMPLETED 2026-01-02**: Renamed 6 files. Trait rename (StoryEventQueryServicePort → StoryEventQueryPort) skipped due to name collision with existing StoryEventQueryPort repository trait.
 **Note on 2C**: ~~Validation confirmed `player_events.rs` is **correctly placed** in `outbound/`. The file's docstring incorrectly claims it's in `inbound/`. Fix is to correct the docstring, not move the file.~~ **COMPLETED 2026-01-01**: Docstring updated to correctly describe outbound placement.
 **Note on 2D**: **COMPLETED 2026-01-02**: Added ARCHITECTURE EXCEPTION documentation to dm_approval_queue_service_port.rs and mod.rs protocol imports.
