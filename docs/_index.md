@@ -52,6 +52,16 @@ Technical reference for developers.
 
 ---
 
+## Plans
+
+| Document | Description |
+|----------|-------------|
+| [Known Architecture Issues](plans/KNOWN_ARCHITECTURE_ISSUES.md) | Pre-existing tech debt for later remediation |
+| [Architecture Remediation Master Plan](plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md) | Single source of truth for refactoring |
+| [Service Port Migration Plan](plans/SERVICE_PORT_INBOUND_MIGRATION_PLAN.md) | Completed migration documentation |
+
+---
+
 ## Quick Links
 
 All commands should run inside the repo Nix shell:

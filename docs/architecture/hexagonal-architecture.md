@@ -564,6 +564,40 @@ pub struct BadUseCase {
 
 **Exception**: Use cases may depend on `UseCaseContext` (a DTO, not a port trait).
 
+### Internal Service Traits Pattern
+
+Some traits in `engine-app/services/internal/` serve a **dual purpose**:
+
+1. **Inbound port** for HTTP handlers (adapters call them)
+2. **Internal dependency** for other services/use cases (app→app collaboration)
+
+For these dual-use traits, the architecture uses a **re-export pattern**:
+
+```
+engine-ports/src/inbound/
+├── world_use_case_port.rs         # Canonical inbound port definition
+
+engine-app/src/application/services/internal/
+├── world_service.rs               # Re-exports WorldUseCasePort from inbound
+```
+
+**Why this pattern?**
+
+- HTTP handlers import from `engine_ports::inbound::WorldUseCasePort` (correct for inbound)
+- Internal services import via `internal::WorldUseCasePort` (consistent internal API)
+- Both resolve to the same trait - no duplication
+
+**Known limitation**: This means some use cases technically depend on inbound ports via the
+`internal::` re-exports. This is an acceptable tradeoff for:
+
+- Avoiding trait duplication
+- Maintaining a consistent internal API
+- Keeping HTTP handlers at the proper boundary
+
+The alternative (maintaining separate internal traits + inbound ports) was considered but
+rejected due to excessive boilerplate. See `docs/plans/SERVICE_PORT_INBOUND_MIGRATION_PLAN.md`
+for the full analysis.
+
 See `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md` for the single source-of-truth remediation plan.
 
 ---

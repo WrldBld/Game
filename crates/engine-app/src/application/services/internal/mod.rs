@@ -1,18 +1,38 @@
-//! Internal service traits - NOT ports, just app-layer contracts
+//! Internal service traits and inbound port re-exports
 //!
-//! These traits define contracts between services within the application layer.
-//! They are NOT ports in the hexagonal architecture sense (not adapter-implemented).
+//! This module provides a unified internal API for service dependencies within the
+//! application layer. It contains two categories of traits:
 //!
-//! They exist for:
-//! - Dependency injection within the app layer
-//! - Testing (mockall mocks)
-//! - Decoupling service implementations
+//! ## 1. Internal Service Contracts (NOT hexagonal ports)
 //!
-//! # Migration Note
+//! Traits like `CharacterServicePort`, `SceneServicePort`, etc. are **internal app-layer
+//! contracts**. They are:
+//! - Implemented by services in `engine-app`
+//! - Called by other services/use cases in `engine-app`
+//! - NOT called by adapters
 //!
-//! These traits were moved from `engine-ports/src/outbound/` as part of the
-//! hexagonal architecture cleanup. They were incorrectly classified as "outbound ports"
-//! but are actually internal application contracts.
+//! These exist for dependency injection and testing within the app layer.
+//!
+//! ## 2. Inbound Port Re-exports (dual-use traits)
+//!
+//! Traits like `WorldUseCasePort`, `DmApprovalQueueUseCasePort`, etc. are **re-exported
+//! from `engine-ports/src/inbound/`**. These traits serve dual purposes:
+//! - Called by HTTP handlers (inbound port usage - handlers import from `engine_ports::inbound`)
+//! - Depended on by other services/use cases (internal dependency - import via `internal::`)
+//!
+//! The re-export pattern provides:
+//! - A consistent internal API (all service dependencies via `internal::`)
+//! - No trait duplication between inbound ports and internal contracts
+//! - Clear separation: handlers use `engine_ports::inbound`, app code uses `internal::`
+//!
+//! ## Naming Convention
+//!
+//! Traits here use `*ServicePort` or `*UseCasePort` suffixes despite NOT being true
+//! hexagonal ports. This is intentional for consistency - the `Port` suffix indicates
+//! "injectable dependency" rather than "hexagonal boundary". Future cleanup may rename
+//! internal-only traits to drop the `Port` suffix for clarity.
+//!
+//! See `docs/architecture/hexagonal-architecture.md` for the full architectural context.
 
 // Service trait modules - alphabetically ordered
 mod actantial_context_service;
