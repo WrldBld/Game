@@ -10,7 +10,7 @@ mod approval_request_lookup_port;
 mod broadcast_port;
 mod challenge_dm_approval_queue_port;
 mod challenge_outcome_approval_port;
-mod challenge_outcome_approval_service_port;
+
 mod challenge_outcome_pending_port;
 mod challenge_repository;
 mod challenge_resolution_port;
@@ -33,14 +33,14 @@ mod file_storage_port;
 mod game_events;
 mod generation_active_batches_port;
 mod generation_read_state_port;
-mod interaction_service_port;
+
 mod llm_port;
 mod location_repository;
 mod narrative_event_repository;
 mod player_action_queue_port;
 mod player_character_dto_port;
 mod player_character_repository;
-mod player_character_service_port;
+
 mod prompt_template_cache_port;
 mod prompt_template_port;
 mod queue_notification_port;
@@ -51,12 +51,12 @@ mod repository_port;
 mod scene_dm_action_queue_port;
 mod scene_interactions_query_port;
 mod scene_repository;
-mod scene_service_port;
+
 mod scene_with_relations_query_port;
 mod settings_cache_port;
 mod settings_port;
 mod staging_repository_port;
-mod staging_service_port;
+
 mod staging_state_ports;
 mod staging_use_case_service_ports;
 mod state_change;
@@ -318,18 +318,14 @@ pub use directorial_context_query_port::DirectorialContextQueryPort;
 // Minimal world state updates used by use cases
 pub use world_state_update_port::WorldStateUpdatePort;
 
-// Scene service port - interface for scene operations
-pub use scene_service_port::{SceneServicePort, SceneWithRelations};
+
 
 // Scene use-case DTO query ports
 pub use scene_dm_action_queue_port::SceneDmActionQueuePort;
 pub use scene_interactions_query_port::SceneInteractionsQueryPort;
 pub use scene_with_relations_query_port::SceneWithRelationsQueryPort;
 
-// Interaction service port - interface for interaction operations
-pub use interaction_service_port::InteractionServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use interaction_service_port::MockInteractionServicePort;
+
 
 pub use world_snapshot_json_port::WorldSnapshotJsonPort;
 
@@ -367,19 +363,11 @@ pub use world_state::{
     WorldScenePort, WorldStatePort, WorldTimePort,
 };
 
-// Player character service port - interface for player character operations
-#[cfg(any(test, feature = "testing"))]
-pub use player_character_service_port::MockPlayerCharacterServicePort;
-pub use player_character_service_port::PlayerCharacterServicePort;
+
 
 pub use player_character_dto_port::PlayerCharacterDtoPort;
 
-// Staging service port - interface for NPC staging operations
-#[cfg(any(test, feature = "testing"))]
-pub use staging_service_port::MockStagingServicePort;
-pub use staging_service_port::{
-    ApprovedNpc, StagedNpcProposal, StagingProposal, StagingServicePort,
-};
+
 
 pub use player_action_queue_port::PlayerActionQueuePort;
 
@@ -495,15 +483,7 @@ pub use use_case_types::{
     WorldRole,
 };
 
-// Challenge outcome approval service port - interface for DM approval of challenge resolutions
-// NOTE: This is a wrapper-forwarder trait that will be deleted in Step 5 of the ServicePort refactor.
-#[cfg(any(test, feature = "testing"))]
-pub use challenge_outcome_approval_service_port::MockChallengeOutcomeApprovalServicePort;
-pub use challenge_outcome_approval_service_port::{
-    ChallengeApprovalResult, ChallengeOutcomeApprovalServicePort,
-    OutcomeBranchInfo as ApprovalOutcomeBranchInfo, ResolvedOutcome,
-    StateChangeInfo as ApprovalStateChangeInfo,
-};
+
 
 // Event effect executor port - interface for executing narrative event outcome effects
 #[cfg(any(test, feature = "testing"))]

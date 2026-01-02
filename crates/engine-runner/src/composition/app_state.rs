@@ -38,9 +38,9 @@ use wrldbldr_engine_composition::{
 use wrldbldr_engine_ports::inbound::RequestHandler;
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    ActantialContextServicePort, ChallengeResolutionServicePort, DispositionServicePort,
-    NarrativeEventApprovalServicePort, OutcomeTriggerServicePort, PromptContextServicePort,
-    TriggerEvaluationServicePort,
+    ActantialContextServicePort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
+    DispositionServicePort, NarrativeEventApprovalServicePort, OutcomeTriggerServicePort,
+    PromptContextServicePort, StagingServicePort, TriggerEvaluationServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
@@ -48,13 +48,12 @@ use wrldbldr_engine_app::application::services::internal::{
 };
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
-    ApprovalRequestLookupPort, BroadcastPort, ChallengeOutcomeApprovalServicePort, ComfyUIPort,
-    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
-    ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DmActionProcessorPort,
-    DmNotificationPort, DomainEventRepositoryPort, EventBusPort, EventEffectExecutorPort,
-    EventNotifierPort, GenerationReadStatePort, RegionItemPort, StagingServicePort,
-    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
-    WorldScenePort, WorldTimePort,
+    ApprovalRequestLookupPort, BroadcastPort, ComfyUIPort, ConnectionBroadcastPort,
+    ConnectionContextPort, ConnectionLifecyclePort, ConnectionManagerPort, ConnectionQueryPort,
+    ConnectionUnicastPort, DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort,
+    EventBusPort, EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
+    RegionItemPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
+    WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs

@@ -25,12 +25,11 @@ use async_trait::async_trait;
 use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
 use crate::application::services::internal::{
-    OutcomeTriggerServicePort, PromptTemplateServicePort, SettingsServicePort, StateChange,
+    ChallengeOutcomeApprovalServicePort, OutcomeDecision, OutcomeTriggerServicePort,
+    PromptTemplateServicePort, SettingsServicePort, StateChange,
 };
-use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
-    ChallengeOutcomeApprovalServicePort, ChallengeOutcomePendingPort, ClockPort,
-    ItemRepositoryPort, LlmPort, OutcomeDecision as PortOutcomeDecision,
+    ChallengeOutcomePendingPort, ClockPort, ItemRepositoryPort, LlmPort,
     PlayerCharacterCrudPort, PlayerCharacterInventoryPort, QueuePort,
 };
 
@@ -1118,23 +1117,11 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalServicePort
         &self,
         world_id: WorldId,
         resolution_id: &str,
-        decision: PortOutcomeDecision,
+        decision: OutcomeDecision,
     ) -> anyhow::Result<()> {
-        // Convert port OutcomeDecision to internal OutcomeDecision
-        let internal_decision = match decision {
-            PortOutcomeDecision::Accept => OutcomeDecision::Accept,
-            PortOutcomeDecision::Edit { modified_text } => OutcomeDecision::Edit { modified_text },
-            PortOutcomeDecision::Suggest { guidance } => OutcomeDecision::Suggest { guidance },
-        };
-
-        ChallengeOutcomeApprovalService::process_decision(
-            self,
-            &world_id,
-            resolution_id,
-            internal_decision,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("{}", e))
+        ChallengeOutcomeApprovalService::process_decision(self, &world_id, resolution_id, decision)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     async fn update_suggestions(

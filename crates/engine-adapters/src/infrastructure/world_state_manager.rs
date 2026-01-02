@@ -7,14 +7,14 @@ use wrldbldr_domain::value_objects::{
     ConversationEntry, DirectorialNotes, DomainNpcMotivation, PacingGuidance, PendingApprovalItem,
 };
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_ports::outbound::StagingProposal;
+use wrldbldr_engine_app::application::services::internal::{StagedNpcProposal, StagingProposal};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
 };
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextData, PendingStagingData, PendingStagingInfo, RegeneratedNpc, StagedNpcData,
-    StagedNpcProposal, StagingStateExtPort, StagingStatePort, WaitingPcInfo, WorldStateUpdatePort,
+    StagingStateExtPort, StagingStatePort, WaitingPcInfo, WorldStateUpdatePort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;

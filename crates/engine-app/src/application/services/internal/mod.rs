@@ -226,3 +226,37 @@ pub use workflow_service_port::MockWorkflowServicePort;
 pub use world_service_port::WorldServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use world_service_port::MockWorldServicePort;
+
+// =============================================================================
+// 5 ADAPTER-CALLED service ports (internalized from engine-ports/outbound)
+// =============================================================================
+// These were wrapper ports called by adapters but implemented by app services.
+// Now internalized for app→app dependencies.
+
+mod challenge_outcome_approval_service_port;
+mod interaction_service_port;
+mod player_character_service_port;
+mod scene_service_port;
+mod staging_service_port;
+
+pub use challenge_outcome_approval_service_port::{
+    ChallengeOutcomeApprovalServicePort, OutcomeDecision,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_outcome_approval_service_port::MockChallengeOutcomeApprovalServicePort;
+
+pub use interaction_service_port::InteractionServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use interaction_service_port::MockInteractionServicePort;
+
+pub use player_character_service_port::PlayerCharacterServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use player_character_service_port::MockPlayerCharacterServicePort;
+
+pub use scene_service_port::{SceneServicePort, SceneWithRelations};
+#[cfg(any(test, feature = "testing"))]
+pub use scene_service_port::MockSceneServicePort;
+
+pub use staging_service_port::{ApprovedNpc, StagedNpcProposal, StagingProposal, StagingServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use staging_service_port::MockStagingServicePort;

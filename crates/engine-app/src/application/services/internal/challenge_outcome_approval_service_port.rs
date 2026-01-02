@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use wrldbldr_domain::value_objects::ChallengeOutcomeData;
 use wrldbldr_domain::WorldId;
 
-// Re-export OutcomeDecision from use_case_types for convenience
-pub use super::use_case_types::OutcomeDecision;
+// Re-export OutcomeDecision from engine-ports use_case_types
+pub use wrldbldr_engine_ports::outbound::OutcomeDecision;
 
 /// Result of a challenge approval operation
 #[derive(Debug, Clone)]

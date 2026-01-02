@@ -11,9 +11,10 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::CharacterSheetData;
 use wrldbldr_domain::entities::PlayerCharacter;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, SkillId, WorldId};
+use crate::application::services::internal::PlayerCharacterServicePort;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, LocationCrudPort, PlayerCharacterCrudPort, PlayerCharacterPositionPort,
-    PlayerCharacterQueryPort, PlayerCharacterServicePort, WorldRepositoryPort,
+    PlayerCharacterQueryPort, WorldRepositoryPort,
 };
 
 /// Request to create a new player character

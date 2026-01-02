@@ -10,9 +10,11 @@ use std::sync::Arc;
 
 use wrldbldr_domain::entities::{StagedNpc, StagingSource};
 use wrldbldr_domain::{CharacterId, GameTime, LocationId, RegionId, WorldId};
+use wrldbldr_engine_app::application::services::internal::{
+    ApprovedNpc, StagedNpcProposal, StagingServicePort as DomainStagingServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    ApprovedNpc, ApprovedNpcData, RegeneratedNpc, StagedNpcData, StagedNpcProposal,
-    StagingProposalData, StagingServicePort as DomainStagingServicePort,
+    ApprovedNpcData, RegeneratedNpc, StagedNpcData, StagingProposalData,
     StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
 };
 

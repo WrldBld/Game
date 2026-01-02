@@ -44,14 +44,13 @@ use std::sync::Arc;
 
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    ActantialContextServicePort, ChallengeResolutionServicePort, ChallengeServicePort,
-    DispositionServicePort, EventChainServicePort, NarrativeEventApprovalServicePort,
-    NarrativeEventServicePort, StoryEventServicePort, TriggerEvaluationServicePort,
+    ActantialContextServicePort, ChallengeOutcomeApprovalServicePort,
+    ChallengeResolutionServicePort, ChallengeServicePort, DispositionServicePort,
+    EventChainServicePort, NarrativeEventApprovalServicePort, NarrativeEventServicePort,
+    StoryEventServicePort, TriggerEvaluationServicePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
-use wrldbldr_engine_ports::outbound::{
-    ChallengeOutcomeApprovalServicePort, EventEffectExecutorPort,
-};
+use wrldbldr_engine_ports::outbound::EventEffectExecutorPort;
 
 /// Container for game mechanics and narrative services.
 ///

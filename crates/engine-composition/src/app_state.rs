@@ -86,12 +86,13 @@ use wrldbldr_engine_ports::inbound::{
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     PromptContextServicePort, PromptTemplateServicePort, SettingsServicePort,
+    StagingServicePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ClockPort, ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort,
     ConnectionLifecyclePort, ConnectionQueryPort, DirectorialContextRepositoryPort,
-    GenerationReadStatePort, LlmPort, RegionItemPort, StagingServicePort, WorldApprovalPort,
+    GenerationReadStatePort, LlmPort, RegionItemPort, WorldApprovalPort,
     WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 

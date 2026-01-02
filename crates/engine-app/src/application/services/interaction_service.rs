@@ -11,7 +11,8 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::InteractionTarget;
 use wrldbldr_domain::entities::InteractionTemplate;
 use wrldbldr_domain::{InteractionId, SceneId};
-use wrldbldr_engine_ports::outbound::{InteractionRepositoryPort, InteractionServicePort};
+use crate::application::services::internal::InteractionServicePort;
+use wrldbldr_engine_ports::outbound::InteractionRepositoryPort;
 
 /// Interaction service trait defining the application use cases
 #[async_trait]

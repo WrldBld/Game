@@ -46,6 +46,7 @@ pub struct SceneWithRelations {
 ///
 /// This port provides access to scene-related business logic
 /// without coupling adapters to the application layer implementation.
+#[cfg_attr(any(test, feature = "testing"), mockall::automock)]
 #[async_trait]
 pub trait SceneServicePort: Send + Sync {
     /// Get a scene with all its relations (location, characters)

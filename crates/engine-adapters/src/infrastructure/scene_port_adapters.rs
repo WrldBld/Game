@@ -20,12 +20,14 @@ use wrldbldr_engine_ports::inbound::{
     CharacterEntity, DirectorialContextData, DmAction, InteractionEntity, InteractionTarget,
     LocationEntity, SceneEntity, SceneWithRelations as UseCaseSceneWithRelations, TimeContext,
 };
+use wrldbldr_engine_app::application::services::internal::{
+    InteractionServicePort as OutboundInteractionServicePort,
+    SceneServicePort as OutboundSceneServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextDtoRepositoryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
-    InteractionServicePort as OutboundInteractionServicePort, SceneDmActionQueuePort,
-    SceneInteractionsQueryPort, SceneServicePort as OutboundSceneServicePort,
-    SceneWithRelationsQueryPort,
+    SceneDmActionQueuePort, SceneInteractionsQueryPort, SceneWithRelationsQueryPort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;

@@ -20,10 +20,10 @@ use wrldbldr_domain::entities::{
     Character, Location, Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext,
 };
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
+use crate::application::services::internal::{SceneServicePort, SceneWithRelations as PortSceneWithRelations};
 use wrldbldr_engine_ports::outbound::{
     CharacterCrudPort, LocationCrudPort, SceneCrudPort, SceneFeaturedCharacterPort,
-    SceneLocationPort, SceneQueryPort, SceneServicePort,
-    SceneWithRelations as PortSceneWithRelations,
+    SceneLocationPort, SceneQueryPort,
 };
 
 /// Request to create a new scene

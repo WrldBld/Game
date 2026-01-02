@@ -37,15 +37,12 @@ use wrldbldr_engine_app::application::services::{
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    CharacterServicePort, ItemServicePort, LocationServicePort, RelationshipServicePort,
-    SceneResolutionServicePort, SheetTemplateServicePort, SkillServicePort,
+    CharacterServicePort, InteractionServicePort, ItemServicePort, LocationServicePort,
+    PlayerCharacterServicePort, RelationshipServicePort, SceneResolutionServicePort,
+    SceneServicePort, SheetTemplateServicePort, SkillServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{SettingsServicePort, WorldServicePort};
-// Service ports still in outbound (not yet migrated to internal)
-use wrldbldr_engine_ports::outbound::{
-    InteractionServicePort, PlayerCharacterServicePort, SceneServicePort,
-};
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
     // Repository ports (inputs)

@@ -60,25 +60,19 @@ use wrldbldr_engine_ports::inbound::{
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    ChallengeResolutionServicePort, NarrativeEventApprovalServicePort,
-};
-// Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::{
-    DmApprovalQueueServicePort, PlayerActionQueueServicePort, WorldServicePort,
-};
-// Service ports still in outbound (not yet migrated to internal)
-use wrldbldr_engine_ports::outbound::{
-    InteractionServicePort, PlayerCharacterServicePort, SceneServicePort,
+    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
+    DmApprovalQueueServicePort, InteractionServicePort, NarrativeEventApprovalServicePort,
+    PlayerActionQueueServicePort, PlayerCharacterServicePort, SceneServicePort, StagingServicePort,
+    WorldServicePort,
 };
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, ChallengeOutcomeApprovalServicePort, CharacterCrudPort, ClockPort,
-    ConnectionBroadcastPort, ConnectionManagerPort, ConnectionUnicastPort,
-    DirectorialContextRepositoryPort, DmNotificationPort, LocationCrudPort, LocationMapPort,
-    ObservationRepositoryPort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
-    PlayerCharacterPositionPort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
-    RegionItemPort, StagingServicePort as OutboundStagingServicePort, StagingStateExtPort,
-    StagingStatePort, WorldStateUpdatePort,
+    BroadcastPort, CharacterCrudPort, ClockPort, ConnectionBroadcastPort, ConnectionManagerPort,
+    ConnectionUnicastPort, DirectorialContextRepositoryPort, DmNotificationPort, LocationCrudPort,
+    LocationMapPort, ObservationRepositoryPort, PlayerCharacterCrudPort,
+    PlayerCharacterInventoryPort, PlayerCharacterPositionPort, RegionConnectionPort,
+    RegionCrudPort, RegionExitPort, RegionItemPort, StagingStateExtPort, StagingStatePort,
+    WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.
@@ -187,7 +181,7 @@ pub struct UseCaseDependencies {
     // Service Ports (outbound - for adapter wiring)
     // =========================================================================
     /// Staging service port (outbound) for StagingServiceAdapter
-    pub staging_service_port: Arc<dyn OutboundStagingServicePort>,
+    pub staging_service_port: Arc<dyn StagingServicePort>,
     /// Player action queue service port for adapter
     pub player_action_queue_service_port: Arc<dyn PlayerActionQueueServicePort>,
     /// Challenge resolution service port
