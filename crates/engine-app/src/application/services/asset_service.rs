@@ -11,7 +11,7 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 use crate::application::services::internal::{
-    AssetServicePort, CreateAssetRequest as PortCreateAssetRequest,
+    AssetUseCasePort, CreateAssetRequest as PortCreateAssetRequest,
 };
 use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 
@@ -327,7 +327,7 @@ impl AssetService for AssetServiceImpl {
 
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
-impl AssetServicePort for AssetServiceImpl {
+impl AssetUseCasePort for AssetServiceImpl {
     async fn get_asset(&self, asset_id: AssetId) -> Result<Option<GalleryAsset>> {
         AssetService::get_asset(self, asset_id).await
     }

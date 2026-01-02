@@ -10,7 +10,7 @@ use async_trait::async_trait;
 
 use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::{WorkflowConfigId, WorldId};
-use crate::application::services::internal::WorkflowServicePort;
+use crate::application::services::internal::WorkflowUseCasePort;
 use wrldbldr_engine_ports::outbound::{ClockPort, WorkflowRepositoryPort};
 
 /// Service for managing workflow configuration persistence
@@ -173,7 +173,7 @@ impl WorkflowConfigService {
 
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
-impl WorkflowServicePort for WorkflowConfigService {
+impl WorkflowUseCasePort for WorkflowConfigService {
     async fn get_workflow(&self, id: WorkflowConfigId) -> Result<Option<WorkflowConfiguration>> {
         WorkflowConfigService::get_workflow(self, id).await
     }

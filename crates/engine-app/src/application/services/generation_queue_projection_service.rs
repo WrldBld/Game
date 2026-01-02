@@ -15,7 +15,7 @@ use crate::application::services::asset_service::{AssetService, AssetServiceImpl
 use wrldbldr_domain::entities::{BatchStatus, GenerationBatch};
 use wrldbldr_domain::{DomainEvent, WorldId};
 use crate::application::services::internal::{
-    GenerationBatchSnapshot as PortGenerationBatchSnapshot, GenerationQueueProjectionServicePort,
+    GenerationBatchSnapshot as PortGenerationBatchSnapshot, GenerationQueueProjectionUseCasePort,
     GenerationQueueSnapshot as PortGenerationQueueSnapshot,
     SuggestionTaskSnapshot as PortSuggestionTaskSnapshot,
 };
@@ -268,7 +268,7 @@ impl GenerationQueueProjectionService {
 
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
-impl GenerationQueueProjectionServicePort for GenerationQueueProjectionService {
+impl GenerationQueueProjectionUseCasePort for GenerationQueueProjectionService {
     async fn project_queue(
         &self,
         user_id: Option<String>,

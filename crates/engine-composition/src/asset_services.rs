@@ -36,8 +36,8 @@ use std::sync::Arc;
 
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    AssetServicePort, GenerationQueueProjectionServicePort, GenerationServicePort,
-    WorkflowServicePort,
+    AssetUseCasePort, GenerationQueueProjectionUseCasePort, GenerationUseCasePort,
+    WorkflowUseCasePort,
 };
 
 /// Container for asset management and generation services.
@@ -67,27 +67,27 @@ pub struct AssetServices {
     ///
     /// Manages stored assets including character portraits, location images,
     /// and other visual content. Handles metadata and file references.
-    pub asset_service: Arc<dyn AssetServicePort>,
+    pub asset_service: Arc<dyn AssetUseCasePort>,
 
     /// Service for workflow configuration management.
     ///
     /// Provides access to ComfyUI workflow definitions that control how
     /// assets are generated. Includes workflow templates and parameter schemas.
-    pub workflow_config_service: Arc<dyn WorkflowServicePort>,
+    pub workflow_config_service: Arc<dyn WorkflowUseCasePort>,
 
     /// Service for orchestrating asset generation.
     ///
     /// Coordinates the generation pipeline from request through ComfyUI
     /// execution to final asset storage. Handles generation batches and
     /// individual asset requests.
-    pub generation_service: Arc<dyn GenerationServicePort>,
+    pub generation_service: Arc<dyn GenerationUseCasePort>,
 
     /// Read-side projection service for generation queue state.
     ///
     /// Provides current state views of the generation queue including
     /// pending, processing, and completed items. Used for UI status
     /// displays and monitoring.
-    pub generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort>,
+    pub generation_queue_projection_service: Arc<dyn GenerationQueueProjectionUseCasePort>,
 }
 
 impl AssetServices {
@@ -106,17 +106,17 @@ impl AssetServices {
     ///
     /// ```ignore
     /// let asset_services = AssetServices::new(
-    ///     Arc::new(asset_service_impl) as Arc<dyn AssetServicePort>,
-    ///     Arc::new(workflow_service_impl) as Arc<dyn WorkflowServicePort>,
-    ///     Arc::new(generation_service_impl) as Arc<dyn GenerationServicePort>,
-    ///     Arc::new(projection_service_impl) as Arc<dyn GenerationQueueProjectionServicePort>,
+    ///     Arc::new(asset_service_impl) as Arc<dyn AssetUseCasePort>,
+    ///     Arc::new(workflow_service_impl) as Arc<dyn WorkflowUseCasePort>,
+    ///     Arc::new(generation_service_impl) as Arc<dyn GenerationUseCasePort>,
+    ///     Arc::new(projection_service_impl) as Arc<dyn GenerationQueueProjectionUseCasePort>,
     /// );
     /// ```
     pub fn new(
-        asset_service: Arc<dyn AssetServicePort>,
-        workflow_config_service: Arc<dyn WorkflowServicePort>,
-        generation_service: Arc<dyn GenerationServicePort>,
-        generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort>,
+        asset_service: Arc<dyn AssetUseCasePort>,
+        workflow_config_service: Arc<dyn WorkflowUseCasePort>,
+        generation_service: Arc<dyn GenerationUseCasePort>,
+        generation_queue_projection_service: Arc<dyn GenerationQueueProjectionUseCasePort>,
     ) -> Self {
         Self {
             asset_service,
@@ -130,12 +130,12 @@ impl AssetServices {
 impl std::fmt::Debug for AssetServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AssetServices")
-            .field("asset_service", &"Arc<dyn AssetServicePort>")
-            .field("workflow_config_service", &"Arc<dyn WorkflowServicePort>")
-            .field("generation_service", &"Arc<dyn GenerationServicePort>")
+            .field("asset_service", &"Arc<dyn AssetUseCasePort>")
+            .field("workflow_config_service", &"Arc<dyn WorkflowUseCasePort>")
+            .field("generation_service", &"Arc<dyn GenerationUseCasePort>")
             .field(
                 "generation_queue_projection_service",
-                &"Arc<dyn GenerationQueueProjectionServicePort>",
+                &"Arc<dyn GenerationQueueProjectionUseCasePort>",
             )
             .finish()
     }

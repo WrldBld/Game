@@ -31,7 +31,7 @@ use super::errors::ActionError;
 pub use wrldbldr_engine_ports::inbound::PlayerActionUseCasePort;
 
 pub use wrldbldr_engine_ports::outbound::DmNotificationPort;
-use crate::application::services::internal::{PlayerAction, PlayerActionQueueServicePort};
+use crate::application::services::internal::{PlayerAction, PlayerActionQueueUseCasePort};
 use wrldbldr_engine_ports::outbound::ClockPort;
 
 // Re-export types from engine-ports for backwards compatibility
@@ -55,7 +55,7 @@ pub struct PlayerActionUseCase {
     /// Movement operations for travel actions (outbound port)
     movement: Arc<dyn MovementOperationsPort>,
     /// Queue service for non-immediate actions
-    action_queue: Arc<dyn PlayerActionQueueServicePort>,
+    action_queue: Arc<dyn PlayerActionQueueUseCasePort>,
     /// Clock for timestamps
     clock: Arc<dyn ClockPort>,
     /// DM notification port
@@ -66,7 +66,7 @@ impl PlayerActionUseCase {
     /// Create a new PlayerActionUseCase with all dependencies
     pub fn new(
         movement: Arc<dyn MovementOperationsPort>,
-        action_queue: Arc<dyn PlayerActionQueueServicePort>,
+        action_queue: Arc<dyn PlayerActionQueueUseCasePort>,
         clock: Arc<dyn ClockPort>,
         dm_notification: Arc<dyn DmNotificationPort>,
     ) -> Self {

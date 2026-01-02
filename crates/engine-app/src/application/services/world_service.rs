@@ -12,7 +12,7 @@ use wrldbldr_domain::entities::Location;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 use wrldbldr_domain::{GameTime, WorldId};
-use crate::application::services::internal::{SettingsUseCasePort, WorldServicePort};
+use crate::application::services::internal::{SettingsUseCasePort, WorldUseCasePort};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
 };
@@ -387,7 +387,7 @@ impl WorldService for WorldServiceImpl {
 // =============================================================================
 
 #[async_trait]
-impl WorldServicePort for WorldServiceImpl {
+impl WorldUseCasePort for WorldServiceImpl {
     async fn get_world(&self, id: WorldId) -> Result<Option<World>> {
         WorldService::get_world(self, id).await
     }

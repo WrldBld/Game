@@ -12,18 +12,18 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole};
 
 /// Service for generating content suggestions
 pub struct SuggestionService<L: LlmPort> {
     llm: L,
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
 }
 
 impl<L: LlmPort> SuggestionService<L> {
     /// Create a new suggestion service
-    pub fn new(llm: L, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
+    pub fn new(llm: L, prompt_template_service: Arc<dyn PromptTemplateUseCasePort>) -> Self {
         Self {
             llm,
             prompt_template_service,
@@ -31,7 +31,7 @@ impl<L: LlmPort> SuggestionService<L> {
     }
 
     async fn resolve_optional_world_template_with(
-        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: &Arc<dyn PromptTemplateUseCasePort>,
         world_id: Option<WorldId>,
         key: &str,
     ) -> String {
@@ -89,7 +89,7 @@ impl<L: LlmPort> SuggestionService<L> {
     /// `SuggestionService::new()` internally (Phase 6 IoC cleanup).
     pub async fn suggest_field_with(
         llm: L,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         field_type: &str,
         context: &SuggestionContext,
     ) -> Result<Vec<String>> {

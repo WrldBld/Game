@@ -28,7 +28,7 @@ use crate::application::services::internal::DialogueContextServicePort;
 use crate::application::services::internal::{
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
     ApprovalRequest, ApprovalUrgency as PortApprovalUrgency, DmApprovalDecision,
-    DmApprovalQueueServicePort,
+    DmApprovalQueueUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ApprovalRequestData, ApprovalRequestLookupPort, ClockPort, QueueError,
@@ -874,7 +874,7 @@ fn handle_unknown_decision(decision: DmApprovalDecision) -> DmApprovalDecision {
 // ============================================================================
 
 #[async_trait]
-impl<Q, I> DmApprovalQueueServicePort for DMApprovalQueueService<Q, I>
+impl<Q, I> DmApprovalQueueUseCasePort for DMApprovalQueueService<Q, I>
 where
     Q: ApprovalQueuePort<ApprovalRequestData> + Send + Sync + 'static,
     I: ItemService + Send + Sync + 'static,

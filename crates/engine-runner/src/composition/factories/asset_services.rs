@@ -38,8 +38,8 @@ use wrldbldr_engine_app::application::services::generation_service::{
     GenerationEvent, GenerationService,
 };
 use wrldbldr_engine_app::application::services::internal::{
-    AssetServicePort, GenerationQueueProjectionServicePort, GenerationServicePort,
-    WorkflowServicePort,
+    AssetUseCasePort, GenerationQueueProjectionUseCasePort, GenerationUseCasePort,
+    WorkflowUseCasePort,
 };
 use wrldbldr_engine_app::application::services::{
     AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
@@ -127,18 +127,18 @@ pub struct AssetServiceDependencies {
 /// - `generation_queue_projection_service`: Queue state projection
 ///
 #[derive(Clone)]
-pub struct AssetServicePorts {
+pub struct AssetUseCasePorts {
     /// Asset service for CRUD operations (port trait)
-    pub asset_service: Arc<dyn AssetServicePort>,
+    pub asset_service: Arc<dyn AssetUseCasePort>,
 
     /// Workflow configuration service (port trait)
-    pub workflow_config_service: Arc<dyn WorkflowServicePort>,
+    pub workflow_config_service: Arc<dyn WorkflowUseCasePort>,
 
     /// Generation service for asset generation (port trait)
-    pub generation_service: Arc<dyn GenerationServicePort>,
+    pub generation_service: Arc<dyn GenerationUseCasePort>,
 
     /// Generation queue projection service (port trait)
-    pub generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort>,
+    pub generation_queue_projection_service: Arc<dyn GenerationQueueProjectionUseCasePort>,
 }
 
 /// Creates all asset service port trait objects from their dependencies.
@@ -147,7 +147,7 @@ pub struct AssetServicePorts {
 /// 1. Creates file storage adapter for generation service
 /// 2. Instantiates all asset services with their dependencies
 /// 3. Coerces concrete implementations to port trait objects
-/// 4. Returns `AssetServicePorts` with all services
+/// 4. Returns `AssetUseCasePorts` with all services
 ///
 /// # Arguments
 ///
@@ -155,7 +155,7 @@ pub struct AssetServicePorts {
 ///
 /// # Returns
 ///
-/// `AssetServicePorts` containing all port trait objects and concrete types needed
+/// `AssetUseCasePorts` containing all port trait objects and concrete types needed
 /// for composition.
 ///
 /// # Example
@@ -178,12 +178,12 @@ pub struct AssetServicePorts {
 /// // Use ports for asset operations
 /// let assets = asset_services.asset_service.list_assets(entity_type, entity_id).await?;
 /// ```
-pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePorts {
+pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetUseCasePorts {
     // =========================================================================
     // Asset Service
     // =========================================================================
     let asset_service_concrete = AssetServiceImpl::new(deps.asset_repo.clone(), deps.clock.clone());
-    let asset_service: Arc<dyn AssetServicePort> = Arc::new(asset_service_concrete.clone());
+    let asset_service: Arc<dyn AssetUseCasePort> = Arc::new(asset_service_concrete.clone());
     tracing::debug!("Created asset service");
 
     // =========================================================================
@@ -191,7 +191,7 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
     // =========================================================================
     let workflow_config_service_concrete =
         WorkflowConfigService::new(deps.workflow_repo.clone(), deps.clock.clone());
-    let workflow_config_service: Arc<dyn WorkflowServicePort> =
+    let workflow_config_service: Arc<dyn WorkflowUseCasePort> =
         Arc::new(workflow_config_service_concrete);
     tracing::debug!("Created workflow config service");
 
@@ -216,7 +216,7 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
         active_batches,
         deps.settings_service,
     );
-    let generation_service: Arc<dyn GenerationServicePort> = Arc::new(generation_service_concrete);
+    let generation_service: Arc<dyn GenerationUseCasePort> = Arc::new(generation_service_concrete);
     tracing::debug!("Created generation service");
 
     // =========================================================================
@@ -228,13 +228,13 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
             deps.domain_event_repository,
             deps.generation_read_state_repository,
         ));
-    let generation_queue_projection_service: Arc<dyn GenerationQueueProjectionServicePort> =
+    let generation_queue_projection_service: Arc<dyn GenerationQueueProjectionUseCasePort> =
         generation_queue_projection_service_concrete;
     tracing::debug!("Created generation queue projection service");
 
     tracing::info!("Asset services factory completed");
 
-    AssetServicePorts {
+    AssetUseCasePorts {
         asset_service,
         workflow_config_service,
         generation_service,
@@ -246,18 +246,18 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
 mod tests {
     use super::*;
 
-    /// Test that AssetServicePorts has all expected fields.
+    /// Test that AssetUseCasePorts has all expected fields.
     ///
     /// This is a compile-time test - if the struct fields don't match,
     /// the code won't compile.
     #[test]
     fn test_asset_service_ports_structure() {
-        fn _verify_ports(ports: &AssetServicePorts) {
+        fn _verify_ports(ports: &AssetUseCasePorts) {
             // Port traits
-            let _: &Arc<dyn AssetServicePort> = &ports.asset_service;
-            let _: &Arc<dyn WorkflowServicePort> = &ports.workflow_config_service;
-            let _: &Arc<dyn GenerationServicePort> = &ports.generation_service;
-            let _: &Arc<dyn GenerationQueueProjectionServicePort> =
+            let _: &Arc<dyn AssetUseCasePort> = &ports.asset_service;
+            let _: &Arc<dyn WorkflowUseCasePort> = &ports.workflow_config_service;
+            let _: &Arc<dyn GenerationUseCasePort> = &ports.generation_service;
+            let _: &Arc<dyn GenerationQueueProjectionUseCasePort> =
                 &ports.generation_queue_projection_service;
         }
 
@@ -293,10 +293,10 @@ mod tests {
         let _ = _verify_deps;
     }
 
-    /// Test that AssetServicePorts implements Clone.
+    /// Test that AssetUseCasePorts implements Clone.
     #[test]
     fn test_asset_service_ports_is_clone() {
         fn assert_clone<T: Clone>() {}
-        assert_clone::<AssetServicePorts>();
+        assert_clone::<AssetUseCasePorts>();
     }
 }

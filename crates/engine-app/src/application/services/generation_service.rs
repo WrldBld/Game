@@ -18,7 +18,7 @@ use wrldbldr_domain::entities::{
 use wrldbldr_domain::value_objects::BatchQueueFailurePolicy;
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 use crate::application::services::internal::{
-    GenerationRequest, GenerationServicePort, SettingsUseCasePort,
+    GenerationRequest, GenerationUseCasePort, SettingsUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ActiveGenerationBatch, ActiveGenerationBatchesPort, AssetRepositoryPort, ClockPort,
@@ -764,7 +764,7 @@ impl GenerationService {
 
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
-impl GenerationServicePort for GenerationService {
+impl GenerationUseCasePort for GenerationService {
     async fn generate_asset(&self, request: GenerationRequest) -> Result<GenerationBatch> {
         // Queue and return the batch
         let batch_id = self.queue_generation(request).await?;

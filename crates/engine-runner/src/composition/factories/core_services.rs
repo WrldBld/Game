@@ -42,7 +42,7 @@ use wrldbldr_engine_app::application::services::internal::{
     SceneServicePort, SheetTemplateServicePort, SkillServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::WorldServicePort;
+use wrldbldr_engine_app::application::services::internal::WorldUseCasePort;
 use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
@@ -196,7 +196,7 @@ pub struct CoreServicePorts {
     // Port versions (for composition layer)
     // =========================================================================
     /// World management service (port)
-    pub world_service_port: Arc<dyn WorldServicePort>,
+    pub world_service_port: Arc<dyn WorldUseCasePort>,
     /// Character management service (port)
     pub character_service_port: Arc<dyn CharacterServicePort>,
     /// Location management service (port)
@@ -318,7 +318,7 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
         deps.settings_service.clone(),
         clock.clone(),
     ));
-    let world_service_port: Arc<dyn WorldServicePort> = world_service_impl.clone();
+    let world_service_port: Arc<dyn WorldUseCasePort> = world_service_impl.clone();
     let world_service: Arc<dyn WorldService> = world_service_impl;
 
     // =========================================================================
@@ -528,7 +528,7 @@ mod tests {
     fn test_core_service_ports_fields() {
         fn _verify_ports(ports: &CoreServicePorts) {
             // Port versions
-            let _: &Arc<dyn WorldServicePort> = &ports.world_service_port;
+            let _: &Arc<dyn WorldUseCasePort> = &ports.world_service_port;
             let _: &Arc<dyn CharacterServicePort> = &ports.character_service_port;
             let _: &Arc<dyn LocationServicePort> = &ports.location_service_port;
             let _: &Arc<dyn SceneServicePort> = &ports.scene_service_port;

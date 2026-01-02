@@ -20,9 +20,9 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 use crate::application::services::internal::{
-    LlmQueueItem, LlmQueueRequest, LlmQueueResponse, LlmQueueServicePort,
+    LlmQueueItem, LlmQueueRequest, LlmQueueResponse, LlmQueueUseCasePort,
     LlmRequestType as PortLlmRequestType, LlmSuggestionContext as PortSuggestionContext,
-    PromptTemplateServicePort,
+    PromptTemplateUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeCrudPort, ChallengeSkillPort, LlmPort, NarrativeEventCrudPort,
@@ -49,7 +49,7 @@ pub struct LLMQueueService<
     semaphore: Arc<Semaphore>,
     notifier: N,
     generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
 }
 
 impl<
@@ -87,7 +87,7 @@ impl<
         batch_size: usize,
         notifier: N,
         generation_event_tx: tokio::sync::mpsc::Sender<GenerationEvent>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
     ) -> Self {
         Self {
             queue,
@@ -717,7 +717,7 @@ fn convert_domain_suggestion_context(
 }
 
 #[async_trait]
-impl<Q, L, N> LlmQueueServicePort for LLMQueueService<Q, L, N>
+impl<Q, L, N> LlmQueueUseCasePort for LLMQueueService<Q, L, N>
 where
     Q: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,
     L: LlmPort + Clone + Send + Sync + 'static,

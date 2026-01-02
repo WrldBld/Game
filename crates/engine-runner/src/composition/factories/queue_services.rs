@@ -12,7 +12,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::inbound::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
@@ -32,8 +32,8 @@ use wrldbldr_engine_app::application::services::{
     NarrativeEventService, PlayerActionQueueService, SceneService,
 };
 use wrldbldr_engine_app::application::services::internal::{
-    AssetGenerationQueueServicePort, DmApprovalQueueServicePort, LlmQueueServicePort,
-    PlayerActionQueueServicePort,
+    AssetGenerationQueueUseCasePort, DmApprovalQueueUseCasePort, LlmQueueUseCasePort,
+    PlayerActionQueueUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DmActionProcessorPort, FileStoragePort, QueuePort,
@@ -83,11 +83,11 @@ pub async fn create_queue_backends(
 
 /// Queue service ports for AppState (ports only).
 pub struct QueueServicePorts {
-    pub player_action_queue_service_port: Arc<dyn PlayerActionQueueServicePort>,
+    pub player_action_queue_service_port: Arc<dyn PlayerActionQueueUseCasePort>,
     pub dm_action_queue_service_port: Arc<dyn DmActionQueueServicePort>,
-    pub llm_queue_service_port: Arc<dyn LlmQueueServicePort>,
-    pub asset_generation_queue_service_port: Arc<dyn AssetGenerationQueueServicePort>,
-    pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueServicePort>,
+    pub llm_queue_service_port: Arc<dyn LlmQueueUseCasePort>,
+    pub asset_generation_queue_service_port: Arc<dyn AssetGenerationQueueUseCasePort>,
+    pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueUseCasePort>,
     pub challenge_outcome_queue_port: Arc<dyn QueuePort<ChallengeOutcomeData>>,
 }
 
@@ -99,7 +99,7 @@ pub struct QueueServiceDependencies<'a> {
     pub(crate) llm_client: OllamaClient,
     /// Worker-only concrete ComfyUI client (used by AssetGenerationQueueService generics)
     pub(crate) comfyui_client: ComfyUIClient,
-    pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    pub prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
@@ -232,12 +232,12 @@ mod tests {
     #[test]
     fn test_queue_service_ports_types() {
         fn _assert_port_types(ctx: &QueueServicePorts) {
-            let _: &Arc<dyn PlayerActionQueueServicePort> = &ctx.player_action_queue_service_port;
+            let _: &Arc<dyn PlayerActionQueueUseCasePort> = &ctx.player_action_queue_service_port;
             let _: &Arc<dyn DmActionQueueServicePort> = &ctx.dm_action_queue_service_port;
-            let _: &Arc<dyn LlmQueueServicePort> = &ctx.llm_queue_service_port;
-            let _: &Arc<dyn AssetGenerationQueueServicePort> =
+            let _: &Arc<dyn LlmQueueUseCasePort> = &ctx.llm_queue_service_port;
+            let _: &Arc<dyn AssetGenerationQueueUseCasePort> =
                 &ctx.asset_generation_queue_service_port;
-            let _: &Arc<dyn DmApprovalQueueServicePort> = &ctx.dm_approval_queue_service_port;
+            let _: &Arc<dyn DmApprovalQueueUseCasePort> = &ctx.dm_approval_queue_service_port;
             let _: &Arc<dyn QueuePort<ChallengeOutcomeData>> = &ctx.challenge_outcome_queue_port;
         }
     }

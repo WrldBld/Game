@@ -34,8 +34,8 @@ use std::sync::Arc;
 
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    AssetGenerationQueueServicePort, DmActionQueueServicePort, DmApprovalQueueServicePort,
-    LlmQueueServicePort, PlayerActionQueueServicePort,
+    AssetGenerationQueueUseCasePort, DmActionQueueServicePort, DmApprovalQueueUseCasePort,
+    LlmQueueUseCasePort, PlayerActionQueueUseCasePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{ChallengeOutcomeData, QueuePort};
@@ -64,7 +64,7 @@ pub struct QueueServices {
     ///
     /// Player actions (talk, examine, move, etc.) are enqueued here and
     /// processed to generate LLM requests for NPC responses.
-    pub player_action_queue_service: Arc<dyn PlayerActionQueueServicePort>,
+    pub player_action_queue_service: Arc<dyn PlayerActionQueueUseCasePort>,
 
     /// Service for enqueueing and processing DM actions.
     ///
@@ -76,19 +76,19 @@ pub struct QueueServices {
     ///
     /// Handles both NPC response generation and suggestion generation.
     /// Processed items are sent to Ollama or similar LLM backend.
-    pub llm_queue_service: Arc<dyn LlmQueueServicePort>,
+    pub llm_queue_service: Arc<dyn LlmQueueUseCasePort>,
 
     /// Service for enqueueing and processing asset generation requests.
     ///
     /// Handles ComfyUI workflow execution for character portraits,
     /// location images, and other visual assets.
-    pub asset_generation_queue_service: Arc<dyn AssetGenerationQueueServicePort>,
+    pub asset_generation_queue_service: Arc<dyn AssetGenerationQueueUseCasePort>,
 
     /// Service for managing DM approval workflow.
     ///
     /// NPC responses and tool calls are queued here for DM review.
     /// DMs can accept, modify, reject, or take over responses.
-    pub dm_approval_queue_service: Arc<dyn DmApprovalQueueServicePort>,
+    pub dm_approval_queue_service: Arc<dyn DmApprovalQueueUseCasePort>,
 
     /// Queue for challenge outcomes awaiting DM approval.
     ///
@@ -122,11 +122,11 @@ impl QueueServices {
     /// );
     /// ```
     pub fn new(
-        player_action_queue_service: Arc<dyn PlayerActionQueueServicePort>,
+        player_action_queue_service: Arc<dyn PlayerActionQueueUseCasePort>,
         dm_action_queue_service: Arc<dyn DmActionQueueServicePort>,
-        llm_queue_service: Arc<dyn LlmQueueServicePort>,
-        asset_generation_queue_service: Arc<dyn AssetGenerationQueueServicePort>,
-        dm_approval_queue_service: Arc<dyn DmApprovalQueueServicePort>,
+        llm_queue_service: Arc<dyn LlmQueueUseCasePort>,
+        asset_generation_queue_service: Arc<dyn AssetGenerationQueueUseCasePort>,
+        dm_approval_queue_service: Arc<dyn DmApprovalQueueUseCasePort>,
         challenge_outcome_queue: Arc<dyn QueuePort<ChallengeOutcomeData>>,
     ) -> Self {
         Self {
@@ -145,20 +145,20 @@ impl std::fmt::Debug for QueueServices {
         f.debug_struct("QueueServices")
             .field(
                 "player_action_queue_service",
-                &"Arc<dyn PlayerActionQueueServicePort>",
+                &"Arc<dyn PlayerActionQueueUseCasePort>",
             )
             .field(
                 "dm_action_queue_service",
                 &"Arc<dyn DmActionQueueServicePort>",
             )
-            .field("llm_queue_service", &"Arc<dyn LlmQueueServicePort>")
+            .field("llm_queue_service", &"Arc<dyn LlmQueueUseCasePort>")
             .field(
                 "asset_generation_queue_service",
-                &"Arc<dyn AssetGenerationQueueServicePort>",
+                &"Arc<dyn AssetGenerationQueueUseCasePort>",
             )
             .field(
                 "dm_approval_queue_service",
-                &"Arc<dyn DmApprovalQueueServicePort>",
+                &"Arc<dyn DmApprovalQueueUseCasePort>",
             )
             .field(
                 "challenge_outcome_queue",

@@ -1,13 +1,13 @@
-//! LLM Suggestion Queue Adapter - Bridges LlmSuggestionQueuePort to LlmQueueServicePort
+//! LLM Suggestion Queue Adapter - Bridges LlmSuggestionQueuePort to LlmQueueUseCasePort
 //!
 //! This adapter implements the `LlmSuggestionQueuePort` outbound port by delegating
-//! to the internal `LlmQueueServicePort` service trait.
+//! to the internal `LlmQueueUseCasePort` service trait.
 //!
 //! # Architecture
 //!
 //! This adapter lives in `engine-composition` (not `engine-adapters`) because:
 //! - It needs to bridge between a port (`LlmSuggestionQueuePort`) and an internal
-//!   service trait (`LlmQueueServicePort`)
+//!   service trait (`LlmQueueUseCasePort`)
 //! - `engine-composition` is allowed to depend on `engine-app` for DI wiring
 //! - `engine-adapters` should NOT depend on `engine-app`
 //!
@@ -20,21 +20,21 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use wrldbldr_engine_app::application::services::internal::{
-    LlmQueueRequest, LlmQueueServicePort, LlmRequestType,
+    LlmQueueRequest, LlmQueueUseCasePort, LlmRequestType,
     LlmSuggestionContext as InternalSuggestionContext,
 };
 use wrldbldr_engine_ports::outbound::{
     LlmSuggestionQueuePort, LlmSuggestionQueueRequest, QueueError,
 };
 
-/// Adapter that implements LlmSuggestionQueuePort by delegating to LlmQueueServicePort
+/// Adapter that implements LlmSuggestionQueuePort by delegating to LlmQueueUseCasePort
 pub struct LlmSuggestionQueueAdapter {
-    llm_queue_service: Arc<dyn LlmQueueServicePort>,
+    llm_queue_service: Arc<dyn LlmQueueUseCasePort>,
 }
 
 impl LlmSuggestionQueueAdapter {
-    /// Create a new adapter wrapping an LlmQueueServicePort
-    pub fn new(llm_queue_service: Arc<dyn LlmQueueServicePort>) -> Self {
+    /// Create a new adapter wrapping an LlmQueueUseCasePort
+    pub fn new(llm_queue_service: Arc<dyn LlmQueueUseCasePort>) -> Self {
         Self { llm_queue_service }
     }
 }

@@ -16,7 +16,7 @@ use wrldbldr_domain::value_objects::{
     PromptTemplateMetadata,
 };
 use wrldbldr_domain::WorldId;
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     EnvironmentPort, PromptTemplateCachePort, PromptTemplateError, PromptTemplateRepositoryPort,
     PromptTemplateSource, ResolvedPromptTemplate,
@@ -304,7 +304,7 @@ impl PromptTemplateService {
 // =============================================================================
 
 #[async_trait]
-impl PromptTemplateServicePort for PromptTemplateService {
+impl PromptTemplateUseCasePort for PromptTemplateService {
     async fn get_all(&self) -> Vec<ResolvedPromptTemplate> {
         self.get_all().await
     }

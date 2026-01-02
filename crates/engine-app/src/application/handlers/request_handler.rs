@@ -27,7 +27,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandlerPort};
-use crate::application::services::internal::GenerationQueueProjectionServicePort;
+use crate::application::services::internal::GenerationQueueProjectionUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
     RegionCrudPort, SuggestionEnqueuePort,
@@ -84,7 +84,7 @@ pub struct AppRequestHandler {
     suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
 
     // Generation queue services (for WebSocket hydration)
-    generation_queue_projection: Arc<dyn GenerationQueueProjectionServicePort>,
+    generation_queue_projection: Arc<dyn GenerationQueueProjectionUseCasePort>,
     generation_read_state: Arc<dyn GenerationReadStatePort>,
 
     /// Clock for time operations (required for testability)
@@ -118,7 +118,7 @@ impl AppRequestHandler {
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_crud: Arc<dyn RegionCrudPort>,
         suggestion_enqueue: Arc<dyn SuggestionEnqueuePort>,
-        generation_queue_projection: Arc<dyn GenerationQueueProjectionServicePort>,
+        generation_queue_projection: Arc<dyn GenerationQueueProjectionUseCasePort>,
         generation_read_state: Arc<dyn GenerationReadStatePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {

@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::RequestContext;
-use crate::application::services::internal::GenerationQueueProjectionServicePort;
+use crate::application::services::internal::GenerationQueueProjectionUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext, SuggestionEnqueuePort,
     SuggestionEnqueueRequest,
@@ -295,7 +295,7 @@ pub async fn suggest_actantial_reason(
 ///
 /// Retrieves the current generation queue state for a world.
 pub async fn get_generation_queue(
-    generation_queue_projection: &Arc<dyn GenerationQueueProjectionServicePort>,
+    generation_queue_projection: &Arc<dyn GenerationQueueProjectionUseCasePort>,
     ctx: &RequestContext,
     world_id: &str,
     user_id: Option<String>,

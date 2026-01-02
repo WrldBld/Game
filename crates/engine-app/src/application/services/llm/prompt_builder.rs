@@ -22,7 +22,7 @@ use wrldbldr_domain::value_objects::{
     MotivationsContext, SceneContext, SecretMotivationEntry, SocialStanceContext, TokenCounter,
 };
 use wrldbldr_domain::WorldId;
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 
 /// Prompt builder with configurable template support
@@ -30,12 +30,12 @@ use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
 /// Resolves prompt templates from the `PromptTemplateService` with priority:
 /// World DB → Global DB → Env → Default
 pub struct PromptBuilder {
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
 }
 
 impl PromptBuilder {
     /// Create a new prompt builder
-    pub fn new(prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
+    pub fn new(prompt_template_service: Arc<dyn PromptTemplateUseCasePort>) -> Self {
         Self {
             prompt_template_service,
         }
@@ -506,7 +506,7 @@ pub fn build_conversation_history(history: &[ConversationTurn]) -> Vec<ChatMessa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
     use crate::application::services::PromptTemplateService;
     use std::sync::Arc;
     use wrldbldr_engine_ports::outbound::{
@@ -636,7 +636,7 @@ mod tests {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
         let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
-        let service: Arc<dyn PromptTemplateServicePort> =
+        let service: Arc<dyn PromptTemplateUseCasePort> =
             Arc::new(PromptTemplateService::new(repo, env, cache));
         PromptBuilder::new(service)
     }

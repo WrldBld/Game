@@ -170,63 +170,63 @@ pub use wrldbldr_engine_ports::outbound::{SocialNetwork, StateChange};
 // handlers will call inbound use case ports that delegate to these.
 
 pub use asset_generation_queue_service::{
-    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
+    AssetGenerationQueueItem, AssetGenerationQueueUseCasePort, AssetGenerationRequest,
     GenerationMetadata as AssetGenerationMetadata, GenerationResult,
 };
 #[cfg(any(test, feature = "testing"))]
-pub use asset_generation_queue_service::MockAssetGenerationQueueServicePort;
+pub use asset_generation_queue_service::MockAssetGenerationQueueUseCasePort;
 
-pub use asset_service::{AssetServicePort, CreateAssetRequest};
+pub use asset_service::{AssetUseCasePort, CreateAssetRequest};
 #[cfg(any(test, feature = "testing"))]
-pub use asset_service::MockAssetServicePort;
+pub use asset_service::MockAssetUseCasePort;
 
 pub use dm_approval_queue_service::{
     ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency, DmApprovalDecision,
-    DmApprovalQueueServicePort,
+    DmApprovalQueueUseCasePort,
 };
 #[cfg(any(test, feature = "testing"))]
-pub use dm_approval_queue_service::MockDmApprovalQueueServicePort;
+pub use dm_approval_queue_service::MockDmApprovalQueueUseCasePort;
 
 pub use generation_queue_projection_service::{
-    GenerationBatchSnapshot, GenerationQueueProjectionServicePort, GenerationQueueSnapshot,
+    GenerationBatchSnapshot, GenerationQueueProjectionUseCasePort, GenerationQueueSnapshot,
     SuggestionTaskSnapshot,
 };
 #[cfg(any(test, feature = "testing"))]
-pub use generation_queue_projection_service::MockGenerationQueueProjectionServicePort;
+pub use generation_queue_projection_service::MockGenerationQueueProjectionUseCasePort;
 
-pub use generation_service::{GenerationRequest, GenerationServicePort};
+pub use generation_service::{GenerationRequest, GenerationUseCasePort};
 #[cfg(any(test, feature = "testing"))]
-pub use generation_service::MockGenerationServicePort;
+pub use generation_service::MockGenerationUseCasePort;
 
 pub use llm_queue_service::{
     ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueResponse,
-    LlmQueueServicePort, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
-    SuggestionContext as LlmSuggestionContext,
+    LlmQueueUseCasePort, LlmRequestType, LlmSuggestionContext, NarrativeEventSuggestion,
+    ProposedToolCall,
 };
 #[cfg(any(test, feature = "testing"))]
-pub use llm_queue_service::MockLlmQueueServicePort;
+pub use llm_queue_service::MockLlmQueueUseCasePort;
 
 pub use player_action_queue_service::{
-    PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
+    PlayerAction, PlayerActionQueueItem, PlayerActionQueueUseCasePort,
 };
 #[cfg(any(test, feature = "testing"))]
-pub use player_action_queue_service::MockPlayerActionQueueServicePort;
+pub use player_action_queue_service::MockPlayerActionQueueUseCasePort;
 
-pub use prompt_template_service::PromptTemplateServicePort;
+pub use prompt_template_service::PromptTemplateUseCasePort;
 #[cfg(any(test, feature = "testing"))]
-pub use prompt_template_service::MockPromptTemplateServicePort;
+pub use prompt_template_service::MockPromptTemplateUseCasePort;
 
 pub use settings_service::{LlmConfig, SettingsUseCasePort};
 #[cfg(any(test, feature = "testing"))]
 pub use settings_service::MockSettingsUseCasePort;
 
-pub use workflow_service::WorkflowServicePort;
+pub use workflow_service::WorkflowUseCasePort;
 #[cfg(any(test, feature = "testing"))]
-pub use workflow_service::MockWorkflowServicePort;
+pub use workflow_service::MockWorkflowUseCasePort;
 
-pub use world_service::WorldServicePort;
+pub use world_service::WorldUseCasePort;
 #[cfg(any(test, feature = "testing"))]
-pub use world_service::MockWorldServicePort;
+pub use world_service::MockWorldUseCasePort;
 
 // =============================================================================
 // 5 ADAPTER-CALLED service ports (internalized from engine-ports/outbound)

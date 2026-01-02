@@ -13,7 +13,7 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use crate::application::services::internal::{
-    PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
+    PlayerAction, PlayerActionQueueItem, PlayerActionQueueUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
@@ -171,7 +171,7 @@ impl<Q: QueuePort<PlayerActionData>, LQ: ProcessingQueuePort<LlmRequestData>>
 // ============================================================================
 
 #[async_trait]
-impl<Q, LQ> PlayerActionQueueServicePort for PlayerActionQueueService<Q, LQ>
+impl<Q, LQ> PlayerActionQueueUseCasePort for PlayerActionQueueService<Q, LQ>
 where
     Q: QueuePort<PlayerActionData> + Send + Sync + 'static,
     LQ: ProcessingQueuePort<LlmRequestData> + Send + Sync + 'static,

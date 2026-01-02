@@ -35,7 +35,7 @@ use std::sync::Arc;
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     CharacterServicePort, InteractionServicePort, ItemServicePort, LocationServicePort,
-    RelationshipServicePort, SceneServicePort, SkillServicePort, WorldServicePort,
+    RelationshipServicePort, SceneServicePort, SkillServicePort, WorldUseCasePort,
 };
 
 /// Core services for fundamental world-building entities using port abstractions.
@@ -54,12 +54,12 @@ use wrldbldr_engine_app::application::services::internal::{
 ///
 /// The adapter-layer `CoreServices` in `engine-adapters` uses app-level service
 /// traits (e.g., `WorldService`), while this composition-layer version uses
-/// port traits (e.g., `WorldServicePort`). This allows the composition layer
+/// port traits (e.g., `WorldUseCasePort`). This allows the composition layer
 /// to remain decoupled from the application layer's internal implementation details.
 #[derive(Clone)]
 pub struct CoreServices {
     /// Service for world management operations (create, read, update, delete worlds)
-    pub world_service: Arc<dyn WorldServicePort>,
+    pub world_service: Arc<dyn WorldUseCasePort>,
 
     /// Service for character management operations
     pub character_service: Arc<dyn CharacterServicePort>,
@@ -88,7 +88,7 @@ impl CoreServices {
     ///
     /// # Arguments
     ///
-    /// * `world_service` - Implementation of [`WorldServicePort`] for world operations
+    /// * `world_service` - Implementation of [`WorldUseCasePort`] for world operations
     /// * `character_service` - Implementation of [`CharacterServicePort`] for character operations
     /// * `location_service` - Implementation of [`LocationServicePort`] for location operations
     /// * `scene_service` - Implementation of [`SceneServicePort`] for scene operations
@@ -112,7 +112,7 @@ impl CoreServices {
     /// );
     /// ```
     pub fn new(
-        world_service: Arc<dyn WorldServicePort>,
+        world_service: Arc<dyn WorldUseCasePort>,
         character_service: Arc<dyn CharacterServicePort>,
         location_service: Arc<dyn LocationServicePort>,
         scene_service: Arc<dyn SceneServicePort>,
@@ -137,7 +137,7 @@ impl CoreServices {
 impl std::fmt::Debug for CoreServices {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CoreServices")
-            .field("world_service", &"Arc<dyn WorldServicePort>")
+            .field("world_service", &"Arc<dyn WorldUseCasePort>")
             .field("character_service", &"Arc<dyn CharacterServicePort>")
             .field("location_service", &"Arc<dyn LocationServicePort>")
             .field("scene_service", &"Arc<dyn SceneServicePort>")
@@ -157,7 +157,7 @@ mod tests {
     use wrldbldr_engine_app::application::services::internal::{
         MockCharacterServicePort, MockInteractionServicePort, MockItemServicePort,
         MockLocationServicePort, MockRelationshipServicePort, MockSkillServicePort,
-        MockWorldServicePort, SceneWithRelations,
+        MockWorldUseCasePort, SceneWithRelations,
     };
 
     /// Simple mock for SceneServicePort (mockall not available for this port)
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn test_core_services_construction() {
         let core_services = CoreServices::new(
-            Arc::new(MockWorldServicePort::new()),
+            Arc::new(MockWorldUseCasePort::new()),
             Arc::new(MockCharacterServicePort::new()),
             Arc::new(MockLocationServicePort::new()),
             Arc::new(MockSceneServicePort),
@@ -189,13 +189,13 @@ mod tests {
         // Verify debug output works
         let debug_str = format!("{:?}", core_services);
         assert!(debug_str.contains("CoreServices"));
-        assert!(debug_str.contains("WorldServicePort"));
+        assert!(debug_str.contains("WorldUseCasePort"));
     }
 
     #[test]
     fn test_core_services_clone() {
         let core_services = CoreServices::new(
-            Arc::new(MockWorldServicePort::new()),
+            Arc::new(MockWorldUseCasePort::new()),
             Arc::new(MockCharacterServicePort::new()),
             Arc::new(MockLocationServicePort::new()),
             Arc::new(MockSceneServicePort),

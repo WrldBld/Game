@@ -31,7 +31,7 @@ use wrldbldr_engine_adapters::infrastructure::{
     WorldStateManager,
 };
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
-use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::inbound::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateCachePort,
@@ -71,7 +71,7 @@ pub struct InfrastructureContext {
     pub settings_service: Arc<dyn SettingsUseCasePort>,
 
     /// Prompt template service (port version)
-    pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    pub prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
 
     /// Directorial context repository
     pub directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
@@ -181,7 +181,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         Arc::new(prompt_template_repository_impl);
     let prompt_template_cache: Arc<dyn PromptTemplateCachePort> =
         Arc::new(InMemoryPromptTemplateCache::new());
-    let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
+    let prompt_template_service: Arc<dyn PromptTemplateUseCasePort> =
         Arc::new(PromptTemplateService::new(
             prompt_template_repository.clone(),
             environment.clone(),

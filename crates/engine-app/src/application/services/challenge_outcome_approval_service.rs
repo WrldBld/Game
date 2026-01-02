@@ -26,7 +26,7 @@ use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
 use crate::application::services::internal::{
     ChallengeOutcomeApprovalServicePort, OutcomeDecision, OutcomeTriggerServicePort,
-    PromptTemplateServicePort, SettingsUseCasePort, StateChange,
+    PromptTemplateUseCasePort, SettingsUseCasePort, StateChange,
 };
 use wrldbldr_engine_ports::outbound::{
     ChallengeOutcomePendingPort, ClockPort, ItemRepositoryPort, LlmPort,
@@ -133,7 +133,7 @@ pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
     /// Settings service for configurable values
     settings_service: Arc<dyn SettingsUseCasePort>,
     /// Prompt template service for resolving prompt templates
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
@@ -148,7 +148,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         pc_crud: Arc<dyn PlayerCharacterCrudPort>,
         pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         pending: Arc<dyn ChallengeOutcomePendingPort>,
         queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
         llm_port: Arc<L>,

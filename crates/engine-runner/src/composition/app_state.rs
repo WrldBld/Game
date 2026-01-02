@@ -42,9 +42,8 @@ use wrldbldr_engine_app::application::services::internal::{
     DispositionServicePort, NarrativeEventApprovalServicePort, OutcomeTriggerServicePort,
     PromptContextServicePort, TriggerEvaluationServicePort,
 };
-// Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
-use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
+
+use wrldbldr_engine_ports::inbound::{PromptTemplateUseCasePort, SettingsUseCasePort};
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, BroadcastPort, ComfyUIPort, ConnectionBroadcastPort,
@@ -830,7 +829,7 @@ pub async fn new_app_state(
         composition_player,
         composition_events,
         settings_service.clone() as Arc<dyn SettingsUseCasePort>,
-        prompt_template_service.clone() as Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service.clone() as Arc<dyn PromptTemplateUseCasePort>,
         staging_service.clone() as Arc<dyn StagingUseCaseServiceExtPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionQueryPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionContextPort>,

@@ -28,8 +28,8 @@ use tracing::{debug, info};
 
 use crate::application::services::internal::{
     ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    DmApprovalQueueServicePort, NarrativeRollContext as InternalNarrativeRollContext,
-    WorldServicePort,
+    DmApprovalQueueUseCasePort, NarrativeRollContext as InternalNarrativeRollContext,
+    WorldUseCasePort,
 };
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
@@ -63,9 +63,9 @@ pub use wrldbldr_engine_ports::outbound::{
 pub struct ChallengeUseCase {
     resolution_service: Arc<dyn ChallengeResolutionServicePort>,
     outcome_approval: Arc<dyn ChallengeOutcomeApprovalServicePort>,
-    approval_queue: Arc<dyn DmApprovalQueueServicePort>,
+    approval_queue: Arc<dyn DmApprovalQueueUseCasePort>,
     broadcast: Arc<dyn BroadcastPort>,
-    world_service: Arc<dyn WorldServicePort>,
+    world_service: Arc<dyn WorldUseCasePort>,
 }
 
 impl ChallengeUseCase {
@@ -73,9 +73,9 @@ impl ChallengeUseCase {
     pub fn new(
         resolution_service: Arc<dyn ChallengeResolutionServicePort>,
         outcome_approval: Arc<dyn ChallengeOutcomeApprovalServicePort>,
-        approval_queue: Arc<dyn DmApprovalQueueServicePort>,
+        approval_queue: Arc<dyn DmApprovalQueueUseCasePort>,
         broadcast: Arc<dyn BroadcastPort>,
-        world_service: Arc<dyn WorldServicePort>,
+        world_service: Arc<dyn WorldUseCasePort>,
     ) -> Self {
         Self {
             resolution_service,

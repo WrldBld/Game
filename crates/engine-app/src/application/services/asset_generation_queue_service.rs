@@ -15,7 +15,7 @@ use uuid::Uuid;
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 use wrldbldr_domain::{AssetId, WorldId};
 use crate::application::services::internal::{
-    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
+    AssetGenerationQueueItem, AssetGenerationQueueUseCasePort, AssetGenerationRequest,
     GenerationResult,
 };
 use wrldbldr_engine_ports::outbound::{
@@ -424,7 +424,7 @@ impl<
 // ============================================================================
 
 #[async_trait]
-impl<Q, C, N> AssetGenerationQueueServicePort for AssetGenerationQueueService<Q, C, N>
+impl<Q, C, N> AssetGenerationQueueUseCasePort for AssetGenerationQueueService<Q, C, N>
 where
     Q: ProcessingQueuePort<AssetGenerationData> + Send + Sync + 'static,
     C: ComfyUIPort + Send + Sync + 'static,

@@ -29,7 +29,7 @@ use super::errors::ConnectionError;
 use crate::application::services::{JoinValidation, WorldSessionPolicy};
 
 // Import internal service ports
-use crate::application::services::internal::{PlayerCharacterServicePort, WorldServicePort};
+use crate::application::services::internal::{PlayerCharacterServicePort, WorldUseCasePort};
 
 // Import repository port for directorial context
 use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort;
@@ -55,7 +55,7 @@ pub use wrldbldr_engine_ports::outbound::WorldStateUpdatePort as WorldStatePort;
 /// Use case for connection operations
 pub struct ConnectionUseCase {
     connection_manager: Arc<dyn ConnectionManagerPort>,
-    world_service: Arc<dyn WorldServicePort>,
+    world_service: Arc<dyn WorldUseCasePort>,
     pc_service: Arc<dyn PlayerCharacterServicePort>,
     directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
     world_state: Arc<dyn WorldStatePort>,
@@ -67,7 +67,7 @@ impl ConnectionUseCase {
     /// Create a new ConnectionUseCase with all dependencies
     pub fn new(
         connection_manager: Arc<dyn ConnectionManagerPort>,
-        world_service: Arc<dyn WorldServicePort>,
+        world_service: Arc<dyn WorldUseCasePort>,
         pc_service: Arc<dyn PlayerCharacterServicePort>,
         directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
         world_state: Arc<dyn WorldStatePort>,

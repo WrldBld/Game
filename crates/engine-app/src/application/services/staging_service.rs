@@ -17,7 +17,7 @@ use std::sync::Arc;
 use crate::application::services::{
     build_staging_prompt, StagingContextProvider, StoryEventService,
 };
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
 use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
@@ -72,7 +72,7 @@ where
     staging_repository: Arc<S>,
     context_provider: StagingContextProvider<RC, RN, N>,
     llm_port: Arc<L>,
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
     clock: Arc<dyn ClockPort>,
     config: StagingServiceConfig,
 }
@@ -92,7 +92,7 @@ where
         narrative_event_repository: Arc<N>,
         story_event_service: Arc<dyn StoryEventService>,
         llm_port: Arc<L>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         let context_provider = StagingContextProvider::new(

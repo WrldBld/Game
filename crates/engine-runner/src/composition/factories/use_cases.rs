@@ -58,8 +58,8 @@ use wrldbldr_engine_ports::inbound::{
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, DmActionQueueServicePort,
-    DmApprovalQueueServicePort, InteractionServicePort, NarrativeEventApprovalServicePort,
-    PlayerActionQueueServicePort, PlayerCharacterServicePort, SceneServicePort, WorldServicePort,
+    DmApprovalQueueUseCasePort, InteractionServicePort, NarrativeEventApprovalServicePort,
+    PlayerActionQueueUseCasePort, PlayerCharacterServicePort, SceneServicePort, WorldUseCasePort,
 };
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
@@ -169,7 +169,7 @@ pub struct UseCaseDependencies {
     /// Interaction service port
     pub interaction_service_port: Arc<dyn InteractionServicePort>,
     /// World service port
-    pub world_service_port: Arc<dyn WorldServicePort>,
+    pub world_service_port: Arc<dyn WorldUseCasePort>,
     /// Player character service port
     pub player_character_service_port: Arc<dyn PlayerCharacterServicePort>,
 
@@ -179,13 +179,13 @@ pub struct UseCaseDependencies {
     /// Staging service port (outbound) - StagingService directly implements this
     pub staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
     /// Player action queue service port for adapter
-    pub player_action_queue_service_port: Arc<dyn PlayerActionQueueServicePort>,
+    pub player_action_queue_service_port: Arc<dyn PlayerActionQueueUseCasePort>,
     /// Challenge resolution service port
     pub challenge_resolution_service_port: Arc<dyn ChallengeResolutionServicePort>,
     /// Challenge outcome approval service port
     pub challenge_outcome_approval_service_port: Arc<dyn ChallengeOutcomeApprovalServicePort>,
     /// DM approval queue service port
-    pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueServicePort>,
+    pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueUseCasePort>,
     /// DM action queue service port (internal, for bridge adapter)
     pub dm_action_queue_service_port: Arc<dyn DmActionQueueServicePort>,
 
@@ -313,7 +313,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create Player Action Use Case
     // =========================================================================
-    // PlayerActionUseCase now depends on internal PlayerActionQueueServicePort directly
+    // PlayerActionUseCase now depends on internal PlayerActionQueueUseCasePort directly
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
         deps.player_action_queue_service_port.clone(),

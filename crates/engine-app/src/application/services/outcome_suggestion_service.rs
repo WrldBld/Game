@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::application::dto::{OutcomeBranchDto, OutcomeSuggestionRequest};
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::LlmPort;
 
 /// Error type for outcome suggestion operations
@@ -24,12 +24,12 @@ pub enum SuggestionError {
 /// Service for generating LLM-powered outcome suggestions
 pub struct OutcomeSuggestionService<L: LlmPort> {
     llm: Arc<L>,
-    prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
 }
 
 impl<L: LlmPort> OutcomeSuggestionService<L> {
     /// Create a new outcome suggestion service
-    pub fn new(llm: Arc<L>, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
+    pub fn new(llm: Arc<L>, prompt_template_service: Arc<dyn PromptTemplateUseCasePort>) -> Self {
         Self {
             llm,
             prompt_template_service,
@@ -37,7 +37,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     }
 
     async fn resolve_optional_world_template_with(
-        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: &Arc<dyn PromptTemplateUseCasePort>,
         world_id: Option<WorldId>,
         key: &str,
     ) -> String {
@@ -74,7 +74,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 
     pub async fn generate_suggestions_with(
         llm: Arc<L>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         request: &OutcomeSuggestionRequest,
     ) -> Result<Vec<String>, SuggestionError> {
         let world_id = Self::parse_world_id(request.world_id.as_ref());
@@ -126,7 +126,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 
     pub async fn generate_branches_with(
         llm: Arc<L>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         request: &OutcomeSuggestionRequest,
         branch_count: usize,
         tokens_per_branch: u32,
@@ -158,7 +158,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     }
 
     async fn build_system_prompt_with(
-        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: &Arc<dyn PromptTemplateUseCasePort>,
         world_id: Option<WorldId>,
     ) -> String {
         Self::resolve_optional_world_template_with(
@@ -170,7 +170,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
     }
 
     async fn build_branch_system_prompt_with(
-        prompt_template_service: &Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: &Arc<dyn PromptTemplateUseCasePort>,
         world_id: Option<WorldId>,
         branch_count: usize,
     ) -> String {
@@ -374,7 +374,7 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 mod tests {
     use super::*;
     use crate::application::services::PromptTemplateService;
-    use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, FinishReason, PromptTemplateCachePort, PromptTemplateError,
         PromptTemplateRepositoryPort, ResolvedPromptTemplate, ToolDefinition,
@@ -431,7 +431,7 @@ mod tests {
             Arc::new(MockPromptTemplateRepository);
         let mock_env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
         let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
-        let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
+        let prompt_template_service: Arc<dyn PromptTemplateUseCasePort> =
             Arc::new(PromptTemplateService::new(mock_repo, mock_env, cache));
         OutcomeSuggestionService {
             llm: Arc::new(MockLlm),

@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::{DirectorialNotes, GamePromptRequest};
-use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
 use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
 
 use tool_definitions::get_game_tool_definitions;
@@ -77,7 +77,7 @@ impl<L: LlmPort> LLMService<L> {
     /// Create a new LLM service with the provided client and prompt template service
     pub fn new(
         ollama: Arc<L>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
     ) -> Self {
         Self {
             ollama,
@@ -89,7 +89,7 @@ impl<L: LlmPort> LLMService<L> {
     /// construct an `LLMService` instance.
     pub async fn generate_npc_response_with(
         ollama: Arc<L>,
-        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
         request: GamePromptRequest,
     ) -> Result<LLMGameResponse, LLMServiceError> {
         Self::new(ollama, prompt_template_service)
@@ -360,7 +360,7 @@ mod tests {
     use crate::application::services::PromptTemplateService;
     use wrldbldr_domain::WorldId;
     use wrldbldr_engine_dto::FinishReason;
-    use crate::application::services::internal::PromptTemplateServicePort;
+use crate::application::services::internal::PromptTemplateUseCasePort;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, LlmResponse, PromptTemplateCachePort, PromptTemplateError,
         PromptTemplateRepositoryPort, ResolvedPromptTemplate, ToolDefinition,
@@ -497,7 +497,7 @@ mod tests {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
         let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
-        let prompt_service: Arc<dyn PromptTemplateServicePort> =
+        let prompt_service: Arc<dyn PromptTemplateUseCasePort> =
             Arc::new(PromptTemplateService::new(repo, env, cache));
         LLMService::new(Arc::new(MockLlm), prompt_service)
     }
