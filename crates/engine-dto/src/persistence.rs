@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::{
-    ChallengeOutcomes, Difficulty, DifficultyDescriptor, FieldType, InputDefault, ItemListType,
-    Outcome, OutcomeTrigger, PromptMapping, PromptMappingType, SectionLayout, SelectOption,
-    SheetField, SheetSection, TriggerCondition, TriggerType,
+    ChallengeOutcomes, Difficulty, DifficultyDescriptor, FieldType, ItemListType, Outcome,
+    OutcomeTrigger, SectionLayout, SelectOption, SheetField, SheetSection, TriggerCondition,
+    TriggerType,
 };
 use wrldbldr_domain::value_objects::RuleSystemVariant;
 use wrldbldr_domain::{ChallengeId, SceneId, WorldId};
@@ -813,90 +813,11 @@ impl From<FieldTypeDto> for FieldType {
 }
 
 // ============================================================================
-// Workflow Persistence DTOs
 // ============================================================================
+// Workflow Persistence DTOs - Re-exported from protocol (single source of truth)
+// ============================================================================
+//
+// These types are defined in wrldbldr_protocol::dto and re-exported here for
+// convenience. The From implementations are also defined in protocol.
 
-/// Input default persistence format
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InputDefaultDto {
-    pub node_id: String,
-    pub input_name: String,
-    pub default_value: serde_json::Value,
-}
-
-impl From<InputDefault> for InputDefaultDto {
-    fn from(value: InputDefault) -> Self {
-        Self {
-            node_id: value.node_id,
-            input_name: value.input_name,
-            default_value: value.default_value,
-        }
-    }
-}
-
-impl From<InputDefaultDto> for InputDefault {
-    fn from(value: InputDefaultDto) -> Self {
-        Self {
-            node_id: value.node_id,
-            input_name: value.input_name,
-            default_value: value.default_value,
-        }
-    }
-}
-
-/// Prompt mapping persistence format
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PromptMappingDto {
-    pub node_id: String,
-    pub input_name: String,
-    pub mapping_type: PromptMappingTypeDto,
-}
-
-impl From<PromptMapping> for PromptMappingDto {
-    fn from(value: PromptMapping) -> Self {
-        Self {
-            node_id: value.node_id,
-            input_name: value.input_name,
-            mapping_type: value.mapping_type.into(),
-        }
-    }
-}
-
-impl From<PromptMappingDto> for PromptMapping {
-    fn from(value: PromptMappingDto) -> Self {
-        Self {
-            node_id: value.node_id,
-            input_name: value.input_name,
-            mapping_type: value.mapping_type.into(),
-        }
-    }
-}
-
-/// Prompt mapping type persistence format
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PromptMappingTypeDto {
-    Primary,
-    Negative,
-    #[serde(other)]
-    Unknown,
-}
-
-impl From<PromptMappingType> for PromptMappingTypeDto {
-    fn from(value: PromptMappingType) -> Self {
-        match value {
-            PromptMappingType::Primary => Self::Primary,
-            PromptMappingType::Negative => Self::Negative,
-        }
-    }
-}
-
-impl From<PromptMappingTypeDto> for PromptMappingType {
-    fn from(value: PromptMappingTypeDto) -> Self {
-        match value {
-            PromptMappingTypeDto::Primary => Self::Primary,
-            PromptMappingTypeDto::Negative => Self::Negative,
-            PromptMappingTypeDto::Unknown => Self::Primary,
-        }
-    }
-}
+pub use wrldbldr_protocol::dto::{InputDefaultDto, PromptMappingDto, PromptMappingTypeDto};

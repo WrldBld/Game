@@ -6,6 +6,8 @@
 //! - Approving and persisting stagings
 //! - Pre-staging regions
 //! - Managing staging history
+//!
+//! Implements `StagingUseCaseServicePort` and `StagingUseCaseServiceExtPort` directly.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -15,22 +17,19 @@ use std::sync::Arc;
 use crate::application::services::{
     build_staging_prompt, StagingContextProvider, StoryEventService,
 };
+use crate::application::services::internal::PromptTemplateServicePort;
 use wrldbldr_domain::entities::{StagedNpc, Staging, StagingSource};
-use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingContext};
+use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion};
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use crate::application::services::internal::{
-    ApprovedNpc as PortApprovedNpc, PromptTemplateServicePort,
-    StagedNpcProposal as PortStagedNpcProposal, StagingProposal as PortStagingProposal,
-    StagingServicePort,
-};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventCrudPort,
-    RegionCrudPort, RegionNpcPort, StagingRepositoryPort,
+    RegionCrudPort, RegionNpcPort, RegeneratedNpc, StagedNpcData, StagingProposalData,
+    StagingRepositoryPort, StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
 };
 
-fn rule_based_suggestion_to_proposal(suggestion: &RuleBasedSuggestion) -> PortStagedNpcProposal {
-    PortStagedNpcProposal {
-        character_id: suggestion.character_id.to_string(),
+fn rule_based_suggestion_to_staged_npc_data(suggestion: &RuleBasedSuggestion) -> StagedNpcData {
+    StagedNpcData {
+        character_id: suggestion.character_id.into(),
         name: suggestion.character_name.clone(),
         sprite_asset: None,
         portrait_asset: None,
@@ -121,7 +120,7 @@ where
     /// Get the current valid staging for a region, if one exists
     ///
     /// Returns None if no staging exists or the current staging has expired.
-    pub async fn get_current_staging(
+    pub async fn get_current_staging_internal(
         &self,
         region_id: RegionId,
         game_time: &GameTime,
@@ -137,7 +136,7 @@ where
     /// Generate a staging proposal for a region
     ///
     /// This creates both rule-based and LLM-based suggestions for DM approval.
-    pub async fn generate_proposal(
+    pub async fn generate_proposal_internal(
         &self,
         world_id: WorldId,
         region_id: RegionId,
@@ -146,7 +145,7 @@ where
         game_time: &GameTime,
         ttl_hours: i32,
         dm_guidance: Option<&str>,
-    ) -> Result<PortStagingProposal> {
+    ) -> Result<StagingProposalData> {
         // Generate request ID
         let request_id = uuid::Uuid::new_v4().to_string();
 
@@ -165,22 +164,22 @@ where
         // Get NPC details for sprites/portraits
         let npcs_with_relationships = self.context_provider.get_npcs_for_region(region_id).await?;
 
-        // Convert rule suggestions to proposals with NPC details
-        let rule_based_npcs: Vec<PortStagedNpcProposal> = rule_suggestions
+        // Convert rule suggestions to StagedNpcData with NPC details
+        let rule_based_npcs: Vec<StagedNpcData> = rule_suggestions
             .iter()
             .map(|s| {
-                let mut proposal = rule_based_suggestion_to_proposal(s);
+                let mut data = rule_based_suggestion_to_staged_npc_data(s);
 
                 // Enrich with sprite/portrait from character data
                 if let Some((character, _)) = npcs_with_relationships
                     .iter()
                     .find(|(c, _)| c.id == s.character_id.into())
                 {
-                    proposal.sprite_asset = character.sprite_asset.clone();
-                    proposal.portrait_asset = character.portrait_asset.clone();
+                    data.sprite_asset = character.sprite_asset.clone();
+                    data.portrait_asset = character.portrait_asset.clone();
                 }
 
-                proposal
+                data
             })
             .collect();
 
@@ -207,11 +206,11 @@ where
             rule_based_npcs.clone()
         };
 
-        Ok(PortStagingProposal {
+        Ok(StagingProposalData {
             request_id,
-            region_id: region_id.to_string(),
-            location_id: location_id.to_string(),
-            world_id: world_id.to_string(),
+            region_id,
+            location_id,
+            world_id,
             rule_based_npcs,
             llm_based_npcs,
             default_ttl_hours: ttl_hours,
@@ -222,7 +221,7 @@ where
     /// Approve a staging proposal and persist it
     ///
     /// Called when DM approves a staging with their chosen NPCs.
-    pub async fn approve_staging(
+    pub async fn approve_staging_internal(
         &self,
         region_id: RegionId,
         location_id: LocationId,
@@ -293,7 +292,7 @@ where
     /// Pre-stage a region before player arrival
     ///
     /// Used by DM to set up NPCs ahead of time.
-    pub async fn pre_stage_region(
+    pub async fn pre_stage_region_internal(
         &self,
         region_id: RegionId,
         location_id: LocationId,
@@ -303,7 +302,7 @@ where
         ttl_hours: i32,
         dm_id: &str,
     ) -> Result<Staging> {
-        self.approve_staging(
+        self.approve_staging_internal(
             region_id,
             location_id,
             world_id,
@@ -320,14 +319,14 @@ where
     /// Regenerate LLM suggestions with new guidance
     ///
     /// Called when DM requests regeneration with additional context.
-    pub async fn regenerate_suggestions(
+    pub async fn regenerate_suggestions_internal(
         &self,
         world_id: WorldId,
         region_id: RegionId,
         location_name: &str,
         game_time: &GameTime,
         guidance: &str,
-    ) -> Result<Vec<PortStagedNpcProposal>> {
+    ) -> Result<Vec<StagedNpcData>> {
         // Gather fresh context
         let context = self
             .context_provider
@@ -369,14 +368,14 @@ where
     async fn generate_llm_suggestions(
         &self,
         world_id: WorldId,
-        context: &StagingContext,
+        context: &wrldbldr_domain::value_objects::StagingContext,
         rule_suggestions: &[RuleBasedSuggestion],
         npcs_with_relationships: &[(
             wrldbldr_domain::entities::Character,
             wrldbldr_domain::value_objects::RegionRelationshipType,
         )],
         dm_guidance: Option<&str>,
-    ) -> Result<Vec<PortStagedNpcProposal>> {
+    ) -> Result<Vec<StagedNpcData>> {
         // Resolve prompt templates
         let system_prompt = self
             .prompt_template_service
@@ -418,7 +417,7 @@ where
         self.parse_llm_response(&response.content, rule_suggestions, npcs_with_relationships)
     }
 
-    /// Parse LLM response into staged NPC proposals
+    /// Parse LLM response into staged NPC data
     fn parse_llm_response(
         &self,
         response: &str,
@@ -427,7 +426,7 @@ where
             wrldbldr_domain::entities::Character,
             wrldbldr_domain::value_objects::RegionRelationshipType,
         )],
-    ) -> Result<Vec<PortStagedNpcProposal>> {
+    ) -> Result<Vec<StagedNpcData>> {
         // Extract JSON from response
         let json_str = extract_json_array(response)
             .ok_or_else(|| anyhow::anyhow!("Could not parse LLM response as JSON"))?;
@@ -443,8 +442,8 @@ where
 
         let llm_results: Vec<LlmNpcResult> = serde_json::from_str(&json_str)?;
 
-        // Map LLM results back to full proposals
-        let mut proposals = Vec::new();
+        // Map LLM results back to StagedNpcData
+        let mut results = Vec::new();
 
         for suggestion in rule_suggestions {
             let llm_result = llm_results
@@ -458,8 +457,8 @@ where
                 (suggestion.is_present, false, suggestion.reasoning.clone())
             };
 
-            let mut proposal = PortStagedNpcProposal {
-                character_id: suggestion.character_id.to_string(),
+            let mut data = StagedNpcData {
+                character_id: suggestion.character_id.into(),
                 name: suggestion.character_name.clone(),
                 sprite_asset: None,
                 portrait_asset: None,
@@ -473,14 +472,14 @@ where
                 .iter()
                 .find(|(c, _)| c.id == suggestion.character_id.into())
             {
-                proposal.sprite_asset = character.sprite_asset.clone();
-                proposal.portrait_asset = character.portrait_asset.clone();
+                data.sprite_asset = character.sprite_asset.clone();
+                data.portrait_asset = character.portrait_asset.clone();
             }
 
-            proposals.push(proposal);
+            results.push(data);
         }
 
-        Ok(proposals)
+        Ok(results)
     }
 }
 
@@ -496,11 +495,11 @@ fn extract_json_array(text: &str) -> Option<String> {
 }
 
 // =============================================================================
-// Port Implementation
+// Port Implementation - StagingUseCaseServicePort (Outbound)
 // =============================================================================
 
 #[async_trait]
-impl<L, RC, RN, N, S> StagingServicePort for StagingService<L, RC, RN, N, S>
+impl<L, RC, RN, N, S> StagingUseCaseServicePort for StagingService<L, RC, RN, N, S>
 where
     L: LlmPort + Send + Sync + 'static,
     RC: RegionCrudPort + Send + Sync + 'static,
@@ -511,9 +510,12 @@ where
     async fn get_current_staging(
         &self,
         region_id: RegionId,
-        game_time: GameTime,
-    ) -> Result<Option<Staging>> {
-        self.get_current_staging(region_id, &game_time).await
+        game_time: &GameTime,
+    ) -> Result<Option<Vec<StagedNpc>>, String> {
+        self.get_current_staging_internal(region_id, game_time)
+            .await
+            .map(|opt| opt.map(|s| s.npcs))
+            .map_err(|e| e.to_string())
     }
 
     async fn generate_proposal(
@@ -521,61 +523,111 @@ where
         world_id: WorldId,
         region_id: RegionId,
         location_id: LocationId,
-        location_name: String,
-        game_time: GameTime,
+        location_name: &str,
+        game_time: &GameTime,
         ttl_hours: i32,
-        dm_guidance: Option<String>,
-    ) -> Result<PortStagingProposal> {
-        self.generate_proposal(
+        dm_guidance: Option<&str>,
+    ) -> Result<StagingProposalData, String> {
+        self.generate_proposal_internal(
             world_id,
             region_id,
             location_id,
-            &location_name,
-            &game_time,
+            location_name,
+            game_time,
             ttl_hours,
-            dm_guidance.as_deref(),
+            dm_guidance,
         )
         .await
+        .map_err(|e| e.to_string())
     }
+}
 
+#[async_trait]
+impl<L, RC, RN, N, S> StagingUseCaseServiceExtPort for StagingService<L, RC, RN, N, S>
+where
+    L: LlmPort + Send + Sync + 'static,
+    RC: RegionCrudPort + Send + Sync + 'static,
+    RN: RegionNpcPort + Send + Sync + 'static,
+    N: NarrativeEventCrudPort + Send + Sync + 'static,
+    S: StagingRepositoryPort + Send + Sync + 'static,
+{
     async fn approve_staging(
         &self,
         region_id: RegionId,
         location_id: LocationId,
         world_id: WorldId,
-        game_time: GameTime,
-        approved_npcs: Vec<PortApprovedNpc>,
+        game_time: &GameTime,
+        approved_npcs: Vec<ApprovedNpcData>,
         ttl_hours: i32,
         source: StagingSource,
-        approved_by: String,
-        dm_guidance: Option<String>,
-    ) -> Result<Staging> {
-        // Convert PortApprovedNpc to ApprovedNpcData
-        let approved_npc_data: Vec<ApprovedNpcData> = approved_npcs
-            .into_iter()
-            .map(|n| ApprovedNpcData {
-                character_id: n.character_id,
-                name: n.name,
-                sprite_asset: n.sprite_asset,
-                portrait_asset: n.portrait_asset,
-                is_present: n.is_present,
-                is_hidden_from_players: n.is_hidden_from_players,
-                reasoning: n.reasoning,
-            })
-            .collect();
-
-        self.approve_staging(
+        approved_by: &str,
+    ) -> Result<Vec<StagedNpc>, String> {
+        self.approve_staging_internal(
             region_id,
             location_id,
             world_id,
-            &game_time,
-            approved_npc_data,
+            game_time,
+            approved_npcs,
             ttl_hours,
             source,
-            &approved_by,
-            dm_guidance,
+            approved_by,
+            None,
         )
         .await
+        .map(|staging| staging.npcs)
+        .map_err(|e| e.to_string())
+    }
+
+    async fn regenerate_suggestions(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+        location_name: &str,
+        game_time: &GameTime,
+        guidance: &str,
+    ) -> Result<Vec<RegeneratedNpc>, String> {
+        self.regenerate_suggestions_internal(world_id, region_id, location_name, game_time, guidance)
+            .await
+            .map(|npcs| {
+                npcs.into_iter()
+                    .map(|n| RegeneratedNpc {
+                        character_id: n.character_id.to_string(),
+                        name: n.name,
+                        sprite_asset: n.sprite_asset,
+                        portrait_asset: n.portrait_asset,
+                        is_present: n.is_present,
+                        is_hidden_from_players: n.is_hidden_from_players,
+                        reasoning: n.reasoning,
+                    })
+                    .collect()
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    async fn pre_stage_region(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        game_time: &GameTime,
+        npcs: Vec<ApprovedNpcData>,
+        ttl_hours: i32,
+        dm_user_id: &str,
+    ) -> Result<Vec<StagedNpc>, String> {
+        self.approve_staging_internal(
+            region_id,
+            location_id,
+            world_id,
+            game_time,
+            npcs,
+            ttl_hours,
+            StagingSource::PreStaged,
+            dm_user_id,
+            None,
+        )
+        .await
+        .map(|staging| staging.npcs)
+        .map_err(|e| e.to_string())
     }
 }
 
@@ -598,12 +650,12 @@ That's all!"#;
     }
 
     #[test]
-    fn test_staged_npc_proposal_from_suggestion() {
+    fn test_staged_npc_data_from_suggestion() {
         let suggestion = RuleBasedSuggestion::present(Uuid::new_v4(), "Test NPC", "Test reasoning");
 
-        let proposal = rule_based_suggestion_to_proposal(&suggestion);
-        assert_eq!(proposal.name, "Test NPC");
-        assert!(proposal.is_present);
-        assert_eq!(proposal.reasoning, "Test reasoning");
+        let data = rule_based_suggestion_to_staged_npc_data(&suggestion);
+        assert_eq!(data.name, "Test NPC");
+        assert!(data.is_present);
+        assert_eq!(data.reasoning, "Test reasoning");
     }
 }

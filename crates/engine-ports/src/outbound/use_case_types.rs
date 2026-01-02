@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-use wrldbldr_domain::value_objects::{EffectLevel, Position};
+use wrldbldr_domain::value_objects::{EffectLevel, Position, StagingContext};
 use wrldbldr_domain::{
     CharacterId, GameTime, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
 };
@@ -135,11 +135,27 @@ pub struct PendingStagingData {
 }
 
 /// Staging proposal data returned by the staging service
-#[derive(Debug, Clone)]
+///
+/// Contains full context needed for the DM approval flow.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StagingProposalData {
+    /// Request ID for tracking this proposal through the approval flow
     pub request_id: String,
+    /// Region this staging is for
+    pub region_id: RegionId,
+    /// Location containing the region
+    pub location_id: LocationId,
+    /// World ID
+    pub world_id: WorldId,
+    /// Rule-based NPC suggestions
     pub rule_based_npcs: Vec<StagedNpcData>,
+    /// LLM-based NPC suggestions (may be same as rule-based if LLM agrees)
     pub llm_based_npcs: Vec<StagedNpcData>,
+    /// Default TTL from location settings
+    pub default_ttl_hours: i32,
+    /// Staging context used for generation
+    pub context: StagingContext,
 }
 
 // =============================================================================

@@ -110,38 +110,83 @@ impl DirectorialContextDtoRepositoryPort for DirectorialContextAdapter {
     }
 }
 
-/// Placeholder adapter for DM action queue.
+/// Adapter for DM action queue operations.
 ///
-/// This is a no-op implementation that logs actions but doesn't persist them.
-/// Real implementation would integrate with an actual queue system.
-pub struct DmActionQueuePlaceholder;
-
-impl DmActionQueuePlaceholder {
-    pub fn new() -> Self {
-        Self
-    }
+/// This adapter implements `SceneDmActionQueuePort` by delegating to `DmActionEnqueuePort`.
+/// It converts scene-specific DM actions to the generic queue format.
+pub struct SceneDmActionQueueAdapter {
+    dm_action_queue: Arc<dyn wrldbldr_engine_ports::outbound::DmActionEnqueuePort>,
+    clock: Arc<dyn wrldbldr_engine_ports::outbound::ClockPort>,
 }
 
-impl Default for DmActionQueuePlaceholder {
-    fn default() -> Self {
-        Self::new()
+impl SceneDmActionQueueAdapter {
+    pub fn new(
+        dm_action_queue: Arc<dyn wrldbldr_engine_ports::outbound::DmActionEnqueuePort>,
+        clock: Arc<dyn wrldbldr_engine_ports::outbound::ClockPort>,
+    ) -> Self {
+        Self {
+            dm_action_queue,
+            clock,
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl SceneDmActionQueuePort for DmActionQueuePlaceholder {
+impl SceneDmActionQueuePort for SceneDmActionQueueAdapter {
     async fn enqueue_action(
         &self,
         world_id: &WorldId,
         dm_id: String,
         action: SceneDmAction,
     ) -> Result<(), String> {
+        use wrldbldr_engine_ports::outbound::{
+            DmActionEnqueueRequest, DmActionEnqueueType, DmEnqueueDecision, SceneApprovalDecision,
+        };
+
         tracing::debug!(
             world_id = %world_id,
             dm_id = %dm_id,
             action = ?action,
-            "DM action enqueued (placeholder - no-op)"
+            "Enqueueing DM action"
         );
+
+        // Convert SceneDmAction to DmActionEnqueueType
+        let action_type = match action {
+            SceneDmAction::ApprovalDecision {
+                request_id,
+                decision,
+            } => {
+                let enqueue_decision = match decision {
+                    SceneApprovalDecision::Approve => DmEnqueueDecision::Approve,
+                    SceneApprovalDecision::Reject { reason } => {
+                        DmEnqueueDecision::Reject { reason }
+                    }
+                    SceneApprovalDecision::ApproveWithEdits { modified_text } => {
+                        DmEnqueueDecision::ApproveWithEdits { modified_text }
+                    }
+                };
+                DmActionEnqueueType::ApprovalDecision {
+                    request_id,
+                    decision: enqueue_decision,
+                }
+            }
+        };
+
+        // Create the enqueue request
+        let request = DmActionEnqueueRequest {
+            world_id: *world_id,
+            dm_id,
+            action_type,
+            timestamp: self.clock.now(),
+        };
+
+        // Enqueue via the port
+        self.dm_action_queue
+            .enqueue(request)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        tracing::info!(world_id = %world_id, "DM action successfully enqueued");
         Ok(())
     }
 }

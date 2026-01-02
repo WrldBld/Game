@@ -198,9 +198,9 @@ pub use event_effect_executor::{
 };
 
 // Re-export staging services (Staging System - replaces legacy PresenceService)
+// NOTE: StagingService now implements StagingUseCaseServicePort directly from engine-ports
 pub use staging_context_provider::{build_staging_prompt, StagingContextProvider};
 pub use staging_service::StagingService;
-pub use internal::{StagingProposal, StagedNpcProposal, ApprovedNpc};
 
 // Re-export disposition service (P1.4)
 pub use disposition_service::{DispositionService, DispositionServiceImpl};

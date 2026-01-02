@@ -17,6 +17,7 @@ mod comfyui_port;
 mod connection_manager_port;
 mod directorial_context_dto_repository_port;
 mod directorial_context_port;
+mod dm_action_enqueue_port;
 mod dm_action_processor_port;
 mod dm_notification_port;
 mod domain_event_repository_port;
@@ -31,6 +32,7 @@ mod generation_active_batches_port;
 mod generation_read_state_port;
 
 mod llm_port;
+mod llm_suggestion_queue_port;
 mod location_repository;
 mod narrative_event_repository;
 mod player_character_repository;
@@ -86,6 +88,11 @@ pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRe
 // Environment port - interface for environment variable access
 pub use environment_port::EnvironmentPort;
 
+// DM action enqueue - outbound port for enqueueing DM actions
+pub use dm_action_enqueue_port::{
+    DmActionEnqueuePort, DmActionEnqueueRequest, DmActionEnqueueType, DmEnqueueDecision,
+};
+
 // DM action processor - interface for processing DM actions
 pub use dm_action_processor_port::{DmActionProcessorPort, DmActionResult};
 
@@ -122,6 +129,11 @@ pub use llm_port::{
     ChatMessage, FinishReason, ImageData, LlmPort, LlmRequest, LlmResponse, MessageRole,
     TokenUsage, ToolCall, ToolDefinition,
 };
+
+// LLM Suggestion Queue port - outbound interface for LLM suggestion queue operations
+pub use llm_suggestion_queue_port::{LlmSuggestionQueuePort, LlmSuggestionQueueRequest};
+#[cfg(any(test, feature = "testing"))]
+pub use llm_suggestion_queue_port::MockLlmSuggestionQueuePort;
 
 pub use prompt_template_cache_port::{PromptTemplateCachePort, PromptTemplateCacheSnapshot};
 

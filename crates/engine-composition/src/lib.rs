@@ -42,8 +42,10 @@
 mod app_state;
 mod asset_services;
 mod core_services;
+mod dm_action_enqueue_adapter;
 mod event_infra;
 mod game_services;
+mod llm_suggestion_queue_adapter;
 mod player_services;
 mod queue_services;
 mod use_case_adapters;
@@ -64,3 +66,7 @@ pub use use_case_adapters::{
     WorkflowUseCaseAdapter, WorldUseCaseAdapter,
 };
 pub use use_cases::UseCases;
+
+// Internal adapters for bridging ports to app-layer services
+pub use dm_action_enqueue_adapter::DmActionEnqueueAdapter;
+pub use llm_suggestion_queue_adapter::LlmSuggestionQueueAdapter;

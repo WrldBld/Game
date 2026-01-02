@@ -39,7 +39,7 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::port_adapters::{
-    DirectorialContextAdapter, DmActionQueuePlaceholder, StagingServiceAdapter,
+    DirectorialContextAdapter, SceneDmActionQueueAdapter,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 
@@ -48,7 +48,7 @@ use wrldbldr_engine_app::application::use_cases::{
     ObservationUseCase, PlayerActionUseCase, SceneBuilder, SceneUseCase, StagingApprovalUseCase,
 };
 
-use wrldbldr_engine_composition::UseCases;
+use wrldbldr_engine_composition::{DmActionEnqueueAdapter, UseCases};
 
 use wrldbldr_engine_ports::inbound::{
     ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
@@ -57,10 +57,9 @@ use wrldbldr_engine_ports::inbound::{
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
+    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, DmActionQueueServicePort,
     DmApprovalQueueServicePort, InteractionServicePort, NarrativeEventApprovalServicePort,
-    PlayerActionQueueServicePort, PlayerCharacterServicePort, SceneServicePort, StagingServicePort,
-    WorldServicePort,
+    PlayerActionQueueServicePort, PlayerCharacterServicePort, SceneServicePort, WorldServicePort,
 };
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
@@ -69,7 +68,7 @@ use wrldbldr_engine_ports::outbound::{
     LocationMapPort, ObservationRepositoryPort, PlayerCharacterCrudPort,
     PlayerCharacterInventoryPort, PlayerCharacterPositionPort, RegionConnectionPort,
     RegionCrudPort, RegionExitPort, RegionItemPort, StagingStateExtPort, StagingStatePort,
-    WorldStateUpdatePort,
+    StagingUseCaseServiceExtPort, WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.
@@ -175,10 +174,10 @@ pub struct UseCaseDependencies {
     pub player_character_service_port: Arc<dyn PlayerCharacterServicePort>,
 
     // =========================================================================
-    // Service Ports (outbound - for adapter wiring)
+    // Service Ports (outbound)
     // =========================================================================
-    /// Staging service port (outbound) for StagingServiceAdapter
-    pub staging_service_port: Arc<dyn StagingServicePort>,
+    /// Staging service port (outbound) - StagingService directly implements this
+    pub staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
     /// Player action queue service port for adapter
     pub player_action_queue_service_port: Arc<dyn PlayerActionQueueServicePort>,
     /// Challenge resolution service port
@@ -187,6 +186,8 @@ pub struct UseCaseDependencies {
     pub challenge_outcome_approval_service_port: Arc<dyn ChallengeOutcomeApprovalServicePort>,
     /// DM approval queue service port
     pub dm_approval_queue_service_port: Arc<dyn DmApprovalQueueServicePort>,
+    /// DM action queue service port (internal, for bridge adapter)
+    pub dm_action_queue_service_port: Arc<dyn DmActionQueueServicePort>,
 
     // =========================================================================
     // Service Ports (outbound)
@@ -253,11 +254,9 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
     // =========================================================================
-    // Create staging service adapter
+    // Staging Service (directly implements StagingUseCaseServicePort)
     // =========================================================================
-    let staging_service_adapter = Arc::new(StagingServiceAdapter::new(
-        deps.staging_service_port.clone(),
-    ));
+    // No adapter needed - StagingService implements the port directly
 
     // =========================================================================
     // Create shared scene builder
@@ -280,7 +279,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
         deps.region_connection.clone(),
         deps.location_crud.clone(),
         deps.location_map.clone(),
-        staging_service_adapter.clone(),
+        deps.staging_service.clone(),
         deps.staging_state.clone() as Arc<dyn StagingStatePort>,
         broadcast.clone(),
         scene_builder.clone(),
@@ -301,7 +300,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // Create Staging Approval Use Case
     // =========================================================================
     let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
-        staging_service_adapter.clone(),
+        deps.staging_service.clone(),
         deps.staging_state.clone(),
         deps.character_crud.clone(),
         deps.region_crud.clone(),
@@ -350,14 +349,25 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     let directorial_context_adapter = Arc::new(DirectorialContextAdapter::new(
         deps.directorial_context_repo.clone(),
     ));
-    let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
+
+    // Create DM action enqueue adapter (bridges port to internal service)
+    let dm_action_enqueue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::DmActionEnqueuePort> =
+        Arc::new(DmActionEnqueueAdapter::new(
+            deps.dm_action_queue_service_port.clone(),
+        ));
+
+    // Create scene DM action queue adapter using the port
+    let scene_dm_action_queue_adapter = Arc::new(SceneDmActionQueueAdapter::new(
+        dm_action_enqueue_adapter,
+        deps.clock.clone(),
+    ));
 
     let scene_use_case = Arc::new(SceneUseCase::new(
         deps.scene_service_port.clone(),
         deps.interaction_service_port.clone(),
         deps.world_state_update.clone(),
         directorial_context_adapter.clone(),
-        dm_action_queue_placeholder,
+        scene_dm_action_queue_adapter,
     ));
 
     // =========================================================================
@@ -461,7 +471,7 @@ mod tests {
             let _ = &deps.player_character_service_port;
 
             // Service ports (outbound)
-            let _ = &deps.staging_service_port;
+            let _ = &deps.staging_service;
             let _ = &deps.player_action_queue_service_port;
             let _ = &deps.challenge_resolution_service_port;
             let _ = &deps.challenge_outcome_approval_service_port;

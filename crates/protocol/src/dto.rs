@@ -195,6 +195,9 @@ impl From<PromptMappingDto> for PromptMapping {
 pub enum PromptMappingTypeDto {
     Primary,
     Negative,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<PromptMappingType> for PromptMappingTypeDto {
@@ -211,6 +214,8 @@ impl From<PromptMappingTypeDto> for PromptMappingType {
         match value {
             PromptMappingTypeDto::Primary => Self::Primary,
             PromptMappingTypeDto::Negative => Self::Negative,
+            // Unknown variants default to Primary for safety
+            PromptMappingTypeDto::Unknown => Self::Primary,
         }
     }
 }
@@ -386,6 +391,8 @@ pub enum InputTypeDto {
     Float,
     Boolean,
     Select(Vec<String>),
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
     Unknown,
 }
 

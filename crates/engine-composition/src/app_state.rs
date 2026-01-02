@@ -86,13 +86,12 @@ use wrldbldr_engine_ports::inbound::{
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     PromptContextServicePort, PromptTemplateServicePort, SettingsServicePort,
-    StagingServicePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ClockPort, ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort,
     ConnectionLifecyclePort, ConnectionQueryPort, DirectorialContextRepositoryPort,
-    GenerationReadStatePort, LlmPort, RegionItemPort, WorldApprovalPort,
+    GenerationReadStatePort, LlmPort, RegionItemPort, StagingUseCaseServiceExtPort, WorldApprovalPort,
     WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
@@ -370,7 +369,7 @@ pub struct AppState {
     /// Staging service for NPC presence management.
     ///
     /// Handles NPC staging proposals, approvals, and region presence.
-    pub staging_service: Arc<dyn StagingServicePort>,
+    pub staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
 
     /// Connection query port for querying connection state.
     ///
@@ -508,7 +507,7 @@ impl AppState {
     ///     event_infra,
     ///     Arc::new(settings_service) as Arc<dyn SettingsServicePort>,
     ///     Arc::new(prompt_template_service) as Arc<dyn PromptTemplateServicePort>,
-    ///     Arc::new(staging_service) as Arc<dyn StagingServicePort>,
+    ///     Arc::new(staging_service) as Arc<dyn StagingUseCaseServiceExtPort>,
     ///     connection_query,
     ///     connection_context,
     ///     connection_broadcast,
@@ -540,7 +539,7 @@ impl AppState {
         events: EventInfra,
         settings_service: Arc<dyn SettingsServicePort>,
         prompt_template_service: Arc<dyn PromptTemplateServicePort>,
-        staging_service: Arc<dyn StagingServicePort>,
+        staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
         connection_query: Arc<dyn ConnectionQueryPort>,
         connection_context: Arc<dyn ConnectionContextPort>,
         connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
@@ -783,7 +782,7 @@ impl std::fmt::Debug for AppState {
                 "prompt_template_service",
                 &"Arc<dyn PromptTemplateServicePort>",
             )
-            .field("staging_service", &"Arc<dyn StagingServicePort>")
+            .field("staging_service", &"Arc<dyn StagingUseCaseServiceExtPort>")
             .field("connection_query", &"Arc<dyn ConnectionQueryPort>")
             .field("connection_context", &"Arc<dyn ConnectionContextPort>")
             .field("connection_broadcast", &"Arc<dyn ConnectionBroadcastPort>")

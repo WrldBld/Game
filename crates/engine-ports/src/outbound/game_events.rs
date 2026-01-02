@@ -388,7 +388,8 @@ pub struct SplitPartyEvent {
 // =============================================================================
 
 /// NPC staging data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StagedNpcData {
     /// Character ID
     pub character_id: CharacterId,

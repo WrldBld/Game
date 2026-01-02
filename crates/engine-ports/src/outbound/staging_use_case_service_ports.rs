@@ -7,7 +7,8 @@ use super::{ApprovedNpcData, RegeneratedNpc, StagingProposalData};
 
 /// Outbound port for staging operations as used by movement + staging use cases.
 ///
-/// This is intentionally distinct from the domain-facing `StagingServicePort`.
+/// Implemented by `StagingService` in engine-app. Used by `MovementUseCase`
+/// and other use cases that need staging functionality.
 #[async_trait]
 pub trait StagingUseCaseServicePort: Send + Sync {
     /// Get current valid staging for a region

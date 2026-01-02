@@ -238,7 +238,6 @@ mod challenge_outcome_approval_service_port;
 mod interaction_service_port;
 mod player_character_service_port;
 mod scene_service_port;
-mod staging_service_port;
 
 pub use challenge_outcome_approval_service_port::{
     ChallengeOutcomeApprovalServicePort, OutcomeDecision,
@@ -258,6 +257,5 @@ pub use scene_service_port::{SceneServicePort, SceneWithRelations};
 #[cfg(any(test, feature = "testing"))]
 pub use scene_service_port::MockSceneServicePort;
 
-pub use staging_service_port::{ApprovedNpc, StagedNpcProposal, StagingProposal, StagingServicePort};
-#[cfg(any(test, feature = "testing"))]
-pub use staging_service_port::MockStagingServicePort;
+// NOTE: StagingServicePort has been removed - StagingService now directly
+// implements StagingUseCaseServicePort from engine-ports.

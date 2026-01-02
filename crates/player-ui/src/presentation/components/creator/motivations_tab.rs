@@ -1197,6 +1197,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                                     hints: None,
                                     additional_context: None,
                                     entity_type: Some("character".to_string()),
+                                    world_id: None,
                                 },
                                 on_select: move |suggestion| {
                                     description.set(suggestion);
@@ -1319,6 +1320,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                                             hints: Some(description.read().clone()), // The want being hidden
                                             additional_context: None,
                                             entity_type: Some("character".to_string()),
+                                            world_id: None,
                                         },
                                         on_select: move |suggestion| {
                                             deflection.set(suggestion);
@@ -1348,6 +1350,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
                                             hints: Some(description.read().clone()), // The want being hidden
                                             additional_context: None,
                                             entity_type: Some("character".to_string()),
+                                            world_id: None,
                                         },
                                         on_select: move |suggestion| {
                                             // Append to existing tells

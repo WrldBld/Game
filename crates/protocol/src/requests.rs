@@ -4,6 +4,7 @@
 //! Each variant maps to a specific CRUD or action operation.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::messages::{
     ActantialRoleData, ActorTypeData, CreateGoalData, CreateWantData, UpdateGoalData,
@@ -1078,6 +1079,10 @@ pub struct SuggestionContextData {
     /// Additional context from other fields (e.g., description, backstory)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub additional_context: Option<String>,
+
+    /// World ID for context enrichment (matches domain SuggestionContext.world_id)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_id: Option<Uuid>,
 }
 
 /// Data for creating a new item

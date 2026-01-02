@@ -7,7 +7,6 @@ use wrldbldr_domain::value_objects::{
     ConversationEntry, DirectorialNotes, DomainNpcMotivation, PacingGuidance, PendingApprovalItem,
 };
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
-use wrldbldr_engine_app::application::services::internal::{StagedNpcProposal, StagingProposal};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
@@ -52,6 +51,41 @@ struct WorldState {
 
     /// DM's directorial context (runtime guidance for NPCs)
     directorial_context: Option<DirectorialNotes>,
+}
+
+// =============================================================================
+// Adapter-internal staging types
+// =============================================================================
+//
+// These types are internal to the WorldStateManager adapter. They were previously
+// in engine-app, but adapters cannot depend on engine-app in hexagonal architecture.
+// These are only used for in-memory storage and don't cross layer boundaries.
+
+/// Staged NPC in a proposal (adapter-internal type)
+#[derive(Debug, Clone)]
+pub struct StagedNpcProposal {
+    pub character_id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub is_hidden_from_players: bool,
+    pub reasoning: String,
+}
+
+/// Full staging proposal (adapter-internal type)
+///
+/// Contains the NPC suggestions from both rule-based and LLM-based sources.
+#[derive(Debug, Clone)]
+pub struct StagingProposal {
+    pub request_id: String,
+    pub region_id: String,
+    pub location_id: String,
+    pub world_id: String,
+    pub rule_based_npcs: Vec<StagedNpcProposal>,
+    pub llm_based_npcs: Vec<StagedNpcProposal>,
+    pub default_ttl_hours: i32,
+    pub context: wrldbldr_domain::value_objects::StagingContext,
 }
 
 /// Pending staging approval with full data for handler access

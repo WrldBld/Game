@@ -32,7 +32,7 @@ use wrldbldr_engine_app::application::services::{
 // Import composition layer types
 use wrldbldr_engine_composition::{
     AppConfig as CompositionAppConfig, AppState, AssetServices, CoreServices, EventInfra,
-    GameServices, LlmPortDyn, PlayerServices, QueueServices,
+    GameServices, LlmPortDyn, LlmSuggestionQueueAdapter, PlayerServices, QueueServices,
 };
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
@@ -40,7 +40,7 @@ use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_app::application::services::internal::{
     ActantialContextServicePort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
     DispositionServicePort, NarrativeEventApprovalServicePort, OutcomeTriggerServicePort,
-    PromptContextServicePort, StagingServicePort, TriggerEvaluationServicePort,
+    PromptContextServicePort, TriggerEvaluationServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
@@ -52,8 +52,8 @@ use wrldbldr_engine_ports::outbound::{
     ConnectionContextPort, ConnectionLifecyclePort, ConnectionManagerPort, ConnectionQueryPort,
     ConnectionUnicastPort, DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort,
     EventBusPort, EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
-    RegionItemPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
-    WorldLifecyclePort, WorldScenePort, WorldTimePort,
+    RegionItemPort, StagingUseCaseServiceExtPort, WorldApprovalPort, WorldConversationPort,
+    WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs
@@ -626,13 +626,19 @@ pub async fn new_app_state(
     let generation_queue_projection_for_handler = generation_queue_projection_service.clone();
     let generation_read_state_for_handler = generation_read_state_repository.clone();
 
+    // Create LLM suggestion queue adapter (bridges port to internal service)
+    // This adapter implements LlmSuggestionQueuePort by delegating to the internal LlmQueueServicePort
+    let llm_suggestion_queue_adapter: Arc<dyn wrldbldr_engine_ports::outbound::LlmSuggestionQueuePort> =
+        Arc::new(LlmSuggestionQueueAdapter::new(llm_queue_service_port.clone()));
+    tracing::debug!("Created LLM suggestion queue adapter bridge");
+
     // Create suggestion enqueue adapter for AI suggestions
     // Pass world_repo for auto-enrichment of suggestion context
-    // Uses llm_queue_service_port from queue_service_ctx
+    // Uses llm_suggestion_queue_adapter (port) instead of internal service
     let suggestion_enqueue_adapter: Arc<
         dyn wrldbldr_engine_ports::outbound::SuggestionEnqueuePort,
     > = Arc::new(SuggestionEnqueueAdapter::new(
-        llm_queue_service_port.clone(),
+        llm_suggestion_queue_adapter,
         world_repo.clone(),
     ));
     tracing::info!("Initialized suggestion enqueue adapter with world auto-enrichment");
@@ -706,11 +712,12 @@ pub async fn new_app_state(
         world_service_port: world_service_port.clone(),
         player_character_service_port: player_character_service_port.clone(),
         // Service ports (outbound)
-        staging_service_port: staging_service.clone(),
+        staging_service: staging_service.clone(),
         player_action_queue_service_port: player_action_queue_service_port.clone(),
         challenge_resolution_service_port: challenge_resolution_service.clone(),
         challenge_outcome_approval_service_port: challenge_outcome_approval_service.clone(),
         dm_approval_queue_service_port: dm_approval_queue_service_port.clone(),
+        dm_action_queue_service_port: dm_action_queue_service_port.clone(),
         narrative_event_approval_service: narrative_event_approval_service.clone()
             as Arc<dyn NarrativeEventApprovalServicePort>,
         // Request handler
@@ -825,7 +832,7 @@ pub async fn new_app_state(
         composition_events,
         settings_service.clone() as Arc<dyn SettingsServicePort>,
         prompt_template_service.clone() as Arc<dyn PromptTemplateServicePort>,
-        staging_service.clone() as Arc<dyn StagingServicePort>,
+        staging_service.clone() as Arc<dyn StagingUseCaseServiceExtPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionQueryPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionContextPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionBroadcastPort>,

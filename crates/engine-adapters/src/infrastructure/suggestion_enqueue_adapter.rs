@@ -1,7 +1,7 @@
-//! Suggestion Enqueue Adapter - Bridges SuggestionEnqueuePort to LlmQueueServicePort
+//! Suggestion Enqueue Adapter - Bridges SuggestionEnqueuePort to LlmSuggestionQueuePort
 //!
 //! This adapter implements the `SuggestionEnqueuePort` trait using the
-//! `LlmQueueServicePort`, hiding complexity from consumers.
+//! `LlmSuggestionQueuePort` (outbound port), hiding complexity from consumers.
 //!
 //! ## Auto-Enrichment
 //!
@@ -9,42 +9,49 @@
 //! automatically fetch the world from the repository and populate `world_setting`
 //! with the world's name and description. This improves suggestion quality by
 //! providing the LLM with world context.
+//!
+//! ## Architecture
+//!
+//! This adapter implements an outbound port (`SuggestionEnqueuePort`) and depends on
+//! other outbound ports (`LlmSuggestionQueuePort`, `WorldRepositoryPort`). This follows
+//! correct hexagonal architecture:
+//! - Adapters implement outbound ports
+//! - Adapters can depend on other outbound ports
+//! - No dependency on application-layer internals
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_app::application::services::internal::{
-    LlmQueueRequest, LlmQueueServicePort, LlmRequestType, LlmSuggestionContext,
-};
+use wrldbldr_engine_dto::SuggestionContext;
 use wrldbldr_engine_ports::outbound::{
-    QueueError, SuggestionEnqueuePort, SuggestionEnqueueRequest, SuggestionEnqueueResponse,
-    WorldRepositoryPort,
+    LlmSuggestionQueuePort, LlmSuggestionQueueRequest, QueueError, SuggestionEnqueuePort,
+    SuggestionEnqueueRequest, SuggestionEnqueueResponse, WorldRepositoryPort,
 };
 
-/// Adapter that implements SuggestionEnqueuePort using LlmQueueServicePort
+/// Adapter that implements SuggestionEnqueuePort using LlmSuggestionQueuePort
 ///
-/// This adapter wraps the LlmQueueServicePort and exposes a simple
+/// This adapter wraps the LlmSuggestionQueuePort and exposes a simple
 /// async interface for enqueuing suggestion requests. It also handles
 /// auto-enrichment of suggestion context with world data.
 pub struct SuggestionEnqueueAdapter {
-    llm_queue_service: Arc<dyn LlmQueueServicePort>,
+    llm_queue: Arc<dyn LlmSuggestionQueuePort>,
     world_repository: Arc<dyn WorldRepositoryPort>,
 }
 
 impl SuggestionEnqueueAdapter {
-    /// Create a new adapter wrapping an LlmQueueServicePort
+    /// Create a new adapter wrapping an LlmSuggestionQueuePort
     ///
     /// # Arguments
-    /// * `llm_queue_service` - The LLM queue service port to delegate to
+    /// * `llm_queue` - The LLM suggestion queue port to delegate to
     /// * `world_repository` - Repository for fetching world data for auto-enrichment
     pub fn new(
-        llm_queue_service: Arc<dyn LlmQueueServicePort>,
+        llm_queue: Arc<dyn LlmSuggestionQueuePort>,
         world_repository: Arc<dyn WorldRepositoryPort>,
     ) -> Self {
         Self {
-            llm_queue_service,
+            llm_queue,
             world_repository,
         }
     }
@@ -55,9 +62,9 @@ impl SuggestionEnqueueAdapter {
     /// and populates `world_setting` with "{world_name}: {world_description}".
     async fn enrich_context(
         &self,
-        mut context: LlmSuggestionContext,
+        mut context: SuggestionContext,
         world_id: Option<uuid::Uuid>,
-    ) -> LlmSuggestionContext {
+    ) -> SuggestionContext {
         // Only enrich if world_setting is not already provided
         if context.world_setting.is_some() {
             return context;
@@ -102,16 +109,16 @@ impl SuggestionEnqueuePort for SuggestionEnqueueAdapter {
         &self,
         request: SuggestionEnqueueRequest,
     ) -> Result<SuggestionEnqueueResponse, QueueError> {
-        // Generate request ID
-        let request_id = uuid::Uuid::new_v4().to_string();
+        // Generate request ID (callback ID for correlation)
+        let callback_id = uuid::Uuid::new_v4().to_string();
 
         // Require world_id for suggestion requests
         let world_id = request.world_id.ok_or_else(|| {
             QueueError::Backend("world_id is required for suggestion requests".to_string())
         })?;
 
-        // Convert context to port's SuggestionContext type
-        let suggestion_context = LlmSuggestionContext {
+        // Convert context to SuggestionContext (from engine-dto)
+        let suggestion_context = SuggestionContext {
             entity_type: request.context.entity_type,
             entity_name: request.context.entity_name,
             world_setting: request.context.world_setting,
@@ -125,32 +132,24 @@ impl SuggestionEnqueuePort for SuggestionEnqueueAdapter {
             .enrich_context(suggestion_context, Some(world_id))
             .await;
 
-        // Create LLM queue request using port types
-        let llm_request = LlmQueueRequest {
-            request_type: LlmRequestType::Suggestion {
-                field_type: request.field_type,
-                entity_id: request.entity_id,
-            },
+        // Create LLM suggestion queue request
+        let queue_request = LlmSuggestionQueueRequest {
+            field_type: request.field_type,
+            entity_id: request.entity_id,
             world_id,
-            pc_id: None,
-            prompt: None,
-            suggestion_context: Some(enriched_context),
-            callback_id: request_id.clone(),
+            suggestion_context: enriched_context,
+            callback_id: callback_id.clone(),
         };
 
-        // Enqueue to LLM queue via port
-        self.llm_queue_service
-            .enqueue(llm_request)
-            .await
-            .map_err(|e| QueueError::Backend(e.to_string()))?;
+        // Enqueue to LLM queue via outbound port
+        self.llm_queue.enqueue(queue_request).await?;
 
-        Ok(SuggestionEnqueueResponse { request_id })
+        Ok(SuggestionEnqueueResponse {
+            request_id: callback_id,
+        })
     }
 
     async fn cancel_suggestion(&self, request_id: &str) -> Result<bool, QueueError> {
-        self.llm_queue_service
-            .cancel_suggestion(request_id)
-            .await
-            .map_err(|e| QueueError::Backend(e.to_string()))
+        self.llm_queue.cancel(request_id).await
     }
 }

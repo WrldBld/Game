@@ -113,6 +113,7 @@ pub struct SuggestionContext {
     pub world_setting: Option<String>,
     pub hints: Option<String>,
     pub additional_context: Option<String>,
+    pub world_id: Option<uuid::Uuid>,
 }
 
 impl From<SuggestionContext> for wrldbldr_protocol::SuggestionContextData {
@@ -123,6 +124,7 @@ impl From<SuggestionContext> for wrldbldr_protocol::SuggestionContextData {
             world_setting: ctx.world_setting,
             hints: ctx.hints,
             additional_context: ctx.additional_context,
+            world_id: ctx.world_id,
         }
     }
 }
