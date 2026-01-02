@@ -1,4 +1,4 @@
-# Service Port Inbound Migration Plan
+# ServicePort Purist Refactor Plan (Option B / Big Bang)
 
 > **Status**: PLANNED
 > **Created**: 2026-01-02
@@ -6,135 +6,161 @@
 
 ## Executive Summary
 
-39 `*ServicePort` traits are incorrectly placed in `engine-ports/src/outbound/` when they should be in `engine-ports/src/inbound/`. These traits are **implemented by `engine-app`** and **called by adapters/handlers**, which is the canonical definition of an **inbound port** in this repo's hexagonal architecture.
+The engine currently defines **39** `*ServicePort` traits under `crates/engine-ports/src/outbound/`. Most of these traits are **implemented by `engine-app`**, and several are **called by adapters** (primarily via `AppStatePort` getters or via wrapper-forwarder adapters).
 
-Important nuance: today, several of these traits are also used as **engine-app internal dependency boundaries** (e.g., use cases/services store `Arc<dyn *ServicePort>`). After migration, canonical rules require that **application code does not depend on inbound ports**. This plan therefore includes an explicit phase to remove/replace those internal app dependencies.
+This plan pursues **Option B (purist)**:
 
-This plan describes a complete restructure to fix the port taxonomy and establish a clean hexagonal architecture.
+1. Adapters call **inbound use case ports**, not "service" ports.
+2. Application-internal service traits live in `engine-app` (or become concrete dependencies), not in `engine-ports`.
+3. Outbound ports remain adapter-implemented; wrapper-forwarder "adapters that call back into app services" are removed (required).
+
+This is a big-bang refactor; no backwards compatibility is expected.
 
 ---
 
 ## Problem Statement
 
-### Current State (Incorrect)
+### Current State (Incorrect for Option B)
 
 ```
 engine-ports/src/outbound/
-├── character_service_port.rs      # Implemented by engine-app, called by adapters
-├── world_service_port.rs          # Implemented by engine-app, called by adapters
-├── challenge_service_port.rs      # Implemented by engine-app, called by adapters
-└── ... (39 total misplaced traits)
+├── *_service_port.rs              # many traits implemented by engine-app
+└── ... (39 total `*ServicePort` traits)
 ```
 
 ### Why This Is Wrong
 
-Per `docs/architecture/hexagonal-architecture.md`:
+Two distinct issues are conflated today:
 
-> **Outbound ports (driven ports)**
->
-> - Define what the application _needs_ from the outside world.
-> - **Implemented by: adapters.**
-> - Depended on by: application (use cases/services).
+1. **Adapters directly calling application services** (usually through `AppStatePort` getters returning `Arc<dyn *ServicePort>`). In a purist hexagonal model, adapters call **inbound use cases**, not a service layer.
+2. **Wrapper-forwarder adapters** that implement outbound ports by calling back into application services (anti-pattern). This inverts the "outbound implemented by adapters" rule.
 
-But these 39 `*ServicePort` traits are:
-
-- **Implemented by**: `engine-app` (not adapters)
-- **Called by**: adapters and handlers (not depended on by app)
-
-This is the **opposite** of outbound - it's inbound.
-
-### Target State (Correct)
+### Target State (Correct for Option B)
 
 ```
 engine-ports/src/inbound/
-├── movement_use_case_port.rs       # (existing - correct)
-├── challenge_use_case_port.rs      # (existing - correct)
-├── ... (other *_use_case_port.rs files)
-├── services/
-│   ├── character/
-│   │   ├── mod.rs
-│   │   ├── character_query_port.rs
-│   │   ├── character_mutation_port.rs
-│   │   └── character_archetype_port.rs
-│   ├── world/
-│   │   ├── world_query_port.rs
-│   │   ├── world_mutation_port.rs
-│   │   └── world_time_port.rs
-│   └── ...
-└── app_state_port.rs               # (existing - correct)
+├── *_use_case_port.rs               # adapters call these
+├── request_handler.rs               # boundary handler API (existing)
+├── app_state_port.rs                # returns inbound use cases + true outbound infra only
+└── (NEW) admin/maintenance use cases as needed by HTTP routes
+
+engine-app/src/
+└── application/
+   ├── use_cases/                   # implement inbound ports
+   └── services/
+       ├── internal/                # internal service traits (NOT in engine-ports)
+       │   └── mod.rs               # re-exports internal traits
+       └── ...                      # service implementations
 
 engine-ports/src/outbound/
-├── character_repository/            # (existing - correct, keep as-is)
-├── challenge_repository/            # (existing - correct, keep as-is)
-├── ... (other repository/ submodules)
-├── clock_port.rs                    # (existing - correct, keep as-is)
-├── random_port.rs                   # (existing - correct, keep as-is)
-├── broadcast_port.rs                # (existing - correct, keep as-is)
-└── staging_use_case_service_ports.rs # (correct - adapter-implemented)
+└── repositories, clocks, queues, storage, external clients, etc. (implemented by adapters)
 ```
+
+---
+
+## Trait Classification (Re-Audit Results)
+
+Based on the mechanical rubric from `hexagonal-architecture.md`:
+
+1. If adapters/handlers **call** the trait AND app **implements** it → **INBOUND**
+2. If app **depends on** the trait AND adapters **implement** it → **OUTBOUND**
+3. If app both **calls and implements** it → **NOT A PORT** (internal trait)
+
+### INBOUND (11 traits) - Replace with Use Case Ports
+
+These are exposed via `AppStatePort` and called by HTTP route handlers:
+
+| Trait | AppStatePort Method | Called by Adapter |
+|-------|---------------------|-------------------|
+| `SettingsServicePort` | `settings_service()` | `settings_routes.rs` |
+| `PromptTemplateServicePort` | `prompt_template_service()` | `prompt_template_routes.rs` |
+| `AssetServicePort` | `asset_service()` | `asset_routes.rs` |
+| `GenerationServicePort` | `generation_service()` | `asset_routes.rs` |
+| `AssetGenerationQueueServicePort` | `asset_generation_queue_service()` | `queue_routes.rs` |
+| `WorkflowServicePort` | `workflow_service()` | `workflow_routes.rs` |
+| `GenerationQueueProjectionServicePort` | `generation_queue_projection_service()` | `queue_routes.rs` |
+| `PlayerActionQueueServicePort` | `player_action_queue_service()` | `queue_routes.rs` |
+| `LlmQueueServicePort` | `llm_queue_service()` | `queue_routes.rs` |
+| `DmApprovalQueueServicePort` | `dm_approval_queue_service()` | `queue_routes.rs` |
+| `DmActionQueueServicePort` | `dm_action_queue_service()` | `queue_routes.rs` |
+
+**Action**: Create new inbound `*UseCasePort` traits and update HTTP handlers to call them.
+
+### OUTBOUND (8 traits) - Keep in `engine-ports/src/outbound/`
+
+These are either implemented by adapters OR wrapped by adapters to implement other ports:
+
+| Trait | Reason | Keep/Delete |
+|-------|--------|-------------|
+| `StagingUseCaseServicePort` | Implemented by `StagingServiceAdapter` | **KEEP** |
+| `StagingUseCaseServiceExtPort` | Implemented by `StagingServiceAdapter` | **KEEP** |
+| `PlayerCharacterServicePort` | Wrapped by `PlayerCharacterServiceAdapter` | DELETE (anti-pattern) |
+| `WorldServicePort` | Wrapped by `WorldServiceAdapter` | DELETE (anti-pattern) |
+| `SceneServicePort` | Wrapped by `SceneServiceAdapter` | DELETE (anti-pattern) |
+| `InteractionServicePort` | Wrapped by `InteractionServiceAdapter` | DELETE (anti-pattern) |
+| `StagingServicePort` | Wrapped by `StagingServiceAdapter` | DELETE (anti-pattern) |
+| `ChallengeOutcomeApprovalServicePort` | Wrapped for approval flow | DELETE (anti-pattern) |
+
+**Action**: Keep only `StagingUseCaseServicePort` and `StagingUseCaseServiceExtPort`. Delete the others after removing wrapper-forwarder adapters.
+
+### NOT A PORT (20 traits) - Internalize to `engine-app`
+
+These are purely app-internal: implemented by app, called by app, never touched by adapters:
+
+| Trait | Current Caller | Target Location |
+|-------|---------------|-----------------|
+| `ChallengeServicePort` | `ChallengeResolutionService` | `engine-app/services/internal/` |
+| `SkillServicePort` | `ChallengeResolutionService` | `engine-app/services/internal/` |
+| `NarrativeEventServicePort` | `NarrativeEventApprovalService` | `engine-app/services/internal/` |
+| `StoryEventRecordingServicePort` | `NarrativeEventApprovalService` | `engine-app/services/internal/` |
+| `DialogueContextServicePort` | `DmApprovalQueueService` | `engine-app/services/internal/` |
+| `OutcomeTriggerServicePort` | `ChallengeOutcomeApprovalService` | `engine-app/services/internal/` |
+| `NarrativeEventApprovalServicePort` | `NarrativeEventUseCase` | `engine-app/services/internal/` |
+| `EventChainServicePort` | Composition only | `engine-app/services/internal/` |
+| `StoryEventServicePort` | Composition only | `engine-app/services/internal/` |
+| `StoryEventQueryServicePort` | Composition only | `engine-app/services/internal/` |
+| `StoryEventAdminServicePort` | Composition only | `engine-app/services/internal/` |
+| `ActantialContextServicePort` | Composition only | `engine-app/services/internal/` |
+| `DispositionServicePort` | Composition only | `engine-app/services/internal/` |
+| `RelationshipServicePort` | Composition only | `engine-app/services/internal/` |
+| `LocationServicePort` | Composition only | `engine-app/services/internal/` |
+| `RegionServicePort` | Composition only | `engine-app/services/internal/` |
+| `ItemServicePort` | Composition only | `engine-app/services/internal/` |
+| `SceneResolutionServicePort` | Composition only | `engine-app/services/internal/` |
+| `SheetTemplateServicePort` | Composition only | `engine-app/services/internal/` |
+| `TriggerEvaluationServicePort` | Composition only | `engine-app/services/internal/` |
+| `PromptContextServicePort` | Composition only | `engine-app/services/internal/` |
+
+**Action**: Move these traits to `crates/engine-app/src/application/services/internal/` and remove from `engine-ports`.
 
 ---
 
 ## Scope
 
-### Traits to Move (39 total)
+### 1) Replace adapter access to "service ports" with inbound use cases (REQUIRED)
 
-All of these are currently in `engine-ports/src/outbound/` and will move to `engine-ports/src/inbound/services/`:
+`AppStatePort` currently exposes 11 `Arc<dyn *ServicePort>` getters called directly by HTTP routes.
 
-| Current File                                  | Trait Name                             | New Location                         |
-| --------------------------------------------- | -------------------------------------- | ------------------------------------ |
-| `actantial_context_service_port.rs`           | `ActantialContextServicePort`          | `inbound/services/actantial/`        |
-| `asset_generation_queue_service_port.rs`      | `AssetGenerationQueueServicePort`      | `inbound/services/asset/`            |
-| `asset_service_port.rs`                       | `AssetServicePort`                     | `inbound/services/asset/`            |
-| `challenge_outcome_approval_service_port.rs`  | `ChallengeOutcomeApprovalServicePort`  | `inbound/services/challenge/`        |
-| `challenge_resolution_service_port.rs`        | `ChallengeResolutionServicePort`       | `inbound/services/challenge/`        |
-| `challenge_service_port.rs`                   | `ChallengeServicePort`                 | `inbound/services/challenge/`        |
-| `dialogue_context_service_port.rs`            | `DialogueContextServicePort`           | `inbound/services/story_event/`      |
-| `disposition_service_port.rs`                 | `DispositionServicePort`               | `inbound/services/character/`        |
-| `dm_action_queue_service_port.rs`             | `DmActionQueueServicePort`             | `inbound/services/queue/`            |
-| `dm_approval_queue_service_port.rs`           | `DmApprovalQueueServicePort`           | `inbound/services/queue/`            |
-| `event_chain_service_port.rs`                 | `EventChainServicePort`                | `inbound/services/narrative/`        |
-| `generation_queue_projection_service_port.rs` | `GenerationQueueProjectionServicePort` | `inbound/services/asset/`            |
-| `generation_service_port.rs`                  | `GenerationServicePort`                | `inbound/services/asset/`            |
-| `interaction_service_port.rs`                 | `InteractionServicePort`               | `inbound/services/interaction/`      |
-| `item_service_port.rs`                        | `ItemServicePort`                      | `inbound/services/item/`             |
-| `llm_queue_service_port.rs`                   | `LlmQueueServicePort`                  | `inbound/services/queue/`            |
-| `location_service_port.rs`                    | `LocationServicePort`                  | `inbound/services/location/`         |
-| `narrative_event_approval_service_port.rs`    | `NarrativeEventApprovalServicePort`    | `inbound/services/narrative/`        |
-| `narrative_event_service_port.rs`             | `NarrativeEventServicePort`            | `inbound/services/narrative/`        |
-| `outcome_trigger_service_port.rs`             | `OutcomeTriggerServicePort`            | `inbound/services/challenge/`        |
-| `player_action_queue_service_port.rs`         | `PlayerActionQueueServicePort`         | `inbound/services/queue/`            |
-| `player_character_service_port.rs`            | `PlayerCharacterServicePort`           | `inbound/services/player_character/` |
-| `prompt_context_service_port.rs`              | `PromptContextServicePort`             | `inbound/services/llm/`              |
-| `prompt_template_service_port.rs`             | `PromptTemplateServicePort`            | `inbound/services/llm/`              |
-| `region_service_port.rs`                      | `RegionServicePort`                    | `inbound/services/region/`           |
-| `relationship_service_port.rs`                | `RelationshipServicePort`              | `inbound/services/character/`        |
-| `scene_resolution_service_port.rs`            | `SceneResolutionServicePort`           | `inbound/services/scene/`            |
-| `scene_service_port.rs`                       | `SceneServicePort`                     | `inbound/services/scene/`            |
-| `settings_service_port.rs`                    | `SettingsServicePort`                  | `inbound/services/settings/`         |
-| `sheet_template_service_port.rs`              | `SheetTemplateServicePort`             | `inbound/services/player_character/` |
-| `skill_service_port.rs`                       | `SkillServicePort`                     | `inbound/services/skill/`            |
-| `staging_service_port.rs`                     | `StagingServicePort`                   | `inbound/services/staging/`          |
-| `story_event_admin_service_port.rs`           | `StoryEventAdminServicePort`           | `inbound/services/story_event/`      |
-| `story_event_query_service_port.rs`           | `StoryEventQueryServicePort`           | `inbound/services/story_event/`      |
-| `story_event_recording_service_port.rs`       | `StoryEventRecordingServicePort`       | `inbound/services/story_event/`      |
-| `story_event_service_port.rs`                 | `StoryEventServicePort`                | `inbound/services/story_event/`      |
-| `trigger_evaluation_service_port.rs`          | `TriggerEvaluationServicePort`         | `inbound/services/narrative/`        |
-| `workflow_service_port.rs`                    | `WorkflowServicePort`                  | `inbound/services/asset/`            |
-| `world_service_port.rs`                       | `WorldServicePort`                     | `inbound/services/world/`            |
+Option B replaces these with inbound use case ports and updates adapters to call use cases.
 
-### Traits to Keep in Outbound (2 total)
+### 2) Internalize app-only `*ServicePort` traits (REQUIRED)
 
-These are correctly placed (implemented by adapters):
+The 20 traits classified as "NOT A PORT" must be:
 
-| File                                | Trait Name                     | Reason                           |
-| ----------------------------------- | ------------------------------ | -------------------------------- |
-| `staging_use_case_service_ports.rs` | `StagingUseCaseServicePort`    | Implemented by `engine-adapters` |
-| `staging_use_case_service_ports.rs` | `StagingUseCaseServiceExtPort` | Implemented by `engine-adapters` |
+1. Moved to `crates/engine-app/src/application/services/internal/`
+2. Removed from `engine-ports`
+3. Imports updated across `engine-app`
 
-### Anti-Pattern to Remove
+### 3) Keep only adapter-implemented outbound ports (REQUIRED)
 
-The `connection_port_adapters.rs` file contains adapter wrappers that violate hexagonal architecture:
+After this refactor, only 2 `*ServicePort` traits remain in `engine-ports/src/outbound/`:
+
+- `StagingUseCaseServicePort`
+- `StagingUseCaseServiceExtPort`
+
+### 4) Remove wrapper-forwarder adapters (REQUIRED)
+
+Wrapper-forwarder adapters violate strict hexagonal direction:
 
 ```rust
 // ANTI-PATTERN: Adapter wrapping app service to implement another port
@@ -145,239 +171,98 @@ pub struct PlayerCharacterServiceAdapter {
 impl PlayerCharacterDtoPort for PlayerCharacterServiceAdapter { ... }
 ```
 
-This will be refactored during the migration.
+Known modules participating in this anti-pattern:
+
+- `crates/engine-adapters/src/infrastructure/connection_port_adapters.rs`
+- `crates/engine-adapters/src/infrastructure/scene_port_adapters.rs`
+- `crates/engine-adapters/src/infrastructure/challenge_port_adapters.rs`
+- `crates/engine-adapters/src/infrastructure/suggestion_enqueue_adapter.rs`
+- `crates/engine-adapters/src/infrastructure/player_action_port_adapters.rs`
+
+This is mandatory in the Option B big-bang; it cannot be a follow-up.
 
 ---
 
-## New Directory Structure
+## Concrete Execution Checklist (Big Bang / Option B)
 
-### `engine-ports/src/inbound/` (After Migration)
-
-```
-inbound/
-├── mod.rs
-├── app_state_port.rs              # (existing)
-├── challenge_use_case_port.rs      # (existing)
-├── connection_use_case_port.rs     # (existing)
-├── inventory_use_case_port.rs      # (existing)
-├── movement_use_case_port.rs       # (existing)
-├── narrative_event_use_case_port.rs # (existing)
-├── observation_use_case_port.rs    # (existing)
-├── player_action_use_case_port.rs  # (existing)
-├── scene_use_case_port.rs          # (existing)
-├── staging_use_case_port.rs        # (existing)
-├── request_handler.rs             # (existing)
-├── use_case_context.rs            # (existing)
-├── use_case_ports.rs              # (existing)
-├── use_cases.rs                   # (existing; currently unused/planned)
-
-└── services/                      # (NEW)
-    ├── mod.rs
-    ├── actantial/
-    │   ├── mod.rs
-    │   └── actantial_context_service_port.rs
-    ├── asset/
-    │   ├── mod.rs
-    │   ├── asset_service_port.rs
-    │   ├── asset_generation_queue_service_port.rs
-    │   ├── generation_service_port.rs
-    │   ├── generation_queue_projection_service_port.rs
-    │   └── workflow_service_port.rs
-    ├── challenge/
-    │   ├── mod.rs
-    │   ├── challenge_service_port.rs
-    │   ├── challenge_resolution_service_port.rs
-    │   ├── challenge_outcome_approval_service_port.rs
-    │   └── outcome_trigger_service_port.rs
-    ├── character/
-    │   ├── mod.rs
-    │   ├── disposition_service_port.rs
-    │   └── relationship_service_port.rs
-    ├── interaction/
-    │   ├── mod.rs
-    │   └── interaction_service_port.rs
-    ├── item/
-    │   ├── mod.rs
-    │   └── item_service_port.rs
-    ├── llm/
-    │   ├── mod.rs
-    │   ├── prompt_context_service_port.rs
-    │   └── prompt_template_service_port.rs
-    ├── location/
-    │   ├── mod.rs
-    │   └── location_service_port.rs
-    ├── narrative/
-    │   ├── mod.rs
-    │   ├── event_chain_service_port.rs
-    │   ├── narrative_event_service_port.rs
-    │   ├── narrative_event_approval_service_port.rs
-    │   └── trigger_evaluation_service_port.rs
-    ├── player_character/
-    │   ├── mod.rs
-    │   ├── player_character_service_port.rs
-    │   └── sheet_template_service_port.rs
-    ├── queue/
-    │   ├── mod.rs
-    │   ├── dm_action_queue_service_port.rs
-    │   ├── dm_approval_queue_service_port.rs
-    │   ├── llm_queue_service_port.rs
-    │   └── player_action_queue_service_port.rs
-    ├── region/
-    │   ├── mod.rs
-    │   └── region_service_port.rs
-    ├── scene/
-    │   ├── mod.rs
-    │   ├── scene_service_port.rs
-    │   └── scene_resolution_service_port.rs
-    ├── settings/
-    │   ├── mod.rs
-    │   └── settings_service_port.rs
-    ├── skill/
-    │   ├── mod.rs
-    │   └── skill_service_port.rs
-    ├── staging/
-    │   ├── mod.rs
-    │   └── staging_service_port.rs
-    ├── story_event/
-    │   ├── mod.rs
-    │   ├── story_event_service_port.rs
-    │   ├── story_event_query_service_port.rs
-    │   ├── story_event_recording_service_port.rs
-    │   ├── story_event_admin_service_port.rs
-    │   └── dialogue_context_service_port.rs
-    └── world/
-        ├── mod.rs
-        └── world_service_port.rs
-```
-
----
-
-## Implementation Phases
-
-## Concrete Execution Checklist (Big Bang)
-
-This is an ordered checklist intended to be executed top-to-bottom. It is more specific than the phase estimates below and is the source of truth for the big-bang sequence.
-
-### 0) Pre-flight
+### Step 0: Pre-flight
 
 1. Ensure a clean working tree.
-2. Record baseline failures (if any):
+2. Record baseline:
 
 ```bash
 cargo xtask arch-check
 cargo check --workspace
 ```
 
-### 1) REQUIRED: Remove `engine-app` → inbound-service dependencies (do this first)
+### Step 1: Create internal traits directory in `engine-app`
 
-After the move, canonical rules require **application code not to depend on inbound ports**. Today, `engine-app` frequently uses `Arc<dyn *ServicePort>` as internal dependency boundaries.
+1. Create `crates/engine-app/src/application/services/internal/`
+2. Create `mod.rs` with re-exports
 
-Do this now so the later file moves don’t leave you with app code importing `wrldbldr_engine_ports::inbound::services::*`.
+### Step 2: Internalize the 20 "NOT A PORT" traits
 
-1. Find all dependencies:
+For each of the 20 traits:
 
-```bash
-rg -n "Arc<dyn\s+[A-Za-z0-9_]+ServicePort\b" crates/engine-app/src
-rg -n "wrldbldr_engine_ports::outbound::[A-Za-z0-9_]+ServicePort\b" crates/engine-app/src
-```
+1. Move trait file from `engine-ports/src/outbound/` to `engine-app/src/application/services/internal/`
+2. Update imports in `engine-app`
+3. Remove export from `engine-ports/src/outbound/mod.rs`
 
-2. For each usage, choose one:
+### Step 3: Create new inbound use case ports for HTTP routes
 
-   - **Internal collaboration**: depend on a concrete engine-app type, or move the trait boundary into `engine-app`.
-   - **True external dependency**: depend on a focused outbound port (repository/queue/clock/etc.).
+Create inbound use case ports for the 11 service ports currently exposed via `AppStatePort`:
 
-3. Confirm the directionality before proceeding:
+| Current ServicePort | New UseCasePort | Methods (TBD during implementation) |
+|---------------------|-----------------|-------------------------------------|
+| `SettingsServicePort` | `SettingsUseCasePort` | get, update, reset, get_for_world, etc. |
+| `PromptTemplateServicePort` | `PromptTemplateUseCasePort` | get_all, set, delete, resolve, etc. |
+| `AssetServicePort` | `AssetUseCasePort` | get, list, create, update, delete, etc. |
+| `GenerationServicePort` | `AssetGenerationUseCasePort` | queue, retry, cancel, get_status, etc. |
+| `AssetGenerationQueueServicePort` | (merge into AssetGenerationUseCasePort) | |
+| `WorkflowServicePort` | `WorkflowUseCasePort` | get, list, create, update, etc. |
+| `GenerationQueueProjectionServicePort` | `QueueProjectionUseCasePort` | get_queue_state, list_pending, etc. |
+| `PlayerActionQueueServicePort` | `QueueAdminUseCasePort` | list, cancel, retry, etc. |
+| `LlmQueueServicePort` | (merge into QueueAdminUseCasePort) | |
+| `DmApprovalQueueServicePort` | (merge into QueueAdminUseCasePort) | |
+| `DmActionQueueServicePort` | (merge into QueueAdminUseCasePort) | |
 
-```bash
-cargo xtask arch-check
-```
+### Step 4: Update `AppStatePort` and HTTP handlers
 
-### 2) Create `inbound/services/**` module skeleton
+1. Remove the 11 service getters from `AppStatePort`
+2. Add new use case getters
+3. Update HTTP route handlers to call use cases instead of services
 
-1. Create directories:
+### Step 5: Delete wrapper-forwarder adapters
 
-```bash
-mkdir -p crates/engine-ports/src/inbound/services/{actantial,asset,challenge,character,interaction,item,llm,location,narrative,player_character,queue,region,scene,settings,skill,staging,story_event,world}
-```
+1. Update use cases to depend on true outbound ports (repositories) instead of service ports
+2. Build required DTOs in use cases
+3. Delete the wrapper adapter files listed above
+4. Delete the callback ports they implemented (`WorldSnapshotJsonPort`, `PlayerCharacterDtoPort`, etc.)
 
-2. Add `mod.rs` files:
-   - `crates/engine-ports/src/inbound/services/mod.rs`
-   - One `mod.rs` per subdirectory above.
+### Step 6: Clean up remaining outbound service ports
 
-### 3) Move the 39 service-port files using `git mv`
+After wrapper adapters are deleted, remove the 6 service ports that were only used by wrappers:
 
-Run the `git mv` commands listed in the “Traits to Move” mapping above (grouped by domain). Keep `staging_use_case_service_ports.rs` in outbound.
+- `PlayerCharacterServicePort` (if not internalized)
+- `WorldServicePort` (if not internalized)
+- `SceneServicePort` (if not internalized)
+- `InteractionServicePort` (if not internalized)
+- `StagingServicePort` (if not internalized)
+- `ChallengeOutcomeApprovalServicePort` (if not internalized)
 
-### 4) Update engine-ports module exports
+### Step 7: Documentation updates
 
-1. `crates/engine-ports/src/inbound/mod.rs`
+Update:
 
-   - Add `pub mod services;`
-   - Prefer re-exporting the moved traits at `inbound::*` to minimize import churn.
+- `docs/architecture/hexagonal-architecture.md`
+- `AGENTS.md`
 
-2. `crates/engine-ports/src/outbound/mod.rs`
-   - Remove `pub mod` and `pub use` entries for moved service ports.
-
-### 5) Update import paths across the workspace
-
-Perform workspace-wide replacements (repeat per trait name as needed):
-
-```text
-wrldbldr_engine_ports::outbound::XServicePort  ->  wrldbldr_engine_ports::inbound::XServicePort
-```
-
-Then fix remaining compilation errors by updating grouped import lists and composition wiring.
-
-### 6) Update `AppStatePort` to return inbound service ports
-
-`AppStatePort` currently returns many `Arc<dyn ...ServicePort>` types from `outbound`. After the move:
-
-1. Update imports in `crates/engine-ports/src/inbound/app_state_port.rs`.
-2. Update all return types of getters (e.g., `asset_service()`, `llm_queue_service()`, `generation_service()`).
-3. Update `engine-composition`’s concrete `AppStatePort` implementation.
-
-### 7) DECIDED anti-pattern fix: delete the connection callback ports + wrapper adapters
-
-Goal: remove the `engine-adapters` wrappers that implement outbound DTO ports by calling back into application services.
-
-Concrete approach:
-
-1. In `ConnectionUseCase`, replace:
-
-   - `WorldSnapshotJsonPort` → `WorldExporterPort` (convert `PlayerWorldSnapshot` to `serde_json::Value` in the use case).
-   - `PlayerCharacterDtoPort` → outbound player-character repository/query port(s) (build `PcData` in the use case).
-
-2. Delete:
-
-   - `crates/engine-adapters/src/infrastructure/connection_port_adapters.rs`
-   - `crates/engine-ports/src/outbound/world_snapshot_json_port.rs`
-   - `crates/engine-ports/src/outbound/player_character_dto_port.rs`
-
-3. Remove the exports from `crates/engine-ports/src/outbound/mod.rs` and update any references.
-
-Helper search:
-
-```bash
-rg -n "WorldSnapshotJsonPort|PlayerCharacterDtoPort" crates
-```
-
-### 8) Documentation updates
-
-Update `docs/architecture/hexagonal-architecture.md` and `AGENTS.md` to reflect the new location of service ports and remove/adjust any “taxonomy drift” notes.
-
-### 9) Verification loop
-
-Run in this order and fix errors iteratively:
+### Step 8: Verification loop
 
 ```bash
 cargo xtask arch-check
 cargo check --workspace
 cargo test --workspace
-```
-
-Only after the above, run:
-
-```bash
 cargo clippy --workspace --all-targets
 ```
 
@@ -385,16 +270,18 @@ cargo clippy --workspace --all-targets
 
 ## Estimated Effort
 
-| Phase     | Description                  | Effort          |
-| --------- | ---------------------------- | --------------- |
-| Phase 1   | Create directory structure   | 1 hour          |
-| Phase 2   | Move trait files             | 2-3 hours       |
-| Phase 3   | Update module exports        | 1-2 hours       |
-| Phase 4   | Update import paths          | 3-4 hours       |
-| Phase 5   | Remove adapter anti-patterns | 1-2 hours       |
-| Phase 6   | Update documentation         | 1 hour          |
-| Phase 7   | Verification                 | 1 hour          |
-| **Total** |                              | **10-14 hours** |
+| Step | Description | Effort |
+|------|-------------|--------|
+| Step 0 | Pre-flight checks | 15 min |
+| Step 1 | Create internal traits directory | 15 min |
+| Step 2 | Internalize 20 traits | 2-3 hours |
+| Step 3 | Create new inbound use case ports | 2-3 hours |
+| Step 4 | Update AppStatePort and HTTP handlers | 2-3 hours |
+| Step 5 | Delete wrapper-forwarder adapters | 2-3 hours |
+| Step 6 | Clean up remaining outbound ports | 1 hour |
+| Step 7 | Documentation updates | 30 min |
+| Step 8 | Verification loop | 30 min |
+| **Total** | | **11-14 hours** |
 
 ---
 
@@ -402,43 +289,33 @@ cargo clippy --workspace --all-targets
 
 These are follow-up improvements after this migration:
 
-### 1. Eliminate Dual Trait Pattern
+### 1. Apply ISP to Inbound Use Case Ports
 
-Currently, `engine-app` defines both:
-
-- `CharacterService` (app-layer trait with 17 methods)
-- `CharacterServicePort` (port with 3 methods, now in inbound)
-
-Future work: Consolidate into one trait in `inbound/` with ISP splits.
-
-### 2. Apply ISP to Service Ports
-
-Split large service ports into focused sub-ports:
+If any new use case port becomes too large (10+ methods), split into focused sub-ports:
 
 ```rust
-// Instead of one CharacterServicePort with 17 methods
-pub trait CharacterQueryPort: Send + Sync { ... }      // 3 methods
-pub trait CharacterMutationPort: Send + Sync { ... }   // 4 methods
-pub trait CharacterArchetypePort: Send + Sync { ... }  // 3 methods
+// Example split
+pub trait AssetQueryUseCasePort: Send + Sync { ... }
+pub trait AssetMutationUseCasePort: Send + Sync { ... }
+pub trait AssetGenerationUseCasePort: Send + Sync { ... }
 ```
 
-### 3. Strict Hexagonal for Adapters
+### 2. Consolidate App-Layer Service Traits
 
-Currently, some adapters call inbound ports to query data. Strict hexagonal would have:
+After internalization, review whether internal traits are still needed or if concrete types suffice:
 
-- Use cases pass all needed data to outbound port calls
-- Adapters never call back into the application
-
-This is a larger architectural change that can be done incrementally.
+- If a trait has only one implementation and no mocking need → use concrete type
+- If a trait is used for testing/mocking → keep as internal trait
 
 ---
 
 ## Success Criteria
 
-- [ ] All 39 `*ServicePort` traits moved to `engine-ports/src/inbound/services/`
+- [ ] All app-implemented `*ServicePort` traits removed from `engine-ports`
+- [ ] 20 internal traits moved to `engine-app/src/application/services/internal/`
+- [ ] 11 service getters in `AppStatePort` replaced with use case ports
 - [ ] Only 2 `*ServicePort` traits remain in `outbound/` (staging adapter ports)
-- [ ] `engine-app` does not depend on any inbound `services/*` traits
-- [ ] All import paths updated across the codebase
+- [ ] All wrapper-forwarder adapters deleted
 - [ ] `cargo xtask arch-check` passes
 - [ ] `cargo check --workspace` compiles
 - [ ] `cargo test --workspace` passes
@@ -454,6 +331,60 @@ Since this is a big-bang refactor with no backwards compatibility requirement:
 2. If issues arise after commit: `git revert` the commit
 
 No migration scripts or feature flags needed.
+
+---
+
+## Appendix: Full Trait Classification Table
+
+| # | Trait | Classification | Action |
+|---|-------|----------------|--------|
+| 1 | `ActantialContextServicePort` | NOT A PORT | Internalize |
+| 2 | `AssetGenerationQueueServicePort` | INBOUND | Replace with UseCasePort |
+| 3 | `AssetServicePort` | INBOUND | Replace with UseCasePort |
+| 4 | `ChallengeOutcomeApprovalServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| 5 | `ChallengeResolutionServicePort` | NOT A PORT | Internalize |
+| 6 | `ChallengeServicePort` | NOT A PORT | Internalize |
+| 7 | `DialogueContextServicePort` | NOT A PORT | Internalize |
+| 8 | `DispositionServicePort` | NOT A PORT | Internalize |
+| 9 | `DmActionQueueServicePort` | INBOUND | Replace with UseCasePort |
+| 10 | `DmApprovalQueueServicePort` | INBOUND | Replace with UseCasePort |
+| 11 | `EventChainServicePort` | NOT A PORT | Internalize |
+| 12 | `GenerationQueueProjectionServicePort` | INBOUND | Replace with UseCasePort |
+| 13 | `GenerationServicePort` | INBOUND | Replace with UseCasePort |
+| 14 | `InteractionServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| 15 | `ItemServicePort` | NOT A PORT | Internalize |
+| 16 | `LlmQueueServicePort` | INBOUND | Replace with UseCasePort |
+| 17 | `LocationServicePort` | NOT A PORT | Internalize |
+| 18 | `NarrativeEventApprovalServicePort` | NOT A PORT | Internalize |
+| 19 | `NarrativeEventServicePort` | NOT A PORT | Internalize |
+| 20 | `OutcomeTriggerServicePort` | NOT A PORT | Internalize |
+| 21 | `PlayerActionQueueServicePort` | INBOUND | Replace with UseCasePort |
+| 22 | `PlayerCharacterServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| 23 | `PromptContextServicePort` | NOT A PORT | Internalize |
+| 24 | `PromptTemplateServicePort` | INBOUND | Replace with UseCasePort |
+| 25 | `RegionServicePort` | NOT A PORT | Internalize |
+| 26 | `RelationshipServicePort` | NOT A PORT | Internalize |
+| 27 | `SceneResolutionServicePort` | NOT A PORT | Internalize |
+| 28 | `SceneServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| 29 | `SettingsServicePort` | INBOUND | Replace with UseCasePort |
+| 30 | `SheetTemplateServicePort` | NOT A PORT | Internalize |
+| 31 | `SkillServicePort` | NOT A PORT | Internalize |
+| 32 | `StagingServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| 33 | `StagingUseCaseServicePort` | OUTBOUND | **KEEP** (adapter-implemented) |
+| 34 | `StagingUseCaseServiceExtPort` | OUTBOUND | **KEEP** (adapter-implemented) |
+| 35 | `StoryEventAdminServicePort` | NOT A PORT | Internalize |
+| 36 | `StoryEventQueryServicePort` | NOT A PORT | Internalize |
+| 37 | `StoryEventRecordingServicePort` | NOT A PORT | Internalize |
+| 38 | `StoryEventServicePort` | NOT A PORT | Internalize |
+| 39 | `TriggerEvaluationServicePort` | NOT A PORT | Internalize |
+| 40 | `WorkflowServicePort` | INBOUND | Replace with UseCasePort |
+| 41 | `WorldServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+
+**Summary**:
+- **INBOUND** (replace with UseCasePort): 11 traits
+- **OUTBOUND (keep)**: 2 traits
+- **OUTBOUND (wrapper - delete)**: 6 traits
+- **NOT A PORT (internalize)**: 20 traits
 
 ---
 
