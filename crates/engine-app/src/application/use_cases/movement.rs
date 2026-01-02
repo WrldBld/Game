@@ -558,6 +558,29 @@ impl MovementUseCasePort for MovementUseCase {
     }
 }
 
+// =============================================================================
+// MovementOperationsPort Implementation (Outbound Port for Use Case Composition)
+// =============================================================================
+
+#[async_trait]
+impl wrldbldr_engine_ports::outbound::MovementOperationsPort for MovementUseCase {
+    async fn move_to_region(
+        &self,
+        ctx: UseCaseContext,
+        input: MoveToRegionInput,
+    ) -> Result<MovementResult, MovementError> {
+        self.move_to_region(ctx, input).await
+    }
+
+    async fn exit_to_location(
+        &self,
+        ctx: UseCaseContext,
+        input: ExitToLocationInput,
+    ) -> Result<MovementResult, MovementError> {
+        self.exit_to_location(ctx, input).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

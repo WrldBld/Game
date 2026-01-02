@@ -34,6 +34,7 @@ mod generation_read_state_port;
 mod llm_port;
 mod llm_suggestion_queue_port;
 mod location_repository;
+mod movement_operations_port;
 mod narrative_event_repository;
 mod player_character_repository;
 
@@ -354,6 +355,12 @@ pub use world_state::{
 };
 
 // Use case types - input/output types for use case operations
+// Movement operations port - outbound interface for use cases to invoke movement logic
+// (distinct from inbound MovementUseCasePort which adapters call)
+#[cfg(any(test, feature = "testing"))]
+pub use movement_operations_port::MockMovementOperationsPort;
+pub use movement_operations_port::MovementOperationsPort;
+
 pub use use_case_types::{
     // Player action types
     ActionResult,

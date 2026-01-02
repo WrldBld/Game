@@ -12,8 +12,9 @@ use wrldbldr_protocol::{
 use super::common::{parse_world_id, to_protocol_game_time};
 use crate::application::dto::{ActResponseDto, SheetTemplateResponseDto, WorldResponseDto};
 use crate::application::services::{
-    CreateActRequest, CreateWorldRequest, SheetTemplateService, UpdateWorldRequest, WorldService,
+    CreateActRequest, CreateWorldRequest, UpdateWorldRequest, WorldService,
 };
+use crate::application::services::internal::SheetTemplateServicePort;
 
 /// Handle ListWorlds request
 pub async fn list_worlds(world_service: &Arc<dyn WorldService>) -> ResponseResult {
@@ -56,7 +57,7 @@ pub async fn export_world(world_service: &Arc<dyn WorldService>, world_id: &str)
 
 /// Handle GetSheetTemplate request
 pub async fn get_sheet_template(
-    sheet_template_service: &Arc<SheetTemplateService>,
+    sheet_template_service: &Arc<dyn SheetTemplateServicePort>,
     world_id: &str,
 ) -> ResponseResult {
     let wid = match parse_world_id(world_id) {

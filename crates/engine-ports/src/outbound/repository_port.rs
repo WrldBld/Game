@@ -592,9 +592,7 @@ pub trait ObservationRepositoryPort: Send + Sync {
     /// Check if a PC has observed a specific NPC
     ///
     /// Returns true if any observation exists (regardless of reveal status).
-    async fn has_observed(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<bool> {
-        Ok(self.get_latest(pc_id, npc_id).await?.is_some())
-    }
+    async fn has_observed(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<bool>;
 
     /// Delete an observation (removes the OBSERVED edge between PC and NPC)
     async fn delete(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<()>;

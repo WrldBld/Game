@@ -20,8 +20,10 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, RegionId};
-use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
-use wrldbldr_engine_ports::outbound::{ExitToLocationInput, MoveToRegionInput, MovementResult};
+use wrldbldr_engine_ports::inbound::UseCaseContext;
+use wrldbldr_engine_ports::outbound::{
+    ExitToLocationInput, MoveToRegionInput, MovementOperationsPort, MovementResult,
+};
 
 use super::errors::ActionError;
 
@@ -42,10 +44,16 @@ pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
 /// Use case for handling player actions
 ///
 /// Handles both immediate actions (travel) and queued actions (speak, interact).
-/// Delegates travel to MovementUseCase to avoid duplicating movement logic.
+/// Delegates travel to MovementOperationsPort to avoid duplicating movement logic.
+///
+/// # Architecture Note
+///
+/// This use case depends on `MovementOperationsPort` (outbound port), NOT `MovementUseCasePort`
+/// (inbound port). This follows the hexagonal architecture rule:
+/// > "Use cases MUST depend only on outbound ports, never on inbound ports."
 pub struct PlayerActionUseCase {
-    /// Movement use case for travel actions
-    movement: Arc<dyn MovementUseCasePort>,
+    /// Movement operations for travel actions (outbound port)
+    movement: Arc<dyn MovementOperationsPort>,
     /// Queue service for non-immediate actions
     action_queue: Arc<dyn PlayerActionQueueServicePort>,
     /// Clock for timestamps
@@ -57,7 +65,7 @@ pub struct PlayerActionUseCase {
 impl PlayerActionUseCase {
     /// Create a new PlayerActionUseCase with all dependencies
     pub fn new(
-        movement: Arc<dyn MovementUseCasePort>,
+        movement: Arc<dyn MovementOperationsPort>,
         action_queue: Arc<dyn PlayerActionQueueServicePort>,
         clock: Arc<dyn ClockPort>,
         dm_notification: Arc<dyn DmNotificationPort>,
@@ -162,7 +170,7 @@ impl PlayerActionUseCase {
                 arrival_region_id: None,
             };
 
-            match self.movement.exit_to_location(ctx, exit_input).await {
+            match self.movement.exit_to_location(ctx.clone(), exit_input).await {
                 Ok(MovementResult::SceneChanged(event)) => {
                     return Ok(ActionResult::TravelCompleted {
                         action_id: action_id.to_string(),

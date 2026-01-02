@@ -261,6 +261,10 @@ impl ObservationRepositoryPort for Neo4jObservationRepository {
         Neo4jObservationRepository::get_latest(self, pc_id, npc_id).await
     }
 
+    async fn has_observed(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<bool> {
+        Ok(self.get_latest(pc_id, npc_id).await?.is_some())
+    }
+
     async fn delete(&self, pc_id: PlayerCharacterId, npc_id: CharacterId) -> Result<()> {
         Neo4jObservationRepository::delete(self, pc_id, npc_id).await
     }

@@ -37,9 +37,10 @@ use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 use crate::application::services::{
     ActantialContextService, ChallengeService, CharacterService, DispositionService,
     EventChainService, InteractionService, ItemService, LocationService, NarrativeEventService,
-    PlayerCharacterService, RegionService, RelationshipService, SceneService, SheetTemplateService,
-    SkillService, StoryEventService, WorldService,
+    PlayerCharacterService, RegionService, RelationshipService, SceneService, SkillService,
+    StoryEventService, WorldService,
 };
+use crate::application::services::internal::SheetTemplateServicePort;
 
 use super::{
     challenge_handler, character_handler, generation_handler, location_handler, misc_handler,
@@ -72,7 +73,7 @@ pub struct AppRequestHandler {
     story_event_service: Arc<dyn StoryEventService>,
     item_service: Arc<dyn ItemService>,
     region_service: Arc<dyn RegionService>,
-    sheet_template_service: Arc<SheetTemplateService>,
+    sheet_template_service: Arc<dyn SheetTemplateServicePort>,
 
     // Repository ports (for simple CRUD that doesn't need a full service)
     character_location: Arc<dyn CharacterLocationPort>,
@@ -112,7 +113,7 @@ impl AppRequestHandler {
         story_event_service: Arc<dyn StoryEventService>,
         item_service: Arc<dyn ItemService>,
         region_service: Arc<dyn RegionService>,
-        sheet_template_service: Arc<SheetTemplateService>,
+        sheet_template_service: Arc<dyn SheetTemplateServicePort>,
         character_location: Arc<dyn CharacterLocationPort>,
         observation_repo: Arc<dyn ObservationRepositoryPort>,
         region_crud: Arc<dyn RegionCrudPort>,
