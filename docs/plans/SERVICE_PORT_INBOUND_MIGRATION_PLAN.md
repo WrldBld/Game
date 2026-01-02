@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The engine currently defines **39** `*ServicePort` traits under `crates/engine-ports/src/outbound/`. Most of these traits are **implemented by `engine-app`**, and several are **called by adapters** (primarily via `AppStatePort` getters or via wrapper-forwarder adapters).
+The engine currently defines **41** `*ServicePort` traits under `crates/engine-ports/src/outbound/`, plus the extension trait `StagingUseCaseServiceExtPort` (**42 service-related traits total**). Most of these traits are **implemented by `engine-app`**, and several are **called by adapters** (primarily via `AppStatePort` getters or via wrapper-forwarder adapters).
 
 This plan pursues **Option B (purist)**:
 
@@ -25,7 +25,7 @@ This is a big-bang refactor; no backwards compatibility is expected.
 ```
 engine-ports/src/outbound/
 ├── *_service_port.rs              # many traits implemented by engine-app
-└── ... (39 total `*ServicePort` traits)
+└── ... (41 total `*ServicePort` traits)
 ```
 
 ### Why This Is Wrong
@@ -70,66 +70,79 @@ Based on the mechanical rubric from `hexagonal-architecture.md`:
 
 These are exposed via `AppStatePort` and called by HTTP route handlers:
 
-| Trait | AppStatePort Method | Called by Adapter |
-|-------|---------------------|-------------------|
-| `SettingsServicePort` | `settings_service()` | `settings_routes.rs` |
-| `PromptTemplateServicePort` | `prompt_template_service()` | `prompt_template_routes.rs` |
-| `AssetServicePort` | `asset_service()` | `asset_routes.rs` |
-| `GenerationServicePort` | `generation_service()` | `asset_routes.rs` |
-| `AssetGenerationQueueServicePort` | `asset_generation_queue_service()` | `queue_routes.rs` |
-| `WorkflowServicePort` | `workflow_service()` | `workflow_routes.rs` |
-| `GenerationQueueProjectionServicePort` | `generation_queue_projection_service()` | `queue_routes.rs` |
-| `PlayerActionQueueServicePort` | `player_action_queue_service()` | `queue_routes.rs` |
-| `LlmQueueServicePort` | `llm_queue_service()` | `queue_routes.rs` |
-| `DmApprovalQueueServicePort` | `dm_approval_queue_service()` | `queue_routes.rs` |
-| `DmActionQueueServicePort` | `dm_action_queue_service()` | `queue_routes.rs` |
+| Trait                                  | AppStatePort Method                     | Called by Adapter           |
+| -------------------------------------- | --------------------------------------- | --------------------------- |
+| `SettingsServicePort`                  | `settings_service()`                    | `settings_routes.rs`        |
+| `PromptTemplateServicePort`            | `prompt_template_service()`             | `prompt_template_routes.rs` |
+| `AssetServicePort`                     | `asset_service()`                       | `asset_routes.rs`           |
+| `GenerationServicePort`                | `generation_service()`                  | `asset_routes.rs`           |
+| `AssetGenerationQueueServicePort`      | `asset_generation_queue_service()`      | `queue_routes.rs`           |
+| `WorkflowServicePort`                  | `workflow_service()`                    | `workflow_routes.rs`        |
+| `GenerationQueueProjectionServicePort` | `generation_queue_projection_service()` | `queue_routes.rs`           |
+| `PlayerActionQueueServicePort`         | `player_action_queue_service()`         | `queue_routes.rs`           |
+| `LlmQueueServicePort`                  | `llm_queue_service()`                   | `queue_routes.rs`           |
+| `DmApprovalQueueServicePort`           | `dm_approval_queue_service()`           | `queue_routes.rs`           |
+| `WorldServicePort`                     | `world_service()`                       | `export_routes.rs`          |
+
+> **Note**: `DmActionQueueServicePort` was previously listed here but is NOT exposed via `AppStatePort`. It is only used internally by composition code, making it NOT A PORT (see below).
 
 **Action**: Create new inbound `*UseCasePort` traits and update HTTP handlers to call them.
 
-### OUTBOUND (8 traits) - Keep in `engine-ports/src/outbound/`
+### OUTBOUND (2 traits) - Keep in `engine-ports/src/outbound/`
 
-These are either implemented by adapters OR wrapped by adapters to implement other ports:
+These are adapter-implemented and remain valid outbound dependencies for application code:
 
-| Trait | Reason | Keep/Delete |
-|-------|--------|-------------|
-| `StagingUseCaseServicePort` | Implemented by `StagingServiceAdapter` | **KEEP** |
-| `StagingUseCaseServiceExtPort` | Implemented by `StagingServiceAdapter` | **KEEP** |
-| `PlayerCharacterServicePort` | Wrapped by `PlayerCharacterServiceAdapter` | DELETE (anti-pattern) |
-| `WorldServicePort` | Wrapped by `WorldServiceAdapter` | DELETE (anti-pattern) |
-| `SceneServicePort` | Wrapped by `SceneServiceAdapter` | DELETE (anti-pattern) |
-| `InteractionServicePort` | Wrapped by `InteractionServiceAdapter` | DELETE (anti-pattern) |
-| `StagingServicePort` | Wrapped by `StagingServiceAdapter` | DELETE (anti-pattern) |
-| `ChallengeOutcomeApprovalServicePort` | Wrapped for approval flow | DELETE (anti-pattern) |
+| Trait                          | Reason                                 | Keep/Delete |
+| ------------------------------ | -------------------------------------- | ----------- |
+| `StagingUseCaseServicePort`    | Implemented by `StagingServiceAdapter` | **KEEP**    |
+| `StagingUseCaseServiceExtPort` | Implemented by `StagingServiceAdapter` | **KEEP**    |
 
-**Action**: Keep only `StagingUseCaseServicePort` and `StagingUseCaseServiceExtPort`. Delete the others after removing wrapper-forwarder adapters.
+### ADAPTER-CALLED VIA WRAPPERS (5 traits) - Delete (anti-pattern)
 
-### NOT A PORT (20 traits) - Internalize to `engine-app`
+These traits are implemented by `engine-app` but are currently called from adapters through wrapper-forwarder modules. Under the rubric, they are not “outbound”; they’re an adapter-calls-app coupling that Option B eliminates.
+
+| Trait                                 | Reason                                     | Keep/Delete           |
+| ------------------------------------- | ------------------------------------------ | --------------------- |
+| `PlayerCharacterServicePort`          | Wrapped by `PlayerCharacterServiceAdapter` | DELETE (anti-pattern) |
+| `SceneServicePort`                    | Wrapped by `SceneServiceAdapter`           | DELETE (anti-pattern) |
+| `InteractionServicePort`              | Wrapped by `InteractionServiceAdapter`     | DELETE (anti-pattern) |
+| `StagingServicePort`                  | Wrapped by `StagingServiceAdapter`         | DELETE (anti-pattern) |
+| `ChallengeOutcomeApprovalServicePort` | Wrapped for approval flow                  | DELETE (anti-pattern) |
+
+> **Note**: `WorldServicePort` is exposed via `AppStatePort.world_service()` and called by `export_routes.rs`, making it INBOUND (see above).
+
+**Action**: Delete these service ports from `engine-ports` after removing wrapper-forwarder adapters. If any are still needed inside `engine-app`, internalize them into `engine-app/services/internal/` instead.
+
+### NOT A PORT (24 traits) - Internalize to `engine-app`
 
 These are purely app-internal: implemented by app, called by app, never touched by adapters:
 
-| Trait | Current Caller | Target Location |
-|-------|---------------|-----------------|
-| `ChallengeServicePort` | `ChallengeResolutionService` | `engine-app/services/internal/` |
-| `SkillServicePort` | `ChallengeResolutionService` | `engine-app/services/internal/` |
-| `NarrativeEventServicePort` | `NarrativeEventApprovalService` | `engine-app/services/internal/` |
-| `StoryEventRecordingServicePort` | `NarrativeEventApprovalService` | `engine-app/services/internal/` |
-| `DialogueContextServicePort` | `DmApprovalQueueService` | `engine-app/services/internal/` |
-| `OutcomeTriggerServicePort` | `ChallengeOutcomeApprovalService` | `engine-app/services/internal/` |
-| `NarrativeEventApprovalServicePort` | `NarrativeEventUseCase` | `engine-app/services/internal/` |
-| `EventChainServicePort` | Composition only | `engine-app/services/internal/` |
-| `StoryEventServicePort` | Composition only | `engine-app/services/internal/` |
-| `StoryEventQueryServicePort` | Composition only | `engine-app/services/internal/` |
-| `StoryEventAdminServicePort` | Composition only | `engine-app/services/internal/` |
-| `ActantialContextServicePort` | Composition only | `engine-app/services/internal/` |
-| `DispositionServicePort` | Composition only | `engine-app/services/internal/` |
-| `RelationshipServicePort` | Composition only | `engine-app/services/internal/` |
-| `LocationServicePort` | Composition only | `engine-app/services/internal/` |
-| `RegionServicePort` | Composition only | `engine-app/services/internal/` |
-| `ItemServicePort` | Composition only | `engine-app/services/internal/` |
-| `SceneResolutionServicePort` | Composition only | `engine-app/services/internal/` |
-| `SheetTemplateServicePort` | Composition only | `engine-app/services/internal/` |
-| `TriggerEvaluationServicePort` | Composition only | `engine-app/services/internal/` |
-| `PromptContextServicePort` | Composition only | `engine-app/services/internal/` |
+| Trait                               | Current Caller                    | Target Location                 |
+| ----------------------------------- | --------------------------------- | ------------------------------- |
+| `ActantialContextServicePort`       | Composition only                  | `engine-app/services/internal/` |
+| `ChallengeResolutionServicePort`    | Composition only                  | `engine-app/services/internal/` |
+| `ChallengeServicePort`              | `ChallengeResolutionService`      | `engine-app/services/internal/` |
+| `CharacterServicePort`              | Composition only                  | `engine-app/services/internal/` |
+| `DialogueContextServicePort`        | `DmApprovalQueueService`          | `engine-app/services/internal/` |
+| `DispositionServicePort`            | Composition only                  | `engine-app/services/internal/` |
+| `DmActionQueueServicePort`          | Composition only                  | `engine-app/services/internal/` |
+| `EventChainServicePort`             | Composition only                  | `engine-app/services/internal/` |
+| `ItemServicePort`                   | Composition only                  | `engine-app/services/internal/` |
+| `LocationServicePort`               | Composition only                  | `engine-app/services/internal/` |
+| `NarrativeEventApprovalServicePort` | `NarrativeEventUseCase`           | `engine-app/services/internal/` |
+| `NarrativeEventServicePort`         | `NarrativeEventApprovalService`   | `engine-app/services/internal/` |
+| `OutcomeTriggerServicePort`         | `ChallengeOutcomeApprovalService` | `engine-app/services/internal/` |
+| `PromptContextServicePort`          | Composition only                  | `engine-app/services/internal/` |
+| `RegionServicePort`                 | Composition only                  | `engine-app/services/internal/` |
+| `RelationshipServicePort`           | Composition only                  | `engine-app/services/internal/` |
+| `SceneResolutionServicePort`        | Composition only                  | `engine-app/services/internal/` |
+| `SheetTemplateServicePort`          | Composition only                  | `engine-app/services/internal/` |
+| `SkillServicePort`                  | `ChallengeResolutionService`      | `engine-app/services/internal/` |
+| `StoryEventAdminServicePort`        | Composition only                  | `engine-app/services/internal/` |
+| `StoryEventQueryServicePort`        | Composition only                  | `engine-app/services/internal/` |
+| `StoryEventRecordingServicePort`    | `NarrativeEventApprovalService`   | `engine-app/services/internal/` |
+| `StoryEventServicePort`             | Composition only                  | `engine-app/services/internal/` |
+| `TriggerEvaluationServicePort`      | Composition only                  | `engine-app/services/internal/` |
 
 **Action**: Move these traits to `crates/engine-app/src/application/services/internal/` and remove from `engine-ports`.
 
@@ -145,7 +158,7 @@ Option B replaces these with inbound use case ports and updates adapters to call
 
 ### 2) Internalize app-only `*ServicePort` traits (REQUIRED)
 
-The 20 traits classified as "NOT A PORT" must be:
+The 24 traits classified as "NOT A PORT" must be:
 
 1. Moved to `crates/engine-app/src/application/services/internal/`
 2. Removed from `engine-ports`
@@ -153,10 +166,10 @@ The 20 traits classified as "NOT A PORT" must be:
 
 ### 3) Keep only adapter-implemented outbound ports (REQUIRED)
 
-After this refactor, only 2 `*ServicePort` traits remain in `engine-ports/src/outbound/`:
+After this refactor, the only remaining outbound “service” traits are:
 
-- `StagingUseCaseServicePort`
-- `StagingUseCaseServiceExtPort`
+- `StagingUseCaseServicePort` (the only remaining `*ServicePort`)
+- `StagingUseCaseServiceExtPort` (extension trait)
 
 ### 4) Remove wrapper-forwarder adapters (REQUIRED)
 
@@ -200,9 +213,9 @@ cargo check --workspace
 1. Create `crates/engine-app/src/application/services/internal/`
 2. Create `mod.rs` with re-exports
 
-### Step 2: Internalize the 20 "NOT A PORT" traits
+### Step 2: Internalize the 24 "NOT A PORT" traits
 
-For each of the 20 traits:
+For each of the 24 traits:
 
 1. Move trait file from `engine-ports/src/outbound/` to `engine-app/src/application/services/internal/`
 2. Update imports in `engine-app`
@@ -212,19 +225,21 @@ For each of the 20 traits:
 
 Create inbound use case ports for the 11 service ports currently exposed via `AppStatePort`:
 
-| Current ServicePort | New UseCasePort | Methods (TBD during implementation) |
-|---------------------|-----------------|-------------------------------------|
-| `SettingsServicePort` | `SettingsUseCasePort` | get, update, reset, get_for_world, etc. |
-| `PromptTemplateServicePort` | `PromptTemplateUseCasePort` | get_all, set, delete, resolve, etc. |
-| `AssetServicePort` | `AssetUseCasePort` | get, list, create, update, delete, etc. |
-| `GenerationServicePort` | `AssetGenerationUseCasePort` | queue, retry, cancel, get_status, etc. |
-| `AssetGenerationQueueServicePort` | (merge into AssetGenerationUseCasePort) | |
-| `WorkflowServicePort` | `WorkflowUseCasePort` | get, list, create, update, etc. |
-| `GenerationQueueProjectionServicePort` | `QueueProjectionUseCasePort` | get_queue_state, list_pending, etc. |
-| `PlayerActionQueueServicePort` | `QueueAdminUseCasePort` | list, cancel, retry, etc. |
-| `LlmQueueServicePort` | (merge into QueueAdminUseCasePort) | |
-| `DmApprovalQueueServicePort` | (merge into QueueAdminUseCasePort) | |
-| `DmActionQueueServicePort` | (merge into QueueAdminUseCasePort) | |
+| Current ServicePort                    | New UseCasePort                         | Methods (TBD during implementation)     |
+| -------------------------------------- | --------------------------------------- | --------------------------------------- |
+| `SettingsServicePort`                  | `SettingsUseCasePort`                   | get, update, reset, get_for_world, etc. |
+| `PromptTemplateServicePort`            | `PromptTemplateUseCasePort`             | get_all, set, delete, resolve, etc.     |
+| `AssetServicePort`                     | `AssetUseCasePort`                      | get, list, create, update, delete, etc. |
+| `GenerationServicePort`                | `AssetGenerationUseCasePort`            | queue, retry, cancel, get_status, etc.  |
+| `AssetGenerationQueueServicePort`      | (merge into AssetGenerationUseCasePort) |                                         |
+| `WorkflowServicePort`                  | `WorkflowUseCasePort`                   | get, list, create, update, etc.         |
+| `GenerationQueueProjectionServicePort` | `QueueProjectionUseCasePort`            | get_queue_state, list_pending, etc.     |
+| `PlayerActionQueueServicePort`         | `QueueAdminUseCasePort`                 | list, cancel, retry, etc.               |
+| `LlmQueueServicePort`                  | (merge into QueueAdminUseCasePort)      |                                         |
+| `DmApprovalQueueServicePort`           | (merge into QueueAdminUseCasePort)      |                                         |
+| `WorldServicePort`                     | `ExportUseCasePort`                     | export, snapshot, etc.                  |
+
+> **Note**: 11 service ports map to ~7 use case ports after merging related functionality.
 
 ### Step 4: Update `AppStatePort` and HTTP handlers
 
@@ -241,14 +256,15 @@ Create inbound use case ports for the 11 service ports currently exposed via `Ap
 
 ### Step 6: Clean up remaining outbound service ports
 
-After wrapper adapters are deleted, remove the 6 service ports that were only used by wrappers:
+After wrapper adapters are deleted, remove the 5 service ports that were only used by wrappers:
 
 - `PlayerCharacterServicePort` (if not internalized)
-- `WorldServicePort` (if not internalized)
 - `SceneServicePort` (if not internalized)
 - `InteractionServicePort` (if not internalized)
 - `StagingServicePort` (if not internalized)
 - `ChallengeOutcomeApprovalServicePort` (if not internalized)
+
+> **Note**: `WorldServicePort` is INBOUND (exposed via AppStatePort), not a wrapper port.
 
 ### Step 7: Documentation updates
 
@@ -270,18 +286,18 @@ cargo clippy --workspace --all-targets
 
 ## Estimated Effort
 
-| Step | Description | Effort |
-|------|-------------|--------|
-| Step 0 | Pre-flight checks | 15 min |
-| Step 1 | Create internal traits directory | 15 min |
-| Step 2 | Internalize 20 traits | 2-3 hours |
-| Step 3 | Create new inbound use case ports | 2-3 hours |
-| Step 4 | Update AppStatePort and HTTP handlers | 2-3 hours |
-| Step 5 | Delete wrapper-forwarder adapters | 2-3 hours |
-| Step 6 | Clean up remaining outbound ports | 1 hour |
-| Step 7 | Documentation updates | 30 min |
-| Step 8 | Verification loop | 30 min |
-| **Total** | | **11-14 hours** |
+| Step      | Description                           | Effort          |
+| --------- | ------------------------------------- | --------------- |
+| Step 0    | Pre-flight checks                     | 15 min          |
+| Step 1    | Create internal traits directory      | 15 min          |
+| Step 2    | Internalize 24 traits                 | 3-4 hours       |
+| Step 3    | Create new inbound use case ports     | 2-3 hours       |
+| Step 4    | Update AppStatePort and HTTP handlers | 2-3 hours       |
+| Step 5    | Delete wrapper-forwarder adapters     | 2-3 hours       |
+| Step 6    | Clean up remaining outbound ports     | 1 hour          |
+| Step 7    | Documentation updates                 | 30 min          |
+| Step 8    | Verification loop                     | 30 min          |
+| **Total** |                                       | **12-15 hours** |
 
 ---
 
@@ -312,10 +328,10 @@ After internalization, review whether internal traits are still needed or if con
 ## Success Criteria
 
 - [ ] All app-implemented `*ServicePort` traits removed from `engine-ports`
-- [ ] 20 internal traits moved to `engine-app/src/application/services/internal/`
+- [ ] 24 internal traits moved to `engine-app/src/application/services/internal/`
 - [ ] 11 service getters in `AppStatePort` replaced with use case ports
-- [ ] Only 2 `*ServicePort` traits remain in `outbound/` (staging adapter ports)
-- [ ] All wrapper-forwarder adapters deleted
+- [ ] Only staging use-case service traits remain in `outbound/` (`StagingUseCaseServicePort` + `StagingUseCaseServiceExtPort`)
+- [ ] All wrapper-forwarder adapters deleted (5 wrapper ports removed)
 - [ ] `cargo xtask arch-check` passes
 - [ ] `cargo check --workspace` compiles
 - [ ] `cargo test --workspace` passes
@@ -336,55 +352,58 @@ No migration scripts or feature flags needed.
 
 ## Appendix: Full Trait Classification Table
 
-| # | Trait | Classification | Action |
-|---|-------|----------------|--------|
-| 1 | `ActantialContextServicePort` | NOT A PORT | Internalize |
-| 2 | `AssetGenerationQueueServicePort` | INBOUND | Replace with UseCasePort |
-| 3 | `AssetServicePort` | INBOUND | Replace with UseCasePort |
-| 4 | `ChallengeOutcomeApprovalServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
-| 5 | `ChallengeResolutionServicePort` | NOT A PORT | Internalize |
-| 6 | `ChallengeServicePort` | NOT A PORT | Internalize |
-| 7 | `DialogueContextServicePort` | NOT A PORT | Internalize |
-| 8 | `DispositionServicePort` | NOT A PORT | Internalize |
-| 9 | `DmActionQueueServicePort` | INBOUND | Replace with UseCasePort |
-| 10 | `DmApprovalQueueServicePort` | INBOUND | Replace with UseCasePort |
-| 11 | `EventChainServicePort` | NOT A PORT | Internalize |
-| 12 | `GenerationQueueProjectionServicePort` | INBOUND | Replace with UseCasePort |
-| 13 | `GenerationServicePort` | INBOUND | Replace with UseCasePort |
-| 14 | `InteractionServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
-| 15 | `ItemServicePort` | NOT A PORT | Internalize |
-| 16 | `LlmQueueServicePort` | INBOUND | Replace with UseCasePort |
-| 17 | `LocationServicePort` | NOT A PORT | Internalize |
-| 18 | `NarrativeEventApprovalServicePort` | NOT A PORT | Internalize |
-| 19 | `NarrativeEventServicePort` | NOT A PORT | Internalize |
-| 20 | `OutcomeTriggerServicePort` | NOT A PORT | Internalize |
-| 21 | `PlayerActionQueueServicePort` | INBOUND | Replace with UseCasePort |
-| 22 | `PlayerCharacterServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
-| 23 | `PromptContextServicePort` | NOT A PORT | Internalize |
-| 24 | `PromptTemplateServicePort` | INBOUND | Replace with UseCasePort |
-| 25 | `RegionServicePort` | NOT A PORT | Internalize |
-| 26 | `RelationshipServicePort` | NOT A PORT | Internalize |
-| 27 | `SceneResolutionServicePort` | NOT A PORT | Internalize |
-| 28 | `SceneServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
-| 29 | `SettingsServicePort` | INBOUND | Replace with UseCasePort |
-| 30 | `SheetTemplateServicePort` | NOT A PORT | Internalize |
-| 31 | `SkillServicePort` | NOT A PORT | Internalize |
-| 32 | `StagingServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
-| 33 | `StagingUseCaseServicePort` | OUTBOUND | **KEEP** (adapter-implemented) |
-| 34 | `StagingUseCaseServiceExtPort` | OUTBOUND | **KEEP** (adapter-implemented) |
-| 35 | `StoryEventAdminServicePort` | NOT A PORT | Internalize |
-| 36 | `StoryEventQueryServicePort` | NOT A PORT | Internalize |
-| 37 | `StoryEventRecordingServicePort` | NOT A PORT | Internalize |
-| 38 | `StoryEventServicePort` | NOT A PORT | Internalize |
-| 39 | `TriggerEvaluationServicePort` | NOT A PORT | Internalize |
-| 40 | `WorkflowServicePort` | INBOUND | Replace with UseCasePort |
-| 41 | `WorldServicePort` | OUTBOUND (wrapper) | Delete after removing wrapper |
+| #   | Trait                                  | Classification     | Action                         |
+| --- | -------------------------------------- | ------------------ | ------------------------------ |
+| 1   | `ActantialContextServicePort`          | NOT A PORT         | Internalize                    |
+| 2   | `AssetGenerationQueueServicePort`      | INBOUND            | Replace with UseCasePort       |
+| 3   | `AssetServicePort`                     | INBOUND            | Replace with UseCasePort       |
+| 4   | `ChallengeOutcomeApprovalServicePort`  | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
+| 5   | `ChallengeResolutionServicePort`       | NOT A PORT         | Internalize                    |
+| 6   | `ChallengeServicePort`                 | NOT A PORT         | Internalize                    |
+| 7   | `CharacterServicePort`                 | NOT A PORT         | Internalize                    |
+| 8   | `DialogueContextServicePort`           | NOT A PORT         | Internalize                    |
+| 9   | `DispositionServicePort`               | NOT A PORT         | Internalize                    |
+| 10  | `DmActionQueueServicePort`             | NOT A PORT         | Internalize                    |
+| 11  | `DmApprovalQueueServicePort`           | INBOUND            | Replace with UseCasePort       |
+| 12  | `EventChainServicePort`                | NOT A PORT         | Internalize                    |
+| 13  | `GenerationQueueProjectionServicePort` | INBOUND            | Replace with UseCasePort       |
+| 14  | `GenerationServicePort`                | INBOUND            | Replace with UseCasePort       |
+| 15  | `InteractionServicePort`               | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
+| 16  | `ItemServicePort`                      | NOT A PORT         | Internalize                    |
+| 17  | `LlmQueueServicePort`                  | INBOUND            | Replace with UseCasePort       |
+| 18  | `LocationServicePort`                  | NOT A PORT         | Internalize                    |
+| 19  | `NarrativeEventApprovalServicePort`    | NOT A PORT         | Internalize                    |
+| 20  | `NarrativeEventServicePort`            | NOT A PORT         | Internalize                    |
+| 21  | `OutcomeTriggerServicePort`            | NOT A PORT         | Internalize                    |
+| 22  | `PlayerActionQueueServicePort`         | INBOUND            | Replace with UseCasePort       |
+| 23  | `PlayerCharacterServicePort`           | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
+| 24  | `PromptContextServicePort`             | NOT A PORT         | Internalize                    |
+| 25  | `PromptTemplateServicePort`            | INBOUND            | Replace with UseCasePort       |
+| 26  | `RegionServicePort`                    | NOT A PORT         | Internalize                    |
+| 27  | `RelationshipServicePort`              | NOT A PORT         | Internalize                    |
+| 28  | `SceneResolutionServicePort`           | NOT A PORT         | Internalize                    |
+| 29  | `SceneServicePort`                     | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
+| 30  | `SettingsServicePort`                  | INBOUND            | Replace with UseCasePort       |
+| 31  | `SheetTemplateServicePort`             | NOT A PORT         | Internalize                    |
+| 32  | `SkillServicePort`                     | NOT A PORT         | Internalize                    |
+| 33  | `StagingServicePort`                   | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
+| 34  | `StagingUseCaseServicePort`            | OUTBOUND           | **KEEP** (adapter-implemented) |
+| 35  | `StagingUseCaseServiceExtPort`         | OUTBOUND           | **KEEP** (adapter-implemented) |
+| 36  | `StoryEventAdminServicePort`           | NOT A PORT         | Internalize                    |
+| 37  | `StoryEventQueryServicePort`           | NOT A PORT         | Internalize                    |
+| 38  | `StoryEventRecordingServicePort`       | NOT A PORT         | Internalize                    |
+| 39  | `StoryEventServicePort`                | NOT A PORT         | Internalize                    |
+| 40  | `TriggerEvaluationServicePort`         | NOT A PORT         | Internalize                    |
+| 41  | `WorkflowServicePort`                  | INBOUND            | Replace with UseCasePort       |
+| 42  | `WorldServicePort`                     | INBOUND            | Replace with UseCasePort       |
 
 **Summary**:
+
 - **INBOUND** (replace with UseCasePort): 11 traits
 - **OUTBOUND (keep)**: 2 traits
-- **OUTBOUND (wrapper - delete)**: 6 traits
-- **NOT A PORT (internalize)**: 20 traits
+- **ADAPTER-CALLED via wrappers (delete)**: 5 traits
+- **NOT A PORT (internalize)**: 24 traits
+- **Total**: 41 `*ServicePort` traits + 1 extension trait = 42 traits (40 `*ServicePort` traits to refactor)
 
 ---
 
