@@ -1,15 +1,16 @@
-//! Player events - inbound port data types for server messages
+//! Player events - outbound port data types for server messages
 //!
 //! These types represent the application's view of server messages.
-//! They are part of the inbound port contract - the interface between
+//! They are part of the outbound port contract - the interface between
 //! the adapters layer (which translates ServerMessage) and the application layer.
 //!
 //! # Hexagonal Architecture
 //!
-//! This module is in player-ports/inbound because:
-//! 1. PlayerEvent defines the inbound data contract from server → app
-//! 2. Adapters (message_translator.rs) produce PlayerEvents
-//! 3. Application and UI consume PlayerEvents
+//! This module is in player-ports/outbound because:
+//! 1. PlayerEvent defines the data contract for events the app RECEIVES from infrastructure
+//! 2. The server connection is an outbound dependency (app NEEDS it, doesn't OFFER it)
+//! 3. Adapters (message_translator.rs) produce PlayerEvents by implementing outbound ports
+//! 4. Application and UI consume PlayerEvents via dependency injection
 //!
 //! # Design Rationale
 //!

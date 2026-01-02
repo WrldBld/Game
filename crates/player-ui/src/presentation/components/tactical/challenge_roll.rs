@@ -8,11 +8,18 @@
 //!
 //! Supports both formula-based rolls (e.g., "1d20+5") and manual result entry
 //! for physical dice rolls.
+//!
+//! # Architecture Note
+//!
+//! This component uses `wrldbldr_domain::value_objects::DiceFormula` for dice parsing.
+//! This is an approved exception per Architecture Remediation Plan Phase 3A:
+//! pure value objects from domain may be used directly in UI to avoid duplication.
 
 use crate::presentation::state::challenge_state::ChallengeResultData;
 use crate::presentation::state::{use_session_state, RollSubmissionStatus};
 use crate::use_platform;
 use dioxus::prelude::*;
+use wrldbldr_domain::value_objects::DiceFormula;
 use wrldbldr_player_app::application::dto::DiceInput;
 
 /// Props for the ChallengeRollModal component
@@ -180,39 +187,6 @@ fn RollInputPhase(
 
     let platform = use_platform();
 
-    // Parse dice formula (simple XdY+Z pattern)
-    let parse_formula = |formula: &str| -> Result<(u8, u8, i32), String> {
-        let formula = formula.trim().to_lowercase();
-        let re_pattern = regex_lite::Regex::new(r"^(\d+)d(\d+)([+-]\d+)?$")
-            .map_err(|_| "Invalid regex".to_string())?;
-
-        if let Some(caps) = re_pattern.captures(&formula) {
-            let count: u8 = caps
-                .get(1)
-                .and_then(|m| m.as_str().parse().ok())
-                .ok_or("Invalid dice count")?;
-            let sides: u8 = caps
-                .get(2)
-                .and_then(|m| m.as_str().parse().ok())
-                .ok_or("Invalid die size")?;
-            let modifier: i32 = caps
-                .get(3)
-                .map(|m| m.as_str().parse().unwrap_or(0))
-                .unwrap_or(0);
-
-            if count == 0 || count > 20 {
-                return Err("Dice count must be 1-20".to_string());
-            }
-            if sides == 0 || sides > 100 {
-                return Err("Die size must be 1-100".to_string());
-            }
-
-            Ok((count, sides, modifier))
-        } else {
-            Err("Invalid formula format. Use XdY or XdY+Z (e.g., 1d20, 2d6+3)".to_string())
-        }
-    };
-
     rsx! {
         // Header
         div {
@@ -370,25 +344,21 @@ fn RollInputPhase(
                 // Roll button
                 button {
                     onclick: move |_| {
-                        let formula = formula_input.read().clone();
-                        match parse_formula(&formula) {
-                            Ok((count, sides, modifier)) => {
+                        let formula_str = formula_input.read().clone();
+                        match DiceFormula::parse(&formula_str) {
+                            Ok(dice_formula) => {
                                 is_rolling.set(true);
                                 error_message.set(None);
 
-                                // Roll each die
-                                let mut rolls = Vec::new();
-                                for _ in 0..count {
-                                    rolls.push(platform.random_range(1, sides as i32));
-                                }
-                                let dice_total: i32 = rolls.iter().sum();
-                                let total = dice_total + modifier + character_modifier;
+                                // Roll using domain's DiceFormula with platform RNG
+                                let result = dice_formula.roll(|min, max| platform.random_range(min, max));
+                                let total = result.total + character_modifier;
 
                                 roll_result.set(Some(RollDisplayState {
-                                    formula: formula.clone(),
-                                    individual_rolls: rolls,
-                                    dice_total,
-                                    formula_modifier: modifier,
+                                    formula: dice_formula.display(),
+                                    individual_rolls: result.individual_rolls,
+                                    dice_total: result.dice_total,
+                                    formula_modifier: result.modifier_applied,
                                     character_modifier,
                                     total,
                                     is_manual: false,
@@ -397,7 +367,7 @@ fn RollInputPhase(
                                 is_rolling.set(false);
                             }
                             Err(e) => {
-                                error_message.set(Some(e));
+                                error_message.set(Some(e.to_string()));
                             }
                         }
                     },

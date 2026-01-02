@@ -34,6 +34,11 @@ use wrldbldr_engine_ports::outbound::{
 };
 use wrldbldr_protocol::{ConnectedUser, JoinError, ServerMessage, WorldRole};
 
+/// Default broadcast channel buffer size for per-connection message queues.
+/// This determines how many messages can be queued before lagging receivers
+/// start dropping messages. 256 provides a reasonable buffer for burst traffic.
+const DEFAULT_BROADCAST_CHANNEL_BUFFER: usize = 256;
+
 fn to_protocol_role(role: PortWorldRole) -> WorldRole {
     match role {
         PortWorldRole::DM => WorldRole::Dm,
@@ -956,7 +961,7 @@ pub struct WorldConnectionStats {
 #[async_trait]
 impl wrldbldr_engine_ports::outbound::ConnectionManagerPort for WorldConnectionManager {
     async fn register_connection(&self, connection_id: Uuid, client_id: String, user_id: String) {
-        let (sender, _) = broadcast::channel::<ServerMessage>(256);
+        let (sender, _) = broadcast::channel::<ServerMessage>(DEFAULT_BROADCAST_CHANNEL_BUFFER);
         WorldConnectionManager::register_connection(
             self,
             connection_id,

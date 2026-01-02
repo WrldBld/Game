@@ -7337,6 +7337,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "wrldbldr-domain",
  "wrldbldr-player-app",
  "wrldbldr-player-ports",
  "wrldbldr-protocol",

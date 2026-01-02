@@ -41,7 +41,7 @@ pub use context_budget::{
 pub use context_budget_enforcement::{
     ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
 };
-pub use dice::{DiceParseError, DiceRollInput};
+pub use dice::{DiceFormula, DiceParseError, DiceRollInput, DiceRollResult};
 pub use directorial::{
     DirectorialNotes, NpcMotivation as DomainNpcMotivation, PacingGuidance, ToneGuidance,
 };

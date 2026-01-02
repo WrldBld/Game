@@ -10,7 +10,8 @@ description = "WrldBldr Player UI - Presentation and routing"
 wrldbldr-player-app = { workspace = true }
 wrldbldr-player-ports = { workspace = true }
 wrldbldr-protocol = { workspace = true }
-# Note: wrldbldr-domain not needed - UI uses protocol types, not domain types
+# Domain import allowed for pure value objects (DiceFormula) per Architecture Remediation Plan Phase 3A
+wrldbldr-domain = { workspace = true }
 # Note: wrldbldr-player-adapters dependency removed - UI now uses PlatformPort trait from ports
 
 # Dioxus
