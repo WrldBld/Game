@@ -7,17 +7,23 @@
 //! Free functions here are for backwards compatibility and specialized conversions.
 
 use wrldbldr_player_ports::session_types as app;
-use wrldbldr_protocol as proto;
+use wrldbldr_protocol::{
+    AdHocOutcomes, ApprovalDecision, ChallengeOutcomeDecisionData, DiceInputType,
+    DirectorialContext, NpcMotivationData, ParticipantRole, WorldRole,
+};
+
+// Re-export protocol types used by callers
+pub use wrldbldr_protocol::ApprovedNpcInfo;
 
 // =============================================================================
 // ParticipantRole Conversions
 // =============================================================================
 
-pub fn participant_role_to_proto(role: app::ParticipantRole) -> proto::ParticipantRole {
+pub fn participant_role_to_proto(role: app::ParticipantRole) -> ParticipantRole {
     role.into()
 }
 
-pub fn participant_role_from_proto(role: proto::ParticipantRole) -> app::ParticipantRole {
+pub fn participant_role_from_proto(role: ParticipantRole) -> app::ParticipantRole {
     role.into()
 }
 
@@ -25,13 +31,11 @@ pub fn participant_role_from_proto(role: proto::ParticipantRole) -> app::Partici
 ///
 /// This conversion is used when joining a world to determine the user's
 /// role-based permissions (Player, DM, Spectator).
-pub fn participant_role_to_world_role(role: proto::ParticipantRole) -> proto::WorldRole {
+pub fn participant_role_to_world_role(role: ParticipantRole) -> WorldRole {
     match role {
-        proto::ParticipantRole::DungeonMaster => proto::WorldRole::Dm,
-        proto::ParticipantRole::Player => proto::WorldRole::Player,
-        proto::ParticipantRole::Spectator | proto::ParticipantRole::Unknown => {
-            proto::WorldRole::Spectator
-        }
+        ParticipantRole::DungeonMaster => WorldRole::Dm,
+        ParticipantRole::Player => WorldRole::Player,
+        ParticipantRole::Spectator | ParticipantRole::Unknown => WorldRole::Spectator,
     }
 }
 
@@ -39,11 +43,11 @@ pub fn participant_role_to_world_role(role: proto::ParticipantRole) -> proto::Wo
 // DiceInput Conversions
 // =============================================================================
 
-pub fn dice_input_to_proto(input: app::DiceInput) -> proto::DiceInputType {
+pub fn dice_input_to_proto(input: app::DiceInput) -> DiceInputType {
     input.into()
 }
 
-pub fn dice_input_from_proto(input: proto::DiceInputType) -> app::DiceInput {
+pub fn dice_input_from_proto(input: DiceInputType) -> app::DiceInput {
     input.into()
 }
 
@@ -51,11 +55,11 @@ pub fn dice_input_from_proto(input: proto::DiceInputType) -> app::DiceInput {
 // ApprovalDecision Conversions
 // =============================================================================
 
-pub fn approval_decision_to_proto(decision: app::ApprovalDecision) -> proto::ApprovalDecision {
+pub fn approval_decision_to_proto(decision: app::ApprovalDecision) -> ApprovalDecision {
     decision.into()
 }
 
-pub fn approval_decision_from_proto(decision: proto::ApprovalDecision) -> app::ApprovalDecision {
+pub fn approval_decision_from_proto(decision: ApprovalDecision) -> app::ApprovalDecision {
     decision.into()
 }
 
@@ -63,19 +67,19 @@ pub fn approval_decision_from_proto(decision: proto::ApprovalDecision) -> app::A
 // DirectorialContext Conversions
 // =============================================================================
 
-pub fn npc_motivation_to_proto(data: app::NpcMotivationData) -> proto::NpcMotivationData {
+pub fn npc_motivation_to_proto(data: app::NpcMotivationData) -> NpcMotivationData {
     data.into()
 }
 
-pub fn npc_motivation_from_proto(data: proto::NpcMotivationData) -> app::NpcMotivationData {
+pub fn npc_motivation_from_proto(data: NpcMotivationData) -> app::NpcMotivationData {
     data.into()
 }
 
-pub fn directorial_context_to_proto(ctx: app::DirectorialContext) -> proto::DirectorialContext {
+pub fn directorial_context_to_proto(ctx: app::DirectorialContext) -> DirectorialContext {
     ctx.into()
 }
 
-pub fn directorial_context_from_proto(ctx: proto::DirectorialContext) -> app::DirectorialContext {
+pub fn directorial_context_from_proto(ctx: DirectorialContext) -> app::DirectorialContext {
     ctx.into()
 }
 
@@ -83,11 +87,11 @@ pub fn directorial_context_from_proto(ctx: proto::DirectorialContext) -> app::Di
 // ApprovedNpcInfo Conversions
 // =============================================================================
 
-pub fn approved_npc_info_to_proto(info: app::ApprovedNpcInfo) -> proto::ApprovedNpcInfo {
+pub fn approved_npc_info_to_proto(info: app::ApprovedNpcInfo) -> ApprovedNpcInfo {
     info.into()
 }
 
-pub fn approved_npc_info_from_proto(info: proto::ApprovedNpcInfo) -> app::ApprovedNpcInfo {
+pub fn approved_npc_info_from_proto(info: ApprovedNpcInfo) -> app::ApprovedNpcInfo {
     info.into()
 }
 
@@ -95,11 +99,11 @@ pub fn approved_npc_info_from_proto(info: proto::ApprovedNpcInfo) -> app::Approv
 // AdHocOutcomes Conversions
 // =============================================================================
 
-pub fn adhoc_outcomes_to_proto(outcomes: app::AdHocOutcomes) -> proto::AdHocOutcomes {
+pub fn adhoc_outcomes_to_proto(outcomes: app::AdHocOutcomes) -> AdHocOutcomes {
     outcomes.into()
 }
 
-pub fn adhoc_outcomes_from_proto(outcomes: proto::AdHocOutcomes) -> app::AdHocOutcomes {
+pub fn adhoc_outcomes_from_proto(outcomes: AdHocOutcomes) -> app::AdHocOutcomes {
     outcomes.into()
 }
 
@@ -109,12 +113,12 @@ pub fn adhoc_outcomes_from_proto(outcomes: proto::AdHocOutcomes) -> app::AdHocOu
 
 pub fn challenge_outcome_decision_to_proto(
     decision: app::ChallengeOutcomeDecision,
-) -> proto::ChallengeOutcomeDecisionData {
+) -> ChallengeOutcomeDecisionData {
     decision.into()
 }
 
 pub fn challenge_outcome_decision_from_proto(
-    decision: proto::ChallengeOutcomeDecisionData,
+    decision: ChallengeOutcomeDecisionData,
 ) -> app::ChallengeOutcomeDecision {
     decision.into()
 }
@@ -194,16 +198,16 @@ mod tests {
     #[test]
     fn test_participant_role_to_world_role() {
         assert_eq!(
-            participant_role_to_world_role(proto::ParticipantRole::DungeonMaster),
-            proto::WorldRole::Dm
+            participant_role_to_world_role(ParticipantRole::DungeonMaster),
+            WorldRole::Dm
         );
         assert_eq!(
-            participant_role_to_world_role(proto::ParticipantRole::Player),
-            proto::WorldRole::Player
+            participant_role_to_world_role(ParticipantRole::Player),
+            WorldRole::Player
         );
         assert_eq!(
-            participant_role_to_world_role(proto::ParticipantRole::Spectator),
-            proto::WorldRole::Spectator
+            participant_role_to_world_role(ParticipantRole::Spectator),
+            WorldRole::Spectator
         );
     }
 }

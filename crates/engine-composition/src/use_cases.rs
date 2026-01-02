@@ -20,7 +20,7 @@
 //! AppState.use_cases.movement.move_to_region(...)
 //!       │
 //!       ├──> StagingStatePort (→ WorldStateManager)
-//!       ├──> StagingUseCaseServicePort (→ StagingService)
+//!       ├──> StagingQueryPort (→ StagingService)
 //!       └──> BroadcastPort (→ WebSocketBroadcastAdapter)
 //! ```
 //!

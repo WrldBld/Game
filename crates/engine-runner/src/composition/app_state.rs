@@ -50,7 +50,7 @@ use wrldbldr_engine_ports::outbound::{
     ConnectionContextPort, ConnectionLifecyclePort, ConnectionManagerPort, ConnectionQueryPort,
     ConnectionUnicastPort, DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort,
     EventBusPort, EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
-    RegionItemPort, StagingUseCaseServiceExtPort, WorldApprovalPort, WorldConversationPort,
+    RegionItemPort, StagingMutationPort, WorldApprovalPort, WorldConversationPort,
     WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
@@ -830,7 +830,7 @@ pub async fn new_app_state(
         composition_events,
         settings_service.clone() as Arc<dyn SettingsUseCasePort>,
         prompt_template_service.clone() as Arc<dyn PromptTemplateUseCasePort>,
-        staging_service.clone() as Arc<dyn StagingUseCaseServiceExtPort>,
+        staging_service.clone() as Arc<dyn StagingMutationPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionQueryPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionContextPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionBroadcastPort>,

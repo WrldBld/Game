@@ -25,7 +25,7 @@
 //! - `ConnectionManagerPort`, `DirectorialContextQueryPort`, `PlayerCharacterDtoPort`, `WorldSnapshotJsonPort`
 //! - `WorldStatePort`, `DirectorialContextDtoRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
-//! - `StagingStatePort`, `StagingUseCaseServicePort`, `StagingStateExtPort`, `StagingUseCaseServiceExtPort`
+//! - `StagingStatePort`, `StagingQueryPort`, `StagingStateExtPort`, `StagingMutationPort`
 //!
 //! Types used by these ports are defined in `engine-ports::outbound::use_case_types`.
 //!

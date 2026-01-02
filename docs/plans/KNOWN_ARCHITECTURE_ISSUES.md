@@ -9,17 +9,23 @@ refactoring) and should be addressed in future cleanup work when time permits.
 
 ## Issues in Ports Layer
 
-### 1. Blanket Implementation in player-ports
+### 1. ~~Blanket Implementation in player-ports~~ (RESOLVED - Intentional Pattern)
 
-**Location**: `crates/player-ports/src/outbound/game_connection/request_port.rs:68-86`
+**Location**: `crates/player-ports/src/outbound/game_connection/*.rs`
 
-**Issue**: Contains a blanket impl `impl<T: GameConnectionPort> GameRequestPort for T` which
-violates the rule that ports should contain only traits and boundary DTOs, not implementations.
+**Status**: ACCEPTED AS INTENTIONAL
 
-**Impact**: Low - functionally correct, just architecturally impure.
+**Rationale**: The 6 blanket impls (`GameRequestPort`, `PlayerActionPort`, `NavigationPort`,
+`DmControlPort`, `SessionCommandPort`, `ConnectionLifecyclePort`) enable the ISP (Interface
+Segregation Principle) pattern for the player-side WebSocket connection:
 
-**Recommended Fix**: Move blanket impl to `player-adapters` or remove and have adapters
-implement both traits explicitly.
+- `GameConnectionPort` is the "god trait" that adapters implement (50+ methods)
+- The 6 sub-traits provide focused interfaces that services can depend on
+- Blanket impls ensure any `GameConnectionPort` implementation automatically provides all sub-traits
+- This is pure delegation with no business logic
+
+Moving these to adapters would break encapsulation and add complexity without benefit.
+This is an acceptable exception documented here.
 
 ---
 
@@ -39,18 +45,20 @@ utilities crate.
 
 ---
 
-### 3. Large File with Implementations
+### 3. ~~Large File with Implementations~~ (RESOLVED - Acceptable Pattern)
 
 **Location**: `crates/engine-ports/src/outbound/use_case_types.rs` (1,283 lines)
 
-**Issue**: Contains `From` impls (lines 656-666) and `ErrorCode` trait implementations that
-technically shouldn't be in ports.
+**Status**: ACCEPTED AS INTENTIONAL
 
-**Impact**: Low - implementations are simple mappings.
+**Analysis**:
+- The `From<StagingApprovalSource> for StagingSource` impl cannot be moved due to Rust's orphan
+  rules - it must be in the crate that owns one of the types (engine-ports owns `StagingApprovalSource`)
+- The `ErrorCode` trait impls are trivial match statements with no business logic
+- The file size (1,283 lines) is large but contains many small related DTOs
 
-**Recommended Fix**:
-- Move `From` impl to adapters
-- Consider splitting the 1,283-line file into focused modules
+**Future consideration**: The file could be split into focused modules (movement_types.rs,
+staging_types.rs, etc.) but this is a low-priority refactoring task.
 
 ---
 
@@ -104,15 +112,17 @@ dependency" in this context.
 
 ---
 
-### 7. Mixed Naming: `StagingUseCaseServicePort`
+### 7. ~~Mixed Naming: `StagingUseCaseServicePort`~~ (RESOLVED)
 
-**Location**: `crates/engine-ports/src/outbound/staging_use_case_service_ports.rs:13,36`
+**Location**: `crates/engine-ports/src/outbound/staging_use_case_service_ports.rs`
 
-**Issue**: Name combines "UseCase" + "Service" + "Port" which is ambiguous about direction.
+**Status**: FIXED
 
-**Impact**: Low - functionally correct.
+**Resolution**: Renamed to clearer names:
+- `StagingUseCaseServicePort` → `StagingQueryPort` (query operations)
+- `StagingUseCaseServiceExtPort` → `StagingMutationPort` (mutation operations)
 
-**Recommended Fix**: Rename to `StagingOperationsPort` or `StagingServicePort` for clarity.
+Backwards compatibility aliases maintained in `mod.rs` for gradual migration.
 
 ---
 

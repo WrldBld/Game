@@ -11,15 +11,18 @@ use wrldbldr_domain::value_objects::{
     ChallengeSuggestion, ChallengeSuggestionOutcomes, DmApprovalDecision, NarrativeEventSuggestion,
     ProposedTool,
 };
-use wrldbldr_protocol as proto;
+use wrldbldr_protocol::{
+    ApprovalDecision, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes as ProtoOutcomes,
+    NarrativeEventSuggestionInfo, ProposedToolInfo,
+};
 
 // =============================================================================
 // ProposedTool conversions
 // =============================================================================
 
 /// Convert domain ProposedTool to protocol ProposedToolInfo
-pub fn domain_tool_to_proto(domain: &ProposedTool) -> proto::ProposedToolInfo {
-    proto::ProposedToolInfo {
+pub fn domain_tool_to_proto(domain: &ProposedTool) -> ProposedToolInfo {
+    ProposedToolInfo {
         id: domain.id.clone(),
         name: domain.name.clone(),
         description: domain.description.clone(),
@@ -28,22 +31,22 @@ pub fn domain_tool_to_proto(domain: &ProposedTool) -> proto::ProposedToolInfo {
 }
 
 /// Convert protocol ProposedToolInfo to domain ProposedTool
-pub fn proto_tool_to_domain(proto: proto::ProposedToolInfo) -> ProposedTool {
+pub fn proto_tool_to_domain(proto_tool: ProposedToolInfo) -> ProposedTool {
     ProposedTool {
-        id: proto.id,
-        name: proto.name,
-        description: proto.description,
-        arguments: proto.arguments,
+        id: proto_tool.id,
+        name: proto_tool.name,
+        description: proto_tool.description,
+        arguments: proto_tool.arguments,
     }
 }
 
 /// Convert a slice of domain ProposedTool to Vec of protocol ProposedToolInfo
-pub fn domain_tools_to_proto(tools: &[ProposedTool]) -> Vec<proto::ProposedToolInfo> {
+pub fn domain_tools_to_proto(tools: &[ProposedTool]) -> Vec<ProposedToolInfo> {
     tools.iter().map(domain_tool_to_proto).collect()
 }
 
 /// Convert a Vec of protocol ProposedToolInfo to Vec of domain ProposedTool
-pub fn proto_tools_to_domain(tools: Vec<proto::ProposedToolInfo>) -> Vec<ProposedTool> {
+pub fn proto_tools_to_domain(tools: Vec<ProposedToolInfo>) -> Vec<ProposedTool> {
     tools.into_iter().map(proto_tool_to_domain).collect()
 }
 
@@ -52,10 +55,8 @@ pub fn proto_tools_to_domain(tools: Vec<proto::ProposedToolInfo>) -> Vec<Propose
 // =============================================================================
 
 /// Convert domain ChallengeSuggestionOutcomes to protocol ChallengeSuggestionOutcomes
-pub fn domain_outcomes_to_proto(
-    domain: &ChallengeSuggestionOutcomes,
-) -> proto::ChallengeSuggestionOutcomes {
-    proto::ChallengeSuggestionOutcomes {
+pub fn domain_outcomes_to_proto(domain: &ChallengeSuggestionOutcomes) -> ProtoOutcomes {
+    ProtoOutcomes {
         success: domain.success.clone(),
         failure: domain.failure.clone(),
         critical_success: domain.critical_success.clone(),
@@ -64,14 +65,12 @@ pub fn domain_outcomes_to_proto(
 }
 
 /// Convert protocol ChallengeSuggestionOutcomes to domain ChallengeSuggestionOutcomes
-pub fn proto_outcomes_to_domain(
-    proto: proto::ChallengeSuggestionOutcomes,
-) -> ChallengeSuggestionOutcomes {
+pub fn proto_outcomes_to_domain(proto_outcomes: ProtoOutcomes) -> ChallengeSuggestionOutcomes {
     ChallengeSuggestionOutcomes {
-        success: proto.success,
-        failure: proto.failure,
-        critical_success: proto.critical_success,
-        critical_failure: proto.critical_failure,
+        success: proto_outcomes.success,
+        failure: proto_outcomes.failure,
+        critical_success: proto_outcomes.critical_success,
+        critical_failure: proto_outcomes.critical_failure,
     }
 }
 
@@ -80,8 +79,8 @@ pub fn proto_outcomes_to_domain(
 // =============================================================================
 
 /// Convert domain ChallengeSuggestion to protocol ChallengeSuggestionInfo
-pub fn domain_challenge_to_proto(domain: &ChallengeSuggestion) -> proto::ChallengeSuggestionInfo {
-    proto::ChallengeSuggestionInfo {
+pub fn domain_challenge_to_proto(domain: &ChallengeSuggestion) -> ChallengeSuggestionInfo {
+    ChallengeSuggestionInfo {
         challenge_id: domain.challenge_id.clone(),
         challenge_name: domain.challenge_name.clone(),
         skill_name: domain.skill_name.clone(),
@@ -94,32 +93,32 @@ pub fn domain_challenge_to_proto(domain: &ChallengeSuggestion) -> proto::Challen
 }
 
 /// Convert protocol ChallengeSuggestionInfo to domain ChallengeSuggestion
-pub fn proto_challenge_to_domain(proto: proto::ChallengeSuggestionInfo) -> ChallengeSuggestion {
+pub fn proto_challenge_to_domain(proto_challenge: ChallengeSuggestionInfo) -> ChallengeSuggestion {
     ChallengeSuggestion {
-        challenge_id: proto.challenge_id,
-        challenge_name: proto.challenge_name,
-        skill_name: proto.skill_name,
-        difficulty_display: proto.difficulty_display,
-        confidence: proto.confidence,
-        reasoning: proto.reasoning,
-        target_pc_id: proto
+        challenge_id: proto_challenge.challenge_id,
+        challenge_name: proto_challenge.challenge_name,
+        skill_name: proto_challenge.skill_name,
+        difficulty_display: proto_challenge.difficulty_display,
+        confidence: proto_challenge.confidence,
+        reasoning: proto_challenge.reasoning,
+        target_pc_id: proto_challenge
             .target_pc_id
             .and_then(|s| uuid::Uuid::parse_str(&s).ok())
             .map(wrldbldr_domain::PlayerCharacterId::from_uuid),
-        outcomes: proto.outcomes.map(proto_outcomes_to_domain),
+        outcomes: proto_challenge.outcomes.map(proto_outcomes_to_domain),
     }
 }
 
-/// Convert Option<domain ChallengeSuggestion> to Option<proto::ChallengeSuggestionInfo>
+/// Convert Option<domain ChallengeSuggestion> to Option<ChallengeSuggestionInfo>
 pub fn domain_challenge_suggestion_to_proto(
     suggestion: Option<&ChallengeSuggestion>,
-) -> Option<proto::ChallengeSuggestionInfo> {
+) -> Option<ChallengeSuggestionInfo> {
     suggestion.map(domain_challenge_to_proto)
 }
 
-/// Convert Option<proto::ChallengeSuggestionInfo> to Option<domain ChallengeSuggestion>
+/// Convert Option<ChallengeSuggestionInfo> to Option<domain ChallengeSuggestion>
 pub fn proto_challenge_suggestion_to_domain(
-    suggestion: Option<proto::ChallengeSuggestionInfo>,
+    suggestion: Option<ChallengeSuggestionInfo>,
 ) -> Option<ChallengeSuggestion> {
     suggestion.map(proto_challenge_to_domain)
 }
@@ -131,8 +130,8 @@ pub fn proto_challenge_suggestion_to_domain(
 /// Convert domain NarrativeEventSuggestion to protocol NarrativeEventSuggestionInfo
 pub fn domain_narrative_to_proto(
     domain: &NarrativeEventSuggestion,
-) -> proto::NarrativeEventSuggestionInfo {
-    proto::NarrativeEventSuggestionInfo {
+) -> NarrativeEventSuggestionInfo {
+    NarrativeEventSuggestionInfo {
         event_id: domain.event_id.clone(),
         event_name: domain.event_name.clone(),
         description: domain.description.clone(),
@@ -146,30 +145,30 @@ pub fn domain_narrative_to_proto(
 
 /// Convert protocol NarrativeEventSuggestionInfo to domain NarrativeEventSuggestion
 pub fn proto_narrative_to_domain(
-    proto: proto::NarrativeEventSuggestionInfo,
+    proto_narrative: NarrativeEventSuggestionInfo,
 ) -> NarrativeEventSuggestion {
     NarrativeEventSuggestion {
-        event_id: proto.event_id,
-        event_name: proto.event_name,
-        description: proto.description,
-        scene_direction: proto.scene_direction,
-        confidence: proto.confidence,
-        reasoning: proto.reasoning,
-        matched_triggers: proto.matched_triggers,
-        suggested_outcome: proto.suggested_outcome,
+        event_id: proto_narrative.event_id,
+        event_name: proto_narrative.event_name,
+        description: proto_narrative.description,
+        scene_direction: proto_narrative.scene_direction,
+        confidence: proto_narrative.confidence,
+        reasoning: proto_narrative.reasoning,
+        matched_triggers: proto_narrative.matched_triggers,
+        suggested_outcome: proto_narrative.suggested_outcome,
     }
 }
 
-/// Convert Option<domain NarrativeEventSuggestion> to Option<proto::NarrativeEventSuggestionInfo>
+/// Convert Option<domain NarrativeEventSuggestion> to Option<NarrativeEventSuggestionInfo>
 pub fn domain_narrative_suggestion_to_proto(
     suggestion: Option<&NarrativeEventSuggestion>,
-) -> Option<proto::NarrativeEventSuggestionInfo> {
+) -> Option<NarrativeEventSuggestionInfo> {
     suggestion.map(domain_narrative_to_proto)
 }
 
-/// Convert Option<proto::NarrativeEventSuggestionInfo> to Option<domain NarrativeEventSuggestion>
+/// Convert Option<NarrativeEventSuggestionInfo> to Option<domain NarrativeEventSuggestion>
 pub fn proto_narrative_suggestion_to_domain(
-    suggestion: Option<proto::NarrativeEventSuggestionInfo>,
+    suggestion: Option<NarrativeEventSuggestionInfo>,
 ) -> Option<NarrativeEventSuggestion> {
     suggestion.map(proto_narrative_to_domain)
 }
@@ -179,11 +178,11 @@ pub fn proto_narrative_suggestion_to_domain(
 // =============================================================================
 
 /// Convert domain DmApprovalDecision to protocol ApprovalDecision
-pub fn domain_decision_to_proto(domain: &DmApprovalDecision) -> proto::ApprovalDecision {
+pub fn domain_decision_to_proto(domain: &DmApprovalDecision) -> ApprovalDecision {
     match domain {
-        DmApprovalDecision::Accept => proto::ApprovalDecision::Accept,
+        DmApprovalDecision::Accept => ApprovalDecision::Accept,
         DmApprovalDecision::AcceptWithRecipients { item_recipients } => {
-            proto::ApprovalDecision::AcceptWithRecipients {
+            ApprovalDecision::AcceptWithRecipients {
                 item_recipients: item_recipients.clone(),
             }
         }
@@ -192,29 +191,29 @@ pub fn domain_decision_to_proto(domain: &DmApprovalDecision) -> proto::ApprovalD
             approved_tools,
             rejected_tools,
             item_recipients,
-        } => proto::ApprovalDecision::AcceptWithModification {
+        } => ApprovalDecision::AcceptWithModification {
             modified_dialogue: modified_dialogue.clone(),
             approved_tools: approved_tools.clone(),
             rejected_tools: rejected_tools.clone(),
             item_recipients: item_recipients.clone(),
         },
-        DmApprovalDecision::Reject { feedback } => proto::ApprovalDecision::Reject {
+        DmApprovalDecision::Reject { feedback } => ApprovalDecision::Reject {
             feedback: feedback.clone(),
         },
-        DmApprovalDecision::TakeOver { dm_response } => proto::ApprovalDecision::TakeOver {
+        DmApprovalDecision::TakeOver { dm_response } => ApprovalDecision::TakeOver {
             dm_response: dm_response.clone(),
         },
     }
 }
 
 /// Convert protocol ApprovalDecision to domain DmApprovalDecision
-pub fn proto_decision_to_domain(proto: proto::ApprovalDecision) -> DmApprovalDecision {
-    match proto {
-        proto::ApprovalDecision::Accept => DmApprovalDecision::Accept,
-        proto::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+pub fn proto_decision_to_domain(proto_decision: ApprovalDecision) -> DmApprovalDecision {
+    match proto_decision {
+        ApprovalDecision::Accept => DmApprovalDecision::Accept,
+        ApprovalDecision::AcceptWithRecipients { item_recipients } => {
             DmApprovalDecision::AcceptWithRecipients { item_recipients }
         }
-        proto::ApprovalDecision::AcceptWithModification {
+        ApprovalDecision::AcceptWithModification {
             modified_dialogue,
             approved_tools,
             rejected_tools,
@@ -225,11 +224,9 @@ pub fn proto_decision_to_domain(proto: proto::ApprovalDecision) -> DmApprovalDec
             rejected_tools,
             item_recipients,
         },
-        proto::ApprovalDecision::Reject { feedback } => DmApprovalDecision::Reject { feedback },
-        proto::ApprovalDecision::TakeOver { dm_response } => {
-            DmApprovalDecision::TakeOver { dm_response }
-        }
-        proto::ApprovalDecision::Unknown => {
+        ApprovalDecision::Reject { feedback } => DmApprovalDecision::Reject { feedback },
+        ApprovalDecision::TakeOver { dm_response } => DmApprovalDecision::TakeOver { dm_response },
+        ApprovalDecision::Unknown => {
             // Default unknown to Reject with explanation
             DmApprovalDecision::Reject {
                 feedback: "Unknown approval decision received".to_string(),

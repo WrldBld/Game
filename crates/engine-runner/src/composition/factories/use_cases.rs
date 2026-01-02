@@ -68,7 +68,7 @@ use wrldbldr_engine_ports::outbound::{
     LocationMapPort, ObservationRepositoryPort, PlayerCharacterCrudPort,
     PlayerCharacterInventoryPort, PlayerCharacterPositionPort, RegionConnectionPort,
     RegionCrudPort, RegionExitPort, RegionItemPort, StagingStateExtPort, StagingStatePort,
-    StagingUseCaseServiceExtPort, WorldStateUpdatePort,
+    StagingMutationPort, WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.
@@ -177,7 +177,7 @@ pub struct UseCaseDependencies {
     // Service Ports (outbound)
     // =========================================================================
     /// Staging service port (outbound) - StagingService directly implements this
-    pub staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
+    pub staging_service: Arc<dyn StagingMutationPort>,
     /// Player action queue service port for adapter
     pub player_action_queue_service_port: Arc<dyn PlayerActionQueueUseCasePort>,
     /// Challenge resolution service port
@@ -254,7 +254,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
     // =========================================================================
-    // Staging Service (directly implements StagingUseCaseServicePort)
+    // Staging Service (directly implements StagingQueryPort)
     // =========================================================================
     // No adapter needed - StagingService implements the port directly
 

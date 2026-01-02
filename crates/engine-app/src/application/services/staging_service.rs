@@ -7,7 +7,7 @@
 //! - Pre-staging regions
 //! - Managing staging history
 //!
-//! Implements `StagingUseCaseServicePort` and `StagingUseCaseServiceExtPort` directly.
+//! Implements `StagingQueryPort` and `StagingMutationPort` directly.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -24,7 +24,7 @@ use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest, NarrativeEventCrudPort,
     RegionCrudPort, RegionNpcPort, RegeneratedNpc, StagedNpcData, StagingProposalData,
-    StagingRepositoryPort, StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
+    StagingRepositoryPort, StagingMutationPort, StagingQueryPort,
 };
 
 fn rule_based_suggestion_to_staged_npc_data(suggestion: &RuleBasedSuggestion) -> StagedNpcData {
@@ -495,11 +495,11 @@ fn extract_json_array(text: &str) -> Option<String> {
 }
 
 // =============================================================================
-// Port Implementation - StagingUseCaseServicePort (Outbound)
+// Port Implementation - StagingQueryPort (Outbound)
 // =============================================================================
 
 #[async_trait]
-impl<L, RC, RN, N, S> StagingUseCaseServicePort for StagingService<L, RC, RN, N, S>
+impl<L, RC, RN, N, S> StagingQueryPort for StagingService<L, RC, RN, N, S>
 where
     L: LlmPort + Send + Sync + 'static,
     RC: RegionCrudPort + Send + Sync + 'static,
@@ -543,7 +543,7 @@ where
 }
 
 #[async_trait]
-impl<L, RC, RN, N, S> StagingUseCaseServiceExtPort for StagingService<L, RC, RN, N, S>
+impl<L, RC, RN, N, S> StagingMutationPort for StagingService<L, RC, RN, N, S>
 where
     L: LlmPort + Send + Sync + 'static,
     RC: RegionCrudPort + Send + Sync + 'static,

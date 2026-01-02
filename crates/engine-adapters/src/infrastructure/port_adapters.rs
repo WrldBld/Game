@@ -7,7 +7,7 @@
 //! # Architecture
 //!
 //! After the hexagonal refactor, most wrapper adapters have been eliminated:
-//! - StagingService now directly implements StagingUseCaseServicePort
+//! - StagingService now directly implements StagingQueryPort
 //! - Use cases depend on repository ports and domain types
 //!
 //! Remaining adapters:

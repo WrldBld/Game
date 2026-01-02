@@ -290,7 +290,7 @@ pub use staging_repository_port::{StagedNpcRow, StagingRepositoryPort};
 
 // Staging use-case dependency ports
 pub use staging_state_ports::{StagingStateExtPort, StagingStatePort};
-pub use staging_use_case_service_ports::{StagingUseCaseServiceExtPort, StagingUseCaseServicePort};
+pub use staging_use_case_service_ports::{StagingMutationPort, StagingQueryPort};
 
 pub use suggestion_enqueue_port::{
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,

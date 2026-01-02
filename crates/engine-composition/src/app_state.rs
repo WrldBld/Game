@@ -89,7 +89,7 @@ use wrldbldr_engine_app::application::services::internal::PromptContextServicePo
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ClockPort, ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort,
     ConnectionLifecyclePort, ConnectionQueryPort, DirectorialContextRepositoryPort,
-    GenerationReadStatePort, LlmPort, RegionItemPort, StagingUseCaseServiceExtPort, WorldApprovalPort,
+    GenerationReadStatePort, LlmPort, RegionItemPort, StagingMutationPort, WorldApprovalPort,
     WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
@@ -363,7 +363,7 @@ pub struct AppState {
     /// Staging service for NPC presence management.
     ///
     /// Handles NPC staging proposals, approvals, and region presence.
-    pub staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
+    pub staging_service: Arc<dyn StagingMutationPort>,
 
     /// Connection query port for querying connection state.
     ///
@@ -501,7 +501,7 @@ impl AppState {
     ///     event_infra,
     ///     Arc::new(settings_service) as Arc<dyn SettingsUseCasePort>,
     ///     Arc::new(prompt_template_service) as Arc<dyn PromptTemplateUseCasePort>,
-    ///     Arc::new(staging_service) as Arc<dyn StagingUseCaseServiceExtPort>,
+    ///     Arc::new(staging_service) as Arc<dyn StagingMutationPort>,
     ///     connection_query,
     ///     connection_context,
     ///     connection_broadcast,
@@ -533,7 +533,7 @@ impl AppState {
         events: EventInfra,
         settings_service: Arc<dyn SettingsUseCasePort>,
         prompt_template_service: Arc<dyn PromptTemplateUseCasePort>,
-        staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
+        staging_service: Arc<dyn StagingMutationPort>,
         connection_query: Arc<dyn ConnectionQueryPort>,
         connection_context: Arc<dyn ConnectionContextPort>,
         connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
@@ -760,7 +760,7 @@ impl std::fmt::Debug for AppState {
                 "prompt_template_service",
                 &"Arc<dyn PromptTemplateUseCasePort>",
             )
-            .field("staging_service", &"Arc<dyn StagingUseCaseServiceExtPort>")
+            .field("staging_service", &"Arc<dyn StagingMutationPort>")
             .field("connection_query", &"Arc<dyn ConnectionQueryPort>")
             .field("connection_context", &"Arc<dyn ConnectionContextPort>")
             .field("connection_broadcast", &"Arc<dyn ConnectionBroadcastPort>")

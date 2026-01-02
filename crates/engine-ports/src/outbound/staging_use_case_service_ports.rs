@@ -5,12 +5,14 @@ use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 
 use super::{ApprovedNpcData, RegeneratedNpc, StagingProposalData};
 
-/// Outbound port for staging operations as used by movement + staging use cases.
+/// Outbound port for staging query operations.
 ///
 /// Implemented by `StagingService` in engine-app. Used by `MovementUseCase`
 /// and other use cases that need staging functionality.
+///
+/// This is an outbound port - implemented by app-layer services, called by use cases.
 #[async_trait]
-pub trait StagingUseCaseServicePort: Send + Sync {
+pub trait StagingQueryPort: Send + Sync {
     /// Get current valid staging for a region
     async fn get_current_staging(
         &self,
@@ -31,9 +33,11 @@ pub trait StagingUseCaseServicePort: Send + Sync {
     ) -> Result<StagingProposalData, String>;
 }
 
-/// Extended outbound port for staging operations.
+/// Extended outbound port for staging mutation operations.
+///
+/// Extends `StagingQueryPort` with approval, regeneration, and pre-staging operations.
 #[async_trait]
-pub trait StagingUseCaseServiceExtPort: StagingUseCaseServicePort {
+pub trait StagingMutationPort: StagingQueryPort {
     /// Approve staging and persist it
     async fn approve_staging(
         &self,

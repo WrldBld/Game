@@ -100,4 +100,4 @@ pub use crate::outbound::{
 
 // Note: staging-related dependency ports moved to outbound:
 // - StagingStatePort, StagingStateExtPort
-// - StagingUseCaseServicePort, StagingUseCaseServiceExtPort
+// - StagingQueryPort, StagingMutationPort

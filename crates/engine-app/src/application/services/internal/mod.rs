@@ -278,4 +278,4 @@ pub use scene_service::{SceneServicePort, SceneWithRelations};
 pub use scene_service::MockSceneServicePort;
 
 // NOTE: StagingServicePort has been removed - StagingService now directly
-// implements StagingUseCaseServicePort from engine-ports.
+// implements StagingQueryPort from engine-ports.
