@@ -27,9 +27,12 @@ use wrldbldr_domain::value_objects::{AdHocOutcomes, DiceRollInput, ProposedTool}
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
 use crate::application::services::internal::{
-    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, ChallengeServicePort,
-    DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution,
-    PlayerCharacterServicePort, RollResult as PortRollResult, SkillServicePort,
+    AdHocResult as PortAdHocResult, ChallengeOutcomeApprovalServicePort,
+    ChallengeResolutionServicePort, ChallengeServicePort, DiceRoll as PortDiceRoll,
+    NarrativeRollContext as PortNarrativeRollContext,
+    OutcomeTriggerInfo as PortOutcomeTriggerInfo, PendingResolution as PortPendingResolution,
+    PlayerCharacterServicePort, RollResult as PortRollResult,
+    RollResultData as PortRollResultData, SkillServicePort, TriggerResult as PortTriggerResult,
 };
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, ChallengeOutcomeData, ClockPort, DiceInputType, RandomPort,
@@ -973,5 +976,178 @@ impl ChallengeResolutionServicePort for ChallengeResolutionService {
     ) -> anyhow::Result<Option<PortPendingResolution>> {
         // In a full implementation, this would query pending resolutions for the PC
         Ok(None)
+    }
+
+    async fn handle_roll(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        challenge_id: String,
+        roll: i32,
+        narrative_config: NarrativeResolutionConfig,
+        narrative_context: Option<PortNarrativeRollContext>,
+    ) -> anyhow::Result<PortRollResultData> {
+        // Convert port context to internal context
+        let internal_context = narrative_context.map(|ctx| NarrativeRollContext {
+            position: ctx.position,
+            effect: ctx.effect,
+            dice_results: ctx.dice_results.clone(),
+        });
+
+        let result = ChallengeResolutionService::handle_roll(
+            self,
+            &world_id,
+            &pc_id,
+            challenge_id,
+            roll,
+            &narrative_config,
+            internal_context.as_ref(),
+        )
+        .await?;
+
+        Ok(PortRollResultData {
+            resolution_id: result.resolution_id,
+            challenge_id: result.challenge_id,
+            challenge_name: result.challenge_name,
+            character_id: result.character_id,
+            character_name: result.character_name,
+            roll: result.roll,
+            modifier: result.modifier,
+            total: result.total,
+            outcome_type: result.outcome_type,
+            outcome_description: result.outcome_description,
+            roll_breakdown: result.roll_breakdown,
+            individual_rolls: result.individual_rolls,
+            triggers: result
+                .outcome_triggers
+                .into_iter()
+                .map(|t| PortOutcomeTriggerInfo {
+                    trigger_type: t.trigger_type,
+                    description: t.description,
+                })
+                .collect(),
+            pending_approval: true,
+        })
+    }
+
+    async fn handle_roll_input(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        challenge_id: String,
+        input_type: DiceInputType,
+        narrative_config: NarrativeResolutionConfig,
+        narrative_context: Option<PortNarrativeRollContext>,
+    ) -> anyhow::Result<PortRollResultData> {
+        // Convert port context to internal context
+        let internal_context = narrative_context.map(|ctx| NarrativeRollContext {
+            position: ctx.position,
+            effect: ctx.effect,
+            dice_results: ctx.dice_results.clone(),
+        });
+
+        let result = ChallengeResolutionService::handle_roll_input(
+            self,
+            &world_id,
+            &pc_id,
+            challenge_id,
+            input_type,
+            &narrative_config,
+            internal_context.as_ref(),
+        )
+        .await?;
+
+        Ok(PortRollResultData {
+            resolution_id: result.resolution_id,
+            challenge_id: result.challenge_id,
+            challenge_name: result.challenge_name,
+            character_id: result.character_id,
+            character_name: result.character_name,
+            roll: result.roll,
+            modifier: result.modifier,
+            total: result.total,
+            outcome_type: result.outcome_type,
+            outcome_description: result.outcome_description,
+            roll_breakdown: result.roll_breakdown,
+            individual_rolls: result.individual_rolls,
+            triggers: result
+                .outcome_triggers
+                .into_iter()
+                .map(|t| PortOutcomeTriggerInfo {
+                    trigger_type: t.trigger_type,
+                    description: t.description,
+                })
+                .collect(),
+            pending_approval: true,
+        })
+    }
+
+    async fn trigger_challenge(
+        &self,
+        world_id: WorldId,
+        challenge_id: String,
+        target_character_id: CharacterId,
+    ) -> anyhow::Result<PortTriggerResult> {
+        let result = ChallengeResolutionService::handle_trigger(
+            self,
+            &world_id,
+            challenge_id,
+            target_character_id.to_string(),
+        )
+        .await?;
+
+        Ok(PortTriggerResult {
+            challenge_id: result.challenge_id,
+            challenge_name: result.challenge_name,
+            skill_name: result.skill_name,
+            difficulty_display: result.difficulty_display,
+            description: result.description,
+            character_modifier: result.character_modifier,
+            suggested_dice: result.suggested_dice,
+            rule_system_hint: result.rule_system_hint,
+        })
+    }
+
+    async fn handle_suggestion_decision(
+        &self,
+        world_id: WorldId,
+        request_id: String,
+        approved: bool,
+        modified_difficulty: Option<String>,
+    ) -> anyhow::Result<()> {
+        ChallengeResolutionService::handle_suggestion_decision(
+            self,
+            &world_id,
+            request_id,
+            approved,
+            modified_difficulty,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn create_adhoc_challenge(
+        &self,
+        world_id: WorldId,
+        challenge_name: String,
+        skill_name: String,
+        difficulty: String,
+        target_pc_id: PlayerCharacterId,
+        outcomes: AdHocOutcomes,
+    ) -> anyhow::Result<PortAdHocResult> {
+        let (adhoc_result, _trigger_result) = ChallengeResolutionService::handle_adhoc_challenge(
+            self,
+            &world_id,
+            challenge_name,
+            skill_name,
+            difficulty,
+            target_pc_id.to_string(),
+            outcomes.clone(),
+        )
+        .await?;
+
+        Ok(PortAdHocResult {
+            challenge_id: adhoc_result.challenge_id,
+        })
     }
 }

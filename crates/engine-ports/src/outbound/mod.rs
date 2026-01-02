@@ -8,19 +8,15 @@
 
 mod approval_request_lookup_port;
 mod broadcast_port;
-mod challenge_dm_approval_queue_port;
-mod challenge_outcome_approval_port;
 
 mod challenge_outcome_pending_port;
 mod challenge_repository;
-mod challenge_resolution_port;
 mod character_repository;
 mod clock_port;
 mod comfyui_port;
 mod connection_manager_port;
 mod directorial_context_dto_repository_port;
 mod directorial_context_port;
-mod directorial_context_query_port;
 mod dm_action_processor_port;
 mod dm_notification_port;
 mod domain_event_repository_port;
@@ -37,8 +33,6 @@ mod generation_read_state_port;
 mod llm_port;
 mod location_repository;
 mod narrative_event_repository;
-mod player_action_queue_port;
-mod player_character_dto_port;
 mod player_character_repository;
 
 mod prompt_template_cache_port;
@@ -49,10 +43,7 @@ mod random_port;
 mod region_repository;
 mod repository_port;
 mod scene_dm_action_queue_port;
-mod scene_interactions_query_port;
 mod scene_repository;
-
-mod scene_with_relations_query_port;
 mod settings_cache_port;
 mod settings_port;
 mod staging_repository_port;
@@ -66,7 +57,6 @@ mod use_case_errors;
 mod use_case_types;
 mod world_connection_manager;
 mod world_exporter_port;
-mod world_snapshot_json_port;
 mod world_state;
 mod world_state_update_port;
 
@@ -89,10 +79,6 @@ pub use use_case_errors::{
     ActionError, ChallengeError, InventoryError, NarrativeEventError, ObservationError, SceneError,
     StagingError,
 };
-
-pub use challenge_dm_approval_queue_port::ChallengeDmApprovalQueuePort;
-pub use challenge_outcome_approval_port::ChallengeOutcomeApprovalPort;
-pub use challenge_resolution_port::ChallengeResolutionPort;
 
 // DomainEvent repository - domain-layer interface for event storage
 pub use domain_event_repository_port::{DomainEventRepositoryError, DomainEventRepositoryPort};
@@ -313,8 +299,6 @@ pub use directorial_context_port::DirectorialContextRepositoryPort;
 
 pub use directorial_context_dto_repository_port::DirectorialContextDtoRepositoryPort;
 
-pub use directorial_context_query_port::DirectorialContextQueryPort;
-
 // Minimal world state updates used by use cases
 pub use world_state_update_port::WorldStateUpdatePort;
 
@@ -322,12 +306,6 @@ pub use world_state_update_port::WorldStateUpdatePort;
 
 // Scene use-case DTO query ports
 pub use scene_dm_action_queue_port::SceneDmActionQueuePort;
-pub use scene_interactions_query_port::SceneInteractionsQueryPort;
-pub use scene_with_relations_query_port::SceneWithRelationsQueryPort;
-
-
-
-pub use world_snapshot_json_port::WorldSnapshotJsonPort;
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
@@ -362,14 +340,6 @@ pub use world_state::{
     WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldStatePort, WorldTimePort,
 };
-
-
-
-pub use player_character_dto_port::PlayerCharacterDtoPort;
-
-
-
-pub use player_action_queue_port::PlayerActionQueuePort;
 
 // Use case types - input/output types for use case operations
 pub use use_case_types::{

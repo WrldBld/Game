@@ -26,7 +26,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tracing::{debug, info};
 
-use crate::application::services::internal::WorldServicePort;
+use crate::application::services::internal::{
+    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
+    DmApprovalQueueServicePort, NarrativeRollContext as InternalNarrativeRollContext,
+    WorldServicePort,
+};
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
@@ -37,13 +41,6 @@ use super::errors::ChallengeError;
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::ChallengeUseCasePort;
-
-pub use wrldbldr_engine_ports::outbound::ChallengeDmApprovalQueuePort as DmApprovalQueuePort;
-
-pub use wrldbldr_engine_ports::outbound::{
-    ChallengeOutcomeApprovalPort, ChallengeResolutionPort,
-    NarrativeRollContext as PortNarrativeRollContext,
-};
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{
@@ -64,9 +61,9 @@ pub use wrldbldr_engine_ports::outbound::{
 /// Coordinates challenge resolution with proper authorization
 /// and result type conversion.
 pub struct ChallengeUseCase {
-    resolution_service: Arc<dyn ChallengeResolutionPort>,
-    outcome_approval: Arc<dyn ChallengeOutcomeApprovalPort>,
-    approval_queue: Arc<dyn DmApprovalQueuePort>,
+    resolution_service: Arc<dyn ChallengeResolutionServicePort>,
+    outcome_approval: Arc<dyn ChallengeOutcomeApprovalServicePort>,
+    approval_queue: Arc<dyn DmApprovalQueueServicePort>,
     broadcast: Arc<dyn BroadcastPort>,
     world_service: Arc<dyn WorldServicePort>,
 }
@@ -74,9 +71,9 @@ pub struct ChallengeUseCase {
 impl ChallengeUseCase {
     /// Create a new ChallengeUseCase with all dependencies
     pub fn new(
-        resolution_service: Arc<dyn ChallengeResolutionPort>,
-        outcome_approval: Arc<dyn ChallengeOutcomeApprovalPort>,
-        approval_queue: Arc<dyn DmApprovalQueuePort>,
+        resolution_service: Arc<dyn ChallengeResolutionServicePort>,
+        outcome_approval: Arc<dyn ChallengeOutcomeApprovalServicePort>,
+        approval_queue: Arc<dyn DmApprovalQueueServicePort>,
         broadcast: Arc<dyn BroadcastPort>,
         world_service: Arc<dyn WorldServicePort>,
     ) -> Self {
@@ -124,28 +121,53 @@ impl ChallengeUseCase {
             .cloned()
             .unwrap_or_default();
 
-        // Convert input narrative context to port type (position/effect from client)
-        let port_context = input
+        // Convert input narrative context to internal type (position/effect from client)
+        let internal_context = input
             .narrative_context
             .as_ref()
-            .map(|ctx| PortNarrativeRollContext {
+            .map(|ctx| InternalNarrativeRollContext {
                 position: ctx.position,
                 effect: ctx.effect,
                 dice_results: ctx.dice_results.clone(),
             });
 
-        let result = self
+        let internal_result = self
             .resolution_service
             .handle_roll(
-                &ctx.world_id,
+                ctx.world_id,
                 pc_id,
                 input.challenge_id.clone(),
                 input.roll,
-                &narrative_config,
-                port_context.as_ref(),
+                narrative_config,
+                internal_context,
             )
             .await
-            .map_err(ChallengeError::ResolutionFailed)?;
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
+
+        // Convert internal result to external RollResult
+        let result = RollResult {
+            resolution_id: internal_result.resolution_id.clone(),
+            challenge_id: internal_result.challenge_id.clone(),
+            challenge_name: internal_result.challenge_name.clone(),
+            character_id: internal_result.character_id.clone(),
+            character_name: internal_result.character_name.clone(),
+            roll: internal_result.roll,
+            modifier: internal_result.modifier,
+            total: internal_result.total,
+            outcome_type: internal_result.outcome_type.clone(),
+            outcome_description: internal_result.outcome_description.clone(),
+            roll_breakdown: internal_result.roll_breakdown.clone(),
+            individual_rolls: internal_result.individual_rolls.clone(),
+            triggers: internal_result
+                .triggers
+                .iter()
+                .map(|t| TriggerInfo {
+                    trigger_type: t.trigger_type.clone(),
+                    description: t.description.clone(),
+                })
+                .collect(),
+            pending_approval: internal_result.pending_approval,
+        };
 
         // Broadcast roll submission event
         // Adapter routes to DM (full details) and players (status only)
@@ -216,28 +238,53 @@ impl ChallengeUseCase {
             .cloned()
             .unwrap_or_default();
 
-        // Convert input narrative context to port type (position/effect from client)
-        let port_context = input
+        // Convert input narrative context to internal type (position/effect from client)
+        let internal_context = input
             .narrative_context
             .as_ref()
-            .map(|ctx| PortNarrativeRollContext {
+            .map(|ctx| InternalNarrativeRollContext {
                 position: ctx.position,
                 effect: ctx.effect,
                 dice_results: ctx.dice_results.clone(),
             });
 
-        let result = self
+        let internal_result = self
             .resolution_service
             .handle_roll_input(
-                &ctx.world_id,
+                ctx.world_id,
                 pc_id,
                 input.challenge_id.clone(),
                 input.input_type,
-                &narrative_config,
-                port_context.as_ref(),
+                narrative_config,
+                internal_context,
             )
             .await
-            .map_err(ChallengeError::ResolutionFailed)?;
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
+
+        // Convert internal result to external RollResult
+        let result = RollResult {
+            resolution_id: internal_result.resolution_id.clone(),
+            challenge_id: internal_result.challenge_id.clone(),
+            challenge_name: internal_result.challenge_name.clone(),
+            character_id: internal_result.character_id.clone(),
+            character_name: internal_result.character_name.clone(),
+            roll: internal_result.roll,
+            modifier: internal_result.modifier,
+            total: internal_result.total,
+            outcome_type: internal_result.outcome_type.clone(),
+            outcome_description: internal_result.outcome_description.clone(),
+            roll_breakdown: internal_result.roll_breakdown.clone(),
+            individual_rolls: internal_result.individual_rolls.clone(),
+            triggers: internal_result
+                .triggers
+                .iter()
+                .map(|t| TriggerInfo {
+                    trigger_type: t.trigger_type.clone(),
+                    description: t.description.clone(),
+                })
+                .collect(),
+            pending_approval: internal_result.pending_approval,
+        };
 
         // Broadcast roll submission event
         // Adapter routes to DM (full details) and players (status only)
@@ -293,11 +340,23 @@ impl ChallengeUseCase {
             "DM triggering challenge"
         );
 
-        let result = self
+        let internal_result = self
             .resolution_service
-            .trigger_challenge(&ctx.world_id, input.challenge_id, input.target_character_id)
+            .trigger_challenge(ctx.world_id, input.challenge_id, input.target_character_id)
             .await
-            .map_err(ChallengeError::ResolutionFailed)?;
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
+
+        // Convert internal result to external TriggerResult
+        let result = TriggerResult {
+            challenge_id: internal_result.challenge_id.clone(),
+            challenge_name: internal_result.challenge_name.clone(),
+            skill_name: internal_result.skill_name.clone(),
+            difficulty_display: internal_result.difficulty_display.clone(),
+            description: internal_result.description.clone(),
+            character_modifier: internal_result.character_modifier,
+            suggested_dice: internal_result.suggested_dice.clone(),
+            rule_system_hint: internal_result.rule_system_hint.clone(),
+        };
 
         // Broadcast challenge prompt to world
         self.broadcast
@@ -332,13 +391,13 @@ impl ChallengeUseCase {
 
         self.resolution_service
             .handle_suggestion_decision(
-                &ctx.world_id,
+                ctx.world_id,
                 input.request_id,
                 input.approved,
                 input.modified_difficulty,
             )
             .await
-            .map_err(ChallengeError::ResolutionFailed)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))
     }
 
     /// Regenerate challenge outcome text
@@ -358,15 +417,17 @@ impl ChallengeUseCase {
         );
 
         // Best-effort: look up the approval item for context
+        let request_uuid = uuid::Uuid::parse_str(&input.request_id)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
         let maybe_approval = self
             .approval_queue
-            .get_by_id(&input.request_id)
+            .get(request_uuid)
             .await
             .ok()
             .flatten();
 
         let base_flavor = if let Some(item) = maybe_approval {
-            format!("{} (regenerated)", item.proposed_dialogue.trim())
+            format!("{} (regenerated)", item.payload.proposed_dialogue.trim())
         } else {
             "Regenerated outcome (no approval context found)".to_string()
         };
@@ -410,8 +471,9 @@ impl ChallengeUseCase {
         );
 
         self.approval_queue
-            .discard_challenge(&ctx.user_id, &input.request_id)
-            .await;
+            .discard_challenge(&input.request_id)
+            .await
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
 
         Ok(DiscardResult {
             request_id: input.request_id,
@@ -434,9 +496,10 @@ impl ChallengeUseCase {
             "DM creating ad-hoc challenge"
         );
 
-        self.resolution_service
+        let internal_result = self
+            .resolution_service
             .create_adhoc_challenge(
-                &ctx.world_id,
+                ctx.world_id,
                 input.challenge_name,
                 input.skill_name,
                 input.difficulty,
@@ -444,7 +507,12 @@ impl ChallengeUseCase {
                 input.outcomes,
             )
             .await
-            .map_err(ChallengeError::ResolutionFailed)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
+
+        // Convert internal result to external AdHocResult
+        Ok(AdHocResult {
+            challenge_id: internal_result.challenge_id,
+        })
     }
 
     /// Handle DM's decision on a challenge outcome
@@ -464,9 +532,9 @@ impl ChallengeUseCase {
         );
 
         self.outcome_approval
-            .process_decision(&ctx.world_id, &input.resolution_id, input.decision)
+            .process_decision(ctx.world_id, &input.resolution_id, input.decision)
             .await
-            .map_err(ChallengeError::ResolutionFailed)?;
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))?;
 
         Ok(OutcomeDecisionResult {
             outcome_text: None, // Resolution broadcast handled by service
@@ -495,9 +563,9 @@ impl ChallengeUseCase {
         };
 
         self.outcome_approval
-            .process_decision(&ctx.world_id, &input.resolution_id, decision)
+            .process_decision(ctx.world_id, &input.resolution_id, decision)
             .await
-            .map_err(ChallengeError::ResolutionFailed)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))
     }
 
     /// Request branching outcome options
@@ -517,9 +585,9 @@ impl ChallengeUseCase {
         );
 
         self.outcome_approval
-            .request_branches(&ctx.world_id, &input.resolution_id, input.guidance)
+            .request_branches(ctx.world_id, &input.resolution_id, input.guidance)
             .await
-            .map_err(ChallengeError::ResolutionFailed)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))
     }
 
     /// Select a specific outcome branch
@@ -540,13 +608,13 @@ impl ChallengeUseCase {
 
         self.outcome_approval
             .select_branch(
-                &ctx.world_id,
+                ctx.world_id,
                 &input.resolution_id,
                 &input.branch_id,
                 input.modified_description,
             )
             .await
-            .map_err(ChallengeError::ResolutionFailed)
+            .map_err(|e| ChallengeError::ResolutionFailed(e.to_string()))
     }
 }
 

@@ -39,10 +39,7 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::port_adapters::{
-    ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
-    ConnectionDirectorialContextAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder,
-    InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
-    SceneServiceAdapter, StagingServiceAdapter, WorldServiceAdapter,
+    DirectorialContextAdapter, DmActionQueuePlaceholder, StagingServiceAdapter,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
 
@@ -317,13 +314,11 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create Player Action Use Case
     // =========================================================================
-    let player_action_queue_adapter = Arc::new(PlayerActionQueueAdapter::new(
-        deps.player_action_queue_service_port.clone(),
-        deps.clock.clone(),
-    ));
+    // PlayerActionUseCase now depends on internal PlayerActionQueueServicePort directly
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
-        player_action_queue_adapter.clone(),
+        deps.player_action_queue_service_port.clone(),
+        deps.clock.clone(),
         deps.dm_notification.clone(),
     ));
 
@@ -341,20 +336,10 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create Challenge Use Case
     // =========================================================================
-    let challenge_resolution_adapter = Arc::new(ChallengeResolutionAdapter::new(
-        deps.challenge_resolution_service_port.clone(),
-    ));
-    let challenge_outcome_adapter = Arc::new(ChallengeOutcomeApprovalAdapter::new(
-        deps.challenge_outcome_approval_service_port.clone(),
-    ));
-    let challenge_dm_queue_adapter = Arc::new(ChallengeDmApprovalQueueAdapter::new(
-        deps.dm_approval_queue_service_port.clone(),
-    ));
-
     let challenge_use_case = Arc::new(ChallengeUseCase::new(
-        challenge_resolution_adapter.clone(),
-        challenge_outcome_adapter.clone(),
-        challenge_dm_queue_adapter.clone(),
+        deps.challenge_resolution_service_port.clone(),
+        deps.challenge_outcome_approval_service_port.clone(),
+        deps.dm_approval_queue_service_port.clone(),
         broadcast.clone(),
         deps.world_service_port.clone(),
     ));
@@ -362,18 +347,14 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create Scene Use Case
     // =========================================================================
-    let scene_service_adapter = Arc::new(SceneServiceAdapter::new(deps.scene_service_port.clone()));
-    let interaction_service_adapter = Arc::new(InteractionServiceAdapter::new(
-        deps.interaction_service_port.clone(),
-    ));
     let directorial_context_adapter = Arc::new(DirectorialContextAdapter::new(
         deps.directorial_context_repo.clone(),
     ));
     let dm_action_queue_placeholder = Arc::new(DmActionQueuePlaceholder::new());
 
     let scene_use_case = Arc::new(SceneUseCase::new(
-        scene_service_adapter.clone(),
-        interaction_service_adapter.clone(),
+        deps.scene_service_port.clone(),
+        deps.interaction_service_port.clone(),
         deps.world_state_update.clone(),
         directorial_context_adapter.clone(),
         dm_action_queue_placeholder,
@@ -382,19 +363,11 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     // Create Connection Use Case
     // =========================================================================
-    let world_service_adapter = Arc::new(WorldServiceAdapter::new(deps.world_service_port.clone()));
-    let pc_service_adapter = Arc::new(PlayerCharacterServiceAdapter::new(
-        deps.player_character_service_port.clone(),
-    ));
-    let connection_directorial_adapter = Arc::new(ConnectionDirectorialContextAdapter::new(
-        deps.directorial_context_repo.clone(),
-    ));
-
     let connection_use_case = Arc::new(ConnectionUseCase::new(
         deps.connection_manager.clone(),
-        world_service_adapter.clone(),
-        pc_service_adapter.clone(),
-        connection_directorial_adapter.clone(),
+        deps.world_service_port.clone(),
+        deps.player_character_service_port.clone(),
+        deps.directorial_context_repo.clone(),
         deps.world_state_update.clone(),
         broadcast.clone(),
     ));

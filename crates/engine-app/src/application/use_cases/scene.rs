@@ -21,11 +21,18 @@ use wrldbldr_engine_ports::inbound::{SceneUseCasePort, UseCaseContext};
 
 use super::errors::SceneError;
 
-// Import port traits from engine-ports
+// Import internal service ports (domain-returning)
+use crate::application::services::internal::{
+    InteractionServicePort, SceneServicePort, SceneWithRelations as DomainSceneWithRelations,
+};
+use wrldbldr_domain::{
+    InteractionTarget as DomainInteractionTarget, TimeContext as DomainTimeContext,
+};
+
+// Import remaining port traits from engine-ports
 pub use wrldbldr_engine_ports::outbound::{
     DirectorialContextDtoRepositoryPort, SceneDmActionQueuePort as DmActionQueuePort,
-    SceneInteractionsQueryPort as InteractionServicePort,
-    SceneWithRelationsQueryPort as SceneServicePort, WorldStateUpdatePort as WorldStatePort,
+    WorldStateUpdatePort as WorldStatePort,
 };
 
 // Re-export types from engine-ports for backwards compatibility
@@ -35,7 +42,7 @@ pub use wrldbldr_engine_ports::outbound::{
     SceneApprovalDecision, SceneApprovalDecisionInput, SceneApprovalDecisionResult,
     SceneChangeResult, SceneCharacterData as CharacterData, SceneDmAction as DmAction, SceneEntity,
     SceneInteractionData as InteractionData, TimeContext, UpdateDirectorialInput,
-    UseCaseSceneData as SceneData, UseCaseSceneWithRelations as SceneWithRelations,
+    UseCaseSceneData as SceneData, UseCaseSceneWithRelations,
 };
 
 // =============================================================================
@@ -69,6 +76,64 @@ impl SceneUseCase {
         }
     }
 
+    /// Convert domain SceneWithRelations to use-case DTO
+    fn convert_scene_with_relations(swr: DomainSceneWithRelations) -> UseCaseSceneWithRelations {
+        UseCaseSceneWithRelations {
+            scene: SceneEntity {
+                id: swr.scene.id,
+                name: swr.scene.name,
+                location_id: swr.scene.location_id,
+                backdrop_override: swr.scene.backdrop_override,
+                time_context: match swr.scene.time_context {
+                    DomainTimeContext::Unspecified => TimeContext::Unspecified,
+                    DomainTimeContext::TimeOfDay(t) => {
+                        TimeContext::TimeOfDay(t.display_name().to_string())
+                    }
+                    DomainTimeContext::During(s) => TimeContext::During(s),
+                    DomainTimeContext::Custom(s) => TimeContext::Custom(s),
+                },
+                directorial_notes: if swr.scene.directorial_notes.is_empty() {
+                    None
+                } else {
+                    Some(swr.scene.directorial_notes)
+                },
+            },
+            location: LocationEntity {
+                name: swr.location.name,
+                backdrop_asset: swr.location.backdrop_asset,
+            },
+            featured_characters: swr
+                .featured_characters
+                .into_iter()
+                .map(|c| CharacterEntity {
+                    id: c.id,
+                    name: c.name,
+                    sprite_asset: c.sprite_asset,
+                    portrait_asset: c.portrait_asset,
+                })
+                .collect(),
+        }
+    }
+
+    /// Convert domain InteractionTemplate to use-case DTO
+    fn convert_interaction(i: wrldbldr_domain::entities::InteractionTemplate) -> InteractionEntity {
+        let target = match &i.target {
+            DomainInteractionTarget::Character(id) => InteractionTarget::Character(*id),
+            DomainInteractionTarget::Item(id) => InteractionTarget::Item(*id),
+            DomainInteractionTarget::Environment(desc) => {
+                InteractionTarget::Environment(desc.clone())
+            }
+            DomainInteractionTarget::None => InteractionTarget::None,
+        };
+        InteractionEntity {
+            id: i.id,
+            name: i.name,
+            interaction_type: format!("{:?}", i.interaction_type),
+            target,
+            is_available: i.is_available,
+        }
+    }
+
     /// Request a scene change
     ///
     /// Any connected player can request a scene change.
@@ -79,23 +144,32 @@ impl SceneUseCase {
     ) -> Result<SceneChangeResult, SceneError> {
         debug!(scene_id = %input.scene_id, "Scene change requested");
 
-        // Load scene with relations
-        let scene_with_relations = self
+        // Load scene with relations (from internal service returning domain types)
+        let domain_scene = self
             .scene_service
             .get_scene_with_relations(input.scene_id)
             .await
-            .map_err(SceneError::Database)?
+            .map_err(|e| SceneError::Database(e.to_string()))?
             .ok_or_else(|| SceneError::SceneNotFound(input.scene_id.to_string()))?;
 
-        // Load interactions
-        let interactions = self
+        // Convert domain type to use-case DTO
+        let scene_with_relations = Self::convert_scene_with_relations(domain_scene);
+
+        // Load interactions (from internal service returning domain types)
+        let domain_interactions = self
             .interaction_service
-            .list_interactions(input.scene_id)
+            .list_by_scene(input.scene_id)
             .await
             .unwrap_or_else(|e| {
                 warn!(error = %e, "Failed to load interactions");
                 vec![]
             });
+
+        // Convert domain interactions to use-case DTOs
+        let interactions: Vec<InteractionEntity> = domain_interactions
+            .into_iter()
+            .map(Self::convert_interaction)
+            .collect();
 
         // Build character data
         let characters: Vec<CharacterData> = scene_with_relations
@@ -141,6 +215,7 @@ impl SceneUseCase {
             backdrop_asset: scene_with_relations
                 .scene
                 .backdrop_override
+                .clone()
                 .or(scene_with_relations.location.backdrop_asset.clone()),
             time_context: match &scene_with_relations.scene.time_context {
                 TimeContext::Unspecified => "Unspecified".to_string(),

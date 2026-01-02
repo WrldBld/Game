@@ -28,7 +28,9 @@ use super::errors::ActionError;
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::inbound::PlayerActionUseCasePort;
 
-pub use wrldbldr_engine_ports::outbound::{DmNotificationPort, PlayerActionQueuePort};
+pub use wrldbldr_engine_ports::outbound::DmNotificationPort;
+use crate::application::services::internal::{PlayerAction, PlayerActionQueueServicePort};
+use wrldbldr_engine_ports::outbound::ClockPort;
 
 // Re-export types from engine-ports for backwards compatibility
 pub use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
@@ -45,7 +47,9 @@ pub struct PlayerActionUseCase {
     /// Movement use case for travel actions
     movement: Arc<dyn MovementUseCasePort>,
     /// Queue service for non-immediate actions
-    action_queue: Arc<dyn PlayerActionQueuePort>,
+    action_queue: Arc<dyn PlayerActionQueueServicePort>,
+    /// Clock for timestamps
+    clock: Arc<dyn ClockPort>,
     /// DM notification port
     dm_notification: Arc<dyn DmNotificationPort>,
 }
@@ -54,12 +58,14 @@ impl PlayerActionUseCase {
     /// Create a new PlayerActionUseCase with all dependencies
     pub fn new(
         movement: Arc<dyn MovementUseCasePort>,
-        action_queue: Arc<dyn PlayerActionQueuePort>,
+        action_queue: Arc<dyn PlayerActionQueueServicePort>,
+        clock: Arc<dyn ClockPort>,
         dm_notification: Arc<dyn DmNotificationPort>,
     ) -> Self {
         Self {
             movement,
             action_queue,
+            clock,
             dm_notification,
         }
     }
@@ -198,21 +204,30 @@ impl PlayerActionUseCase {
     ) -> Result<ActionResult, ActionError> {
         let player_id = ctx.user_id.clone();
 
+        // Build PlayerAction DTO (conversion logic moved from adapter)
+        let action = PlayerAction {
+            world_id: *ctx.world_id.as_uuid(),
+            player_id: player_id.clone(),
+            pc_id: ctx.pc_id.map(|id| *id.as_uuid()),
+            action_type: input.action_type.clone(),
+            target: input.target.clone(),
+            dialogue: input.dialogue.clone(),
+            timestamp: self.clock.now(),
+        };
+
         // Enqueue the action
-        self.action_queue
-            .enqueue_action(
-                &ctx.world_id,
-                player_id.clone(),
-                ctx.pc_id,
-                input.action_type.clone(),
-                input.target,
-                input.dialogue,
-            )
+        let _queued_id = self.action_queue
+            .enqueue(action)
             .await
-            .map_err(ActionError::QueueFailed)?;
+            .map(ActionId::from_uuid)
+            .map_err(|e| ActionError::QueueFailed(e.to_string()))?;
 
         // Get queue depth
-        let depth = self.action_queue.depth().await.unwrap_or(0);
+        let depth = self.action_queue
+            .depth()
+            .await
+            .map_err(|e| ActionError::QueueFailed(e.to_string()))
+            .unwrap_or(0);
 
         // Notify DM
         self.dm_notification

@@ -59,7 +59,8 @@ pub use actantial_context_service_port::ActantialContextServicePort;
 pub use actantial_context_service_port::MockActantialContextServicePort;
 
 pub use challenge_resolution_service_port::{
-    ChallengeResolutionServicePort, DiceRoll, PendingResolution, RollResult,
+    AdHocResult, ChallengeResolutionServicePort, DiceRoll, NarrativeRollContext,
+    OutcomeTriggerInfo, PendingResolution, RollResult, RollResultData, TriggerResult,
 };
 #[cfg(any(test, feature = "testing"))]
 pub use challenge_resolution_service_port::MockChallengeResolutionServicePort;

@@ -28,17 +28,22 @@ use super::errors::ConnectionError;
 // Import services
 use crate::application::services::{JoinValidation, WorldSessionPolicy};
 
-// Import port traits from engine-ports
-pub use wrldbldr_engine_ports::outbound::{
-    DirectorialContextQueryPort, PlayerCharacterDtoPort, WorldSnapshotJsonPort,
-};
+// Import internal service ports
+use crate::application::services::internal::{PlayerCharacterServicePort, WorldServicePort};
+
+// Import repository port for directorial context
+use wrldbldr_engine_ports::outbound::DirectorialContextRepositoryPort;
+
+// Import domain types for conversions
+use wrldbldr_domain::value_objects::{DirectorialNotes, PacingGuidance};
 
 pub use wrldbldr_engine_ports::outbound::ConnectionManagerPort;
 
 // Import types from engine-ports
 pub use wrldbldr_engine_ports::outbound::{
-    ConnectedUser, ConnectionInfo, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
-    SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent, WorldRole,
+    ConnectedUser, ConnectionInfo, DirectorialContextData, JoinWorldInput, JoinWorldResult,
+    LeaveWorldResult, NpcMotivation, PcData, SetSpectateTargetInput, SpectateTargetResult,
+    UserJoinedEvent, WorldRole,
 };
 
 pub use wrldbldr_engine_ports::outbound::WorldStateUpdatePort as WorldStatePort;
@@ -50,9 +55,9 @@ pub use wrldbldr_engine_ports::outbound::WorldStateUpdatePort as WorldStatePort;
 /// Use case for connection operations
 pub struct ConnectionUseCase {
     connection_manager: Arc<dyn ConnectionManagerPort>,
-    world_service: Arc<dyn WorldSnapshotJsonPort>,
-    pc_service: Arc<dyn PlayerCharacterDtoPort>,
-    directorial_repo: Arc<dyn DirectorialContextQueryPort>,
+    world_service: Arc<dyn WorldServicePort>,
+    pc_service: Arc<dyn PlayerCharacterServicePort>,
+    directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
     world_state: Arc<dyn WorldStatePort>,
     broadcast: Arc<dyn BroadcastPort>,
     session_policy: WorldSessionPolicy,
@@ -62,9 +67,9 @@ impl ConnectionUseCase {
     /// Create a new ConnectionUseCase with all dependencies
     pub fn new(
         connection_manager: Arc<dyn ConnectionManagerPort>,
-        world_service: Arc<dyn WorldSnapshotJsonPort>,
-        pc_service: Arc<dyn PlayerCharacterDtoPort>,
-        directorial_repo: Arc<dyn DirectorialContextQueryPort>,
+        world_service: Arc<dyn WorldServicePort>,
+        pc_service: Arc<dyn PlayerCharacterServicePort>,
+        directorial_repo: Arc<dyn DirectorialContextRepositoryPort>,
         world_state: Arc<dyn WorldStatePort>,
         broadcast: Arc<dyn BroadcastPort>,
     ) -> Self {
@@ -76,6 +81,59 @@ impl ConnectionUseCase {
             world_state,
             broadcast,
             session_policy: WorldSessionPolicy::new(),
+        }
+    }
+
+    /// Convert PlayerCharacter to PcData DTO
+    fn player_character_to_pc_data(pc: wrldbldr_domain::entities::PlayerCharacter) -> PcData {
+        PcData {
+            id: pc.id.to_string(),
+            name: pc.name,
+            user_id: pc.user_id,
+            world_id: pc.world_id.to_string(),
+            current_location_id: pc.current_location_id.to_string(),
+            current_region_id: pc.current_region_id.map(|id| id.to_string()),
+            description: pc.description,
+            sprite_asset: pc.sprite_asset,
+            portrait_asset: pc.portrait_asset,
+        }
+    }
+
+    /// Convert DirectorialNotes to DirectorialContextData DTO
+    fn directorial_notes_to_context_data(notes: DirectorialNotes) -> DirectorialContextData {
+        let pacing_str = match notes.pacing {
+            PacingGuidance::Natural => None,
+            PacingGuidance::Fast => Some("fast".to_string()),
+            PacingGuidance::Slow => Some("slow".to_string()),
+            PacingGuidance::Building => Some("building".to_string()),
+            PacingGuidance::Urgent => Some("urgent".to_string()),
+        };
+        let tone_str = notes.tone.description().to_string();
+        DirectorialContextData {
+            npc_motivations: notes
+                .npc_motivations
+                .into_iter()
+                .map(|(char_id, m)| NpcMotivation {
+                    character_id: char_id,
+                    motivation: m.immediate_goal,
+                    emotional_state: if m.current_mood.is_empty() {
+                        None
+                    } else {
+                        Some(m.current_mood)
+                    },
+                })
+                .collect(),
+            scene_mood: if tone_str.is_empty() || tone_str == "Neutral - balanced, conversational" {
+                None
+            } else {
+                Some(tone_str)
+            },
+            pacing: pacing_str,
+            dm_notes: if notes.general_notes.is_empty() {
+                None
+            } else {
+                Some(notes.general_notes)
+            },
         }
     }
 
@@ -135,27 +193,36 @@ impl ConnectionUseCase {
             .await
             .map_err(ConnectionError::ConnectionFailed)?;
 
-        // Get world snapshot
-        let snapshot = self
-            .world_service
-            .export_world_snapshot(input.world_id)
-            .await
-            .unwrap_or_else(|e| {
+        // Get world snapshot (call service, then serialize to JSON)
+        let snapshot = match self.world_service.export_world_snapshot(input.world_id).await {
+            Ok(world_snapshot) => {
+                serde_json::to_value(&world_snapshot).unwrap_or_else(|e| {
+                    warn!(error = %e, "Failed to serialize world snapshot");
+                    serde_json::json!({})
+                })
+            }
+            Err(e) => {
                 warn!(error = %e, "Failed to get world snapshot");
                 serde_json::json!({})
-            });
+            }
+        };
 
-        // Load persisted directorial context
-        if let Ok(Some(context)) = self.directorial_repo.get(&input.world_id).await {
+        // Load persisted directorial context (convert domain to DTO for state)
+        if let Ok(Some(notes)) = self.directorial_repo.get(&input.world_id).await {
+            let context_data = Self::directorial_notes_to_context_data(notes);
             self.world_state
-                .set_directorial_context(&input.world_id, context);
+                .set_directorial_context(&input.world_id, context_data);
             debug!(world_id = %input.world_id, "Loaded persisted directorial context");
         }
 
-        // Get PC data if Player role
+        // Get PC data if Player role (convert domain entity to DTO)
         let pc_data = if input.role == WorldRole::Player {
             if let Some(pc_id) = input.pc_id {
-                self.pc_service.get_pc(pc_id).await.ok().flatten()
+                match self.pc_service.get_pc(pc_id).await {
+                    Ok(Some(pc)) => Some(Self::player_character_to_pc_data(pc)),
+                    Ok(None) => None,
+                    Err(_) => None,
+                }
             } else {
                 debug!("Player joined without PC ID");
                 None
@@ -253,12 +320,12 @@ impl ConnectionUseCase {
             ));
         }
 
-        // Get PC name
-        let pc_data = self
+        // Get PC and extract name
+        let pc = self
             .pc_service
             .get_pc(input.pc_id)
             .await
-            .map_err(ConnectionError::Database)?
+            .map_err(|e| ConnectionError::Database(e.to_string()))?
             .ok_or(ConnectionError::PcNotFound(input.pc_id))?;
 
         // Set spectate target
@@ -268,13 +335,13 @@ impl ConnectionUseCase {
 
         info!(
             pc_id = %input.pc_id,
-            pc_name = %pc_data.name,
+            pc_name = %pc.name,
             "Spectate target changed"
         );
 
         Ok(SpectateTargetResult {
             pc_id: input.pc_id,
-            pc_name: pc_data.name,
+            pc_name: pc.name,
         })
     }
 }

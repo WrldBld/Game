@@ -38,6 +38,7 @@ pub mod ollama;
 pub mod persistence;
 pub mod port_adapters;
 pub mod queues;
+pub mod scene_adapters;
 pub mod random_adapter;
 pub mod repositories;
 pub mod settings_loader;

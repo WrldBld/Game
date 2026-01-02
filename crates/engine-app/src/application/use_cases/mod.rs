@@ -23,7 +23,7 @@
 //!
 //! - `ChallengeResolutionPort`, `ChallengeOutcomeApprovalPort`, `ChallengeDmApprovalQueuePort`
 //! - `ConnectionManagerPort`, `DirectorialContextQueryPort`, `PlayerCharacterDtoPort`, `WorldSnapshotJsonPort`
-//! - `SceneServicePort`, `InteractionServicePort`, `WorldStatePort`, `DirectorialContextDtoRepositoryPort`, `SceneDmActionQueuePort`
+//! - `WorldStatePort`, `DirectorialContextDtoRepositoryPort`, `SceneDmActionQueuePort`
 //! - `PlayerActionQueuePort`, `DmNotificationPort`
 //! - `StagingStatePort`, `StagingUseCaseServicePort`, `StagingStateExtPort`, `StagingUseCaseServiceExtPort`
 //!
@@ -99,9 +99,8 @@ pub use builders::SceneBuilder;
 
 // Re-export use cases (explicit where possible)
 pub use challenge::{
-    AdHocOutcomes, AdHocResult, ApprovalItem, ChallengeOutcomeApprovalPort,
-    ChallengeResolutionPort, ChallengeUseCase, CreateAdHocInput, DiceInputType,
-    DiscardChallengeInput, DiscardResult, DmApprovalQueuePort as ChallengeDmApprovalQueuePort,
+    AdHocOutcomes, AdHocResult, ApprovalItem, ChallengeUseCase, CreateAdHocInput, DiceInputType,
+    DiscardChallengeInput, DiscardResult,
     OutcomeDecision as ChallengeOutcomeDecision, OutcomeDecisionInput, OutcomeDecisionResult,
     OutcomeDetail, RegenerateOutcomeInput, RegenerateResult as ChallengeRegenerateResult,
     RequestBranchesInput, RequestSuggestionInput, RollResult, SelectBranchInput,
@@ -110,10 +109,9 @@ pub use challenge::{
 };
 
 pub use connection::{
-    ConnectedUser, ConnectionInfo, ConnectionManagerPort, ConnectionUseCase,
-    DirectorialContextQueryPort, JoinWorldInput, JoinWorldResult, LeaveWorldResult, PcData,
-    PlayerCharacterDtoPort, SetSpectateTargetInput, SpectateTargetResult, UserJoinedEvent,
-    WorldRole, WorldSnapshotJsonPort,
+    ConnectedUser, ConnectionInfo, ConnectionManagerPort, ConnectionUseCase, JoinWorldInput,
+    JoinWorldResult, LeaveWorldResult, PcData, SetSpectateTargetInput, SpectateTargetResult,
+    UserJoinedEvent, WorldRole,
 };
 
 pub use inventory::{
@@ -131,17 +129,17 @@ pub use observation::{
     TriggerLocationEventResult,
 };
 pub use player_action::{
-    ActionResult, DmNotificationPort, PlayerActionInput, PlayerActionQueuePort, PlayerActionUseCase,
+    ActionResult, DmNotificationPort, PlayerActionInput, PlayerActionUseCase,
 };
 
 pub use scene::{
     CharacterData as SceneCharacterData, CharacterEntity, DirectorialContextData,
     DirectorialContextDtoRepositoryPort, DirectorialUpdateResult, DmAction,
     DmActionQueuePort as SceneDmActionQueuePort, InteractionData as SceneInteractionData,
-    InteractionEntity, InteractionServicePort, InteractionTarget, LocationEntity, NpcMotivation,
-    RequestSceneChangeInput, SceneApprovalDecision, SceneApprovalDecisionInput,
-    SceneApprovalDecisionResult, SceneChangeResult, SceneData, SceneEntity, SceneServicePort,
-    SceneUseCase, SceneWithRelations, TimeContext, UpdateDirectorialInput, WorldStatePort,
+    InteractionEntity, InteractionTarget, LocationEntity, NpcMotivation, RequestSceneChangeInput,
+    SceneApprovalDecision, SceneApprovalDecisionInput, SceneApprovalDecisionResult,
+    SceneChangeResult, SceneData, SceneEntity, SceneUseCase, TimeContext, UpdateDirectorialInput,
+    UseCaseSceneWithRelations, WorldStatePort,
 };
 
 pub use staging::{
