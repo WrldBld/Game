@@ -5,16 +5,21 @@
 //!
 //! This service returns domain result types. The use case layer is responsible
 //! for broadcasting events via BroadcastPort.
+//!
+//! # Refactored for Hexagonal Architecture (Phase 2A.3)
+//!
+//! This service now uses port traits (`NarrativeEventServicePort`,
+//! `StoryEventRecordingServicePort`) instead of app-layer trait generics,
+//! eliminating duplicate service instantiations in the composition root.
 
 use std::sync::Arc;
 
-use crate::application::services::{NarrativeEventService, StoryEventService};
 use async_trait::async_trait;
 use thiserror::Error;
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    NarrativeEventApprovalServicePort,
-    NarrativeEventTriggerResult as PortNarrativeEventTriggerResult,
+    NarrativeEventApprovalServicePort, NarrativeEventServicePort,
+    NarrativeEventTriggerResult as PortNarrativeEventTriggerResult, StoryEventRecordingServicePort,
 };
 
 /// Error type for narrative event approval operations
@@ -57,22 +62,24 @@ pub struct NarrativeEventTriggerResult {
 /// Service responsible for narrative suggestion approval flows.
 ///
 /// Returns domain result types for the use case layer to broadcast.
-pub struct NarrativeEventApprovalService<N: NarrativeEventService> {
-    narrative_event_service: Arc<N>,
-    story_event_service: Arc<dyn StoryEventService>,
+///
+/// # Architecture
+///
+/// Uses port traits for dependencies, enabling single instantiation in the
+/// composition root and proper hexagonal architecture compliance.
+pub struct NarrativeEventApprovalService {
+    narrative_event_service: Arc<dyn NarrativeEventServicePort>,
+    story_event_recording: Arc<dyn StoryEventRecordingServicePort>,
 }
 
-impl<N> NarrativeEventApprovalService<N>
-where
-    N: NarrativeEventService,
-{
+impl NarrativeEventApprovalService {
     pub fn new(
-        narrative_event_service: Arc<N>,
-        story_event_service: Arc<dyn StoryEventService>,
+        narrative_event_service: Arc<dyn NarrativeEventServicePort>,
+        story_event_recording: Arc<dyn StoryEventRecordingServicePort>,
     ) -> Self {
         Self {
             narrative_event_service,
-            story_event_service,
+            story_event_recording,
         }
     }
 
@@ -150,7 +157,7 @@ where
         // 4. Record a StoryEvent for the timeline
         let effects: Vec<String> = outcome.effects.iter().map(|e| format!("{:?}", e)).collect();
 
-        self.story_event_service
+        self.story_event_recording
             .record_narrative_event_triggered(
                 narrative_event.world_id,
                 None, // scene_id
@@ -190,10 +197,7 @@ where
 ///
 /// This exposes narrative event approval methods to infrastructure adapters.
 #[async_trait]
-impl<N> NarrativeEventApprovalServicePort for NarrativeEventApprovalService<N>
-where
-    N: NarrativeEventService + 'static,
-{
+impl NarrativeEventApprovalServicePort for NarrativeEventApprovalService {
     async fn handle_decision(
         &self,
         world_id: WorldId,

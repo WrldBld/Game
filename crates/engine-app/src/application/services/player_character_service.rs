@@ -342,19 +342,23 @@ impl PlayerCharacterService for PlayerCharacterServiceImpl {
 // Implementation of the port trait for hexagonal architecture compliance
 #[async_trait]
 impl PlayerCharacterServicePort for PlayerCharacterServiceImpl {
-    async fn get_player_character(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
+    async fn get_pc(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>> {
         PlayerCharacterService::get_pc(self, id).await
     }
 
-    async fn get_by_world_and_user(
+    async fn get_pc_by_user_and_world(
         &self,
-        world_id: WorldId,
         user_id: &str,
+        world_id: &WorldId,
     ) -> Result<Option<PlayerCharacter>> {
-        PlayerCharacterService::get_pc_by_user_and_world(self, user_id, &world_id).await
+        PlayerCharacterService::get_pc_by_user_and_world(self, user_id, world_id).await
     }
 
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>> {
-        PlayerCharacterService::get_pcs_by_world(self, &world_id).await
+    async fn get_pcs_by_world(&self, world_id: &WorldId) -> Result<Vec<PlayerCharacter>> {
+        PlayerCharacterService::get_pcs_by_world(self, world_id).await
+    }
+
+    async fn get_skill_modifier(&self, id: PlayerCharacterId, skill_id: SkillId) -> Result<i32> {
+        PlayerCharacterService::get_skill_modifier(self, id, skill_id).await
     }
 }

@@ -61,7 +61,7 @@ impl PlayerCharacterServiceAdapter {
 #[async_trait::async_trait]
 impl PlayerCharacterDtoPort for PlayerCharacterServiceAdapter {
     async fn get_pc(&self, pc_id: PlayerCharacterId) -> Result<Option<PcData>, String> {
-        match self.service.get_player_character(pc_id).await {
+        match self.service.get_pc(pc_id).await {
             Ok(Some(pc)) => Ok(Some(PcData {
                 id: pc.id.to_string(),
                 name: pc.name,

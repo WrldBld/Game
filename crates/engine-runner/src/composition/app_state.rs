@@ -23,12 +23,10 @@ use wrldbldr_engine_app::application::services::generation_service::GenerationEv
 use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, staging_service::StagingService,
     ActantialContextServiceImpl, AssetGenerationQueueService, ChallengeApprovalEvent,
-    ChallengeOutcomeApprovalService, ChallengeServiceImpl, DMApprovalQueueService,
-    DispositionServiceImpl, DmActionQueueService, EventEffectExecutor, ItemServiceImpl,
-    LLMQueueService, NarrativeEventApprovalService, NarrativeEventServiceImpl,
-    OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
-    PromptContextServiceImpl, RegionServiceImpl, SheetTemplateService, SkillServiceImpl,
-    TriggerEvaluationService,
+    ChallengeOutcomeApprovalService, DMApprovalQueueService, DispositionServiceImpl,
+    DmActionQueueService, EventEffectExecutor, ItemServiceImpl, LLMQueueService,
+    NarrativeEventApprovalService, OutcomeTriggerService, PlayerActionQueueService,
+    PromptContextServiceImpl, RegionServiceImpl, SheetTemplateService, TriggerEvaluationService,
 };
 
 // Import composition layer types
@@ -328,36 +326,16 @@ pub async fn new_app_state(
     let narrative_event_crud_for_effects = narrative_event_crud.clone();
     let challenge_crud_for_effects = challenge_crud.clone();
 
-    // Keep concrete version for ChallengeResolutionService generics
-    // TODO(Phase 2A.3): Refactor ChallengeResolutionService to use port traits instead
-    let challenge_service_impl = ChallengeServiceImpl::new(
-        challenge_crud.clone(),
-        challenge_skill.clone(),
-        challenge_scene.clone(),
-        challenge_prerequisite.clone(),
-        challenge_availability.clone(),
-    );
-
     // Note: Game services (Challenge, EventChain, StoryEvent, NarrativeEvent) are created
     // after event_infra using the game_services factory (Level 3b)
-
-    // Item service and Player character service now come from core_service_ports - NO DUPLICATION!
+    //
+    // ChallengeResolutionService and NarrativeEventApprovalService now use port traits
+    // (ChallengeServicePort, SkillServicePort, PlayerCharacterServicePort, etc.)
+    // so no duplicate service instantiations are needed here. (Phase 2A.3 complete)
 
     let pc_crud_for_triggers = pc_crud.clone();
     let pc_crud_for_actantial = pc_crud.clone();
     let pc_crud_for_handler = pc_crud.clone();
-
-    // Keep concrete versions for ChallengeResolutionService generics
-    // TODO(Phase 2A.3): Refactor ChallengeResolutionService to use port traits instead
-    let player_character_service_impl = PlayerCharacterServiceImpl::new(
-        pc_crud.clone(),
-        pc_query.clone(),
-        pc_position.clone(),
-        location_crud.clone(),
-        world_repo.clone(),
-        clock.clone(),
-    );
-    let skill_service_impl = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
 
     // Clone for request handler
     let observation_repo_for_handler = observation_repo.clone();
@@ -430,16 +408,8 @@ pub async fn new_app_state(
     let dialogue_context_service = game_service_ports.dialogue_context_service;
     let narrative_event_service_port = game_service_ports.narrative_event_service_port;
     let narrative_event_service = game_service_ports.narrative_event_service;
-
-    // Keep concrete version for NarrativeEventApprovalService generics
-    // TODO(Phase 2A.3): Refactor NarrativeEventApprovalService to use port traits instead
-    let narrative_event_service_impl = NarrativeEventServiceImpl::new(
-        narrative_event_crud.clone(),
-        narrative_event_tie.clone(),
-        narrative_event_npc.clone(),
-        narrative_event_query.clone(),
-        event_bus.clone(),
-    );
+    // StoryEventRecordingServicePort for NarrativeEventApprovalService (Phase 2A.3)
+    let story_event_recording_service = game_service_ports.story_event_recording_service;
 
     // ===========================================================================
     // Level 2b: Queue Services (using factory)
@@ -532,13 +502,12 @@ pub async fn new_app_state(
     ));
 
     // Create challenge resolution service with required approval service
-    // Uses concrete service impls for generics compatibility
+    // Now uses port traits (Phase 2A.3 - no more generics, single service instances)
     // Note: No longer takes WorldConnectionPort - returns typed results for use case layer to broadcast
-    // Note: rng is already extracted from infra above
     let challenge_resolution_service = Arc::new(ChallengeResolutionService::new(
-        Arc::new(challenge_service_impl.clone()),
-        Arc::new(skill_service_impl.clone()),
-        Arc::new(player_character_service_impl.clone()),
+        challenge_service_port.clone(),
+        skill_service_port.clone(),
+        player_character_service_port.clone(),
         dm_approval_queue_service.clone() as Arc<dyn ApprovalRequestLookupPort>,
         challenge_outcome_approval_service.clone() as Arc<dyn ChallengeOutcomeApprovalServicePort>,
         clock.clone(),
@@ -546,10 +515,10 @@ pub async fn new_app_state(
     ));
 
     // Create narrative event approval service
-    // Uses concrete service impls for generics compatibility
+    // Now uses port traits (Phase 2A.3 - no more generics, single service instances)
     let narrative_event_approval_service = Arc::new(NarrativeEventApprovalService::new(
-        Arc::new(narrative_event_service_impl.clone()),
-        story_event_service.clone(),
+        narrative_event_service_port.clone(),
+        story_event_recording_service.clone(),
     ));
 
     // Create trigger evaluation service (Phase 2)

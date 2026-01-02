@@ -655,7 +655,7 @@ impl CharacterServicePort for CharacterServiceImpl {
         CharacterService::get_character(self, id).await
     }
 
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Character>> {
+    async fn list_characters(&self, world_id: WorldId) -> Result<Vec<Character>> {
         CharacterService::list_characters(self, world_id).await
     }
 

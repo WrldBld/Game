@@ -8,22 +8,29 @@
 //!
 //! This service returns typed results instead of constructing protocol messages.
 //! Broadcasting is handled by the use case layer via `BroadcastPort`.
+//!
+//! ## Refactored for Hexagonal Architecture (Phase 2A.3)
+//!
+//! This service now uses port traits (`ChallengeServicePort`, `SkillServicePort`,
+//! `PlayerCharacterServicePort`) instead of app-layer trait generics, eliminating
+//! duplicate service instantiations in the composition root.
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
-
-use crate::application::services::{ChallengeService, PlayerCharacterService, SkillService};
 use tracing::{debug, info};
+
 use wrldbldr_domain::entities::{Difficulty, OutcomeType};
 use wrldbldr_domain::value_objects::{AdHocOutcomes, DiceRollInput, ProposedTool};
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeOutcomeData,
-    ChallengeResolutionServicePort, ClockPort, DiceInputType, DiceRoll as PortDiceRoll,
-    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
+    ChallengeResolutionServicePort, ChallengeServicePort, ClockPort, DiceInputType,
+    DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution,
+    PlayerCharacterServicePort, RandomPort, RollResult as PortRollResult, SkillServicePort,
 };
 
 // ============================================================================
@@ -180,15 +187,11 @@ struct ChallengePreamble {
 /// - Returns `Result<T, ChallengeResolutionError>` instead of `Option<serde_json::Value>`
 /// - Does NOT construct `ServerMessage` (hexagonal architecture compliance)
 /// - All challenge outcomes go through DM approval (no `has_dm()` bypass)
-///
-pub struct ChallengeResolutionService<
-    S: ChallengeService,
-    K: SkillService,
-    P: PlayerCharacterService,
-> {
-    challenge_service: Arc<S>,
-    skill_service: Arc<K>,
-    player_character_service: Arc<P>,
+/// - Uses port traits for dependencies, enabling single instantiation in composition root
+pub struct ChallengeResolutionService {
+    challenge_service: Arc<dyn ChallengeServicePort>,
+    skill_service: Arc<dyn SkillServicePort>,
+    player_character_service: Arc<dyn PlayerCharacterServicePort>,
     approval_request_lookup: Arc<dyn ApprovalRequestLookupPort>,
     challenge_outcome_approval_service: Arc<dyn ChallengeOutcomeApprovalServicePort>,
     /// Clock for time operations (required for testability)
@@ -197,12 +200,7 @@ pub struct ChallengeResolutionService<
     rng: Arc<dyn RandomPort>,
 }
 
-impl<S, K, P> ChallengeResolutionService<S, K, P>
-where
-    S: ChallengeService,
-    K: SkillService,
-    P: PlayerCharacterService,
-{
+impl ChallengeResolutionService {
     /// Create a new challenge resolution service
     ///
     /// All challenges are routed through the approval service for DM review.
@@ -213,9 +211,9 @@ where
     /// * `rng` - Random number generator. Use `ThreadRngAdapter` in production,
     ///           `FixedRandomPort` in tests for deterministic behavior.
     pub fn new(
-        challenge_service: Arc<S>,
-        skill_service: Arc<K>,
-        player_character_service: Arc<P>,
+        challenge_service: Arc<dyn ChallengeServicePort>,
+        skill_service: Arc<dyn SkillServicePort>,
+        player_character_service: Arc<dyn PlayerCharacterServicePort>,
         approval_request_lookup: Arc<dyn ApprovalRequestLookupPort>,
         challenge_outcome_approval_service: Arc<dyn ChallengeOutcomeApprovalServicePort>,
         clock: Arc<dyn ClockPort>,
@@ -306,7 +304,7 @@ where
         let player_name = pc.name.clone();
         let character_id = pc_id.to_string();
 
-        // Look up character's skill modifier from PlayerCharacterService
+        // Look up character's skill modifier from PlayerCharacterServicePort
         let character_modifier = if let Some(ref sid) = skill_id {
             match self
                 .player_character_service
@@ -918,18 +916,11 @@ where
 // Port Implementation
 // =============================================================================
 
-use async_trait::async_trait;
-
 /// Implementation of the `ChallengeResolutionServicePort` for `ChallengeResolutionService`.
 ///
 /// This exposes challenge resolution methods to infrastructure adapters.
 #[async_trait]
-impl<S, K, P> ChallengeResolutionServicePort for ChallengeResolutionService<S, K, P>
-where
-    S: ChallengeService + 'static,
-    K: SkillService + 'static,
-    P: PlayerCharacterService + 'static,
-{
+impl ChallengeResolutionServicePort for ChallengeResolutionService {
     async fn start_resolution(
         &self,
         challenge_id: ChallengeId,

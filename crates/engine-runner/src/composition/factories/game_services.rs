@@ -58,6 +58,7 @@ use wrldbldr_engine_ports::outbound::{
     StoryEventDialoguePort,
     StoryEventEdgePort,
     StoryEventQueryPort,
+    StoryEventRecordingServicePort,
     StoryEventServicePort,
 };
 
@@ -120,6 +121,9 @@ pub struct GameServicePorts {
     pub story_event_service: Arc<dyn StoryEventService>,
     /// DialogueContextServicePort - StoryEventServiceImpl implements this
     pub dialogue_context_service: Arc<dyn DialogueContextServicePort>,
+    /// StoryEventRecordingServicePort - StoryEventServiceImpl implements this
+    /// Used by NarrativeEventApprovalService for recording triggered events
+    pub story_event_recording_service: Arc<dyn StoryEventRecordingServicePort>,
 
     // NarrativeEvent service
     pub narrative_event_service_port: Arc<dyn NarrativeEventServicePort>,
@@ -198,7 +202,10 @@ pub fn create_game_services(deps: GameServiceDependencies) -> GameServicePorts {
     ));
     let story_event_service_port: Arc<dyn StoryEventServicePort> = story_event_service_impl.clone();
     let story_event_service: Arc<dyn StoryEventService> = story_event_service_impl.clone();
-    let dialogue_context_service: Arc<dyn DialogueContextServicePort> = story_event_service_impl;
+    let dialogue_context_service: Arc<dyn DialogueContextServicePort> =
+        story_event_service_impl.clone();
+    let story_event_recording_service: Arc<dyn StoryEventRecordingServicePort> =
+        story_event_service_impl;
 
     // =========================================================================
     // NarrativeEvent Service - single instance, cast to both traits
@@ -222,6 +229,7 @@ pub fn create_game_services(deps: GameServiceDependencies) -> GameServicePorts {
         story_event_service_port,
         story_event_service,
         dialogue_context_service,
+        story_event_recording_service,
         narrative_event_service_port,
         narrative_event_service,
     }
@@ -243,6 +251,7 @@ mod tests {
             let _: Arc<dyn StoryEventServicePort> = ports.story_event_service_port;
             let _: Arc<dyn StoryEventService> = ports.story_event_service;
             let _: Arc<dyn DialogueContextServicePort> = ports.dialogue_context_service;
+            let _: Arc<dyn StoryEventRecordingServicePort> = ports.story_event_recording_service;
             let _: Arc<dyn NarrativeEventServicePort> = ports.narrative_event_service_port;
             let _: Arc<dyn NarrativeEventService> = ports.narrative_event_service;
         }

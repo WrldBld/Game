@@ -25,6 +25,11 @@ use wrldbldr_domain::{CharacterId, SceneId, WorldId};
 /// Infrastructure adapters should depend on this trait rather than importing
 /// the service directly from engine-app, maintaining proper hexagonal
 /// architecture boundaries.
+///
+/// # Naming Convention
+///
+/// Method names match the corresponding `CharacterService` app-layer trait
+/// for consistency across the codebase.
 #[async_trait]
 pub trait CharacterServicePort: Send + Sync {
     /// Get a character by ID.
@@ -35,7 +40,7 @@ pub trait CharacterServicePort: Send + Sync {
     /// List all characters in a world.
     ///
     /// Returns active characters sorted by name.
-    async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Character>>;
+    async fn list_characters(&self, world_id: WorldId) -> Result<Vec<Character>>;
 
     /// List characters featured in a specific scene.
     ///
@@ -52,7 +57,7 @@ mockall::mock! {
     #[async_trait]
     impl CharacterServicePort for CharacterServicePort {
         async fn get_character(&self, id: CharacterId) -> Result<Option<Character>>;
-        async fn list_by_world(&self, world_id: WorldId) -> Result<Vec<Character>>;
+        async fn list_characters(&self, world_id: WorldId) -> Result<Vec<Character>>;
         async fn list_by_scene(&self, scene_id: SceneId) -> Result<Vec<Character>>;
     }
 }
