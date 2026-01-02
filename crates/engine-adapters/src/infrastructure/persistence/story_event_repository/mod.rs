@@ -10,7 +10,10 @@ mod edge_impl;
 mod query_impl;
 mod stored_types;
 
+use std::sync::Arc;
+
 use super::connection::Neo4jConnection;
+use wrldbldr_engine_ports::outbound::ClockPort;
 
 /// Repository for StoryEvent operations
 ///
@@ -24,10 +27,11 @@ use super::connection::Neo4jConnection;
 /// blanket impl when all 4 traits are implemented.
 pub struct Neo4jStoryEventRepository {
     pub(crate) connection: Neo4jConnection,
+    pub(crate) clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jStoryEventRepository {
-    pub fn new(connection: Neo4jConnection) -> Self {
-        Self { connection }
+    pub fn new(connection: Neo4jConnection, clock: Arc<dyn ClockPort>) -> Self {
+        Self { connection, clock }
     }
 }

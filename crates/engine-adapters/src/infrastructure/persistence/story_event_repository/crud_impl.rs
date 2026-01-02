@@ -67,7 +67,7 @@ impl StoryEventCrudPort for Neo4jStoryEventRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_story_event(row)?))
+            Ok(Some(row_to_story_event(row, self.clock.now())?))
         } else {
             Ok(None)
         }

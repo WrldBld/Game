@@ -120,7 +120,7 @@ impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_narrative_event(row)?))
+            Ok(Some(row_to_narrative_event(row, self.clock.now())?))
         } else {
             Ok(None)
         }
@@ -220,7 +220,7 @@ impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -240,7 +240,7 @@ impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -260,7 +260,7 @@ impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -280,7 +280,7 @@ impl NarrativeEventCrudPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)

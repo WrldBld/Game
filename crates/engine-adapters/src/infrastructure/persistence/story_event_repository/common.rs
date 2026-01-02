@@ -1,6 +1,7 @@
 //! Common helpers for StoryEvent repository operations
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use neo4rs::Row;
 
 use super::super::neo4j_helpers::{parse_typed_id, NodeExt};
@@ -10,16 +11,19 @@ use wrldbldr_domain::{StoryEventId, WorldId};
 
 /// Convert a Neo4j row to a StoryEvent
 ///
+/// The `fallback` timestamp is used when datetime fields are missing from the database.
+/// This should be obtained from `ClockPort::now()` by the caller.
+///
 /// NOTE: scene_id, location_id, involved_characters, and triggered_by
 /// are stored as graph edges, not node properties. Use the edge query methods
 /// to retrieve these associations.
-pub(super) fn row_to_story_event(row: Row) -> Result<StoryEvent> {
+pub(super) fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent> {
     let node: neo4rs::Node = row.get("e")?;
 
     let id: StoryEventId = parse_typed_id(&node, "id")?;
     let world_id: WorldId = parse_typed_id(&node, "world_id")?;
     let event_type_json: String = node.get("event_type_json")?;
-    let timestamp = node.get_datetime_or("timestamp", chrono::Utc::now());
+    let timestamp = node.get_datetime_or("timestamp", fallback);
     let game_time = node.get_optional_string("game_time");
     let summary: String = node.get("summary")?;
     let is_hidden = node.get_bool_or("is_hidden", false);

@@ -64,33 +64,28 @@ staging_types.rs, etc.) but this is a low-priority refactoring task.
 
 ## Issues in Adapters Layer
 
-### 4. `Utc::now()` Fallback in Repositories
+### 4. ~~`Utc::now()` Fallback in Repositories~~ (RESOLVED)
 
 **Locations**:
-- `crates/engine-adapters/src/infrastructure/persistence/event_chain_repository.rs:405`
-- `crates/engine-adapters/src/infrastructure/persistence/narrative_event_repository/common.rs:52`
-- `crates/engine-adapters/src/infrastructure/persistence/story_event_repository/common.rs:22`
+- `crates/engine-adapters/src/infrastructure/persistence/event_chain_repository.rs`
+- `crates/engine-adapters/src/infrastructure/persistence/narrative_event_repository/common.rs`
+- `crates/engine-adapters/src/infrastructure/persistence/story_event_repository/common.rs`
 
-**Issue**: Uses `Utc::now()` as fallback for datetime parsing instead of injecting via ClockPort.
+**Status**: FIXED
 
-**Impact**: Low - only affects fallback paths when parsing fails; primary timestamp creation
-correctly uses ClockPort.
-
-**Recommended Fix**: Pass `&dyn ClockPort` to helper functions or convert to repository methods.
+**Resolution**: All `row_to_*` helper functions now accept a `fallback: DateTime<Utc>` parameter.
+Callers obtain this from `self.clock.now()`. `Neo4jStoryEventRepository` was updated to include
+a `clock: Arc<dyn ClockPort>` field to support this pattern.
 
 ---
 
-### 5. Crate Aliasing
+### 5. ~~Crate Aliasing~~ (RESOLVED)
 
-**Locations**:
-- `crates/player-adapters/src/infrastructure/session_type_converters.rs:10`
-- `crates/engine-adapters/src/infrastructure/websocket/approval_converters.rs:14`
+**Status**: FIXED
 
-**Issue**: Uses `use wrldbldr_protocol as proto;` which violates the "no crate aliasing" rule.
-
-**Impact**: Low - purely stylistic, arch-check would flag this.
-
-**Recommended Fix**: Replace with direct imports: `use wrldbldr_protocol::{...};`
+**Resolution**: Replaced `use wrldbldr_protocol as proto;` with direct imports in:
+- `crates/player-adapters/src/infrastructure/session_type_converters.rs`
+- `crates/engine-adapters/src/infrastructure/websocket/approval_converters.rs`
 
 ---
 
@@ -128,15 +123,15 @@ Backwards compatibility aliases maintained in `mod.rs` for gradual migration.
 
 ## Summary
 
-| Issue | Location | Impact | Priority |
-|-------|----------|--------|----------|
-| Blanket impl in ports | player-ports | Low | Later |
-| Mock impl in ports | player-ports | Low | Later |
-| Large file + impls | engine-ports | Low | Later |
-| `Utc::now()` fallback | engine-adapters | Low | Later |
-| Crate aliasing | adapters | Low | Later |
-| Internal `*ServicePort` naming | engine-app | Medium | Later |
-| Mixed naming | engine-ports | Low | Later |
+| Issue | Location | Status |
+|-------|----------|--------|
+| Blanket impl in ports | player-ports | ACCEPTED (ISP pattern) |
+| Mock impl in ports | player-ports | Open (Low priority) |
+| Large file + impls | engine-ports | ACCEPTED (orphan rules) |
+| `Utc::now()` fallback | engine-adapters | RESOLVED |
+| Crate aliasing | adapters | RESOLVED |
+| Internal `*ServicePort` naming | engine-app | ACCEPTED (documented) |
+| Mixed naming | engine-ports | RESOLVED |
 
-None of these issues are blocking or cause runtime problems. They represent technical debt
-that can be addressed during future cleanup sprints.
+Most issues have been resolved or accepted as intentional patterns. The remaining open issue
+(mock impl in ports) is low priority and can be addressed in future cleanup work.

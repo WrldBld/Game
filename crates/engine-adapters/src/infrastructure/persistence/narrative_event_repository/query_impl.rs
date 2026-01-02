@@ -27,7 +27,7 @@ impl NarrativeEventQueryPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -46,7 +46,7 @@ impl NarrativeEventQueryPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -65,7 +65,7 @@ impl NarrativeEventQueryPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -84,7 +84,7 @@ impl NarrativeEventQueryPort for Neo4jNarrativeEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_narrative_event(row)?);
+            events.push(row_to_narrative_event(row, self.clock.now())?);
         }
 
         Ok(events)

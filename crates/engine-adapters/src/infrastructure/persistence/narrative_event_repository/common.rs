@@ -11,9 +11,12 @@ use wrldbldr_domain::{NarrativeEventId, WorldId};
 
 /// Convert a Neo4j row to a NarrativeEvent
 ///
+/// The `fallback` timestamp is used when datetime fields are missing from the database.
+/// This should be obtained from `ClockPort::now()` by the caller.
+///
 /// NOTE: Scene/location/act associations and featured NPCs are now stored as graph edges
 /// and must be fetched separately using the edge methods on the repository.
-pub(super) fn row_to_narrative_event(row: Row) -> Result<NarrativeEvent> {
+pub(super) fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent> {
     let node: neo4rs::Node = row.get("e")?;
 
     // Required fields - use parse_typed_id for typed IDs
@@ -49,7 +52,6 @@ pub(super) fn row_to_narrative_event(row: Row) -> Result<NarrativeEvent> {
     let expires_after_turns = node.get_positive_i64("expires_after_turns");
 
     // Datetime fields - required ones use fallback, triggered_at is optional
-    let fallback = Utc::now();
     let created_at = node.get_datetime_or("created_at", fallback);
     let updated_at = node.get_datetime_or("updated_at", fallback);
 

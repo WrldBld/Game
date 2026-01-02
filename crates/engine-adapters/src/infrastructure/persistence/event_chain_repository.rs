@@ -95,7 +95,7 @@ impl Neo4jEventChainRepository {
         let mut result = self.connection.graph().execute(q).await?;
 
         if let Some(row) = result.next().await? {
-            Ok(Some(row_to_event_chain(row)?))
+            Ok(Some(row_to_event_chain(row, self.clock.now())?))
         } else {
             Ok(None)
         }
@@ -159,7 +159,7 @@ impl Neo4jEventChainRepository {
         let mut chains = Vec::new();
 
         while let Some(row) = result.next().await? {
-            chains.push(row_to_event_chain(row)?);
+            chains.push(row_to_event_chain(row, self.clock.now())?);
         }
 
         Ok(chains)
@@ -179,7 +179,7 @@ impl Neo4jEventChainRepository {
         let mut chains = Vec::new();
 
         while let Some(row) = result.next().await? {
-            chains.push(row_to_event_chain(row)?);
+            chains.push(row_to_event_chain(row, self.clock.now())?);
         }
 
         Ok(chains)
@@ -199,7 +199,7 @@ impl Neo4jEventChainRepository {
         let mut chains = Vec::new();
 
         while let Some(row) = result.next().await? {
-            chains.push(row_to_event_chain(row)?);
+            chains.push(row_to_event_chain(row, self.clock.now())?);
         }
 
         Ok(chains)
@@ -223,7 +223,7 @@ impl Neo4jEventChainRepository {
         let mut chains = Vec::new();
 
         while let Some(row) = result.next().await? {
-            chains.push(row_to_event_chain(row)?);
+            chains.push(row_to_event_chain(row, self.clock.now())?);
         }
 
         Ok(chains)
@@ -400,9 +400,11 @@ impl Neo4jEventChainRepository {
 }
 
 /// Convert a Neo4j row to an EventChain
-fn row_to_event_chain(row: Row) -> Result<EventChain> {
+///
+/// The `fallback` timestamp is used when datetime fields are missing from the database.
+/// This should be obtained from `ClockPort::now()` by the caller.
+fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain> {
     let node: neo4rs::Node = row.get("c")?;
-    let now = Utc::now();
 
     // Required fields
     let id: EventChainId = parse_typed_id(&node, "id")?;
@@ -419,8 +421,8 @@ fn row_to_event_chain(row: Row) -> Result<EventChain> {
     let tags: Vec<String> = node.get_json_or_default("tags_json");
     let color: Option<String> = node.get_optional_string("color");
     let is_favorite: bool = node.get_bool_or("is_favorite", false);
-    let created_at: DateTime<Utc> = node.get_datetime_or("created_at", now);
-    let updated_at: DateTime<Utc> = node.get_datetime_or("updated_at", now);
+    let created_at: DateTime<Utc> = node.get_datetime_or("created_at", fallback);
+    let updated_at: DateTime<Utc> = node.get_datetime_or("updated_at", fallback);
 
     // Parse event ID arrays
     let events: Vec<NarrativeEventId> = events_strs

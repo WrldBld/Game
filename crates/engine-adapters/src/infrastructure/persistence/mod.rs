@@ -182,7 +182,7 @@ impl Neo4jRepository {
     }
 
     pub fn story_events(&self) -> Neo4jStoryEventRepository {
-        Neo4jStoryEventRepository::new(self.connection.clone())
+        Neo4jStoryEventRepository::new(self.connection.clone(), self.clock.clone())
     }
 
     pub fn regions(&self) -> Neo4jRegionRepository {

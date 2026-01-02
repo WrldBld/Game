@@ -43,7 +43,7 @@ impl StoryEventDialoguePort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            let event = row_to_story_event(row)?;
+            let event = row_to_story_event(row, self.clock.now())?;
             // Double-check it's actually a DialogueExchange with this NPC
             if let StoryEventType::DialogueExchange {
                 npc_id: event_npc_id,

@@ -25,7 +25,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -53,7 +53,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -75,7 +75,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -102,7 +102,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -127,7 +127,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -146,7 +146,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -165,7 +165,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -187,7 +187,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -206,7 +206,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
@@ -225,7 +225,7 @@ impl StoryEventQueryPort for Neo4jStoryEventRepository {
         let mut events = Vec::new();
 
         while let Some(row) = result.next().await? {
-            events.push(row_to_story_event(row)?);
+            events.push(row_to_story_event(row, self.clock.now())?);
         }
 
         Ok(events)
