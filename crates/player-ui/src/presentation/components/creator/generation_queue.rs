@@ -347,6 +347,7 @@ fn QueueItemRow(
     let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let mut expanded_details: Signal<bool> = use_signal(|| false);
+    let mut action_error: Signal<Option<String>> = use_signal(|| None);
     let batch_id = batch.batch_id.clone();
     let (status_icon, status_color, _status_text) = match &batch.status {
         BatchStatus::Queued { position } => ("🖼️", "#9ca3af", format!("#{} in queue", position)),
@@ -403,6 +404,7 @@ fn QueueItemRow(
                                                 }
                                                 Err(e) => {
                                                     tracing::error!("Failed to cancel batch {}: {}", bid, e);
+                                                    action_error.set(Some(format!("Failed to cancel: {}", e)));
                                                 }
                                             }
                                         });
@@ -444,6 +446,7 @@ fn QueueItemRow(
                                                 }
                                                 Err(e) => {
                                                     tracing::error!("Failed to cancel batch {}: {}", bid, e);
+                                                    action_error.set(Some(format!("Failed to cancel: {}", e)));
                                                 }
                                             }
                                         });
@@ -541,6 +544,7 @@ fn QueueItemRow(
                                                 }
                                                 Err(e) => {
                                                     tracing::error!("Failed to retry batch {}: {}", bid, e);
+                                                    action_error.set(Some(format!("Failed to retry: {}", e)));
                                                 }
                                             }
                                         });
@@ -573,6 +577,15 @@ fn QueueItemRow(
                 }
             }
 
+
+            // Action error feedback
+            if let Some(ref err) = *action_error.read() {
+                div {
+                    class: "mt-2 px-3 py-2 bg-red-500/20 border border-red-500/50 rounded text-red-400 text-xs cursor-pointer",
+                    onclick: move |_| action_error.set(None),
+                    "{err}"
+                }
+            }
 
             // Expanded error details for failed batches
             if let BatchStatus::Failed { error } = &batch.status {
@@ -629,6 +642,7 @@ fn SuggestionQueueRow(
     let generation_service = use_generation_service();
     let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
+    let mut action_error: Signal<Option<String>> = use_signal(|| None);
     let (status_icon, status_color, status_text) = match &suggestion.status {
         SuggestionStatus::Queued => ("💭", "#9ca3af", "Queued".to_string()),
         SuggestionStatus::Processing => ("⚙️", "#f59e0b", "Processing".to_string()),
@@ -739,6 +753,7 @@ fn SuggestionQueueRow(
                                             }
                                             Err(e) => {
                                                 tracing::error!("Failed to cancel suggestion {}: {}", req_id, e);
+                                                action_error.set(Some(format!("Failed to cancel: {}", e)));
                                             }
                                         }
                                     });
@@ -788,11 +803,12 @@ fn SuggestionQueueRow(
                                                 }
                                                 Err(e) => {
                                                     tracing::error!("Failed to retry suggestion {}: {}", req_id, e);
+                                                    action_error.set(Some(format!("Failed to retry: {}", e)));
                                                 }
                                             }
                                         });
                                     } else {
-                                        tracing::warn!("Cannot retry suggestion {}: context or world_id not available", request_id);
+                                        action_error.set(Some("Cannot retry: missing context".to_string()));
                                     }
                                 }
                             },
@@ -808,6 +824,15 @@ fn SuggestionQueueRow(
                             "Clear"
                         }
                     },
+                }
+            }
+
+            // Action error feedback
+            if let Some(ref err) = *action_error.read() {
+                div {
+                    class: "mt-2 px-3 py-2 bg-red-500/20 border border-red-500/50 rounded text-red-400 text-xs cursor-pointer",
+                    onclick: move |_| action_error.set(None),
+                    "{err}"
                 }
             }
 

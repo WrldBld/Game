@@ -8,7 +8,7 @@
 //!
 //! Following the hexagonal architecture pattern:
 //! - Input: Repository ports (from `repositories.rs` factory) and shared dependencies
-//! - Output: `Arc<dyn ServicePort>` trait objects for dependency injection
+//! - Output: Both `Arc<dyn *ServicePort>` and `Arc<dyn *Service>` trait objects
 //!
 //! # Services Created
 //!
@@ -29,9 +29,11 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_app::application::services::{
-    CharacterServiceImpl, InteractionServiceImpl, ItemServiceImpl, LocationServiceImpl,
-    PlayerCharacterServiceImpl, RelationshipServiceImpl, SceneResolutionServiceImpl,
-    SceneServiceImpl, SheetTemplateService, SkillServiceImpl, WorldServiceImpl,
+    CharacterService, CharacterServiceImpl, InteractionService, InteractionServiceImpl,
+    ItemService, ItemServiceImpl, LocationService, LocationServiceImpl, PlayerCharacterService,
+    PlayerCharacterServiceImpl, RelationshipService, RelationshipServiceImpl,
+    SceneResolutionServiceImpl, SceneService, SceneServiceImpl, SheetTemplateService, SkillService,
+    SkillServiceImpl, WorldService, WorldServiceImpl,
 };
 use wrldbldr_engine_ports::outbound::{
     // Repository ports (inputs)
@@ -147,68 +149,114 @@ pub struct CoreServiceDependencies {
     pub sheet_template_repo: Arc<dyn SheetTemplateRepositoryPort>,
 }
 
-/// Container for all core service port trait objects.
+/// Container for all core service trait objects (both port and app-layer versions).
 ///
-/// This struct holds `Arc<dyn *ServicePort>` for each core domain service,
-/// ready for injection into the composition layer's `CoreServices` struct
-/// or directly into use cases and handlers.
+/// This struct holds BOTH `Arc<dyn *ServicePort>` and `Arc<dyn *Service>` for each
+/// core domain service. Each pair points to the SAME underlying implementation,
+/// eliminating duplicate service instantiations.
+///
+/// # Architecture
+///
+/// Services are created once and cast to both trait types:
+/// - **Port traits** (`*ServicePort`): For composition layer (CoreServices, PlayerServices)
+/// - **App-layer traits** (`*Service`): For AppRequestHandler and internal use
 ///
 /// # Services Included
 ///
-/// - **world_service**: World management (create, update, delete worlds)
-/// - **character_service**: Character management with archetype tracking
-/// - **location_service**: Location hierarchy and connections
-/// - **scene_service**: Scene management and character assignment
-/// - **skill_service**: Skill management per world's rule system
-/// - **interaction_service**: Interaction templates for scenes
-/// - **relationship_service**: Character-to-character relationships
-/// - **item_service**: Item management and inventory operations
-/// - **player_character_service**: PC management for multiplayer sessions
-/// - **scene_resolution_service**: Determines active scene based on PC locations
-/// - **sheet_template_service**: Character sheet templates per world
+/// - **world**: World management (create, update, delete worlds)
+/// - **character**: Character management with archetype tracking
+/// - **location**: Location hierarchy and connections
+/// - **scene**: Scene management and character assignment
+/// - **skill**: Skill management per world's rule system
+/// - **interaction**: Interaction templates for scenes
+/// - **relationship**: Character-to-character relationships
+/// - **item**: Item management and inventory operations
+/// - **player_character**: PC management for multiplayer sessions
+/// - **scene_resolution**: Determines active scene based on PC locations
+/// - **sheet_template**: Character sheet templates per world
 ///
 /// # Example
 ///
 /// ```ignore
-/// let core_ports = create_core_services(deps);
+/// let core = create_core_services(deps);
 ///
-/// // Use in composition layer
+/// // Use port version in composition layer
 /// let composition_core = CoreServices::new(
-///     core_ports.world_service,
-///     core_ports.character_service,
+///     core.world_service_port.clone(),
+///     core.character_service_port.clone(),
+///     // ...
+/// );
+///
+/// // Use app-layer version in AppRequestHandler
+/// let handler = AppRequestHandler::new(
+///     core.world_service.clone(),
+///     core.character_service.clone(),
 ///     // ...
 /// );
 /// ```
 pub struct CoreServicePorts {
-    /// World management service
-    pub world_service: Arc<dyn WorldServicePort>,
-    /// Character management service
-    pub character_service: Arc<dyn CharacterServicePort>,
-    /// Location management service
-    pub location_service: Arc<dyn LocationServicePort>,
-    /// Scene management service
-    pub scene_service: Arc<dyn SceneServicePort>,
-    /// Skill management service
-    pub skill_service: Arc<dyn SkillServicePort>,
-    /// Interaction management service
-    pub interaction_service: Arc<dyn InteractionServicePort>,
-    /// Relationship management service
-    pub relationship_service: Arc<dyn RelationshipServicePort>,
-    /// Item management service
-    pub item_service: Arc<dyn ItemServicePort>,
-    /// Player character management service
-    pub player_character_service: Arc<dyn PlayerCharacterServicePort>,
-    /// Scene resolution service (determines which scene to show based on PC locations)
-    pub scene_resolution_service: Arc<dyn SceneResolutionServicePort>,
-    /// Sheet template management service
-    pub sheet_template_service: Arc<dyn SheetTemplateServicePort>,
+    // =========================================================================
+    // Port versions (for composition layer)
+    // =========================================================================
+    /// World management service (port)
+    pub world_service_port: Arc<dyn WorldServicePort>,
+    /// Character management service (port)
+    pub character_service_port: Arc<dyn CharacterServicePort>,
+    /// Location management service (port)
+    pub location_service_port: Arc<dyn LocationServicePort>,
+    /// Scene management service (port)
+    pub scene_service_port: Arc<dyn SceneServicePort>,
+    /// Skill management service (port)
+    pub skill_service_port: Arc<dyn SkillServicePort>,
+    /// Interaction management service (port)
+    pub interaction_service_port: Arc<dyn InteractionServicePort>,
+    /// Relationship management service (port)
+    pub relationship_service_port: Arc<dyn RelationshipServicePort>,
+    /// Item management service (port)
+    pub item_service_port: Arc<dyn ItemServicePort>,
+    /// Player character management service (port)
+    pub player_character_service_port: Arc<dyn PlayerCharacterServicePort>,
+    /// Scene resolution service (port)
+    pub scene_resolution_service_port: Arc<dyn SceneResolutionServicePort>,
+    /// Sheet template management service (port)
+    pub sheet_template_service_port: Arc<dyn SheetTemplateServicePort>,
+
+    // =========================================================================
+    // App-layer versions (for AppRequestHandler)
+    // =========================================================================
+    /// World management service (app-layer)
+    pub world_service: Arc<dyn WorldService>,
+    /// Character management service (app-layer)
+    pub character_service: Arc<dyn CharacterService>,
+    /// Location management service (app-layer)
+    pub location_service: Arc<dyn LocationService>,
+    /// Scene management service (app-layer)
+    pub scene_service: Arc<dyn SceneService>,
+    /// Skill management service (app-layer)
+    pub skill_service: Arc<dyn SkillService>,
+    /// Interaction management service (app-layer)
+    pub interaction_service: Arc<dyn InteractionService>,
+    /// Relationship management service (app-layer)
+    pub relationship_service: Arc<dyn RelationshipService>,
+    /// Item management service (app-layer)
+    pub item_service: Arc<dyn ItemService>,
+    /// Player character management service (app-layer)
+    pub player_character_service: Arc<dyn PlayerCharacterService>,
 }
 
 /// Creates all core domain services from their dependencies.
 ///
-/// This factory function constructs each service implementation with the
-/// required repository ports and shared dependencies, then casts each to
-/// its corresponding port trait object.
+/// This factory function constructs each service implementation ONCE, then casts
+/// each to BOTH its port trait and app-layer trait. This eliminates duplicate
+/// service instantiations while providing both trait versions for different use cases.
+///
+/// # Architecture
+///
+/// Each service impl implements both:
+/// - `*ServicePort` (outbound port trait for composition layer)
+/// - `*Service` (app-layer trait for handlers)
+///
+/// We create one Arc<Impl> and clone it for casting to both trait types.
 ///
 /// # Arguments
 ///
@@ -216,7 +264,7 @@ pub struct CoreServicePorts {
 ///
 /// # Returns
 ///
-/// A [`CoreServicePorts`] struct containing all service trait objects.
+/// A [`CoreServicePorts`] struct containing both port and app-layer trait objects.
 ///
 /// # Arc Cloning
 ///
@@ -228,33 +276,23 @@ pub struct CoreServicePorts {
 ///
 /// ```ignore
 /// let repos = create_repository_ports(&repository);
-/// let deps = CoreServiceDependencies {
-///     world_repo: repos.world.clone(),
-///     world_exporter: world_exporter.clone(),
-///     settings_service: settings_service.clone(),
-///     clock: clock.clone(),
-///     character_crud: repos.character.crud.clone(),
-///     character_want: repos.character.want.clone(),
-///     relationship_repo: repos.relationship.clone(),
-///     location_crud: repos.location.crud.clone(),
-///     location_hierarchy: repos.location.hierarchy.clone(),
-///     location_connection: repos.location.connection.clone(),
-///     location_map: repos.location.map.clone(),
-///     scene_repo: Arc::new(repository.scenes()),
-///     skill_repo: repos.skill.clone(),
-///     interaction_repo: repos.interaction.clone(),
-///     item_repo: repos.item.clone(),
-///     pc_repo: Arc::new(repository.player_characters()),
-///     region_item: repos.region.item.clone(),
-///     flag_repo: repos.flag.clone(),
-///     observation_repo: repos.observation.clone(),
-///     sheet_template_repo: repos.sheet_template.clone(),
-/// };
+/// let deps = CoreServiceDependencies { ... };
 ///
-/// let core_services = create_core_services(deps);
+/// let core = create_core_services(deps);
 ///
-/// // Use the services
-/// let world = core_services.world_service.get_world(world_id).await?;
+/// // Use port versions for composition layer
+/// let composition_core = CoreServices::new(
+///     core.world_service_port.clone(),
+///     core.character_service_port.clone(),
+///     // ...
+/// );
+///
+/// // Use app-layer versions for AppRequestHandler
+/// let handler = AppRequestHandler::new(
+///     core.world_service.clone(),
+///     core.character_service.clone(),
+///     // ...
+/// );
 /// ```
 pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
     // Clone shared dependencies that are used by multiple services
@@ -274,89 +312,112 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
     let scene_featured_character = deps.scene_featured_character;
     let scene_completion = deps.scene_completion;
 
-    // World Service
-    // Dependencies: WorldRepo, WorldExporter, SettingsService, Clock
-    let world_service_impl = WorldServiceImpl::new(
+    // =========================================================================
+    // World Service - single instance, cast to both traits
+    // =========================================================================
+    let world_service_impl = Arc::new(WorldServiceImpl::new(
         world_repo.clone(),
         deps.world_exporter,
         deps.settings_service.clone(),
         clock.clone(),
-    );
-    let world_service: Arc<dyn WorldServicePort> = Arc::new(world_service_impl);
+    ));
+    let world_service_port: Arc<dyn WorldServicePort> = world_service_impl.clone();
+    let world_service: Arc<dyn WorldService> = world_service_impl;
 
-    // Character Service
-    // Dependencies: WorldRepo, CharacterCrud, CharacterWant, RelationshipRepo, Settings, Clock
-    let character_service_impl = CharacterServiceImpl::new(
+    // =========================================================================
+    // Character Service - single instance, cast to both traits
+    // =========================================================================
+    let character_service_impl = Arc::new(CharacterServiceImpl::new(
         world_repo.clone(),
         character_crud.clone(),
         deps.character_want,
         deps.relationship_repo.clone(),
         deps.settings_service,
         clock.clone(),
-    );
-    let character_service: Arc<dyn CharacterServicePort> = Arc::new(character_service_impl);
+    ));
+    let character_service_port: Arc<dyn CharacterServicePort> = character_service_impl.clone();
+    let character_service: Arc<dyn CharacterService> = character_service_impl;
 
-    // Location Service
-    // Dependencies: WorldRepo, LocationCrud, LocationHierarchy, LocationConnection, LocationMap
-    let location_service_impl = LocationServiceImpl::new(
+    // =========================================================================
+    // Location Service - single instance, cast to both traits
+    // =========================================================================
+    let location_service_impl = Arc::new(LocationServiceImpl::new(
         world_repo.clone(),
         location_crud.clone(),
         deps.location_hierarchy,
         deps.location_connection,
         deps.location_map,
-    );
-    let location_service: Arc<dyn LocationServicePort> = Arc::new(location_service_impl);
+    ));
+    let location_service_port: Arc<dyn LocationServicePort> = location_service_impl.clone();
+    let location_service: Arc<dyn LocationService> = location_service_impl;
 
-    // Scene Service
-    // Dependencies: SceneCrud, SceneQuery, SceneLocation, SceneFeaturedCharacter, LocationCrud, CharacterCrud
-    let scene_service_impl = SceneServiceImpl::new(
+    // =========================================================================
+    // Scene Service - single instance, cast to both traits
+    // =========================================================================
+    let scene_service_impl = Arc::new(SceneServiceImpl::new(
         scene_crud,
         scene_query.clone(),
         scene_location,
         scene_featured_character,
         location_crud.clone(),
         character_crud,
-    );
-    let scene_service: Arc<dyn SceneServicePort> = Arc::new(scene_service_impl);
+    ));
+    let scene_service_port: Arc<dyn SceneServicePort> = scene_service_impl.clone();
+    let scene_service: Arc<dyn SceneService> = scene_service_impl;
 
-    // Skill Service
-    // Dependencies: SkillRepo, WorldRepo
-    let skill_service_impl = SkillServiceImpl::new(deps.skill_repo, world_repo.clone());
-    let skill_service: Arc<dyn SkillServicePort> = Arc::new(skill_service_impl);
+    // =========================================================================
+    // Skill Service - single instance, cast to both traits
+    // =========================================================================
+    let skill_service_impl = Arc::new(SkillServiceImpl::new(deps.skill_repo, world_repo.clone()));
+    let skill_service_port: Arc<dyn SkillServicePort> = skill_service_impl.clone();
+    let skill_service: Arc<dyn SkillService> = skill_service_impl;
 
-    // Interaction Service
-    // Dependencies: InteractionRepo
-    let interaction_service_impl = InteractionServiceImpl::new(deps.interaction_repo);
-    let interaction_service: Arc<dyn InteractionServicePort> = Arc::new(interaction_service_impl);
+    // =========================================================================
+    // Interaction Service - single instance, cast to both traits
+    // =========================================================================
+    let interaction_service_impl = Arc::new(InteractionServiceImpl::new(deps.interaction_repo));
+    let interaction_service_port: Arc<dyn InteractionServicePort> =
+        interaction_service_impl.clone();
+    let interaction_service: Arc<dyn InteractionService> = interaction_service_impl;
 
-    // Relationship Service
-    // Dependencies: RelationshipRepo
-    let relationship_service_impl = RelationshipServiceImpl::new(deps.relationship_repo);
-    let relationship_service: Arc<dyn RelationshipServicePort> =
-        Arc::new(relationship_service_impl);
+    // =========================================================================
+    // Relationship Service - single instance, cast to both traits
+    // =========================================================================
+    let relationship_service_impl = Arc::new(RelationshipServiceImpl::new(deps.relationship_repo));
+    let relationship_service_port: Arc<dyn RelationshipServicePort> =
+        relationship_service_impl.clone();
+    let relationship_service: Arc<dyn RelationshipService> = relationship_service_impl;
 
-    // Item Service
-    // Dependencies: ItemRepo, PCInventory, RegionItem
-    let item_service_impl =
-        ItemServiceImpl::new(deps.item_repo, pc_inventory.clone(), deps.region_item);
-    let item_service: Arc<dyn ItemServicePort> = Arc::new(item_service_impl);
+    // =========================================================================
+    // Item Service - single instance, cast to both traits
+    // =========================================================================
+    let item_service_impl = Arc::new(ItemServiceImpl::new(
+        deps.item_repo,
+        pc_inventory.clone(),
+        deps.region_item,
+    ));
+    let item_service_port: Arc<dyn ItemServicePort> = item_service_impl.clone();
+    let item_service: Arc<dyn ItemService> = item_service_impl;
 
-    // Player Character Service
-    // Dependencies: PC ISP (Crud, Query, Position), LocationCrud, WorldRepo, Clock
-    let player_character_service_impl = PlayerCharacterServiceImpl::new(
+    // =========================================================================
+    // Player Character Service - single instance, cast to both traits
+    // =========================================================================
+    let player_character_service_impl = Arc::new(PlayerCharacterServiceImpl::new(
         pc_crud.clone(),
         pc_query.clone(),
         pc_position,
         location_crud,
         world_repo,
         clock,
-    );
-    let player_character_service: Arc<dyn PlayerCharacterServicePort> =
-        Arc::new(player_character_service_impl);
+    ));
+    let player_character_service_port: Arc<dyn PlayerCharacterServicePort> =
+        player_character_service_impl.clone();
+    let player_character_service: Arc<dyn PlayerCharacterService> = player_character_service_impl;
 
-    // Scene Resolution Service
-    // Dependencies: PC ISP (Crud, Query, Inventory), SceneQuery, SceneCompletion, FlagRepo, ObservationRepo
-    let scene_resolution_service_impl = SceneResolutionServiceImpl::new(
+    // =========================================================================
+    // Scene Resolution Service - port only (no app-layer trait)
+    // =========================================================================
+    let scene_resolution_service_impl = Arc::new(SceneResolutionServiceImpl::new(
         pc_crud,
         pc_query,
         pc_inventory,
@@ -364,16 +425,31 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
         scene_completion,
         deps.flag_repo,
         deps.observation_repo,
-    );
-    let scene_resolution_service: Arc<dyn SceneResolutionServicePort> =
-        Arc::new(scene_resolution_service_impl);
+    ));
+    let scene_resolution_service_port: Arc<dyn SceneResolutionServicePort> =
+        scene_resolution_service_impl;
 
-    // Sheet Template Service
-    // Dependencies: SheetTemplateRepo
-    let sheet_template_service = Arc::new(SheetTemplateService::new(deps.sheet_template_repo));
-    let sheet_template_service: Arc<dyn SheetTemplateServicePort> = sheet_template_service;
+    // =========================================================================
+    // Sheet Template Service - port only (no app-layer trait)
+    // =========================================================================
+    let sheet_template_service_impl = Arc::new(SheetTemplateService::new(deps.sheet_template_repo));
+    let sheet_template_service_port: Arc<dyn SheetTemplateServicePort> =
+        sheet_template_service_impl;
 
     CoreServicePorts {
+        // Port versions
+        world_service_port,
+        character_service_port,
+        location_service_port,
+        scene_service_port,
+        skill_service_port,
+        interaction_service_port,
+        relationship_service_port,
+        item_service_port,
+        player_character_service_port,
+        scene_resolution_service_port,
+        sheet_template_service_port,
+        // App-layer versions
         world_service,
         character_service,
         location_service,
@@ -383,8 +459,6 @@ pub fn create_core_services(deps: CoreServiceDependencies) -> CoreServicePorts {
         relationship_service,
         item_service,
         player_character_service,
-        scene_resolution_service,
-        sheet_template_service,
     }
 }
 
@@ -456,17 +530,28 @@ mod tests {
     #[test]
     fn test_core_service_ports_fields() {
         fn _verify_ports(ports: &CoreServicePorts) {
-            let _: &Arc<dyn WorldServicePort> = &ports.world_service;
-            let _: &Arc<dyn CharacterServicePort> = &ports.character_service;
-            let _: &Arc<dyn LocationServicePort> = &ports.location_service;
-            let _: &Arc<dyn SceneServicePort> = &ports.scene_service;
-            let _: &Arc<dyn SkillServicePort> = &ports.skill_service;
-            let _: &Arc<dyn InteractionServicePort> = &ports.interaction_service;
-            let _: &Arc<dyn RelationshipServicePort> = &ports.relationship_service;
-            let _: &Arc<dyn ItemServicePort> = &ports.item_service;
-            let _: &Arc<dyn PlayerCharacterServicePort> = &ports.player_character_service;
-            let _: &Arc<dyn SceneResolutionServicePort> = &ports.scene_resolution_service;
-            let _: &Arc<dyn SheetTemplateServicePort> = &ports.sheet_template_service;
+            // Port versions
+            let _: &Arc<dyn WorldServicePort> = &ports.world_service_port;
+            let _: &Arc<dyn CharacterServicePort> = &ports.character_service_port;
+            let _: &Arc<dyn LocationServicePort> = &ports.location_service_port;
+            let _: &Arc<dyn SceneServicePort> = &ports.scene_service_port;
+            let _: &Arc<dyn SkillServicePort> = &ports.skill_service_port;
+            let _: &Arc<dyn InteractionServicePort> = &ports.interaction_service_port;
+            let _: &Arc<dyn RelationshipServicePort> = &ports.relationship_service_port;
+            let _: &Arc<dyn ItemServicePort> = &ports.item_service_port;
+            let _: &Arc<dyn PlayerCharacterServicePort> = &ports.player_character_service_port;
+            let _: &Arc<dyn SceneResolutionServicePort> = &ports.scene_resolution_service_port;
+            let _: &Arc<dyn SheetTemplateServicePort> = &ports.sheet_template_service_port;
+            // App-layer versions
+            let _: &Arc<dyn WorldService> = &ports.world_service;
+            let _: &Arc<dyn CharacterService> = &ports.character_service;
+            let _: &Arc<dyn LocationService> = &ports.location_service;
+            let _: &Arc<dyn SceneService> = &ports.scene_service;
+            let _: &Arc<dyn SkillService> = &ports.skill_service;
+            let _: &Arc<dyn InteractionService> = &ports.interaction_service;
+            let _: &Arc<dyn RelationshipService> = &ports.relationship_service;
+            let _: &Arc<dyn ItemService> = &ports.item_service;
+            let _: &Arc<dyn PlayerCharacterService> = &ports.player_character_service;
         }
 
         let _ = _verify_ports;

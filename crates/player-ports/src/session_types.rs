@@ -10,14 +10,19 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use wrldbldr_protocol::{
-    AdHocOutcomes as ProtoAdHocOutcomes, ApprovalDecision as ProtoApprovalDecision,
-    ApprovedNpcInfo as ProtoApprovedNpcInfo,
+    AdHocOutcomes as ProtoAdHocOutcomes, ApprovedNpcInfo as ProtoApprovedNpcInfo,
     ChallengeOutcomeDecisionData as ProtoChallengeOutcomeDecisionData,
     DiceInputType as ProtoDiceInputType, DirectorialContext as ProtoDirectorialContext,
     NpcMotivationData as ProtoNpcMotivationData, ParticipantRole as ProtoParticipantRole,
 };
+
+// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
+// Reason: ApprovalDecision is re-exported from protocol as the single source of truth
+// for wire-format types. This avoids duplication and ensures serialization consistency
+// between engine and player. The Unknown variant with #[serde(other)] provides forward
+// compatibility - callers should handle Unknown by converting to Reject at boundaries.
+pub use wrldbldr_protocol::ApprovalDecision;
 
 /// Role of a participant in a game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,34 +39,6 @@ pub enum DiceInput {
     Formula(String),
     /// Manual entry with result value
     Manual(i32),
-}
-
-/// DM's approval decision
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "decision")]
-pub enum ApprovalDecision {
-    /// Accept all proposed tools with default recipients
-    Accept,
-    /// Accept with item recipient selection
-    AcceptWithRecipients {
-        /// For give_item tools: maps tool_id -> recipient PC IDs
-        /// Empty list means "don't give this item"
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-    /// Accept with modifications to dialogue and/or tool selection
-    AcceptWithModification {
-        modified_dialogue: String,
-        approved_tools: Vec<String>,
-        rejected_tools: Vec<String>,
-        /// For give_item tools: maps tool_id -> recipient PC IDs
-        /// Empty list means "don't give this item"
-        #[serde(default)]
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-    /// Reject the proposal
-    Reject { feedback: String },
-    /// DM takes over the response
-    TakeOver { dm_response: String },
 }
 
 /// Directorial context for scene guidance
@@ -148,34 +125,6 @@ impl From<ProtoDiceInputType> for DiceInput {
     }
 }
 
-impl From<ProtoApprovalDecision> for ApprovalDecision {
-    fn from(proto: ProtoApprovalDecision) -> Self {
-        match proto {
-            ProtoApprovalDecision::Accept => Self::Accept,
-            ProtoApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                Self::AcceptWithRecipients { item_recipients }
-            }
-            ProtoApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            } => Self::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            },
-            ProtoApprovalDecision::Reject { feedback } => Self::Reject { feedback },
-            ProtoApprovalDecision::TakeOver { dm_response } => Self::TakeOver { dm_response },
-            // Unknown falls back to Reject with explanation
-            ProtoApprovalDecision::Unknown => Self::Reject {
-                feedback: "Unknown approval decision received".to_string(),
-            },
-        }
-    }
-}
-
 impl From<ProtoNpcMotivationData> for NpcMotivationData {
     fn from(proto: ProtoNpcMotivationData) -> Self {
         Self {
@@ -255,30 +204,6 @@ impl From<DiceInput> for ProtoDiceInputType {
         match local {
             DiceInput::Formula(formula) => Self::Formula(formula),
             DiceInput::Manual(value) => Self::Manual(value),
-        }
-    }
-}
-
-impl From<ApprovalDecision> for ProtoApprovalDecision {
-    fn from(local: ApprovalDecision) -> Self {
-        match local {
-            ApprovalDecision::Accept => Self::Accept,
-            ApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                Self::AcceptWithRecipients { item_recipients }
-            }
-            ApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            } => Self::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            },
-            ApprovalDecision::Reject { feedback } => Self::Reject { feedback },
-            ApprovalDecision::TakeOver { dm_response } => Self::TakeOver { dm_response },
         }
     }
 }
@@ -391,7 +316,10 @@ mod tests {
     }
 
     #[test]
-    fn test_approval_decision_roundtrip() {
+    fn test_approval_decision_serde_roundtrip() {
+        use std::collections::HashMap;
+
+        // Test that ApprovalDecision (re-exported from protocol) serializes/deserializes correctly
         let decisions = [
             ApprovalDecision::Accept,
             ApprovalDecision::AcceptWithRecipients {
@@ -412,21 +340,18 @@ mod tests {
         ];
 
         for decision in decisions {
-            let proto_decision: ProtoApprovalDecision = decision.clone().into();
-            let back: ApprovalDecision = proto_decision.into();
+            let json = serde_json::to_string(&decision).expect("serialize");
+            let back: ApprovalDecision = serde_json::from_str(&json).expect("deserialize");
             assert_eq!(decision, back);
         }
     }
 
     #[test]
-    fn test_approval_decision_unknown_fallback() {
-        let unknown: ApprovalDecision = ProtoApprovalDecision::Unknown.into();
-        match unknown {
-            ApprovalDecision::Reject { feedback } => {
-                assert!(feedback.contains("Unknown"));
-            }
-            _ => panic!("Expected Reject for unknown"),
-        }
+    fn test_approval_decision_unknown_deserialize() {
+        // Test that unknown decision variants deserialize to Unknown
+        let json = r#"{"decision":"FutureVariant","data":"something"}"#;
+        let decision: ApprovalDecision = serde_json::from_str(json).expect("deserialize");
+        assert_eq!(decision, ApprovalDecision::Unknown);
     }
 
     #[test]

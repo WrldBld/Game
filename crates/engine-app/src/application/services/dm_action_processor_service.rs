@@ -93,9 +93,9 @@ impl DmActionProcessorService {
                 request_id,
                 decision,
             } => {
-                // Convert domain DmApprovalDecision to engine-dto DmApprovalDecision
+                // Convert domain DmApprovalDecision to wire format (protocol::ApprovalDecision)
                 let dto_decision: wrldbldr_engine_ports::outbound::DmApprovalDecision =
-                    decision.clone().into();
+                    wrldbldr_engine_dto::domain_decision_to_wire(decision.clone());
                 self.process_approval_decision(world_id, request_id, dto_decision)
                     .await
             }

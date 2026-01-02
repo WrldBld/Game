@@ -29,11 +29,13 @@ pub use persistence::{
 pub use queue::{
     // Conversion functions between domain and protocol types
     challenge_suggestion_to_info,
+    domain_decision_to_wire,
     info_to_challenge_suggestion,
     info_to_narrative_event_suggestion,
     info_to_proposed_tool,
     narrative_event_suggestion_to_info,
     proposed_tool_to_info,
+    wire_decision_to_domain,
     AssetGenerationItem,
     ChallengeOutcomeApprovalItem,
     ChallengeSuggestionInfo,

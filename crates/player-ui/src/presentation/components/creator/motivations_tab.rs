@@ -469,6 +469,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
     let mut selected_target = use_signal(String::new);
     let mut reason = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
+    let mut action_error: Signal<Option<String>> = use_signal(|| None);
 
     let want = &props.want;
     let has_actors = !want.helpers.is_empty()
@@ -541,6 +542,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     Err(e) => {
                         is_saving.set(false);
                         tracing::error!("Failed to add actantial view: {:?}", e);
+                        action_error.set(Some(format!("Failed to add role: {}", e)));
                     }
                 }
             });
@@ -575,6 +577,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
                     }
                     Err(e) => {
                         tracing::error!("Failed to remove actantial view: {:?}", e);
+                        action_error.set(Some(format!("Failed to remove role: {}", e)));
                     }
                 }
             });
@@ -587,6 +590,15 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
     rsx! {
         div {
             class: "mb-3",
+
+            // Action error feedback
+            if let Some(ref err) = *action_error.read() {
+                div {
+                    class: "mb-2 px-3 py-2 bg-red-500/20 border border-red-500/50 rounded text-red-400 text-xs cursor-pointer",
+                    onclick: move |_| action_error.set(None),
+                    "{err}"
+                }
+            }
 
             // Header with add button
             div {

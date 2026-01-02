@@ -172,12 +172,15 @@ impl ApprovalState {
         }
 
         // Normalize outcome label
+        // Unknown variant is handled as "rejected" at the boundary (forward compatibility)
         let outcome_label = match decision {
             ApprovalDecision::Accept => "accepted",
             ApprovalDecision::AcceptWithRecipients { .. } => "accepted",
             ApprovalDecision::AcceptWithModification { .. } => "modified",
             ApprovalDecision::Reject { .. } => "rejected",
             ApprovalDecision::TakeOver { .. } => "takeover",
+            // Unknown handles forward compatibility for future enum variants
+            _ => "rejected",
         }
         .to_string();
 

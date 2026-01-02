@@ -363,41 +363,12 @@ pub struct EnhancedOutcomeDetail {
 // and NarrativeEventSuggestionInfo are re-exported from wrldbldr_protocol
 // at the top of this file. Protocol is the single source of truth.
 
-/// DM's decision on an approval request
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "decision")]
-pub enum DmApprovalDecision {
-    /// Accept as-is
-    Accept,
-
-    /// Accept with item distribution
-    AcceptWithRecipients {
-        /// For give_item tools: maps tool_id -> recipient PC IDs
-        /// Empty list means "don't give this item"
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-
-    /// Accept with modifications
-    AcceptWithModification {
-        modified_dialogue: String,
-        approved_tools: Vec<String>,
-        rejected_tools: Vec<String>,
-        /// For give_item tools: maps tool_id -> recipient PC IDs
-        /// Empty list means "don't give this item"
-        #[serde(default)]
-        item_recipients: HashMap<String, Vec<String>>,
-    },
-
-    /// Reject with feedback
-    Reject { feedback: String },
-
-    /// DM takes over response
-    TakeOver { dm_response: String },
-
-    /// Unknown decision type for forward compatibility
-    #[serde(other)]
-    Unknown,
-}
+// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
+// Reason: DmApprovalDecision is re-exported from protocol::ApprovalDecision as the
+// single source of truth for wire-format types. This avoids duplication and ensures
+// serialization consistency. The Unknown variant with #[serde(other)] provides forward
+// compatibility - conversion to domain types handles Unknown -> Reject mapping.
+pub use wrldbldr_protocol::ApprovalDecision as DmApprovalDecision;
 
 // ============================================================================
 // Outcome Trigger Types (needed by ChallengeOutcomeApprovalItem)
@@ -528,7 +499,7 @@ impl From<DmActionType> for DMAction {
                 decision,
             } => DMAction::ApprovalDecision {
                 request_id,
-                decision: decision.into(),
+                decision: domain_decision_to_wire(decision),
             },
             DmActionType::DirectNpcControl { npc_id, dialogue } => DMAction::DirectNPCControl {
                 npc_id: npc_id.to_string(),
@@ -550,7 +521,7 @@ impl From<DMAction> for DmActionType {
                 decision,
             } => DmActionType::ApprovalDecision {
                 request_id,
-                decision: decision.into(),
+                decision: wire_decision_to_domain(decision),
             },
             DMAction::DirectNPCControl { npc_id, dialogue } => DmActionType::DirectNpcControl {
                 npc_id: CharacterId::from(
@@ -571,66 +542,65 @@ impl From<DMAction> for DmActionType {
 }
 
 // ----------------------------------------------------------------------------
-// DmApprovalDecision (DTO) <-> DmApprovalDecision (domain)
+// DmApprovalDecision (wire) <-> DmApprovalDecision (domain) conversion functions
 // ----------------------------------------------------------------------------
+// NOTE: These are standalone functions rather than From impls due to orphan rules.
+// Both types are defined in external crates (protocol and domain), so we cannot
+// implement From<A> for B in engine-dto.
 
-impl From<DomainDmApprovalDecision> for DmApprovalDecision {
-    fn from(decision: DomainDmApprovalDecision) -> Self {
-        match decision {
-            DomainDmApprovalDecision::Accept => DmApprovalDecision::Accept,
-            DomainDmApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                DmApprovalDecision::AcceptWithRecipients { item_recipients }
-            }
-            DomainDmApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            } => DmApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            },
-            DomainDmApprovalDecision::Reject { feedback } => {
-                DmApprovalDecision::Reject { feedback }
-            }
-            DomainDmApprovalDecision::TakeOver { dm_response } => {
-                DmApprovalDecision::TakeOver { dm_response }
-            }
+/// Convert domain DmApprovalDecision to wire format (protocol::ApprovalDecision)
+pub fn domain_decision_to_wire(decision: DomainDmApprovalDecision) -> DmApprovalDecision {
+    match decision {
+        DomainDmApprovalDecision::Accept => DmApprovalDecision::Accept,
+        DomainDmApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            DmApprovalDecision::AcceptWithRecipients { item_recipients }
+        }
+        DomainDmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        } => DmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        },
+        DomainDmApprovalDecision::Reject { feedback } => DmApprovalDecision::Reject { feedback },
+        DomainDmApprovalDecision::TakeOver { dm_response } => {
+            DmApprovalDecision::TakeOver { dm_response }
         }
     }
 }
 
-impl From<DmApprovalDecision> for DomainDmApprovalDecision {
-    fn from(dto: DmApprovalDecision) -> Self {
-        match dto {
-            DmApprovalDecision::Accept => DomainDmApprovalDecision::Accept,
-            DmApprovalDecision::AcceptWithRecipients { item_recipients } => {
-                DomainDmApprovalDecision::AcceptWithRecipients { item_recipients }
-            }
-            DmApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            } => DomainDmApprovalDecision::AcceptWithModification {
-                modified_dialogue,
-                approved_tools,
-                rejected_tools,
-                item_recipients,
-            },
-            DmApprovalDecision::Reject { feedback } => {
-                DomainDmApprovalDecision::Reject { feedback }
-            }
-            DmApprovalDecision::TakeOver { dm_response } => {
-                DomainDmApprovalDecision::TakeOver { dm_response }
-            }
-            // Unknown decisions are rejected with feedback
-            DmApprovalDecision::Unknown => DomainDmApprovalDecision::Reject {
-                feedback: "Unknown decision type".to_string(),
-            },
+/// Convert wire format (protocol::ApprovalDecision) to domain DmApprovalDecision
+///
+/// Unknown variants are converted to Reject with explanatory feedback.
+pub fn wire_decision_to_domain(dto: DmApprovalDecision) -> DomainDmApprovalDecision {
+    match dto {
+        DmApprovalDecision::Accept => DomainDmApprovalDecision::Accept,
+        DmApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            DomainDmApprovalDecision::AcceptWithRecipients { item_recipients }
         }
+        DmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        } => DomainDmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        },
+        DmApprovalDecision::Reject { feedback } => DomainDmApprovalDecision::Reject { feedback },
+        DmApprovalDecision::TakeOver { dm_response } => {
+            DomainDmApprovalDecision::TakeOver { dm_response }
+        }
+        // Unknown decisions are rejected with feedback
+        DmApprovalDecision::Unknown => DomainDmApprovalDecision::Reject {
+            feedback: "Unknown decision type".to_string(),
+        },
     }
 }
 

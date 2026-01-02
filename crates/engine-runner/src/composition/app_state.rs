@@ -23,14 +23,12 @@ use wrldbldr_engine_app::application::services::generation_service::GenerationEv
 use wrldbldr_engine_app::application::services::{
     challenge_resolution_service::ChallengeResolutionService, staging_service::StagingService,
     ActantialContextServiceImpl, AssetGenerationQueueService, ChallengeApprovalEvent,
-    ChallengeOutcomeApprovalService, ChallengeServiceImpl, CharacterServiceImpl,
-    DMApprovalQueueService, DispositionServiceImpl, DmActionQueueService, EventChainServiceImpl,
-    EventEffectExecutor, InteractionServiceImpl, ItemServiceImpl, LLMQueueService,
-    LocationServiceImpl, NarrativeEventApprovalService, NarrativeEventServiceImpl,
+    ChallengeOutcomeApprovalService, ChallengeServiceImpl, DMApprovalQueueService,
+    DispositionServiceImpl, DmActionQueueService, EventChainServiceImpl, EventEffectExecutor,
+    ItemServiceImpl, LLMQueueService, NarrativeEventApprovalService, NarrativeEventServiceImpl,
     OutcomeTriggerService, PlayerActionQueueService, PlayerCharacterServiceImpl,
-    PromptContextServiceImpl, RegionServiceImpl, RelationshipServiceImpl, SceneServiceImpl,
-    SheetTemplateService, SkillServiceImpl, StoryEventServiceImpl, TriggerEvaluationService,
-    WorldServiceImpl,
+    PromptContextServiceImpl, RegionServiceImpl, SheetTemplateService, SkillServiceImpl,
+    StoryEventServiceImpl, TriggerEvaluationService,
 };
 
 // Import composition layer types
@@ -292,75 +290,35 @@ pub async fn new_app_state(
     });
 
     // Extract port traits for use in composition layer and adapters
-    let world_service_port = core_service_ports.world_service;
-    let character_service_port = core_service_ports.character_service;
-    let location_service_port = core_service_ports.location_service;
-    let scene_service_port = core_service_ports.scene_service;
-    let skill_service_port = core_service_ports.skill_service;
-    let interaction_service_port = core_service_ports.interaction_service;
-    let relationship_service_port = core_service_ports.relationship_service;
-    let item_service_port = core_service_ports.item_service;
-    let player_character_service_port = core_service_ports.player_character_service;
-    let scene_resolution_service_port = core_service_ports.scene_resolution_service;
-    let sheet_template_service_port = core_service_ports.sheet_template_service;
+    let world_service_port = core_service_ports.world_service_port;
+    let character_service_port = core_service_ports.character_service_port;
+    let location_service_port = core_service_ports.location_service_port;
+    let scene_service_port = core_service_ports.scene_service_port;
+    let skill_service_port = core_service_ports.skill_service_port;
+    let interaction_service_port = core_service_ports.interaction_service_port;
+    let relationship_service_port = core_service_ports.relationship_service_port;
+    let item_service_port = core_service_ports.item_service_port;
+    let player_character_service_port = core_service_ports.player_character_service_port;
+    let scene_resolution_service_port = core_service_ports.scene_resolution_service_port;
+    let sheet_template_service_port = core_service_ports.sheet_template_service_port;
+
+    // Extract app-layer traits for use in AppRequestHandler
+    // These point to the SAME instances as the port traits (no duplication)
+    let world_service = core_service_ports.world_service;
+    let character_service = core_service_ports.character_service;
+    let location_service = core_service_ports.location_service;
+    let scene_service = core_service_ports.scene_service;
+    let skill_service = core_service_ports.skill_service;
+    let interaction_service = core_service_ports.interaction_service;
+    let relationship_service = core_service_ports.relationship_service;
+    let item_service = core_service_ports.item_service;
+    let player_character_service = core_service_ports.player_character_service;
 
     // AppRequestHandler needs Arc<SheetTemplateService> (concrete type), not trait object
     let sheet_template_service = Arc::new(SheetTemplateService::new(sheet_template_repo));
 
-    // ===========================================================================
-    // App-layer service traits (for AppRequestHandler)
-    // ===========================================================================
-    // AppRequestHandler uses app-layer traits (Arc<dyn WorldService>, etc.) which have
-    // a fuller interface than the port traits. We create these separately.
-    let world_service: Arc<dyn wrldbldr_engine_app::application::services::WorldService> =
-        Arc::new(WorldServiceImpl::new(
-            world_repo.clone(),
-            world_exporter.clone(),
-            settings_service.clone(),
-            clock.clone(),
-        ));
-
-    let character_service: Arc<dyn wrldbldr_engine_app::application::services::CharacterService> =
-        Arc::new(CharacterServiceImpl::new(
-            world_repo.clone(),
-            character_crud.clone(),
-            character_want.clone(),
-            relationship_repo.clone(),
-            settings_service.clone(),
-            clock.clone(),
-        ));
-
-    let location_service: Arc<dyn wrldbldr_engine_app::application::services::LocationService> =
-        Arc::new(LocationServiceImpl::new(
-            world_repo.clone(),
-            location_crud.clone(),
-            location_hierarchy.clone(),
-            location_connection.clone(),
-            location_map.clone(),
-        ));
-
+    // Keep relationship_repo for effects (EventEffectExecutor needs it)
     let relationship_repo_for_effects = relationship_repo.clone();
-    let relationship_service: Arc<
-        dyn wrldbldr_engine_app::application::services::RelationshipService,
-    > = Arc::new(RelationshipServiceImpl::new(relationship_repo));
-
-    let scene_service: Arc<dyn wrldbldr_engine_app::application::services::SceneService> =
-        Arc::new(SceneServiceImpl::new(
-            scene_crud.clone(),
-            scene_query.clone(),
-            scene_location.clone(),
-            scene_featured_character.clone(),
-            location_crud.clone(),
-            character_crud.clone(),
-        ));
-
-    let skill_service: Arc<dyn wrldbldr_engine_app::application::services::SkillService> = Arc::new(
-        SkillServiceImpl::new(skill_repo.clone(), world_repo.clone()),
-    );
-
-    let interaction_service: Arc<
-        dyn wrldbldr_engine_app::application::services::InteractionService,
-    > = Arc::new(InteractionServiceImpl::new(interaction_repo.clone()));
 
     // StoryEvent ISP ports needed for services (will be used after event_bus is created)
     let story_event_crud_for_service = story_event_crud.clone();
@@ -417,27 +375,14 @@ pub async fn new_app_state(
 
     // Note: Asset services are created later using the asset_services factory (after event_infra)
 
-    // Item service - app-layer trait for AppRequestHandler, port comes from factory
-    let item_service: Arc<dyn wrldbldr_engine_app::application::services::ItemService> = Arc::new(
-        ItemServiceImpl::new(item_repo.clone(), pc_inventory.clone(), region_item.clone()),
-    );
+    // Item service and Player character service now come from core_service_ports - NO DUPLICATION!
 
     let pc_crud_for_triggers = pc_crud.clone();
     let pc_crud_for_actantial = pc_crud.clone();
     let pc_crud_for_handler = pc_crud.clone();
 
-    // Player character service - app-layer trait for AppRequestHandler, port comes from factory
-    let player_character_service: Arc<
-        dyn wrldbldr_engine_app::application::services::PlayerCharacterService,
-    > = Arc::new(PlayerCharacterServiceImpl::new(
-        pc_crud.clone(),
-        pc_query.clone(),
-        pc_position.clone(),
-        location_crud.clone(),
-        world_repo.clone(),
-        clock.clone(),
-    ));
-    // Keep concrete version for ChallengeResolutionService generics
+    // Keep concrete versions for ChallengeResolutionService generics
+    // TODO(Phase 2A.3): Refactor ChallengeResolutionService to use port traits instead
     let player_character_service_impl = PlayerCharacterServiceImpl::new(
         pc_crud.clone(),
         pc_query.clone(),
@@ -446,8 +391,6 @@ pub async fn new_app_state(
         world_repo.clone(),
         clock.clone(),
     );
-
-    // Keep concrete skill service for ChallengeResolutionService generics
     let skill_service_impl = SkillServiceImpl::new(skill_repo.clone(), world_repo.clone());
 
     // Clone for request handler

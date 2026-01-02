@@ -11,11 +11,11 @@ This is the consolidated plan addressing all architectural issues identified in 
 
 | Track | Completed | Remaining | Next Priority |
 |-------|-----------|-----------|---------------|
-| A: Engine Domain/DTOs | 2/3 | 1 | 1B (DTO Consolidation) |
-| B: Composition/Ports | 3/4 | 1 | 2A (Composition Root Refactor) |
-| C: Player/Docs | 2/3 | 1 | 3B (UI Error Feedback Audit) |
+| A: Engine Domain/DTOs | 3/3 | 0 | **COMPLETE** |
+| B: Composition/Ports | 3/4 | 1 | 2A.2 (Game Services Factory) |
+| C: Player/Docs | 3/3 | 0 | **COMPLETE** |
 | D: Code Quality | 3/3 | 0 | **COMPLETE** |
-| **Total** | **10/13** | **3** | |
+| **Total** | **12/13** | **1** | |
 
 ### Completed Phases
 
@@ -30,7 +30,10 @@ This is the consolidated plan addressing all architectural issues identified in 
 | 4B | Remove blanket impl (SceneError already existed) | `93837bc` | 2026-01-02 |
 | 2B | Port naming corrections (6 files renamed) | `ec6f463` | 2026-01-02 |
 | 2D | Document protocol exceptions | `ec6f463` | 2026-01-02 |
-| 3C | Documentation updates (AGENTS.md) | TBD | 2026-01-02 |
+| 3C | Documentation updates (AGENTS.md) | `6ec166f` | 2026-01-02 |
+| 1B | DTO Consolidation (ApprovalDecision) | TBD | 2026-01-02 |
+| 2A.1 | Core services dual-trait pattern | TBD | 2026-01-02 |
+| 3B | UI Error Feedback Audit | TBD | 2026-01-02 |
 
 ---
 
@@ -466,36 +469,42 @@ When this plan is complete, all of the following will be true:
 
 ## Phase Overview
 
-### Parallel Track A: Engine Domain/DTOs (HIGH PRIORITY)
+### Parallel Track A: Engine Domain/DTOs (HIGH PRIORITY) - **COMPLETE**
 
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
 | 1A | Queue Type Architecture (REDESIGNED) | Small | None | **DONE** |
-| 1B | DTO Consolidation (ApprovalDecision) | Medium | None | Pending |
+| 1B | DTO Consolidation (ApprovalDecision) | Medium | None | **DONE** |
 | 1C | Fix Utc::now() in App DTO | Small | None | **DONE** |
 
 **Note on 1A**: Original plan to move queue types from domain to engine-ports was **CANCELLED** after analysis (see Phase 1A below for full rationale). Queue payloads are domain value objects per `queue-system.md`. The partial migration that created `engine-ports/outbound/queue_types.rs` has been reverted.
+**Note on 1B**: **COMPLETED 2026-01-02**: Consolidated ApprovalDecision types using three-type model. `player-ports` and `engine-dto` now re-export from `protocol`. Domain keeps its own type. ~100 lines removed.
 
 ### Parallel Track B: Composition/Ports (HIGH PRIORITY)
 
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
-| 2A | Composition Root Refactor | Large | None | Pending |
+| 2A.1 | Core Services Dual-Trait Pattern | Medium | None | **DONE** |
+| 2A.2 | Game Services Factory | Medium | 2A.1 | Pending |
 | 2B | Port Naming Corrections | Small | None | **DONE** |
 | 2C | Fix player_events.rs Docstring | Small | None | **DONE** |
 | 2D | Document Protocol Exceptions | Small | None | **DONE** |
 
+**Note on 2A.1**: **COMPLETED 2026-01-02**: Extended `CoreServicePorts` to return both `*ServicePort` and `*Service` trait versions from single instances. Eliminates 9 duplicate service instantiations. `app_state.rs` reduced from 977 to 934 lines.
+**Note on 2A.2**: Will extract ChallengeService, NarrativeEventService, EventChainService creation to `game_services.rs` factory.
 **Note on 2B**: ~~Rename ports_*.rs files to *_port_adapters.rs pattern.~~ **COMPLETED 2026-01-02**: Renamed 6 files. Trait rename (StoryEventQueryServicePort → StoryEventQueryPort) skipped due to name collision with existing StoryEventQueryPort repository trait.
 **Note on 2C**: ~~Validation confirmed `player_events.rs` is **correctly placed** in `outbound/`. The file's docstring incorrectly claims it's in `inbound/`. Fix is to correct the docstring, not move the file.~~ **COMPLETED 2026-01-01**: Docstring updated to correctly describe outbound placement.
 **Note on 2D**: **COMPLETED 2026-01-02**: Added ARCHITECTURE EXCEPTION documentation to dm_approval_queue_service_port.rs and mod.rs protocol imports.
 
-### Parallel Track C: Player/Docs (MEDIUM PRIORITY)
+### Parallel Track C: Player/Docs (MEDIUM PRIORITY) - **COMPLETE**
 
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
 | 3A | Remove Duplicate Dice Parsing | Small | None | **DONE** |
-| 3B | UI Error Feedback Audit | Medium | None | Pending |
+| 3B | UI Error Feedback Audit | Medium | None | **DONE** |
 | 3C | Documentation Updates | Small | 1A, 2B | **DONE** |
+
+**Note on 3B**: **COMPLETED 2026-01-02**: Added error feedback to pc_view.rs (18 actions), generation_queue.rs (6 actions), motivations_tab.rs (3 actions). Uses established `error: Signal<Option<String>>` pattern.
 
 **Note on 3A**: ~~Domain already has complete `DiceFormula` implementation. UI has duplicate with bugs (allows d1, no shorthand). Fix is to use domain directly, not create new service.~~ **COMPLETED 2026-01-01**: UI now imports `DiceFormula` from domain. Exported `DiceFormula` and `DiceRollResult` from `domain/value_objects`. Removed buggy local regex parser.
 
