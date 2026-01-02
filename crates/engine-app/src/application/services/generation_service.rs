@@ -269,6 +269,31 @@ impl GenerationService {
                             // Continue trying to queue remaining prompts.
                             continue;
                         }
+                        BatchQueueFailurePolicy::Unknown => {
+                            // Treat unknown as the safe default.
+                            let status = BatchStatus::Failed {
+                                error: error.clone(),
+                            };
+                            self.repository
+                                .update_batch_status(batch_id, &status)
+                                .await?;
+                            self.active_batches.remove(batch_id).await;
+
+                            if let Err(send_err) =
+                                self.event_sender.try_send(GenerationEvent::BatchFailed {
+                                    batch_id,
+                                    world_id: batch.world_id,
+                                    entity_type: batch.entity_type,
+                                    entity_id: batch.entity_id.clone(),
+                                    asset_type: batch.asset_type,
+                                    error,
+                                })
+                            {
+                                tracing::warn!("Failed to send BatchFailed event: {}", send_err);
+                            }
+
+                            return Ok(());
+                        }
                     }
                 }
             }

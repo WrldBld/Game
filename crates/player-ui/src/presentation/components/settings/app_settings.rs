@@ -162,6 +162,7 @@ pub fn AppSettingsPanel() -> Element {
                             value: match settings.read().batch_queue_failure_policy {
                                 BatchQueueFailurePolicy::AllOrNothing => "all_or_nothing".to_string(),
                                 BatchQueueFailurePolicy::BestEffort => "best_effort".to_string(),
+                                BatchQueueFailurePolicy::Unknown => "all_or_nothing".to_string(),
                             },
                             options: vec![
                                 ("all_or_nothing", "All-or-nothing"),

@@ -1,8 +1,18 @@
-# Hexagonal Architecture Refactor — Master Plan (Source of Truth)
+# Hexagonal Architecture Refactor — Master Plan (DEPRECATED)
 
-**Status**: ACTIVE (authoritative refactor plan)
+**Status**: DEPRECATED - Superseded by `ARCHITECTURE_REMEDIATION_MASTER_PLAN.md`
 
-This is the single, consolidated plan to reach the **idealized hexagonal architecture** defined in:
+> **Note**: This plan's core objectives (Phases 1-7) have been largely completed.
+> Remaining work and new issues identified in the comprehensive code review are
+> now tracked in [`ARCHITECTURE_REMEDIATION_MASTER_PLAN.md`](./ARCHITECTURE_REMEDIATION_MASTER_PLAN.md).
+>
+> This file is retained for historical reference of completed work.
+
+---
+
+## Historical Context
+
+This was the single, consolidated plan to reach the **idealized hexagonal architecture** defined in:
 
 - `docs/architecture/hexagonal-architecture.md` (**Hexagonal Architecture (Target)**)
 

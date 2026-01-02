@@ -27,6 +27,10 @@ pub enum BatchQueueFailurePolicy {
     AllOrNothing,
     /// Continue queueing remaining prompts; fail only if none queued successfully.
     BestEffort,
+
+    /// Forward-compatibility fallback for newer variants.
+    #[serde(other)]
+    Unknown,
 }
 
 fn default_batch_queue_failure_policy() -> BatchQueueFailurePolicy {
@@ -38,6 +42,7 @@ impl std::fmt::Display for BatchQueueFailurePolicy {
         match self {
             BatchQueueFailurePolicy::AllOrNothing => write!(f, "all_or_nothing"),
             BatchQueueFailurePolicy::BestEffort => write!(f, "best_effort"),
+            BatchQueueFailurePolicy::Unknown => write!(f, "unknown"),
         }
     }
 }

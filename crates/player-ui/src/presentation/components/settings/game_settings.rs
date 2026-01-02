@@ -235,6 +235,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
                             value: match settings.read().batch_queue_failure_policy {
                                 BatchQueueFailurePolicy::AllOrNothing => "all_or_nothing",
                                 BatchQueueFailurePolicy::BestEffort => "best_effort",
+                                BatchQueueFailurePolicy::Unknown => "all_or_nothing",
                             },
                             options: vec![
                                 ("all_or_nothing", "All-or-nothing"),
