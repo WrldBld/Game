@@ -7,7 +7,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 // Re-export wire-format types from protocol (single source of truth)
@@ -16,78 +15,9 @@ pub use wrldbldr_protocol::{
     ProposedToolInfo,
 };
 
-pub(crate) type QueueItemId = Uuid;
-
-// ============================================================================
-// Generic Queue Infrastructure Types
-// ============================================================================
-
-/// Generic queue item with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct QueueItem<T> {
-    pub id: QueueItemId,
-    pub payload: T,
-    pub status: QueueItemStatus,
-    pub priority: u8,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub scheduled_at: Option<DateTime<Utc>>,
-    pub attempts: u32,
-    pub max_attempts: u32,
-    pub error_message: Option<String>,
-    pub metadata: HashMap<String, String>,
-}
-
-impl<T> QueueItem<T> {
-    pub fn new(payload: T, priority: u8) -> Self {
-        let now = Utc::now();
-        Self {
-            id: Uuid::new_v4(),
-            payload,
-            status: QueueItemStatus::Pending,
-            priority,
-            created_at: now,
-            updated_at: now,
-            scheduled_at: None,
-            attempts: 0,
-            max_attempts: 3,
-            error_message: None,
-            metadata: HashMap::new(),
-        }
-    }
-}
-
-/// Status of a queue item
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum QueueItemStatus {
-    Pending,
-    Processing,
-    Completed,
-    Failed,
-    Delayed,
-    Expired,
-    #[serde(other)]
-    Unknown,
-}
-
-impl QueueItemStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            QueueItemStatus::Pending => "pending",
-            QueueItemStatus::Processing => "processing",
-            QueueItemStatus::Completed => "completed",
-            QueueItemStatus::Failed => "failed",
-            QueueItemStatus::Delayed => "delayed",
-            QueueItemStatus::Expired => "expired",
-            QueueItemStatus::Unknown => "unknown",
-        }
-    }
-}
-
-// NOTE: QueueError is defined in wrldbldr_engine_ports::outbound::queue_port
-// and should be imported from there. This avoids duplication and keeps
-// error types with their port definitions.
+// NOTE: Generic queue infrastructure types (QueueItem<T>, QueueItemStatus, QueueError)
+// are defined in wrldbldr_engine_ports::outbound::queue_port as the single source of truth.
+// Queue payload DTOs below are serialization types for specific queue backends.
 
 // ============================================================================
 // Queue Payload DTOs
@@ -180,49 +110,6 @@ pub struct AssetGenerationItem {
     pub count: u32,
 }
 
-/// Decision awaiting DM approval
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ApprovalItem {
-    pub world_id: Uuid,
-    pub source_action_id: Uuid,
-    pub decision_type: DecisionType,
-    pub urgency: DecisionUrgency,
-    /// Player character ID for SPOKE_TO edge creation
-    #[serde(default)]
-    pub pc_id: Option<Uuid>,
-    /// NPC character ID for story event recording
-    #[serde(default)]
-    pub npc_id: Option<String>,
-    pub npc_name: String,
-    pub proposed_dialogue: String,
-    pub internal_reasoning: String,
-    pub proposed_tools: Vec<ProposedToolInfo>,
-    pub retry_count: u32,
-    /// Optional challenge suggestion from LLM
-    #[serde(default)]
-    pub challenge_suggestion: Option<ChallengeSuggestionInfo>,
-    /// Optional narrative event suggestion from LLM
-    #[serde(default)]
-    pub narrative_event_suggestion: Option<NarrativeEventSuggestionInfo>,
-
-    // Context for dialogue persistence
-    /// Player's dialogue text (from the original action)
-    #[serde(default)]
-    pub player_dialogue: Option<String>,
-    /// Scene ID where dialogue occurred (UUID string)
-    #[serde(default)]
-    pub scene_id: Option<String>,
-    /// Location ID where dialogue occurred (UUID string)
-    #[serde(default)]
-    pub location_id: Option<String>,
-    /// Game time when dialogue occurred (display string)
-    #[serde(default)]
-    pub game_time: Option<String>,
-    /// Topics discussed in this dialogue (extracted by LLM)
-    #[serde(default)]
-    pub topics: Vec<String>,
-}
-
 /// Challenge outcome awaiting DM approval (P3.3)
 ///
 /// After a player rolls, the outcome is queued here for DM review.
@@ -303,59 +190,6 @@ pub enum DecisionUrgency {
 }
 
 // ============================================================================
-// Enhanced Challenge Suggestion Types
-// ============================================================================
-
-/// Enhanced challenge suggestion with detailed outcomes and tool receipts
-///
-/// This structure allows the LLM to suggest a skill challenge with
-/// pre-defined outcomes for each result tier, including proposed tool calls.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EnhancedChallengeSuggestion {
-    /// Optional reference to a predefined challenge (None for ad-hoc)
-    pub challenge_id: Option<String>,
-    /// Name of the challenge (e.g., "Persuasion Check", "Stealth Attempt")
-    pub challenge_name: String,
-    /// The skill being tested (e.g., "Persuasion", "Stealth", "Athletics")
-    pub skill_name: String,
-    /// Difficulty display (e.g., "DC 15", "Moderate", "70%")
-    pub difficulty_display: String,
-    /// What the NPC says before the challenge
-    pub npc_reply: String,
-    /// Detailed outcomes for each result tier
-    pub outcomes: EnhancedOutcomes,
-    /// Internal LLM reasoning (shown to DM only)
-    pub reasoning: String,
-}
-
-/// Outcomes for each challenge result tier
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EnhancedOutcomes {
-    /// Outcome for natural 20 or exceptional success (optional)
-    #[serde(default)]
-    pub critical_success: Option<EnhancedOutcomeDetail>,
-    /// Outcome for meeting or exceeding the DC
-    pub success: EnhancedOutcomeDetail,
-    /// Outcome for failing to meet the DC
-    pub failure: EnhancedOutcomeDetail,
-    /// Outcome for natural 1 or catastrophic failure (optional)
-    #[serde(default)]
-    pub critical_failure: Option<EnhancedOutcomeDetail>,
-}
-
-/// Detailed outcome information including narrative and tool calls
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EnhancedOutcomeDetail {
-    /// Narrative flavor text describing what happens
-    pub flavor_text: String,
-    /// Scene direction (what actions/changes occur)
-    pub scene_direction: String,
-    /// Tool calls that would be executed for this outcome
-    #[serde(default)]
-    pub proposed_tools: Vec<ProposedToolInfo>,
-}
-
-// ============================================================================
 // Approval-related Types (needed by queue items)
 // ============================================================================
 
@@ -420,14 +254,14 @@ impl Default for SuggestionContext {
 // ============================================================================
 
 use wrldbldr_domain::value_objects::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency as DomainApprovalUrgency,
-    AssetGenerationData, ChallengeOutcomeData, ChallengeSuggestion,
+    ApprovalDecisionType, ApprovalUrgency as DomainApprovalUrgency, AssetGenerationData,
+    ChallengeOutcomeData, ChallengeSuggestion,
     ChallengeSuggestionOutcomes as DomainChallengeSuggestionOutcomes, DmActionData, DmActionType,
     DmApprovalDecision as DomainDmApprovalDecision, LlmRequestData,
     LlmRequestType as DomainLlmRequestType, NarrativeEventSuggestion, PlayerActionData,
     ProposedTool, SuggestionContext as DomainSuggestionContext,
 };
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, SceneId, WorldId};
 
 // ----------------------------------------------------------------------------
 // PlayerActionItem <-> PlayerActionData
@@ -706,81 +540,6 @@ impl From<SuggestionContext> for DomainSuggestionContext {
                 .world_id
                 .and_then(|s| Uuid::parse_str(&s).ok())
                 .map(WorldId::from),
-        }
-    }
-}
-
-// ----------------------------------------------------------------------------
-// ApprovalItem <-> ApprovalRequestData
-// ----------------------------------------------------------------------------
-
-impl From<ApprovalRequestData> for ApprovalItem {
-    fn from(data: ApprovalRequestData) -> Self {
-        Self {
-            world_id: data.world_id.into(),
-            source_action_id: data.source_action_id,
-            decision_type: data.decision_type.into(),
-            urgency: data.urgency.into(),
-            pc_id: data.pc_id.map(Into::into),
-            npc_id: data.npc_id.map(|id| id.to_string()),
-            npc_name: data.npc_name,
-            proposed_dialogue: data.proposed_dialogue,
-            internal_reasoning: data.internal_reasoning,
-            proposed_tools: data
-                .proposed_tools
-                .into_iter()
-                .map(proposed_tool_to_info)
-                .collect(),
-            retry_count: data.retry_count,
-            challenge_suggestion: data.challenge_suggestion.map(challenge_suggestion_to_info),
-            narrative_event_suggestion: data
-                .narrative_event_suggestion
-                .map(narrative_event_suggestion_to_info),
-            player_dialogue: data.player_dialogue,
-            scene_id: data.scene_id.map(|id| id.to_string()),
-            location_id: data.location_id.map(|id| id.to_string()),
-            game_time: data.game_time,
-            topics: data.topics,
-        }
-    }
-}
-
-impl From<ApprovalItem> for ApprovalRequestData {
-    fn from(dto: ApprovalItem) -> Self {
-        Self {
-            world_id: WorldId::from(dto.world_id),
-            source_action_id: dto.source_action_id,
-            decision_type: dto.decision_type.into(),
-            urgency: dto.urgency.into(),
-            pc_id: dto.pc_id.map(PlayerCharacterId::from),
-            npc_id: dto
-                .npc_id
-                .and_then(|s| Uuid::parse_str(&s).ok())
-                .map(CharacterId::from),
-            npc_name: dto.npc_name,
-            proposed_dialogue: dto.proposed_dialogue,
-            internal_reasoning: dto.internal_reasoning,
-            proposed_tools: dto
-                .proposed_tools
-                .into_iter()
-                .map(info_to_proposed_tool)
-                .collect(),
-            retry_count: dto.retry_count,
-            challenge_suggestion: dto.challenge_suggestion.map(info_to_challenge_suggestion),
-            narrative_event_suggestion: dto
-                .narrative_event_suggestion
-                .map(info_to_narrative_event_suggestion),
-            player_dialogue: dto.player_dialogue,
-            scene_id: dto
-                .scene_id
-                .and_then(|s| Uuid::parse_str(&s).ok())
-                .map(SceneId::from),
-            location_id: dto
-                .location_id
-                .and_then(|s| Uuid::parse_str(&s).ok())
-                .map(LocationId::from),
-            game_time: dto.game_time,
-            topics: dto.topics,
         }
     }
 }

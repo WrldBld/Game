@@ -45,8 +45,6 @@ pub use queue::{
     DecisionType,
     DecisionUrgency,
     DmApprovalDecision,
-    EnhancedChallengeSuggestion,
-    EnhancedOutcomes,
     LLMRequestItem,
     LLMRequestType,
     NarrativeEventSuggestionInfo,

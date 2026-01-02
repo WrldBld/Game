@@ -15,94 +15,12 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::value_objects::ChallengeOutcomeData;
 use wrldbldr_domain::WorldId;
 
 // Re-export OutcomeDecision from engine-ports use_case_types
 pub use wrldbldr_engine_ports::outbound::OutcomeDecision;
-
-/// Result of a challenge approval operation
-#[derive(Debug, Clone)]
-pub enum ChallengeApprovalResult {
-    /// Item queued for DM approval
-    Queued {
-        /// Resolution ID for tracking
-        resolution_id: String,
-    },
-    /// Challenge resolved (approved by DM)
-    Resolved {
-        /// Challenge ID
-        challenge_id: String,
-        /// Outcome details
-        outcome: ResolvedOutcome,
-        /// State changes applied
-        state_changes: Vec<StateChangeInfo>,
-    },
-    /// LLM suggestions ready
-    SuggestionsReady {
-        /// Resolution ID
-        resolution_id: String,
-        /// Generated suggestions
-        suggestions: Vec<String>,
-    },
-    /// Outcome branches ready for selection
-    BranchesReady {
-        /// Resolution ID
-        resolution_id: String,
-        /// Available branches
-        branches: Vec<OutcomeBranchInfo>,
-    },
-}
-
-/// Resolved outcome details
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResolvedOutcome {
-    /// Type of outcome (success, failure, critical, etc.)
-    pub outcome_type: String,
-    /// Description of the outcome
-    pub outcome_description: String,
-    /// Raw roll value
-    pub roll: i32,
-    /// Modifier applied
-    pub modifier: i32,
-    /// Total result
-    pub total: i32,
-    /// Roll breakdown string
-    pub roll_breakdown: Option<String>,
-    /// Individual dice results
-    pub individual_rolls: Option<Vec<i32>>,
-    /// Challenge name
-    pub challenge_name: String,
-    /// Character name who rolled
-    pub character_name: String,
-}
-
-/// Outcome branch for DM selection
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OutcomeBranchInfo {
-    /// Unique branch ID
-    pub branch_id: String,
-    /// Branch title
-    pub title: String,
-    /// Branch description
-    pub description: String,
-    /// Effects this branch would apply
-    pub effects: Vec<String>,
-}
-
-/// State change information from trigger execution
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StateChangeInfo {
-    /// Type of state change
-    pub change_type: String,
-    /// Description of the change
-    pub description: String,
-}
 
 /// Port for challenge outcome approval service operations
 ///
