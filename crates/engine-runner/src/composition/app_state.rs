@@ -43,9 +43,8 @@ use wrldbldr_engine_app::application::services::internal::{
     PromptContextServicePort, TriggerEvaluationServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::{
-    PromptTemplateServicePort, SettingsServicePort,
-};
+use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, BroadcastPort, ComfyUIPort, ConnectionBroadcastPort,
@@ -464,7 +463,7 @@ pub async fn new_app_state(
     let asset_services = create_asset_services(AssetServiceDependencies {
         clock: clock.clone(),
         comfyui: Arc::new(comfyui_client.clone()) as Arc<dyn ComfyUIPort>,
-        settings_service: settings_service.clone() as Arc<dyn SettingsServicePort>,
+        settings_service: settings_service.clone() as Arc<dyn SettingsUseCasePort>,
         asset_repo: asset_repo.clone(),
         workflow_repo: workflow_repo.clone(),
         generation_event_tx,
@@ -504,7 +503,7 @@ pub async fn new_app_state(
         challenge_outcome_pending,
         challenge_outcome_queue.clone(),
         llm_for_suggestions,
-        settings_service.clone() as Arc<dyn SettingsServicePort>,
+        settings_service.clone() as Arc<dyn SettingsUseCasePort>,
         clock.clone(),
     ));
 
@@ -830,7 +829,7 @@ pub async fn new_app_state(
         composition_assets,
         composition_player,
         composition_events,
-        settings_service.clone() as Arc<dyn SettingsServicePort>,
+        settings_service.clone() as Arc<dyn SettingsUseCasePort>,
         prompt_template_service.clone() as Arc<dyn PromptTemplateServicePort>,
         staging_service.clone() as Arc<dyn StagingUseCaseServiceExtPort>,
         world_connection_manager.clone() as Arc<dyn ConnectionQueryPort>,

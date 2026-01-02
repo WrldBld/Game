@@ -42,7 +42,8 @@ use wrldbldr_engine_app::application::services::internal::{
     SceneServicePort, SheetTemplateServicePort, SkillServicePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::{SettingsServicePort, WorldServicePort};
+use wrldbldr_engine_app::application::services::internal::WorldServicePort;
+use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
     // Repository ports (inputs)
@@ -100,7 +101,7 @@ pub struct CoreServiceDependencies {
     // World service dependencies
     pub world_repo: Arc<dyn WorldRepositoryPort>,
     pub world_exporter: Arc<dyn WorldExporterPort>,
-    pub settings_service: Arc<dyn SettingsServicePort>,
+    pub settings_service: Arc<dyn SettingsUseCasePort>,
     pub clock: Arc<dyn ClockPort>,
 
     // Character service dependencies (ISP split)
@@ -473,7 +474,7 @@ mod tests {
             // World service deps
             let _: &Arc<dyn WorldRepositoryPort> = &deps.world_repo;
             let _: &Arc<dyn WorldExporterPort> = &deps.world_exporter;
-            let _: &Arc<dyn SettingsServicePort> = &deps.settings_service;
+            let _: &Arc<dyn SettingsUseCasePort> = &deps.settings_service;
             let _: &Arc<dyn ClockPort> = &deps.clock;
 
             // Character service deps

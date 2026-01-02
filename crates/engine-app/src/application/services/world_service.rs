@@ -12,7 +12,7 @@ use wrldbldr_domain::entities::Location;
 use wrldbldr_domain::entities::{Act, MonomythStage, World};
 use wrldbldr_domain::value_objects::{AppSettings, RuleSystemConfig};
 use wrldbldr_domain::{GameTime, WorldId};
-use crate::application::services::internal::{SettingsServicePort, WorldServicePort};
+use crate::application::services::internal::{SettingsUseCasePort, WorldServicePort};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, ExportOptions, PlayerWorldSnapshot, WorldExporterPort, WorldRepositoryPort,
 };
@@ -99,7 +99,7 @@ pub trait WorldService: Send + Sync {
 pub struct WorldServiceImpl {
     repository: Arc<dyn WorldRepositoryPort>,
     exporter: Arc<dyn WorldExporterPort>,
-    settings_service: Arc<dyn SettingsServicePort>,
+    settings_service: Arc<dyn SettingsUseCasePort>,
     /// Clock for time operations (required for testability)
     clock: Arc<dyn ClockPort>,
 }
@@ -113,7 +113,7 @@ impl WorldServiceImpl {
     pub fn new(
         repository: Arc<dyn WorldRepositoryPort>,
         exporter: Arc<dyn WorldExporterPort>,
-        settings_service: Arc<dyn SettingsServicePort>,
+        settings_service: Arc<dyn SettingsUseCasePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {

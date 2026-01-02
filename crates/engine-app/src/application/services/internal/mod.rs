@@ -216,9 +216,9 @@ pub use prompt_template_service::PromptTemplateServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_template_service::MockPromptTemplateServicePort;
 
-pub use settings_service::{LlmConfig, SettingsServicePort};
+pub use settings_service::{LlmConfig, SettingsUseCasePort};
 #[cfg(any(test, feature = "testing"))]
-pub use settings_service::MockSettingsServicePort;
+pub use settings_service::MockSettingsUseCasePort;
 
 pub use workflow_service::WorkflowServicePort;
 #[cfg(any(test, feature = "testing"))]

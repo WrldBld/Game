@@ -39,11 +39,12 @@ use wrldbldr_engine_app::application::services::generation_service::{
 };
 use wrldbldr_engine_app::application::services::internal::{
     AssetServicePort, GenerationQueueProjectionServicePort, GenerationServicePort,
-    SettingsServicePort, WorkflowServicePort,
+    WorkflowServicePort,
 };
 use wrldbldr_engine_app::application::services::{
     AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
 };
+use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     ActiveGenerationBatchesPort, AssetRepositoryPort, ClockPort, ComfyUIPort,
     DomainEventRepositoryPort, FileStoragePort, GenerationReadStatePort, WorkflowRepositoryPort,
@@ -81,7 +82,7 @@ pub struct AssetServiceDependencies {
     pub comfyui: Arc<dyn ComfyUIPort>,
 
     /// Settings service for resolving per-world behavior
-    pub settings_service: Arc<dyn SettingsServicePort>,
+    pub settings_service: Arc<dyn SettingsUseCasePort>,
 
     // Repositories (Level 1)
     /// Asset repository for CRUD operations

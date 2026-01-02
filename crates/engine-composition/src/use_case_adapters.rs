@@ -45,7 +45,7 @@ use wrldbldr_engine_ports::outbound::{
 use wrldbldr_engine_app::application::services::internal::{
     AssetGenerationQueueServicePort, AssetServicePort, DmApprovalQueueServicePort,
     GenerationQueueProjectionServicePort, GenerationServicePort, LlmQueueServicePort,
-    PlayerActionQueueServicePort, PromptTemplateServicePort, SettingsServicePort,
+    PlayerActionQueueServicePort, PromptTemplateServicePort,
     WorkflowServicePort, WorldServicePort,
 };
 
@@ -53,13 +53,13 @@ use wrldbldr_engine_app::application::services::internal::{
 // Settings Use Case Adapter
 // ============================================================================
 
-/// Adapter that implements SettingsUseCasePort by delegating to SettingsServicePort
+/// Adapter that implements SettingsUseCasePort by delegating to SettingsUseCasePort
 pub struct SettingsUseCaseAdapter {
-    service: Arc<dyn SettingsServicePort>,
+    service: Arc<dyn SettingsUseCasePort>,
 }
 
 impl SettingsUseCaseAdapter {
-    pub fn new(service: Arc<dyn SettingsServicePort>) -> Self {
+    pub fn new(service: Arc<dyn SettingsUseCasePort>) -> Self {
         Self { service }
     }
 }

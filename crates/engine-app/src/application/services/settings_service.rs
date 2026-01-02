@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
-use crate::application::services::internal::{LlmConfig, SettingsServicePort};
+use crate::application::services::internal::{LlmConfig, SettingsUseCasePort};
 use wrldbldr_engine_ports::outbound::{SettingsCachePort, SettingsError, SettingsRepositoryPort};
 
 /// Callback type for loading settings from environment.
@@ -165,7 +165,7 @@ impl SettingsService {
 // =============================================================================
 
 #[async_trait]
-impl SettingsServicePort for SettingsService {
+impl SettingsUseCasePort for SettingsService {
     async fn get(&self) -> AppSettings {
         self.get().await
     }

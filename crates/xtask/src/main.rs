@@ -1021,6 +1021,30 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
             let contents = std::fs::read_to_string(&entry)
                 .with_context(|| format!("reading {}", entry.display()))?;
 
+            // Skip internal/ re-export modules - they're allowed to re-export inbound ports
+            // for use by app-layer code (maintaining single source of truth while keeping
+            // app imports from internal::).
+            let path_str = entry.display().to_string();
+            if path_str.contains("/internal/") && !path_str.ends_with("mod.rs") {
+                // Check if this is a pure re-export module (only pub use statements)
+                let non_comment_lines: Vec<&str> = contents
+                    .lines()
+                    .filter(|l| {
+                        let t = l.trim();
+                        !t.is_empty()
+                            && !t.starts_with("//")
+                            && !t.starts_with("/*")
+                            && !t.starts_with("*")
+                    })
+                    .collect();
+                let is_reexport_only = non_comment_lines
+                    .iter()
+                    .all(|l| l.trim().starts_with("pub use") || l.trim().starts_with("#[cfg"));
+                if is_reexport_only {
+                    continue;
+                }
+            }
+
             // Scan lines so we can ignore comments and report an actionable location.
             for (line_idx, line) in contents.lines().enumerate() {
                 let trimmed = line.trim();

@@ -31,9 +31,8 @@ use wrldbldr_engine_adapters::infrastructure::{
     WorldStateManager,
 };
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
-use wrldbldr_engine_app::application::services::internal::{
-    PromptTemplateServicePort, SettingsServicePort,
-};
+use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::inbound::SettingsUseCasePort;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateCachePort,
     PromptTemplateRepositoryPort, RandomPort, SettingsCachePort, SettingsRepositoryPort,
@@ -69,7 +68,7 @@ pub struct InfrastructureContext {
     // Settings & Configuration Services
     // =========================================================================
     /// Settings service (port version)
-    pub settings_service: Arc<dyn SettingsServicePort>,
+    pub settings_service: Arc<dyn SettingsUseCasePort>,
 
     /// Prompt template service (port version)
     pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
@@ -163,7 +162,7 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
 
     let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn =
         Arc::new(load_settings_from_env);
-    let settings_service: Arc<dyn SettingsServicePort> = Arc::new(SettingsService::new(
+    let settings_service: Arc<dyn SettingsUseCasePort> = Arc::new(SettingsService::new(
         settings_repository.clone(),
         settings_loader,
         settings_cache,

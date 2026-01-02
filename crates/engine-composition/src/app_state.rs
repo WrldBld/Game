@@ -85,7 +85,7 @@ use wrldbldr_engine_ports::inbound::{
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
-    PromptContextServicePort, PromptTemplateServicePort, SettingsServicePort,
+    PromptContextServicePort, PromptTemplateServicePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
@@ -359,7 +359,7 @@ pub struct AppState {
     /// Settings service for application configuration.
     ///
     /// Manages runtime settings like LLM configuration, feature flags, etc.
-    pub settings_service: Arc<dyn SettingsServicePort>,
+    pub settings_service: Arc<dyn SettingsUseCasePort>,
 
     /// Prompt template service for LLM prompts.
     ///
@@ -505,7 +505,7 @@ impl AppState {
     ///     asset_services,
     ///     player_services,
     ///     event_infra,
-    ///     Arc::new(settings_service) as Arc<dyn SettingsServicePort>,
+    ///     Arc::new(settings_service) as Arc<dyn SettingsUseCasePort>,
     ///     Arc::new(prompt_template_service) as Arc<dyn PromptTemplateServicePort>,
     ///     Arc::new(staging_service) as Arc<dyn StagingUseCaseServiceExtPort>,
     ///     connection_query,
@@ -537,7 +537,7 @@ impl AppState {
         assets: AssetServices,
         player: PlayerServices,
         events: EventInfra,
-        settings_service: Arc<dyn SettingsServicePort>,
+        settings_service: Arc<dyn SettingsUseCasePort>,
         prompt_template_service: Arc<dyn PromptTemplateServicePort>,
         staging_service: Arc<dyn StagingUseCaseServiceExtPort>,
         connection_query: Arc<dyn ConnectionQueryPort>,
@@ -777,7 +777,7 @@ impl std::fmt::Debug for AppState {
             .field("assets", &self.assets)
             .field("player", &self.player)
             .field("events", &self.events)
-            .field("settings_service", &"Arc<dyn SettingsServicePort>")
+            .field("settings_service", &"Arc<dyn SettingsUseCasePort>")
             .field(
                 "prompt_template_service",
                 &"Arc<dyn PromptTemplateServicePort>",

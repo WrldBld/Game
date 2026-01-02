@@ -18,7 +18,7 @@ use wrldbldr_domain::entities::{
 use wrldbldr_domain::value_objects::BatchQueueFailurePolicy;
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 use crate::application::services::internal::{
-    GenerationRequest, GenerationServicePort, SettingsServicePort,
+    GenerationRequest, GenerationServicePort, SettingsUseCasePort,
 };
 use wrldbldr_engine_ports::outbound::{
     ActiveGenerationBatch, ActiveGenerationBatchesPort, AssetRepositoryPort, ClockPort,
@@ -109,7 +109,7 @@ pub struct GenerationService {
     /// Workflow templates directory
     workflow_dir: String,
     /// Settings service used to resolve per-world generation behavior.
-    settings_service: Arc<dyn SettingsServicePort>,
+    settings_service: Arc<dyn SettingsUseCasePort>,
 }
 
 impl GenerationService {
@@ -128,7 +128,7 @@ impl GenerationService {
         workflow_dir: String,
         event_sender: mpsc::Sender<GenerationEvent>,
         active_batches: Arc<dyn ActiveGenerationBatchesPort>,
-        settings_service: Arc<dyn SettingsServicePort>,
+        settings_service: Arc<dyn SettingsUseCasePort>,
     ) -> Self {
         Self {
             comfyui_client,

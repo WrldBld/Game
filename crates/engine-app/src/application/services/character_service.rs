@@ -18,7 +18,7 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
 use wrldbldr_domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
 use wrldbldr_domain::{CharacterId, SceneId, WantId, WorldId};
-use crate::application::services::internal::{CharacterServicePort, SettingsServicePort};
+use crate::application::services::internal::{CharacterServicePort, SettingsUseCasePort};
 use wrldbldr_engine_ports::outbound::{
     CharacterCrudPort, CharacterWantPort, ClockPort, RelationshipRepositoryPort,
     WorldRepositoryPort,
@@ -151,7 +151,7 @@ pub struct CharacterServiceImpl {
     character_crud: Arc<dyn CharacterCrudPort>,
     character_want: Arc<dyn CharacterWantPort>,
     relationship_repository: Arc<dyn RelationshipRepositoryPort>,
-    settings_service: Arc<dyn SettingsServicePort>,
+    settings_service: Arc<dyn SettingsUseCasePort>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -162,7 +162,7 @@ impl CharacterServiceImpl {
         character_crud: Arc<dyn CharacterCrudPort>,
         character_want: Arc<dyn CharacterWantPort>,
         relationship_repository: Arc<dyn RelationshipRepositoryPort>,
-        settings_service: Arc<dyn SettingsServicePort>,
+        settings_service: Arc<dyn SettingsUseCasePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
