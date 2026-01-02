@@ -38,7 +38,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_adapters::infrastructure::ports::{
+use wrldbldr_engine_adapters::infrastructure::port_adapters::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
     ConnectionDirectorialContextAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,

@@ -12,10 +12,10 @@ This is the consolidated plan addressing all architectural issues identified in 
 | Track | Completed | Remaining | Next Priority |
 |-------|-----------|-----------|---------------|
 | A: Engine Domain/DTOs | 2/3 | 1 | 1B (DTO Consolidation) |
-| B: Composition/Ports | 1/4 | 3 | 2A (Composition Root Refactor) |
+| B: Composition/Ports | 3/4 | 1 | 2A (Composition Root Refactor) |
 | C: Player/Docs | 1/3 | 2 | 3B (UI Error Feedback Audit) |
 | D: Code Quality | 3/3 | 0 | **COMPLETE** |
-| **Total** | **7/13** | **6** | |
+| **Total** | **9/13** | **4** | |
 
 ### Completed Phases
 
@@ -24,10 +24,12 @@ This is the consolidated plan addressing all architectural issues identified in 
 | 2C | Fix player_events.rs docstring | `b8e76a0` | 2026-01-01 |
 | 3A | Replace UI dice parsing with domain DiceFormula | `b8e76a0` | 2026-01-01 |
 | 4A | Fix magic number in world_connection_manager.rs | `b8e76a0` | 2026-01-01 |
-| 1A | Queue type architecture (REDESIGNED - see below) | TBD | 2026-01-02 |
-| 1C | Fix Utc::now() in App DTO | TBD | 2026-01-02 |
-| 4C | Cleanup orphaned services module | TBD | 2026-01-02 |
-| 4B | Remove blanket impl (SceneError already existed) | TBD | 2026-01-02 |
+| 1A | Queue type architecture (REDESIGNED - see below) | `93837bc` | 2026-01-02 |
+| 1C | Fix Utc::now() in App DTO | `93837bc` | 2026-01-02 |
+| 4C | Cleanup orphaned services module | `93837bc` | 2026-01-02 |
+| 4B | Remove blanket impl (SceneError already existed) | `93837bc` | 2026-01-02 |
+| 2B | Port naming corrections (6 files renamed) | TBD | 2026-01-02 |
+| 2D | Document protocol exceptions | TBD | 2026-01-02 |
 
 ---
 
@@ -478,11 +480,13 @@ When this plan is complete, all of the following will be true:
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
 | 2A | Composition Root Refactor | Large | None | Pending |
-| 2B | Port Naming Corrections | Small | None | Pending |
+| 2B | Port Naming Corrections | Small | None | **DONE** |
 | 2C | Fix player_events.rs Docstring | Small | None | **DONE** |
-| 2D | Document Protocol Exceptions | Small | None | Pending |
+| 2D | Document Protocol Exceptions | Small | None | **DONE** |
 
+**Note on 2B**: ~~Rename ports_*.rs files to *_port_adapters.rs pattern.~~ **COMPLETED 2026-01-02**: Renamed 6 files. Trait rename (StoryEventQueryServicePort → StoryEventQueryPort) skipped due to name collision with existing StoryEventQueryPort repository trait.
 **Note on 2C**: ~~Validation confirmed `player_events.rs` is **correctly placed** in `outbound/`. The file's docstring incorrectly claims it's in `inbound/`. Fix is to correct the docstring, not move the file.~~ **COMPLETED 2026-01-01**: Docstring updated to correctly describe outbound placement.
+**Note on 2D**: **COMPLETED 2026-01-02**: Added ARCHITECTURE EXCEPTION documentation to dm_approval_queue_service_port.rs and mod.rs protocol imports.
 
 ### Parallel Track C: Player/Docs (MEDIUM PRIORITY)
 

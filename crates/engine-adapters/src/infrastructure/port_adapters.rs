@@ -44,19 +44,19 @@
 //! - [x] SceneAdapters - For SceneUseCase
 //! - [x] ConnectionAdapters - For ConnectionUseCase (WorldServiceAdapter, PlayerCharacterServiceAdapter, etc.)
 
-#[path = "ports_challenge_adapters.rs"]
+#[path = "challenge_port_adapters.rs"]
 mod challenge_adapters;
 
-#[path = "ports_player_action_adapters.rs"]
+#[path = "player_action_port_adapters.rs"]
 mod player_action_adapters;
 
-#[path = "ports_staging_service_adapter.rs"]
+#[path = "staging_port_adapters.rs"]
 mod staging_service_adapter;
 
-#[path = "ports_connection_adapters.rs"]
+#[path = "connection_port_adapters.rs"]
 mod connection_adapters;
 
-#[path = "ports_scene_adapters.rs"]
+#[path = "scene_port_adapters.rs"]
 mod scene_adapters;
 
 // Explicit exports (no glob re-exports)

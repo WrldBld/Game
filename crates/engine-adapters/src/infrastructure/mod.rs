@@ -36,7 +36,7 @@ pub mod http;
 pub mod in_memory;
 pub mod ollama;
 pub mod persistence;
-pub mod ports;
+pub mod port_adapters;
 pub mod queues;
 pub mod random_adapter;
 pub mod repositories;

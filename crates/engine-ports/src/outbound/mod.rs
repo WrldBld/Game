@@ -584,7 +584,10 @@ pub use dm_approval_queue_service_port::{
     ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency, DmApprovalDecision,
     DmApprovalQueueServicePort,
 };
-// Re-export protocol types for API compatibility
+// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
+// Reason: These protocol types are used within ApprovalRequest and must be re-exported
+// so consumers can construct/destructure approval payloads without direct protocol dependency.
+// Alternative: Forcing all consumers to depend on protocol would spread wire-format coupling.
 pub use wrldbldr_protocol::{
     ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
     ProposedToolInfo,

@@ -14,7 +14,10 @@ use mockall::automock;
 use crate::outbound::queue_port::QueueItemStatus;
 use wrldbldr_domain::WorldId;
 
-// Re-export wire-format types from protocol (single source of truth)
+// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
+// Reason: DM approval queue items contain LLM-generated suggestions that must
+// serialize identically for both engine persistence and player-facing approval UI.
+// Alternative: Duplicating these DTOs would violate DRY and risk serialization mismatches.
 use wrldbldr_protocol::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo};
 
 // ============================================================================
