@@ -19,12 +19,14 @@ use std::time::Duration;
 
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
-use wrldbldr_domain::value_objects::{ApprovalRequestData, ChallengeOutcomeData, DmActionData};
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_adapters::infrastructure::queues::QueueBackendEnum;
-use wrldbldr_engine_adapters::infrastructure::websocket::{
-    domain_challenge_suggestion_to_proto, domain_narrative_suggestion_to_proto,
-    domain_tools_to_proto,
+use wrldbldr_engine_ports::outbound::{
+    ApprovalRequestData, ChallengeOutcomeData, DmActionData,
+};
+// Conversion functions to convert domain types to protocol types at the boundary
+use wrldbldr_engine_adapters::infrastructure::dto_conversions::{
+    challenge_suggestion_to_info, narrative_event_suggestion_to_info, proposed_tool_to_info,
 };
 use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
 use wrldbldr_engine_app::application::services::{
@@ -33,7 +35,7 @@ use wrldbldr_engine_app::application::services::{
 use wrldbldr_engine_ports::outbound::{
     DmActionProcessorPort, DmActionResult, QueueNotificationPort,
 };
-use wrldbldr_protocol::{ProposedToolInfo, ServerMessage};
+use wrldbldr_protocol::ServerMessage;
 
 /// Worker that processes approval items and sends ApprovalRequired messages to DM
 pub async fn approval_notification_worker(
@@ -84,25 +86,30 @@ pub async fn approval_notification_worker(
             // Send ApprovalRequired messages for new approvals
             for item in pending {
                 let approval_id = item.id.to_string();
-                // Convert domain types to protocol types for wire transmission
-                let proposed_tools: Vec<ProposedToolInfo> =
-                    domain_tools_to_proto(&item.payload.proposed_tools);
-                let challenge_suggestion = domain_challenge_suggestion_to_proto(
-                    item.payload.challenge_suggestion.as_ref(),
-                );
-                let narrative_event_suggestion = domain_narrative_suggestion_to_proto(
-                    item.payload.narrative_event_suggestion.as_ref(),
-                );
 
-                // Send ApprovalRequired message to DM via world connection manager
+                // Convert domain types to protocol types at the boundary
                 let approval_msg = ServerMessage::ApprovalRequired {
                     request_id: approval_id.clone(),
                     npc_name: item.payload.npc_name.clone(),
                     proposed_dialogue: item.payload.proposed_dialogue.clone(),
                     internal_reasoning: item.payload.internal_reasoning.clone(),
-                    proposed_tools,
-                    challenge_suggestion,
-                    narrative_event_suggestion,
+                    proposed_tools: item
+                        .payload
+                        .proposed_tools
+                        .iter()
+                        .cloned()
+                        .map(proposed_tool_to_info)
+                        .collect(),
+                    challenge_suggestion: item
+                        .payload
+                        .challenge_suggestion
+                        .clone()
+                        .map(challenge_suggestion_to_info),
+                    narrative_event_suggestion: item
+                        .payload
+                        .narrative_event_suggestion
+                        .clone()
+                        .map(narrative_event_suggestion_to_info),
                 };
 
                 if let Err(e) = world_connection_manager
@@ -452,8 +459,7 @@ pub async fn challenge_outcome_notification_worker(
 
             for queue_item in pending {
                 let item = queue_item.payload;
-                // Convert domain ProposedTool to protocol ProposedToolInfo
-                let outcome_triggers = domain_tools_to_proto(&item.outcome_triggers);
+                // Convert domain ProposedTool to protocol ProposedToolInfo at the boundary
                 let message = ServerMessage::ChallengeOutcomePending {
                     resolution_id: item.resolution_id.clone(),
                     challenge_id: item.challenge_id,
@@ -465,7 +471,11 @@ pub async fn challenge_outcome_notification_worker(
                     total: item.total,
                     outcome_type: item.outcome_type,
                     outcome_description: item.outcome_description,
-                    outcome_triggers,
+                    outcome_triggers: item
+                        .outcome_triggers
+                        .into_iter()
+                        .map(proposed_tool_to_info)
+                        .collect(),
                     roll_breakdown: item.roll_breakdown,
                 };
 

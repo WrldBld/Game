@@ -1450,9 +1450,12 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
         // - dm_approval_queue_service_port.rs: Re-exports wire-format types from protocol
         //   (ProposedToolInfo, ChallengeSuggestionInfo, etc.) - protocol is single source of truth
+        // - queue_types.rs: Queue payload types that use protocol wire-format types
+        //   (moved from domain/value_objects/queue_data.rs - Phase 1A.1)
         // - mod.rs: Re-exports protocol types for API compatibility
         if file_name == "request_handler.rs"
             || file_name == "dm_approval_queue_service_port.rs"
+            || file_name == "queue_types.rs"
             || file_name == "mod.rs"
         {
             continue;

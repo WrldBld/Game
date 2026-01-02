@@ -36,15 +36,14 @@ use wrldbldr_domain::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterData, PlayerCharacterCrudPort, PromptContextError,
-    PromptContextServicePort, QueueError, RegionItemPort, WorldStatePort,
+    CharacterCrudPort, CharacterData, PlayerActionData, PlayerCharacterCrudPort,
+    PromptContextError, PromptContextServicePort, QueueError, RegionItemPort, WorldStatePort,
 };
 
 use super::{
     ActantialContextService, ChallengeService, DispositionService, NarrativeEventService,
     SkillService, WorldService,
 };
-use wrldbldr_domain::value_objects::PlayerActionData;
 
 /// Prompt context service trait for building LLM prompts
 #[async_trait]

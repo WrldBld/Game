@@ -32,10 +32,9 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::ChallengeOutcomeData;
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, DmActionQueueServicePort, DmApprovalQueueServicePort,
-    LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
+    AssetGenerationQueueServicePort, ChallengeOutcomeData, DmActionQueueServicePort,
+    DmApprovalQueueServicePort, LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
 };
 
 /// Queue processing services for asynchronous operations.

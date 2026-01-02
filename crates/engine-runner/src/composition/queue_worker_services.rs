@@ -7,10 +7,6 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::{
-    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
-    PlayerActionData,
-};
 use wrldbldr_engine_adapters::infrastructure::{
     comfyui::ComfyUIClient,
     ollama::OllamaClient,
@@ -21,6 +17,10 @@ use wrldbldr_engine_app::application::services::{
     LLMQueueService, PlayerActionQueueService,
 };
 use wrldbldr_engine_ports::outbound::DmActionProcessorPort;
+use wrldbldr_engine_ports::outbound::{
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
+    PlayerActionData,
+};
 
 /// Concrete queue services used by background workers.
 #[derive(Clone)]

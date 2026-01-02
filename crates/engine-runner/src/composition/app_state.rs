@@ -56,7 +56,7 @@ use wrldbldr_engine_ports::outbound::{
 // Re-export AppStatePort for server.rs
 pub use wrldbldr_engine_ports::inbound::AppStatePort;
 
-use wrldbldr_domain::value_objects::{
+use wrldbldr_engine_ports::outbound::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
 };

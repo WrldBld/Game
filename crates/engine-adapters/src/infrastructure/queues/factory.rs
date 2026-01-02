@@ -11,7 +11,7 @@ use sqlx::SqlitePool;
 
 use crate::infrastructure::config::QueueConfig;
 use crate::infrastructure::queues::{InMemoryQueue, InProcessNotifier, SqliteQueue};
-use wrldbldr_domain::value_objects::{
+use wrldbldr_engine_ports::outbound::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
 };

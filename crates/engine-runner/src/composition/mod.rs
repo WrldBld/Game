@@ -21,11 +21,10 @@
 //!   - `asset_services`: Asset service ports
 //!   - `game_services`: Game service ports (not yet wired)
 //!   - `use_cases`: Use case construction with adapters
-//! - `services`: Service container re-exports (deprecated)
+//! - `queue_worker_services`: Worker service construction for background processing
 
 pub mod app_state;
 pub mod factories;
 pub mod queue_worker_services;
-pub mod services;
 
 pub use app_state::{new_adapter_state, AppStatePort};

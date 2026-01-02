@@ -18,17 +18,18 @@ use crate::application::services::item_service::ItemService;
 use crate::application::services::tool_execution_service::ToolExecutionService;
 use std::collections::HashMap;
 use wrldbldr_domain::entities::AcquisitionMethod;
-use wrldbldr_domain::value_objects::{
-    ApprovalRequestData, DmApprovalDecision, GameTool, ProposedTool,
-};
+use wrldbldr_domain::value_objects::{GameTool, ProposedTool};
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use wrldbldr_engine_dto::{
+    challenge_suggestion_to_info, info_to_challenge_suggestion, info_to_narrative_event_suggestion,
+    info_to_proposed_tool, narrative_event_suggestion_to_info, proposed_tool_to_info,
+};
 use wrldbldr_engine_ports::outbound::{
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
-    ApprovalQueuePort, ApprovalRequest, ApprovalRequestLookupPort,
-    ApprovalUrgency as PortApprovalUrgency, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes,
-    ClockPort, DialogueContextServicePort, DmApprovalDecision as PortDmApprovalDecision,
-    DmApprovalQueueServicePort, NarrativeEventSuggestionInfo, ProposedToolInfo, QueueError,
-    QueueItem, QueueItemId, QueueItemStatus,
+    ApprovalQueuePort, ApprovalRequest, ApprovalRequestData, ApprovalRequestLookupPort,
+    ApprovalUrgency as PortApprovalUrgency, ClockPort, DialogueContextServicePort,
+    DmApprovalDecision, DmApprovalQueueServicePort, QueueError, QueueItem, QueueItemId,
+    QueueItemStatus,
 };
 
 /// Maximum number of times a response can be rejected before requiring TakeOver
@@ -148,6 +149,10 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
                 self.handle_takeover(world_id, &item.payload, &dm_response)
                     .await?
             }
+            DmApprovalDecision::Unknown => {
+                self.handle_reject(&item.payload, "Unknown decision type")
+                    .await?
+            }
         };
 
         // Mark item based on outcome
@@ -208,7 +213,7 @@ impl<Q: ApprovalQueuePort<ApprovalRequestData>, I: ItemService> DMApprovalQueueS
                 .await;
                 executed_tools.push(tool.name.clone());
             } else {
-                // Convert ProposedTool to GameTool
+                // Convert ProposedToolInfo to GameTool
                 // Parse the tool arguments JSON to determine tool type
                 if let Ok(game_tool) = self.parse_tool_from_proposed(tool) {
                     if let Err(e) = tool_execution_service.execute_tool(&game_tool).await {
@@ -783,43 +788,18 @@ fn convert_domain_to_port_approval(
             proposed_tools: data
                 .proposed_tools
                 .iter()
-                .map(|t| ProposedToolInfo {
-                    id: t.id.clone(),
-                    name: t.name.clone(),
-                    description: t.description.clone(),
-                    arguments: t.arguments.clone(),
-                })
+                .cloned()
+                .map(proposed_tool_to_info)
                 .collect(),
             retry_count: data.retry_count,
-            challenge_suggestion: data.challenge_suggestion.as_ref().map(|cs| {
-                ChallengeSuggestionInfo {
-                    challenge_id: cs.challenge_id.clone(),
-                    challenge_name: cs.challenge_name.clone(),
-                    skill_name: cs.skill_name.clone(),
-                    difficulty_display: cs.difficulty_display.clone(),
-                    confidence: cs.confidence.clone(),
-                    reasoning: cs.reasoning.clone(),
-                    target_pc_id: cs.target_pc_id.map(|id| id.to_string()),
-                    outcomes: cs.outcomes.as_ref().map(|o| ChallengeSuggestionOutcomes {
-                        success: o.success.clone(),
-                        failure: o.failure.clone(),
-                        critical_success: o.critical_success.clone(),
-                        critical_failure: o.critical_failure.clone(),
-                    }),
-                }
-            }),
-            narrative_event_suggestion: data.narrative_event_suggestion.as_ref().map(|nes| {
-                NarrativeEventSuggestionInfo {
-                    event_id: nes.event_id.clone(),
-                    event_name: nes.event_name.clone(),
-                    description: nes.description.clone(),
-                    scene_direction: nes.scene_direction.clone(),
-                    confidence: nes.confidence.clone(),
-                    reasoning: nes.reasoning.clone(),
-                    matched_triggers: nes.matched_triggers.clone(),
-                    suggested_outcome: nes.suggested_outcome.clone(),
-                }
-            }),
+            challenge_suggestion: data
+                .challenge_suggestion
+                .as_ref()
+                .map(|cs| challenge_suggestion_to_info(cs.clone())),
+            narrative_event_suggestion: data
+                .narrative_event_suggestion
+                .as_ref()
+                .map(|nes| narrative_event_suggestion_to_info(nes.clone())),
             player_dialogue: data.player_dialogue.clone(),
             scene_id: data.scene_id.map(|id| id.to_string()),
             location_id: data.location_id.map(|id| id.to_string()),
@@ -850,49 +830,18 @@ fn convert_port_to_domain_approval(request: &ApprovalRequest) -> ApprovalRequest
         proposed_tools: request
             .proposed_tools
             .iter()
-            .map(|t| ProposedTool {
-                id: t.id.clone(),
-                name: t.name.clone(),
-                description: t.description.clone(),
-                arguments: t.arguments.clone(),
-            })
+            .cloned()
+            .map(info_to_proposed_tool)
             .collect(),
         retry_count: request.retry_count,
-        challenge_suggestion: request.challenge_suggestion.as_ref().map(|cs| {
-            wrldbldr_domain::value_objects::ChallengeSuggestion {
-                challenge_id: cs.challenge_id.clone(),
-                challenge_name: cs.challenge_name.clone(),
-                skill_name: cs.skill_name.clone(),
-                difficulty_display: cs.difficulty_display.clone(),
-                confidence: cs.confidence.clone(),
-                reasoning: cs.reasoning.clone(),
-                target_pc_id: cs.target_pc_id.as_ref().and_then(|s| {
-                    uuid::Uuid::parse_str(s)
-                        .ok()
-                        .map(PlayerCharacterId::from_uuid)
-                }),
-                outcomes: cs.outcomes.as_ref().map(|o| {
-                    wrldbldr_domain::value_objects::ChallengeSuggestionOutcomes {
-                        success: o.success.clone(),
-                        failure: o.failure.clone(),
-                        critical_success: o.critical_success.clone(),
-                        critical_failure: o.critical_failure.clone(),
-                    }
-                }),
-            }
-        }),
-        narrative_event_suggestion: request.narrative_event_suggestion.as_ref().map(|nes| {
-            wrldbldr_domain::value_objects::NarrativeEventSuggestion {
-                event_id: nes.event_id.clone(),
-                event_name: nes.event_name.clone(),
-                description: nes.description.clone(),
-                scene_direction: nes.scene_direction.clone(),
-                confidence: nes.confidence.clone(),
-                reasoning: nes.reasoning.clone(),
-                matched_triggers: nes.matched_triggers.clone(),
-                suggested_outcome: nes.suggested_outcome.clone(),
-            }
-        }),
+        challenge_suggestion: request
+            .challenge_suggestion
+            .as_ref()
+            .map(|cs| info_to_challenge_suggestion(cs.clone())),
+        narrative_event_suggestion: request
+            .narrative_event_suggestion
+            .as_ref()
+            .map(|nes| info_to_narrative_event_suggestion(nes.clone())),
         player_dialogue: request.player_dialogue.clone(),
         scene_id: request
             .scene_id
@@ -907,31 +856,13 @@ fn convert_port_to_domain_approval(request: &ApprovalRequest) -> ApprovalRequest
     }
 }
 
-/// Convert port DmApprovalDecision to domain DmApprovalDecision
-fn convert_port_decision(decision: PortDmApprovalDecision) -> DmApprovalDecision {
+/// Handle unknown DmApprovalDecision variant by converting to Reject
+fn handle_unknown_decision(decision: DmApprovalDecision) -> DmApprovalDecision {
     match decision {
-        PortDmApprovalDecision::Accept => DmApprovalDecision::Accept,
-        PortDmApprovalDecision::AcceptWithRecipients { item_recipients } => {
-            DmApprovalDecision::AcceptWithRecipients { item_recipients }
-        }
-        PortDmApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-            item_recipients,
-        } => DmApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-            item_recipients,
-        },
-        PortDmApprovalDecision::Reject { feedback } => DmApprovalDecision::Reject { feedback },
-        PortDmApprovalDecision::TakeOver { dm_response } => {
-            DmApprovalDecision::TakeOver { dm_response }
-        }
-        PortDmApprovalDecision::Unknown => DmApprovalDecision::Reject {
+        DmApprovalDecision::Unknown => DmApprovalDecision::Reject {
             feedback: "Unknown decision type".to_string(),
         },
+        other => other,
     }
 }
 
@@ -976,7 +907,7 @@ where
     async fn complete(
         &self,
         id: uuid::Uuid,
-        decision: PortDmApprovalDecision,
+        decision: DmApprovalDecision,
     ) -> anyhow::Result<()> {
         // Get the item first to extract world_id
         let item = self
@@ -986,10 +917,10 @@ where
             .map_err(|e| anyhow::anyhow!("{}", e))?
             .ok_or_else(|| anyhow::anyhow!("Approval item not found: {}", id))?;
 
-        let domain_decision = convert_port_decision(decision);
+        let decision = handle_unknown_decision(decision);
 
         // Process the decision (this handles accept/reject/takeover logic)
-        self.process_decision(item.payload.world_id, id, domain_decision)
+        self.process_decision(item.payload.world_id, id, decision)
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 

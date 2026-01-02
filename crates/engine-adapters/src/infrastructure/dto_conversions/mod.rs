@@ -13,7 +13,14 @@
 
 mod asset_conversions;
 mod disposition_conversions;
+mod queue_conversions;
 mod workflow_conversions;
+
+// Queue type conversions (domain <-> protocol)
+pub use queue_conversions::{
+    challenge_suggestion_to_info, info_to_challenge_suggestion, info_to_narrative_event_suggestion,
+    info_to_proposed_tool, narrative_event_suggestion_to_info, proposed_tool_to_info,
+};
 
 // Asset conversions
 pub use asset_conversions::{

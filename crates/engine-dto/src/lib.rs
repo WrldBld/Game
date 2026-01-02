@@ -27,10 +27,29 @@ pub use persistence::{
     TriggerConditionRequestDto, TriggerTypeRequestDto,
 };
 pub use queue::{
-    AssetGenerationItem, ChallengeOutcomeApprovalItem, ChallengeSuggestionInfo,
-    ChallengeSuggestionOutcomes, DMAction, DMActionItem, DecisionType, DecisionUrgency,
-    DmApprovalDecision, EnhancedChallengeSuggestion, EnhancedOutcomes, LLMRequestItem,
-    LLMRequestType, NarrativeEventSuggestionInfo, PlayerActionItem, ProposedToolInfo,
+    // Conversion functions between domain and protocol types
+    challenge_suggestion_to_info,
+    info_to_challenge_suggestion,
+    info_to_narrative_event_suggestion,
+    info_to_proposed_tool,
+    narrative_event_suggestion_to_info,
+    proposed_tool_to_info,
+    AssetGenerationItem,
+    ChallengeOutcomeApprovalItem,
+    ChallengeSuggestionInfo,
+    ChallengeSuggestionOutcomes,
+    DMAction,
+    DMActionItem,
+    DecisionType,
+    DecisionUrgency,
+    DmApprovalDecision,
+    EnhancedChallengeSuggestion,
+    EnhancedOutcomes,
+    LLMRequestItem,
+    LLMRequestType,
+    NarrativeEventSuggestionInfo,
+    PlayerActionItem,
+    ProposedToolInfo,
     SuggestionContext,
 };
 pub use request_context::RequestContext;

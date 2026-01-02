@@ -1062,13 +1062,6 @@ pub trait ErrorCode: std::fmt::Display {
     fn code(&self) -> &'static str;
 }
 
-/// Blanket implementation for String error types (used by some use case error aliases)
-impl ErrorCode for String {
-    fn code(&self) -> &'static str {
-        "USE_CASE_ERROR"
-    }
-}
-
 /// Errors that can occur during connection operations
 #[derive(Debug, Error)]
 pub enum ConnectionError {

@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use wrldbldr_domain::entities::{Character, Location, Scene, World};
 
 /// A snapshot of the current world state for session joining
@@ -69,9 +69,14 @@ impl Default for WorldSnapshot {
     /// session creation. In normal operation, proper world data should be
     /// provided, but this ensures the system remains functional with a
     /// basic empty world containing no locations, characters, or scenes.
+    ///
+    /// Uses Unix epoch (1970-01-01T00:00:00Z) as a sentinel value to indicate
+    /// an uninitialized snapshot, avoiding impure `Utc::now()` calls.
     fn default() -> Self {
+        // Use epoch as sentinel for "uninitialized" snapshot - avoids impure Utc::now()
+        let epoch = DateTime::<Utc>::from_timestamp(0, 0).expect("epoch timestamp is always valid");
         Self {
-            world: World::new("Empty World", "A placeholder world", Utc::now()),
+            world: World::new("Empty World", "A placeholder world", epoch),
             locations: Vec::new(),
             characters: Vec::new(),
             scenes: Vec::new(),

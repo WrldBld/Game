@@ -756,3 +756,22 @@ pub use world_state::{
     MockWorldApprovalPort, MockWorldConversationPort, MockWorldDirectorialPort,
     MockWorldLifecyclePort, MockWorldScenePort, MockWorldStatePort, MockWorldTimePort,
 };
+
+// Queue payload types - re-exported from domain (canonical location per queue-system.md)
+// Phase 1A redesign (2026-01-02): These are domain value objects, not infrastructure.
+// See docs/plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md for rationale.
+//
+// NOTE: LlmRequestType and DmActionType are already exported from their respective
+// queue_service_port modules above. We only re-export the payload data types here.
+// DmActionPayloadType aliases DmActionType for cases needing the full enum.
+pub use wrldbldr_domain::value_objects::{
+    ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
+    PlayerActionData, ProposedTool, SuggestionContext,
+    // Domain types with different names to avoid conflict with LlmQueueServicePort exports
+    ChallengeSuggestion as DomainChallengeSuggestion,
+    ChallengeSuggestionOutcomes as DomainChallengeSuggestionOutcomes,
+    NarrativeEventSuggestion as DomainNarrativeEventSuggestion,
+    // DmActionType with full DmApprovalDecision (as DmActionPayloadType to avoid conflict
+    // with simplified DmActionType from dm_action_queue_service_port)
+    DmActionType as DmActionPayloadType,
+};

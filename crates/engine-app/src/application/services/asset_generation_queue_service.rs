@@ -13,12 +13,12 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
-use wrldbldr_domain::value_objects::AssetGenerationData;
 use wrldbldr_domain::{AssetId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
-    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, GenerationResult,
-    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
+    AssetGenerationData, AssetGenerationQueueItem, AssetGenerationQueueServicePort,
+    AssetGenerationRequest, AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort,
+    GenerationResult, ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus,
+    QueueNotificationPort,
 };
 
 /// Priority constants for queue operations

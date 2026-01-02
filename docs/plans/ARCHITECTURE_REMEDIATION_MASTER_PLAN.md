@@ -2,7 +2,7 @@
 
 **Status**: ACTIVE (authoritative remediation plan)  
 **Created**: 2026-01-01  
-**Last Updated**: 2026-01-01  
+**Last Updated**: 2026-01-02  
 **Supersedes**: `HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
 
 This is the consolidated plan addressing all architectural issues identified in the comprehensive code review. It builds upon the completed work from the previous master plan (Phases 1-7) and adds new phases to address remaining gaps.
@@ -11,11 +11,11 @@ This is the consolidated plan addressing all architectural issues identified in 
 
 | Track | Completed | Remaining | Next Priority |
 |-------|-----------|-----------|---------------|
-| A: Engine Domain/DTOs | 0/4 | 4 | 1A.1 (Queue Data Migration) |
+| A: Engine Domain/DTOs | 2/3 | 1 | 1B (DTO Consolidation) |
 | B: Composition/Ports | 1/4 | 3 | 2A (Composition Root Refactor) |
 | C: Player/Docs | 1/3 | 2 | 3B (UI Error Feedback Audit) |
-| D: Code Quality | 1/3 | 2 | 4B (Remove Blanket Impl) |
-| **Total** | **3/14** | **11** | |
+| D: Code Quality | 3/3 | 0 | **COMPLETE** |
+| **Total** | **7/13** | **6** | |
 
 ### Completed Phases
 
@@ -24,6 +24,10 @@ This is the consolidated plan addressing all architectural issues identified in 
 | 2C | Fix player_events.rs docstring | `b8e76a0` | 2026-01-01 |
 | 3A | Replace UI dice parsing with domain DiceFormula | `b8e76a0` | 2026-01-01 |
 | 4A | Fix magic number in world_connection_manager.rs | `b8e76a0` | 2026-01-01 |
+| 1A | Queue type architecture (REDESIGNED - see below) | TBD | 2026-01-02 |
+| 1C | Fix Utc::now() in App DTO | TBD | 2026-01-02 |
+| 4C | Cleanup orphaned services module | TBD | 2026-01-02 |
+| 4B | Remove blanket impl (SceneError already existed) | TBD | 2026-01-02 |
 
 ---
 
@@ -386,7 +390,7 @@ Phase 1B: DTO Consol. ──► Phase 2B: Port Naming ──► Phase 3B: Docume
                     │  │  - ids.rs          (28 typed IDs)                │    │
                     │  │  - events/         (domain events)               │    │
                     │  │  - error.rs        (domain errors)               │    │
-                    │  │  NO queue_data.rs  (moved to engine-ports)       │    │
+                    │  │  - queue_data.rs   (queue payloads - correct)    │    │
                     │  └──────────────────────────────────────────────────┘    │
                     │                                                          │
                     │  ┌──────────────────────────────────────────────────┐    │
@@ -404,9 +408,10 @@ When this plan is complete, all of the following will be true:
 
 ### 1. Domain Layer Purity
 
-- [ ] No infrastructure types in domain (queue data moved to ports)
+- [x] Queue data types are correctly placed in domain (per queue-system.md) *(validated 2026-01-02)*
 - [ ] No `Utc::now()` in production code outside tests
 - [ ] Domain contains only: entities, value objects, typed IDs, domain events, business rules
+- [x] No duplicate queue types in engine-ports (queue_types.rs deleted) *(completed 2026-01-02)*
 
 ### 2. DTO Single Source of Truth
 
@@ -462,12 +467,11 @@ When this plan is complete, all of the following will be true:
 
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
-| 1A.1 | Queue Data Migration (move types) | Medium | None | Pending |
-| 1A.2 | Queue Data Consolidation (remove duplicates) | Medium | 1A.1 | Pending |
-| 1B | DTO Consolidation (ApprovalDecision) | Medium | 1A.2 | Pending |
-| 1C | Fix Utc::now() in App DTO | Small | None | Pending |
+| 1A | Queue Type Architecture (REDESIGNED) | Small | None | **DONE** |
+| 1B | DTO Consolidation (ApprovalDecision) | Medium | None | Pending |
+| 1C | Fix Utc::now() in App DTO | Small | None | **DONE** |
 
-**Note**: `ApprovalUrgency` and `ApprovalDecisionType` are **business concepts** (what needs DM approval and how urgent) - they stay in domain. Only infrastructure queue types move.
+**Note on 1A**: Original plan to move queue types from domain to engine-ports was **CANCELLED** after analysis (see Phase 1A below for full rationale). Queue payloads are domain value objects per `queue-system.md`. The partial migration that created `engine-ports/outbound/queue_types.rs` has been reverted.
 
 ### Parallel Track B: Composition/Ports (HIGH PRIORITY)
 
@@ -495,138 +499,130 @@ When this plan is complete, all of the following will be true:
 | Phase | Description | Effort | Dependencies | Status |
 |-------|-------------|--------|--------------|--------|
 | 4A | Fix Inline Buffer Size | Small | None | **DONE** |
-| 4B | Remove Blanket Impl | Small | None | Pending |
-| 4C | Cleanup Orphaned Module | Small | None | Pending |
+| 4B | Remove Blanket Impl | Small | None | **DONE** |
+| 4C | Cleanup Orphaned Module | Small | None | **DONE** |
 
 **Note on 4A**: ~~Conversation limit already has env var (`WRLDBLDR_MAX_CONVERSATION_TURNS`). Only fix needed is inline `256` in `world_connection_manager.rs`.~~ **COMPLETED 2026-01-01**: Added `DEFAULT_BROADCAST_CHANNEL_BUFFER` constant.
-**Note on 4C**: Only `engine-runner/src/composition/services/mod.rs` is orphaned. `player-ports/src/mod.rs` is NOT orphaned.
+**Note on 4B**: ~~The blanket `impl ErrorCode for String` is used by `SceneUseCaseError = String`. Removing it requires creating a proper `SceneUseCaseError` enum first.~~ **COMPLETED 2026-01-02**: `SceneError` already existed in `use_case_errors.rs`. Changed type alias to re-export and removed blanket impl.
+**Note on 4C**: ~~Only `engine-runner/src/composition/services/mod.rs` is orphaned. `player-ports/src/mod.rs` is NOT orphaned.~~ **COMPLETED 2026-01-02**: Deleted orphaned services module and updated mod.rs.
 
 ---
 
 ## Detailed Phases
 
-### Phase 1A: Queue Data Analysis & Migration
+### Phase 1A: Queue Type Architecture (REDESIGNED)
 
-**Goal**: Remove infrastructure types from domain layer while keeping business concepts.
+**Status**: COMPLETE (redesigned approach)
 
-**Current State**: `domain/src/value_objects/queue_data.rs` (427 lines) contains:
+**Original Plan**: Move "infrastructure" queue types from domain to engine-ports, classifying types with timestamps as "infrastructure."
 
-| Type | Category | Target Location |
-|------|----------|-----------------|
-| `PlayerActionData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `DmActionData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `DmActionType` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `DmApprovalDecision` | Wire format duplicate | REMOVE (use protocol) |
-| `LlmRequestData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `LlmRequestType` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `SuggestionContext` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `ProposedTool` | Wire format duplicate | REMOVE (use protocol) |
-| `ChallengeSuggestion` | Wire format duplicate | REMOVE (use protocol) |
-| `ChallengeSuggestionOutcomes` | Wire format duplicate | REMOVE (use protocol) |
-| `NarrativeEventSuggestion` | Wire format duplicate | REMOVE (use protocol) |
-| `ApprovalDecisionType` | **BUSINESS CONCEPT** | **KEEP IN DOMAIN** |
-| `ApprovalUrgency` | **BUSINESS CONCEPT** | **KEEP IN DOMAIN** |
-| `ApprovalRequestData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `ChallengeOutcomeData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
-| `AssetGenerationData` | Queue infrastructure | `engine-ports/outbound/queue_types.rs` |
+**Problem Discovered**: The partial migration (Phase 1A.1) was executed, creating `engine-ports/outbound/queue_types.rs`, but Phase 1A.2 was not completed. This left the same types defined in THREE places:
+- `domain/value_objects/queue_data.rs` (original)
+- `engine-ports/outbound/queue_types.rs` (partial migration)
+- `engine-dto/queue.rs` (serialization DTOs)
 
-**Why keep `ApprovalDecisionType` and `ApprovalUrgency` in domain?**
-
-These are **business rules**, not infrastructure:
-- `ApprovalDecisionType` defines what kinds of things need DM approval (NpcResponse, ToolUsage, ChallengeSuggestion, etc.) - this is core game logic
-- `ApprovalUrgency` defines priority levels (Normal, AwaitingPlayer, SceneCritical) - this is narrative pacing logic
-
-The duplicates in `engine-ports` should be removed, with ports importing from domain.
-
-#### Phase 1A.1: Move Infrastructure Types
-
-**Steps**:
-
-1. Create `crates/engine-ports/src/outbound/queue_types.rs`
-2. Move infrastructure types (keep typed ID usage):
-   - `PlayerActionData`, `DmActionData`, `DmActionType`
-   - `LlmRequestData`, `LlmRequestType`, `SuggestionContext`
-   - `ApprovalRequestData`, `ChallengeOutcomeData`, `AssetGenerationData`
-3. Update imports in engine-app, engine-adapters, engine-dto
-4. Keep `ApprovalDecisionType` and `ApprovalUrgency` in domain
-5. Remove duplicates of these types from `engine-ports/src/outbound/dm_approval_queue_service_port.rs`
-
-**Verification**:
-```bash
-cargo check --workspace
+This caused `cargo xtask arch-check` to fail with:
+```
+Error: arch-check failed: engine-dto shadows engine-ports types
+- SuggestionContext declared in BOTH engine-dto and engine-ports
 ```
 
-#### Phase 1A.2: Consolidate Wire Format Duplicates
+**Root Cause Analysis**: The original classification was flawed:
 
-**Steps**:
+1. **`DateTime<Utc>` is a value, not I/O** - having a timestamp field doesn't make something "infrastructure"
+2. **Queue payloads ARE domain concepts** - `PlayerActionData` represents "what the player wants to do" - this is business data
+3. **`queue-system.md:267` explicitly states** queue payload value objects belong in domain
+4. **`SuggestionContext` is a pure value object** - no timestamps, retries, or callbacks at all
 
-1. For duplicate types (`DmApprovalDecision`, `ProposedTool`, `ChallengeSuggestion`, etc.):
-   - Add documented protocol exceptions to `queue_types.rs`
-   - Re-export from protocol where needed
-   - Remove domain copies
-2. Delete remaining contents of `domain/src/value_objects/queue_data.rs`
-3. Move `ApprovalDecisionType` and `ApprovalUrgency` to appropriate domain file (e.g., `dm_approval.rs`)
-4. Update `domain/src/value_objects/mod.rs`
-5. Add arch-check rule: no file matching `*queue*` in domain
+**Redesigned Approach (Option C)**:
+
+Instead of moving types to engine-ports, we maintain the correct three-tier separation:
+
+| Tier | Location | Purpose | Types |
+|------|----------|---------|-------|
+| **Domain** | `domain/value_objects/queue_data.rs` | Business value objects | `PlayerActionData`, `DmActionData`, `SuggestionContext`, etc. |
+| **DTO** | `engine-dto/queue.rs` | Serialization with `#[serde(other)]` | `PlayerActionItem`, `DMActionItem`, etc. (raw UUIDs) |
+| **Ports** | `engine-ports/outbound/queue_port.rs` | Trait definitions only | `QueuePort<T>`, `ApprovalQueuePort<T>` |
+
+**Actions Taken**:
+
+1. **DELETED** `engine-ports/outbound/queue_types.rs` - reverted the partial migration
+2. **KEPT** domain types as canonical source - they're already well-defined
+3. **KEPT** engine-dto types for serialization - they handle forward compatibility
+4. **UPDATED** engine-app service imports to use domain types
+
+**Why This Is Correct**:
+
+1. **Matches `queue-system.md`**: "Queue data value objects - pure domain representations" (line 1 of queue_data.rs)
+2. **Eliminates duplication**: No more three-way type definitions
+3. **Fixes arch-check**: No shadowed types between engine-dto and engine-ports
+4. **Preserves existing conversions**: engine-dto already has From/Into implementations
+
+**What About Serde Derives in Domain?**
+
+The domain types have `#[derive(Serialize, Deserialize)]`. This is acceptable because:
+- Serde is a pure derive macro with no I/O
+- The queue_data.rs header explicitly documents this: "Serde derives are included to support queue storage backends"
+- This is consistent with how other domain value objects are defined
 
 **Verification**:
 ```bash
-grep -r "queue_data" crates/domain  # Should return empty
+cargo xtask arch-check  # Should pass (no shadowed types)
 cargo check --workspace
-cargo xtask arch-check
 ```
 
 ---
 
 ### Phase 1B: DTO Consolidation (ApprovalDecision)
 
-**Goal**: Single source of truth for approval types.
+**Goal**: Reduce duplication in approval types while respecting hexagonal architecture.
 
 **Current State** (ApprovalDecision):
 
 | Location | Type Name | Variants |
 |----------|-----------|----------|
 | `protocol/types.rs` | `ApprovalDecision` | Accept, AcceptWithRecipients, AcceptWithModification, Reject, TakeOver, Unknown |
-| `player-ports/session_types.rs` | `ApprovalDecision` | Same minus Unknown |
-| `engine-dto/queue.rs` | `DmApprovalDecision` | Same minus Unknown |
-| `domain/queue_data.rs` | `DmApprovalDecision` | Same minus Unknown |
+| `player-ports/session_types.rs` | `ApprovalDecision` | 5 variants (no Unknown) + ~130 lines From impls |
+| `engine-dto/queue.rs` | `DmApprovalDecision` | 6 variants (has Unknown with #[serde(other)]) + ~60 lines From impls |
+| `domain/queue_data.rs` | `DmApprovalDecision` | 5 variants (no Unknown) |
 
-**Target State**:
-- `protocol::ApprovalDecision` is the single source of truth
-- Ports add documented exceptions to use protocol directly
-- ~150 lines of `From` impl boilerplate removed
+**CRITICAL ARCHITECTURE CONSTRAINT**: Domain layer CANNOT depend on protocol. The original plan to have domain re-export from protocol violates hexagonal architecture (dependencies must point inward).
+
+**Revised Target State (Three-Type Model)**:
+1. `domain::DmApprovalDecision` - Canonical business type (5 variants, no Unknown)
+2. `protocol::ApprovalDecision` - Wire format (6 variants with Unknown for forward compat)
+3. Remove duplicates in `engine-dto` and `player-ports` - re-export from protocol
 
 **Steps**:
 
-1. In `engine-ports/outbound/queue_types.rs` (new file from 1A):
-   ```rust
-   // ARCHITECTURE EXCEPTION: [APPROVED 2026-01-01]
-   // ApprovalDecision is the wire format and is used identically for queue storage.
-   // Duplicating would require 50+ lines of From impls with no benefit.
-   pub use wrldbldr_protocol::ApprovalDecision;
-   ```
+1. Keep `domain/value_objects/queue_data.rs` as-is (5 variants, canonical business type)
 
 2. Update `engine-dto/queue.rs`:
-   - Remove `DmApprovalDecision` enum definition
-   - Import from `engine-ports::outbound::queue_types`
-   - Remove bidirectional `From` impls (~60 lines)
+   - Remove `DmApprovalDecision` enum definition (~35 lines)
+   - Re-export from protocol: `pub use wrldbldr_protocol::ApprovalDecision;`
+   - Keep `From<domain::DmApprovalDecision>` impl (domain→protocol conversion)
+   - Remove reverse `From` impl
 
 3. Update `player-ports/session_types.rs`:
-   - Remove `ApprovalDecision` enum definition
+   - Remove `ApprovalDecision` enum definition (~25 lines)
    - Add documented exception and re-export from protocol
-   - Remove bidirectional `From` impls (~40 lines)
+   - Remove bidirectional `From` impls (~130 lines)
 
-4. Update all usages across crates
+4. Update `engine-adapters` conversion code to handle domain↔protocol at boundaries
 
-5. Apply same pattern to:
-   - `ProposedTool` / `ProposedToolInfo`
-   - `ChallengeSuggestion` / `ChallengeSuggestionInfo`
-   - `NarrativeEventSuggestion` / `NarrativeEventSuggestionInfo`
+5. **NOT applying to ProposedTool, ChallengeSuggestion, NarrativeEventSuggestion** - these need separate analysis as they have different domain vs wire representations (typed IDs vs strings)
+
+**Estimated savings**: ~250 lines (revised from 150)
+
+**Effort**: Medium (2-3 hours) - revised from original estimate
 
 **Verification**:
 ```bash
-grep -rn "enum DmApprovalDecision" crates/  # Should only find protocol
-grep -rn "enum ApprovalDecision" crates/    # Should only find protocol  
+# Domain should have its own type (not re-exported)
+grep -rn "enum DmApprovalDecision" crates/domain/  # Should find 1 match
+# engine-dto and player-ports should re-export from protocol
+grep -rn "pub use.*protocol.*ApprovalDecision" crates/engine-dto/
+grep -rn "pub use.*protocol.*ApprovalDecision" crates/player-ports/
 cargo check --workspace
 ```
 
@@ -634,26 +630,13 @@ cargo check --workspace
 
 ### Phase 1C: Fix Utc::now() in App DTO
 
+**Status**: COMPLETE
+
 **Goal**: Remove time impurity from app layer.
 
 **Location**: `engine-app/src/application/dto/world_snapshot.rs:74`
 
-**Steps**:
-
-1. Remove `Default` impl from `WorldSnapshot`, OR
-2. Replace `Utc::now()` with a fixed sentinel value:
-   ```rust
-   impl Default for WorldSnapshot {
-       fn default() -> Self {
-           // Use epoch as sentinel for "uninitialized" snapshot
-           let epoch = DateTime::<Utc>::from_timestamp(0, 0).unwrap();
-           Self {
-               world: World::new("Empty World", "A placeholder world", epoch),
-               // ...
-           }
-       }
-   }
-   ```
+**Solution Applied**: Replaced `Utc::now()` with Unix epoch (1970-01-01T00:00:00Z) as a sentinel value for "uninitialized" snapshots. This avoids impure time calls while preserving the Default impl functionality.
 
 **Verification**:
 ```bash
@@ -670,8 +653,23 @@ cargo check --workspace
 **Current Issues**:
 
 1. **Duplicate instantiation** (`app_state.rs:311-391`): Services created twice
-2. **God function**: `new_app_state()` is 855 lines
+2. **God function**: `new_app_state()` is 842 lines (verified)
 3. **Missing factory**: Game services constructed inline
+
+**ROOT CAUSE ANALYSIS** (from code review):
+
+The core problem is **trait interface mismatch**: `AppRequestHandler` uses app-layer traits (`*Service`) while factories return port traits (`*ServicePort`). These are different traits, so services get constructed twice to satisfy both.
+
+Verified duplicates:
+- `WorldServiceImpl`: 2x (core_services.rs:279, app_state.rs:316)
+- `CharacterServiceImpl`: 2x (core_services.rs:289, app_state.rs:324)
+- `SkillServiceImpl`: 3x (core_services.rs:324, app_state.rs:358, app_state.rs:451)
+- `PlayerCharacterServiceImpl`: 3x (core_services.rs:346, app_state.rs:432, app_state.rs:441)
+- `ChallengeServiceImpl`: 2x (app_state.rs:373, app_state.rs:385)
+
+Some duplicates are **intentional** due to Rust generics requiring concrete types (comments note "Keep concrete version for ChallengeResolutionService generics").
+
+**REVISED EFFORT ESTIMATE**: 10-14 hours (not 6-8) due to trait mismatch complexity.
 
 **Steps**:
 
@@ -828,7 +826,10 @@ cargo check --workspace
 **Undocumented exceptions to fix**:
 
 1. `engine-ports/src/outbound/dm_approval_queue_service_port.rs:18`
-2. New exceptions from Phase 1A/1B
+2. `engine-ports/src/outbound/mod.rs:588` (protocol re-exports)
+3. New exceptions from Phase 1A/1B
+
+**Note**: `engine-ports/src/inbound/request_handler.rs:40` is already documented with proper `// ARCHITECTURE EXCEPTION: [APPROVED 2025-12-28]`.
 
 **Template**:
 ```rust
@@ -837,6 +838,8 @@ cargo check --workspace
 // Alternative considered: <what would happen if we didn't do this>
 use wrldbldr_protocol::{...};
 ```
+
+**Effort**: 0.5-1 hour
 
 ---
 
@@ -1039,23 +1042,34 @@ impl ErrorCode for String {
 }
 ```
 
-Find usages and replace with proper error types.
+**DISCOVERY**: A proper `SceneError` enum already exists at `engine-ports/src/outbound/use_case_errors.rs:257-289` with full `impl ErrorCode`. The fix is straightforward:
+
+**Steps**:
+1. In `scene_use_case_port.rs`: Change `pub type SceneUseCaseError = String;` to:
+   ```rust
+   pub use crate::outbound::SceneError as SceneUseCaseError;
+   ```
+2. In `engine-app/src/application/use_cases/scene.rs`: Remove the 3 `.map_err(|e| e.to_string())` calls (lines 266, 276, 286)
+3. In `use_case_types.rs`: Delete the blanket impl (lines 1065-1070)
+
+**Effort**: 1-2 hours (revised from 0.5 - need to verify no regressions)
 
 ---
 
 ### Phase 4C: Cleanup Orphaned Module
 
-**Single item to remove**:
+**Status**: COMPLETE
 
-1. `engine-runner/src/composition/services/mod.rs` (empty, deprecated)
+**Single item removed**:
+
+1. `engine-runner/src/composition/services/` directory (empty, deprecated)
 
 **Correction from validation**: `player-ports/src/mod.rs` is **NOT orphaned** - it's properly used by `lib.rs` as a re-export module. Do not remove it.
 
-**Steps**:
-1. Delete `crates/engine-runner/src/composition/services/mod.rs`
-2. Remove `pub mod services;` from `crates/engine-runner/src/composition/mod.rs`
-
-**Effort**: 0.25 hours
+**Steps completed**:
+1. Deleted `crates/engine-runner/src/composition/services/` directory
+2. Removed `pub mod services;` from `crates/engine-runner/src/composition/mod.rs`
+3. Updated module docstring to reflect current structure
 
 ---
 
@@ -1064,35 +1078,38 @@ Find usages and replace with proper error types.
 After completing all phases:
 
 ```bash
-# 1. Architecture check passes
+# 1. Architecture check passes (critical - validates no shadowed types)
 cargo xtask arch-check
 
 # 2. All tests pass
 cargo test --workspace
 
-# 3. No queue_data in domain (infrastructure types moved)
-grep -r "queue_data" crates/domain && echo "FAIL" || echo "PASS"
+# 3. Queue types are in domain (correct location per queue-system.md)
+test -f crates/domain/src/value_objects/queue_data.rs && echo "PASS" || echo "FAIL"
 
-# 4. No duplicate ApprovalDecision
+# 4. No queue_types.rs in engine-ports (was deleted in Phase 1A redesign)
+test ! -f crates/engine-ports/src/outbound/queue_types.rs && echo "PASS" || echo "FAIL"
+
+# 5. No duplicate ApprovalDecision (after Phase 1B)
 grep -c "enum.*ApprovalDecision" crates/*/src/**/*.rs  # Should be 1 (in protocol)
 
-# 5. No Utc::now() outside tests in app layer
+# 6. No Utc::now() outside tests in app layer
 grep -rn "Utc::now()" crates/engine-app/src/application/ | grep -v "#\[cfg(test)\]" | grep -v "mod tests" && echo "FAIL" || echo "PASS"
 
-# 6. player_events.rs docstring is correct (not moved, just documented)
+# 7. player_events.rs docstring is correct (not moved, just documented)
 grep -A5 "Hexagonal Architecture Placement" crates/player-ports/src/outbound/player_events.rs | grep -q "outbound" && echo "PASS" || echo "FAIL"
 
-# 7. Composition complexity
+# 8. Composition complexity
 wc -l crates/engine-runner/src/composition/app_state.rs  # Should be < 600
 
-# 8. Documentation counts
+# 9. Documentation counts
 grep "28 typed IDs" AGENTS.md && echo "PASS" || echo "FAIL"
 
-# 9. UI uses domain DiceFormula (no duplicate parsing)
+# 10. UI uses domain DiceFormula (no duplicate parsing)
 grep -r "regex_lite" crates/player-ui/src/ && echo "FAIL (still has regex)" || echo "PASS"
 grep -r "DiceFormula::parse" crates/player-ui/src/ && echo "PASS (uses domain)" || echo "FAIL"
 
-# 10. ApprovalUrgency and ApprovalDecisionType still in domain (business concepts)
+# 11. ApprovalUrgency and ApprovalDecisionType still in domain (business concepts)
 grep -l "ApprovalUrgency" crates/domain/src/ && echo "PASS" || echo "FAIL"
 ```
 
@@ -1108,53 +1125,87 @@ The previous plan should be marked deprecated with a reference to this document.
 
 ---
 
-## Appendix B: Type Migration Reference
+## Appendix B: Type Architecture Reference (REVISED)
 
-### Queue Types Moving to engine-ports
+### Queue Type Ownership (Three-Tier Model)
 
-```rust
-// crates/engine-ports/src/outbound/queue_types.rs
+After the Phase 1A redesign, queue types follow this ownership model:
 
-// Infrastructure types (move from domain)
-pub struct PlayerActionData { ... }
-pub struct DmActionData { ... }
-pub enum DmActionType { ... }
-pub struct LlmRequestData { ... }
-pub enum LlmRequestType { ... }
-pub struct SuggestionContext { ... }
-pub struct ApprovalRequestData { ... }
-pub struct ChallengeOutcomeData { ... }
-pub struct AssetGenerationData { ... }
-
-// Re-exports from protocol (documented exceptions)
-pub use wrldbldr_protocol::ApprovalDecision;
-pub use wrldbldr_protocol::ProposedToolInfo as ProposedTool;
-pub use wrldbldr_protocol::ChallengeSuggestionInfo as ChallengeSuggestion;
-pub use wrldbldr_protocol::ChallengeSuggestionOutcomes;
-pub use wrldbldr_protocol::NarrativeEventSuggestionInfo as NarrativeEventSuggestion;
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DOMAIN LAYER                                 │
+│  crates/domain/src/value_objects/queue_data.rs                      │
+│                                                                      │
+│  CANONICAL BUSINESS TYPES (with typed IDs):                         │
+│  - PlayerActionData, DmActionData, DmActionType                     │
+│  - LlmRequestData, LlmRequestType, SuggestionContext                │
+│  - ApprovalRequestData, ChallengeOutcomeData, AssetGenerationData   │
+│  - ApprovalDecisionType, ApprovalUrgency (business concepts)        │
+│  - ProposedTool, ChallengeSuggestion, NarrativeEventSuggestion      │
+│                                                                      │
+│  Note: Serde derives included for queue storage (documented)        │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │
+                                   │ From/Into conversions
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       ENGINE-DTO LAYER                               │
+│  crates/engine-dto/src/queue.rs                                     │
+│                                                                      │
+│  SERIALIZATION DTOS (with raw UUIDs, #[serde(other)]):              │
+│  - PlayerActionItem, DMActionItem, DMAction                         │
+│  - LLMRequestItem, LLMRequestType                                   │
+│  - ApprovalItem, ChallengeOutcomeApprovalItem                       │
+│  - AssetGenerationItem                                              │
+│  - DmApprovalDecision, DecisionType, DecisionUrgency                │
+│  - SuggestionContext (DTO version with String world_id)             │
+│                                                                      │
+│  Purpose: Forward-compatible serialization for SQLite storage       │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │
+                                   │ Trait definitions only
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       ENGINE-PORTS LAYER                             │
+│  crates/engine-ports/src/outbound/queue_port.rs                     │
+│                                                                      │
+│  PORT TRAITS (no type definitions):                                  │
+│  - QueuePort<T>           - Generic queue operations                 │
+│  - ApprovalQueuePort<T>   - Approval-specific operations            │
+│  - Uses domain types as T parameter                                  │
+│                                                                      │
+│  NO queue_types.rs file (deleted in Phase 1A redesign)              │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Business Types Staying in domain
+### Why Domain Types Are Correct
+
+| Argument | Response |
+|----------|----------|
+| "They have timestamps" | `DateTime<Utc>` is a value, not I/O |
+| "They're queue infrastructure" | No - they represent business data (what player wants to do) |
+| "Domain should be pure" | They ARE pure - no framework deps, no I/O |
+| "queue-system.md says..." | It says queue payloads ARE domain value objects (line 267) |
+
+### Business Concepts (Stay in Domain)
 
 ```rust
-// crates/domain/src/value_objects/dm_approval.rs (or similar)
+// crates/domain/src/value_objects/queue_data.rs
 
-// These are BUSINESS CONCEPTS, not infrastructure:
-// - ApprovalDecisionType defines what kinds of things need DM approval
-// - ApprovalUrgency defines priority levels for narrative pacing
+// These define WHAT needs approval and HOW urgent - core game rules:
 
 pub enum ApprovalDecisionType {
-    NpcResponse,      // Business: NPC responding to player
-    ToolUsage,        // Business: Using game tools
-    ChallengeSuggestion,  // Business: Skill check suggestion
-    SceneTransition,  // Business: Scene changes
-    ChallengeOutcome, // Business: Challenge results
+    NpcResponse,          // NPC responding to player
+    ToolUsage,            // Using game tools
+    ChallengeSuggestion,  // Skill check suggestion
+    SceneTransition,      // Scene changes
+    ChallengeOutcome,     // Challenge results
 }
 
 pub enum ApprovalUrgency {
-    Normal,           // Workflow priority
-    AwaitingPlayer,   // User experience consideration
-    SceneCritical,    // Narrative pacing
+    Normal,           // Standard workflow
+    AwaitingPlayer,   // Player is waiting
+    SceneCritical,    // Narrative pacing critical
 }
 ```
 
@@ -1164,33 +1215,32 @@ pub enum ApprovalUrgency {
 
 | Phase | Estimated Hours | Parallelizable With | Notes |
 |-------|----------------|---------------------|-------|
-| 1A.1 | 3-4 | 2A, 2B, 3A | Move infrastructure types |
-| 1A.2 | 2-3 | 2C, 2D | Consolidate with protocol |
-| 1B | 2-3 | After 1A.2 | DTO consolidation |
-| 1C | 0.5 | Any | Trivial fix |
-| 2A | 6-8 | 1A, 3A, 3B | Complex, raised from 4-6 |
+| 1A | **DONE** | - | Queue type architecture (redesigned) |
+| 1B | 2-3 | Any | DTO consolidation (three-type model) |
+| 1C | **DONE** | - | Utc::now() fix |
+| 2A | 10-14 | None | **Revised**: Complex, trait mismatch root cause |
 | 2B | 1-2 | Any | File renames |
-| 2C | 0.5 | Any | **Reduced**: docstring fix only |
-| 2D | 0.5 | Any | Documentation |
-| 3A | 1 | 1A, 2A | **Reduced**: use existing domain |
-| 3B | 2-4 | 1A, 2A | Audit + targeted fixes |
-| 3C | 1-2 | After 1A, 2B | Documentation |
-| 4A | 0.5 | Any | **Reduced**: single inline fix |
-| 4B | 0.5 | Any | Delete blanket impl |
-| 4C | 0.25 | Any | **Reduced**: single orphan |
+| 2C | **DONE** | - | Docstring fix |
+| 2D | 0.5-1 | Any | Documentation (includes mod.rs:588) |
+| 3A | **DONE** | - | Use existing domain DiceFormula |
+| 3B | 2-4 | Any | Audit + targeted fixes |
+| 3C | 1-2 | After 1B, 2B | Documentation |
+| 4A | **DONE** | - | Single inline fix |
+| 4B | 1-2 | Any | **Revised**: SceneError already exists |
+| 4C | **DONE** | - | Orphan module removed |
 
-**Total**: ~22-32 hours of focused work
+**Total remaining**: ~18-28 hours of focused work
 
-**With parallelization**: ~12-16 hours elapsed time (2 developers)
+**With parallelization**: ~10-14 hours elapsed time (2 developers)
 
-### Validation-Driven Changes
+### Validation-Driven Changes (2026-01-02 Review)
 
 | Phase | Original Plan | Validated Plan | Change |
 |-------|---------------|----------------|--------|
-| 2C | Move file + 11 imports | Fix docstring | -1.5 hrs, lower risk |
-| 3A | Create new service | Use existing domain | -1 hr, fixes bugs |
-| 4A | Make 2 items configurable | Fix 1 inline constant | -0.5 hrs |
-| 4C | Remove 2 orphans | Remove 1 orphan | -0.25 hrs |
+| 1B | Domain re-exports protocol | Three-type model | Architecture fix |
+| 2A | 6-8 hours | 10-14 hours | Trait mismatch complexity |
+| 2D | 1 exception | 2 exceptions | Found mod.rs:588 |
+| 4B | Create SceneUseCaseError | Use existing SceneError | Much simpler |
 
 ---
 

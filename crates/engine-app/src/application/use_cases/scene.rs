@@ -261,9 +261,7 @@ impl SceneUseCasePort for SceneUseCase {
         ctx: UseCaseContext,
         input: RequestSceneChangeInput,
     ) -> Result<SceneChangeResult, PortSceneError> {
-        self.request_scene_change(ctx, input)
-            .await
-            .map_err(|e| e.to_string())
+        self.request_scene_change(ctx, input).await
     }
 
     async fn update_directorial_context(
@@ -271,9 +269,7 @@ impl SceneUseCasePort for SceneUseCase {
         ctx: UseCaseContext,
         input: UpdateDirectorialInput,
     ) -> Result<DirectorialUpdateResult, PortSceneError> {
-        self.update_directorial_context(ctx, input)
-            .await
-            .map_err(|e| e.to_string())
+        self.update_directorial_context(ctx, input).await
     }
 
     async fn handle_approval_decision(
@@ -281,9 +277,7 @@ impl SceneUseCasePort for SceneUseCase {
         ctx: UseCaseContext,
         input: SceneApprovalDecisionInput,
     ) -> Result<SceneApprovalDecisionResult, PortSceneError> {
-        self.handle_approval_decision(ctx, input)
-            .await
-            .map_err(|e| e.to_string())
+        self.handle_approval_decision(ctx, input).await
     }
 }
 

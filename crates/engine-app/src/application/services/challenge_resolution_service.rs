@@ -17,15 +17,13 @@ use thiserror::Error;
 use crate::application::services::{ChallengeService, PlayerCharacterService, SkillService};
 use tracing::{debug, info};
 use wrldbldr_domain::entities::{Difficulty, OutcomeType};
-use wrldbldr_domain::value_objects::{
-    AdHocOutcomes, ChallengeOutcomeData, DiceRollInput, ProposedTool,
-};
+use wrldbldr_domain::value_objects::{AdHocOutcomes, DiceRollInput, ProposedTool};
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    ClockPort, DiceInputType, DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution,
-    RandomPort, RollResult as PortRollResult,
+    ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeOutcomeData,
+    ChallengeResolutionServicePort, ClockPort, DiceInputType, DiceRoll as PortDiceRoll,
+    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
 };
 
 // ============================================================================
@@ -818,6 +816,7 @@ where
 
         // Look up skill modifier for target character if available
         let character_modifier = if let Some(ref sid) = skill_id {
+            // target_pc_id is already a PlayerCharacterId in domain type
             if let Some(pc_id) = challenge_suggestion.target_pc_id {
                 match self
                     .player_character_service
@@ -835,7 +834,7 @@ where
                     }
                 }
             } else {
-                tracing::debug!("No target_pc_id in challenge suggestion, using modifier 0");
+                tracing::debug!("No valid target_pc_id in challenge suggestion, using modifier 0");
                 0
             }
         } else {

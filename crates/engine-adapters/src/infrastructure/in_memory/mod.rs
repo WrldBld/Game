@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use wrldbldr_domain::value_objects::{AppSettings, ChallengeOutcomeData};
+use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::{BatchId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    ActiveGenerationBatch, ActiveGenerationBatchesPort, ChallengeOutcomePendingPort,
-    PromptTemplateCachePort, ResolvedPromptTemplate, SettingsCachePort,
+    ActiveGenerationBatch, ActiveGenerationBatchesPort, ChallengeOutcomeData,
+    ChallengeOutcomePendingPort, PromptTemplateCachePort, ResolvedPromptTemplate, SettingsCachePort,
 };
 
 pub struct InMemorySettingsCache {

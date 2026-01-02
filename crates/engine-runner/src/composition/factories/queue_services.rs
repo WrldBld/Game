@@ -12,7 +12,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-use wrldbldr_domain::value_objects::{
+use wrldbldr_engine_ports::outbound::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
 };

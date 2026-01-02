@@ -33,10 +33,9 @@ use crate::outbound::{
 
 /// Error type for scene operations
 ///
-/// Note: The actual error type is defined in engine-app to avoid
-/// circular dependencies. Implementations should use their own
-/// error type that can be converted to this trait's error.
-pub type SceneUseCaseError = String;
+/// Re-exports `SceneError` from `use_case_errors` which provides proper
+/// error codes for each error variant.
+pub use crate::outbound::SceneError as SceneUseCaseError;
 
 // =============================================================================
 // Scene Use Case Port
