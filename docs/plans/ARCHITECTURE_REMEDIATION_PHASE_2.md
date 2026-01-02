@@ -90,7 +90,7 @@ Following a comprehensive code review by 8 review agents and 5 validation agents
 | Item | Description | Future Action | Severity |
 |------|-------------|---------------|----------|
 | Duplicate `MockGameConnectionPort` | Two copies: player-ports and player-adapters | Create `player-testing` crate or use conditional compilation | Low |
-| 39 `*_port.rs` files in `engine-app/services/internal/` | Confusing naming (these are internal service traits, not ports) | Rename to `*_service.rs` in dedicated refactor | Low |
+| ~~39 `*_port.rs` files in `engine-app/services/internal/`~~ | ~~Confusing naming~~ | **FIXED** - Renamed to `*_service.rs` | ~~Low~~ |
 | `{:?}` formatting for Neo4j storage | 15+ locations use Debug formatting for enum storage | Implement Display traits before production | Medium |
 | `engine-dto` imports in `queue_use_case_port.rs` | Ports importing from engine-dto | Analyze proper DTO placement | Low |
 
@@ -102,7 +102,7 @@ Following a comprehensive code review by 8 review agents and 5 validation agents
 |---|-------|--------|
 | 6 | engine-dto imports in ports | Needs deeper analysis |
 | 7 | Debug formatting for DB | No production data yet |
-| 10 | Naming conventions (39 files) | High churn, low immediate value |
+| ~~10~~ | ~~Naming conventions (39 files)~~ | **FIXED** - See Phase 5 below |
 
 ---
 
@@ -128,6 +128,25 @@ cargo test --workspace      # Must pass
 - [x] PlayerActionUseCase depends only on outbound ports (Phase 3 - FIXED with MovementOperationsPort)
 - [x] All changes documented (Phase 4 - THIS DOCUMENT)
 - [x] `cargo xtask arch-check` passes (verified)
+- [x] Internal service traits use correct naming (Phase 5 - FIXED, renamed 39 files)
+
+---
+
+## Phase 5: Naming Convention Fix (COMPLETED)
+
+### 5.1 Problem
+
+39 files in `crates/engine-app/src/application/services/internal/` were named `*_service_port.rs` but these are internal application service traits, NOT ports. Per `AGENTS.md`, the `*Port` suffix should only be used for traits in the ports layer.
+
+### 5.2 Solution (Implemented)
+
+1. Renamed all 39 files from `*_service_port.rs` to `*_service.rs` using `git mv`
+2. Updated `mod.rs` module declarations (39 mod statements)
+3. Updated `mod.rs` re-exports (~78 pub use statements)
+
+Note: The trait names (e.g., `SheetTemplateServicePort`) were NOT renamed - only the file names. This is intentional to minimize churn; the trait suffix can be addressed in a future refactor if needed.
+
+---
 
 ## Files Modified
 
@@ -142,3 +161,5 @@ cargo test --workspace      # Must pass
 | `crates/engine-ports/src/outbound/mod.rs` | Added module export |
 | `crates/engine-app/src/application/use_cases/movement.rs` | Added `MovementOperationsPort` impl |
 | `crates/engine-app/src/application/use_cases/player_action.rs` | Changed to depend on `MovementOperationsPort` |
+| `crates/engine-app/src/application/services/internal/*.rs` | Renamed 39 files from `*_service_port.rs` to `*_service.rs` |
+| `crates/engine-app/src/application/services/internal/mod.rs` | Updated module declarations and re-exports |
