@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
 
-use super::SettingsError;
+use wrldbldr_engine_ports::outbound::SettingsError;
 
 /// LLM configuration extracted from settings
 ///

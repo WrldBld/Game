@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{
-    ChatMessage, LlmPort, LlmRequest, MessageRole, PromptTemplateServicePort,
-};
+use crate::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole};
 
 /// Service for generating content suggestions
 pub struct SuggestionService<L: LlmPort> {

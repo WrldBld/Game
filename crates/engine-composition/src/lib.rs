@@ -46,6 +46,7 @@ mod event_infra;
 mod game_services;
 mod player_services;
 mod queue_services;
+mod use_case_adapters;
 mod use_cases;
 
 // Re-export all public types from submodules
@@ -56,4 +57,10 @@ pub use event_infra::EventInfra;
 pub use game_services::GameServices;
 pub use player_services::PlayerServices;
 pub use queue_services::QueueServices;
+pub use use_case_adapters::{
+    AssetGenerationQueueUseCaseAdapter, AssetUseCaseAdapter, DmApprovalQueueUseCaseAdapter,
+    GenerationQueueProjectionUseCaseAdapter, GenerationUseCaseAdapter, LlmQueueUseCaseAdapter,
+    PlayerActionQueueUseCaseAdapter, PromptTemplateUseCaseAdapter, SettingsUseCaseAdapter,
+    WorkflowUseCaseAdapter, WorldUseCaseAdapter,
+};
 pub use use_cases::UseCases;

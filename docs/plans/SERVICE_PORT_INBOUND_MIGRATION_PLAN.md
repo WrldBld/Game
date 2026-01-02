@@ -249,14 +249,20 @@ The original plan was to simply move the 11 service port traits from `outbound/`
    - As dependencies for other application services (violates inbound port rules)
 
 For example, `PromptTemplateServicePort` is:
+
 - Called by `prompt_template_routes.rs` (handler → service, correct for INBOUND)
 - Depended on by `PromptBuilder`, `StagingService`, `SuggestionService`, etc. (service → service, NOT correct for INBOUND)
 
 #### The Correct Approach
 
-The 11 "INBOUND" service ports should be handled differently based on their usage:
+The 11 “INBOUND” service ports must be split into:
 
-**Option A: Internalize + Create Use Case Wrappers (Recommended)**
+1. **Internal service traits** used for app↔app collaboration (live in `engine-app`, not `engine-ports`)
+2. **Inbound use case ports** used by HTTP handlers (live in `engine-ports/src/inbound/`)
+
+This preserves the strict rule: **adapters call inbound; application does not depend on inbound**.
+
+**Correct Option B implementation: Internalize + Create Use Case Ports**
 
 1. **Internalize the service traits** to `engine-app/services/internal/` (like the 24 NOT-A-PORT traits)
 2. **Create thin inbound use case ports** in `engine-ports/src/inbound/` that:
@@ -272,51 +278,34 @@ engine-ports/src/inbound/
 engine-app/src/application/
 ├── services/
 │   └── internal/
-│       └── settings_service_port.rs  # Internal trait (NOT A PORT)
+│       └── settings_service_port.rs   # Internal trait (app↔app seam)
 ├── use_cases/
-│   └── settings_use_case.rs          # Implements inbound port, delegates to service
+│   └── settings_use_case.rs           # Implements inbound port, delegates to service
 └── services/
-    └── settings_service.rs           # Implements internal trait
+    └── settings_service.rs            # Implements internal trait
 ```
 
-**Option B: Keep in Outbound (Pragmatic Short-Term)**
-
-For now, keep the 11 service ports in `outbound/` with clear documentation that:
-- They are called by HTTP handlers (technically incorrect for outbound)
-- They are depended on by services (correct for outbound)
-- This is a known architectural compromise
-
-**Option C: Accept Mixed Usage (Alternative)**
-
-Update the arch-check rule to allow services that **implement** inbound ports to import them (but not depend on them as trait objects). This is complex to enforce.
-
-#### Current Decision: Option B (Pragmatic)
-
-For this big-bang refactor, we will:
-
-1. **Keep the 11 service ports in `outbound/`** for now
-2. **Document the compromise** in the architecture docs
-3. **Create a follow-up task** to properly refactor to Option A
-
-This allows completing Steps 4-8 without blocking on a complex refactor.
-
-#### Future Work (Option A Implementation)
+#### Mapping (service trait → inbound use case)
 
 When ready to implement Option A properly:
 
-| Current ServicePort                    | Internal Trait                            | Inbound UseCase Port          |
-| -------------------------------------- | ----------------------------------------- | ----------------------------- |
-| `SettingsServicePort`                  | `internal::SettingsServicePort`           | `SettingsUseCasePort`         |
-| `PromptTemplateServicePort`            | `internal::PromptTemplateServicePort`     | `PromptTemplateUseCasePort`   |
-| `AssetServicePort`                     | `internal::AssetServicePort`              | `AssetUseCasePort`            |
-| `GenerationServicePort`                | `internal::GenerationServicePort`         | `GenerationUseCasePort`       |
-| `AssetGenerationQueueServicePort`      | `internal::AssetGenerationQueueServicePort` | (merge into GenerationUseCasePort) |
-| `WorkflowServicePort`                  | `internal::WorkflowServicePort`           | `WorkflowUseCasePort`         |
-| `GenerationQueueProjectionServicePort` | `internal::GenerationQueueProjectionServicePort` | `QueueProjectionUseCasePort` |
-| `PlayerActionQueueServicePort`         | `internal::PlayerActionQueueServicePort`  | `QueueAdminUseCasePort`       |
-| `LlmQueueServicePort`                  | `internal::LlmQueueServicePort`           | (merge into QueueAdminUseCasePort) |
-| `DmApprovalQueueServicePort`           | `internal::DmApprovalQueueServicePort`    | (merge into QueueAdminUseCasePort) |
-| `WorldServicePort`                     | `internal::WorldServicePort`              | `ExportUseCasePort`           |
+| Current ServicePort                    | Internal Trait                                   | Inbound UseCase Port               |
+| -------------------------------------- | ------------------------------------------------ | ---------------------------------- |
+| `SettingsServicePort`                  | `internal::SettingsServicePort`                  | `SettingsUseCasePort`              |
+| `PromptTemplateServicePort`            | `internal::PromptTemplateServicePort`            | `PromptTemplateUseCasePort`        |
+| `AssetServicePort`                     | `internal::AssetServicePort`                     | `AssetUseCasePort`                 |
+| `GenerationServicePort`                | `internal::GenerationServicePort`                | `AssetGenerationUseCasePort`       |
+| `AssetGenerationQueueServicePort`      | `internal::AssetGenerationQueueServicePort`      | (merge into GenerationUseCasePort) |
+| `WorkflowServicePort`                  | `internal::WorkflowServicePort`                  | `WorkflowUseCasePort`              |
+| `GenerationQueueProjectionServicePort` | `internal::GenerationQueueProjectionServicePort` | `QueueProjectionUseCasePort`       |
+| `PlayerActionQueueServicePort`         | `internal::PlayerActionQueueServicePort`         | `QueueAdminUseCasePort`            |
+| `LlmQueueServicePort`                  | `internal::LlmQueueServicePort`                  | (merge into QueueAdminUseCasePort) |
+| `DmApprovalQueueServicePort`           | `internal::DmApprovalQueueServicePort`           | (merge into QueueAdminUseCasePort) |
+| `WorldServicePort`                     | `internal::WorldServicePort`                     | `ExportUseCasePort`                |
+
+#### Decision
+
+This plan remains **Option B / Purist**. Therefore Step 3 and Step 4 are **not optional**: we will internalize these 11 service traits and add inbound use case ports so handlers stop calling services directly.
 
 ### Step 4: Update `AppStatePort` and HTTP handlers
 
@@ -363,32 +352,18 @@ cargo clippy --workspace --all-targets
 
 ## Estimated Effort
 
-### Phase 1 (Current Scope)
-
-| Step      | Description                           | Effort     | Status      |
-| --------- | ------------------------------------- | ---------- | ----------- |
-| Step 0    | Pre-flight checks                     | 15 min     | **Done**    |
-| Step 1    | Create internal traits directory      | 15 min     | **Done**    |
-| Step 2    | Internalize 24 traits                 | 3-4 hours  | **Done**    |
-| Step 3    | Handle 11 INBOUND ports (pragmatic)   | 30 min     | Skip (keep in outbound) |
-| Step 4    | Update AppStatePort and HTTP handlers | N/A        | Skip (no changes needed) |
-| Step 5    | Delete wrapper-forwarder adapters     | 2-3 hours  | Pending     |
-| Step 6    | Clean up remaining outbound ports     | 1 hour     | Pending     |
-| Step 7    | Documentation updates                 | 30 min     | Pending     |
-| Step 8    | Verification loop                     | 30 min     | Pending     |
-| **Total** |                                       | **~8 hours** |           |
-
-### Phase 2 (Future - Option A)
-
-| Step      | Description                           | Effort          |
-| --------- | ------------------------------------- | --------------- |
-| P2-1      | Internalize 11 service ports          | 2-3 hours       |
-| P2-2      | Create 7 inbound use case ports       | 2-3 hours       |
-| P2-3      | Create use case wrappers              | 2-3 hours       |
-| P2-4      | Update AppStatePort                   | 1-2 hours       |
-| P2-5      | Update HTTP handlers                  | 1-2 hours       |
-| P2-6      | Verification                          | 1 hour          |
-| **Total** |                                       | **10-14 hours** |
+| Step      | Description                                               | Effort          | Status  |
+| --------- | --------------------------------------------------------- | --------------- | ------- |
+| Step 0    | Pre-flight checks                                         | 15 min          | Done    |
+| Step 1    | Create internal traits directory                          | 15 min          | Done    |
+| Step 2    | Internalize 24 traits                                     | 3-4 hours       | Done    |
+| Step 3    | Internalize 11 service traits                             | 2-3 hours       | Pending |
+| Step 4    | Add inbound use case ports + update handlers/AppStatePort | 4-6 hours       | Pending |
+| Step 5    | Delete wrapper-forwarder adapters                         | 2-3 hours       | Pending |
+| Step 6    | Clean up remaining outbound ports                         | 1 hour          | Pending |
+| Step 7    | Documentation updates                                     | 30 min          | Pending |
+| Step 8    | Verification loop                                         | 30-60 min       | Pending |
+| **Total** |                                                           | **13-18 hours** |         |
 
 ---
 
@@ -418,24 +393,17 @@ After internalization, review whether internal traits are still needed or if con
 
 ## Success Criteria
 
-### Phase 1 (Current Scope)
-
 - [x] 24 internal traits moved to `engine-app/src/application/services/internal/`
+- [ ] 11 handler-called service traits internalized to `engine-app/src/application/services/internal/`
+- [ ] Inbound use case ports created for settings/prompt templates/assets/workflows/queues/export
+- [ ] `AppStatePort` returns use case ports (handlers no longer call service getters)
 - [ ] All wrapper-forwarder adapters deleted (5 wrapper ports removed)
-- [ ] 5 wrapper service ports deleted or internalized
+- [ ] Wrapper service ports deleted or internalized
+- [ ] Only `StagingUseCaseServicePort` + `StagingUseCaseServiceExtPort` remain in `outbound/`
 - [ ] `cargo xtask arch-check` passes
 - [ ] `cargo check --workspace` compiles
 - [ ] `cargo test --workspace` passes
 - [ ] Documentation updated
-
-### Phase 2 (Future - Option A Implementation)
-
-- [ ] 11 INBOUND service ports internalized to `engine-app/services/internal/`
-- [ ] 7 new inbound use case ports created in `engine-ports/inbound/`
-- [ ] Use case wrappers created in `engine-app/use_cases/`
-- [ ] AppStatePort returns use case ports instead of service ports
-- [ ] HTTP handlers call use case ports
-- [ ] Only `StagingUseCaseServicePort` + `StagingUseCaseServiceExtPort` remain in `outbound/`
 
 ---
 

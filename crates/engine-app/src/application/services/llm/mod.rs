@@ -24,9 +24,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::{DirectorialNotes, GamePromptRequest};
-use wrldbldr_engine_ports::outbound::{
-    ChatMessage, LlmPort, LlmRequest, MessageRole, PromptTemplateServicePort, ToolCall,
-};
+use crate::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::outbound::{ChatMessage, LlmPort, LlmRequest, MessageRole, ToolCall};
 
 use tool_definitions::get_game_tool_definitions;
 use tool_parser::parse_tool_calls_from_response;
@@ -361,10 +360,10 @@ mod tests {
     use crate::application::services::PromptTemplateService;
     use wrldbldr_domain::WorldId;
     use wrldbldr_engine_dto::FinishReason;
+    use crate::application::services::internal::PromptTemplateServicePort;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, LlmResponse, PromptTemplateCachePort, PromptTemplateError,
-        PromptTemplateRepositoryPort, PromptTemplateServicePort, ResolvedPromptTemplate,
-        ToolDefinition,
+        PromptTemplateRepositoryPort, ResolvedPromptTemplate, ToolDefinition,
     };
 
     struct NoopPromptTemplateCache;

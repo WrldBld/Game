@@ -27,9 +27,10 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
+use crate::application::services::internal::GenerationQueueProjectionServicePort;
 use wrldbldr_engine_ports::outbound::{
-    CharacterLocationPort, ClockPort, GenerationQueueProjectionServicePort,
-    GenerationReadStatePort, ObservationRepositoryPort, RegionCrudPort, SuggestionEnqueuePort,
+    CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
+    RegionCrudPort, SuggestionEnqueuePort,
 };
 use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 

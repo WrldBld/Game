@@ -9,7 +9,8 @@ use uuid::Uuid;
 use crate::application::dto::{OutcomeBranchDto, OutcomeSuggestionRequest};
 use wrldbldr_domain::value_objects::prompt_keys;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{LlmPort, PromptTemplateServicePort};
+use crate::application::services::internal::PromptTemplateServicePort;
+use wrldbldr_engine_ports::outbound::LlmPort;
 
 /// Error type for outcome suggestion operations
 #[derive(Debug, thiserror::Error)]
@@ -373,10 +374,10 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
 mod tests {
     use super::*;
     use crate::application::services::PromptTemplateService;
+    use crate::application::services::internal::PromptTemplateServicePort;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, FinishReason, PromptTemplateCachePort, PromptTemplateError,
-        PromptTemplateRepositoryPort, PromptTemplateServicePort, ResolvedPromptTemplate,
-        ToolDefinition,
+        PromptTemplateRepositoryPort, ResolvedPromptTemplate, ToolDefinition,
     };
 
     struct NoopPromptTemplateCache;

@@ -16,9 +16,10 @@ use wrldbldr_domain::value_objects::{
     PromptTemplateMetadata,
 };
 use wrldbldr_domain::WorldId;
+use crate::application::services::internal::PromptTemplateServicePort;
 use wrldbldr_engine_ports::outbound::{
     EnvironmentPort, PromptTemplateCachePort, PromptTemplateError, PromptTemplateRepositoryPort,
-    PromptTemplateServicePort, PromptTemplateSource, ResolvedPromptTemplate,
+    PromptTemplateSource, ResolvedPromptTemplate,
 };
 
 /// Service for managing prompt templates with priority resolution

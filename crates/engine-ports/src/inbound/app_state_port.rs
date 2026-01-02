@@ -41,18 +41,18 @@
 use std::sync::Arc;
 
 use crate::inbound::{
-    ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
-    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandler,
-    SceneUseCasePort, StagingUseCasePort,
+    AssetGenerationQueueUseCasePort, AssetUseCasePort, ChallengeUseCasePort, ConnectionUseCasePort,
+    DmApprovalQueueUseCasePort, GenerationQueueProjectionUseCasePort, GenerationUseCasePort,
+    InventoryUseCasePort, LlmQueueUseCasePort, MovementUseCasePort, NarrativeEventUseCasePort,
+    ObservationUseCasePort, PlayerActionQueueUseCasePort, PlayerActionUseCasePort,
+    PromptTemplateUseCasePort, RequestHandler, SceneUseCasePort, SettingsUseCasePort,
+    StagingUseCasePort, WorkflowUseCasePort, WorldUseCasePort,
 };
 use crate::outbound::{
-    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ClockPort, ComfyUIPort,
-    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    DmApprovalQueueServicePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
-    GenerationServicePort, LlmQueueServicePort, PlayerActionQueueServicePort,
-    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, WorkflowServicePort,
+    BroadcastPort, ClockPort, ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort,
+    ConnectionLifecyclePort, ConnectionQueryPort, GenerationReadStatePort, RegionItemPort,
     WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
-    WorldScenePort, WorldServicePort, WorldTimePort,
+    WorldScenePort, WorldTimePort,
 };
 
 /// Port for accessing application services from adapter handlers.
@@ -136,43 +136,44 @@ pub trait AppStatePort: Send + Sync {
     /// Get the region item port for entity conversion (fetching region items)
     fn region_item(&self) -> Arc<dyn RegionItemPort>;
 
-    /// Get the settings service for runtime configuration
-    fn settings_service(&self) -> Arc<dyn SettingsServicePort>;
+    /// Get the settings use case for runtime configuration
+    fn settings_use_case(&self) -> Arc<dyn SettingsUseCasePort>;
 
-    /// Get the prompt template service for LLM prompts
-    fn prompt_template_service(&self) -> Arc<dyn PromptTemplateServicePort>;
-
-    // =========================================================================
-    // Asset Services
-    // =========================================================================
-
-    /// Get the asset service for gallery asset operations
-    fn asset_service(&self) -> Arc<dyn AssetServicePort>;
-
-    /// Get the generation service for asset generation operations
-    fn generation_service(&self) -> Arc<dyn GenerationServicePort>;
-
-    /// Get the asset generation queue service for ComfyUI queue operations
-    fn asset_generation_queue_service(&self) -> Arc<dyn AssetGenerationQueueServicePort>;
-
-    /// Get the workflow service for workflow configuration operations
-    fn workflow_service(&self) -> Arc<dyn WorkflowServicePort>;
-
-    /// Get the generation queue projection service for queue state views
-    fn generation_queue_projection_service(&self) -> Arc<dyn GenerationQueueProjectionServicePort>;
+    /// Get the prompt template use case for LLM prompts
+    fn prompt_template_use_case(&self) -> Arc<dyn PromptTemplateUseCasePort>;
 
     // =========================================================================
-    // Queue Services
+    // Asset Use Cases
     // =========================================================================
 
-    /// Get the player action queue service for player action processing
-    fn player_action_queue_service(&self) -> Arc<dyn PlayerActionQueueServicePort>;
+    /// Get the asset use case for gallery asset operations
+    fn asset_use_case(&self) -> Arc<dyn AssetUseCasePort>;
 
-    /// Get the LLM queue service for LLM request processing
-    fn llm_queue_service(&self) -> Arc<dyn LlmQueueServicePort>;
+    /// Get the generation use case for asset generation operations
+    fn generation_use_case(&self) -> Arc<dyn GenerationUseCasePort>;
 
-    /// Get the DM approval queue service for approval workflow
-    fn dm_approval_queue_service(&self) -> Arc<dyn DmApprovalQueueServicePort>;
+    /// Get the asset generation queue use case for ComfyUI queue operations
+    fn asset_generation_queue_use_case(&self) -> Arc<dyn AssetGenerationQueueUseCasePort>;
+
+    /// Get the workflow use case for workflow configuration operations
+    fn workflow_use_case(&self) -> Arc<dyn WorkflowUseCasePort>;
+
+    /// Get the generation queue projection use case for queue state views
+    fn generation_queue_projection_use_case(&self)
+        -> Arc<dyn GenerationQueueProjectionUseCasePort>;
+
+    // =========================================================================
+    // Queue Use Cases
+    // =========================================================================
+
+    /// Get the player action queue use case for player action processing
+    fn player_action_queue_use_case(&self) -> Arc<dyn PlayerActionQueueUseCasePort>;
+
+    /// Get the LLM queue use case for LLM request processing
+    fn llm_queue_use_case(&self) -> Arc<dyn LlmQueueUseCasePort>;
+
+    /// Get the DM approval queue use case for approval workflow
+    fn dm_approval_queue_use_case(&self) -> Arc<dyn DmApprovalQueueUseCasePort>;
 
     // =========================================================================
     // Event Infrastructure
@@ -189,11 +190,11 @@ pub trait AppStatePort: Send + Sync {
     fn request_handler(&self) -> Arc<dyn RequestHandler>;
 
     // =========================================================================
-    // World Services
+    // World Use Cases
     // =========================================================================
 
-    /// Get the world service for world operations (export, query, etc.)
-    fn world_service(&self) -> Arc<dyn WorldServicePort>;
+    /// Get the world use case for world operations (export, query, etc.)
+    fn world_use_case(&self) -> Arc<dyn WorldUseCasePort>;
 
     // =========================================================================
     // World State Ports (ISP-compliant sub-traits)

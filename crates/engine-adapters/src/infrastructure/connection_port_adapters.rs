@@ -15,21 +15,21 @@ use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::PacingGuidance;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_engine_app::application::services::internal::WorldServicePort as InternalWorldServicePort;
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextData, DirectorialContextQueryPort,
     DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, NpcMotivation,
     PcData, PlayerCharacterDtoPort,
-    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
-    WorldServicePort as OutboundWorldServicePort, WorldSnapshotJsonPort,
+    PlayerCharacterServicePort as OutboundPlayerCharacterServicePort, WorldSnapshotJsonPort,
 };
 
 /// Adapter for WorldServicePort implementing WorldSnapshotJsonPort.
 pub struct WorldServiceAdapter {
-    service: Arc<dyn OutboundWorldServicePort>,
+    service: Arc<dyn InternalWorldServicePort>,
 }
 
 impl WorldServiceAdapter {
-    pub fn new(service: Arc<dyn OutboundWorldServicePort>) -> Self {
+    pub fn new(service: Arc<dyn InternalWorldServicePort>) -> Self {
         Self { service }
     }
 }

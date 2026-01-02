@@ -35,12 +35,10 @@ use std::sync::Arc;
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     CharacterServicePort, ItemServicePort, LocationServicePort, RelationshipServicePort,
-    SkillServicePort,
+    SkillServicePort, WorldServicePort,
 };
 // True outbound ports (adapter-implemented infrastructure)
-use wrldbldr_engine_ports::outbound::{
-    InteractionServicePort, SceneServicePort, WorldServicePort,
-};
+use wrldbldr_engine_ports::outbound::{InteractionServicePort, SceneServicePort};
 
 /// Core services for fundamental world-building entities using port abstractions.
 ///
@@ -158,11 +156,11 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use wrldbldr_domain::SceneId;
-    use wrldbldr_engine_ports::outbound::{
-        MockCharacterServicePort, MockInteractionServicePort, MockItemServicePort,
-        MockLocationServicePort, MockRelationshipServicePort, MockSkillServicePort,
-        MockWorldServicePort, SceneWithRelations,
+    use wrldbldr_engine_app::application::services::internal::{
+        MockCharacterServicePort, MockItemServicePort, MockLocationServicePort,
+        MockRelationshipServicePort, MockSkillServicePort, MockWorldServicePort,
     };
+    use wrldbldr_engine_ports::outbound::{MockInteractionServicePort, SceneWithRelations};
 
     /// Simple mock for SceneServicePort (mockall not available for this port)
     struct MockSceneServicePort;

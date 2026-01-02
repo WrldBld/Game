@@ -2,9 +2,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 use wrldbldr_domain::value_objects::AppSettings;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{
-    LlmConfig, SettingsCachePort, SettingsError, SettingsRepositoryPort, SettingsServicePort,
-};
+use crate::application::services::internal::{LlmConfig, SettingsServicePort};
+use wrldbldr_engine_ports::outbound::{SettingsCachePort, SettingsError, SettingsRepositoryPort};
 
 /// Callback type for loading settings from environment.
 /// This allows the service to remain decoupled from the adapters layer.

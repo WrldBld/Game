@@ -12,9 +12,11 @@ use wrldbldr_domain::value_objects::{
     GamePromptRequest, LlmRequestData, LlmRequestType, PlayerActionData,
 };
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use crate::application::services::internal::{
+    PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
-    ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
+    ClockPort, ProcessingQueuePort, QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
 };
 
 /// Service for managing the player action queue

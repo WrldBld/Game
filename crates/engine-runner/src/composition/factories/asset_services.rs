@@ -37,14 +37,16 @@ use wrldbldr_engine_adapters::infrastructure::{
 use wrldbldr_engine_app::application::services::generation_service::{
     GenerationEvent, GenerationService,
 };
+use wrldbldr_engine_app::application::services::internal::{
+    AssetServicePort, GenerationQueueProjectionServicePort, GenerationServicePort,
+    SettingsServicePort, WorkflowServicePort,
+};
 use wrldbldr_engine_app::application::services::{
     AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
 };
 use wrldbldr_engine_ports::outbound::{
-    ActiveGenerationBatchesPort, AssetRepositoryPort, AssetServicePort, ClockPort, ComfyUIPort,
-    DomainEventRepositoryPort, FileStoragePort, GenerationQueueProjectionServicePort,
-    GenerationReadStatePort, GenerationServicePort, SettingsServicePort, WorkflowRepositoryPort,
-    WorkflowServicePort,
+    ActiveGenerationBatchesPort, AssetRepositoryPort, ClockPort, ComfyUIPort,
+    DomainEventRepositoryPort, FileStoragePort, GenerationReadStatePort, WorkflowRepositoryPort,
 };
 
 /// Dependencies required for creating asset services.

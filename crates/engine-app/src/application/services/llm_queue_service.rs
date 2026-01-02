@@ -19,11 +19,14 @@ use wrldbldr_domain::value_objects::{
     LlmRequestData, LlmRequestType, NarrativeEventSuggestion, ProposedTool,
 };
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use crate::application::services::internal::{
+    LlmQueueItem, LlmQueueRequest, LlmQueueResponse, LlmQueueServicePort,
+    LlmRequestType as PortLlmRequestType, LlmSuggestionContext as PortSuggestionContext,
+    PromptTemplateServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    ApprovalQueuePort, ChallengeCrudPort, ChallengeSkillPort, LlmPort, LlmQueueItem,
-    LlmQueueRequest, LlmQueueResponse, LlmQueueServicePort, LlmRequestType as PortLlmRequestType,
-    LlmSuggestionContext as PortSuggestionContext, NarrativeEventCrudPort, ProcessingQueuePort,
-    PromptTemplateServicePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
+    ApprovalQueuePort, ChallengeCrudPort, ChallengeSkillPort, LlmPort, NarrativeEventCrudPort,
+    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
     SkillRepositoryPort,
 };
 

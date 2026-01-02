@@ -31,11 +31,13 @@ use wrldbldr_engine_adapters::infrastructure::{
     WorldStateManager,
 };
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
+use wrldbldr_engine_app::application::services::internal::{
+    PromptTemplateServicePort, SettingsServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateCachePort,
-    PromptTemplateRepositoryPort, PromptTemplateServicePort, RandomPort, SettingsCachePort,
-    SettingsRepositoryPort, SettingsServicePort, StagingStateExtPort, WorldExporterPort,
-    WorldStatePort, WorldStateUpdatePort,
+    PromptTemplateRepositoryPort, RandomPort, SettingsCachePort, SettingsRepositoryPort,
+    StagingStateExtPort, WorldExporterPort, WorldStatePort, WorldStateUpdatePort,
 };
 
 /// Infrastructure context containing all foundational dependencies.

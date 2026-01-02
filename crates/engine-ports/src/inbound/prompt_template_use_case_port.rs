@@ -1,8 +1,7 @@
-//! Prompt template service port - Interface for prompt template operations
+//! Prompt template use case port - Inbound interface for prompt template operations
 //!
-//! This port abstracts prompt template business logic from infrastructure,
-//! allowing adapters to depend on the port trait rather than
-//! concrete service implementations.
+//! This port is called by HTTP handlers to manage prompt templates.
+//! The implementation lives in engine-app.
 //!
 //! Provides methods for:
 //! - Global templates: get_all, set_global, delete_global, reset_global
@@ -14,9 +13,9 @@ use async_trait::async_trait;
 use wrldbldr_domain::value_objects::PromptTemplateMetadata;
 use wrldbldr_domain::WorldId;
 
-use super::{PromptTemplateError, ResolvedPromptTemplate};
+use crate::outbound::{PromptTemplateError, ResolvedPromptTemplate};
 
-/// Port for prompt template service operations
+/// Port for prompt template use case operations
 ///
 /// This trait defines the operations for retrieving, managing, and rendering
 /// prompt templates used for LLM interactions.
@@ -26,9 +25,12 @@ use super::{PromptTemplateError, ResolvedPromptTemplate};
 /// 2. Global DB override
 /// 3. Environment variable (WRLDBLDR_PROMPT_{KEY})
 /// 4. Hard-coded default
+///
+/// Called by: HTTP handlers in prompt_template_routes.rs
+/// Implemented by: PromptTemplateService in engine-app
 #[cfg_attr(any(test, feature = "testing"), mockall::automock)]
 #[async_trait]
-pub trait PromptTemplateServicePort: Send + Sync {
+pub trait PromptTemplateUseCasePort: Send + Sync {
     // =========================================================================
     // Global Template Operations
     // =========================================================================

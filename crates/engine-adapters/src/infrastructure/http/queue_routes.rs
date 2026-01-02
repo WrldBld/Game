@@ -11,8 +11,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::inbound::AppStatePort;
-use wrldbldr_engine_ports::outbound::GenerationQueueSnapshot;
+use wrldbldr_engine_ports::inbound::{AppStatePort, GenerationQueueSnapshot};
 use wrldbldr_engine_ports::outbound::QueueItemStatus;
 
 /// Create queue-related routes
@@ -31,29 +30,29 @@ async fn queue_health_check(State(state): State<Arc<dyn AppStatePort>>) -> Json<
     use std::collections::HashMap;
 
     let player_action_depth = state
-        .player_action_queue_service()
+        .player_action_queue_use_case()
         .depth()
         .await
         .unwrap_or(0);
 
-    let llm_pending = state.llm_queue_service().depth().await.unwrap_or(0);
+    let llm_pending = state.llm_queue_use_case().depth().await.unwrap_or(0);
 
     let llm_processing = state
-        .llm_queue_service()
+        .llm_queue_use_case()
         .processing_count()
         .await
         .unwrap_or(0);
 
-    let approvals_pending = state.dm_approval_queue_service().depth().await.unwrap_or(0);
+    let approvals_pending = state.dm_approval_queue_use_case().depth().await.unwrap_or(0);
 
     let asset_pending = state
-        .asset_generation_queue_service()
+        .asset_generation_queue_use_case()
         .depth()
         .await
         .unwrap_or(0);
 
     let asset_processing = state
-        .asset_generation_queue_service()
+        .asset_generation_queue_use_case()
         .processing_count()
         .await
         .unwrap_or(0);
@@ -63,7 +62,7 @@ async fn queue_health_check(State(state): State<Arc<dyn AppStatePort>>) -> Json<
     // critical-path queue processing.
     let mut player_actions_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-        .player_action_queue_service()
+        .player_action_queue_use_case()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -75,7 +74,7 @@ async fn queue_health_check(State(state): State<Arc<dyn AppStatePort>>) -> Json<
 
     let mut llm_requests_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-        .llm_queue_service()
+        .llm_queue_use_case()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -87,7 +86,7 @@ async fn queue_health_check(State(state): State<Arc<dyn AppStatePort>>) -> Json<
 
     let mut asset_generation_by_session: HashMap<String, usize> = HashMap::new();
     if let Ok(items) = state
-        .asset_generation_queue_service()
+        .asset_generation_queue_use_case()
         .list_by_status(QueueItemStatus::Pending)
         .await
     {
@@ -168,7 +167,7 @@ pub async fn get_generation_queue(
 
     // Delegate to the application-layer projection service for reconstruction.
     let snapshot = state
-        .generation_queue_projection_service()
+        .generation_queue_projection_use_case()
         .project_queue(user_id.map(|s| s.to_string()), world_id)
         .await
         .unwrap_or_else(|e| {

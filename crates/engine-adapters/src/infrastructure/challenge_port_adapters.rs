@@ -21,13 +21,12 @@ use std::sync::Arc;
 use wrldbldr_domain::value_objects::NarrativeResolutionConfig;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use wrldbldr_engine_app::application::services::internal::{
-    ChallengeResolutionServicePort, DiceRoll,
+    ChallengeResolutionServicePort, DiceRoll, DmApprovalQueueServicePort,
 };
 use wrldbldr_engine_ports::outbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
     ChallengeOutcomeApprovalPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionPort,
-    DiceInputType, DmApprovalQueueServicePort, NarrativeRollContext, OutcomeDecision,
-    RollResultData, TriggerResult,
+    DiceInputType, NarrativeRollContext, OutcomeDecision, RollResultData, TriggerResult,
 };
 
 // =============================================================================

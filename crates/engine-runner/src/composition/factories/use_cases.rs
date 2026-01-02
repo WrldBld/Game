@@ -62,17 +62,23 @@ use wrldbldr_engine_ports::inbound::{
 use wrldbldr_engine_app::application::services::internal::{
     ChallengeResolutionServicePort, NarrativeEventApprovalServicePort,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    DmApprovalQueueServicePort, PlayerActionQueueServicePort, WorldServicePort,
+};
+// Service ports still in outbound (not yet migrated to internal)
+use wrldbldr_engine_ports::outbound::{
+    InteractionServicePort, PlayerCharacterServicePort, SceneServicePort,
+};
 // True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ChallengeOutcomeApprovalServicePort, CharacterCrudPort, ClockPort,
     ConnectionBroadcastPort, ConnectionManagerPort, ConnectionUnicastPort,
-    DirectorialContextRepositoryPort, DmApprovalQueueServicePort, DmNotificationPort,
-    InteractionServicePort, LocationCrudPort, LocationMapPort, ObservationRepositoryPort,
-    PlayerActionQueueServicePort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
-    PlayerCharacterPositionPort, PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort,
-    RegionExitPort, RegionItemPort, SceneServicePort,
-    StagingServicePort as OutboundStagingServicePort, StagingStateExtPort, StagingStatePort,
-    WorldServicePort, WorldStateUpdatePort,
+    DirectorialContextRepositoryPort, DmNotificationPort, LocationCrudPort, LocationMapPort,
+    ObservationRepositoryPort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
+    PlayerCharacterPositionPort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
+    RegionItemPort, StagingServicePort as OutboundStagingServicePort, StagingStateExtPort,
+    StagingStatePort, WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.

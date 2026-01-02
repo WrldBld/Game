@@ -34,7 +34,8 @@
 
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::outbound::{
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
     AssetServicePort, GenerationQueueProjectionServicePort, GenerationServicePort,
     WorkflowServicePort,
 };

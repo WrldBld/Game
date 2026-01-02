@@ -24,9 +24,10 @@ use crate::application::services::{
 };
 use wrldbldr_domain::entities::{InteractionTarget, TimeContext};
 use wrldbldr_domain::{CharacterId, NarrativeEventId, SceneId, WorldId};
+use crate::application::services::internal::DmApprovalDecision;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, DmActionData, DmActionPayloadType as DmActionType, DmActionProcessorPort,
-    DmActionResult, DmApprovalDecision, QueueError,
+    DmActionResult, QueueError,
 };
 
 /// Port for processing approval decisions
@@ -93,8 +94,8 @@ impl DmActionProcessorService {
                 request_id,
                 decision,
             } => {
-                // Convert domain DmApprovalDecision to wire format (protocol::ApprovalDecision)
-                let dto_decision: wrldbldr_engine_ports::outbound::DmApprovalDecision =
+                // Convert domain DmApprovalDecision to wire format (internal)
+                let dto_decision: DmApprovalDecision =
                     wrldbldr_engine_dto::domain_decision_to_wire(decision.clone());
                 self.process_approval_decision(world_id, request_id, dto_decision)
                     .await

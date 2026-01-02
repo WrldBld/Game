@@ -76,22 +76,23 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{
-    AppStatePort, ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort,
-    MovementUseCasePort, NarrativeEventUseCasePort, ObservationUseCasePort,
-    PlayerActionUseCasePort, RequestHandler, SceneUseCasePort, StagingUseCasePort,
+    AppStatePort, AssetGenerationQueueUseCasePort, AssetUseCasePort, ChallengeUseCasePort,
+    ConnectionUseCasePort, DmApprovalQueueUseCasePort, GenerationQueueProjectionUseCasePort,
+    GenerationUseCasePort, InventoryUseCasePort, LlmQueueUseCasePort, MovementUseCasePort,
+    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionQueueUseCasePort,
+    PlayerActionUseCasePort, PromptTemplateUseCasePort, RequestHandler, SceneUseCasePort,
+    SettingsUseCasePort, StagingUseCasePort, WorkflowUseCasePort, WorldUseCasePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::PromptContextServicePort;
+use wrldbldr_engine_app::application::services::internal::{
+    PromptContextServicePort, PromptTemplateServicePort, SettingsServicePort,
+};
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ClockPort, ComfyUIPort,
-    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
-    DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
-    GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort, LlmPort,
-    LlmQueueServicePort, PlayerActionQueueServicePort, PromptTemplateServicePort, RegionItemPort,
-    SettingsServicePort, StagingServicePort, WorkflowServicePort, WorldApprovalPort,
-    WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort,
-    WorldServicePort, WorldTimePort,
+    BroadcastPort, ClockPort, ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort,
+    ConnectionLifecyclePort, ConnectionQueryPort, DirectorialContextRepositoryPort,
+    GenerationReadStatePort, LlmPort, RegionItemPort, StagingServicePort, WorldApprovalPort,
+    WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 /// Type alias for LlmPort with anyhow::Error as the associated error type.
@@ -169,7 +170,11 @@ impl<T: LlmPort> LlmPortDyn for T {
 }
 
 use crate::{
-    AssetServices, CoreServices, EventInfra, GameServices, PlayerServices, QueueServices, UseCases,
+    AssetGenerationQueueUseCaseAdapter, AssetServices, AssetUseCaseAdapter, CoreServices,
+    DmApprovalQueueUseCaseAdapter, EventInfra, GameServices, GenerationQueueProjectionUseCaseAdapter,
+    GenerationUseCaseAdapter, LlmQueueUseCaseAdapter, PlayerActionQueueUseCaseAdapter,
+    PlayerServices, PromptTemplateUseCaseAdapter, QueueServices, SettingsUseCaseAdapter,
+    UseCases, WorkflowUseCaseAdapter, WorldUseCaseAdapter,
 };
 
 /// Application configuration.
@@ -655,46 +660,62 @@ impl AppStatePort for AppState {
         self.region_item.clone()
     }
 
-    fn settings_service(&self) -> Arc<dyn SettingsServicePort> {
-        self.settings_service.clone()
+    fn settings_use_case(&self) -> Arc<dyn SettingsUseCasePort> {
+        Arc::new(SettingsUseCaseAdapter::new(self.settings_service.clone()))
     }
 
-    fn prompt_template_service(&self) -> Arc<dyn PromptTemplateServicePort> {
-        self.prompt_template_service.clone()
+    fn prompt_template_use_case(&self) -> Arc<dyn PromptTemplateUseCasePort> {
+        Arc::new(PromptTemplateUseCaseAdapter::new(
+            self.prompt_template_service.clone(),
+        ))
     }
 
-    // Asset Services
-    fn asset_service(&self) -> Arc<dyn AssetServicePort> {
-        self.assets.asset_service.clone()
+    // Asset Use Cases
+    fn asset_use_case(&self) -> Arc<dyn AssetUseCasePort> {
+        Arc::new(AssetUseCaseAdapter::new(self.assets.asset_service.clone()))
     }
 
-    fn generation_service(&self) -> Arc<dyn GenerationServicePort> {
-        self.assets.generation_service.clone()
+    fn generation_use_case(&self) -> Arc<dyn GenerationUseCasePort> {
+        Arc::new(GenerationUseCaseAdapter::new(
+            self.assets.generation_service.clone(),
+        ))
     }
 
-    fn asset_generation_queue_service(&self) -> Arc<dyn AssetGenerationQueueServicePort> {
-        self.queues.asset_generation_queue_service.clone()
+    fn asset_generation_queue_use_case(&self) -> Arc<dyn AssetGenerationQueueUseCasePort> {
+        Arc::new(AssetGenerationQueueUseCaseAdapter::new(
+            self.queues.asset_generation_queue_service.clone(),
+        ))
     }
 
-    fn workflow_service(&self) -> Arc<dyn WorkflowServicePort> {
-        self.assets.workflow_config_service.clone()
+    fn workflow_use_case(&self) -> Arc<dyn WorkflowUseCasePort> {
+        Arc::new(WorkflowUseCaseAdapter::new(
+            self.assets.workflow_config_service.clone(),
+        ))
     }
 
-    fn generation_queue_projection_service(&self) -> Arc<dyn GenerationQueueProjectionServicePort> {
-        self.assets.generation_queue_projection_service.clone()
+    fn generation_queue_projection_use_case(&self) -> Arc<dyn GenerationQueueProjectionUseCasePort> {
+        Arc::new(GenerationQueueProjectionUseCaseAdapter::new(
+            self.assets.generation_queue_projection_service.clone(),
+        ))
     }
 
-    // Queue Services
-    fn player_action_queue_service(&self) -> Arc<dyn PlayerActionQueueServicePort> {
-        self.queues.player_action_queue_service.clone()
+    // Queue Use Cases
+    fn player_action_queue_use_case(&self) -> Arc<dyn PlayerActionQueueUseCasePort> {
+        Arc::new(PlayerActionQueueUseCaseAdapter::new(
+            self.queues.player_action_queue_service.clone(),
+        ))
     }
 
-    fn llm_queue_service(&self) -> Arc<dyn LlmQueueServicePort> {
-        self.queues.llm_queue_service.clone()
+    fn llm_queue_use_case(&self) -> Arc<dyn LlmQueueUseCasePort> {
+        Arc::new(LlmQueueUseCaseAdapter::new(
+            self.queues.llm_queue_service.clone(),
+        ))
     }
 
-    fn dm_approval_queue_service(&self) -> Arc<dyn DmApprovalQueueServicePort> {
-        self.queues.dm_approval_queue_service.clone()
+    fn dm_approval_queue_use_case(&self) -> Arc<dyn DmApprovalQueueUseCasePort> {
+        Arc::new(DmApprovalQueueUseCaseAdapter::new(
+            self.queues.dm_approval_queue_service.clone(),
+        ))
     }
 
     // Event Infrastructure
@@ -702,9 +723,9 @@ impl AppStatePort for AppState {
         self.events.generation_read_state_repository.clone()
     }
 
-    // World Services
-    fn world_service(&self) -> Arc<dyn WorldServicePort> {
-        self.core.world_service.clone()
+    // World Use Cases
+    fn world_use_case(&self) -> Arc<dyn WorldUseCasePort> {
+        Arc::new(WorldUseCaseAdapter::new(self.core.world_service.clone()))
     }
 
     // Request Handling

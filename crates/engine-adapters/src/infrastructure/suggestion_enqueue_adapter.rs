@@ -15,9 +15,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use wrldbldr_domain::WorldId;
+use wrldbldr_engine_app::application::services::internal::{
+    LlmQueueRequest, LlmQueueServicePort, LlmRequestType, LlmSuggestionContext,
+};
 use wrldbldr_engine_ports::outbound::{
-    LlmQueueRequest, LlmQueueServicePort, LlmRequestType, LlmSuggestionContext, QueueError,
-    SuggestionEnqueuePort, SuggestionEnqueueRequest, SuggestionEnqueueResponse,
+    QueueError, SuggestionEnqueuePort, SuggestionEnqueueRequest, SuggestionEnqueueResponse,
     WorldRepositoryPort,
 };
 

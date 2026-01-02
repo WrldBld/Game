@@ -10,7 +10,8 @@ use async_trait::async_trait;
 
 use wrldbldr_domain::entities::{InputDefault, PromptMapping, WorkflowConfiguration, WorkflowSlot};
 use wrldbldr_domain::{WorkflowConfigId, WorldId};
-use wrldbldr_engine_ports::outbound::{ClockPort, WorkflowRepositoryPort, WorkflowServicePort};
+use crate::application::services::internal::WorkflowServicePort;
+use wrldbldr_engine_ports::outbound::{ClockPort, WorkflowRepositoryPort};
 
 /// Service for managing workflow configuration persistence
 pub struct WorkflowConfigService {

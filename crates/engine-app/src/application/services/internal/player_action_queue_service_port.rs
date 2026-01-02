@@ -11,7 +11,7 @@ use uuid::Uuid;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
-use crate::outbound::queue_port::QueueItemStatus;
+use wrldbldr_engine_ports::outbound::QueueItemStatus;
 
 // ============================================================================
 // Request/Response Types

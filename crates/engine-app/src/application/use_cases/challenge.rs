@@ -26,10 +26,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tracing::{debug, info};
 
+use crate::application::services::internal::WorldServicePort;
 use wrldbldr_domain::PlayerCharacterId;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo, WorldServicePort,
+    BroadcastPort, GameEvent, OutcomeTriggerInfo as PortTriggerInfo,
 };
 
 use super::errors::ChallengeError;

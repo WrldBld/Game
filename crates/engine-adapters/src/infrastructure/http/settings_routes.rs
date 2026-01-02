@@ -39,7 +39,7 @@ pub fn settings_routes() -> Router<Arc<dyn AppStatePort>> {
 // =============================================================================
 
 async fn get_settings(State(state): State<Arc<dyn AppStatePort>>) -> Json<AppSettings> {
-    Json(state.settings_service().get().await)
+    Json(state.settings_use_case().get().await)
 }
 
 async fn update_settings(
@@ -47,7 +47,7 @@ async fn update_settings(
     Json(settings): Json<AppSettings>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     state
-        .settings_service()
+        .settings_use_case()
         .update(settings.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -58,7 +58,7 @@ async fn reset_settings(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<AppSettings>, (StatusCode, String)> {
     state
-        .settings_service()
+        .settings_use_case()
         .reset()
         .await
         .map(Json)
@@ -89,7 +89,7 @@ async fn get_world_settings(
     })?;
     let world_id = WorldId::from_uuid(world_uuid);
 
-    Ok(Json(state.settings_service().get_for_world(world_id).await))
+    Ok(Json(state.settings_use_case().get_for_world(world_id).await))
 }
 
 async fn update_world_settings(
@@ -106,13 +106,13 @@ async fn update_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .settings_service()
+        .settings_use_case()
         .update_for_world(world_id, settings.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return the updated settings with world_id set
-    Ok(Json(state.settings_service().get_for_world(world_id).await))
+    Ok(Json(state.settings_use_case().get_for_world(world_id).await))
 }
 
 async fn reset_world_settings(
@@ -128,7 +128,7 @@ async fn reset_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .settings_service()
+        .settings_use_case()
         .reset_for_world(world_id)
         .await
         .map(Json)
@@ -148,7 +148,7 @@ async fn delete_world_settings(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .settings_service()
+        .settings_use_case()
         .delete_for_world(world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

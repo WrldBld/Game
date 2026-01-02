@@ -42,15 +42,19 @@ use wrldbldr_engine_app::application::services::internal::{
     NarrativeEventApprovalServicePort, OutcomeTriggerServicePort, PromptContextServicePort,
     TriggerEvaluationServicePort,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    PromptTemplateServicePort, SettingsServicePort,
+};
 // True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, BroadcastPort, ChallengeOutcomeApprovalServicePort, ComfyUIPort,
     ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
     ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DmActionProcessorPort,
     DmNotificationPort, DomainEventRepositoryPort, EventBusPort, EventEffectExecutorPort,
-    EventNotifierPort, GenerationReadStatePort, PromptTemplateServicePort, RegionItemPort,
-    SettingsServicePort, StagingServicePort, WorldApprovalPort, WorldConversationPort,
-    WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
+    EventNotifierPort, GenerationReadStatePort, RegionItemPort, StagingServicePort,
+    WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
+    WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs

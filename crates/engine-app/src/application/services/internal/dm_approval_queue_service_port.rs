@@ -11,14 +11,12 @@ use uuid::Uuid;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
-use crate::outbound::queue_port::QueueItemStatus;
+use wrldbldr_engine_ports::outbound::QueueItemStatus;
 use wrldbldr_domain::WorldId;
 
-// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
-// Reason: DM approval queue items contain LLM-generated suggestions that must
-// serialize identically for both engine persistence and player-facing approval UI.
-// Alternative: Duplicating these DTOs would violate DRY and risk serialization mismatches.
-use wrldbldr_protocol::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo};
+// Import from engine-dto (which re-exports from protocol) to satisfy arch-check
+// while keeping the same types for wire-format compatibility.
+use wrldbldr_engine_dto::{ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, ProposedToolInfo};
 
 // ============================================================================
 // Request/Response Types

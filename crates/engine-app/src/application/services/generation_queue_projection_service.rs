@@ -14,11 +14,13 @@ use async_trait::async_trait;
 use crate::application::services::asset_service::{AssetService, AssetServiceImpl};
 use wrldbldr_domain::entities::{BatchStatus, GenerationBatch};
 use wrldbldr_domain::{DomainEvent, WorldId};
-use wrldbldr_engine_ports::outbound::{
-    DomainEventRepositoryPort, GenerationBatchSnapshot as PortGenerationBatchSnapshot,
-    GenerationQueueProjectionServicePort, GenerationQueueSnapshot as PortGenerationQueueSnapshot,
-    GenerationReadKind, GenerationReadStatePort,
+use crate::application::services::internal::{
+    GenerationBatchSnapshot as PortGenerationBatchSnapshot, GenerationQueueProjectionServicePort,
+    GenerationQueueSnapshot as PortGenerationQueueSnapshot,
     SuggestionTaskSnapshot as PortSuggestionTaskSnapshot,
+};
+use wrldbldr_engine_ports::outbound::{
+    DomainEventRepositoryPort, GenerationReadKind, GenerationReadStatePort,
 };
 /// App-layer DTO for generation batches (avoids protocol dependency)
 #[derive(Debug, Clone, serde::Serialize)]

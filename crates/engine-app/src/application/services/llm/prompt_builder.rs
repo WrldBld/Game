@@ -22,9 +22,8 @@ use wrldbldr_domain::value_objects::{
     MotivationsContext, SceneContext, SecretMotivationEntry, SocialStanceContext, TokenCounter,
 };
 use wrldbldr_domain::WorldId;
+use crate::application::services::internal::PromptTemplateServicePort;
 use wrldbldr_engine_ports::outbound::{ChatMessage, MessageRole};
-
-use wrldbldr_engine_ports::outbound::PromptTemplateServicePort;
 
 /// Prompt builder with configurable template support
 ///
@@ -507,11 +506,12 @@ pub fn build_conversation_history(history: &[ConversationTurn]) -> Vec<ChatMessa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::application::services::internal::PromptTemplateServicePort;
     use crate::application::services::PromptTemplateService;
     use std::sync::Arc;
     use wrldbldr_engine_ports::outbound::{
         EnvironmentPort, PromptTemplateCachePort, PromptTemplateRepositoryPort,
-        PromptTemplateServicePort, ResolvedPromptTemplate,
+        ResolvedPromptTemplate,
     };
 
     struct NoopPromptTemplateCache;

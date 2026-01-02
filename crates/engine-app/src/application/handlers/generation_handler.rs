@@ -6,9 +6,10 @@
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::RequestContext;
+use crate::application::services::internal::GenerationQueueProjectionServicePort;
 use wrldbldr_engine_ports::outbound::{
-    GenerationQueueProjectionServicePort, GenerationReadKind, GenerationReadStatePort,
-    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
+    GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext, SuggestionEnqueuePort,
+    SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
     ActantialRoleData, CreateItemData, ErrorCode, ResponseResult, SuggestionContextData,

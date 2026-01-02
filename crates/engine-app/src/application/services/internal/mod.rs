@@ -40,6 +40,19 @@ mod story_event_recording_service_port;
 mod story_event_service_port;
 mod trigger_evaluation_service_port;
 
+// 11 INBOUND service ports (internalized - handlers will call use case wrappers)
+mod asset_generation_queue_service_port;
+mod asset_service_port;
+mod dm_approval_queue_service_port;
+mod generation_queue_projection_service_port;
+mod generation_service_port;
+mod llm_queue_service_port;
+mod player_action_queue_service_port;
+mod prompt_template_service_port;
+mod settings_service_port;
+mod workflow_service_port;
+mod world_service_port;
+
 // Re-export all traits and their mocks
 pub use actantial_context_service_port::ActantialContextServicePort;
 #[cfg(any(test, feature = "testing"))]
@@ -147,3 +160,69 @@ pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
 // Re-export types from engine-ports that internal traits depend on
 // (These are true outbound port types, not internal traits)
 pub use wrldbldr_engine_ports::outbound::{SocialNetwork, StateChange};
+
+// =============================================================================
+// 11 INBOUND service ports (internalized)
+// =============================================================================
+// These traits were previously in engine-ports/outbound but are called by HTTP
+// handlers AND depended on by other services. We internalize them here; HTTP
+// handlers will call inbound use case ports that delegate to these.
+
+pub use asset_generation_queue_service_port::{
+    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
+    GenerationMetadata as AssetGenerationMetadata, GenerationResult,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use asset_generation_queue_service_port::MockAssetGenerationQueueServicePort;
+
+pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
+#[cfg(any(test, feature = "testing"))]
+pub use asset_service_port::MockAssetServicePort;
+
+pub use dm_approval_queue_service_port::{
+    ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency, DmApprovalDecision,
+    DmApprovalQueueServicePort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
+
+pub use generation_queue_projection_service_port::{
+    GenerationBatchSnapshot, GenerationQueueProjectionServicePort, GenerationQueueSnapshot,
+    SuggestionTaskSnapshot,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use generation_queue_projection_service_port::MockGenerationQueueProjectionServicePort;
+
+pub use generation_service_port::{GenerationRequest, GenerationServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use generation_service_port::MockGenerationServicePort;
+
+pub use llm_queue_service_port::{
+    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueResponse,
+    LlmQueueServicePort, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
+    SuggestionContext as LlmSuggestionContext,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use llm_queue_service_port::MockLlmQueueServicePort;
+
+pub use player_action_queue_service_port::{
+    PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use player_action_queue_service_port::MockPlayerActionQueueServicePort;
+
+pub use prompt_template_service_port::PromptTemplateServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use prompt_template_service_port::MockPromptTemplateServicePort;
+
+pub use settings_service_port::{LlmConfig, SettingsServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use settings_service_port::MockSettingsServicePort;
+
+pub use workflow_service_port::WorkflowServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use workflow_service_port::MockWorkflowServicePort;
+
+pub use world_service_port::WorldServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use world_service_port::MockWorldServicePort;

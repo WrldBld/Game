@@ -10,9 +10,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{BatchStatus, EntityType, GalleryAsset, GenerationBatch};
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
-use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, AssetServicePort, ClockPort, CreateAssetRequest as PortCreateAssetRequest,
+use crate::application::services::internal::{
+    AssetServicePort, CreateAssetRequest as PortCreateAssetRequest,
 };
+use wrldbldr_engine_ports::outbound::{AssetRepositoryPort, ClockPort};
 
 /// Request to create a new asset
 #[derive(Debug, Clone)]

@@ -140,7 +140,7 @@ pub struct PromptTemplateMetadataDto {
 async fn get_prompt_templates(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Json<PromptTemplatesResponse> {
-    let resolved = state.prompt_template_service().get_all().await;
+    let resolved = state.prompt_template_use_case().get_all().await;
 
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
@@ -165,7 +165,7 @@ async fn update_prompt_templates(
         match &update.value {
             Some(value) => {
                 state
-                    .prompt_template_service()
+                    .prompt_template_use_case()
                     .set_global(&update.key, value)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -173,7 +173,7 @@ async fn update_prompt_templates(
             None => {
                 // Delete the override
                 state
-                    .prompt_template_service()
+                    .prompt_template_use_case()
                     .delete_global(&update.key)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -182,7 +182,7 @@ async fn update_prompt_templates(
     }
 
     // Return updated templates
-    let resolved = state.prompt_template_service().get_all().await;
+    let resolved = state.prompt_template_use_case().get_all().await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -202,13 +202,13 @@ async fn reset_prompt_templates(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<PromptTemplatesResponse>, (StatusCode, String)> {
     state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .reset_global()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return templates (now all defaults/env)
-    let resolved = state.prompt_template_service().get_all().await;
+    let resolved = state.prompt_template_use_case().get_all().await;
     let templates: Vec<PromptTemplateDto> = resolved
         .into_iter()
         .map(|r| PromptTemplateDto {
@@ -229,7 +229,7 @@ async fn get_prompt_template(
     Path(key): Path<String>,
 ) -> Json<PromptTemplateDto> {
     let resolved = state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .resolve_with_source(&key)
         .await;
 
@@ -248,7 +248,7 @@ async fn delete_prompt_template(
     Path(key): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .delete_global(&key)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -264,7 +264,7 @@ async fn delete_prompt_template(
 async fn get_prompt_template_metadata(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Json<PromptTemplateMetadataResponse> {
-    let metadata = state.prompt_template_service().get_metadata();
+    let metadata = state.prompt_template_use_case().get_metadata();
 
     // Group by category
     let mut categories: std::collections::HashMap<
@@ -326,7 +326,7 @@ async fn get_world_prompt_templates(
     let world_id = WorldId::from_uuid(world_uuid);
 
     let resolved = state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .get_all_for_world(world_id)
         .await;
 
@@ -362,14 +362,14 @@ async fn update_world_prompt_templates(
         match &update.value {
             Some(value) => {
                 state
-                    .prompt_template_service()
+                    .prompt_template_use_case()
                     .set_for_world(world_id, &update.key, value)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
             }
             None => {
                 state
-                    .prompt_template_service()
+                    .prompt_template_use_case()
                     .delete_for_world(world_id, &update.key)
                     .await
                     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -379,7 +379,7 @@ async fn update_world_prompt_templates(
 
     // Return updated templates
     let resolved = state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .get_all_for_world(world_id)
         .await;
     let templates: Vec<PromptTemplateDto> = resolved
@@ -410,14 +410,14 @@ async fn reset_world_prompt_templates(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .reset_for_world(world_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Return templates (now global/env/defaults)
     let resolved = state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .get_all_for_world(world_id)
         .await;
     let templates: Vec<PromptTemplateDto> = resolved
@@ -448,7 +448,7 @@ async fn get_world_prompt_template(
     let world_id = WorldId::from_uuid(world_uuid);
 
     let resolved = state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .resolve_for_world_with_source(world_id, &key)
         .await;
 
@@ -475,7 +475,7 @@ async fn delete_world_prompt_template(
     let world_id = WorldId::from_uuid(world_uuid);
 
     state
-        .prompt_template_service()
+        .prompt_template_use_case()
         .delete_for_world(world_id, &key)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

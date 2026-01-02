@@ -24,13 +24,14 @@ use crate::application::services::OutcomeSuggestionService;
 use async_trait::async_trait;
 use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
-use crate::application::services::internal::{OutcomeTriggerServicePort, StateChange};
+use crate::application::services::internal::{
+    OutcomeTriggerServicePort, PromptTemplateServicePort, SettingsServicePort, StateChange,
+};
 use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
     ChallengeOutcomeApprovalServicePort, ChallengeOutcomePendingPort, ClockPort,
     ItemRepositoryPort, LlmPort, OutcomeDecision as PortOutcomeDecision,
-    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PromptTemplateServicePort, QueuePort,
-    SettingsServicePort,
+    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, QueuePort,
 };
 
 /// Result of challenge approval operations

@@ -7,8 +7,6 @@
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
 mod approval_request_lookup_port;
-mod asset_generation_queue_service_port;
-mod asset_service_port;
 mod broadcast_port;
 mod challenge_dm_approval_queue_port;
 mod challenge_outcome_approval_port;
@@ -24,7 +22,6 @@ mod directorial_context_dto_repository_port;
 mod directorial_context_port;
 mod directorial_context_query_port;
 mod dm_action_processor_port;
-mod dm_approval_queue_service_port;
 mod dm_notification_port;
 mod domain_event_repository_port;
 mod environment_port;
@@ -35,22 +32,17 @@ mod event_notifier_port;
 mod file_storage_port;
 mod game_events;
 mod generation_active_batches_port;
-mod generation_queue_projection_service_port;
 mod generation_read_state_port;
-mod generation_service_port;
 mod interaction_service_port;
 mod llm_port;
-mod llm_queue_service_port;
 mod location_repository;
 mod narrative_event_repository;
 mod player_action_queue_port;
-mod player_action_queue_service_port;
 mod player_character_dto_port;
 mod player_character_repository;
 mod player_character_service_port;
 mod prompt_template_cache_port;
 mod prompt_template_port;
-mod prompt_template_service_port;
 mod queue_notification_port;
 mod queue_port;
 mod random_port;
@@ -63,7 +55,6 @@ mod scene_service_port;
 mod scene_with_relations_query_port;
 mod settings_cache_port;
 mod settings_port;
-mod settings_service_port;
 mod staging_repository_port;
 mod staging_service_port;
 mod staging_state_ports;
@@ -73,10 +64,8 @@ mod story_event_repository;
 mod suggestion_enqueue_port;
 mod use_case_errors;
 mod use_case_types;
-mod workflow_service_port;
 mod world_connection_manager;
 mod world_exporter_port;
-mod world_service_port;
 mod world_snapshot_json_port;
 mod world_state;
 mod world_state_update_port;
@@ -139,12 +128,7 @@ pub use event_notifier_port::MockEventNotifierPort;
 // File storage port - interface for file system operations
 pub use file_storage_port::FileStoragePort;
 
-#[cfg(any(test, feature = "testing"))]
-pub use generation_queue_projection_service_port::MockGenerationQueueProjectionServicePort;
-pub use generation_queue_projection_service_port::{
-    GenerationBatchSnapshot, GenerationQueueProjectionServicePort, GenerationQueueSnapshot,
-    SuggestionTaskSnapshot,
-};
+
 
 pub use generation_read_state_port::{GenerationReadKind, GenerationReadStatePort};
 
@@ -347,11 +331,6 @@ pub use interaction_service_port::InteractionServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use interaction_service_port::MockInteractionServicePort;
 
-// World service port - interface for world operations
-#[cfg(any(test, feature = "testing"))]
-pub use world_service_port::MockWorldServicePort;
-pub use world_service_port::WorldServicePort;
-
 pub use world_snapshot_json_port::WorldSnapshotJsonPort;
 
 pub use broadcast_port::BroadcastPort;
@@ -395,33 +374,6 @@ pub use player_character_service_port::PlayerCharacterServicePort;
 
 pub use player_character_dto_port::PlayerCharacterDtoPort;
 
-// Settings service port - interface for settings operations
-#[cfg(any(test, feature = "testing"))]
-pub use settings_service_port::MockSettingsServicePort;
-pub use settings_service_port::{LlmConfig, SettingsServicePort};
-
-// Prompt template service port - interface for prompt template operations
-#[cfg(any(test, feature = "testing"))]
-pub use prompt_template_service_port::MockPromptTemplateServicePort;
-pub use prompt_template_service_port::PromptTemplateServicePort;
-
-// Asset service port - interface for asset gallery operations
-#[cfg(any(test, feature = "testing"))]
-pub use asset_service_port::MockAssetServicePort;
-pub use asset_service_port::{AssetServicePort, CreateAssetRequest};
-
-// Workflow service port - interface for workflow configuration operations
-// NOTE: Workflow utility functions (analyze_workflow, validate_workflow, etc.) are in
-// engine-app::application::services::WorkflowService, not in this port.
-#[cfg(any(test, feature = "testing"))]
-pub use workflow_service_port::MockWorkflowServicePort;
-pub use workflow_service_port::WorkflowServicePort;
-
-// Generation service port - interface for asset generation operations
-#[cfg(any(test, feature = "testing"))]
-pub use generation_service_port::MockGenerationServicePort;
-pub use generation_service_port::{GenerationRequest, GenerationServicePort};
-
 // Staging service port - interface for NPC staging operations
 #[cfg(any(test, feature = "testing"))]
 pub use staging_service_port::MockStagingServicePort;
@@ -429,47 +381,7 @@ pub use staging_service_port::{
     ApprovedNpc, StagedNpcProposal, StagingProposal, StagingServicePort,
 };
 
-// LLM queue service port - interface for LLM request queue operations
-#[cfg(any(test, feature = "testing"))]
-pub use llm_queue_service_port::MockLlmQueueServicePort;
-pub use llm_queue_service_port::{
-    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueResponse,
-    LlmQueueServicePort, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
-    SuggestionContext as LlmSuggestionContext,
-};
-
-// Player action queue service port - interface for player action queue operations
-#[cfg(any(test, feature = "testing"))]
-pub use player_action_queue_service_port::MockPlayerActionQueueServicePort;
-pub use player_action_queue_service_port::{
-    PlayerAction, PlayerActionQueueItem, PlayerActionQueueServicePort,
-};
-
 pub use player_action_queue_port::PlayerActionQueuePort;
-
-// DM approval queue service port - interface for DM approval queue operations
-#[cfg(any(test, feature = "testing"))]
-pub use dm_approval_queue_service_port::MockDmApprovalQueueServicePort;
-pub use dm_approval_queue_service_port::{
-    ApprovalDecisionType, ApprovalQueueItem, ApprovalRequest, ApprovalUrgency, DmApprovalDecision,
-    DmApprovalQueueServicePort,
-};
-// ARCHITECTURE EXCEPTION: [APPROVED 2026-01-02]
-// Reason: These protocol types are used within ApprovalRequest and must be re-exported
-// so consumers can construct/destructure approval payloads without direct protocol dependency.
-// Alternative: Forcing all consumers to depend on protocol would spread wire-format coupling.
-pub use wrldbldr_protocol::{
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
-    ProposedToolInfo,
-};
-
-// Asset generation queue service port - interface for asset generation queue operations
-#[cfg(any(test, feature = "testing"))]
-pub use asset_generation_queue_service_port::MockAssetGenerationQueueServicePort;
-pub use asset_generation_queue_service_port::{
-    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
-    GenerationMetadata as AssetGenerationMetadata, GenerationResult,
-};
 
 // Use case types - input/output types for use case operations
 pub use use_case_types::{

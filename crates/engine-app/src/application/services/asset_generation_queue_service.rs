@@ -14,11 +14,13 @@ use uuid::Uuid;
 
 use wrldbldr_domain::entities::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 use wrldbldr_domain::{AssetId, WorldId};
+use crate::application::services::internal::{
+    AssetGenerationQueueItem, AssetGenerationQueueServicePort, AssetGenerationRequest,
+    GenerationResult,
+};
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationData, AssetGenerationQueueItem, AssetGenerationQueueServicePort,
-    AssetGenerationRequest, AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort,
-    GenerationResult, ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus,
-    QueueNotificationPort,
+    AssetGenerationData, AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort,
+    ProcessingQueuePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
 };
 
 /// Priority constants for queue operations

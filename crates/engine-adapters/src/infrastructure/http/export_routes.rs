@@ -23,7 +23,7 @@ pub async fn export_world(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .world_service()
+        .world_use_case()
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -41,7 +41,7 @@ pub async fn export_world_raw(
         .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid world ID".to_string()))?;
 
     let snapshot = state
-        .world_service()
+        .world_use_case()
         .export_world_snapshot(WorldId::from_uuid(uuid))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

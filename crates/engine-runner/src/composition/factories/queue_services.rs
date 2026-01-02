@@ -12,6 +12,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::mpsc;
 
+use wrldbldr_engine_app::application::services::internal::PromptTemplateServicePort;
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestData, AssetGenerationData, ChallengeOutcomeData, DmActionData, LlmRequestData,
     PlayerActionData,
@@ -30,9 +31,12 @@ use wrldbldr_engine_app::application::services::{
     DmActionQueueService, InteractionService, ItemServiceImpl, LLMQueueService,
     NarrativeEventService, PlayerActionQueueService, SceneService,
 };
+use wrldbldr_engine_app::application::services::internal::{
+    AssetGenerationQueueServicePort, DmApprovalQueueServicePort, LlmQueueServicePort,
+    PlayerActionQueueServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, ClockPort, DmActionProcessorPort, DmApprovalQueueServicePort,
-    FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
+    ClockPort, DmActionProcessorPort, FileStoragePort, QueuePort,
 };
 
 use super::repositories::RepositoryPorts;
@@ -95,8 +99,7 @@ pub struct QueueServiceDependencies<'a> {
     pub(crate) llm_client: OllamaClient,
     /// Worker-only concrete ComfyUI client (used by AssetGenerationQueueService generics)
     pub(crate) comfyui_client: ComfyUIClient,
-    pub prompt_template_service:
-        Arc<dyn wrldbldr_engine_ports::outbound::PromptTemplateServicePort>,
+    pub prompt_template_service: Arc<dyn PromptTemplateServicePort>,
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)

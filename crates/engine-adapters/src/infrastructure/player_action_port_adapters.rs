@@ -5,9 +5,10 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{ActionId, PlayerCharacterId, WorldId};
-use wrldbldr_engine_ports::outbound::{
-    ClockPort, PlayerAction, PlayerActionQueuePort, PlayerActionQueueServicePort,
+use wrldbldr_engine_app::application::services::internal::{
+    PlayerAction, PlayerActionQueueServicePort,
 };
+use wrldbldr_engine_ports::outbound::{ClockPort, PlayerActionQueuePort};
 
 /// Adapter for PlayerActionQueueServicePort implementing PlayerActionQueuePort.
 pub struct PlayerActionQueueAdapter {

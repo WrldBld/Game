@@ -33,12 +33,12 @@
 use std::sync::Arc;
 
 // Internal service traits (NOT ports - internal app-layer contracts)
-use wrldbldr_engine_app::application::services::internal::DmActionQueueServicePort;
-// True outbound ports (adapter-implemented infrastructure)
-use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, ChallengeOutcomeData, DmApprovalQueueServicePort,
-    LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
+use wrldbldr_engine_app::application::services::internal::{
+    AssetGenerationQueueServicePort, DmActionQueueServicePort, DmApprovalQueueServicePort,
+    LlmQueueServicePort, PlayerActionQueueServicePort,
 };
+// True outbound ports (adapter-implemented infrastructure)
+use wrldbldr_engine_ports::outbound::{ChallengeOutcomeData, QueuePort};
 
 /// Queue processing services for asynchronous operations.
 ///

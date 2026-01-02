@@ -35,7 +35,7 @@ pub async fn list_workflow_slots(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<WorkflowSlotsResponseDto>, (StatusCode, String)> {
     let configs = state
-        .workflow_service()
+        .workflow_use_case()
         .list_all()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -89,7 +89,7 @@ pub async fn get_workflow_config(
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let config = state
-        .workflow_service()
+        .workflow_use_case()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -119,7 +119,7 @@ pub async fn save_workflow_config(
 
     // Delegate entity mutation to the service
     let (config, is_update) = state
-        .workflow_service()
+        .workflow_use_case()
         .create_or_update(
             workflow_slot,
             req.name,
@@ -152,7 +152,7 @@ pub async fn delete_workflow_config(
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let deleted = state
-        .workflow_service()
+        .workflow_use_case()
         .delete_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -177,7 +177,7 @@ pub async fn update_workflow_defaults(
 
     // Delegate entity mutation to the service
     let config = state
-        .workflow_service()
+        .workflow_use_case()
         .update_defaults(
             workflow_slot,
             req.input_defaults.into_iter().map(Into::into).collect(),
@@ -224,7 +224,7 @@ pub async fn export_workflows(
     State(state): State<Arc<dyn AppStatePort>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let configs = state
-        .workflow_service()
+        .workflow_use_case()
         .list_all()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -243,7 +243,7 @@ pub async fn import_workflows(
 
     // Delegate import logic to the service
     let (imported, skipped) = state
-        .workflow_service()
+        .workflow_use_case()
         .import_configs(configs, req.replace_existing)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -259,7 +259,7 @@ pub async fn test_workflow(
     let workflow_slot = parse_workflow_slot(&slot).map_err(|msg| (StatusCode::BAD_REQUEST, msg))?;
 
     let config = state
-        .workflow_service()
+        .workflow_use_case()
         .get_by_slot(workflow_slot)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
