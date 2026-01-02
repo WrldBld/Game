@@ -63,8 +63,12 @@ impl<L: LlmPort> OutcomeSuggestionService<L> {
         &self,
         request: &OutcomeSuggestionRequest,
     ) -> Result<Vec<String>, SuggestionError> {
-        Self::generate_suggestions_with(self.llm.clone(), self.prompt_template_service.clone(), request)
-            .await
+        Self::generate_suggestions_with(
+            self.llm.clone(),
+            self.prompt_template_service.clone(),
+            request,
+        )
+        .await
     }
 
     pub async fn generate_suggestions_with(
@@ -370,9 +374,47 @@ mod tests {
     use super::*;
     use crate::application::services::PromptTemplateService;
     use wrldbldr_engine_ports::outbound::{
-        EnvironmentPort, FinishReason, PromptTemplateError, PromptTemplateRepositoryPort,
-        PromptTemplateServicePort, ToolDefinition,
+        EnvironmentPort, FinishReason, PromptTemplateCachePort, PromptTemplateError,
+        PromptTemplateRepositoryPort, PromptTemplateServicePort, ResolvedPromptTemplate,
+        ToolDefinition,
     };
+
+    struct NoopPromptTemplateCache;
+
+    #[async_trait::async_trait]
+    impl PromptTemplateCachePort for NoopPromptTemplateCache {
+        async fn get_global(&self, _key: &str) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_global(&self, _key: String, _resolved: ResolvedPromptTemplate) {}
+
+        async fn remove_global(&self, _key: &str) {}
+
+        async fn clear_global(&self) {}
+
+        async fn get_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: String,
+            _resolved: ResolvedPromptTemplate,
+        ) {
+        }
+
+        async fn remove_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str) {}
+
+        async fn clear_world(&self) {}
+
+        async fn remove_world(&self, _world_id: wrldbldr_domain::WorldId) {}
+    }
 
     /// Mock environment for tests
     struct MockEnvironmentPort;
@@ -387,8 +429,9 @@ mod tests {
         let mock_repo: Arc<dyn PromptTemplateRepositoryPort> =
             Arc::new(MockPromptTemplateRepository);
         let mock_env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
         let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
-            Arc::new(PromptTemplateService::new(mock_repo, mock_env));
+            Arc::new(PromptTemplateService::new(mock_repo, mock_env, cache));
         OutcomeSuggestionService {
             llm: Arc::new(MockLlm),
             prompt_template_service,
@@ -397,10 +440,9 @@ mod tests {
 
     #[test]
     fn test_parse_suggestions_simple() {
-        let service = create_test_service();
-
         let content = "You succeed with flying colors!\nThe guard barely notices you slip past.\nYour skills prove more than adequate.";
-        let result = service.parse_suggestions(content).unwrap();
+        let result =
+            OutcomeSuggestionService::<MockLlm>::parse_suggestions_content(content).unwrap();
 
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "You succeed with flying colors!");
@@ -408,10 +450,9 @@ mod tests {
 
     #[test]
     fn test_parse_suggestions_numbered() {
-        let service = create_test_service();
-
         let content = "1. You succeed with flying colors!\n2. The guard barely notices you slip past.\n3. Your skills prove more than adequate.";
-        let result = service.parse_suggestions(content).unwrap();
+        let result =
+            OutcomeSuggestionService::<MockLlm>::parse_suggestions_content(content).unwrap();
 
         assert_eq!(result.len(), 3);
         assert_eq!(result[0], "You succeed with flying colors!");
@@ -419,10 +460,9 @@ mod tests {
 
     #[test]
     fn test_parse_branches_structured() {
-        let service = create_test_service();
-
         let content = "TITLE: Swift Success\nDESCRIPTION: You move with precision and grace.\n\nTITLE: Lucky Break\nDESCRIPTION: Fortune favors you today.";
-        let result = service.parse_branches(content, 2).unwrap();
+        let result =
+            OutcomeSuggestionService::<MockLlm>::parse_branches_content(content, 2).unwrap();
 
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].title, "Swift Success");
@@ -432,11 +472,10 @@ mod tests {
 
     #[test]
     fn test_parse_branches_fallback() {
-        let service = create_test_service();
-
         // Unstructured input - should fall back to line-by-line
         let content = "You succeed brilliantly!\nThe task is completed with ease.";
-        let result = service.parse_branches(content, 2).unwrap();
+        let result =
+            OutcomeSuggestionService::<MockLlm>::parse_branches_content(content, 2).unwrap();
 
         assert_eq!(result.len(), 2);
         // Should have generated titles from content

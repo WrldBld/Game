@@ -61,7 +61,7 @@ fn main() {
 
     // Get WebSocket URL from environment or use default
     let ws_url = std::env::var("WRLDBLDR_ENGINE_WS_URL")
-        .unwrap_or_else(|_| "ws://127.0.0.1:3456/ws".to_string());
+        .unwrap_or_else(|_| "ws://localhost:3000/ws".to_string());
     let connection =
         wrldbldr_player_adapters::infrastructure::ConnectionFactory::create_game_connection(
             &ws_url,

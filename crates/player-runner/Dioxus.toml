@@ -6,7 +6,7 @@ default_platform = "web"
 out_dir = "dist"
 
 # resource (static) file folder
-asset_dir = "assets"
+asset_dir = "../player-ui/assets"
 
 [web.wasm_opt]
 # The level wasm-opt should target. z is the smallest (best for production). 4 is the fastest.
@@ -18,8 +18,11 @@ level = "z"
 title = "WrldBldr Player"
 
 [web.resource]
-dev = "/assets"
-style = ["/assets/tailwind.css"]
+style = ["/assets/css/output.css"]
+
+[web.resource.dev]
+style = []
+script = []
 
 [web.watcher]
 

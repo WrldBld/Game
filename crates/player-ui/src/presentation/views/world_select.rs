@@ -7,8 +7,9 @@
 
 use dioxus::prelude::*;
 
+use crate::presentation::services::use_game_connection;
 use crate::presentation::services::use_world_service;
-use crate::presentation::state::GameState;
+use crate::presentation::state::{ConnectionStatus, GameState, SessionState};
 use crate::use_platform;
 use wrldbldr_player_app::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
@@ -31,7 +32,9 @@ pub struct WorldSelectViewProps {
 #[component]
 pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     let game_state = use_context::<GameState>();
+    let session_state = use_context::<SessionState>();
     let platform = use_platform();
+    let connection = use_game_connection();
     let world_service = use_world_service();
     let mut worlds: Signal<Vec<WorldSummary>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
@@ -42,11 +45,26 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     let is_dm = props.role == ParticipantRole::DungeonMaster;
 
     // Clone services for use in effects
+    let connection_for_effect = connection.clone();
     let world_service_for_list = world_service.clone();
     let world_service_for_load = world_service.clone();
 
     // Fetch worlds on mount
     use_effect(move || {
+        // Ensure the shared connection is at least initiated before requests.
+        // World listing is a WS request, and will fail with "Not connected" if
+        // we haven't called connect() yet.
+        if matches!(
+            *session_state.connection_status().read(),
+            ConnectionStatus::Disconnected | ConnectionStatus::Failed
+        ) {
+            if let Err(e) = connection_for_effect.connect() {
+                error.set(Some(format!("Connection failed: {e}")));
+                is_loading.set(false);
+                return;
+            }
+        }
+
         let svc = world_service_for_list.clone();
         spawn(async move {
             match svc.list_worlds().await {

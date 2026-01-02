@@ -44,8 +44,8 @@
 
 use async_trait::async_trait;
 
-use crate::outbound::ObservationError;
 use super::UseCaseContext;
+use crate::outbound::ObservationError;
 use crate::outbound::{
     ShareNpcLocationInput, ShareNpcLocationResult, TriggerApproachInput, TriggerApproachResult,
     TriggerLocationEventInput, TriggerLocationEventResult,

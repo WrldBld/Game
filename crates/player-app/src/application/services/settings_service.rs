@@ -4,7 +4,7 @@
 //! updating the Engine's application settings. It abstracts away
 //! the HTTP client details from the presentation layer.
 
-use crate::application::dto::{AppSettings, SettingsMetadataResponse};
+use crate::application::dto::{AppSettings, SettingsFieldMetadata};
 use wrldbldr_player_ports::outbound::{ApiError, ApiPort};
 
 /// Settings service for managing Engine application settings
@@ -109,7 +109,7 @@ impl<A: ApiPort> SettingsService<A> {
     /// - Field types and validation constraints
     /// - Category groupings
     /// - Whether fields require restart
-    pub async fn get_metadata(&self) -> Result<SettingsMetadataResponse, ApiError> {
+    pub async fn get_metadata(&self) -> Result<Vec<SettingsFieldMetadata>, ApiError> {
         self.api.get("/api/settings/metadata").await
     }
 }

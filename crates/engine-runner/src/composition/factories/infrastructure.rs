@@ -7,11 +7,9 @@
 //!
 //! - Clock, Environment, RNG adapters (zero dependencies)
 //! - Neo4j repository connection
-//! - Ollama LLM client
-//! - ComfyUI image generation client
 //! - SQLite pool for settings/templates
 //! - Settings, PromptTemplate, DirectorialContext services
-//! - World connection manager and state manager
+//! - World state manager
 
 use std::sync::Arc;
 
@@ -20,25 +18,24 @@ use sqlx::SqlitePool;
 
 use wrldbldr_engine_adapters::infrastructure::{
     clock::SystemClock,
-    comfyui::ComfyUIClient,
     config::AppConfig,
     environment_adapter::SystemEnvironmentAdapter,
     export::Neo4jWorldExporter,
-    ollama::OllamaClient,
+    in_memory::{InMemoryPromptTemplateCache, InMemorySettingsCache},
     persistence::{
         Neo4jRepository, SqliteDirectorialContextRepository, SqlitePromptTemplateRepository,
         SqliteSettingsRepository,
     },
     random_adapter::ThreadRngAdapter,
     settings_loader::load_settings_from_env,
-    world_connection_manager::{new_shared_manager, SharedWorldConnectionManager},
     WorldStateManager,
 };
 use wrldbldr_engine_app::application::services::{PromptTemplateService, SettingsService};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateRepositoryPort,
-    PromptTemplateServicePort, RandomPort, SettingsRepositoryPort, SettingsServicePort,
-    WorldExporterPort,
+    ClockPort, DirectorialContextRepositoryPort, EnvironmentPort, PromptTemplateCachePort,
+    PromptTemplateRepositoryPort, PromptTemplateServicePort, RandomPort, SettingsCachePort,
+    SettingsRepositoryPort, SettingsServicePort, StagingStateExtPort, WorldExporterPort,
+    WorldStatePort, WorldStateUpdatePort,
 };
 
 /// Infrastructure context containing all foundational dependencies.
@@ -61,16 +58,10 @@ pub struct InfrastructureContext {
     // Database & External Clients
     // =========================================================================
     /// Neo4j graph database repository
-    pub neo4j: Neo4jRepository,
+    neo4j: Neo4jRepository,
 
     /// World exporter for snapshots
     pub world_exporter: Arc<dyn WorldExporterPort>,
-
-    /// Ollama LLM client (concrete for workers)
-    pub llm_client: OllamaClient,
-
-    /// ComfyUI client (concrete for workers)
-    pub comfyui_client: ComfyUIClient,
 
     // =========================================================================
     // Settings & Configuration Services
@@ -87,11 +78,20 @@ pub struct InfrastructureContext {
     // =========================================================================
     // Connection & State Infrastructure
     // =========================================================================
-    /// World connection manager for WebSocket connections
-    pub world_connection_manager: SharedWorldConnectionManager,
+    /// World state port for in-memory game state (time/conversation/scene/etc)
+    pub world_state: Arc<dyn WorldStatePort>,
 
-    /// World state manager for in-memory game state
-    pub world_state: Arc<WorldStateManager>,
+    /// World state update port (used by scene/connection use cases)
+    pub world_state_update: Arc<dyn WorldStateUpdatePort>,
+
+    /// Staging state port (used by movement + staging use cases)
+    pub staging_state: Arc<dyn StagingStateExtPort>,
+}
+
+impl InfrastructureContext {
+    pub fn neo4j(&self) -> &Neo4jRepository {
+        &self.neo4j
+    }
 }
 
 /// Creates the infrastructure context.
@@ -137,13 +137,6 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         Arc::new(Neo4jWorldExporter::new(neo4j.clone()));
 
     // =========================================================================
-    // External clients
-    // =========================================================================
-    let llm_client = OllamaClient::new(&config.ollama_base_url, &config.ollama_model);
-    let comfyui_client = ComfyUIClient::new(&config.comfyui_base_url, clock.clone());
-    tracing::info!("Initialized LLM and ComfyUI clients");
-
-    // =========================================================================
     // SQLite pool for settings
     // =========================================================================
     let settings_db_path = config.queue.sqlite_path.replace(".db", "_settings.db");
@@ -164,11 +157,14 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         .map_err(|e| anyhow::anyhow!("Failed to initialize settings repository: {}", e))?;
     let settings_repository: Arc<dyn SettingsRepositoryPort> = Arc::new(settings_repository_impl);
 
+    let settings_cache: Arc<dyn SettingsCachePort> = Arc::new(InMemorySettingsCache::new());
+
     let settings_loader: wrldbldr_engine_app::application::services::SettingsLoaderFn =
         Arc::new(load_settings_from_env);
     let settings_service: Arc<dyn SettingsServicePort> = Arc::new(SettingsService::new(
         settings_repository.clone(),
         settings_loader,
+        settings_cache,
     ));
 
     // =========================================================================
@@ -182,11 +178,14 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
             })?;
     let prompt_template_repository: Arc<dyn PromptTemplateRepositoryPort> =
         Arc::new(prompt_template_repository_impl);
+    let prompt_template_cache: Arc<dyn PromptTemplateCachePort> =
+        Arc::new(InMemoryPromptTemplateCache::new());
     let prompt_template_service: Arc<dyn PromptTemplateServicePort> =
         Arc::new(PromptTemplateService::new(
-        prompt_template_repository.clone(),
-        environment.clone(),
-    ));
+            prompt_template_repository.clone(),
+            environment.clone(),
+            prompt_template_cache,
+        ));
     tracing::info!("Initialized prompt template service");
 
     // =========================================================================
@@ -205,8 +204,10 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
     // =========================================================================
     // Connection & state infrastructure
     // =========================================================================
-    let world_connection_manager = new_shared_manager();
-    let world_state = Arc::new(WorldStateManager::new(clock.clone()));
+    let world_state_manager = Arc::new(WorldStateManager::new(clock.clone()));
+    let world_state: Arc<dyn WorldStatePort> = world_state_manager.clone();
+    let world_state_update: Arc<dyn WorldStateUpdatePort> = world_state_manager.clone();
+    let staging_state: Arc<dyn StagingStateExtPort> = world_state_manager;
     tracing::info!("Initialized world connection and state managers");
 
     Ok(InfrastructureContext {
@@ -214,13 +215,12 @@ pub async fn create_infrastructure(config: &AppConfig) -> Result<InfrastructureC
         rng,
         neo4j,
         world_exporter,
-        llm_client,
-        comfyui_client,
         settings_service,
         prompt_template_service,
         directorial_context_repo,
-        world_connection_manager,
         world_state,
+        world_state_update,
+        staging_state,
     })
 }
 

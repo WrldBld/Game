@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::RequestContext;
 use wrldbldr_engine_ports::outbound::{
-    GenerationReadKind, GenerationReadStatePort, SuggestionEnqueueContext, SuggestionEnqueuePort,
-    SuggestionEnqueueRequest, GenerationQueueProjectionServicePort,
+    GenerationQueueProjectionServicePort, GenerationReadKind, GenerationReadStatePort,
+    SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
 };
 use wrldbldr_protocol::{
     ActantialRoleData, CreateItemData, ErrorCode, ResponseResult, SuggestionContextData,
@@ -17,9 +17,7 @@ use wrldbldr_protocol::{
 use super::common::{
     parse_character_id, parse_item_id, parse_region_id, parse_want_id, parse_world_id,
 };
-use crate::application::services::{
-    CharacterService, CreateItemRequest, ItemService,
-};
+use crate::application::services::{CharacterService, CreateItemRequest, ItemService};
 
 // =============================================================================
 // AI Suggestion Operations

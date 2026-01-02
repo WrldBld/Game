@@ -6,7 +6,7 @@
 
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::dto::AppSettings;
+use wrldbldr_player_app::application::dto::{AppSettings, BatchQueueFailurePolicy};
 
 /// Application Settings Panel component
 ///
@@ -150,6 +150,33 @@ pub fn AppSettingsPanel() -> Element {
                 // Settings form
                 div {
                     class: "flex-1 overflow-y-auto bg-gray-900 rounded-lg p-6 space-y-6",
+
+                    // Asset Generation Settings
+                    SettingsSection {
+                        title: "Asset Generation",
+                        description: "Global defaults for asset workflow behavior",
+
+                        SelectField {
+                            label: "Batch Queue Failure Policy",
+                            description: "All-or-nothing fails the batch on any queue error; best-effort continues and only fails if nothing queued",
+                            value: match settings.read().batch_queue_failure_policy {
+                                BatchQueueFailurePolicy::AllOrNothing => "all_or_nothing".to_string(),
+                                BatchQueueFailurePolicy::BestEffort => "best_effort".to_string(),
+                            },
+                            options: vec![
+                                ("all_or_nothing", "All-or-nothing"),
+                                ("best_effort", "Best effort"),
+                            ],
+                            onchange: move |val: String| {
+                                let parsed = match val.as_str() {
+                                    "best_effort" => BatchQueueFailurePolicy::BestEffort,
+                                    _ => BatchQueueFailurePolicy::AllOrNothing,
+                                };
+                                settings.with_mut(|s| s.batch_queue_failure_policy = parsed);
+                                success_message.set(None);
+                            }
+                        }
+                    }
 
                     // Session Settings
                     SettingsSection {
@@ -439,6 +466,16 @@ struct NumberFieldProps {
     onchange: EventHandler<usize>,
 }
 
+/// Simple select field component
+#[derive(Props, Clone, PartialEq)]
+struct SelectFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: String,
+    options: Vec<(&'static str, &'static str)>,
+    onchange: EventHandler<String>,
+}
+
 #[component]
 fn NumberField(props: NumberFieldProps) -> Element {
     // Format value as string for display
@@ -472,6 +509,46 @@ fn NumberField(props: NumberFieldProps) -> Element {
                     oninput: move |evt| {
                         if let Ok(val) = evt.value().parse::<usize>() {
                             props.onchange.call(val);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn SelectField(props: SelectFieldProps) -> Element {
+    rsx! {
+        div {
+            class: "select-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-sm font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-500 text-xs",
+                        "{props.description}"
+                    }
+                }
+
+                select {
+                    class: "w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    value: "{props.value}",
+                    onchange: move |evt| props.onchange.call(evt.value()),
+
+                    for (opt_value, opt_label) in props.options.iter() {
+                        option {
+                            value: "{opt_value}",
+                            "{opt_label}"
                         }
                     }
                 }

@@ -76,7 +76,10 @@ pub struct LLMService<L: LlmPort> {
 
 impl<L: LlmPort> LLMService<L> {
     /// Create a new LLM service with the provided client and prompt template service
-    pub fn new(ollama: Arc<L>, prompt_template_service: Arc<dyn PromptTemplateServicePort>) -> Self {
+    pub fn new(
+        ollama: Arc<L>,
+        prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+    ) -> Self {
         Self {
             ollama,
             prompt_builder: PromptBuilder::new(prompt_template_service),
@@ -359,9 +362,47 @@ mod tests {
     use wrldbldr_domain::WorldId;
     use wrldbldr_engine_dto::FinishReason;
     use wrldbldr_engine_ports::outbound::{
-        EnvironmentPort, LlmResponse, PromptTemplateError, PromptTemplateRepositoryPort,
-        PromptTemplateServicePort, ToolDefinition,
+        EnvironmentPort, LlmResponse, PromptTemplateCachePort, PromptTemplateError,
+        PromptTemplateRepositoryPort, PromptTemplateServicePort, ResolvedPromptTemplate,
+        ToolDefinition,
     };
+
+    struct NoopPromptTemplateCache;
+
+    #[async_trait::async_trait]
+    impl PromptTemplateCachePort for NoopPromptTemplateCache {
+        async fn get_global(&self, _key: &str) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_global(&self, _key: String, _resolved: ResolvedPromptTemplate) {}
+
+        async fn remove_global(&self, _key: &str) {}
+
+        async fn clear_global(&self) {}
+
+        async fn get_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: String,
+            _resolved: ResolvedPromptTemplate,
+        ) {
+        }
+
+        async fn remove_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str) {}
+
+        async fn clear_world(&self) {}
+
+        async fn remove_world(&self, _world_id: wrldbldr_domain::WorldId) {}
+    }
 
     /// Mock environment for tests
     struct MockEnvironmentPort;
@@ -456,8 +497,9 @@ mod tests {
     fn create_test_service() -> LLMService<MockLlm> {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
         let prompt_service: Arc<dyn PromptTemplateServicePort> =
-            Arc::new(PromptTemplateService::new(repo, env));
+            Arc::new(PromptTemplateService::new(repo, env, cache));
         LLMService::new(Arc::new(MockLlm), prompt_service)
     }
 

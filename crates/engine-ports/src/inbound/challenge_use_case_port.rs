@@ -28,8 +28,8 @@ use async_trait::async_trait;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
-use crate::outbound::ChallengeError;
 use super::UseCaseContext;
+use crate::outbound::ChallengeError;
 use crate::outbound::{
     AdHocResult, ChallengeSuggestionDecisionInput, CreateAdHocInput, DiscardChallengeInput,
     DiscardResult, OutcomeDecisionInput, OutcomeDecisionResult, RegenerateOutcomeInput,

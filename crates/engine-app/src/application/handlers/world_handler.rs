@@ -79,8 +79,13 @@ pub async fn create_world(
     ctx: &RequestContext,
     data: CreateWorldData,
 ) -> ResponseResult {
-    if let Err(e) = ctx.require_dm() {
-        return e;
+    // Creating a world happens *before* joining a world.
+    // The world-selection screen is not world-scoped, so `ctx.is_dm` will be false.
+    // If the client is already connected to a world, keep this DM-only.
+    if ctx.world_id.is_some() {
+        if let Err(e) = ctx.require_dm() {
+            return e;
+        }
     }
     let request = CreateWorldRequest {
         name: data.name,

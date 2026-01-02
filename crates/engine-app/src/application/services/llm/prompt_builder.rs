@@ -51,11 +51,12 @@ impl PromptBuilder {
                     .await
                     .value
             }
-            None => self
-                .prompt_template_service
-                .resolve_with_source(key)
-                .await
-                .value,
+            None => {
+                self.prompt_template_service
+                    .resolve_with_source(key)
+                    .await
+                    .value
+            }
         }
     }
 
@@ -509,8 +510,46 @@ mod tests {
     use crate::application::services::PromptTemplateService;
     use std::sync::Arc;
     use wrldbldr_engine_ports::outbound::{
-        EnvironmentPort, PromptTemplateRepositoryPort, PromptTemplateServicePort,
+        EnvironmentPort, PromptTemplateCachePort, PromptTemplateRepositoryPort,
+        PromptTemplateServicePort, ResolvedPromptTemplate,
     };
+
+    struct NoopPromptTemplateCache;
+
+    #[async_trait::async_trait]
+    impl PromptTemplateCachePort for NoopPromptTemplateCache {
+        async fn get_global(&self, _key: &str) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_global(&self, _key: String, _resolved: ResolvedPromptTemplate) {}
+
+        async fn remove_global(&self, _key: &str) {}
+
+        async fn clear_global(&self) {}
+
+        async fn get_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: &str,
+        ) -> Option<ResolvedPromptTemplate> {
+            None
+        }
+
+        async fn set_for_world(
+            &self,
+            _world_id: wrldbldr_domain::WorldId,
+            _key: String,
+            _resolved: ResolvedPromptTemplate,
+        ) {
+        }
+
+        async fn remove_for_world(&self, _world_id: wrldbldr_domain::WorldId, _key: &str) {}
+
+        async fn clear_world(&self) {}
+
+        async fn remove_world(&self, _world_id: wrldbldr_domain::WorldId) {}
+    }
 
     // Mock environment for testing
     struct MockEnvironmentPort;
@@ -596,8 +635,9 @@ mod tests {
     fn create_test_prompt_builder() -> PromptBuilder {
         let repo: Arc<dyn PromptTemplateRepositoryPort> = Arc::new(MockPromptTemplateRepository);
         let env: Arc<dyn EnvironmentPort> = Arc::new(MockEnvironmentPort);
+        let cache: Arc<dyn PromptTemplateCachePort> = Arc::new(NoopPromptTemplateCache);
         let service: Arc<dyn PromptTemplateServicePort> =
-            Arc::new(PromptTemplateService::new(repo, env));
+            Arc::new(PromptTemplateService::new(repo, env, cache));
         PromptBuilder::new(service)
     }
 

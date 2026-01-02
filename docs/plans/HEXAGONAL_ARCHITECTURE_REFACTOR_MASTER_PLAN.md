@@ -13,26 +13,32 @@ All other plans that cover “hexagonal correctness” (ports/adapters correctne
 When this plan is complete, all of the following will be true:
 
 1. **Crate dependency DAG matches target**
+
    - `cargo xtask arch-check` passes.
    - No forbidden internal crate deps.
 
 2. **Inbound/outbound taxonomy is correct**
+
    - App code depends only on **outbound** ports (plus domain + context DTOs).
    - Inbound ports are implemented by use cases and only used by driving adapters/UI.
 
 3. **No adapter-wrapper anti-patterns**
+
    - No `engine-adapters/src/infrastructure/ports/*_adapter.rs` wrapper structs whose sole job is “port-to-port forwarding”.
 
 4. **Dependency inversion everywhere**
+
    - No app use case depends on another use case’s concrete type.
    - No app service depends on another service’s concrete type.
    - Composition roots store/wire **ports**, not concrete structs, except at the actual construction boundary.
 
 5. **DTO ownership is single-source-of-truth**
+
    - No “shadow copies” (e.g., `engine_dto::X` duplicating `engine_ports::...::X`).
    - Protocol DTOs remain wire-only.
 
 6. **Protocol remains at the boundary**
+
    - Domain does not import protocol.
    - Ports do not import protocol except explicit, documented, whitelisted boundary files.
    - App use cases/services are protocol-free.
@@ -62,6 +68,7 @@ When this plan is complete, all of the following will be true:
 - Any exceptions must be captured as ADRs (or a documented whitelist in `xtask`).
 
 **Verify**
+
 - `cargo xtask arch-check` runs successfully.
 
 ### 0.2 Tighten arch-check to surface current drift (warning mode first)
@@ -69,6 +76,7 @@ When this plan is complete, all of the following will be true:
 **Goal**: Make the architecture drift visible with stable signals.
 
 Steps:
+
 1. Keep existing checks (crate DAG, shims, handler size, protocol isolation).
 2. Add / maintain these warning-mode checks:
    - **App must not depend on inbound ports** (engine-app + player-app)
@@ -76,9 +84,11 @@ Steps:
    - **No glob re-exports** (already warning mode)
 
 **Verify**
+
 - `cargo xtask arch-check` prints warnings for violations but does not fail (yet).
 
 **Stop condition**
+
 - These warning signals are stable (few false positives), and the team agrees they represent the target direction.
 
 ---
@@ -92,6 +102,7 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 **Purpose**: resolve inbound/outbound drift by explicitly deciding where each trait belongs.
 
 **How to use**:
+
 - Anything in **“Suggested target = outbound”** should be moved/renamed so app code depends only on outbound ports.
 - Anything in **“Suggested target = inbound”** should be referenced only by driving adapters/UI.
 
@@ -99,34 +110,34 @@ This section is intentionally “mechanical” and is meant to be kept up to dat
 
 #### Engine inbound taxonomy
 
-| Item | Kind | Defined in | Used in app/UI (examples) | Suggested target | Notes |
-|---|---|---|---|---|---|
-| `AppStatePort` | trait | crates/engine-ports/src/inbound/app_state_port.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ChallengeUseCasePort` | trait | crates/engine-ports/src/inbound/challenge_use_case_port.rs | crates/engine-app/src/application/use_cases/challenge.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `CharacterSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ConnectionUseCasePort` | trait | crates/engine-ports/src/inbound/connection_use_case_port.rs | crates/engine-app/src/application/use_cases/connection.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `CreateCharacterRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `CreateLocationRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `CreateWorldRequest` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `InventoryUseCasePort` | trait | crates/engine-ports/src/inbound/inventory_use_case_port.rs | crates/engine-app/src/application/use_cases/inventory.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `LocationSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ManageCharacterUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ManageLocationUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ManageSceneUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ManageWorldUseCase` | trait | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `MovementUseCasePort` | trait | crates/engine-ports/src/inbound/movement_use_case_port.rs | crates/engine-app/src/application/use_cases/movement.rs, crates/engine-app/src/application/use_cases/player_action.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `NarrativeEventUseCasePort` | trait | crates/engine-ports/src/inbound/narrative_event_use_case_port.rs | crates/engine-app/src/application/use_cases/narrative_event.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `ObservationUseCasePort` | trait | crates/engine-ports/src/inbound/observation_use_case_port.rs | crates/engine-app/src/application/use_cases/observation.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `PlayerActionUseCasePort` | trait | crates/engine-ports/src/inbound/player_action_use_case_port.rs | crates/engine-app/src/application/use_cases/player_action.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `RequestHandler` | trait | crates/engine-ports/src/inbound/request_handler.rs | crates/engine-app/src/application/handlers/request_handler.rs | inbound (boundary trait) | Keep in inbound; ensure it does not leak into services |
-| `SceneSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `SceneUseCaseError` | type | crates/engine-ports/src/inbound/scene_use_case_port.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `SceneUseCasePort` | trait | crates/engine-ports/src/inbound/scene_use_case_port.rs | crates/engine-app/src/application/use_cases/scene.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `StagingUseCasePort` | trait | crates/engine-ports/src/inbound/staging_use_case_port.rs | crates/engine-app/src/application/use_cases/staging.rs | inbound | Keep in inbound; ensure only adapters/UI import |
-| `UseCaseContext` | struct | crates/engine-ports/src/inbound/use_case_context.rs | crates/engine-app/src/application/use_cases/challenge.rs, crates/engine-app/src/application/use_cases/inventory.rs, crates/engine-app/src/application/use_cases/mod.rs (+6 more) | inbound (boundary DTO) | Keep in inbound; ensure it does not leak into services |
-| `UseCaseError` | enum | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `WorldDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
-| `WorldSummaryDto` | struct | crates/engine-ports/src/inbound/use_cases.rs |  | inbound | Keep in inbound; ensure only adapters/UI import |
+| Item                        | Kind   | Defined in                                                       | Used in app/UI (examples)                                                                                                                                                        | Suggested target         | Notes                                                  |
+| --------------------------- | ------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------ |
+| `AppStatePort`              | trait  | crates/engine-ports/src/inbound/app_state_port.rs                |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ChallengeUseCasePort`      | trait  | crates/engine-ports/src/inbound/challenge_use_case_port.rs       | crates/engine-app/src/application/use_cases/challenge.rs                                                                                                                         | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `CharacterSummaryDto`       | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ConnectionUseCasePort`     | trait  | crates/engine-ports/src/inbound/connection_use_case_port.rs      | crates/engine-app/src/application/use_cases/connection.rs                                                                                                                        | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `CreateCharacterRequest`    | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `CreateLocationRequest`     | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `CreateWorldRequest`        | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `InventoryUseCasePort`      | trait  | crates/engine-ports/src/inbound/inventory_use_case_port.rs       | crates/engine-app/src/application/use_cases/inventory.rs                                                                                                                         | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `LocationSummaryDto`        | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ManageCharacterUseCase`    | trait  | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ManageLocationUseCase`     | trait  | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ManageSceneUseCase`        | trait  | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ManageWorldUseCase`        | trait  | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `MovementUseCasePort`       | trait  | crates/engine-ports/src/inbound/movement_use_case_port.rs        | crates/engine-app/src/application/use_cases/movement.rs, crates/engine-app/src/application/use_cases/player_action.rs                                                            | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `NarrativeEventUseCasePort` | trait  | crates/engine-ports/src/inbound/narrative_event_use_case_port.rs | crates/engine-app/src/application/use_cases/narrative_event.rs                                                                                                                   | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `ObservationUseCasePort`    | trait  | crates/engine-ports/src/inbound/observation_use_case_port.rs     | crates/engine-app/src/application/use_cases/observation.rs                                                                                                                       | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `PlayerActionUseCasePort`   | trait  | crates/engine-ports/src/inbound/player_action_use_case_port.rs   | crates/engine-app/src/application/use_cases/player_action.rs                                                                                                                     | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `RequestHandler`            | trait  | crates/engine-ports/src/inbound/request_handler.rs               | crates/engine-app/src/application/handlers/request_handler.rs                                                                                                                    | inbound (boundary trait) | Keep in inbound; ensure it does not leak into services |
+| `SceneSummaryDto`           | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `SceneUseCaseError`         | type   | crates/engine-ports/src/inbound/scene_use_case_port.rs           |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `SceneUseCasePort`          | trait  | crates/engine-ports/src/inbound/scene_use_case_port.rs           | crates/engine-app/src/application/use_cases/scene.rs                                                                                                                             | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `StagingUseCasePort`        | trait  | crates/engine-ports/src/inbound/staging_use_case_port.rs         | crates/engine-app/src/application/use_cases/staging.rs                                                                                                                           | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `UseCaseContext`            | struct | crates/engine-ports/src/inbound/use_case_context.rs              | crates/engine-app/src/application/use_cases/challenge.rs, crates/engine-app/src/application/use_cases/inventory.rs, crates/engine-app/src/application/use_cases/mod.rs (+6 more) | inbound (boundary DTO)   | Keep in inbound; ensure it does not leak into services |
+| `UseCaseError`              | enum   | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `WorldDto`                  | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
+| `WorldSummaryDto`           | struct | crates/engine-ports/src/inbound/use_cases.rs                     |                                                                                                                                                                                  | inbound                  | Keep in inbound; ensure only adapters/UI import        |
 
 #### Player inbound taxonomy
 
@@ -135,24 +146,25 @@ _No player inbound items found._ (Player server-event DTOs are currently defined
 _Regenerate with `task arch:inventories`._
 
 %% /PORT TAXONOMY %%
+
 ### Inventory B — DTO ownership / duplication table
 
 **Purpose**: enforce the “single canonical home” model and eliminate shadow copies.
 
 **Rule**:
+
 - If a type is a stable app↔adapter boundary contract: it belongs in `engine-ports` (near the owning port).
 - If a type is internal glue (queues, projections, internal orchestration): it belongs in `engine-dto`.
 
 %% DTO OWNERSHIP %%
 
 | Type name | engine-dto (examples) | engine-ports (examples) | Suggested owner | Notes |
-|---|---|---|---|---|
-| _(none)_ |  |  |  |  |
+| --------- | --------------------- | ----------------------- | --------------- | ----- |
+| _(none)_  |                       |                         |                 |       |
 
 _Regenerate with `task arch:inventories`._
 
-%% /DTO OWNERSHIP %%
----
+## %% /DTO OWNERSHIP %%
 
 ---
 
@@ -163,18 +175,22 @@ _Regenerate with `task arch:inventories`._
 **Goal**: remove implicit exports so rust-analyzer + dead-code detection improve.
 
 Steps:
+
 1. In `crates/engine-dto/src/lib.rs`, replace:
    - `pub use llm::*;` etc.
-   with explicit exports.
+     with explicit exports.
 2. Repeat for any other crates once the check is expanded.
 
 **Verify**
+
 - `cargo xtask arch-check` shows **0 glob re-export violations**.
 
 **Progress**
+
 - ✅ Completed 2025-12-31: removed glob re-exports from `crates/engine-dto/src/lib.rs`.
 
 **Stop condition**
+
 - Glob re-export check can be moved from warning-mode to enforcement.
 
 ---
@@ -186,6 +202,7 @@ Steps:
 **Goal**: identify every DTO that lives in the wrong “home”.
 
 Steps:
+
 1. Identify all DTOs in:
    - `engine-dto`
    - `engine-ports` boundary DTOs
@@ -194,6 +211,7 @@ Steps:
    - domain vs protocol vs ports vs engine-dto
 
 **Deliverable**
+
 - A table in this doc listing DTO name → canonical crate/module → current locations → action.
 
 ### 2.2 Fix confirmed duplication: `StagingProposal`
@@ -201,30 +219,36 @@ Steps:
 **Goal**: One canonical definition.
 
 Steps:
+
 1. Choose canonical owner (target: `engine-ports` outbound boundary DTO).
 2. Update all imports/usages from `wrldbldr_engine_dto::StagingProposal` to the canonical path.
 3. Remove the duplicate definition from `engine-dto`.
 4. Fix misleading comments (e.g., `world_state_manager.rs` comment).
 
 **Verify**
+
 - New arch-check duplication warning no longer reports `StagingProposal`.
 - `cargo check --workspace` passes.
 
 **Progress**
+
 - ✅ Completed 2025-12-31: migrated staging DTO usage to `engine-ports` and deleted the duplicate `engine-dto` definitions.
 
 ### 2.3 Repeat for all shadow DTOs
 
 Steps:
+
 1. For each collision reported by arch-check:
    - migrate usages
    - remove duplicate
    - add tests where conversions changed
 
 **Progress**
+
 - ✅ Completed 2025-12-31: reduced DTO shadowing warnings to zero (removed public engine-dto shadow types for `ApprovalItem`, `QueueItem*`, `OutcomeDetail`, and resolved the `LlmResponse` name collision).
 
 **Stop condition**
+
 - DTO shadowing warnings go to zero.
 - The DTO shadowing check can be switched from warning to enforcement.
 
@@ -239,6 +263,7 @@ This is the core “hexagonal correctness” phase.
 **Goal**: every trait is in the right folder and used from the right layer.
 
 Steps:
+
 1. For every trait under `engine-ports/src/inbound/`:
    - Determine whether it is truly inbound (implemented by app use case and called by driving adapter/UI), or
    - Actually outbound (depended on by app).
@@ -248,9 +273,11 @@ Steps:
 ### 3.2 Move misclassified ports to outbound
 
 **Common current pattern** (to eliminate):
+
 - Use case depends on `wrldbldr_engine_ports::inbound::SomeServicePort`.
 
 Steps:
+
 1. Move the dependency trait into `engine-ports/src/outbound/`.
 2. Update imports in:
    - engine-app use cases/services
@@ -259,10 +286,12 @@ Steps:
 3. If a trait name is misleading, rename with a migration.
 
 **Verify**
+
 - The inbound-dependency check emits fewer warnings.
 - `cargo check --workspace` passes.
 
 **Progress**
+
 - ✅ Started 2025-12-31: moved use-case error enums (`ActionError`, `ChallengeError`, `InventoryError`, `NarrativeEventError`, `ObservationError`, `SceneError`, `StagingError`) from `engine-ports` inbound to outbound, and updated imports.
 - ✅ Continued 2025-12-31: moved `ConnectionManagerPort` from `engine-ports` inbound (`use_case_ports.rs`) to `engine-ports` outbound.
 - ✅ Continued 2025-12-31: moved `PlayerActionQueuePort` and `DmNotificationPort` from `engine-ports` inbound (`use_case_ports.rs`) to `engine-ports` outbound.
@@ -275,9 +304,10 @@ Steps:
 
 ### 3.3 Normalize “context DTOs”
 
-**Goal**: allow the *few* context DTOs app needs without using inbound module as a dumping ground.
+**Goal**: allow the _few_ context DTOs app needs without using inbound module as a dumping ground.
 
 Steps:
+
 1. Identify context-only DTOs (e.g., `UseCaseContext`, `RequestContext`).
 2. Decide canonical module for each:
    - If it’s strictly use-case invocation context: stay with inbound ports, but isolate in a dedicated `context` module.
@@ -285,6 +315,7 @@ Steps:
 3. Update arch-check allowlist to reflect these explicit exceptions.
 
 **Stop condition**
+
 - App no longer imports traits from inbound modules (only DTO exceptions remain).
 - The inbound-dependency check can move from warning mode to enforcement.
 
@@ -297,6 +328,7 @@ Steps:
 **Goal**: adapters implement outbound ports directly; no indirection.
 
 Steps:
+
 1. For each wrapper adapter struct:
    - identify the real underlying service/repo it forwards to
    - change use cases to depend on the outbound port implemented by the real adapter
@@ -304,16 +336,19 @@ Steps:
 3. Remove the directory/module if it becomes empty.
 
 **Verify**
+
 - No remaining references to `engine-adapters/src/infrastructure/ports/` in codebase.
 - `cargo check --workspace`.
 
 **Progress**
+
 - ✅ Started 2025-12-31: removed the forwarding wrapper `ConnectionWorldStateAdapter`; rewired composition to reuse `SceneWorldStateAdapter` directly.
 - ✅ Continued 2025-12-31: removed wrapper adapters `ConnectionManagerAdapter` and `DmNotificationAdapter` by implementing `ConnectionManagerPort` and `DmNotificationPort` directly on `WorldConnectionManager`.
 - ✅ Continued 2025-12-31: implemented `WorldStateUpdatePort`, `StagingStatePort`, and `StagingStateExtPort` directly on `WorldStateManager`; removed wrappers `SceneWorldStateAdapter` and `StagingStateAdapter` and rewired composition to use `world_state` directly.
 - ✅ Continued 2025-12-31: deleted `engine-adapters/src/infrastructure/ports/` by flattening it into `engine-adapters/src/infrastructure/ports.rs` + sibling module files (keeping the module path `infrastructure::ports` stable).
 
 **Stop condition**
+
 - That directory is deleted (or contains only legitimate boundary code, not forwarders).
 
 ---
@@ -325,41 +360,48 @@ Steps:
 **Example to fix**: `PlayerActionUseCase` depends on `Arc<MovementUseCase>`.
 
 **Progress**
+
 - ✅ 2025-12-31: `PlayerActionUseCase` now depends on `Arc<dyn MovementUseCasePort>`.
 
 Steps:
+
 1. Find all `Arc<SomeUseCase>` fields in use cases.
 2. Replace with `Arc<dyn SomeUseCasePort>`.
 3. Ensure the port trait lives in inbound (because it’s the app API), not outbound.
 4. Wire in composition root using trait objects.
 
 **Verify**
+
 - Grep: no `Arc<...UseCase>` fields except the implementing struct itself.
 - Unit tests compile (add mocks via `mockall` if needed).
 
 ### 5.2 Services must not depend on concrete services
 
 Steps:
+
 1. For each app service that takes `Arc<ConcreteService>`:
    - ensure an outbound port exists (or create it in `engine-ports/src/outbound/`)
    - depend on `Arc<dyn Port>`
 2. Update construction in composition root.
 
 **Progress**
+
 - ✅ 2025-12-31: inverted prompt-template usage across services to depend on `PromptTemplateServicePort`.
 - ✅ 2025-12-31: removed concrete service dependencies in challenge services by introducing/using ports:
-   - `ApprovalRequestLookupPort` (protocol-free approval payload lookup)
-   - `ChallengeOutcomeApprovalServicePort`
-   - `OutcomeTriggerServicePort` + port-level `StateChange`
-   - `SettingsServicePort`
+  - `ApprovalRequestLookupPort` (protocol-free approval payload lookup)
+  - `ChallengeOutcomeApprovalServicePort`
+  - `OutcomeTriggerServicePort` + port-level `StateChange`
+  - `SettingsServicePort`
 - ✅ 2025-12-31: removed the last concrete dependency in a use case (`NarrativeEventUseCase` now depends on `NarrativeEventApprovalServicePort` and is no longer generic).
 
 **Verify**
+
 - Grep: no `Arc<ConcreteService>` in `engine-app/src/application/services/**` constructors (except when constructing the service itself internally, which should be rare and usually removed).
 - `cargo check --workspace`
 - `cargo xtask arch-check`
 
 **Stop condition**
+
 - No `engine-app` use case depends on another use case’s concrete type.
 - No `engine-app` service depends on another service’s concrete type.
 
@@ -370,6 +412,7 @@ Steps:
 **Goal**: only composition roots construct; services don’t new() other services.
 
 Progress:
+
 - ✅ 2025-12-31: removed internal `ToolExecutionService::new()` construction from `DMApprovalQueueService` (no longer stores a ToolExecutionService field; uses a unit-struct instance at execution sites).
 - ✅ 2025-12-31: removed internal `OutcomeSuggestionService::new()` construction from `ChallengeOutcomeApprovalService` tasks by switching call sites to dependency-injected associated functions.
 - ✅ 2025-12-31: removed internal `SuggestionService::new()` construction from `LLMQueueService` suggestion handling by switching to a dependency-injected associated function.
@@ -377,12 +420,14 @@ Progress:
 - ✅ 2025-12-31: verified `cargo check --workspace` and `cargo xtask arch-check`.
 
 Steps:
+
 1. For each violation where service calls `OtherService::new()`:
    - extract dependency to constructor
    - wire in composition root
 2. For spawned tasks that lazily construct services, refactor to use injected factories or injected ports.
 
 **Verify**
+
 - `cargo xtask arch-check` (includes a check that forbids `*Service::new(...)` inside `crates/engine-app/src/application/**` outside `#[cfg(test)]`).
 
 ---
@@ -392,18 +437,26 @@ Steps:
 ### 7.1 Composition must not store concrete types when a port exists
 
 Progress:
+
 - ✅ 2025-12-31: `InfrastructureContext` now stores `Arc<dyn SettingsServicePort>` and `Arc<dyn PromptTemplateServicePort>` (no concrete service storage); updated `AppState` and queue-service wiring.
 - ✅ 2025-12-31: removed `GenerationQueueProjectionService` concrete storage from asset-services composition; handlers now depend on `GenerationQueueProjectionServicePort`.
 - ✅ 2025-12-31: queue-services factory no longer stores concrete queue service fields; concrete worker queue services are now provided via `QueueWorkerServices` (outside factories), and Phase 7 arch-check now scans `queue_services.rs`.
 - ✅ 2025-12-31: use-cases factory no longer stores concrete `*ServiceAdapter` fields in its returned context; Phase 7 arch-check now scans all composition factory files.
+- ✅ 2025-12-31: composition factories no longer store `Arc<WorldStateManager>`; they now store port-typed world/staging state (`WorldStatePort` / `WorldStateUpdatePort` / `StagingStateExtPort`) to support stricter enforcement.
+- ✅ 2025-12-31: removed worker-only concretes (`OllamaClient`, `ComfyUIClient`) from `InfrastructureContext`; they are now constructed in the composition root and passed into worker factories as needed.
+- ✅ 2025-12-31: asset-services factory now depends on `Arc<dyn ComfyUIPort>` (not concrete `ComfyUIClient`) in `AssetServiceDependencies`.
 
 Steps:
+
 1. In `engine-runner` factories and containers:
    - remove fields holding both `Arc<dyn Port>` and `Arc<Concrete>` versions
 2. If generics force concretes (e.g., `NarrativeEventApprovalService<N>`), introduce a trait object abstraction.
+3. ✅ 2025-12-31: removed `SharedWorldConnectionManager` (adapter concrete) from composition factories and use case construction; use cases now receive connection capabilities via port traits (including unicast and broadcast-except-user) and the concrete shared manager is constructed only in the composition root.
 
 **Verify**
-- Enabled arch-check that flags `Arc<SomeConcreteService>` fields in `engine-runner` composition factories (full scope; no file excludes).
+
+- Enabled arch-check that flags `pub field: Arc<ConcreteType>` storage in `engine-runner` composition factories (full scope; no file excludes; allowlist only for non-port infra like `QueueBackendEnum`).
+- Enabled additional arch-check that forbids publicly exposing known concrete infra types from composition factories even when not wrapped in `Arc` (e.g., `Neo4jRepository`, `QueueFactory`, `OllamaClient`, `ComfyUIClient`, `InProcessEventNotifier`).
 
 ---
 
@@ -414,20 +467,28 @@ These are not the core hexagonal rules, but they improve correctness and testabi
 ### 8.1 Remove direct `rand` usage behind `RandomPort`
 
 Steps:
+
 1. Create/confirm `RandomPort` in outbound ports.
 2. Move direct `rand` usage from adapters/app into `engine-adapters` implementation.
 
 ### 8.2 Reduce multi-lock `Arc<Mutex>` patterns
 
 Steps:
+
 1. Consolidate related states into one lock or use atomics.
 2. Keep concurrency primitives in adapters.
 
 ### 8.3 Fix partial batch failure semantics
 
 Steps:
+
 1. Move batch queue orchestration into an application service.
 2. Define all-or-nothing vs partial-success semantics explicitly.
+3. Make the policy configurable via Settings with precedence:
+   - DB (world_settings, then global settings)
+   - ENV (e.g., `WRLDBLDR_BATCH_QUEUE_FAILURE_POLICY`)
+   - Code default (fallback)
+4. Expose the setting in the Player UI (DM Settings) so DMs can choose the policy per-world.
 
 ---
 
@@ -440,6 +501,7 @@ When the refactor reaches low-warning state, flip the enforcement switches:
 3. DTO shadow copies: fail on collisions.
 
 **Verify**
+
 - `cargo xtask arch-check` fails on regressions.
 - CI gate uses `cargo xtask arch-check`.
 

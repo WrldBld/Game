@@ -13,7 +13,8 @@
 //! # Dependencies
 //!
 //! This factory requires:
-//! - Level 0: `InfrastructureContext` (clock, comfyui_client)
+//! - Level 0: clock
+//! - ComfyUI port (worker-only adapter passed from composition root)
 //! - Level 1: Repository ports (asset_repo, workflow_repo)
 //! - Level 2a: `EventInfrastructure` (generation_event_tx, domain_event_repository, generation_read_state_repository)
 //! - Config: asset_base_path, workflow_path
@@ -30,8 +31,9 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 
-use wrldbldr_engine_adapters::infrastructure::comfyui::ComfyUIClient;
-use wrldbldr_engine_adapters::infrastructure::TokioFileStorageAdapter;
+use wrldbldr_engine_adapters::infrastructure::{
+    in_memory::InMemoryActiveGenerationBatches, TokioFileStorageAdapter,
+};
 use wrldbldr_engine_app::application::services::generation_service::{
     GenerationEvent, GenerationService,
 };
@@ -39,9 +41,10 @@ use wrldbldr_engine_app::application::services::{
     AssetServiceImpl, GenerationQueueProjectionService, WorkflowConfigService,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, AssetServicePort, ClockPort, ComfyUIPort, DomainEventRepositoryPort,
-    FileStoragePort, GenerationQueueProjectionServicePort, GenerationReadStatePort,
-    GenerationServicePort, WorkflowRepositoryPort, WorkflowServicePort,
+    ActiveGenerationBatchesPort, AssetRepositoryPort, AssetServicePort, ClockPort, ComfyUIPort,
+    DomainEventRepositoryPort, FileStoragePort, GenerationQueueProjectionServicePort,
+    GenerationReadStatePort, GenerationServicePort, SettingsServicePort, WorkflowRepositoryPort,
+    WorkflowServicePort,
 };
 
 /// Dependencies required for creating asset services.
@@ -72,8 +75,11 @@ pub struct AssetServiceDependencies {
     /// Clock for timestamps
     pub clock: Arc<dyn ClockPort>,
 
-    /// ComfyUI client for image generation
-    pub comfyui_client: ComfyUIClient,
+    /// ComfyUI port for image generation
+    pub comfyui: Arc<dyn ComfyUIPort>,
+
+    /// Settings service for resolving per-world behavior
+    pub settings_service: Arc<dyn SettingsServicePort>,
 
     // Repositories (Level 1)
     /// Asset repository for CRUD operations
@@ -154,7 +160,7 @@ pub struct AssetServicePorts {
 /// ```ignore
 /// let deps = AssetServiceDependencies {
 ///     clock: infra.clock.clone(),
-///     comfyui_client: infra.comfyui_client.clone(),
+///     comfyui: comfyui_port.clone(),
 ///     asset_repo: repos.asset_repo.clone(),
 ///     workflow_repo: repos.workflow_repo.clone(),
 ///     generation_event_tx: event_infra.generation_event_tx.clone(),
@@ -194,14 +200,18 @@ pub fn create_asset_services(deps: AssetServiceDependencies) -> AssetServicePort
     // =========================================================================
     // Generation Service
     // =========================================================================
+    let active_batches: Arc<dyn ActiveGenerationBatchesPort> =
+        Arc::new(InMemoryActiveGenerationBatches::new());
     let generation_service_concrete = GenerationService::new(
-        Arc::new(deps.comfyui_client) as Arc<dyn ComfyUIPort>,
+        deps.comfyui,
         deps.asset_repo.clone(),
         deps.clock.clone(),
         file_storage,
         deps.asset_base_path,
         deps.workflow_path,
         deps.generation_event_tx,
+        active_batches,
+        deps.settings_service,
     );
     let generation_service: Arc<dyn GenerationServicePort> = Arc::new(generation_service_concrete);
     tracing::debug!("Created generation service");
@@ -246,7 +256,6 @@ mod tests {
             let _: &Arc<dyn GenerationServicePort> = &ports.generation_service;
             let _: &Arc<dyn GenerationQueueProjectionServicePort> =
                 &ports.generation_queue_projection_service;
-
         }
 
         // The existence of this function proves the types are correct at compile time
@@ -261,7 +270,7 @@ mod tests {
         fn _verify_deps(deps: &AssetServiceDependencies) {
             // Infrastructure
             let _: &Arc<dyn ClockPort> = &deps.clock;
-            let _: &ComfyUIClient = &deps.comfyui_client;
+            let _: &Arc<dyn ComfyUIPort> = &deps.comfyui;
 
             // Repositories
             let _: &Arc<dyn AssetRepositoryPort> = &deps.asset_repo;

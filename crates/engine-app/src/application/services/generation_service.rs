@@ -5,21 +5,21 @@
 //! - Processing batches through ComfyUI
 //! - Tracking progress and notifying clients via WebSocket
 
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 
 use wrldbldr_domain::entities::{
     AssetType, BatchStatus, EntityType, GalleryAsset, GenerationBatch, GenerationMetadata,
 };
+use wrldbldr_domain::value_objects::BatchQueueFailurePolicy;
 use wrldbldr_domain::{AssetId, BatchId, WorldId};
 use wrldbldr_engine_ports::outbound::{
-    AssetRepositoryPort, ClockPort, ComfyUIPort, FileStoragePort, GenerationRequest,
-    GenerationServicePort,
+    ActiveGenerationBatch, ActiveGenerationBatchesPort, AssetRepositoryPort, ClockPort,
+    ComfyUIPort, FileStoragePort, GenerationRequest, GenerationServicePort, SettingsServicePort,
 };
 
 /// Events emitted by the generation service
@@ -99,18 +99,14 @@ pub struct GenerationService {
     file_storage: Arc<dyn FileStoragePort>,
     /// Directory to save generated assets
     output_dir: String,
-    /// Active batches being processed
-    active_batches: RwLock<HashMap<BatchId, BatchTracker>>,
+    /// Active batches being processed (adapter-managed concurrency)
+    active_batches: Arc<dyn ActiveGenerationBatchesPort>,
     /// Event sender for notifying about generation progress (bounded channel)
     event_sender: mpsc::Sender<GenerationEvent>,
     /// Workflow templates directory
     workflow_dir: String,
-}
-
-/// Tracks an active batch being processed
-struct BatchTracker {
-    batch: GenerationBatch,
-    prompt_ids: Vec<String>,
+    /// Settings service used to resolve per-world generation behavior.
+    settings_service: Arc<dyn SettingsServicePort>,
 }
 
 impl GenerationService {
@@ -128,6 +124,8 @@ impl GenerationService {
         output_dir: String,
         workflow_dir: String,
         event_sender: mpsc::Sender<GenerationEvent>,
+        active_batches: Arc<dyn ActiveGenerationBatchesPort>,
+        settings_service: Arc<dyn SettingsServicePort>,
     ) -> Self {
         Self {
             comfyui_client,
@@ -135,9 +133,10 @@ impl GenerationService {
             clock,
             file_storage,
             output_dir,
-            active_batches: RwLock::new(HashMap::new()),
+            active_batches,
             event_sender,
             workflow_dir,
+            settings_service,
         }
     }
 
@@ -168,9 +167,7 @@ impl GenerationService {
         self.repository.create_batch(&batch).await?;
 
         // Get queue position
-        let active_batches = self.active_batches.read().await;
-        let position = active_batches.len() as u32 + 1;
-        drop(active_batches);
+        let position = self.active_batches.len().await as u32 + 1;
 
         // Send queued event (non-blocking, logs warning if buffer full)
         if let Err(e) = self.event_sender.try_send(GenerationEvent::BatchQueued {
@@ -194,18 +191,26 @@ impl GenerationService {
     pub async fn start_batch_processing(&self, batch: GenerationBatch) -> Result<()> {
         let batch_id = batch.id;
 
+        let batch_queue_failure_policy = self
+            .settings_service
+            .get_for_world(batch.world_id)
+            .await
+            .batch_queue_failure_policy;
+
         // Update status to generating
         self.repository
             .update_batch_status(batch_id, &BatchStatus::Generating { progress: 0 })
             .await?;
 
-        // Create tracker
-        let tracker = BatchTracker {
-            batch: batch.clone(),
-            prompt_ids: vec![],
-        };
-
-        self.active_batches.write().await.insert(batch_id, tracker);
+        self.active_batches
+            .insert(
+                batch_id,
+                ActiveGenerationBatch {
+                    batch: batch.clone(),
+                    prompt_ids: vec![],
+                },
+            )
+            .await;
 
         // Load the workflow template
         let workflow_template = self.load_workflow_template(&batch.workflow).await?;
@@ -231,31 +236,84 @@ impl GenerationService {
                     prompt_ids.push(response.prompt_id);
                 }
                 Err(e) => {
-                    tracing::error!("Failed to queue prompt {} for batch {}: {}", i, batch_id, e);
-                    // Continue with other prompts
+                    let error =
+                        format!("Failed to queue prompt {} for batch {}: {}", i, batch_id, e);
+                    tracing::error!("{}", error);
+
+                    match batch_queue_failure_policy {
+                        BatchQueueFailurePolicy::AllOrNothing => {
+                            let status = BatchStatus::Failed {
+                                error: error.clone(),
+                            };
+                            self.repository
+                                .update_batch_status(batch_id, &status)
+                                .await?;
+                            self.active_batches.remove(batch_id).await;
+
+                            if let Err(send_err) =
+                                self.event_sender.try_send(GenerationEvent::BatchFailed {
+                                    batch_id,
+                                    world_id: batch.world_id,
+                                    entity_type: batch.entity_type,
+                                    entity_id: batch.entity_id.clone(),
+                                    asset_type: batch.asset_type,
+                                    error,
+                                })
+                            {
+                                tracing::warn!("Failed to send BatchFailed event: {}", send_err);
+                            }
+
+                            return Ok(());
+                        }
+                        BatchQueueFailurePolicy::BestEffort => {
+                            // Continue trying to queue remaining prompts.
+                            continue;
+                        }
+                    }
                 }
             }
         }
 
-        // Update tracker with prompt IDs
-        if let Some(tracker) = self.active_batches.write().await.get_mut(&batch_id) {
-            tracker.prompt_ids = prompt_ids;
+        if prompt_ids.is_empty() {
+            let error = format!("Failed to queue any prompts for batch {}", batch_id);
+            let status = BatchStatus::Failed {
+                error: error.clone(),
+            };
+            self.repository
+                .update_batch_status(batch_id, &status)
+                .await?;
+            self.active_batches.remove(batch_id).await;
+
+            if let Err(send_err) = self.event_sender.try_send(GenerationEvent::BatchFailed {
+                batch_id,
+                world_id: batch.world_id,
+                entity_type: batch.entity_type,
+                entity_id: batch.entity_id.clone(),
+                asset_type: batch.asset_type,
+                error,
+            }) {
+                tracing::warn!("Failed to send BatchFailed event: {}", send_err);
+            }
+
+            return Ok(());
         }
+
+        // Update tracker with prompt IDs
+        self.active_batches
+            .update_prompt_ids(batch_id, prompt_ids)
+            .await;
 
         Ok(())
     }
 
     /// Poll for batch completion (call periodically)
     pub async fn poll_batch_progress(&self, batch_id: BatchId) -> Result<Option<BatchStatus>> {
-        let active_batches = self.active_batches.read().await;
-        let tracker = match active_batches.get(&batch_id) {
-            Some(t) => t,
-            None => return Ok(None),
+        let Some(tracker) = self.active_batches.get(batch_id).await else {
+            return Ok(None);
         };
 
-        let prompt_ids = tracker.prompt_ids.clone();
-        let batch = tracker.batch.clone();
-        drop(active_batches);
+        let prompt_ids = tracker.prompt_ids;
+        let batch = tracker.batch;
 
         let mut completed_count = 0u8;
         let mut generated_assets = Vec::new();
@@ -338,7 +396,7 @@ impl GenerationService {
             }
 
             // Remove from active batches
-            self.active_batches.write().await.remove(&batch_id);
+            self.active_batches.remove(batch_id).await;
 
             return Ok(Some(BatchStatus::ReadyForSelection));
         }
@@ -670,7 +728,7 @@ impl GenerationService {
 
     /// Cancel a batch
     pub async fn cancel_batch(&self, batch_id: BatchId) -> Result<()> {
-        self.active_batches.write().await.remove(&batch_id);
+        self.active_batches.remove(batch_id).await;
         self.repository.delete_batch(batch_id).await
     }
 }

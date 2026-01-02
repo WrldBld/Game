@@ -35,9 +35,7 @@ use wrldbldr_engine_ports::outbound::{
 use super::errors::ChallengeError;
 
 // Import port traits from engine-ports
-pub use wrldbldr_engine_ports::inbound::{
-    ChallengeUseCasePort,
-};
+pub use wrldbldr_engine_ports::inbound::ChallengeUseCasePort;
 
 pub use wrldbldr_engine_ports::outbound::ChallengeDmApprovalQueuePort as DmApprovalQueuePort;
 

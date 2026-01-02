@@ -11,9 +11,10 @@ mod approval_request_lookup_port;
 mod asset_generation_queue_service_port;
 mod asset_service_port;
 mod broadcast_port;
+mod challenge_dm_approval_queue_port;
 mod challenge_outcome_approval_port;
 mod challenge_outcome_approval_service_port;
-mod challenge_dm_approval_queue_port;
+mod challenge_outcome_pending_port;
 mod challenge_repository;
 mod challenge_resolution_port;
 mod challenge_resolution_service_port;
@@ -24,14 +25,14 @@ mod clock_port;
 mod comfyui_port;
 mod connection_manager_port;
 mod dialogue_context_service_port;
-mod directorial_context_port;
 mod directorial_context_dto_repository_port;
+mod directorial_context_port;
 mod directorial_context_query_port;
 mod disposition_service_port;
 mod dm_action_processor_port;
 mod dm_action_queue_service_port;
-mod dm_notification_port;
 mod dm_approval_queue_service_port;
+mod dm_notification_port;
 mod domain_event_repository_port;
 mod environment_port;
 mod event_bus_port;
@@ -41,6 +42,7 @@ mod event_effect_executor_port;
 mod event_notifier_port;
 mod file_storage_port;
 mod game_events;
+mod generation_active_batches_port;
 mod generation_queue_projection_service_port;
 mod generation_read_state_port;
 mod generation_service_port;
@@ -53,12 +55,14 @@ mod location_service_port;
 mod narrative_event_approval_service_port;
 mod narrative_event_repository;
 mod narrative_event_service_port;
+mod outcome_trigger_service_port;
 mod player_action_queue_port;
 mod player_action_queue_service_port;
 mod player_character_dto_port;
 mod player_character_repository;
 mod player_character_service_port;
 mod prompt_context_service_port;
+mod prompt_template_cache_port;
 mod prompt_template_port;
 mod prompt_template_service_port;
 mod queue_notification_port;
@@ -68,36 +72,36 @@ mod region_repository;
 mod region_service_port;
 mod relationship_service_port;
 mod repository_port;
+mod scene_dm_action_queue_port;
+mod scene_interactions_query_port;
 mod scene_repository;
 mod scene_resolution_service_port;
 mod scene_service_port;
-mod scene_dm_action_queue_port;
-mod scene_interactions_query_port;
 mod scene_with_relations_query_port;
+mod settings_cache_port;
 mod settings_port;
 mod settings_service_port;
-mod state_change;
 mod sheet_template_service_port;
 mod skill_service_port;
 mod staging_repository_port;
 mod staging_service_port;
 mod staging_state_ports;
 mod staging_use_case_service_ports;
+mod state_change;
 mod story_event_admin_service_port;
 mod story_event_query_service_port;
 mod story_event_recording_service_port;
 mod story_event_repository;
 mod story_event_service_port;
 mod suggestion_enqueue_port;
-mod outcome_trigger_service_port;
 mod trigger_evaluation_service_port;
 mod use_case_errors;
 mod use_case_types;
 mod workflow_service_port;
 mod world_connection_manager;
 mod world_exporter_port;
-mod world_snapshot_json_port;
 mod world_service_port;
+mod world_snapshot_json_port;
 mod world_state;
 mod world_state_update_port;
 
@@ -114,11 +118,9 @@ pub use approval_request_lookup_port::MockApprovalRequestLookupPort;
 pub use state_change::StateChange;
 
 // Outcome trigger execution
-pub use outcome_trigger_service_port::{
-    OutcomeTriggerExecutionResult, OutcomeTriggerServicePort,
-};
 #[cfg(any(test, feature = "testing"))]
 pub use outcome_trigger_service_port::MockOutcomeTriggerServicePort;
+pub use outcome_trigger_service_port::{OutcomeTriggerExecutionResult, OutcomeTriggerServicePort};
 
 // Challenge service port - interface for challenge operations
 pub use challenge_service_port::ChallengeServicePort;
@@ -138,8 +140,8 @@ pub use use_case_errors::{
     StagingError,
 };
 
-pub use challenge_outcome_approval_port::ChallengeOutcomeApprovalPort;
 pub use challenge_dm_approval_queue_port::ChallengeDmApprovalQueuePort;
+pub use challenge_outcome_approval_port::ChallengeOutcomeApprovalPort;
 pub use challenge_resolution_port::ChallengeResolutionPort;
 
 // DomainEvent repository - domain-layer interface for event storage
@@ -159,6 +161,12 @@ pub use comfyui_port::{
 };
 
 pub use connection_manager_port::ConnectionManagerPort;
+
+pub use challenge_outcome_pending_port::ChallengeOutcomePendingPort;
+
+pub use generation_active_batches_port::{
+    ActiveGenerationBatch, ActiveGenerationBatchesPort, ActiveGenerationBatchesSnapshot,
+};
 
 pub use event_bus_port::{EventBusError, EventBusPort};
 
@@ -189,7 +197,11 @@ pub use llm_port::{
     TokenUsage, ToolCall, ToolDefinition,
 };
 
+pub use prompt_template_cache_port::{PromptTemplateCachePort, PromptTemplateCacheSnapshot};
+
 pub use queue_notification_port::{QueueNotificationPort, WaitResult};
+
+pub use settings_cache_port::{SettingsCachePort, SettingsCacheSnapshot};
 
 // Repository ports - Note: Many repository ports have been split into ISP sub-traits.
 // See the *_repository/ modules for the focused trait definitions.
@@ -339,9 +351,7 @@ pub use staging_repository_port::{StagedNpcRow, StagingRepositoryPort};
 
 // Staging use-case dependency ports
 pub use staging_state_ports::{StagingStateExtPort, StagingStatePort};
-pub use staging_use_case_service_ports::{
-    StagingUseCaseServiceExtPort, StagingUseCaseServicePort,
-};
+pub use staging_use_case_service_ports::{StagingUseCaseServiceExtPort, StagingUseCaseServicePort};
 
 pub use suggestion_enqueue_port::{
     SuggestionEnqueueContext, SuggestionEnqueuePort, SuggestionEnqueueRequest,
@@ -453,7 +463,8 @@ pub use game_events::{
 pub use world_connection_manager::MockWorldConnectionManager;
 pub use world_connection_manager::{
     ConnectedUserInfo, ConnectionBroadcastPort, ConnectionContext, ConnectionContextPort,
-    ConnectionLifecyclePort, ConnectionManagerError, ConnectionQueryPort, ConnectionStats, DmInfo,
+    ConnectionLifecyclePort, ConnectionManagerError, ConnectionQueryPort, ConnectionStats,
+    ConnectionUnicastPort, DmInfo,
 };
 
 // WorldState ports - split for Interface Segregation Principle (Clean ISP)
@@ -552,8 +563,8 @@ pub use staging_service_port::{
 #[cfg(any(test, feature = "testing"))]
 pub use llm_queue_service_port::MockLlmQueueServicePort;
 pub use llm_queue_service_port::{
-    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueServicePort,
-    LlmQueueResponse, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
+    ChallengeSuggestion, ConfidenceLevel, LlmQueueItem, LlmQueueRequest, LlmQueueResponse,
+    LlmQueueServicePort, LlmRequestType, NarrativeEventSuggestion, ProposedToolCall,
     SuggestionContext as LlmSuggestionContext,
 };
 
@@ -618,7 +629,6 @@ pub use use_case_types::{
     ConnectionInfo,
     CreateAdHocInput,
     DiceInputType,
-    NarrativeRollContext,
     DirectorialContextData,
     DirectorialUpdateResult,
     DiscardChallengeInput,
@@ -645,6 +655,7 @@ pub use use_case_types::{
     // Narrative event types
     NarrativeEventDecisionResult,
     NarrativeEventSuggestionDecisionInput,
+    NarrativeRollContext,
     NpcMotivation,
     OutcomeDecision,
     OutcomeDecisionInput,

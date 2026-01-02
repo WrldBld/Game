@@ -3,7 +3,9 @@ use async_trait::async_trait;
 use wrldbldr_domain::value_objects::NarrativeResolutionConfig;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
-use super::{AdHocOutcomes, AdHocResult, DiceInputType, NarrativeRollContext, RollResultData, TriggerResult};
+use super::{
+    AdHocOutcomes, AdHocResult, DiceInputType, NarrativeRollContext, RollResultData, TriggerResult,
+};
 
 /// Outbound port for challenge resolution operations.
 ///

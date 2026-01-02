@@ -113,6 +113,16 @@ impl EngineClient {
         let request_id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
 
+        // If a screen deep-links and fires requests before the connection route's
+        // ensure_connection() runs, lazily initiate the WebSocket connection here.
+        // Outbound messages will buffer while CONNECTING and flush on OPEN.
+        if matches!(
+            self.state(),
+            ConnectionState::Disconnected | ConnectionState::Failed
+        ) {
+            let _ = self.connect();
+        }
+
         // Store the sender as a callback
         self.pending_requests.borrow_mut().insert(
             request_id.clone(),
@@ -143,6 +153,14 @@ impl EngineClient {
     ) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
         let request_id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
+
+        // Same lazy-connect behavior as request() for deep-link safety.
+        if matches!(
+            self.state(),
+            ConnectionState::Disconnected | ConnectionState::Failed
+        ) {
+            let _ = self.connect();
+        }
 
         // Store the sender as a callback
         self.pending_requests.borrow_mut().insert(
@@ -237,6 +255,7 @@ impl EngineClient {
         let on_state_change = Rc::clone(&self.on_state_change);
         let message_buffer = Rc::clone(&self.message_buffer);
         let ws_for_open = Rc::clone(&self.ws);
+        let pending_requests_for_open = Rc::clone(&self.pending_requests);
         let reconnect_attempts = Rc::clone(&self.reconnect_attempts);
         let reconnect_delay = Rc::clone(&self.reconnect_delay);
         let onopen_callback = Closure::<dyn FnMut()>::new(move || {
@@ -259,6 +278,13 @@ impl EngineClient {
                 );
                 if let Some(ref ws) = *ws_for_open.borrow() {
                     while let Some(msg) = buffer.pop_front() {
+                        // If a request already timed out/cancelled, don't send it.
+                        if let ClientMessage::Request { request_id, .. } = &msg {
+                            if !pending_requests_for_open.borrow().contains_key(request_id) {
+                                continue;
+                            }
+                        }
+
                         if let Ok(json) = serde_json::to_string(&msg) {
                             if let Err(e) = ws.send_with_str(&json) {
                                 web_sys::console::warn_1(
@@ -398,10 +424,13 @@ impl EngineClient {
     pub fn send(&self, message: ClientMessage) -> Result<()> {
         let current_state = self.state();
 
-        // Buffer messages during reconnection
-        if current_state == ConnectionState::Reconnecting {
+        // Buffer messages during connecting/reconnecting.
+        // In browsers, calling WebSocket::send() during CONNECTING throws InvalidStateError.
+        if current_state == ConnectionState::Connecting
+            || current_state == ConnectionState::Reconnecting
+        {
             self.message_buffer.borrow_mut().push_back(message);
-            web_sys::console::log_1(&"Message buffered during reconnection".into());
+            web_sys::console::log_1(&"Message buffered until socket is open".into());
             return Ok(());
         }
 

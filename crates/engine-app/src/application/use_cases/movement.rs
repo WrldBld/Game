@@ -70,8 +70,7 @@ use super::errors::MovementError;
 
 // Import port traits from engine-ports
 pub use wrldbldr_engine_ports::outbound::{
-    StagingStatePort,
-    StagingUseCaseServicePort as StagingServicePort,
+    StagingStatePort, StagingUseCaseServicePort as StagingServicePort,
 };
 
 // Import types from engine-ports

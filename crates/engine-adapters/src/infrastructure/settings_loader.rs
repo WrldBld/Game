@@ -84,6 +84,11 @@ pub fn load_settings_from_env() -> AppSettings {
     let defaults = AppSettings::default();
     let context_budget_defaults = ContextBudgetConfig::default();
 
+    let batch_queue_failure_policy = std::env::var("WRLDBLDR_BATCH_QUEUE_FAILURE_POLICY")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(defaults.batch_queue_failure_policy);
+
     AppSettings {
         world_id: None, // Global settings from env
         max_conversation_turns: env_or(
@@ -191,6 +196,7 @@ pub fn load_settings_from_env() -> AppSettings {
         },
         // Style reference is not loaded from env - only stored per-world
         style_reference_asset_id: None,
+        batch_queue_failure_policy,
     }
 }
 

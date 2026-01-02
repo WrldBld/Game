@@ -40,15 +40,11 @@ use std::sync::Arc;
 
 use wrldbldr_engine_adapters::infrastructure::ports::{
     ChallengeDmApprovalQueueAdapter, ChallengeOutcomeApprovalAdapter, ChallengeResolutionAdapter,
-    ConnectionDirectorialContextAdapter,
-    DirectorialContextAdapter, DmActionQueuePlaceholder,
+    ConnectionDirectorialContextAdapter, DirectorialContextAdapter, DmActionQueuePlaceholder,
     InteractionServiceAdapter, PlayerActionQueueAdapter, PlayerCharacterServiceAdapter,
-    SceneServiceAdapter, StagingServiceAdapter,
-    WorldServiceAdapter,
+    SceneServiceAdapter, StagingServiceAdapter, WorldServiceAdapter,
 };
 use wrldbldr_engine_adapters::infrastructure::websocket::WebSocketBroadcastAdapter;
-use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
-use wrldbldr_engine_adapters::infrastructure::WorldStateManager;
 
 use wrldbldr_engine_app::application::use_cases::{
     ChallengeUseCase, ConnectionUseCase, InventoryUseCase, MovementUseCase, NarrativeEventUseCase,
@@ -64,13 +60,14 @@ use wrldbldr_engine_ports::inbound::{
 };
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    CharacterCrudPort, ClockPort, DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
-    InteractionServicePort, LocationCrudPort, LocationMapPort, ObservationRepositoryPort,
-    NarrativeEventApprovalServicePort,
-    PlayerActionQueueServicePort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
-    PlayerCharacterPositionPort, PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort,
-    RegionExitPort, RegionItemPort, SceneServicePort,
-    StagingServicePort as OutboundStagingServicePort, WorldServicePort,
+    CharacterCrudPort, ClockPort, ConnectionBroadcastPort, ConnectionManagerPort,
+    ConnectionUnicastPort, DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
+    DmNotificationPort, InteractionServicePort, LocationCrudPort, LocationMapPort,
+    NarrativeEventApprovalServicePort, ObservationRepositoryPort, PlayerActionQueueServicePort,
+    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
+    PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
+    RegionItemPort, SceneServicePort, StagingServicePort as OutboundStagingServicePort,
+    StagingStateExtPort, StagingStatePort, WorldServicePort, WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.
@@ -117,10 +114,21 @@ pub struct UseCaseDependencies {
     // =========================================================================
     // Infrastructure
     // =========================================================================
-    /// World connection manager for WebSocket connections
-    pub world_connection_manager: SharedWorldConnectionManager,
-    /// World state manager for per-world state
-    pub world_state: Arc<WorldStateManager>,
+    /// Connection manager operations (join/leave world)
+    pub connection_manager: Arc<dyn ConnectionManagerPort>,
+
+    /// Broadcast operations for WebSocket message routing
+    pub connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
+
+    /// Unicast operations for user-targeted WebSocket delivery
+    pub connection_unicast: Arc<dyn ConnectionUnicastPort>,
+
+    /// DM notification operations for queued-action alerts
+    pub dm_notification: Arc<dyn DmNotificationPort>,
+    /// Staging state port (used by movement + staging use cases)
+    pub staging_state: Arc<dyn StagingStateExtPort>,
+    /// World state update port (used by scene/connection use cases)
+    pub world_state_update: Arc<dyn WorldStateUpdatePort>,
     /// Clock for time operations
     pub clock: Arc<dyn ClockPort>,
 
@@ -211,8 +219,12 @@ pub struct UseCaseDependencies {
 ///
 /// ```rust,ignore
 /// let deps = UseCaseDependencies {
-///     world_connection_manager: world_connection_manager.clone(),
-///     world_state: world_state.clone(),
+///     connection_manager: world_connection_manager.clone() as Arc<dyn ConnectionManagerPort>,
+///     connection_broadcast: world_connection_manager.clone() as Arc<dyn ConnectionBroadcastPort>,
+///     connection_unicast: world_connection_manager.clone() as Arc<dyn ConnectionUnicastPort>,
+///     dm_notification: world_connection_manager.clone() as Arc<dyn DmNotificationPort>,
+///     staging_state: staging_state.clone(),
+///     world_state_update: world_state_update.clone(),
 ///     clock: clock.clone(),
 ///     // ... other dependencies
 ///     narrative_event_approval_service: narrative_event_approval_service.clone(),
@@ -233,7 +245,8 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // Create broadcast adapter (shared by all use cases)
     // =========================================================================
     let broadcast_adapter = Arc::new(WebSocketBroadcastAdapter::new(
-        deps.world_connection_manager.clone(),
+        deps.connection_broadcast.clone(),
+        deps.connection_unicast.clone(),
     ));
     let broadcast: Arc<dyn BroadcastPort> = broadcast_adapter.clone();
 
@@ -266,7 +279,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
         deps.location_crud.clone(),
         deps.location_map.clone(),
         staging_service_adapter.clone(),
-        deps.world_state.clone(),
+        deps.staging_state.clone() as Arc<dyn StagingStatePort>,
         broadcast.clone(),
         scene_builder.clone(),
         deps.clock.clone(),
@@ -287,7 +300,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     // =========================================================================
     let staging_approval_use_case = Arc::new(StagingApprovalUseCase::new(
         staging_service_adapter.clone(),
-        deps.world_state.clone(),
+        deps.staging_state.clone(),
         deps.character_crud.clone(),
         deps.region_crud.clone(),
         deps.location_crud.clone(),
@@ -306,7 +319,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     let player_action_use_case = Arc::new(PlayerActionUseCase::new(
         movement_use_case.clone(),
         player_action_queue_adapter.clone(),
-        deps.world_connection_manager.clone(),
+        deps.dm_notification.clone(),
     ));
 
     // =========================================================================
@@ -356,7 +369,7 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     let scene_use_case = Arc::new(SceneUseCase::new(
         scene_service_adapter.clone(),
         interaction_service_adapter.clone(),
-        deps.world_state.clone(),
+        deps.world_state_update.clone(),
         directorial_context_adapter.clone(),
         dm_action_queue_placeholder,
     ));
@@ -373,11 +386,11 @@ pub fn create_use_cases(deps: UseCaseDependencies) -> UseCaseContext {
     ));
 
     let connection_use_case = Arc::new(ConnectionUseCase::new(
-        deps.world_connection_manager.clone(),
+        deps.connection_manager.clone(),
         world_service_adapter.clone(),
         pc_service_adapter.clone(),
         connection_directorial_adapter.clone(),
-        deps.world_state.clone(),
+        deps.world_state_update.clone(),
         broadcast.clone(),
     ));
 
@@ -441,8 +454,12 @@ mod tests {
         // This test verifies the generic struct by checking field names at compile time
         fn _verify_dependencies(deps: &UseCaseDependencies) {
             // Infrastructure
-            let _ = &deps.world_connection_manager;
-            let _ = &deps.world_state;
+            let _ = &deps.connection_manager;
+            let _ = &deps.connection_broadcast;
+            let _ = &deps.connection_unicast;
+            let _ = &deps.dm_notification;
+            let _ = &deps.staging_state;
+            let _ = &deps.world_state_update;
             let _ = &deps.clock;
 
             // Repository ports (ISP-split PC traits)
@@ -501,5 +518,4 @@ mod tests {
 
         assert_eq!(expected_use_cases.len(), 9);
     }
-
 }

@@ -33,6 +33,7 @@ pub mod event_bus;
 pub mod export;
 pub mod file_storage;
 pub mod http;
+pub mod in_memory;
 pub mod ollama;
 pub mod persistence;
 pub mod ports;

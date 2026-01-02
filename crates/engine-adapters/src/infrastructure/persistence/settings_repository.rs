@@ -118,6 +118,13 @@ impl SqliteSettingsRepository {
                     }
                 }
 
+                // Asset Generation
+                "batch_queue_failure_policy" => {
+                    if let Ok(v) = value.parse() {
+                        settings.batch_queue_failure_policy = v;
+                    }
+                }
+
                 // Challenge System
                 "outcome_branch_count" => {
                     if let Ok(v) = value.parse() {
@@ -248,6 +255,11 @@ impl SqliteSettingsRepository {
             (
                 "default_max_stat_value",
                 settings.default_max_stat_value.to_string(),
+            ),
+            // Asset Generation
+            (
+                "batch_queue_failure_policy",
+                settings.batch_queue_failure_policy.to_string(),
             ),
             // Challenge System
             (

@@ -11,11 +11,10 @@
 //! - `ChallengeApprovalEventPublisher` receives events and broadcasts via `BroadcastPort`
 //! - No direct protocol message construction in the service layer
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 
 use crate::application::dto::{OutcomeSuggestionRequest, PendingChallengeResolutionDto};
 use crate::application::services::challenge_approval_events::{
@@ -27,10 +26,10 @@ use wrldbldr_domain::value_objects::{ChallengeOutcomeData, ProposedTool};
 use wrldbldr_domain::{CharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::OutcomeDecision;
 use wrldbldr_engine_ports::outbound::{
-    ChallengeOutcomeApprovalServicePort, ClockPort, ItemRepositoryPort, LlmPort,
-    OutcomeDecision as PortOutcomeDecision, OutcomeTriggerServicePort, PlayerCharacterCrudPort,
-    PlayerCharacterInventoryPort, PromptTemplateServicePort, QueuePort, SettingsServicePort,
-    StateChange,
+    ChallengeOutcomeApprovalServicePort, ChallengeOutcomePendingPort, ClockPort,
+    ItemRepositoryPort, LlmPort, OutcomeDecision as PortOutcomeDecision, OutcomeTriggerServicePort,
+    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PromptTemplateServicePort, QueuePort,
+    SettingsServicePort, StateChange,
 };
 
 /// Result of challenge approval operations
@@ -114,8 +113,8 @@ pub enum ChallengeOutcomeError {
 /// directly constructing protocol messages. This maintains hexagonal architecture
 /// by keeping the service layer protocol-agnostic.
 pub struct ChallengeOutcomeApprovalService<L: LlmPort> {
-    /// Pending resolutions indexed by resolution_id (in-memory cache)
-    pending: Arc<RwLock<HashMap<String, ChallengeOutcomeData>>>,
+    /// Pending resolutions indexed by resolution_id (in-memory cache, adapter-managed)
+    pending: Arc<dyn ChallengeOutcomePendingPort>,
     /// Persistent queue for challenge outcomes
     queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
     /// Event channel sender for broadcasting events (bounded channel)
@@ -149,13 +148,14 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         pc_inventory: Arc<dyn PlayerCharacterInventoryPort>,
         item_repository: Arc<dyn ItemRepositoryPort>,
         prompt_template_service: Arc<dyn PromptTemplateServicePort>,
+        pending: Arc<dyn ChallengeOutcomePendingPort>,
         queue: Arc<dyn QueuePort<ChallengeOutcomeData> + Send + Sync>,
         llm_port: Arc<L>,
         settings_service: Arc<dyn SettingsServicePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            pending: Arc::new(RwLock::new(HashMap::new())),
+            pending,
             queue,
             event_sender,
             outcome_trigger_service,
@@ -231,10 +231,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         );
 
         // Store in pending map (in-memory cache for active operations)
-        {
-            let mut pending = self.pending.write().await;
-            pending.insert(resolution_id.clone(), item.clone());
-        }
+        self.pending.insert(item.clone()).await;
 
         // Emit roll submitted event (notifies both DM and players via publisher)
         self.emit_roll_submitted(world_id, &item);
@@ -256,10 +253,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Result<(), ChallengeOutcomeError> {
         // Get the pending item
         let item = {
-            let pending = self.pending.read().await;
-            pending
+            self.pending
                 .get(resolution_id)
-                .cloned()
+                .await
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 
@@ -327,23 +323,21 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                     .await
                     {
                         Ok(suggestions) => {
-                            // Update suggestions in pending map
-                            let mut pending_guard = pending.write().await;
-                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned)
-                            {
-                                pending_item.suggestions = Some(suggestions.clone());
-                                pending_item.is_generating_suggestions = false;
-                                drop(pending_guard);
+                            pending
+                                .set_suggestions(&resolution_id_owned, Some(suggestions.clone()))
+                                .await;
+                            pending
+                                .set_generating_suggestions(&resolution_id_owned, false)
+                                .await;
 
-                                // Emit suggestions ready event
-                                let event = ChallengeApprovalEvent::SuggestionsReady {
-                                    world_id: world_id_owned,
-                                    resolution_id: resolution_id_owned.clone(),
-                                    suggestions,
-                                };
-                                if let Err(e) = event_sender.try_send(event) {
-                                    tracing::error!("Failed to emit SuggestionsReady event: {}", e);
-                                }
+                            // Emit suggestions ready event
+                            let event = ChallengeApprovalEvent::SuggestionsReady {
+                                world_id: world_id_owned,
+                                resolution_id: resolution_id_owned.clone(),
+                                suggestions,
+                            };
+                            if let Err(e) = event_sender.try_send(event) {
+                                tracing::error!("Failed to emit SuggestionsReady event: {}", e);
                             }
                         }
                         Err(e) => {
@@ -353,11 +347,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                                 e
                             );
                             // Mark as no longer generating
-                            let mut pending_guard = pending.write().await;
-                            if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned)
-                            {
-                                pending_item.is_generating_suggestions = false;
-                            }
+                            pending
+                                .set_generating_suggestions(&resolution_id_owned, false)
+                                .await;
                         }
                     }
                 });
@@ -373,39 +365,34 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
         resolution_id: &str,
         suggestions: Vec<String>,
     ) -> Result<(), ChallengeOutcomeError> {
-        let mut pending = self.pending.write().await;
-        if let Some(item) = pending.get_mut(resolution_id) {
-            item.suggestions = Some(suggestions.clone());
-            item.is_generating_suggestions = false;
+        let Some(item) = self.pending.get(resolution_id).await else {
+            return Err(ChallengeOutcomeError::NotFound(resolution_id.to_string()));
+        };
 
-            // Emit suggestions ready event
-            let world_id = item.world_id;
-            drop(pending);
+        self.pending
+            .set_suggestions(resolution_id, Some(suggestions.clone()))
+            .await;
+        self.pending
+            .set_generating_suggestions(resolution_id, false)
+            .await;
 
-            let event = ChallengeApprovalEvent::SuggestionsReady {
-                world_id,
-                resolution_id: resolution_id.to_string(),
-                suggestions,
-            };
+        // Emit suggestions ready event
+        let event = ChallengeApprovalEvent::SuggestionsReady {
+            world_id: item.world_id,
+            resolution_id: resolution_id.to_string(),
+            suggestions,
+        };
 
-            if let Err(e) = self.event_sender.try_send(event) {
-                tracing::error!("Failed to emit SuggestionsReady event: {}", e);
-            }
-
-            Ok(())
-        } else {
-            Err(ChallengeOutcomeError::NotFound(resolution_id.to_string()))
+        if let Err(e) = self.event_sender.try_send(event) {
+            tracing::error!("Failed to emit SuggestionsReady event: {}", e);
         }
+
+        Ok(())
     }
 
     /// Get all pending resolutions for a world
     pub async fn get_pending_for_world(&self, world_id: &WorldId) -> Vec<ChallengeOutcomeData> {
-        let pending = self.pending.read().await;
-        pending
-            .values()
-            .filter(|item| item.world_id == *world_id)
-            .cloned()
-            .collect()
+        self.pending.list_for_world(*world_id).await
     }
 
     /// Broadcast the final resolution to all players
@@ -631,9 +618,7 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     /// Remove a resolution from pending (both in-memory and queue)
     async fn remove_pending(&self, resolution_id: &str) {
         // Remove from in-memory cache
-        let mut pending = self.pending.write().await;
-        pending.remove(resolution_id);
-        drop(pending);
+        self.pending.remove(resolution_id).await;
 
         // Note: We need the queue item ID, but we only have resolution_id
         // For now, we just remove from in-memory. The queue worker will handle
@@ -647,10 +632,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
 
     /// Mark a resolution as generating suggestions
     async fn set_generating_suggestions(&self, resolution_id: &str, generating: bool) {
-        let mut pending = self.pending.write().await;
-        if let Some(item) = pending.get_mut(resolution_id) {
-            item.is_generating_suggestions = generating;
-        }
+        self.pending
+            .set_generating_suggestions(resolution_id, generating)
+            .await;
     }
 
     /// Request LLM to generate outcome branches for DM selection
@@ -665,10 +649,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Result<(), ChallengeOutcomeError> {
         // Get the pending item
         let item = {
-            let pending = self.pending.read().await;
-            pending
+            self.pending
                 .get(resolution_id)
-                .cloned()
+                .await
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 
@@ -729,33 +712,34 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
             .await
             {
                 Ok(branches) => {
-                    // Update pending item
-                    let mut pending_guard = pending.write().await;
-                    if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                        // Store branches as suggestions (converted to strings for backward compat)
-                        pending_item.suggestions =
-                            Some(branches.iter().map(|b| b.description.clone()).collect());
-                        pending_item.is_generating_suggestions = false;
-                        drop(pending_guard);
+                    // Store branches as suggestions (converted to strings for backward compat)
+                    pending
+                        .set_suggestions(
+                            &resolution_id_owned,
+                            Some(branches.iter().map(|b| b.description.clone()).collect()),
+                        )
+                        .await;
+                    pending
+                        .set_generating_suggestions(&resolution_id_owned, false)
+                        .await;
 
-                        // Emit branches ready event
-                        let event = ChallengeApprovalEvent::BranchesReady {
-                            world_id: world_id_owned,
-                            resolution_id: resolution_id_owned.clone(),
-                            outcome_type,
-                            branches: branches
-                                .into_iter()
-                                .map(|b| OutcomeBranchData {
-                                    id: b.id,
-                                    title: b.title,
-                                    description: b.description,
-                                    effects: b.effects,
-                                })
-                                .collect(),
-                        };
-                        if let Err(e) = event_sender.try_send(event) {
-                            tracing::error!("Failed to emit BranchesReady event: {}", e);
-                        }
+                    // Emit branches ready event
+                    let event = ChallengeApprovalEvent::BranchesReady {
+                        world_id: world_id_owned,
+                        resolution_id: resolution_id_owned.clone(),
+                        outcome_type,
+                        branches: branches
+                            .into_iter()
+                            .map(|b| OutcomeBranchData {
+                                id: b.id,
+                                title: b.title,
+                                description: b.description,
+                                effects: b.effects,
+                            })
+                            .collect(),
+                    };
+                    if let Err(e) = event_sender.try_send(event) {
+                        tracing::error!("Failed to emit BranchesReady event: {}", e);
                     }
                 }
                 Err(e) => {
@@ -765,10 +749,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
                         e
                     );
                     // Mark as no longer generating
-                    let mut pending_guard = pending.write().await;
-                    if let Some(pending_item) = pending_guard.get_mut(&resolution_id_owned) {
-                        pending_item.is_generating_suggestions = false;
-                    }
+                    pending
+                        .set_generating_suggestions(&resolution_id_owned, false)
+                        .await;
                 }
             }
         });
@@ -788,10 +771,9 @@ impl<L: LlmPort + 'static> ChallengeOutcomeApprovalService<L> {
     ) -> Result<(), ChallengeOutcomeError> {
         // Get the pending item
         let item = {
-            let pending = self.pending.read().await;
-            pending
+            self.pending
                 .get(resolution_id)
-                .cloned()
+                .await
                 .ok_or_else(|| ChallengeOutcomeError::NotFound(resolution_id.to_string()))?
         };
 

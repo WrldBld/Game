@@ -47,7 +47,11 @@ impl<L: LlmPort> SuggestionService<L> {
         }
     }
 
-    async fn generate_list_with(llm: &L, prompt: &str, expected_count: usize) -> Result<Vec<String>> {
+    async fn generate_list_with(
+        llm: &L,
+        prompt: &str,
+        expected_count: usize,
+    ) -> Result<Vec<String>> {
         let request = LlmRequest::new(vec![ChatMessage {
             role: MessageRole::User,
             content: prompt.to_string(),
@@ -107,23 +111,27 @@ impl<L: LlmPort> SuggestionService<L> {
             "want_description" => (prompt_keys::SUGGESTION_WANT_DESCRIPTION, 3),
             "actantial_reason" => (prompt_keys::SUGGESTION_ACTANTIAL_REASON, 3),
             other => {
-                return Err(anyhow::anyhow!(
-                    "Unknown suggestion field type: {}",
-                    other
-                ));
+                return Err(anyhow::anyhow!("Unknown suggestion field type: {}", other));
             }
         };
 
         let world_id = Self::parse_world_id(context.world_id.as_ref());
-        let template =
-            Self::resolve_optional_world_template_with(&prompt_template_service, world_id, prompt_key)
-                .await;
+        let template = Self::resolve_optional_world_template_with(
+            &prompt_template_service,
+            world_id,
+            prompt_key,
+        )
+        .await;
         let prompt = Self::apply_placeholders(&template, context);
 
         Self::generate_list_with(&llm, &prompt, expected_count).await
     }
 
-    async fn resolve_optional_world_template(&self, world_id: Option<WorldId>, key: &str) -> String {
+    async fn resolve_optional_world_template(
+        &self,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> String {
         Self::resolve_optional_world_template_with(&self.prompt_template_service, world_id, key)
             .await
     }
@@ -175,7 +183,10 @@ impl<L: LlmPort> SuggestionService<L> {
     ) -> Result<Vec<String>> {
         let world_id = Self::parse_world_id(context.world_id.as_ref());
         let template = self
-            .resolve_optional_world_template(world_id, prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION)
+            .resolve_optional_world_template(
+                world_id,
+                prompt_keys::SUGGESTION_CHARACTER_DESCRIPTION,
+            )
             .await;
         let prompt = Self::apply_placeholders(&template, context);
         self.generate_list(&prompt, 3).await

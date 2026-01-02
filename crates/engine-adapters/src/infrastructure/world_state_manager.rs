@@ -4,18 +4,17 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use uuid::Uuid;
 use wrldbldr_domain::value_objects::{
-    ConversationEntry, DirectorialNotes, DomainNpcMotivation, PendingApprovalItem, PacingGuidance,
+    ConversationEntry, DirectorialNotes, DomainNpcMotivation, PacingGuidance, PendingApprovalItem,
 };
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
+use wrldbldr_engine_ports::outbound::StagingProposal;
 use wrldbldr_engine_ports::outbound::{
     ClockPort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort,
     WorldScenePort, WorldTimePort,
 };
-use wrldbldr_engine_ports::outbound::StagingProposal;
 use wrldbldr_engine_ports::outbound::{
-    DirectorialContextData, PendingStagingData, PendingStagingInfo, RegeneratedNpc,
-    StagedNpcData, StagedNpcProposal, StagingStateExtPort, StagingStatePort, WaitingPcInfo,
-    WorldStateUpdatePort,
+    DirectorialContextData, PendingStagingData, PendingStagingInfo, RegeneratedNpc, StagedNpcData,
+    StagedNpcProposal, StagingStateExtPort, StagingStatePort, WaitingPcInfo, WorldStateUpdatePort,
 };
 
 use crate::infrastructure::websocket::directorial_converters::parse_tone;
@@ -343,7 +342,11 @@ fn approval_to_info(approval: &WorldPendingStagingApproval) -> PendingStagingInf
         location_id: approval.location_id,
         region_name: approval.region_name.clone(),
         location_name: approval.location_name.clone(),
-        waiting_pcs: approval.waiting_pcs.iter().map(waiting_pc_to_info).collect(),
+        waiting_pcs: approval
+            .waiting_pcs
+            .iter()
+            .map(waiting_pc_to_info)
+            .collect(),
         rule_based_npcs: approval
             .proposal
             .rule_based_npcs
@@ -380,10 +383,8 @@ fn directorial_context_to_notes(context: DirectorialContextData) -> DirectorialN
         .npc_motivations
         .into_iter()
         .map(|m| {
-            let motivation = DomainNpcMotivation::new(
-                m.emotional_state.unwrap_or_default(),
-                m.motivation,
-            );
+            let motivation =
+                DomainNpcMotivation::new(m.emotional_state.unwrap_or_default(), m.motivation);
             (m.character_id, motivation)
         })
         .collect();
@@ -440,13 +441,7 @@ impl StagingStatePort for WorldStateManager {
         client_id: String,
     ) {
         WorldStateManager::add_waiting_pc_to_staging(
-            self,
-            world_id,
-            region_id,
-            pc_id,
-            pc_name,
-            user_id,
-            client_id,
+            self, world_id, region_id, pc_id, pc_name, user_id, client_id,
         );
     }
 
@@ -510,8 +505,15 @@ impl StagingStateExtPort for WorldStateManager {
         let _ = WorldStateManager::remove_pending_staging(self, world_id, request_id);
     }
 
-    fn update_llm_suggestions(&self, world_id: &WorldId, request_id: &str, npcs: Vec<RegeneratedNpc>) {
-        if let Some(pending) = WorldStateManager::get_pending_staging_by_request_id(self, world_id, request_id) {
+    fn update_llm_suggestions(
+        &self,
+        world_id: &WorldId,
+        request_id: &str,
+        npcs: Vec<RegeneratedNpc>,
+    ) {
+        if let Some(pending) =
+            WorldStateManager::get_pending_staging_by_request_id(self, world_id, request_id)
+        {
             let _ = WorldStateManager::with_pending_staging_for_region_mut(
                 self,
                 world_id,

@@ -10,7 +10,9 @@ use anyhow::Result;
 
 use wrldbldr_engine_adapters::infrastructure::config::AppConfig;
 use wrldbldr_engine_adapters::infrastructure::suggestion_enqueue_adapter::SuggestionEnqueueAdapter;
-use wrldbldr_engine_adapters::infrastructure::world_connection_manager::SharedWorldConnectionManager;
+use wrldbldr_engine_adapters::infrastructure::world_connection_manager::{
+    new_shared_manager, SharedWorldConnectionManager,
+};
 
 use super::factories::{
     create_asset_services, create_core_services, create_use_cases, AssetServiceDependencies,
@@ -40,16 +42,15 @@ use wrldbldr_engine_composition::{
 use wrldbldr_engine_ports::inbound::RequestHandler;
 use wrldbldr_engine_ports::outbound::{
     ActantialContextServicePort, ApprovalRequestLookupPort, BroadcastPort,
-    ChallengeOutcomeApprovalServicePort,
-    ChallengeResolutionServicePort, ChallengeServicePort, ComfyUIPort, ConnectionBroadcastPort,
-    ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort, DispositionServicePort,
-    DmActionProcessorPort, DomainEventRepositoryPort, EventBusPort, EventChainServicePort,
-    EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
-    NarrativeEventApprovalServicePort, NarrativeEventServicePort, PromptContextServicePort,
-    OutcomeTriggerServicePort, PromptTemplateServicePort, RegionItemPort, SettingsServicePort,
-    StagingServicePort,
-    StoryEventServicePort, TriggerEvaluationServicePort, WorldApprovalPort, WorldConversationPort,
-    WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
+    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, ChallengeServicePort,
+    ComfyUIPort, ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
+    ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DispositionServicePort,
+    DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort, EventBusPort,
+    EventChainServicePort, EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
+    NarrativeEventApprovalServicePort, NarrativeEventServicePort, OutcomeTriggerServicePort,
+    PromptContextServicePort, PromptTemplateServicePort, RegionItemPort, SettingsServicePort,
+    StagingServicePort, StoryEventServicePort, TriggerEvaluationServicePort, WorldApprovalPort,
+    WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs
@@ -149,14 +150,21 @@ pub async fn new_app_state(
     // Extract fields for use in remaining code
     let clock = infra.clock.clone();
     let rng = infra.rng.clone();
-    let repository = infra.neo4j.clone();
-    let llm_client = infra.llm_client.clone();
-    let comfyui_client = infra.comfyui_client.clone();
+    let repository = infra.neo4j().clone();
     let settings_service = infra.settings_service.clone();
     let prompt_template_service = infra.prompt_template_service.clone();
     let directorial_context_repo = infra.directorial_context_repo.clone();
-    let world_connection_manager = infra.world_connection_manager.clone();
+    let world_connection_manager = new_shared_manager();
     let world_state = infra.world_state.clone();
+    let world_state_update = infra.world_state_update.clone();
+    let staging_state = infra.staging_state.clone();
+
+    // ==========================================================================
+    // Worker-only external clients (not stored in InfrastructureContext)
+    // ==========================================================================
+    let llm_client = OllamaClientType::new(&config.ollama_base_url, &config.ollama_model);
+    let comfyui_client = ComfyUIClientType::new(&config.comfyui_base_url, clock.clone());
+    tracing::info!("Initialized LLM and ComfyUI clients");
 
     // ===========================================================================
     // Level 1: Repository Ports
@@ -461,7 +469,7 @@ pub async fn new_app_state(
 
     // Extract event infrastructure components
     let event_bus = event_infra.event_bus;
-    let event_notifier = event_infra.event_notifier_concrete;
+    let event_notifier = event_infra.event_notifier;
     let domain_event_repository = event_infra.domain_event_repository;
     let generation_read_state_repository = event_infra.generation_read_state_repository;
     let generation_event_tx = event_infra.generation_event_tx;
@@ -521,7 +529,10 @@ pub async fn new_app_state(
     let (queue_service_ports, queue_worker_services) =
         super::factories::create_queue_services(super::factories::QueueServiceDependencies {
             config: &config,
-            infra: &infra,
+            clock: clock.clone(),
+            llm_client: llm_client.clone(),
+            comfyui_client: comfyui_client.clone(),
+            prompt_template_service: prompt_template_service.clone(),
             repos: &repos,
             queue_backends: &queue_backends,
             dialogue_context_service: dialogue_context_service.clone(),
@@ -557,7 +568,8 @@ pub async fn new_app_state(
     // Create all asset services using the factory
     let asset_services = create_asset_services(AssetServiceDependencies {
         clock: clock.clone(),
-        comfyui_client: comfyui_client.clone(),
+        comfyui: Arc::new(comfyui_client.clone()) as Arc<dyn ComfyUIPort>,
+        settings_service: settings_service.clone() as Arc<dyn SettingsServicePort>,
         asset_repo: asset_repo.clone(),
         workflow_repo: workflow_repo.clone(),
         generation_event_tx,
@@ -583,6 +595,10 @@ pub async fn new_app_state(
     // Events are published by ChallengeApprovalEventPublisher (started in server.rs).
     // challenge_approval_tx/rx already extracted from event_infra above
     let llm_for_suggestions = Arc::new(llm_client.clone());
+    let challenge_outcome_pending: Arc<dyn wrldbldr_engine_ports::outbound::ChallengeOutcomePendingPort> =
+        Arc::new(
+            wrldbldr_engine_adapters::infrastructure::in_memory::InMemoryChallengeOutcomePendingStore::new(),
+        );
     let challenge_outcome_approval_service = Arc::new(ChallengeOutcomeApprovalService::new(
         challenge_approval_tx,
         outcome_trigger_service.clone() as Arc<dyn OutcomeTriggerServicePort>,
@@ -590,6 +606,7 @@ pub async fn new_app_state(
         pc_inventory.clone(),
         item_repo.clone(),
         prompt_template_service.clone(),
+        challenge_outcome_pending,
         challenge_outcome_queue.clone(),
         llm_for_suggestions,
         settings_service.clone() as Arc<dyn SettingsServicePort>,
@@ -692,7 +709,7 @@ pub async fn new_app_state(
     // PromptContextServiceImpl now implements both app-layer trait and port trait directly
     let prompt_context_service_impl = Arc::new(PromptContextServiceImpl::new(
         world_service.clone(),
-        world_state.clone() as Arc<dyn wrldbldr_engine_ports::outbound::WorldStatePort>,
+        world_state.clone(),
         challenge_service.clone(),
         skill_service.clone(),
         narrative_event_service.clone(),
@@ -769,8 +786,12 @@ pub async fn new_app_state(
     // ===========================================================================
     let use_case_ctx = create_use_cases(UseCaseDependencies {
         // Infrastructure
-        world_connection_manager: world_connection_manager.clone(),
-        world_state: world_state.clone(),
+        connection_manager: world_connection_manager.clone() as Arc<dyn ConnectionManagerPort>,
+        connection_broadcast: world_connection_manager.clone() as Arc<dyn ConnectionBroadcastPort>,
+        connection_unicast: world_connection_manager.clone() as Arc<dyn ConnectionUnicastPort>,
+        dm_notification: world_connection_manager.clone() as Arc<dyn DmNotificationPort>,
+        staging_state: staging_state.clone(),
+        world_state_update: world_state_update.clone(),
         clock: clock.clone(),
         // Repository ports (ISP-split PC traits)
         pc_crud: pc_crud_for_handler.clone(),
@@ -878,7 +899,7 @@ pub async fn new_app_state(
     // ===========================================================================
     let composition_events = EventInfra::new(
         event_bus.clone() as Arc<dyn EventBusPort>,
-        Arc::new(event_notifier.clone()) as Arc<dyn EventNotifierPort>,
+        event_notifier.clone() as Arc<dyn EventNotifierPort>,
         domain_event_repository.clone() as Arc<dyn DomainEventRepositoryPort>,
         generation_read_state_repository.clone() as Arc<dyn GenerationReadStatePort>,
     );

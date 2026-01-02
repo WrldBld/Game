@@ -5,6 +5,19 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchQueueFailurePolicy {
+    /// Any failure while queueing prompts fails the entire batch.
+    AllOrNothing,
+    /// Continue queueing remaining prompts; fail only if none queued successfully.
+    BestEffort,
+}
+
+fn default_batch_queue_failure_policy() -> BatchQueueFailurePolicy {
+    BatchQueueFailurePolicy::AllOrNothing
+}
+
 /// Token budget configuration for LLM context building
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ContextBudgetConfig {
@@ -144,6 +157,10 @@ pub struct AppSettings {
     /// When set, new asset generations will use this asset's style by default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_reference_asset_id: Option<String>,
+
+    /// Policy for how to handle failures while queueing prompts for a batch.
+    #[serde(default = "default_batch_queue_failure_policy")]
+    pub batch_queue_failure_policy: BatchQueueFailurePolicy,
 }
 
 fn default_outcome_branch_count() -> usize {
@@ -183,6 +200,7 @@ impl Default for AppSettings {
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
+            batch_queue_failure_policy: default_batch_queue_failure_policy(),
         }
     }
 }
@@ -210,10 +228,4 @@ pub struct SettingsFieldMetadata {
     pub category: String,
     /// Whether changing this setting requires a restart
     pub requires_restart: bool,
-}
-
-/// Response from the settings metadata endpoint
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SettingsMetadataResponse {
-    pub fields: Vec<SettingsFieldMetadata>,
 }

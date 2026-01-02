@@ -17,7 +17,9 @@ use wrldbldr_domain::value_objects::{
     PlayerActionData,
 };
 use wrldbldr_engine_adapters::infrastructure::{
+    comfyui::ComfyUIClient,
     config::AppConfig,
+    ollama::OllamaClient,
     queues::{QueueBackendEnum, QueueFactory},
     TokioFileStorageAdapter,
 };
@@ -33,7 +35,6 @@ use wrldbldr_engine_ports::outbound::{
 };
 
 use super::repositories::RepositoryPorts;
-use super::InfrastructureContext;
 use crate::composition::queue_worker_services::QueueWorkerServices;
 
 /// Queue backends created from QueueFactory.
@@ -46,7 +47,7 @@ pub struct QueueBackends {
     pub asset_generation_queue: Arc<QueueBackendEnum<AssetGenerationData>>,
     pub approval_queue: Arc<QueueBackendEnum<ApprovalRequestData>>,
     pub challenge_outcome_queue: Arc<QueueBackendEnum<ChallengeOutcomeData>>,
-    pub queue_factory: QueueFactory,
+    queue_factory: QueueFactory,
 }
 
 /// Creates queue backends (can run in parallel with event_infra).
@@ -88,7 +89,13 @@ pub struct QueueServicePorts {
 /// Dependencies for queue service creation (needs core services).
 pub struct QueueServiceDependencies<'a> {
     pub config: &'a AppConfig,
-    pub infra: &'a InfrastructureContext,
+    pub clock: Arc<dyn ClockPort>,
+    /// Worker-only concrete LLM client (used by LLMQueueService generics)
+    pub(crate) llm_client: OllamaClient,
+    /// Worker-only concrete ComfyUI client (used by AssetGenerationQueueService generics)
+    pub(crate) comfyui_client: ComfyUIClient,
+    pub prompt_template_service:
+        Arc<dyn wrldbldr_engine_ports::outbound::PromptTemplateServicePort>,
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
@@ -107,7 +114,10 @@ pub fn create_queue_services(
 ) -> Result<(QueueServicePorts, QueueWorkerServices)> {
     let QueueServiceDependencies {
         config,
-        infra,
+        clock,
+        llm_client,
+        comfyui_client,
+        prompt_template_service,
         repos,
         queue_backends,
         dialogue_context_service,
@@ -132,15 +142,15 @@ pub fn create_queue_services(
     let player_action_queue_service = Arc::new(PlayerActionQueueService::new(
         queue_backends.player_action_queue.clone(),
         queue_backends.llm_queue.clone(),
-        infra.clock.clone(),
+        clock.clone(),
     ));
 
     let dm_action_queue_service = Arc::new(DmActionQueueService::new(
         queue_backends.dm_action_queue.clone(),
-        infra.clock.clone(),
+        clock.clone(),
     ));
 
-    let llm_client_arc = Arc::new(infra.llm_client.clone());
+    let llm_client_arc = Arc::new(llm_client);
     let llm_queue_service = Arc::new(LLMQueueService::new(
         queue_backends.llm_queue.clone(),
         llm_client_arc,
@@ -152,15 +162,15 @@ pub fn create_queue_services(
         queue_backends.queue_factory.config().llm_batch_size,
         queue_backends.queue_factory.llm_notifier(),
         generation_event_tx,
-        infra.prompt_template_service.clone(),
+        prompt_template_service,
     ));
 
     let file_storage: Arc<dyn FileStoragePort> = Arc::new(TokioFileStorageAdapter::new());
     let asset_generation_queue_service = Arc::new(AssetGenerationQueueService::new(
         queue_backends.asset_generation_queue.clone(),
-        Arc::new(infra.comfyui_client.clone()),
+        Arc::new(comfyui_client),
         repos.asset.clone(),
-        infra.clock.clone(),
+        clock.clone(),
         file_storage,
         config.generated_assets_path.clone(),
         queue_backends.queue_factory.config().asset_batch_size,
@@ -171,7 +181,7 @@ pub fn create_queue_services(
         queue_backends.approval_queue.clone(),
         dialogue_context_service,
         Arc::new(item_service_impl),
-        infra.clock.clone(),
+        clock.clone(),
     ));
 
     // =========================================================================
@@ -181,12 +191,12 @@ pub fn create_queue_services(
     // direct NPC control, event triggering, scene transitions)
     let dm_action_processor: Arc<dyn DmActionProcessorPort> =
         Arc::new(DmActionProcessorService::new(
-        dm_approval_queue_service.clone(),
-        narrative_event_service,
-        scene_service,
-        interaction_service,
-        infra.clock.clone(),
-    ));
+            dm_approval_queue_service.clone(),
+            narrative_event_service,
+            scene_service,
+            interaction_service,
+            clock,
+        ));
 
     tracing::info!("Initialized queue services");
 

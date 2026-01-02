@@ -16,12 +16,14 @@
 
 use async_trait::async_trait;
 use chrono::{Datelike, Timelike};
+use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 use wrldbldr_engine_ports::outbound::{
     BroadcastPort, GameEvent, NavigationExit, NavigationInfo, NavigationTarget, NpcPresenceData,
     PreviousStagingData, RegionInfo, RegionItemData, SceneChangedEvent, SplitPartyEvent,
     StagedNpcData, StagingPendingEvent, StagingReadyEvent, StagingRequiredEvent, WaitingPcData,
 };
+use wrldbldr_engine_ports::outbound::{ConnectionBroadcastPort, ConnectionUnicastPort};
 use wrldbldr_protocol::{
     GameTime as ProtoGameTime, NavigationData, NavigationExit as ProtoNavigationExit,
     NavigationTarget as ProtoNavigationTarget, NpcPresenceData as ProtoNpcPresenceData,
@@ -30,21 +32,28 @@ use wrldbldr_protocol::{
     WaitingPcInfo,
 };
 
-use crate::infrastructure::world_connection_manager::SharedWorldConnectionManager;
-
 /// Adapter implementing BroadcastPort for WebSocket delivery
 ///
 /// Converts domain GameEvent types to protocol ServerMessage types
 /// and routes them to appropriate recipients via WorldConnectionManager.
 pub struct WebSocketBroadcastAdapter {
-    /// Connection manager for message routing
-    connection_manager: SharedWorldConnectionManager,
+    /// Broadcast operations for WebSocket delivery
+    connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
+
+    /// Unicast operations for targeted WebSocket delivery
+    connection_unicast: Arc<dyn ConnectionUnicastPort>,
 }
 
 impl WebSocketBroadcastAdapter {
     /// Create a new broadcast adapter
-    pub fn new(connection_manager: SharedWorldConnectionManager) -> Self {
-        Self { connection_manager }
+    pub fn new(
+        connection_broadcast: Arc<dyn ConnectionBroadcastPort>,
+        connection_unicast: Arc<dyn ConnectionUnicastPort>,
+    ) -> Self {
+        Self {
+            connection_broadcast,
+            connection_unicast,
+        }
     }
 }
 
@@ -59,28 +68,34 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             // =====================================================================
             GameEvent::StagingRequired(evt) => {
                 let msg = convert_staging_required(evt);
-                self.connection_manager
-                    .broadcast_to_dms(*world_uuid, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    self.connection_broadcast
+                        .broadcast_to_dms(*world_uuid, msg)
+                        .await;
+                }
             }
 
             GameEvent::StagingReady(evt) => {
                 let msg = convert_staging_ready(&evt);
                 // Send to each waiting PC's user
                 for pc in &evt.waiting_pcs {
-                    let _ = self
-                        .connection_manager
-                        .send_to_user_in_world(world_uuid, &pc.user_id, msg.clone())
-                        .await;
+                    if let Ok(msg) = serde_json::to_value(msg.clone()) {
+                        let _ = self
+                            .connection_unicast
+                            .send_to_user_in_world(*world_uuid, &pc.user_id, msg)
+                            .await;
+                    }
                 }
             }
 
             GameEvent::StagingPending { user_id, event } => {
                 let msg = convert_staging_pending(event);
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -88,10 +103,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             // =====================================================================
             GameEvent::SceneChanged { user_id, event } => {
                 let msg = convert_scene_changed(event);
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -106,10 +123,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     pc_id: pc_id.as_uuid().to_string(),
                     reason,
                 };
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -117,9 +136,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
             // =====================================================================
             GameEvent::SplitParty(evt) => {
                 let msg = convert_split_party(evt);
-                self.connection_manager
-                    .broadcast_to_dms(*world_uuid, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    self.connection_broadcast
+                        .broadcast_to_dms(*world_uuid, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -129,9 +150,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 let msg = ServerMessage::GameTimeUpdated {
                     game_time: convert_game_time(game_time),
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -145,10 +168,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     pc: None,
                 };
                 // Broadcast to all except the joining user
-                let _ = self
-                    .connection_manager
-                    .broadcast_to_world_except(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    self.connection_broadcast
+                        .broadcast_to_world_except_user(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             GameEvent::PlayerLeft { user_id } => {
@@ -156,10 +180,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     user_id: user_id.clone(),
                 };
                 // Broadcast to all except the leaving user
-                let _ = self
-                    .connection_manager
-                    .broadcast_to_world_except(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    self.connection_broadcast
+                        .broadcast_to_world_except_user(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -176,10 +201,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     item_id: item.item_id.as_uuid().to_string(),
                     item_name: item.name,
                 };
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             GameEvent::ItemDropped {
@@ -195,10 +222,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     item_name: item.name,
                     quantity,
                 };
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             GameEvent::ItemEquipChanged {
@@ -220,10 +249,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                         item_name: item.name,
                     }
                 };
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, msg)
-                    .await;
+                if let Ok(msg) = serde_json::to_value(msg) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -268,9 +299,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                         .collect(),
                     roll_breakdown: roll_breakdown.clone(),
                 };
-                self.connection_manager
-                    .broadcast_to_dms(*world_uuid, dm_message)
-                    .await;
+                if let Ok(dm_message) = serde_json::to_value(dm_message) {
+                    self.connection_broadcast
+                        .broadcast_to_dms(*world_uuid, dm_message)
+                        .await;
+                }
 
                 // 2. Send status confirmation to all players
                 let player_message = ServerMessage::ChallengeRollSubmitted {
@@ -282,9 +315,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     outcome_type: outcome_type.clone(),
                     status: "pending_approval".to_string(),
                 };
-                self.connection_manager
-                    .broadcast_to_players(*world_uuid, player_message)
-                    .await;
+                if let Ok(player_message) = serde_json::to_value(player_message) {
+                    self.connection_broadcast
+                        .broadcast_to_players(*world_uuid, player_message)
+                        .await;
+                }
             }
 
             GameEvent::ChallengeResolved {
@@ -314,9 +349,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     roll_breakdown: roll_breakdown.clone(),
                     individual_rolls: individual_rolls.clone(),
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, message)
+                        .await;
+                }
             }
 
             GameEvent::ChallengePromptSent {
@@ -341,9 +378,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     suggested_dice: Some(suggested_dice.clone()),
                     rule_system_hint: Some(rule_system_hint.clone()),
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, message)
+                        .await;
+                }
             }
 
             GameEvent::ChallengeSuggestionsReady {
@@ -385,9 +424,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     outcome_description: outcome_description.clone(),
                     scene_direction: scene_direction.clone().unwrap_or_default(),
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, message)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -431,9 +472,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                         .collect(),
                     roll_breakdown: roll_breakdown.clone(),
                 };
-                self.connection_manager
-                    .broadcast_to_dms(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_dms(*world_uuid, message)
+                        .await;
+                }
             }
 
             GameEvent::CharacterStatUpdated {
@@ -455,9 +498,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     delta,
                     source: source.clone(),
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, message)
+                        .await;
+                }
             }
 
             // =====================================================================
@@ -478,10 +523,12 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     description,
                     reveal,
                 };
-                let _ = self
-                    .connection_manager
-                    .send_to_user_in_world(world_uuid, &user_id, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    let _ = self
+                        .connection_unicast
+                        .send_to_user_in_world(*world_uuid, &user_id, message)
+                        .await;
+                }
             }
 
             GameEvent::LocationEvent {
@@ -492,9 +539,11 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     region_id: region_id.to_string(),
                     description,
                 };
-                self.connection_manager
-                    .broadcast_to_world(*world_uuid, message)
-                    .await;
+                if let Ok(message) = serde_json::to_value(message) {
+                    self.connection_broadcast
+                        .broadcast_to_world(*world_uuid, message)
+                        .await;
+                }
             }
         }
     }
@@ -692,7 +741,7 @@ fn convert_region_item(item: RegionItemData) -> ProtoRegionItemData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+    use wrldbldr_domain::{CharacterId, LocationId, RegionId};
 
     #[test]
     fn test_convert_region_info() {

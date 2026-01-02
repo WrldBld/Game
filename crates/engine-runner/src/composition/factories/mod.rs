@@ -6,7 +6,7 @@
 //! # Factory Levels (Dependency Order)
 //!
 //! ```text
-//! Level 0: infrastructure   - Clock, RNG, Neo4j, Ollama, ComfyUI, SQLite
+//! Level 0: infrastructure   - Clock, RNG, Neo4j, SQLite
 //! Level 1: repositories     - ISP-compliant repository ports from Neo4j
 //! Level 2: event_infra      - Event bus, domain events, channels (parallel with queues)
 //! Level 2: queue_services   - Queue backends and queue services (parallel with events)
@@ -30,7 +30,7 @@ pub mod repositories;
 pub mod use_cases;
 
 // Infrastructure factory (Level 0)
-pub use infrastructure::{create_infrastructure, InfrastructureContext};
+pub use infrastructure::create_infrastructure;
 
 // Repository factory (Level 1) - used internally by app_state
 pub use repositories::create_repository_ports;

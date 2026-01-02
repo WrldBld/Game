@@ -38,6 +38,11 @@ pub type UiServices = Services<Api>;
 /// REST services still use the generic `A: ApiPort` pattern for file uploads and large payloads.
 #[derive(Clone)]
 pub struct Services<A: ApiPort> {
+    /// Shared game connection handle (WebSocket).
+    ///
+    /// NOTE: Some screens (e.g., world selection) need to ensure the socket is
+    /// connected before sending request/response messages.
+    pub connection: Arc<dyn GameConnectionPort>,
     // WebSocket-based services (non-generic)
     pub world: Arc<WorldService>,
     pub character: Arc<CharacterService>,
@@ -72,6 +77,7 @@ impl<A: ApiPort + Clone> Services<A> {
         connection: Arc<dyn GameConnectionPort>,
     ) -> Self {
         Self {
+            connection: connection.clone(),
             // WebSocket-based services use GameConnectionPort which provides
             // GameRequestPort methods via blanket implementation
             world: Arc::new(WorldService::new(connection.clone(), raw_api)),
@@ -93,6 +99,12 @@ impl<A: ApiPort + Clone> Services<A> {
             settings: Arc::new(SettingsService::new(api)),
         }
     }
+}
+
+/// Hook to access the shared GameConnectionPort from context
+pub fn use_game_connection() -> Arc<dyn GameConnectionPort> {
+    let services = use_context::<UiServices>();
+    services.connection.clone()
 }
 
 /// Hook to access the WorldService from context

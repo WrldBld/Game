@@ -6,7 +6,7 @@
 
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
-use wrldbldr_player_app::application::dto::AppSettings;
+use wrldbldr_player_app::application::dto::{AppSettings, BatchQueueFailurePolicy};
 
 /// Props for the Game Settings Panel
 #[derive(Props, Clone, PartialEq)]
@@ -224,6 +224,33 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
                         }
                     }
 
+                    // Asset Generation Settings
+                    SettingsSection {
+                        title: "Asset Generation",
+                        description: "Behavior when queueing batch prompts",
+
+                        SelectField {
+                            label: "Batch Queue Failure Policy",
+                            description: "All-or-nothing fails the batch on any queue error; best-effort continues and only fails if nothing queued",
+                            value: match settings.read().batch_queue_failure_policy {
+                                BatchQueueFailurePolicy::AllOrNothing => "all_or_nothing",
+                                BatchQueueFailurePolicy::BestEffort => "best_effort",
+                            },
+                            options: vec![
+                                ("all_or_nothing", "All-or-nothing"),
+                                ("best_effort", "Best effort"),
+                            ],
+                            onchange: move |val: String| {
+                                let parsed = match val.as_str() {
+                                    "best_effort" => BatchQueueFailurePolicy::BestEffort,
+                                    _ => BatchQueueFailurePolicy::AllOrNothing,
+                                };
+                                settings.with_mut(|s| s.batch_queue_failure_policy = parsed);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // Animation Settings
                     SettingsSection {
                         title: "Text Animation",
@@ -411,6 +438,56 @@ struct NumberFieldProps {
     description: &'static str,
     value: usize,
     onchange: EventHandler<usize>,
+}
+
+/// Simple select field component
+#[derive(Props, Clone, PartialEq)]
+struct SelectFieldProps {
+    label: &'static str,
+    description: &'static str,
+    value: &'static str,
+    options: Vec<(&'static str, &'static str)>,
+    onchange: EventHandler<String>,
+}
+
+#[component]
+fn SelectField(props: SelectFieldProps) -> Element {
+    rsx! {
+        div {
+            class: "select-field",
+
+            label {
+                class: "block",
+
+                div {
+                    class: "flex justify-between items-baseline mb-1",
+
+                    span {
+                        class: "text-gray-300 text-xs font-medium",
+                        "{props.label}"
+                    }
+
+                    span {
+                        class: "text-gray-600 text-xs",
+                        "{props.description}"
+                    }
+                }
+
+                select {
+                    class: "w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500",
+                    value: "{props.value}",
+                    onchange: move |evt| props.onchange.call(evt.value()),
+
+                    for (opt_value, opt_label) in props.options.iter() {
+                        option {
+                            value: "{opt_value}",
+                            "{opt_label}"
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[component]

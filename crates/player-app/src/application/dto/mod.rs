@@ -64,7 +64,7 @@ pub use world_snapshot::{
 
 // Re-export settings DTOs
 pub use settings::{
-    AppSettings, ContextBudgetConfig, SettingsFieldMetadata, SettingsMetadataResponse,
+    AppSettings, BatchQueueFailurePolicy, ContextBudgetConfig, SettingsFieldMetadata,
 };
 
 // Re-export request DTOs

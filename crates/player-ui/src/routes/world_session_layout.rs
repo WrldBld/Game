@@ -12,6 +12,7 @@ use crate::presentation::state::{
     ConnectionStatus, DialogueState, GameState, GenerationState, SessionState,
 };
 use crate::use_platform;
+use uuid::Uuid;
 use wrldbldr_player_ports::outbound::storage_keys;
 use wrldbldr_player_ports::session_types::ParticipantRole;
 
@@ -71,6 +72,23 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
         let dialogue_state = dialogue_state.clone();
         let generation_state = generation_state;
         use_effect(move || {
+            // If we're already connected to a different world (e.g., deep link without a full reload),
+            // reset the session first so we can join the requested world.
+            let requested_world = Uuid::parse_str(&world_id).ok();
+            let current_world = session_state.world_id().read().clone();
+
+            if *session_state.connection_status().read() == ConnectionStatus::Connected
+                && requested_world.is_some()
+                && current_world.is_some()
+                && current_world != requested_world
+            {
+                handle_disconnect(
+                    session_state.clone(),
+                    game_state.clone(),
+                    dialogue_state.clone(),
+                );
+            }
+
             ensure_connection(
                 &world_id,
                 role,
@@ -84,13 +102,22 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
     }
 
     let connection_status = *session_state.connection_status().read();
+    let requested_world = Uuid::parse_str(&props.world_id).ok();
+    let current_world = session_state.world_id().read().clone();
+    let is_connected_to_requested_world = connection_status == ConnectionStatus::Connected
+        && requested_world.is_some()
+        && current_world == requested_world;
 
     rsx! {
         div {
             class: "world-session-layout h-full flex flex-col bg-dark-bg",
 
-            // Connection status bar (optional - DM views use their own header)
-            if props.show_status_bar {
+            // Connection status bar
+            //
+            // Even for DM views that normally render their own header, we show the
+            // global status bar while connecting so users have retry/back controls,
+            // and (critically) so child views don't mount and fire requests early.
+            if props.show_status_bar || !is_connected_to_requested_world {
                 ConnectionStatusBar {
                     status: connection_status,
                     on_retry: {
@@ -136,7 +163,14 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
             // Main content area
             main {
                 class: "flex-1 overflow-hidden relative",
-                {props.children}
+                if is_connected_to_requested_world {
+                    {props.children}
+                } else {
+                    div {
+                        class: "flex items-center justify-center h-full text-gray-400",
+                        "Connecting..."
+                    }
+                }
             }
 
             // Error overlay (modal)

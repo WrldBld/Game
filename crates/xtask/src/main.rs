@@ -114,27 +114,72 @@ fn arch_check() -> anyhow::Result<()> {
         anyhow::bail!("arch-check failed")
     }
 
-    check_no_cross_crate_shims()?;
-    check_handler_complexity()?;
-    check_use_case_layer()?;
-    check_engine_app_protocol_isolation()?;
-    check_engine_ports_protocol_isolation()?;
-    check_player_app_protocol_isolation()?;
-    check_player_ports_protocol_isolation()?;
-    check_no_glob_reexports()?;
-    check_app_does_not_depend_on_inbound_ports()?;
-    check_no_engine_dto_shadowing_engine_ports_types()?;
-    check_engine_app_no_internal_service_construction()?;
-    check_engine_runner_composition_no_concrete_service_fields()?;
+    let trace = std::env::var("ARCH_CHECK_TRACE").is_ok();
+    let step = |name: &str, f: fn() -> anyhow::Result<()>| -> anyhow::Result<()> {
+        if trace {
+            eprintln!("arch-check: {name}");
+        }
+        f()
+    };
+
+    step("no-cross-crate-shims", check_no_cross_crate_shims)?;
+    step("handler-complexity", check_handler_complexity)?;
+    step("use-case-layer", check_use_case_layer)?;
+    step(
+        "engine-app-protocol-isolation",
+        check_engine_app_protocol_isolation,
+    )?;
+    step(
+        "engine-ports-protocol-isolation",
+        check_engine_ports_protocol_isolation,
+    )?;
+    step(
+        "player-app-protocol-isolation",
+        check_player_app_protocol_isolation,
+    )?;
+    step(
+        "player-ports-protocol-isolation",
+        check_player_ports_protocol_isolation,
+    )?;
+    step("no-glob-reexports", check_no_glob_reexports)?;
+    step(
+        "app-does-not-depend-on-inbound-ports",
+        check_app_does_not_depend_on_inbound_ports,
+    )?;
+    step(
+        "no-engine-dto-shadowing-engine-ports-types",
+        check_no_engine_dto_shadowing_engine_ports_types,
+    )?;
+    step(
+        "engine-app-no-internal-service-construction",
+        check_engine_app_no_internal_service_construction,
+    )?;
+    step(
+        "engine-runner-composition-no-concrete-arc-fields",
+        check_engine_runner_composition_no_concrete_service_fields,
+    )?;
+    step(
+        "engine-runner-composition-no-concrete-pub-fields",
+        check_engine_runner_composition_no_concrete_pub_fields,
+    )?;
+    step(
+        "engine-runner-composition-no-shared-world-connection-manager",
+        check_engine_runner_composition_no_shared_world_connection_manager,
+    )?;
+    step(
+        "engine-runner-composition-no-world-connection-manager-imports",
+        check_engine_runner_composition_no_world_connection_manager_imports,
+    )?;
 
     println!("arch-check OK ({checked} workspace crates checked)");
     Ok(())
 }
 
-/// Phase 7: composition root should not store concrete services when a port exists.
+/// Phase 7: composition root should not store concrete types behind `Arc<...>`
+/// in composition factories when a port trait object would suffice.
 ///
-/// This is a heuristic check that looks for `pub <field>: Arc<Concrete*Service...>`
-/// fields inside `engine-runner` composition factories.
+/// This is a heuristic check that looks for `pub <field>: Arc<ConcreteType>` fields
+/// inside `engine-runner` composition factories.
 ///
 /// Notes:
 /// - Only scans `crates/engine-runner/src/composition/factories/**`.
@@ -153,7 +198,7 @@ fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Resul
     // regex_lite does not support look-around; capture the first token after `Arc<`
     // and filter out `dyn` in code.
     let field_arc_re = regex_lite::Regex::new(r"\bpub\s+[A-Za-z0-9_]+\s*:\s*Arc<\s*([^\s>]+)")
-    .context("compiling composition concrete-service regex")?;
+        .context("compiling composition concrete-service regex")?;
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -183,8 +228,105 @@ fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Resul
             let leaf = ty.rsplit("::").next().unwrap_or(ty);
             let leaf = leaf.split('<').next().unwrap_or(leaf);
 
-            let is_service = leaf.contains("Service") && !leaf.ends_with("ServicePort");
-            if !is_service {
+            // Allowlist: concrete infrastructure types that are intentionally stored in
+            // factories and are not modeled as ports.
+            let is_allowlisted = matches!(leaf, "QueueBackendEnum");
+            if is_allowlisted {
+                continue;
+            }
+
+            // If it's not a trait object and not allowlisted, treat as a violation.
+
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "  - {}:{}: {}",
+                entry.display(),
+                line_no,
+                line.trim_end()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!("arch-check failed: engine-runner composition factories store concrete Arc<T> fields (Phase 7)");
+        eprintln!("Use `Arc<dyn ...Port>` fields instead when a port exists.\n");
+        for v in violations.iter().take(20) {
+            eprintln!("{v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed");
+    }
+
+    Ok(())
+}
+
+/// Phase 7 (tightened): composition factories should not publicly expose known concrete
+/// infrastructure types even when not wrapped in `Arc<...>`.
+///
+/// This intentionally focuses on a small set of known-leaky concretes to avoid
+/// false positives on DTOs/containers that are fine to be concrete.
+fn check_engine_runner_composition_no_concrete_pub_fields() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let factories_dir = workspace_root.join("crates/engine-runner/src/composition/factories");
+    if !factories_dir.exists() {
+        return Ok(());
+    }
+
+    // Capture the type portion of a `pub field: Type,` struct field.
+    let pub_field_re = regex_lite::Regex::new(r"\bpub\s+[A-Za-z0-9_]+\s*:\s*([^,\n]+)")
+        .context("compiling composition pub-field regex")?;
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for entry in walkdir_rs_files(&factories_dir)? {
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        for cap in pub_field_re.captures_iter(&sanitized) {
+            let Some(ty_raw) = cap.get(1).map(|m| m.as_str()) else {
+                continue;
+            };
+            let Some(mat) = cap.get(0) else {
+                continue;
+            };
+            let start = mat.range().start;
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+
+            let ty = ty_raw.trim();
+
+            // Let the dedicated Arc<T> check handle these.
+            if ty.starts_with("Arc<") {
+                continue;
+            }
+
+            // Ignore references and dyn trait objects.
+            if ty.starts_with('&') || ty.contains("dyn ") {
+                continue;
+            }
+
+            // Determine leaf type name (strip module path and generics)
+            let leaf = ty.rsplit("::").next().unwrap_or(ty);
+            let leaf = leaf.split('<').next().unwrap_or(leaf).trim();
+
+            let is_disallowed = matches!(
+                leaf,
+                "Neo4jRepository"
+                    | "QueueFactory"
+                    | "OllamaClient"
+                    | "ComfyUIClient"
+                    | "InProcessEventNotifier"
+            );
+            if !is_disallowed {
                 continue;
             }
 
@@ -199,8 +341,139 @@ fn check_engine_runner_composition_no_concrete_service_fields() -> anyhow::Resul
     }
 
     if !violations.is_empty() {
-        eprintln!("arch-check failed: engine-runner composition factories store concrete service types (Phase 7)");
-        eprintln!("Use `Arc<dyn ...ServicePort>` fields instead when a port exists.\n");
+        eprintln!(
+            "arch-check failed: engine-runner composition factories publicly expose concrete infra types (Phase 7)"
+        );
+        eprintln!("Make these fields non-public, or expose them via ports / accessors instead.\n");
+        for v in violations.iter().take(20) {
+            eprintln!("{v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed");
+    }
+
+    Ok(())
+}
+
+/// Phase 7 (tightened): composition factories must not depend on the concrete
+/// `SharedWorldConnectionManager` type.
+///
+/// The intent is to keep factories port-only so that the composition root wires
+/// concrete adapters and hands only `Arc<dyn ...Port>` into factories.
+///
+/// Notes:
+/// - Only scans `crates/engine-runner/src/composition/factories/**`.
+/// - Excludes `#[cfg(test)]` items to reduce false positives.
+fn check_engine_runner_composition_no_shared_world_connection_manager() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let factories_dir = workspace_root.join("crates/engine-runner/src/composition/factories");
+    if !factories_dir.exists() {
+        return Ok(());
+    }
+
+    let needle = "SharedWorldConnectionManager";
+    let mut violations: Vec<String> = Vec::new();
+
+    for entry in walkdir_rs_files(&factories_dir)? {
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        for (offset, _) in sanitized.match_indices(needle) {
+            if offset_is_in_ranges(offset, &skip_ranges) {
+                continue;
+            }
+            let (line_no, line) = line_at_offset(&contents, offset);
+            violations.push(format!(
+                "  - {}:{}: {}",
+                entry.display(),
+                line_no,
+                line.trim_end()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!(
+            "arch-check failed: engine-runner composition factories depend on SharedWorldConnectionManager (Phase 7)"
+        );
+        eprintln!(
+            "Use port traits (e.g. ConnectionManagerPort/ConnectionBroadcastPort/ConnectionUnicastPort) in factories instead.\n"
+        );
+        for v in violations.iter().take(20) {
+            eprintln!("{v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed");
+    }
+
+    Ok(())
+}
+
+/// Phase 7 (tightened): composition factories must not import the concrete
+/// connection-manager module.
+///
+/// Rationale: factories should be port-only; only the composition root should
+/// wire concrete adapters.
+///
+/// Notes:
+/// - Only scans `crates/engine-runner/src/composition/factories/**`.
+/// - Excludes `#[cfg(test)]` items to reduce false positives.
+fn check_engine_runner_composition_no_world_connection_manager_imports() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let factories_dir = workspace_root.join("crates/engine-runner/src/composition/factories");
+    if !factories_dir.exists() {
+        return Ok(());
+    }
+
+    // Keep the check intentionally narrow to avoid false positives: we only
+    // care about `use ... world_connection_manager ...` imports.
+    let import_re = regex_lite::Regex::new(r"\buse\s+[^;\n]*\bworld_connection_manager\b[^;\n]*;?")
+        .context("compiling world_connection_manager import regex")?;
+
+    let mut violations: Vec<String> = Vec::new();
+
+    for entry in walkdir_rs_files(&factories_dir)? {
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        for mat in import_re.find_iter(&sanitized) {
+            let start = mat.range().start;
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "  - {}:{}: {}",
+                entry.display(),
+                line_no,
+                line.trim_end()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!(
+            "arch-check failed: engine-runner composition factories import world_connection_manager (Phase 7)"
+        );
+        eprintln!(
+            "Move these imports to the composition root (e.g. app_state) and pass only port traits into factories.\n"
+        );
         for v in violations.iter().take(20) {
             eprintln!("{v}");
         }
@@ -262,7 +535,9 @@ fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!("arch-check failed: engine-app application layer constructs services (Phase 6 IoC)");
+        eprintln!(
+            "arch-check failed: engine-app application layer constructs services (Phase 6 IoC)"
+        );
         eprintln!("Forbidden pattern: `*Service::new(...)` outside `#[cfg(test)]`\n");
         for v in violations.iter().take(20) {
             eprintln!("{v}");
@@ -277,10 +552,12 @@ fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
 }
 
 fn offset_is_in_ranges(offset: usize, ranges: &[(usize, usize)]) -> bool {
-    ranges.iter().any(|(start, end)| *start <= offset && offset < *end)
+    ranges
+        .iter()
+        .any(|(start, end)| *start <= offset && offset < *end)
 }
 
-fn line_at_offset<'a>(contents: &'a str, offset: usize) -> (usize, &'a str) {
+fn line_at_offset(contents: &str, offset: usize) -> (usize, &str) {
     let offset = offset.min(contents.len());
     let line_no = contents[..offset].bytes().filter(|b| *b == b'\n').count() + 1;
     let line_start = contents[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
@@ -338,8 +615,8 @@ fn sanitize_rust_for_scan(contents: &str) -> String {
                     if j < out.len() && out[j] == b'"' {
                         let hashes = j - (i + 1);
                         out[i] = b' ';
-                        for k in (i + 1)..=j {
-                            out[k] = b' ';
+                        for byte in out[(i + 1)..(j + 1)].iter_mut() {
+                            *byte = b' ';
                         }
                         i = j + 1;
                         state = State::RawString { hashes };
@@ -664,9 +941,7 @@ fn check_no_engine_dto_shadowing_engine_ports_types() -> anyhow::Result<()> {
         }
 
         eprintln!();
-        eprintln!("Note: This check is in WARNING mode (target architecture rule).");
-        // TODO: Uncomment after refactor:
-        // anyhow::bail!("arch-check failed: engine-dto shadows engine-ports types");
+        anyhow::bail!("arch-check failed: engine-dto shadows engine-ports types");
     }
 
     Ok(())
@@ -786,12 +1061,8 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
             println!("  - {v}");
         }
 
-        // Start in WARNING mode so we can land the rule before the refactor completes.
-        // Switch to enforce mode after the inbound/outbound taxonomy cleanup is complete.
         println!();
-        println!("Note: This check is in WARNING mode (target architecture rule).");
-        // TODO: Uncomment after refactor:
-        // anyhow::bail!("arch-check failed: application code depends on inbound ports");
+        anyhow::bail!("arch-check failed: application code depends on inbound ports");
     }
 
     Ok(())
@@ -1524,7 +1795,7 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        // WARNING mode: Report but don't fail (until Phase 4.6 cleanup)
+        // Enforcement mode: fail on any violation
         eprintln!(
             "Glob re-export violations ({} instances):",
             violations.len()
@@ -1535,9 +1806,7 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
             eprintln!("  - {v}");
         }
         eprintln!();
-        eprintln!("Note: This check is in WARNING mode. Fix these in Phase 4.6.");
-        // TODO: Uncomment after Phase 4.6 cleanup:
-        // anyhow::bail!("arch-check failed: glob re-exports found");
+        anyhow::bail!("arch-check failed: glob re-exports found");
     }
 
     Ok(())

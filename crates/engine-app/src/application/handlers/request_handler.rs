@@ -28,8 +28,8 @@ use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
 use wrldbldr_engine_ports::outbound::{
-    CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
-    GenerationQueueProjectionServicePort, RegionCrudPort, SuggestionEnqueuePort,
+    CharacterLocationPort, ClockPort, GenerationQueueProjectionServicePort,
+    GenerationReadStatePort, ObservationRepositoryPort, RegionCrudPort, SuggestionEnqueuePort,
 };
 use wrldbldr_protocol::{ErrorCode, RequestPayload, ResponseResult};
 

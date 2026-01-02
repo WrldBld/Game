@@ -1,5 +1,5 @@
 # https://taskfile.dev
-version: '3'
+version: "3"
 
 vars:
   ENGINE_DIR: ./crates/engine-runner
@@ -255,6 +255,18 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose up -d
+
+  docker:deps:up:
+    desc: Start Docker dependencies (Neo4j)
+    dir: ./docker
+    cmds:
+      - docker-compose up -d neo4j
+
+  docker:deps:down:
+    desc: Stop Docker dependencies (Neo4j)
+    dir: ./docker
+    cmds:
+      - docker-compose stop neo4j
 
   docker:down:
     desc: Stop Docker services

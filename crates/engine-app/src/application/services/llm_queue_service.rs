@@ -23,8 +23,8 @@ use wrldbldr_engine_ports::outbound::{
     ApprovalQueuePort, ChallengeCrudPort, ChallengeSkillPort, LlmPort, LlmQueueItem,
     LlmQueueRequest, LlmQueueResponse, LlmQueueServicePort, LlmRequestType as PortLlmRequestType,
     LlmSuggestionContext as PortSuggestionContext, NarrativeEventCrudPort, ProcessingQueuePort,
-    QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort, SkillRepositoryPort,
-    PromptTemplateServicePort,
+    PromptTemplateServicePort, QueueError, QueueItemId, QueueItemStatus, QueueNotificationPort,
+    SkillRepositoryPort,
 };
 
 /// Priority constant for queue operations

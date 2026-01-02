@@ -957,8 +957,14 @@ pub struct WorldConnectionStats {
 impl wrldbldr_engine_ports::outbound::ConnectionManagerPort for WorldConnectionManager {
     async fn register_connection(&self, connection_id: Uuid, client_id: String, user_id: String) {
         let (sender, _) = broadcast::channel::<ServerMessage>(256);
-        WorldConnectionManager::register_connection(self, connection_id, client_id, user_id, sender)
-            .await;
+        WorldConnectionManager::register_connection(
+            self,
+            connection_id,
+            client_id,
+            user_id,
+            sender,
+        )
+        .await;
     }
 
     async fn join_world(
@@ -1197,6 +1203,28 @@ impl ConnectionBroadcastPort for WorldConnectionManager {
         }
     }
 
+    async fn broadcast_to_world_except_user(
+        &self,
+        world_id: Uuid,
+        exclude_user_id: &str,
+        message: serde_json::Value,
+    ) {
+        if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
+            let _ = WorldConnectionManager::broadcast_to_world_except(
+                self,
+                &world_id,
+                exclude_user_id,
+                server_msg,
+            )
+            .await;
+        } else {
+            tracing::warn!(
+                "Failed to deserialize broadcast_except message for world {}",
+                world_id
+            );
+        }
+    }
+
     async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value) {
         if let Ok(server_msg) = serde_json::from_value::<ServerMessage>(message) {
             WorldConnectionManager::broadcast_to_dms(self, world_id, server_msg).await;
@@ -1235,6 +1263,40 @@ impl ConnectionBroadcastPort for WorldConnectionManager {
 impl ConnectionLifecyclePort for WorldConnectionManager {
     async fn unregister_connection(&self, connection_id: Uuid) {
         let _ = WorldConnectionManager::unregister_connection(self, connection_id).await;
+    }
+}
+
+#[async_trait]
+impl wrldbldr_engine_ports::outbound::ConnectionUnicastPort for WorldConnectionManager {
+    async fn send_to_user_in_world(
+        &self,
+        world_id: Uuid,
+        user_id: &str,
+        message: serde_json::Value,
+    ) -> Result<(), wrldbldr_engine_ports::outbound::ConnectionManagerError> {
+        let server_msg = serde_json::from_value::<ServerMessage>(message).map_err(|_| {
+            wrldbldr_engine_ports::outbound::ConnectionManagerError::JoinFailed(
+                "Failed to deserialize unicast message".to_string(),
+            )
+        })?;
+
+        WorldConnectionManager::send_to_user_in_world(self, &world_id, user_id, server_msg)
+            .await
+            .map_err(|e| match e {
+                BroadcastError::WorldNotFound(id) => {
+                    wrldbldr_engine_ports::outbound::ConnectionManagerError::WorldNotFound(id)
+                }
+                BroadcastError::UserNotFound(user) => {
+                    wrldbldr_engine_ports::outbound::ConnectionManagerError::UserNotFound(user)
+                }
+                BroadcastError::PlayerNotFound(id) => {
+                    wrldbldr_engine_ports::outbound::ConnectionManagerError::PlayerNotFound(id)
+                }
+                _ => wrldbldr_engine_ports::outbound::ConnectionManagerError::JoinFailed(format!(
+                    "{:?}",
+                    e
+                )),
+            })
     }
 }
 

@@ -20,8 +20,7 @@ use wrldbldr_domain::value_objects::{prompt_keys, RuleBasedSuggestion, StagingCo
 use wrldbldr_domain::{GameTime, LocationId, RegionId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovedNpc as PortApprovedNpc, ApprovedNpcData, ChatMessage, ClockPort, LlmPort, LlmRequest,
-    NarrativeEventCrudPort, RegionCrudPort, RegionNpcPort,
-    PromptTemplateServicePort,
+    NarrativeEventCrudPort, PromptTemplateServicePort, RegionCrudPort, RegionNpcPort,
     StagedNpcProposal as PortStagedNpcProposal, StagingProposal as PortStagingProposal,
     StagingRepositoryPort, StagingServicePort,
 };
@@ -167,7 +166,7 @@ where
         let rule_based_npcs: Vec<PortStagedNpcProposal> = rule_suggestions
             .iter()
             .map(|s| {
-            let mut proposal = rule_based_suggestion_to_proposal(s);
+                let mut proposal = rule_based_suggestion_to_proposal(s);
 
                 // Enrich with sprite/portrait from character data
                 if let Some((character, _)) = npcs_with_relationships
@@ -524,17 +523,16 @@ where
         ttl_hours: i32,
         dm_guidance: Option<String>,
     ) -> Result<PortStagingProposal> {
-        self
-            .generate_proposal(
-                world_id,
-                region_id,
-                location_id,
-                &location_name,
-                &game_time,
-                ttl_hours,
-                dm_guidance.as_deref(),
-            )
-            .await
+        self.generate_proposal(
+            world_id,
+            region_id,
+            location_id,
+            &location_name,
+            &game_time,
+            ttl_hours,
+            dm_guidance.as_deref(),
+        )
+        .await
     }
 
     async fn approve_staging(

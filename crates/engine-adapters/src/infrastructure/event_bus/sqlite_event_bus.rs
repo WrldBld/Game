@@ -7,21 +7,21 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_domain::DomainEvent;
-use wrldbldr_engine_ports::outbound::{DomainEventRepositoryPort, EventBusError, EventBusPort};
-
-use super::in_process_notifier::InProcessEventNotifier;
+use wrldbldr_engine_ports::outbound::{
+    DomainEventRepositoryPort, EventBusError, EventBusPort, EventNotifierPort,
+};
 
 /// SQLite-backed event bus implementation
 pub struct SqliteEventBus {
     repository: Arc<dyn DomainEventRepositoryPort>,
-    notifier: InProcessEventNotifier,
+    notifier: Arc<dyn EventNotifierPort>,
 }
 
 impl SqliteEventBus {
     /// Create a new SQLite event bus
     pub fn new(
         repository: Arc<dyn DomainEventRepositoryPort>,
-        notifier: InProcessEventNotifier,
+        notifier: Arc<dyn EventNotifierPort>,
     ) -> Self {
         Self {
             repository,

@@ -10,8 +10,5 @@ use super::DirectorialContextData;
 #[async_trait]
 pub trait DirectorialContextQueryPort: Send + Sync {
     /// Get directorial context
-    async fn get(
-        &self,
-        world_id: &WorldId,
-    ) -> Result<Option<DirectorialContextData>, String>;
+    async fn get(&self, world_id: &WorldId) -> Result<Option<DirectorialContextData>, String>;
 }

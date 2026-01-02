@@ -20,6 +20,40 @@ use super::context_budget::ContextBudgetConfig;
 use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchQueueFailurePolicy {
+    /// Any failure while queueing prompts fails the entire batch.
+    AllOrNothing,
+    /// Continue queueing remaining prompts; fail only if none queued successfully.
+    BestEffort,
+}
+
+fn default_batch_queue_failure_policy() -> BatchQueueFailurePolicy {
+    BatchQueueFailurePolicy::AllOrNothing
+}
+
+impl std::fmt::Display for BatchQueueFailurePolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BatchQueueFailurePolicy::AllOrNothing => write!(f, "all_or_nothing"),
+            BatchQueueFailurePolicy::BestEffort => write!(f, "best_effort"),
+        }
+    }
+}
+
+impl std::str::FromStr for BatchQueueFailurePolicy {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "all_or_nothing" | "allornothing" | "all" => Ok(BatchQueueFailurePolicy::AllOrNothing),
+            "best_effort" | "besteffort" | "best" => Ok(BatchQueueFailurePolicy::BestEffort),
+            _ => Err(()),
+        }
+    }
+}
+
 /// All configurable application settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppSettings {
@@ -106,6 +140,10 @@ pub struct AppSettings {
     /// When set, new asset generations will use this asset's style by default
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style_reference_asset_id: Option<String>,
+
+    /// Policy for how to handle failures while queueing prompts for a batch.
+    #[serde(default = "default_batch_queue_failure_policy")]
+    pub batch_queue_failure_policy: BatchQueueFailurePolicy,
 }
 
 fn default_outcome_branch_count() -> usize {
@@ -153,6 +191,7 @@ impl Default for AppSettings {
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
+            batch_queue_failure_policy: default_batch_queue_failure_policy(),
         }
     }
 }
@@ -501,6 +540,17 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             description: "Asset ID to use as default style reference for image generation. Set via 'Use as Style Reference' in asset gallery.".into(),
             field_type: "string".into(),
             default_value: serde_json::json!(null),
+            min_value: None,
+            max_value: None,
+            category: "Assets".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "batch_queue_failure_policy".into(),
+            display_name: "Batch Queue Failure Policy".into(),
+            description: "Controls whether any queue failure fails the whole batch (all_or_nothing) or continues and only fails if nothing queued (best_effort).".into(),
+            field_type: "string".into(),
+            default_value: serde_json::json!("all_or_nothing"),
             min_value: None,
             max_value: None,
             category: "Assets".into(),

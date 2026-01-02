@@ -21,9 +21,7 @@ use tracing::{debug, info};
 
 use wrldbldr_domain::{ActionId, LocationId, RegionId};
 use wrldbldr_engine_ports::inbound::{MovementUseCasePort, UseCaseContext};
-use wrldbldr_engine_ports::outbound::{
-    ExitToLocationInput, MoveToRegionInput, MovementResult,
-};
+use wrldbldr_engine_ports::outbound::{ExitToLocationInput, MoveToRegionInput, MovementResult};
 
 use super::errors::ActionError;
 

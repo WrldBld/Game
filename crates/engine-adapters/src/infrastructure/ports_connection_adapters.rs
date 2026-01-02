@@ -17,12 +17,10 @@ use wrldbldr_domain::value_objects::PacingGuidance;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     DirectorialContextData, DirectorialContextQueryPort,
-    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort,
-    NpcMotivation, PcData,
-    PlayerCharacterDtoPort,
+    DirectorialContextRepositoryPort as PortDirectorialContextRepositoryPort, NpcMotivation,
+    PcData, PlayerCharacterDtoPort,
     PlayerCharacterServicePort as OutboundPlayerCharacterServicePort,
-    WorldServicePort as OutboundWorldServicePort,
-    WorldSnapshotJsonPort,
+    WorldServicePort as OutboundWorldServicePort, WorldSnapshotJsonPort,
 };
 
 /// Adapter for WorldServicePort implementing WorldSnapshotJsonPort.

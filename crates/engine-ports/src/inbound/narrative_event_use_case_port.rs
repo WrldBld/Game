@@ -42,8 +42,8 @@
 
 use async_trait::async_trait;
 
-use crate::outbound::NarrativeEventError;
 use super::UseCaseContext;
+use crate::outbound::NarrativeEventError;
 use crate::outbound::{NarrativeEventDecisionResult, NarrativeEventSuggestionDecisionInput};
 
 /// Port for narrative event operations

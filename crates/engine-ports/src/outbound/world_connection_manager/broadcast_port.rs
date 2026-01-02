@@ -15,6 +15,14 @@ pub trait ConnectionBroadcastPort: Send + Sync {
     /// The message should be a JSON-serialized ServerMessage.
     async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value);
 
+    /// Broadcast a serialized message to all connections in a world except one user.
+    async fn broadcast_to_world_except_user(
+        &self,
+        world_id: Uuid,
+        exclude_user_id: &str,
+        message: serde_json::Value,
+    );
+
     /// Broadcast a serialized message to DM connections in a world
     async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value);
 

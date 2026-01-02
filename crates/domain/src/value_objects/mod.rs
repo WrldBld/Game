@@ -86,7 +86,9 @@ pub use rule_system::{
     StatDefinition,
     SuccessComparison,
 };
-pub use settings::{settings_metadata, AppSettings, SettingsFieldMetadata};
+pub use settings::{
+    settings_metadata, AppSettings, BatchQueueFailurePolicy, SettingsFieldMetadata,
+};
 pub use staging_context::{
     ActiveEventContext, NpcDialogueContext, RollResult, RuleBasedSuggestion, StagingContext,
 };

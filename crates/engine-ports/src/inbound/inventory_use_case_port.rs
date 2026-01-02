@@ -20,8 +20,8 @@ use async_trait::async_trait;
 #[cfg(any(test, feature = "testing"))]
 use mockall::automock;
 
-use crate::outbound::InventoryError;
 use super::UseCaseContext;
+use crate::outbound::InventoryError;
 use crate::outbound::{
     DropInput, DropResult, EquipInput, EquipResult, PickupInput, PickupResult, UnequipInput,
     UnequipResult,

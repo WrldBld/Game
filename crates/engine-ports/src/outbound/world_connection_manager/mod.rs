@@ -31,6 +31,7 @@ mod context_port;
 mod lifecycle_port;
 mod query_port;
 mod types;
+mod unicast_port;
 
 pub use broadcast_port::ConnectionBroadcastPort;
 pub use context_port::ConnectionContextPort;
@@ -39,6 +40,7 @@ pub use query_port::ConnectionQueryPort;
 pub use types::{
     ConnectedUserInfo, ConnectionContext, ConnectionManagerError, ConnectionStats, DmInfo,
 };
+pub use unicast_port::ConnectionUnicastPort;
 
 #[cfg(any(test, feature = "testing"))]
 mod mock {
@@ -79,9 +81,25 @@ mod mock {
         #[async_trait]
         impl ConnectionBroadcastPort for WorldConnectionManager {
             async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value);
+            async fn broadcast_to_world_except_user(
+                &self,
+                world_id: Uuid,
+                exclude_user_id: &str,
+                message: serde_json::Value,
+            );
             async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value);
             async fn broadcast_to_players(&self, world_id: Uuid, message: serde_json::Value);
             async fn broadcast_to_all_worlds(&self, message: serde_json::Value);
+        }
+
+        #[async_trait]
+        impl ConnectionUnicastPort for WorldConnectionManager {
+            async fn send_to_user_in_world(
+                &self,
+                world_id: Uuid,
+                user_id: &str,
+                message: serde_json::Value,
+            ) -> Result<(), ConnectionManagerError>;
         }
 
         #[async_trait]

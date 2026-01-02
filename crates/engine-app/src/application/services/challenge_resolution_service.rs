@@ -24,8 +24,8 @@ use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Pos
 use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    ClockPort, DiceInputType, DiceRoll as PortDiceRoll,
-    PendingResolution as PortPendingResolution, RandomPort, RollResult as PortRollResult,
+    ClockPort, DiceInputType, DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution,
+    RandomPort, RollResult as PortRollResult,
 };
 
 // ============================================================================
@@ -766,12 +766,13 @@ where
             })?;
 
         // Get challenge suggestion from the approval request
-        let challenge_suggestion = approval_request
-            .challenge_suggestion
-            .as_ref()
-            .ok_or_else(|| {
-                ChallengeResolutionError::ChallengeSuggestionNotFound(request_id.clone())
-            })?;
+        let challenge_suggestion =
+            approval_request
+                .challenge_suggestion
+                .as_ref()
+                .ok_or_else(|| {
+                    ChallengeResolutionError::ChallengeSuggestionNotFound(request_id.clone())
+                })?;
 
         // Parse challenge ID
         let challenge_uuid = uuid::Uuid::parse_str(&challenge_suggestion.challenge_id)
@@ -924,8 +925,7 @@ use async_trait::async_trait;
 ///
 /// This exposes challenge resolution methods to infrastructure adapters.
 #[async_trait]
-impl<S, K, P> ChallengeResolutionServicePort
-    for ChallengeResolutionService<S, K, P>
+impl<S, K, P> ChallengeResolutionServicePort for ChallengeResolutionService<S, K, P>
 where
     S: ChallengeService + 'static,
     K: SkillService + 'static,
