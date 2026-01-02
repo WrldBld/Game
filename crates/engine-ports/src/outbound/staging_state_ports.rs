@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use uuid::Uuid;
 
 use wrldbldr_domain::{GameTime, RegionId, WorldId};
@@ -8,7 +7,8 @@ use super::{PendingStagingData, PendingStagingInfo, RegeneratedNpc};
 /// Outbound port for managing pending staging state.
 ///
 /// Used by the application (movement + staging use cases); implemented by adapters.
-#[async_trait]
+///
+/// All methods are synchronous as they operate on in-memory state.
 pub trait StagingStatePort: Send + Sync {
     /// Get current game time for the world
     fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime>;
@@ -32,7 +32,8 @@ pub trait StagingStatePort: Send + Sync {
 }
 
 /// Extended port for staging state management.
-#[async_trait]
+///
+/// All methods are synchronous as they operate on in-memory state.
 pub trait StagingStateExtPort: StagingStatePort {
     /// Get a pending staging by request ID
     fn get_pending_staging(

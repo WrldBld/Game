@@ -242,7 +242,7 @@ pub enum GameTool {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| LLMContextService | ✅ | - | Graph-based context building |
+| PromptContextService | ✅ | - | Graph-based context building |
 | ContextBudgetConfig | ✅ | - | Token limits per category |
 | Token Counter | ✅ | - | Multiple counting methods |
 | Summarization | ✅ | - | Auto-summarize when over budget |
@@ -274,7 +274,7 @@ pub enum GameTool {
 | Domain | `src/domain/value_objects/context_budget.rs` | Budget config |
 | Domain | `src/domain/value_objects/game_tools.rs` | Tool definitions |
 | Domain | `src/domain/value_objects/directorial.rs` | Directorial notes |
-| Application | `src/application/services/llm_context_service.rs` | Build context |
+| Application | `src/application/services/prompt_context_service.rs` | Build context |
 | Application | `src/application/services/llm/prompt_builder.rs` | Build prompts |
 | Application | `src/application/services/llm_queue_service.rs` | LLM processing |
 | Application | `src/application/services/tool_execution_service.rs` | Execute tools |

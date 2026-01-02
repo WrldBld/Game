@@ -153,7 +153,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (`crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`)
 
 ### Pre-Staging UI (Location View)
 
@@ -429,7 +429,7 @@ pub struct StagingContext {
 | WebSocket Integration | ⏳ | - | Approval workflow pending |
 | Staging State | - | ⏳ | `game_state.rs` |
 | Message Handlers | - | ⏳ | Handle staging messages |
-| StagingApproval Component | - | ✅ | DM approval popup exists |
+| StagingApproval Component | - | ✅ | DM approval popup (`staging_approval.rs`) |
 | LocationStaging Component | - | ⏳ | Pre-staging UI pending |
 | StagingPending Overlay | - | ⏳ | Player loading state pending |
 | Location Settings UI | - | ⏳ | TTL configuration pending |

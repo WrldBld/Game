@@ -455,7 +455,6 @@ impl WorldStateUpdatePort for WorldStateManager {
     }
 }
 
-#[async_trait::async_trait]
 impl StagingStatePort for WorldStateManager {
     fn get_game_time(&self, world_id: &WorldId) -> Option<GameTime> {
         WorldTimePort::get_game_time(self, world_id)
@@ -523,7 +522,6 @@ impl StagingStatePort for WorldStateManager {
     }
 }
 
-#[async_trait::async_trait]
 impl StagingStateExtPort for WorldStateManager {
     fn get_pending_staging(
         &self,
