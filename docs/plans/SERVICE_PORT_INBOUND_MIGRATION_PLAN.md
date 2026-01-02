@@ -1,8 +1,9 @@
 # ServicePort Purist Refactor Plan (Option B / Big Bang)
 
-> **Status**: IN PROGRESS
+> **Status**: COMPLETED
 > **Created**: 2026-01-02
 > **Updated**: 2026-01-02
+> **Completed**: 2026-01-02
 > **Type**: Big Bang Refactor (no backwards compatibility required)
 
 ## Progress
@@ -10,12 +11,12 @@
 - [x] Step 0: Pre-flight checks
 - [x] Step 1: Create internal traits directory
 - [x] Step 2: Internalize 24 NOT-A-PORT traits (commit `8267811`)
-- [ ] Step 3: Handle 11 INBOUND service ports (REVISED - see below)
-- [ ] Step 4: Update AppStatePort and HTTP handlers
-- [ ] Step 5: Delete wrapper-forwarder adapters
-- [ ] Step 6: Clean up remaining outbound service ports
-- [ ] Step 7: Documentation updates
-- [ ] Step 8: Final verification
+- [x] Step 3: Handle 11 INBOUND service ports (commit `0f6c56d`)
+- [x] Step 4: Update AppStatePort and HTTP handlers (commit `0f6c56d`)
+- [x] Step 5: Delete wrapper-forwarder adapters (commit `cd69808`)
+- [x] Step 6: Clean up remaining outbound service ports (commit `2bbb3e7`)
+- [x] Step 7: Documentation updates
+- [x] Step 8: Final verification
 
 ## Executive Summary
 
@@ -394,16 +395,16 @@ After internalization, review whether internal traits are still needed or if con
 ## Success Criteria
 
 - [x] 24 internal traits moved to `engine-app/src/application/services/internal/`
-- [ ] 11 handler-called service traits internalized to `engine-app/src/application/services/internal/`
-- [ ] Inbound use case ports created for settings/prompt templates/assets/workflows/queues/export
-- [ ] `AppStatePort` returns use case ports (handlers no longer call service getters)
-- [ ] All wrapper-forwarder adapters deleted (5 wrapper ports removed)
-- [ ] Wrapper service ports deleted or internalized
-- [ ] Only `StagingUseCaseServicePort` + `StagingUseCaseServiceExtPort` remain in `outbound/`
-- [ ] `cargo xtask arch-check` passes
-- [ ] `cargo check --workspace` compiles
-- [ ] `cargo test --workspace` passes
-- [ ] Documentation updated
+- [x] 11 handler-called service traits internalized to `engine-app/src/application/services/internal/`
+- [x] Inbound use case ports created for settings/prompt templates/assets/workflows/queues/export
+- [x] `AppStatePort` returns use case ports (handlers no longer call service getters)
+- [x] All wrapper-forwarder adapters deleted (9 wrapper ports removed)
+- [x] Wrapper service ports deleted or internalized
+- [x] Only `StagingUseCaseServicePort` + `StagingUseCaseServiceExtPort` remain in `outbound/`
+- [x] `cargo xtask arch-check` passes
+- [x] `cargo check --workspace` compiles
+- [x] `cargo test --workspace` passes
+- [x] Documentation updated
 
 ---
 
