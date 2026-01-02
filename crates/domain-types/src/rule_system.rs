@@ -18,6 +18,9 @@ pub enum RuleSystemType {
     Narrative,
     /// User-defined dice mechanics
     Custom,
+    /// Unknown system type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// Known presets for rule systems
@@ -87,7 +90,7 @@ impl RuleSystemVariant {
                     Self::BladesInTheDark,
                 ]
             }
-            RuleSystemType::Custom => vec![],
+            RuleSystemType::Custom | RuleSystemType::Unknown => vec![],
         }
     }
 }
@@ -423,6 +426,9 @@ pub enum SuccessComparison {
     LessOrEqual,
     /// Success is determined narratively
     Narrative,
+    /// Unknown comparison type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// Definition of a character stat
@@ -562,6 +568,9 @@ pub enum NarrativeResolutionStyle {
     Blades,
     /// Custom: Use configurable thresholds with any dice system
     Custom,
+    /// Unknown style (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl NarrativeResolutionStyle {
@@ -572,6 +581,7 @@ impl NarrativeResolutionStyle {
             Self::Ladder => "Fate/Ladder (NdF vs target)",
             Self::Blades => "Blades (d6 pool, Position/Effect)",
             Self::Custom => "Custom",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -582,6 +592,7 @@ impl NarrativeResolutionStyle {
             Self::Ladder => "Roll Fudge dice + skill vs difficulty ladder. Shifts determine outcome.",
             Self::Blades => "Roll d6 pool, take highest. Position sets consequence severity, Effect sets progress.",
             Self::Custom => "Custom thresholds and dice configuration.",
+            Self::Unknown => "Unknown resolution style.",
         }
     }
 }
@@ -817,6 +828,9 @@ pub enum DifficultyDescriptor {
     // PbtA-style position indicators (alternative to Position enum for simpler use)
     Risky,
     Desperate,
+    /// Unknown difficulty (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl DifficultyDescriptor {
@@ -833,6 +847,7 @@ impl DifficultyDescriptor {
             Self::Impossible => "Impossible",
             Self::Risky => "Risky",
             Self::Desperate => "Desperate",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -946,6 +961,10 @@ pub enum Position {
 
     /// You overreach, in serious trouble. Severe consequences.
     Desperate,
+
+    /// Unknown position (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl Position {
@@ -954,6 +973,7 @@ impl Position {
             Self::Controlled => "Controlled",
             Self::Risky => "Risky",
             Self::Desperate => "Desperate",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -962,6 +982,7 @@ impl Position {
             Self::Controlled => "You act on your terms. Minor consequences on failure.",
             Self::Risky => "You go head to head. Moderate consequences on failure.",
             Self::Desperate => "You're in serious trouble. Severe consequences on failure.",
+            Self::Unknown => "Unknown position.",
         }
     }
 
@@ -971,10 +992,11 @@ impl Position {
             Self::Controlled => "minor complication, reduced effect, or worse position",
             Self::Risky => "harm, complication, reduced effect, or desperate position",
             Self::Desperate => "severe harm, serious complication, or lost opportunity",
+            Self::Unknown => "unknown consequences",
         }
     }
 
-    /// Get all position variants
+    /// Get all position variants (excludes Unknown)
     pub fn all() -> Vec<Self> {
         vec![Self::Controlled, Self::Risky, Self::Desperate]
     }
@@ -1000,6 +1022,10 @@ pub enum EffectLevel {
 
     /// Extraordinary effect (beyond great, from critical)
     Extreme,
+
+    /// Unknown effect level (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl EffectLevel {
@@ -1010,6 +1036,7 @@ impl EffectLevel {
             Self::Standard => "Standard",
             Self::Great => "Great",
             Self::Extreme => "Extreme",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -1020,6 +1047,7 @@ impl EffectLevel {
             Self::Standard => "Normal expected effect for this action.",
             Self::Great => "You achieve more than usual. Extra benefit.",
             Self::Extreme => "Extraordinary effect. Maximum possible impact.",
+            Self::Unknown => "Unknown effect level.",
         }
     }
 
@@ -1031,6 +1059,7 @@ impl EffectLevel {
             Self::Standard => config.standard_ticks,
             Self::Great => config.great_ticks,
             Self::Extreme => config.extreme_ticks,
+            Self::Unknown => config.zero_ticks,
         }
     }
 
@@ -1041,6 +1070,7 @@ impl EffectLevel {
             Self::Limited => Self::Standard,
             Self::Standard => Self::Great,
             Self::Great | Self::Extreme => Self::Extreme,
+            Self::Unknown => Self::Unknown,
         }
     }
 
@@ -1051,15 +1081,16 @@ impl EffectLevel {
             Self::Great => Self::Standard,
             Self::Standard => Self::Limited,
             Self::Limited | Self::Zero => Self::Zero,
+            Self::Unknown => Self::Unknown,
         }
     }
 
-    /// Get all effect level variants (excluding Zero for normal selection)
+    /// Get all effect level variants (excluding Zero and Unknown for normal selection)
     pub fn selectable() -> Vec<Self> {
         vec![Self::Limited, Self::Standard, Self::Great]
     }
 
-    /// Get all effect level variants
+    /// Get all effect level variants (excludes Unknown)
     pub fn all() -> Vec<Self> {
         vec![
             Self::Zero,

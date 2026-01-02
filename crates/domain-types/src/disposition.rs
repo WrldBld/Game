@@ -29,10 +29,13 @@ pub enum DispositionLevel {
     Friendly,
     /// Owes the PC, deeply appreciative
     Grateful,
+    /// Unknown disposition (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl DispositionLevel {
-    /// Get all disposition levels for UI dropdowns
+    /// Get all disposition levels for UI dropdowns (excludes Unknown)
     pub fn all() -> &'static [DispositionLevel] {
         &[
             DispositionLevel::Hostile,
@@ -55,6 +58,7 @@ impl DispositionLevel {
             DispositionLevel::Respectful => "Respectful",
             DispositionLevel::Friendly => "Friendly",
             DispositionLevel::Grateful => "Grateful",
+            DispositionLevel::Unknown => "Unknown",
         }
     }
 
@@ -68,6 +72,7 @@ impl DispositionLevel {
             DispositionLevel::Respectful => "🤝",
             DispositionLevel::Friendly => "😊",
             DispositionLevel::Grateful => "🙏",
+            DispositionLevel::Unknown => "❓",
         }
     }
 
@@ -94,6 +99,7 @@ impl DispositionLevel {
             DispositionLevel::Dismissive => -0.2,
             DispositionLevel::Suspicious => -0.4,
             DispositionLevel::Hostile => -0.8,
+            DispositionLevel::Unknown => 0.0,
         }
     }
 }
@@ -108,16 +114,16 @@ impl std::str::FromStr for DispositionLevel {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "hostile" => Ok(DispositionLevel::Hostile),
-            "suspicious" => Ok(DispositionLevel::Suspicious),
-            "dismissive" => Ok(DispositionLevel::Dismissive),
-            "neutral" => Ok(DispositionLevel::Neutral),
-            "respectful" => Ok(DispositionLevel::Respectful),
-            "friendly" => Ok(DispositionLevel::Friendly),
-            "grateful" => Ok(DispositionLevel::Grateful),
-            _ => Err(format!("Unknown disposition level: {}", s)),
-        }
+        Ok(match s.to_lowercase().as_str() {
+            "hostile" => DispositionLevel::Hostile,
+            "suspicious" => DispositionLevel::Suspicious,
+            "dismissive" => DispositionLevel::Dismissive,
+            "neutral" => DispositionLevel::Neutral,
+            "respectful" => DispositionLevel::Respectful,
+            "friendly" => DispositionLevel::Friendly,
+            "grateful" => DispositionLevel::Grateful,
+            _ => DispositionLevel::Unknown,
+        })
     }
 }
 
@@ -145,10 +151,13 @@ pub enum RelationshipLevel {
     Enemy,
     /// Deeply opposed, vendetta
     Nemesis,
+    /// Unknown relationship (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl RelationshipLevel {
-    /// Get all relationship levels for UI dropdowns
+    /// Get all relationship levels for UI dropdowns (excludes Unknown)
     pub fn all() -> &'static [RelationshipLevel] {
         &[
             RelationshipLevel::Ally,
@@ -171,6 +180,7 @@ impl RelationshipLevel {
             RelationshipLevel::Rival => "Rival",
             RelationshipLevel::Enemy => "Enemy",
             RelationshipLevel::Nemesis => "Nemesis",
+            RelationshipLevel::Unknown => "Unknown",
         }
     }
 
@@ -184,6 +194,7 @@ impl RelationshipLevel {
             RelationshipLevel::Rival => "😒",
             RelationshipLevel::Enemy => "⚔️",
             RelationshipLevel::Nemesis => "💀",
+            RelationshipLevel::Unknown => "❔",
         }
     }
 
@@ -197,6 +208,7 @@ impl RelationshipLevel {
             RelationshipLevel::Rival => -0.2,
             RelationshipLevel::Enemy => -0.4,
             RelationshipLevel::Nemesis => -0.6,
+            RelationshipLevel::Unknown => 0.0,
         }
     }
 }
@@ -211,15 +223,15 @@ impl std::str::FromStr for RelationshipLevel {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "ally" => Ok(RelationshipLevel::Ally),
-            "friend" => Ok(RelationshipLevel::Friend),
-            "acquaintance" => Ok(RelationshipLevel::Acquaintance),
-            "stranger" => Ok(RelationshipLevel::Stranger),
-            "rival" => Ok(RelationshipLevel::Rival),
-            "enemy" => Ok(RelationshipLevel::Enemy),
-            "nemesis" => Ok(RelationshipLevel::Nemesis),
-            _ => Err(format!("Unknown relationship level: {}", s)),
-        }
+        Ok(match s.to_lowercase().as_str() {
+            "ally" => RelationshipLevel::Ally,
+            "friend" => RelationshipLevel::Friend,
+            "acquaintance" => RelationshipLevel::Acquaintance,
+            "stranger" => RelationshipLevel::Stranger,
+            "rival" => RelationshipLevel::Rival,
+            "enemy" => RelationshipLevel::Enemy,
+            "nemesis" => RelationshipLevel::Nemesis,
+            _ => RelationshipLevel::Unknown,
+        })
     }
 }

@@ -703,6 +703,7 @@ impl GenerationService {
             AssetType::ItemIcon => "item-icon-generation".to_string(),
             AssetType::EmotionSheet => "character-emotion-sheet".to_string(),
             AssetType::RegionBackdrop => "map-region-backdrop".to_string(),
+            AssetType::Unknown => "unknown-asset-generation".to_string(),
         }
     }
 

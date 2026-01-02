@@ -243,7 +243,9 @@ impl Challenge {
         dice_results: Option<&[i32]>,
     ) -> OutcomeType {
         match config.style {
-            NarrativeResolutionStyle::PbtA | NarrativeResolutionStyle::Custom => {
+            NarrativeResolutionStyle::PbtA
+            | NarrativeResolutionStyle::Custom
+            | NarrativeResolutionStyle::Unknown => {
                 self.evaluate_pbta(roll, modifier, &config.thresholds)
             }
             NarrativeResolutionStyle::Ladder => {

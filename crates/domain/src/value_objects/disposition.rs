@@ -274,6 +274,14 @@ mod tests {
             "grateful".parse::<DispositionLevel>().unwrap(),
             DispositionLevel::Grateful
         );
-        assert!("unknown".parse::<DispositionLevel>().is_err());
+        assert_eq!(
+            "unknown".parse::<DispositionLevel>().unwrap(),
+            DispositionLevel::Unknown
+        );
+        // With forward-compatibility, unrecognized strings map to Unknown
+        assert_eq!(
+            "invalid_value".parse::<DispositionLevel>().unwrap(),
+            DispositionLevel::Unknown
+        );
     }
 }

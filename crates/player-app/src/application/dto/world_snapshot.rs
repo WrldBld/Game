@@ -225,6 +225,7 @@ impl RuleSystemTypeExt for RuleSystemType {
             RuleSystemType::D100 => "D100 System",
             RuleSystemType::Narrative => "Narrative System",
             RuleSystemType::Custom => "Custom",
+            RuleSystemType::Unknown => "Unknown",
         }
     }
 
@@ -234,6 +235,7 @@ impl RuleSystemTypeExt for RuleSystemType {
             RuleSystemType::D100 => "Roll percentile under skill (Call of Cthulhu)",
             RuleSystemType::Narrative => "Fiction-first, story-driven (Kids on Bikes, FATE)",
             RuleSystemType::Custom => "Define your own mechanics",
+            RuleSystemType::Unknown => "Unknown system type",
         }
     }
 }
@@ -264,7 +266,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
                 RuleSystemVariant::PoweredByApocalypse,
                 RuleSystemVariant::BladesInTheDark,
             ],
-            RuleSystemType::Custom => vec![],
+            RuleSystemType::Custom | RuleSystemType::Unknown => vec![],
         }
     }
 

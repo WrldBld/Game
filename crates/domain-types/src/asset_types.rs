@@ -215,6 +215,9 @@ pub enum AssetType {
     EmotionSheet,
     /// Backdrop for clickable map region (1280x720)
     RegionBackdrop,
+    /// Unknown asset type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl std::fmt::Display for AssetType {
@@ -227,6 +230,7 @@ impl std::fmt::Display for AssetType {
             Self::ItemIcon => write!(f, "ItemIcon"),
             Self::EmotionSheet => write!(f, "EmotionSheet"),
             Self::RegionBackdrop => write!(f, "RegionBackdrop"),
+            Self::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -235,16 +239,16 @@ impl std::str::FromStr for AssetType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "portrait" => Ok(Self::Portrait),
-            "sprite" => Ok(Self::Sprite),
-            "backdrop" => Ok(Self::Backdrop),
-            "tilesheet" => Ok(Self::Tilesheet),
-            "itemicon" | "item_icon" => Ok(Self::ItemIcon),
-            "emotionsheet" | "emotion_sheet" => Ok(Self::EmotionSheet),
-            "regionbackdrop" | "region_backdrop" => Ok(Self::RegionBackdrop),
-            _ => Err(format!("Unknown asset type: {}", s)),
-        }
+        Ok(match s.to_lowercase().as_str() {
+            "portrait" => Self::Portrait,
+            "sprite" => Self::Sprite,
+            "backdrop" => Self::Backdrop,
+            "tilesheet" => Self::Tilesheet,
+            "itemicon" | "item_icon" => Self::ItemIcon,
+            "emotionsheet" | "emotion_sheet" => Self::EmotionSheet,
+            "regionbackdrop" | "region_backdrop" => Self::RegionBackdrop,
+            _ => Self::Unknown,
+        })
     }
 }
 
@@ -259,6 +263,7 @@ impl AssetType {
             Self::ItemIcon => "item_icon",
             Self::EmotionSheet => "emotion_sheet",
             Self::RegionBackdrop => "region_backdrop",
+            Self::Unknown => "unknown",
         }
     }
 
@@ -272,6 +277,7 @@ impl AssetType {
             Self::ItemIcon => (64, 64),
             Self::EmotionSheet => (768, 768),
             Self::RegionBackdrop => (1280, 720),
+            Self::Unknown => (256, 256),
         }
     }
 }

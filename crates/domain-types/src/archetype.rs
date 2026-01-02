@@ -27,6 +27,9 @@ pub enum CampbellArchetype {
     /// Supports the hero on their journey
     #[default]
     Ally,
+    /// Unknown archetype (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl CampbellArchetype {
@@ -43,6 +46,7 @@ impl CampbellArchetype {
             Self::Shadow => "Represents the dark side, often the villain or internal conflict",
             Self::Trickster => "Brings humor and chaos, challenges rigid thinking",
             Self::Ally => "Provides support, companionship, and assistance on the journey",
+            Self::Unknown => "Unknown archetype",
         }
     }
 
@@ -89,6 +93,7 @@ impl CampbellArchetype {
                 "Assists in practical ways",
                 "Shares the hero's values",
             ],
+            Self::Unknown => &[],
         }
     }
 }
@@ -104,6 +109,7 @@ impl std::fmt::Display for CampbellArchetype {
             Self::Shadow => "Shadow",
             Self::Trickster => "Trickster",
             Self::Ally => "Ally",
+            Self::Unknown => "Unknown",
         };
         write!(f, "{}", name)
     }

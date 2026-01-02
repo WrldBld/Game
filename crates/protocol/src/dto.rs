@@ -205,6 +205,7 @@ impl From<PromptMappingType> for PromptMappingTypeDto {
         match value {
             PromptMappingType::Primary => Self::Primary,
             PromptMappingType::Negative => Self::Negative,
+            PromptMappingType::Unknown => Self::Unknown,
         }
     }
 }

@@ -26,6 +26,9 @@ pub enum WorkflowSlot {
     ItemSet,
     /// Map region backdrop (1280x720)
     MapRegion,
+    /// Unknown workflow slot (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl WorkflowSlot {
@@ -41,6 +44,7 @@ impl WorkflowSlot {
             Self::ItemIcon => (64, 64),
             Self::ItemSet => (256, 256),
             Self::MapRegion => (1280, 720),
+            Self::Unknown => (256, 256),
         }
     }
 
@@ -56,6 +60,7 @@ impl WorkflowSlot {
             Self::ItemIcon => "Item Icon",
             Self::ItemSet => "Item Set",
             Self::MapRegion => "Map Region",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -70,6 +75,7 @@ impl WorkflowSlot {
             }
             Self::ItemIcon | Self::ItemSet => "Item Assets",
             Self::MapRegion => "Map Assets",
+            Self::Unknown => "Other",
         }
     }
 
@@ -100,6 +106,7 @@ impl WorkflowSlot {
             Self::ItemIcon => "item_icon",
             Self::ItemSet => "item_set",
             Self::MapRegion => "map_region",
+            Self::Unknown => "unknown",
         }
     }
 }
@@ -108,18 +115,18 @@ impl std::str::FromStr for WorkflowSlot {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "character_portrait" => Ok(Self::CharacterPortrait),
-            "character_sprite" => Ok(Self::CharacterSprite),
-            "character_expression_sheet" => Ok(Self::CharacterExpressionSheet),
-            "location_backdrop" => Ok(Self::LocationBackdrop),
-            "location_tilesheet" => Ok(Self::LocationTilesheet),
-            "location_time_variant" => Ok(Self::LocationTimeVariant),
-            "item_icon" => Ok(Self::ItemIcon),
-            "item_set" => Ok(Self::ItemSet),
-            "map_region" => Ok(Self::MapRegion),
-            _ => Err(format!("Unknown workflow slot: {}", s)),
-        }
+        Ok(match s {
+            "character_portrait" => Self::CharacterPortrait,
+            "character_sprite" => Self::CharacterSprite,
+            "character_expression_sheet" => Self::CharacterExpressionSheet,
+            "location_backdrop" => Self::LocationBackdrop,
+            "location_tilesheet" => Self::LocationTilesheet,
+            "location_time_variant" => Self::LocationTimeVariant,
+            "item_icon" => Self::ItemIcon,
+            "item_set" => Self::ItemSet,
+            "map_region" => Self::MapRegion,
+            _ => Self::Unknown,
+        })
     }
 }
 
@@ -131,6 +138,9 @@ pub enum PromptMappingType {
     Primary,
     /// The negative prompt (things to avoid)
     Negative,
+    /// Unknown mapping type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// Mapping of a text input to prompt injection
@@ -208,7 +218,8 @@ pub enum InputType {
     Boolean,
     /// Select from options
     Select(Vec<String>),
-    /// Unknown type
+    /// Unknown type (for forward compatibility)
+    #[serde(other)]
     Unknown,
 }
 

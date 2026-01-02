@@ -32,7 +32,7 @@ pub fn prepare_workflow(
     // Apply prompt mappings
     for mapping in &config.prompt_mappings {
         let text = match mapping.mapping_type {
-            PromptMappingType::Primary => prompt.to_string(),
+            PromptMappingType::Primary | PromptMappingType::Unknown => prompt.to_string(),
             PromptMappingType::Negative => negative_prompt.unwrap_or("").to_string(),
         };
 

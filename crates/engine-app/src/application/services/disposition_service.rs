@@ -314,7 +314,7 @@ impl DispositionService for DispositionServiceImpl {
             RelationshipLevel::Nemesis => -60,
             RelationshipLevel::Enemy => -35,
             RelationshipLevel::Rival => -15,
-            RelationshipLevel::Stranger => 0,
+            RelationshipLevel::Stranger | RelationshipLevel::Unknown => 0,
             RelationshipLevel::Acquaintance => 15,
             RelationshipLevel::Friend => 35,
             RelationshipLevel::Ally => 60,

@@ -612,6 +612,7 @@ fn RuleSystemConfigEditor(
         SuccessComparison::GreaterOrEqual => "GreaterOrEqual",
         SuccessComparison::LessOrEqual => "LessOrEqual",
         SuccessComparison::Narrative => "Narrative",
+        SuccessComparison::Unknown => "Unknown",
     };
 
     rsx! {

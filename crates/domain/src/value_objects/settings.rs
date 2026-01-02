@@ -17,7 +17,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::context_budget::ContextBudgetConfig;
-use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -64,7 +63,7 @@ impl std::str::FromStr for BatchQueueFailurePolicy {
 pub struct AppSettings {
     /// World ID for per-world settings. None = global defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub world_id: Option<Uuid>,
+    pub world_id: Option<WorldId>,
 
     // ============================================================================
     // Session & Conversation

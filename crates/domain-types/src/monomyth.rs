@@ -35,6 +35,9 @@ pub enum MonomythStage {
     Resurrection,
     /// The hero returns with new wisdom
     ReturnWithElixir,
+    /// Unknown stage (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 impl MonomythStage {
@@ -53,6 +56,7 @@ impl MonomythStage {
             Self::TheRoadBack => "TheRoadBack",
             Self::Resurrection => "Resurrection",
             Self::ReturnWithElixir => "ReturnWithElixir",
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -71,6 +75,7 @@ impl MonomythStage {
             Self::TheRoadBack => "The hero deals with consequences of the ordeal",
             Self::Resurrection => "The hero is tested once more and transformed",
             Self::ReturnWithElixir => "The hero returns with something to share",
+            Self::Unknown => "Unknown stage",
         }
     }
 }
@@ -94,24 +99,25 @@ impl std::str::FromStr for MonomythStage {
     /// let stage: MonomythStage = "CallToAdventure".parse().unwrap();
     /// assert_eq!(stage, MonomythStage::CallToAdventure);
     ///
-    /// // Unknown values return Err
-    /// assert!("Unknown".parse::<MonomythStage>().is_err());
+    /// // Unknown values return Unknown variant
+    /// let unknown: MonomythStage = "SomethingNew".parse().unwrap();
+    /// assert_eq!(unknown, MonomythStage::Unknown);
     /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "OrdinaryWorld" => Ok(Self::OrdinaryWorld),
-            "CallToAdventure" => Ok(Self::CallToAdventure),
-            "RefusalOfTheCall" => Ok(Self::RefusalOfTheCall),
-            "MeetingTheMentor" => Ok(Self::MeetingTheMentor),
-            "CrossingTheThreshold" => Ok(Self::CrossingTheThreshold),
-            "TestsAlliesEnemies" => Ok(Self::TestsAlliesEnemies),
-            "ApproachToInnermostCave" => Ok(Self::ApproachToInnermostCave),
-            "Ordeal" => Ok(Self::Ordeal),
-            "Reward" => Ok(Self::Reward),
-            "TheRoadBack" => Ok(Self::TheRoadBack),
-            "Resurrection" => Ok(Self::Resurrection),
-            "ReturnWithElixir" => Ok(Self::ReturnWithElixir),
-            _ => Err(()),
-        }
+        Ok(match s {
+            "OrdinaryWorld" => Self::OrdinaryWorld,
+            "CallToAdventure" => Self::CallToAdventure,
+            "RefusalOfTheCall" => Self::RefusalOfTheCall,
+            "MeetingTheMentor" => Self::MeetingTheMentor,
+            "CrossingTheThreshold" => Self::CrossingTheThreshold,
+            "TestsAlliesEnemies" => Self::TestsAlliesEnemies,
+            "ApproachToInnermostCave" => Self::ApproachToInnermostCave,
+            "Ordeal" => Self::Ordeal,
+            "Reward" => Self::Reward,
+            "TheRoadBack" => Self::TheRoadBack,
+            "Resurrection" => Self::Resurrection,
+            "ReturnWithElixir" => Self::ReturnWithElixir,
+            _ => Self::Unknown,
+        })
     }
 }

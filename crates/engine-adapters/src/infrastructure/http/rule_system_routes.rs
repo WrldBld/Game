@@ -99,7 +99,7 @@ pub async fn get_rule_system(
             "Fiction-first systems where outcomes are described rather than strictly calculated. Dice inform the narrative.",
             "Varies by game",
         ),
-        RuleSystemType::Custom => (
+        RuleSystemType::Custom | RuleSystemType::Unknown => (
             "Custom System",
             "Define your own dice mechanics, stats, and success conditions.",
             "Custom",
