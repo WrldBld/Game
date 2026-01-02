@@ -34,7 +34,7 @@ pub async fn broadcast_to_world_sessions(
     message: ServerMessage,
 ) {
     world_connection_manager
-        .broadcast_to_world(*world_id.as_uuid(), message)
+        .broadcast_to_world(world_id, message)
         .await;
 }
 

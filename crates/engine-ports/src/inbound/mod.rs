@@ -18,7 +18,6 @@ pub mod settings_use_case_port;
 pub mod staging_use_case_port;
 pub mod use_case_context;
 pub mod use_case_ports;
-pub mod use_cases;
 pub mod workflow_use_case_port;
 pub mod world_use_case_port;
 
@@ -43,7 +42,7 @@ pub use observation_use_case_port::ObservationUseCasePort;
 #[cfg(any(test, feature = "testing"))]
 pub use player_action_use_case_port::MockPlayerActionUseCasePort;
 pub use player_action_use_case_port::PlayerActionUseCasePort;
-pub use request_handler::{RequestContext, RequestHandler};
+pub use request_handler::{RequestContext, RequestHandlerPort};
 #[cfg(any(test, feature = "testing"))]
 pub use scene_use_case_port::MockSceneUseCasePort;
 pub use scene_use_case_port::SceneUseCasePort;

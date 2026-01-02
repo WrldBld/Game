@@ -40,8 +40,8 @@ pub use game_time::{GameTime, TimeOfDay};
 
 // Re-export ID types
 pub use ids::{
-    ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, EventChainId, EventId, GoalId,
-    GridMapId, InteractionId, ItemId, LocationId, NarrativeEventId, ParticipantId,
+    ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, EventChainId,
+    EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, NarrativeEventId, ParticipantId,
     PlayerCharacterId, QueueItemId, RegionId, RelationshipId, SceneId, SkillId, StagingId,
     StoryEventId, UserId, WantId, WorkflowConfigId, WorkflowId, WorldId,
 };

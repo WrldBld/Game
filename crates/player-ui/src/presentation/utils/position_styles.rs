@@ -18,7 +18,9 @@ impl CharacterPositionStyle for CharacterPosition {
             CharacterPosition::Left => "left-[10%]",
             CharacterPosition::Center => "left-1/2 -translate-x-1/2",
             CharacterPosition::Right => "right-[10%]",
-            CharacterPosition::OffScreen => "hidden",
+            // Both OffScreen and Unknown variants are hidden
+            // Unknown handles forward compatibility when protocol adds new positions
+            CharacterPosition::OffScreen | CharacterPosition::Unknown => "hidden",
         }
     }
 }

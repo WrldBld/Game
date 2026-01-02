@@ -54,7 +54,7 @@ Following a comprehensive code review by 8 review agents and 5 validation agents
 
 ---
 
-## Phase 3: Use Case Inbound Port Fix (COMPLETED)
+## Phase 3: Use Case Inbound Port Fix (1 hour)
 
 ### 3.1 Problem
 
@@ -62,37 +62,36 @@ Following a comprehensive code review by 8 review agents and 5 validation agents
 > "Use cases MUST depend only on outbound ports, never on inbound ports."
 > — hexagonal-architecture.md:543
 
-### 3.2 Solution (Implemented)
+### 3.2 Solution
 
-1. **Created outbound port** `MovementOperationsPort` in `crates/engine-ports/src/outbound/movement_operations_port.rs`:
-   - Trait with `move_to_region()` and `exit_to_location()` methods
-   - Takes `UseCaseContext` by value (matching existing signatures)
-   - Uses existing types from `use_case_types.rs`
-   - Includes `#[automock]` for testing
+1. **Create outbound port** `MovementOperationsPort` in `crates/engine-ports/src/outbound/movement_operations_port.rs`:
+   ```rust
+   #[async_trait]
+   pub trait MovementOperationsPort: Send + Sync {
+       async fn move_to_region(&self, ctx: &UseCaseContext, input: MoveToRegionInput) -> Result<MovementResult, MovementError>;
+       async fn exit_to_location(&self, ctx: &UseCaseContext, input: ExitToLocationInput) -> Result<MovementResult, MovementError>;
+   }
+   ```
 
-2. **Implemented on MovementUseCase** in `crates/engine-app/src/application/use_cases/movement.rs`:
-   - Added `impl MovementOperationsPort for MovementUseCase` block
-   - Delegates to existing `MovementUseCasePort` methods
+2. **Implement on MovementUseCase** in `crates/engine-app/src/application/use_cases/movement.rs`
 
-3. **Updated PlayerActionUseCase** in `crates/engine-app/src/application/use_cases/player_action.rs`:
-   - Changed import from `MovementUseCasePort` to `MovementOperationsPort`
-   - Changed field type to `Arc<dyn MovementOperationsPort>`
-   - Updated constructor parameter
+3. **Update PlayerActionUseCase** to depend on `Arc<dyn MovementOperationsPort>`
 
-4. **Wiring**: No changes needed - `Arc<MovementUseCase>` coerces to `Arc<dyn MovementOperationsPort>` automatically
+4. **Update wiring** in `engine-runner`
 
 ---
 
-## Phase 4: Documentation (COMPLETED)
+## Phase 4: Documentation (15 minutes)
 
-### 4.1 Known Tech Debt (Documented)
+### 4.1 Known Tech Debt to Document
 
-| Item | Description | Future Action | Severity |
-|------|-------------|---------------|----------|
-| Duplicate `MockGameConnectionPort` | Two copies: player-ports and player-adapters | Create `player-testing` crate or use conditional compilation | Low |
-| ~~39 `*_port.rs` files in `engine-app/services/internal/`~~ | ~~Confusing naming~~ | **FIXED** - Renamed to `*_service.rs` | ~~Low~~ |
-| `{:?}` formatting for Neo4j storage | 15+ locations use Debug formatting for enum storage | Implement Display traits before production | Medium |
-| `engine-dto` imports in `queue_use_case_port.rs` | Ports importing from engine-dto | Analyze proper DTO placement | Low |
+Add to `AGENTS.md` or create tech debt tracking:
+
+| Item | Description | Future Action |
+|------|-------------|---------------|
+| 39 `*_port.rs` files in `engine-app/services/internal/` | Confusing naming (these are internal service traits, not ports) | Rename to `*_service.rs` in dedicated refactor |
+| `{:?}` formatting for Neo4j storage | 15+ locations use Debug formatting for enum storage | Implement Display traits before production |
+| `engine-dto` imports in `queue_use_case_port.rs` | Ports importing from engine-dto | Analyze proper DTO placement |
 
 ---
 
@@ -102,7 +101,7 @@ Following a comprehensive code review by 8 review agents and 5 validation agents
 |---|-------|--------|
 | 6 | engine-dto imports in ports | Needs deeper analysis |
 | 7 | Debug formatting for DB | No production data yet |
-| ~~10~~ | ~~Naming conventions (39 files)~~ | **FIXED** - See Phase 5 below |
+| 10 | Naming conventions (39 files) | High churn, low immediate value |
 
 ---
 
@@ -120,46 +119,11 @@ cargo test --workspace      # Must pass
 
 ## Success Criteria
 
-- [x] No orphan `mod.rs` file in player-ports (Phase 1.1 - DELETED)
-- [x] No default implementations in port traits (Phase 1.2 - FIXED)
-- [x] No duplicate mock implementations across crates (Phase 1.3 - DOCUMENTED AS TECH DEBT, cannot remove due to dependency direction)
-- [x] No concrete types in handlers (all trait objects) (Phase 1.4 - FIXED)
-- [x] No `panic!()` in production code paths (Phase 2 - FALSE POSITIVE, all panics in tests)
-- [x] PlayerActionUseCase depends only on outbound ports (Phase 3 - FIXED with MovementOperationsPort)
-- [x] All changes documented (Phase 4 - THIS DOCUMENT)
-- [x] `cargo xtask arch-check` passes (verified)
-- [x] Internal service traits use correct naming (Phase 5 - FIXED, renamed 39 files)
-
----
-
-## Phase 5: Naming Convention Fix (COMPLETED)
-
-### 5.1 Problem
-
-39 files in `crates/engine-app/src/application/services/internal/` were named `*_service_port.rs` but these are internal application service traits, NOT ports. Per `AGENTS.md`, the `*Port` suffix should only be used for traits in the ports layer.
-
-### 5.2 Solution (Implemented)
-
-1. Renamed all 39 files from `*_service_port.rs` to `*_service.rs` using `git mv`
-2. Updated `mod.rs` module declarations (39 mod statements)
-3. Updated `mod.rs` re-exports (~78 pub use statements)
-
-Note: The trait names (e.g., `SheetTemplateServicePort`) were NOT renamed - only the file names. This is intentional to minimize churn; the trait suffix can be addressed in a future refactor if needed.
-
----
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `crates/player-ports/src/mod.rs` | DELETED |
-| `crates/engine-ports/src/outbound/repository_port.rs` | Removed default impl from `has_observed()` |
-| `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs` | Added `has_observed()` implementation |
-| `crates/engine-app/src/application/handlers/request_handler.rs` | Changed `Arc<SheetTemplateService>` to `Arc<dyn SheetTemplateServicePort>` |
-| `crates/engine-app/src/application/handlers/world_handler.rs` | Changed parameter to trait object |
-| `crates/engine-ports/src/outbound/movement_operations_port.rs` | NEW FILE - outbound port for movement operations |
-| `crates/engine-ports/src/outbound/mod.rs` | Added module export |
-| `crates/engine-app/src/application/use_cases/movement.rs` | Added `MovementOperationsPort` impl |
-| `crates/engine-app/src/application/use_cases/player_action.rs` | Changed to depend on `MovementOperationsPort` |
-| `crates/engine-app/src/application/services/internal/*.rs` | Renamed 39 files from `*_service_port.rs` to `*_service.rs` |
-| `crates/engine-app/src/application/services/internal/mod.rs` | Updated module declarations and re-exports |
+- [ ] No orphan `mod.rs` file in player-ports
+- [ ] No default implementations in port traits
+- [ ] No duplicate mock implementations across crates
+- [ ] No concrete types in handlers (all trait objects)
+- [ ] No `panic!()` in production code paths
+- [ ] PlayerActionUseCase depends only on outbound ports
+- [ ] All changes documented
+- [ ] `cargo xtask arch-check` passes

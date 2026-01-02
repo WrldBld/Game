@@ -1,6 +1,6 @@
 //! Types for world connection manager ports.
 
-use uuid::Uuid;
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, WorldId};
 
 use crate::outbound::use_case_types::WorldRole;
 
@@ -9,15 +9,15 @@ use crate::outbound::use_case_types::WorldRole;
 pub enum ConnectionManagerError {
     /// The specified world was not found
     #[error("World not found: {0}")]
-    WorldNotFound(Uuid),
+    WorldNotFound(WorldId),
 
     /// The DM is not connected to the specified world
     #[error("DM not connected to world: {0}")]
-    DmNotConnected(Uuid),
+    DmNotConnected(WorldId),
 
     /// The player was not found for the given PC
     #[error("Player not found for PC: {0}")]
-    PlayerNotFound(Uuid),
+    PlayerNotFound(PlayerCharacterId),
 
     /// The user was not found
     #[error("User not found: {0}")]
@@ -49,7 +49,7 @@ pub struct ConnectedUserInfo {
     /// Role in the world
     pub role: WorldRole,
     /// Player character ID (for Player role)
-    pub pc_id: Option<Uuid>,
+    pub pc_id: Option<PlayerCharacterId>,
     /// Number of active connections
     pub connection_count: u32,
 }
@@ -76,19 +76,19 @@ pub struct ConnectionStats {
 #[derive(Debug, Clone)]
 pub struct ConnectionContext {
     /// Unique connection identifier
-    pub connection_id: Uuid,
+    pub connection_id: ConnectionId,
     /// User ID (may have multiple connections with same user_id)
     pub user_id: String,
     /// Display name (if known)
     pub username: Option<String>,
     /// World this connection is joined to (None if not in a world)
-    pub world_id: Option<Uuid>,
+    pub world_id: Option<WorldId>,
     /// Role in the world (None if not in a world)
     pub role: Option<WorldRole>,
     /// Player character ID (for Player role)
-    pub pc_id: Option<Uuid>,
+    pub pc_id: Option<PlayerCharacterId>,
     /// Spectate target PC (for Spectator role)
-    pub spectate_pc_id: Option<Uuid>,
+    pub spectate_pc_id: Option<PlayerCharacterId>,
 }
 
 impl ConnectionContext {

@@ -8,7 +8,7 @@ The source of truth is:
 
 The single source-of-truth refactor plan to reach that target is:
 
-- `docs/plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
+- `docs/plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md`
 
 This file (`AGENTS.md`) is a practical, high-signal summary for agents.
 

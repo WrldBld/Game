@@ -1,10 +1,9 @@
 //! Query operations for connection state.
 
 use async_trait::async_trait;
-use uuid::Uuid;
+use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 use crate::outbound::use_case_types::WorldRole;
-use wrldbldr_domain::WorldId;
 
 use super::{ConnectedUserInfo, ConnectionStats, DmInfo};
 
@@ -38,15 +37,15 @@ pub trait ConnectionQueryPort: Send + Sync {
     /// Find which user is playing a specific PC
     ///
     /// Returns the user ID if a player is controlling the PC.
-    async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &Uuid) -> Option<String>;
+    async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &PlayerCharacterId) -> Option<String>;
 
     /// Get all PCs in a world with their controlling users
     ///
     /// Returns a list of (pc_id, user_id) pairs.
-    async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(Uuid, String)>;
+    async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(PlayerCharacterId, String)>;
 
     /// Get all world IDs that have active connections
-    async fn get_all_world_ids(&self) -> Vec<Uuid>;
+    async fn get_all_world_ids(&self) -> Vec<WorldId>;
 
     /// Get connection statistics
     async fn stats(&self) -> ConnectionStats;

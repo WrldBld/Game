@@ -1,7 +1,7 @@
 //! Unicast messaging operations.
 
 use async_trait::async_trait;
-use uuid::Uuid;
+use wrldbldr_domain::WorldId;
 
 use super::ConnectionManagerError;
 
@@ -17,7 +17,7 @@ pub trait ConnectionUnicastPort: Send + Sync {
     /// Send a serialized message to a specific user in a world.
     async fn send_to_user_in_world(
         &self,
-        world_id: Uuid,
+        world_id: WorldId,
         user_id: &str,
         message: serde_json::Value,
     ) -> Result<(), ConnectionManagerError>;

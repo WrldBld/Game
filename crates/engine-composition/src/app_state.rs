@@ -80,7 +80,7 @@ use wrldbldr_engine_ports::inbound::{
     ConnectionUseCasePort, DmApprovalQueueUseCasePort, GenerationQueueProjectionUseCasePort,
     GenerationUseCasePort, InventoryUseCasePort, LlmQueueUseCasePort, MovementUseCasePort,
     NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionQueueUseCasePort,
-    PlayerActionUseCasePort, PromptTemplateUseCasePort, RequestHandler, SceneUseCasePort,
+    PlayerActionUseCasePort, PromptTemplateUseCasePort, RequestHandlerPort, SceneUseCasePort,
     SettingsUseCasePort, StagingUseCasePort, WorkflowUseCasePort, WorldUseCasePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
@@ -425,7 +425,7 @@ pub struct AppState {
     ///
     /// Routes incoming Request payloads to appropriate services and returns
     /// Response payloads. This is the main entry point for WebSocket messages.
-    pub request_handler: Arc<dyn RequestHandler>,
+    pub request_handler: Arc<dyn RequestHandlerPort>,
 
     /// Directorial context repository for DM notes persistence.
     ///
@@ -518,7 +518,7 @@ impl AppState {
     ///     world_scene,
     ///     world_directorial,
     ///     world_lifecycle,
-    ///     Arc::new(request_handler) as Arc<dyn RequestHandler>,
+    ///     Arc::new(request_handler) as Arc<dyn RequestHandlerPort>,
     ///     Arc::new(directorial_context_repo) as Arc<dyn DirectorialContextRepositoryPort>,
     ///     use_cases,
     ///     Arc::new(prompt_context_service) as Arc<dyn PromptContextServicePort>,
@@ -550,7 +550,7 @@ impl AppState {
         world_scene: Arc<dyn WorldScenePort>,
         world_directorial: Arc<dyn WorldDirectorialPort>,
         world_lifecycle: Arc<dyn WorldLifecyclePort>,
-        request_handler: Arc<dyn RequestHandler>,
+        request_handler: Arc<dyn RequestHandlerPort>,
         directorial_context_repo: Arc<dyn DirectorialContextRepositoryPort>,
         use_cases: UseCases,
         prompt_context_service: Arc<dyn PromptContextServicePort>,
@@ -729,7 +729,7 @@ impl AppStatePort for AppState {
     }
 
     // Request Handling
-    fn request_handler(&self) -> Arc<dyn RequestHandler> {
+    fn request_handler(&self) -> Arc<dyn RequestHandlerPort> {
         self.request_handler.clone()
     }
 
@@ -793,7 +793,7 @@ impl std::fmt::Debug for AppState {
             .field("world_scene", &"Arc<dyn WorldScenePort>")
             .field("world_directorial", &"Arc<dyn WorldDirectorialPort>")
             .field("world_lifecycle", &"Arc<dyn WorldLifecyclePort>")
-            .field("request_handler", &"Arc<dyn RequestHandler>")
+            .field("request_handler", &"Arc<dyn RequestHandlerPort>")
             .field(
                 "directorial_context_repo",
                 &"Arc<dyn DirectorialContextRepositoryPort>",

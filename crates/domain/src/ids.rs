@@ -69,6 +69,9 @@ define_id!(GoalId);
 // Relationship IDs
 define_id!(RelationshipId);
 
+// Connection IDs
+define_id!(ConnectionId);
+
 // Skill and challenge IDs
 define_id!(SkillId);
 define_id!(ChallengeId);

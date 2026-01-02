@@ -1,7 +1,7 @@
 //! Connection lifecycle operations.
 
 use async_trait::async_trait;
-use uuid::Uuid;
+use wrldbldr_domain::ConnectionId;
 
 /// Connection lifecycle management.
 ///
@@ -12,5 +12,5 @@ pub trait ConnectionLifecyclePort: Send + Sync {
     /// Unregister a connection when it disconnects
     ///
     /// This cleans up connection state and notifies other users in the world.
-    async fn unregister_connection(&self, connection_id: Uuid);
+    async fn unregister_connection(&self, connection_id: ConnectionId);
 }

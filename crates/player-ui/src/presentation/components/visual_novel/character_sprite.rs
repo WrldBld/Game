@@ -24,8 +24,11 @@ pub struct CharacterSpriteProps {
 /// Characters who are speaking are highlighted with brightness and scale.
 #[component]
 pub fn CharacterSprite(props: CharacterSpriteProps) -> Element {
-    // Don't render off-screen characters
-    if props.character.position == CharacterPosition::OffScreen {
+    // Don't render off-screen or unknown position characters
+    if matches!(
+        props.character.position,
+        CharacterPosition::OffScreen | CharacterPosition::Unknown
+    ) {
         return rsx! {};
     }
 
@@ -33,7 +36,8 @@ pub fn CharacterSprite(props: CharacterSpriteProps) -> Element {
         CharacterPosition::Left => "sprite-left",
         CharacterPosition::Center => "sprite-center",
         CharacterPosition::Right => "sprite-right",
-        CharacterPosition::OffScreen => return rsx! {},
+        // OffScreen and Unknown are already handled above, but match must be exhaustive
+        CharacterPosition::OffScreen | CharacterPosition::Unknown => return rsx! {},
     };
 
     // Speaking characters get highlighted

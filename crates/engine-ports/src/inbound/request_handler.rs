@@ -1,7 +1,7 @@
 //! Request Handler - Inbound port for WebSocket request/response pattern
 //!
 //! This module defines the trait for handling WebSocket requests in a type-safe,
-//! async manner. The `RequestHandler` trait is the primary inbound port for the
+//! async manner. The `RequestHandlerPort` trait is the primary inbound port for the
 //! WebSocket-first architecture.
 //!
 //! # Architecture
@@ -18,7 +18,7 @@
 //!             |
 //!             v
 //! ┌───────────────────────┐
-//! │  RequestHandler trait │  (inbound port - engine-ports)
+//! │  RequestHandlerPort   │  (inbound port - engine-ports)
 //! │  .handle(payload,ctx) │  <-- YOU ARE HERE
 //! └───────────┬───────────┘
 //!             |
@@ -55,7 +55,7 @@ pub use wrldbldr_engine_dto::request_context::RequestContext;
 ///
 /// ```ignore
 /// use async_trait::async_trait;
-/// use wrldbldr_engine_ports::inbound::{RequestHandler, RequestContext};
+/// use wrldbldr_engine_ports::inbound::{RequestHandlerPort, RequestContext};
 /// use wrldbldr_protocol::{RequestPayload, ResponseResult};
 ///
 /// struct AppRequestHandler {
@@ -63,7 +63,7 @@ pub use wrldbldr_engine_dto::request_context::RequestContext;
 /// }
 ///
 /// #[async_trait]
-/// impl RequestHandler for AppRequestHandler {
+/// impl RequestHandlerPort for AppRequestHandler {
 ///     async fn handle(
 ///         &self,
 ///         payload: RequestPayload,
@@ -81,7 +81,7 @@ pub use wrldbldr_engine_dto::request_context::RequestContext;
 /// }
 /// ```
 #[async_trait]
-pub trait RequestHandler: Send + Sync {
+pub trait RequestHandlerPort: Send + Sync {
     /// Handle a request and return a response
     ///
     /// # Arguments

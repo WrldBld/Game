@@ -35,7 +35,7 @@ use wrldbldr_engine_composition::{
     GameServices, LlmPortDyn, LlmSuggestionQueueAdapter, PlayerServices, QueueServices,
 };
 
-use wrldbldr_engine_ports::inbound::RequestHandler;
+use wrldbldr_engine_ports::inbound::RequestHandlerPort;
 // Internal service traits (NOT ports - internal app-layer contracts)
 use wrldbldr_engine_app::application::services::internal::{
     ActantialContextServicePort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
@@ -651,7 +651,7 @@ pub async fn new_app_state(
     let character_crud_for_use_cases = character_crud.clone();
     let observation_repo_for_use_cases = observation_repo_for_handler.clone();
 
-    let request_handler: Arc<dyn RequestHandler> = Arc::new(AppRequestHandler::new(
+    let request_handler: Arc<dyn RequestHandlerPort> = Arc::new(AppRequestHandler::new(
         world_service.clone(),
         character_service.clone(),
         location_service.clone(),

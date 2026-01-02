@@ -85,9 +85,9 @@ impl WebSocketEventSubscriber {
                 let target_world = event.world_id();
 
                 if let Some(world_id) = target_world {
-                    // Route to specific world (convert WorldId to Uuid)
+                    // Route to specific world
                     self.world_connection_manager
-                        .broadcast_to_world(*world_id.as_uuid(), message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 } else {
                     // No world_id: broadcast to all connected worlds

@@ -1,7 +1,7 @@
 //! Connection context resolution operations.
 
 use async_trait::async_trait;
-use uuid::Uuid;
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, WorldId};
 
 use super::ConnectionContext;
 
@@ -22,7 +22,7 @@ pub trait ConnectionContextPort: Send + Sync {
     async fn is_dm_by_client_id(&self, client_id: &str) -> bool;
 
     /// Get world ID by client ID
-    async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+    async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<WorldId>;
 
     /// Check if a connection is a spectator
     async fn is_spectator_by_client_id(&self, client_id: &str) -> bool;
@@ -31,7 +31,7 @@ pub trait ConnectionContextPort: Send + Sync {
     ///
     /// Returns all connection state needed by handlers to build RequestContext.
     /// This is the primary method for WebSocket handlers to get connection info.
-    async fn get_connection_context(&self, connection_id: Uuid) -> Option<ConnectionContext>;
+    async fn get_connection_context(&self, connection_id: ConnectionId) -> Option<ConnectionContext>;
 
     /// Get full connection context by client ID string
     ///
@@ -39,5 +39,5 @@ pub trait ConnectionContextPort: Send + Sync {
     async fn get_connection_by_client_id(&self, client_id: &str) -> Option<ConnectionContext>;
 
     /// Get PC ID for a connection (if Player role)
-    async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+    async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<PlayerCharacterId>;
 }

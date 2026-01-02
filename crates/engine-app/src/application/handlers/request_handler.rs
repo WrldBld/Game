@@ -1,12 +1,12 @@
 //! Application Request Handler - Routes WebSocket requests to domain handlers
 //!
-//! This module implements the `RequestHandler` trait from `engine-ports`,
+//! This module implements the `RequestHandlerPort` trait from `engine-ports`,
 //! routing incoming `RequestPayload` messages to domain-specific handlers.
 //!
 //! # Architecture
 //!
 //! The handler follows hexagonal architecture:
-//! - Inbound: `RequestHandler` trait (from engine-ports)
+//! - Inbound: `RequestHandlerPort` trait (from engine-ports)
 //! - Outbound: Repository ports, services
 //! - Application: This handler orchestrates between them
 //!
@@ -26,7 +26,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandler};
+use wrldbldr_engine_ports::inbound::{RequestContext, RequestHandlerPort};
 use crate::application::services::internal::GenerationQueueProjectionServicePort;
 use wrldbldr_engine_ports::outbound::{
     CharacterLocationPort, ClockPort, GenerationReadStatePort, ObservationRepositoryPort,
@@ -152,7 +152,7 @@ impl AppRequestHandler {
 }
 
 #[async_trait]
-impl RequestHandler for AppRequestHandler {
+impl RequestHandlerPort for AppRequestHandler {
     async fn handle(&self, payload: RequestPayload, ctx: RequestContext) -> ResponseResult {
         // Log the request for debugging
         tracing::debug!(

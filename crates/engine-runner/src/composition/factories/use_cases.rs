@@ -52,7 +52,7 @@ use wrldbldr_engine_composition::{DmActionEnqueueAdapter, UseCases};
 
 use wrldbldr_engine_ports::inbound::{
     ChallengeUseCasePort, ConnectionUseCasePort, InventoryUseCasePort, MovementUseCasePort,
-    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandler,
+    NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandlerPort,
     SceneUseCasePort, StagingUseCasePort,
 };
 // Internal service traits (NOT ports - internal app-layer contracts)
@@ -99,7 +99,7 @@ pub struct UseCaseContext {
     pub broadcast: Arc<dyn BroadcastPort>,
 
     /// Request handler for request/response CRUD operations
-    pub request_handler: Arc<dyn RequestHandler>,
+    pub request_handler: Arc<dyn RequestHandlerPort>,
 }
 
 /// Dependencies required for creating use cases.
@@ -199,7 +199,7 @@ pub struct UseCaseDependencies {
     // Request Handler
     // =========================================================================
     /// App request handler for CRUD operations
-    pub request_handler: Arc<dyn RequestHandler>,
+    pub request_handler: Arc<dyn RequestHandlerPort>,
 }
 
 /// Creates all use cases and returns a `UseCaseContext` containing:

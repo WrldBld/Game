@@ -19,7 +19,7 @@ use tracing::{debug, info, warn};
 
 use async_trait::async_trait;
 use uuid::Uuid;
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::ConnectionId;
 use wrldbldr_engine_ports::inbound::ConnectionUseCasePort;
 use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent};
 
@@ -154,7 +154,7 @@ impl ConnectionUseCase {
         // Validate join request using policy (business rules)
         let current_dm_user_id = self
             .connection_manager
-            .get_dm_user_id(*input.world_id.as_uuid())
+            .get_dm_user_id(input.world_id)
             .await;
 
         let validation = self.session_policy.validate_join(
@@ -175,20 +175,21 @@ impl ConnectionUseCase {
             return Err(ConnectionError::from(err));
         }
 
-        // Register connection
+        // Register connection (convert Uuid to ConnectionId at boundary)
+        let conn_id = ConnectionId::from_uuid(connection_id);
         self.connection_manager
-            .register_connection(connection_id, connection_id.to_string(), user_id.clone())
+            .register_connection(conn_id, connection_id.to_string(), user_id.clone())
             .await;
 
         // Join the world (validation already done, this is just state management)
         let connected_users = self
             .connection_manager
             .join_world(
-                connection_id,
-                *input.world_id.as_uuid(),
+                conn_id,
+                input.world_id,
                 input.role,
-                input.pc_id.map(|id| *id.as_uuid()),
-                input.spectate_pc_id.map(|id| *id.as_uuid()),
+                input.pc_id,
+                input.spectate_pc_id,
             )
             .await
             .map_err(ConnectionError::ConnectionFailed)?;
@@ -240,11 +241,11 @@ impl ConnectionUseCase {
 
         let world_connections = self
             .connection_manager
-            .get_world_connections(*input.world_id.as_uuid())
+            .get_world_connections(input.world_id)
             .await;
 
         for other_conn_id in world_connections {
-            if other_conn_id != connection_id {
+            if other_conn_id != conn_id {
                 self.connection_manager
                     .send_to_connection(other_conn_id, user_joined.clone())
                     .await;
@@ -273,16 +274,18 @@ impl ConnectionUseCase {
     ) -> Result<LeaveWorldResult, ConnectionError> {
         info!(connection_id = %connection_id, "User leaving world");
 
+        let conn_id = ConnectionId::from_uuid(connection_id);
+
         // Get connection info before leaving
-        let conn_info = self.connection_manager.get_connection(connection_id).await;
+        let conn_info = self.connection_manager.get_connection(conn_id).await;
 
         // Leave the world
-        if let Some((world_id, _role)) = self.connection_manager.leave_world(connection_id).await {
+        if let Some((world_id, _role)) = self.connection_manager.leave_world(conn_id).await {
             // Broadcast UserLeft to remaining users
             if let Some(info) = conn_info {
                 self.broadcast
                     .broadcast(
-                        WorldId::from_uuid(world_id),
+                        world_id,
                         GameEvent::PlayerLeft {
                             user_id: info.user_id,
                         },
@@ -307,10 +310,12 @@ impl ConnectionUseCase {
             "Setting spectate target"
         );
 
+        let conn_id = ConnectionId::from_uuid(connection_id);
+
         // Verify connection is a spectator
         let conn_info = self
             .connection_manager
-            .get_connection(connection_id)
+            .get_connection(conn_id)
             .await
             .ok_or(ConnectionError::NotConnected)?;
 
@@ -330,7 +335,7 @@ impl ConnectionUseCase {
 
         // Set spectate target
         self.connection_manager
-            .set_spectate_target(connection_id, Some(*input.pc_id.as_uuid()))
+            .set_spectate_target(conn_id, Some(input.pc_id))
             .await;
 
         info!(
@@ -389,7 +394,7 @@ mod tests {
     #[test]
     fn test_connection_info_is_spectator() {
         let spectator = ConnectionInfo {
-            connection_id: uuid::Uuid::new_v4(),
+            connection_id: wrldbldr_domain::ConnectionId::new(),
             client_id: "test".to_string(),
             user_id: "user".to_string(),
             world_id: None,
@@ -399,7 +404,7 @@ mod tests {
         };
 
         let player = ConnectionInfo {
-            connection_id: uuid::Uuid::new_v4(),
+            connection_id: wrldbldr_domain::ConnectionId::new(),
             client_id: "test".to_string(),
             user_id: "user".to_string(),
             world_id: None,

@@ -17,219 +17,84 @@
 //! This enum groups the ~65 ServerMessage variants into logical categories,
 //! providing a cleaner API for the application layer. The Raw variant acts
 //! as a catch-all for messages that don't need specific handling.
+//!
+//! # Type Consolidation (Phase 3 Remediation)
+//!
+//! Types are consolidated with protocol crate to eliminate duplication:
+//!
+//! ## Re-exported from protocol (exact field matches):
+//! SceneData, CharacterData, CharacterPosition, GameTime, InteractionData,
+//! DialogueChoice, RegionData, NpcPresenceData, NavigationData, NavigationTarget,
+//! NavigationExit, RegionItemData, SplitPartyLocation, OutcomeDetailData,
+//! OutcomeBranchData, StagedNpcInfo, PreviousStagingInfo, WaitingPcInfo,
+//! NpcPresentInfo, NpcDispositionData, GoalData
+//!
+//! ## Intentionally different from protocol (String vs typed enums for UI binding):
+//! - WorldRole: player-ports uses String wrapper; protocol uses typed enum
+//! - JoinError: player-ports uses simple struct; protocol uses rich enum
+//! - ResponseResult: player-ports uses flat struct; protocol uses tagged enum
+//! - ConnectedUser: Different role field type (String vs WorldRole enum)
+//! - WantData: String fields for visibility; protocol uses typed enums
+//! - WantTargetData: String fields for target_type; protocol uses typed enums
+//! - ActantialViewData: String fields for target_type/role; protocol uses typed enums
+//! - EntityChangedData: String fields for entity_type/change_type; protocol uses typed enums
+//! - PlayerEvent: Main event enum - must stay in player-ports (defines app contract)
 
 use serde_json;
 use uuid::Uuid;
 
-// Re-export wire-format types from protocol (single source of truth)
+// =============================================================================
+// Re-exports from protocol (single source of truth)
+// =============================================================================
+
+// Wire-format types with exact field matches - no translation needed
 pub use wrldbldr_protocol::{
-    ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
+    // Suggestion types (already re-exported, kept for backward compatibility)
+    ChallengeSuggestionInfo,
+    ChallengeSuggestionOutcomes,
+    // Scene types
+    CharacterData,
+    CharacterPosition,
+    DialogueChoice,
+    // Time types
+    GameTime,
+    // Goal types
+    GoalData,
+    InteractionData,
+    NarrativeEventSuggestionInfo,
+    // Navigation types
+    NavigationData,
+    NavigationExit,
+    NavigationTarget,
+    // Disposition types
+    NpcDispositionData,
+    NpcPresenceData,
+    // Staging types
+    NpcPresentInfo,
+    // Challenge/Outcome types
+    OutcomeBranchData,
+    OutcomeDetailData,
+    PreviousStagingInfo,
     ProposedToolInfo,
+    RegionData,
+    RegionItemData,
+    SceneData,
+    // Split party
+    SplitPartyLocation,
+    StagedNpcInfo,
+    WaitingPcInfo,
 };
 
-// ============================================================================
-// Supporting Types
-// ============================================================================
-
-/// Scene data for display
-#[derive(Debug, Clone, PartialEq)]
-pub struct SceneData {
-    pub id: String,
-    pub name: String,
-    pub location_id: String,
-    pub location_name: String,
-    pub backdrop_asset: Option<String>,
-    pub time_context: String,
-    pub directorial_notes: String,
-}
-
-/// Character data for display
-#[derive(Debug, Clone, PartialEq)]
-pub struct CharacterData {
-    pub id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub position: CharacterPosition,
-    pub is_speaking: bool,
-    pub emotion: Option<String>,
-}
-
-/// Character position on screen
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CharacterPosition {
-    Left,
-    Center,
-    Right,
-    OffScreen,
-}
-
-/// Available interaction
-#[derive(Debug, Clone, PartialEq)]
-pub struct InteractionData {
-    pub id: String,
-    pub name: String,
-    pub interaction_type: String,
-    pub target_name: Option<String>,
-    pub is_available: bool,
-}
-
-/// Dialogue choice for player
-#[derive(Debug, Clone, PartialEq)]
-pub struct DialogueChoice {
-    pub id: String,
-    pub text: String,
-    pub is_custom_input: bool,
-}
-
-/// Region data for scene display
-#[derive(Debug, Clone, PartialEq)]
-pub struct RegionData {
-    pub id: String,
-    pub name: String,
-    pub location_id: String,
-    pub location_name: String,
-    pub backdrop_asset: Option<String>,
-    pub atmosphere: Option<String>,
-    pub map_asset: Option<String>,
-}
-
-/// NPC presence data for scene display
-#[derive(Debug, Clone, PartialEq)]
-pub struct NpcPresenceData {
-    pub character_id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-}
-
-/// Navigation options from current region
-#[derive(Debug, Clone, PartialEq)]
-pub struct NavigationData {
-    pub connected_regions: Vec<NavigationTarget>,
-    pub exits: Vec<NavigationExit>,
-}
-
-/// A navigation target (region within same location)
-#[derive(Debug, Clone, PartialEq)]
-pub struct NavigationTarget {
-    pub region_id: String,
-    pub name: String,
-    pub is_locked: bool,
-    pub lock_description: Option<String>,
-}
-
-/// An exit to another location
-#[derive(Debug, Clone, PartialEq)]
-pub struct NavigationExit {
-    pub location_id: String,
-    pub location_name: String,
-    pub arrival_region_id: String,
-    pub description: Option<String>,
-}
-
-/// Item data for region display
-#[derive(Debug, Clone, PartialEq)]
-pub struct RegionItemData {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub item_type: Option<String>,
-}
-
-/// Location info for split party notification
-#[derive(Debug, Clone, PartialEq)]
-pub struct SplitPartyLocation {
-    pub location_id: String,
-    pub location_name: String,
-    pub pc_count: usize,
-    pub pc_names: Vec<String>,
-}
-
-// NOTE: ProposedToolInfo, ChallengeSuggestionInfo, ChallengeSuggestionOutcomes,
-// and NarrativeEventSuggestionInfo are re-exported from wrldbldr_protocol
-// at the top of this file. Protocol is the single source of truth.
-
-/// Outcome detail data
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutcomeDetailData {
-    pub flavor_text: String,
-    pub scene_direction: String,
-    pub proposed_tools: Vec<ProposedToolInfo>,
-}
-
-/// Outcome branch data for DM selection
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutcomeBranchData {
-    pub id: String,
-    pub title: String,
-    pub description: String,
-    pub effects: Vec<String>,
-}
-
-/// Staged NPC info for approval UI
-#[derive(Debug, Clone, PartialEq)]
-pub struct StagedNpcInfo {
-    pub character_id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub is_present: bool,
-    pub reasoning: String,
-    pub is_hidden_from_players: bool,
-}
-
-/// Previous staging info for reference
-#[derive(Debug, Clone, PartialEq)]
-pub struct PreviousStagingInfo {
-    pub staging_id: String,
-    pub approved_at: String,
-    pub npcs: Vec<StagedNpcInfo>,
-}
-
-/// PC waiting for staging info
-#[derive(Debug, Clone, PartialEq)]
-pub struct WaitingPcInfo {
-    pub pc_id: String,
-    pub pc_name: String,
-    pub player_id: String,
-}
-
-/// NPC present info (simplified for players)
-#[derive(Debug, Clone, PartialEq)]
-pub struct NpcPresentInfo {
-    pub character_id: String,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub is_hidden_from_players: bool,
-}
-
-/// Game time representation
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct GameTime {
-    /// Day number (ordinal-style, 1-based)
-    pub day: u32,
-    /// Hour (0-23)
-    pub hour: u8,
-    /// Minute (0-59)
-    pub minute: u8,
-    /// Whether time is paused
-    pub is_paused: bool,
-}
-
-/// NPC disposition data
-#[derive(Debug, Clone, PartialEq)]
-pub struct NpcDispositionData {
-    pub npc_id: String,
-    pub npc_name: String,
-    pub disposition: String,
-    pub relationship: String,
-    pub sentiment: f32,
-    pub last_reason: Option<String>,
-}
+// =============================================================================
+// Types intentionally different from protocol
+// =============================================================================
+// These types use String representations instead of typed enums for UI binding
+// simplicity. The message_translator.rs converts protocol enums to these strings.
 
 /// Want data for actantial model
+///
+/// NOTE: Uses String for visibility field instead of protocol's WantVisibilityData enum.
+/// This simplifies UI binding in Dioxus components.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WantData {
     pub id: String,
@@ -243,6 +108,8 @@ pub struct WantData {
 }
 
 /// Want target data
+///
+/// NOTE: Uses String for target_type instead of protocol's WantTargetTypeData enum.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WantTargetData {
     pub id: String,
@@ -252,6 +119,8 @@ pub struct WantTargetData {
 }
 
 /// Actantial view data
+///
+/// NOTE: Uses String for target_type and role instead of protocol's typed enums.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActantialViewData {
     pub want_id: String,
@@ -262,16 +131,9 @@ pub struct ActantialViewData {
     pub reason: String,
 }
 
-/// Goal data
-#[derive(Debug, Clone, PartialEq)]
-pub struct GoalData {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub usage_count: u32,
-}
-
 /// Connected user info
+///
+/// NOTE: Uses String for role instead of protocol's WorldRole enum.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConnectedUser {
     pub user_id: String,
@@ -284,10 +146,16 @@ pub struct ConnectedUser {
 }
 
 /// World role (DM, Player, Spectator)
+///
+/// NOTE: Wraps String instead of using protocol's WorldRole enum.
+/// This allows UI to display the role directly without enum conversion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorldRole(pub String);
 
 /// Join error info
+///
+/// NOTE: Uses simple struct with code/message instead of protocol's rich enum.
+/// This provides a uniform error handling interface for UI.
 #[derive(Debug, Clone, PartialEq)]
 pub struct JoinError {
     pub code: String,
@@ -295,6 +163,8 @@ pub struct JoinError {
 }
 
 /// Entity changed data for cache invalidation
+///
+/// NOTE: Uses String for entity_type and change_type instead of protocol's typed enums.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntityChangedData {
     pub entity_type: String,
@@ -305,6 +175,9 @@ pub struct EntityChangedData {
 }
 
 /// Response result from a request
+///
+/// NOTE: Uses flat struct instead of protocol's tagged enum.
+/// This provides a uniform interface for handling both success and error cases.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResponseResult {
     pub success: bool,

@@ -45,7 +45,7 @@ use crate::inbound::{
     DmApprovalQueueUseCasePort, GenerationQueueProjectionUseCasePort, GenerationUseCasePort,
     InventoryUseCasePort, LlmQueueUseCasePort, MovementUseCasePort, NarrativeEventUseCasePort,
     ObservationUseCasePort, PlayerActionQueueUseCasePort, PlayerActionUseCasePort,
-    PromptTemplateUseCasePort, RequestHandler, SceneUseCasePort, SettingsUseCasePort,
+    PromptTemplateUseCasePort, RequestHandlerPort, SceneUseCasePort, SettingsUseCasePort,
     StagingUseCasePort, WorkflowUseCasePort, WorldUseCasePort,
 };
 use crate::outbound::{
@@ -187,7 +187,7 @@ pub trait AppStatePort: Send + Sync {
     // =========================================================================
 
     /// Get the request handler for CRUD operations
-    fn request_handler(&self) -> Arc<dyn RequestHandler>;
+    fn request_handler(&self) -> Arc<dyn RequestHandlerPort>;
 
     // =========================================================================
     // World Use Cases

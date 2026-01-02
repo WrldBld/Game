@@ -19,11 +19,11 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uuid::Uuid;
 
 use wrldbldr_domain::value_objects::{EffectLevel, Position, StagingContext};
 use wrldbldr_domain::{
-    CharacterId, GameTime, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId, WorldId,
+    CharacterId, ConnectionId, GameTime, ItemId, LocationId, PlayerCharacterId, RegionId, SceneId,
+    WorldId,
 };
 
 use super::{NpcPresenceData, SceneChangedEvent, StagedNpcData, WaitingPcData};
@@ -182,13 +182,13 @@ pub struct ConnectedUser {
 /// Connection info
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
-    pub connection_id: Uuid,
+    pub connection_id: ConnectionId,
     pub client_id: String,
     pub user_id: String,
-    pub world_id: Option<Uuid>,
+    pub world_id: Option<WorldId>,
     pub role: Option<WorldRole>,
-    pub pc_id: Option<Uuid>,
-    pub spectate_pc_id: Option<Uuid>,
+    pub pc_id: Option<PlayerCharacterId>,
+    pub spectate_pc_id: Option<PlayerCharacterId>,
 }
 
 impl ConnectionInfo {
@@ -1179,7 +1179,7 @@ mod tests {
     #[test]
     fn test_connection_info_is_spectator() {
         let spectator = ConnectionInfo {
-            connection_id: Uuid::new_v4(),
+            connection_id: ConnectionId::new(),
             client_id: "test".to_string(),
             user_id: "user".to_string(),
             world_id: None,
@@ -1189,7 +1189,7 @@ mod tests {
         };
 
         let player = ConnectionInfo {
-            connection_id: Uuid::new_v4(),
+            connection_id: ConnectionId::new(),
             client_id: "test".to_string(),
             user_id: "user".to_string(),
             world_id: None,
@@ -1274,7 +1274,7 @@ mod tests {
         assert!(matches!(blocked, MovementResult::Blocked { .. }));
 
         let pending = MovementResult::StagingPending {
-            region_id: RegionId::from_uuid(Uuid::new_v4()),
+            region_id: RegionId::new(),
             region_name: "Test Region".to_string(),
         };
         assert!(matches!(pending, MovementResult::StagingPending { .. }));

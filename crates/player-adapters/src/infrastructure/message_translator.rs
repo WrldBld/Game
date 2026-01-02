@@ -8,17 +8,20 @@
 //!
 //! All 65 ServerMessage variants are explicitly handled - none fall through to Raw.
 //! The Raw variant is available for future extensibility but currently unused.
+//!
+//! # Type Consolidation (Phase 3 Remediation)
+//!
+//! Many types are now shared between protocol and player-ports via re-exports.
+//! This simplifies translation - types with exact field matches are passed through
+//! directly without conversion. Only types that intentionally differ (String vs
+//! typed enums) require translation functions.
 
 use wrldbldr_player_ports::outbound::player_events::{
-    ActantialViewData, CharacterData, CharacterPosition, ConnectedUser, DialogueChoice,
-    EntityChangedData, GameTime, GoalData, InteractionData, JoinError, NavigationData,
-    NavigationExit, NavigationTarget, NpcDispositionData, NpcPresenceData, NpcPresentInfo,
-    OutcomeBranchData, OutcomeDetailData, PlayerEvent, PreviousStagingInfo, RegionData,
-    RegionItemData, ResponseResult, SceneData, SplitPartyLocation, StagedNpcInfo, WaitingPcInfo,
+    ActantialViewData, ConnectedUser, EntityChangedData, JoinError, PlayerEvent, ResponseResult,
     WantData, WantTargetData, WorldRole,
 };
-// Note: ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
-// and ProposedToolInfo are now used directly from protocol (same types as in player-ports)
+// Note: Types like SceneData, CharacterData, GameTime, etc. are now re-exported from
+// protocol in player-ports, so no translation is needed - they're the same type.
 use wrldbldr_protocol::ServerMessage;
 
 /// Translate a ServerMessage into a PlayerEvent
@@ -74,20 +77,15 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         // =====================================================================
         // Scene & Navigation Events
         // =====================================================================
+        // These types are now shared (re-exported from protocol), so direct assignment works
         ServerMessage::SceneUpdate {
             scene,
             characters,
             interactions,
         } => PlayerEvent::SceneUpdate {
-            scene: translate_scene_data(scene),
-            characters: characters
-                .into_iter()
-                .map(translate_character_data)
-                .collect(),
-            interactions: interactions
-                .into_iter()
-                .map(translate_interaction_data)
-                .collect(),
+            scene,
+            characters,
+            interactions,
         },
 
         ServerMessage::SceneChanged {
@@ -98,16 +96,10 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_items,
         } => PlayerEvent::SceneChanged {
             pc_id,
-            region: translate_region_data(region),
-            npcs_present: npcs_present
-                .into_iter()
-                .map(translate_npc_presence_data)
-                .collect(),
-            navigation: translate_navigation_data(navigation),
-            region_items: region_items
-                .into_iter()
-                .map(translate_region_item_data)
-                .collect(),
+            region,
+            npcs_present,
+            navigation,
+            region_items,
         },
 
         ServerMessage::PcSelected {
@@ -131,10 +123,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             locations,
         } => PlayerEvent::SplitPartyNotification {
             location_count,
-            locations: locations
-                .into_iter()
-                .map(translate_split_party_location)
-                .collect(),
+            locations, // Direct assignment - same type now
         },
 
         // =====================================================================
@@ -188,7 +177,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             speaker_id,
             speaker_name,
             text,
-            choices: choices.into_iter().map(translate_dialogue_choice).collect(),
+            choices, // Direct assignment - same type now
         },
 
         ServerMessage::ResponseApproved {
@@ -320,7 +309,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::OutcomeRegenerated {
             request_id,
             outcome_type,
-            new_outcome: translate_outcome_detail_data(new_outcome),
+            new_outcome, // Direct assignment - same type now
         },
 
         ServerMessage::ChallengeDiscarded { request_id } => {
@@ -352,10 +341,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::OutcomeBranchesReady {
             resolution_id,
             outcome_type,
-            branches: branches
-                .into_iter()
-                .map(translate_outcome_branch_data)
-                .collect(),
+            branches, // Direct assignment - same type now
         },
 
         // =====================================================================
@@ -428,21 +414,12 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             region_name,
             location_id,
             location_name,
-            game_time: translate_game_time(game_time),
-            previous_staging: previous_staging.map(translate_previous_staging_info),
-            rule_based_npcs: rule_based_npcs
-                .into_iter()
-                .map(translate_staged_npc_info)
-                .collect(),
-            llm_based_npcs: llm_based_npcs
-                .into_iter()
-                .map(translate_staged_npc_info)
-                .collect(),
+            game_time,        // Direct assignment - same type now
+            previous_staging, // Direct assignment - same type now
+            rule_based_npcs,  // Direct assignment - same type now
+            llm_based_npcs,
             default_ttl_hours,
-            waiting_pcs: waiting_pcs
-                .into_iter()
-                .map(translate_waiting_pc_info)
-                .collect(),
+            waiting_pcs, // Direct assignment - same type now
         },
 
         ServerMessage::StagingPending {
@@ -458,10 +435,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             npcs_present,
         } => PlayerEvent::StagingReady {
             region_id,
-            npcs_present: npcs_present
-                .into_iter()
-                .map(translate_npc_present_info)
-                .collect(),
+            npcs_present, // Direct assignment - same type now
         },
 
         ServerMessage::StagingRegenerated {
@@ -469,10 +443,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             llm_based_npcs,
         } => PlayerEvent::StagingRegenerated {
             request_id,
-            llm_based_npcs: llm_based_npcs
-                .into_iter()
-                .map(translate_staged_npc_info)
-                .collect(),
+            llm_based_npcs, // Direct assignment - same type now
         },
 
         // =====================================================================
@@ -564,10 +535,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             dispositions,
         } => PlayerEvent::NpcDispositionsResponse {
             pc_id,
-            dispositions: dispositions
-                .into_iter()
-                .map(translate_npc_disposition_data)
-                .collect(),
+            dispositions, // Direct assignment - same type now
         },
 
         // =====================================================================
@@ -621,16 +589,16 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
 
         ServerMessage::WorldGoalsResponse { world_id, goals } => PlayerEvent::WorldGoalsResponse {
             world_id,
-            goals: goals.into_iter().map(translate_goal_data).collect(),
+            goals, // Direct assignment - same type now
         },
 
         ServerMessage::GoalCreated { world_id, goal } => PlayerEvent::GoalCreated {
             world_id,
-            goal: translate_goal_data(goal),
+            goal, // Direct assignment - same type now
         },
 
         ServerMessage::GoalUpdated { goal } => PlayerEvent::GoalUpdated {
-            goal: translate_goal_data(goal),
+            goal, // Direct assignment - same type now
         },
 
         ServerMessage::GoalDeleted { goal_id } => PlayerEvent::GoalDeleted { goal_id },
@@ -750,7 +718,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         // Time Events
         // =====================================================================
         ServerMessage::GameTimeUpdated { game_time } => PlayerEvent::GameTimeUpdated {
-            game_time: translate_game_time(game_time),
+            game_time, // Direct assignment - same type now
         },
 
         // =====================================================================
@@ -785,6 +753,8 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
 // =============================================================================
 // Helper Translation Functions
 // =============================================================================
+// Only types that intentionally differ between protocol and player-ports need
+// translation. Types with exact field matches are passed through directly.
 
 fn translate_connected_user(u: wrldbldr_protocol::responses::ConnectedUser) -> ConnectedUser {
     ConnectedUser {
@@ -793,207 +763,6 @@ fn translate_connected_user(u: wrldbldr_protocol::responses::ConnectedUser) -> C
         role: format!("{:?}", u.role),
         pc_id: u.pc_id,
         connection_count: u.connection_count,
-    }
-}
-
-fn translate_scene_data(s: wrldbldr_protocol::SceneData) -> SceneData {
-    SceneData {
-        id: s.id,
-        name: s.name,
-        location_id: s.location_id,
-        location_name: s.location_name,
-        backdrop_asset: s.backdrop_asset,
-        time_context: s.time_context,
-        directorial_notes: s.directorial_notes,
-    }
-}
-
-fn translate_character_data(c: wrldbldr_protocol::CharacterData) -> CharacterData {
-    CharacterData {
-        id: c.id,
-        name: c.name,
-        sprite_asset: c.sprite_asset,
-        portrait_asset: c.portrait_asset,
-        position: translate_character_position(c.position),
-        is_speaking: c.is_speaking,
-        emotion: c.emotion,
-    }
-}
-
-fn translate_character_position(p: wrldbldr_protocol::CharacterPosition) -> CharacterPosition {
-    match p {
-        wrldbldr_protocol::CharacterPosition::Left => CharacterPosition::Left,
-        wrldbldr_protocol::CharacterPosition::Center => CharacterPosition::Center,
-        wrldbldr_protocol::CharacterPosition::Right => CharacterPosition::Right,
-        wrldbldr_protocol::CharacterPosition::OffScreen
-        | wrldbldr_protocol::CharacterPosition::Unknown => CharacterPosition::OffScreen,
-    }
-}
-
-fn translate_interaction_data(i: wrldbldr_protocol::InteractionData) -> InteractionData {
-    InteractionData {
-        id: i.id,
-        name: i.name,
-        interaction_type: i.interaction_type,
-        target_name: i.target_name,
-        is_available: i.is_available,
-    }
-}
-
-fn translate_dialogue_choice(c: wrldbldr_protocol::DialogueChoice) -> DialogueChoice {
-    DialogueChoice {
-        id: c.id,
-        text: c.text,
-        is_custom_input: c.is_custom_input,
-    }
-}
-
-fn translate_region_data(r: wrldbldr_protocol::RegionData) -> RegionData {
-    RegionData {
-        id: r.id,
-        name: r.name,
-        location_id: r.location_id,
-        location_name: r.location_name,
-        backdrop_asset: r.backdrop_asset,
-        atmosphere: r.atmosphere,
-        map_asset: r.map_asset,
-    }
-}
-
-fn translate_npc_presence_data(n: wrldbldr_protocol::NpcPresenceData) -> NpcPresenceData {
-    NpcPresenceData {
-        character_id: n.character_id,
-        name: n.name,
-        sprite_asset: n.sprite_asset,
-        portrait_asset: n.portrait_asset,
-    }
-}
-
-fn translate_navigation_data(n: wrldbldr_protocol::NavigationData) -> NavigationData {
-    NavigationData {
-        connected_regions: n
-            .connected_regions
-            .into_iter()
-            .map(translate_navigation_target)
-            .collect(),
-        exits: n.exits.into_iter().map(translate_navigation_exit).collect(),
-    }
-}
-
-fn translate_navigation_target(t: wrldbldr_protocol::NavigationTarget) -> NavigationTarget {
-    NavigationTarget {
-        region_id: t.region_id,
-        name: t.name,
-        is_locked: t.is_locked,
-        lock_description: t.lock_description,
-    }
-}
-
-fn translate_navigation_exit(e: wrldbldr_protocol::NavigationExit) -> NavigationExit {
-    NavigationExit {
-        location_id: e.location_id,
-        location_name: e.location_name,
-        arrival_region_id: e.arrival_region_id,
-        description: e.description,
-    }
-}
-
-fn translate_region_item_data(i: wrldbldr_protocol::RegionItemData) -> RegionItemData {
-    RegionItemData {
-        id: i.id,
-        name: i.name,
-        description: i.description,
-        item_type: i.item_type,
-    }
-}
-
-fn translate_split_party_location(l: wrldbldr_protocol::SplitPartyLocation) -> SplitPartyLocation {
-    SplitPartyLocation {
-        location_id: l.location_id,
-        location_name: l.location_name,
-        pc_count: l.pc_count,
-        pc_names: l.pc_names,
-    }
-}
-
-// NOTE: translate_proposed_tool_info, translate_challenge_suggestion_info, and
-// translate_narrative_event_suggestion_info have been removed because player-ports
-// now re-exports protocol types directly - no translation needed.
-
-fn translate_outcome_detail_data(o: wrldbldr_protocol::OutcomeDetailData) -> OutcomeDetailData {
-    OutcomeDetailData {
-        flavor_text: o.flavor_text,
-        scene_direction: o.scene_direction,
-        proposed_tools: o.proposed_tools, // Direct assignment - same type now
-    }
-}
-
-fn translate_outcome_branch_data(b: wrldbldr_protocol::OutcomeBranchData) -> OutcomeBranchData {
-    OutcomeBranchData {
-        id: b.id,
-        title: b.title,
-        description: b.description,
-        effects: b.effects,
-    }
-}
-
-fn translate_game_time(t: wrldbldr_protocol::types::GameTime) -> GameTime {
-    GameTime {
-        day: t.day,
-        hour: t.hour,
-        minute: t.minute,
-        is_paused: t.is_paused,
-    }
-}
-
-fn translate_previous_staging_info(
-    p: wrldbldr_protocol::PreviousStagingInfo,
-) -> PreviousStagingInfo {
-    PreviousStagingInfo {
-        staging_id: p.staging_id,
-        approved_at: p.approved_at,
-        npcs: p.npcs.into_iter().map(translate_staged_npc_info).collect(),
-    }
-}
-
-fn translate_staged_npc_info(n: wrldbldr_protocol::StagedNpcInfo) -> StagedNpcInfo {
-    StagedNpcInfo {
-        character_id: n.character_id,
-        name: n.name,
-        sprite_asset: n.sprite_asset,
-        portrait_asset: n.portrait_asset,
-        is_present: n.is_present,
-        reasoning: n.reasoning,
-        is_hidden_from_players: n.is_hidden_from_players,
-    }
-}
-
-fn translate_waiting_pc_info(w: wrldbldr_protocol::WaitingPcInfo) -> WaitingPcInfo {
-    WaitingPcInfo {
-        pc_id: w.pc_id,
-        pc_name: w.pc_name,
-        player_id: w.player_id,
-    }
-}
-
-fn translate_npc_present_info(n: wrldbldr_protocol::NpcPresentInfo) -> NpcPresentInfo {
-    NpcPresentInfo {
-        character_id: n.character_id,
-        name: n.name,
-        sprite_asset: n.sprite_asset,
-        portrait_asset: n.portrait_asset,
-        is_hidden_from_players: n.is_hidden_from_players,
-    }
-}
-
-fn translate_npc_disposition_data(d: wrldbldr_protocol::NpcDispositionData) -> NpcDispositionData {
-    NpcDispositionData {
-        npc_id: d.npc_id,
-        npc_name: d.npc_name,
-        disposition: d.disposition,
-        relationship: d.relationship,
-        sentiment: d.sentiment,
-        last_reason: d.last_reason,
     }
 }
 
@@ -1027,15 +796,6 @@ fn translate_actantial_view_data(v: wrldbldr_protocol::ActantialViewData) -> Act
         target_type: format!("{:?}", v.target_type),
         role: format!("{:?}", v.role),
         reason: v.reason,
-    }
-}
-
-fn translate_goal_data(g: wrldbldr_protocol::GoalData) -> GoalData {
-    GoalData {
-        id: g.id,
-        name: g.name,
-        description: g.description,
-        usage_count: g.usage_count,
     }
 }
 

@@ -48,8 +48,7 @@ mod mock {
     use crate::outbound::use_case_types::WorldRole;
     use async_trait::async_trait;
     use mockall::mock;
-    use uuid::Uuid;
-    use wrldbldr_domain::WorldId;
+    use wrldbldr_domain::{ConnectionId, PlayerCharacterId, WorldId};
 
     mock! {
         /// Mock implementation of all connection manager traits for testing.
@@ -61,9 +60,9 @@ mod mock {
             async fn get_dm_info(&self, world_id: &WorldId) -> Option<DmInfo>;
             async fn get_connected_users(&self, world_id: WorldId) -> Vec<ConnectedUserInfo>;
             async fn get_user_role(&self, world_id: &WorldId, user_id: &str) -> Option<WorldRole>;
-            async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &Uuid) -> Option<String>;
-            async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(Uuid, String)>;
-            async fn get_all_world_ids(&self) -> Vec<Uuid>;
+            async fn find_player_for_pc(&self, world_id: &WorldId, pc_id: &PlayerCharacterId) -> Option<String>;
+            async fn get_world_pcs(&self, world_id: &WorldId) -> Vec<(PlayerCharacterId, String)>;
+            async fn get_all_world_ids(&self) -> Vec<WorldId>;
             async fn stats(&self) -> ConnectionStats;
         }
 
@@ -71,24 +70,24 @@ mod mock {
         impl ConnectionContextPort for WorldConnectionManager {
             async fn get_user_id_by_client_id(&self, client_id: &str) -> Option<String>;
             async fn is_dm_by_client_id(&self, client_id: &str) -> bool;
-            async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+            async fn get_world_id_by_client_id(&self, client_id: &str) -> Option<WorldId>;
             async fn is_spectator_by_client_id(&self, client_id: &str) -> bool;
-            async fn get_connection_context(&self, connection_id: Uuid) -> Option<ConnectionContext>;
+            async fn get_connection_context(&self, connection_id: ConnectionId) -> Option<ConnectionContext>;
             async fn get_connection_by_client_id(&self, client_id: &str) -> Option<ConnectionContext>;
-            async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<Uuid>;
+            async fn get_pc_id_by_client_id(&self, client_id: &str) -> Option<PlayerCharacterId>;
         }
 
         #[async_trait]
         impl ConnectionBroadcastPort for WorldConnectionManager {
-            async fn broadcast_to_world(&self, world_id: Uuid, message: serde_json::Value);
+            async fn broadcast_to_world(&self, world_id: WorldId, message: serde_json::Value);
             async fn broadcast_to_world_except_user(
                 &self,
-                world_id: Uuid,
+                world_id: WorldId,
                 exclude_user_id: &str,
                 message: serde_json::Value,
             );
-            async fn broadcast_to_dms(&self, world_id: Uuid, message: serde_json::Value);
-            async fn broadcast_to_players(&self, world_id: Uuid, message: serde_json::Value);
+            async fn broadcast_to_dms(&self, world_id: WorldId, message: serde_json::Value);
+            async fn broadcast_to_players(&self, world_id: WorldId, message: serde_json::Value);
             async fn broadcast_to_all_worlds(&self, message: serde_json::Value);
         }
 
@@ -96,7 +95,7 @@ mod mock {
         impl ConnectionUnicastPort for WorldConnectionManager {
             async fn send_to_user_in_world(
                 &self,
-                world_id: Uuid,
+                world_id: WorldId,
                 user_id: &str,
                 message: serde_json::Value,
             ) -> Result<(), ConnectionManagerError>;
@@ -104,7 +103,7 @@ mod mock {
 
         #[async_trait]
         impl ConnectionLifecyclePort for WorldConnectionManager {
-            async fn unregister_connection(&self, connection_id: Uuid);
+            async fn unregister_connection(&self, connection_id: ConnectionId);
         }
     }
 }

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::websocket::converters::scene_changed_event_to_message;
 use crate::infrastructure::websocket::IntoServerError;
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+
 use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::inbound::UseCaseContext;
 use wrldbldr_engine_ports::outbound::{ActionResult, PlayerActionInput};
@@ -113,9 +113,9 @@ async fn extract_context(state: &dyn AppStatePort, client_id: Uuid) -> Option<Us
     let world_id = conn.world_id?;
 
     Some(UseCaseContext {
-        world_id: WorldId::from_uuid(world_id),
+        world_id,
         user_id: conn.user_id.clone(),
         is_dm: conn.is_dm(),
-        pc_id: conn.pc_id.map(PlayerCharacterId::from_uuid),
+        pc_id: conn.pc_id,
     })
 }

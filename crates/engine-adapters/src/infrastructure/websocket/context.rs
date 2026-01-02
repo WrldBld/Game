@@ -110,17 +110,17 @@ impl HandlerContext {
             .await
             .ok_or_else(|| error_response("NOT_CONNECTED", "Client is not connected"))?;
 
-        let world_id_uuid = connection
+        let world_id = connection
             .world_id
             .ok_or_else(|| error_response("NO_WORLD", "Not connected to a world"))?;
 
         Ok(Self {
             connection_id: client_id_str,
-            world_id: WorldId::from_uuid(world_id_uuid),
-            world_id_uuid,
+            world_id,
+            world_id_uuid: world_id.to_uuid(),
             user_id: connection.user_id.clone(),
             is_dm: connection.is_dm(),
-            pc_id: connection.pc_id.map(PlayerCharacterId::from_uuid),
+            pc_id: connection.pc_id,
         })
     }
 

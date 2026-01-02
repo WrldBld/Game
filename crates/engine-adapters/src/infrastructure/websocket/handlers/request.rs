@@ -5,6 +5,7 @@
 //! mechanism for entity operations.
 
 use uuid::Uuid;
+use wrldbldr_domain::ConnectionId;
 
 use wrldbldr_engine_ports::inbound::AppStatePort;
 use wrldbldr_engine_ports::inbound::RequestContext;
@@ -53,19 +54,20 @@ pub async fn handle_request(
     );
 
     // Get connection context
+    let conn_id = ConnectionId::from_uuid(connection_id);
     let conn_info = state
         .connection_context()
-        .get_connection_context(connection_id)
+        .get_connection_context(conn_id)
         .await;
 
-    // Build request context
+    // Build request context (convert typed IDs to raw UUIDs for RequestContext)
     let ctx = if let Some(info) = &conn_info {
         RequestContext {
             connection_id,
             user_id: info.user_id.clone(),
-            world_id: info.world_id,
+            world_id: info.world_id.map(|id| id.to_uuid()),
             role: info.role.map(port_to_protocol_role),
-            pc_id: info.pc_id,
+            pc_id: info.pc_id.map(|id| id.to_uuid()),
             is_dm: info.is_dm(),
             is_spectating: info.is_spectator(),
         }

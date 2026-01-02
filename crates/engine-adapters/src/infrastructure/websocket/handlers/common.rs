@@ -45,12 +45,10 @@ pub async fn extract_player_context(
 
     let world_id = connection
         .world_id
-        .map(WorldId::from_uuid)
         .ok_or_else(|| error_msg("NO_WORLD", "Not connected to a world"))?;
 
     let pc_id = connection
         .pc_id
-        .map(PlayerCharacterId::from_uuid)
         .ok_or_else(|| error_msg("NO_PC", "No player character selected"))?;
 
     Ok((world_id, pc_id))
@@ -75,7 +73,6 @@ pub async fn extract_dm_context(
 
     let world_id = connection
         .world_id
-        .map(WorldId::from_uuid)
         .ok_or_else(|| error_msg("NO_WORLD", "Not connected to a world"))?;
 
     if !connection.is_dm() {
@@ -89,7 +86,7 @@ pub async fn extract_dm_context(
         world_id,
         user_id: connection.user_id.clone(),
         is_dm: true,
-        pc_id: connection.pc_id.map(PlayerCharacterId::from_uuid),
+        pc_id: connection.pc_id,
     })
 }
 
@@ -111,10 +108,10 @@ pub async fn extract_context_opt(
         .await?;
 
     Some(UseCaseContext {
-        world_id: WorldId::from_uuid(conn.world_id?),
+        world_id: conn.world_id?,
         user_id: conn.user_id.clone(),
         is_dm: conn.is_dm(),
-        pc_id: conn.pc_id.map(PlayerCharacterId::from_uuid),
+        pc_id: conn.pc_id,
     })
 }
 

@@ -13,6 +13,7 @@ mod context_budget_enforcement;
 mod disposition;
 mod llm_context;
 mod prompt_templates;
+mod quantity;
 mod queue_data;
 mod region;
 mod relationship;
@@ -61,6 +62,7 @@ pub use prompt_templates::{
     get_default as get_prompt_default, key_to_env_var, keys as prompt_keys,
     prompt_template_metadata, PromptTemplateCategory, PromptTemplateMetadata,
 };
+pub use quantity::QuantityChangeResult;
 pub use region::{RegionFrequency, RegionRelationship, RegionRelationshipType, RegionShift};
 pub use relationship::{FamilyRelation, Relationship, RelationshipEvent, RelationshipType};
 pub use rule_system::{

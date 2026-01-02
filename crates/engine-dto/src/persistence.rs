@@ -570,9 +570,13 @@ impl From<SheetFieldDto> for SheetField {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SectionLayoutDto {
     Vertical,
-    Grid { columns: u8 },
+    Grid {
+        columns: u8,
+    },
     Flow,
     TwoColumn,
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<SectionLayout> for SectionLayoutDto {
@@ -593,6 +597,7 @@ impl From<SectionLayoutDto> for SectionLayout {
             SectionLayoutDto::Grid { columns } => Self::Grid { columns },
             SectionLayoutDto::Flow => Self::Flow,
             SectionLayoutDto::TwoColumn => Self::TwoColumn,
+            SectionLayoutDto::Unknown => Self::Vertical,
         }
     }
 }
@@ -632,6 +637,8 @@ pub enum ItemListTypeDto {
     Features,
     Spells,
     Notes,
+    #[serde(other)]
+    Unknown,
 }
 
 impl From<ItemListType> for ItemListTypeDto {
@@ -652,6 +659,7 @@ impl From<ItemListTypeDto> for ItemListType {
             ItemListTypeDto::Features => Self::Features,
             ItemListTypeDto::Spells => Self::Spells,
             ItemListTypeDto::Notes => Self::Notes,
+            ItemListTypeDto::Unknown => Self::Inventory,
         }
     }
 }

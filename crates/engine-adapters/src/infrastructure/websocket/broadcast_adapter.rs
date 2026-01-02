@@ -60,8 +60,6 @@ impl WebSocketBroadcastAdapter {
 #[async_trait]
 impl BroadcastPort for WebSocketBroadcastAdapter {
     async fn broadcast(&self, world_id: WorldId, event: GameEvent) {
-        let world_uuid = world_id.as_uuid();
-
         match event {
             // =====================================================================
             // Staging Events
@@ -70,7 +68,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 let msg = convert_staging_required(evt);
                 if let Ok(msg) = serde_json::to_value(msg) {
                     self.connection_broadcast
-                        .broadcast_to_dms(*world_uuid, msg)
+                        .broadcast_to_dms(world_id, msg)
                         .await;
                 }
             }
@@ -82,7 +80,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                     if let Ok(msg) = serde_json::to_value(msg.clone()) {
                         let _ = self
                             .connection_unicast
-                            .send_to_user_in_world(*world_uuid, &pc.user_id, msg)
+                            .send_to_user_in_world(world_id, &pc.user_id, msg)
                             .await;
                     }
                 }
@@ -93,7 +91,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -106,7 +104,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -126,7 +124,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -138,7 +136,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 let msg = convert_split_party(evt);
                 if let Ok(msg) = serde_json::to_value(msg) {
                     self.connection_broadcast
-                        .broadcast_to_dms(*world_uuid, msg)
+                        .broadcast_to_dms(world_id, msg)
                         .await;
                 }
             }
@@ -152,7 +150,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(msg) = serde_json::to_value(msg) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, msg)
+                        .broadcast_to_world(world_id, msg)
                         .await;
                 }
             }
@@ -170,7 +168,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 // Broadcast to all except the joining user
                 if let Ok(msg) = serde_json::to_value(msg) {
                     self.connection_broadcast
-                        .broadcast_to_world_except_user(*world_uuid, &user_id, msg)
+                        .broadcast_to_world_except_user(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -182,7 +180,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 // Broadcast to all except the leaving user
                 if let Ok(msg) = serde_json::to_value(msg) {
                     self.connection_broadcast
-                        .broadcast_to_world_except_user(*world_uuid, &user_id, msg)
+                        .broadcast_to_world_except_user(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -204,7 +202,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -225,7 +223,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -252,7 +250,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(msg) = serde_json::to_value(msg) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, msg)
+                        .send_to_user_in_world(world_id, &user_id, msg)
                         .await;
                 }
             }
@@ -301,7 +299,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(dm_message) = serde_json::to_value(dm_message) {
                     self.connection_broadcast
-                        .broadcast_to_dms(*world_uuid, dm_message)
+                        .broadcast_to_dms(world_id, dm_message)
                         .await;
                 }
 
@@ -317,7 +315,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(player_message) = serde_json::to_value(player_message) {
                     self.connection_broadcast
-                        .broadcast_to_players(*world_uuid, player_message)
+                        .broadcast_to_players(world_id, player_message)
                         .await;
                 }
             }
@@ -351,7 +349,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 }
             }
@@ -380,7 +378,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 }
             }
@@ -426,7 +424,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 }
             }
@@ -474,7 +472,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_dms(*world_uuid, message)
+                        .broadcast_to_dms(world_id, message)
                         .await;
                 }
             }
@@ -500,7 +498,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 }
             }
@@ -526,7 +524,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 if let Ok(message) = serde_json::to_value(message) {
                     let _ = self
                         .connection_unicast
-                        .send_to_user_in_world(*world_uuid, &user_id, message)
+                        .send_to_user_in_world(world_id, &user_id, message)
                         .await;
                 }
             }
@@ -541,7 +539,7 @@ impl BroadcastPort for WebSocketBroadcastAdapter {
                 };
                 if let Ok(message) = serde_json::to_value(message) {
                     self.connection_broadcast
-                        .broadcast_to_world(*world_uuid, message)
+                        .broadcast_to_world(world_id, message)
                         .await;
                 }
             }
