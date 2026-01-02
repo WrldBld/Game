@@ -13,9 +13,9 @@ This is the consolidated plan addressing all architectural issues identified in 
 |-------|-----------|-----------|---------------|
 | A: Engine Domain/DTOs | 2/3 | 1 | 1B (DTO Consolidation) |
 | B: Composition/Ports | 3/4 | 1 | 2A (Composition Root Refactor) |
-| C: Player/Docs | 1/3 | 2 | 3B (UI Error Feedback Audit) |
+| C: Player/Docs | 2/3 | 1 | 3B (UI Error Feedback Audit) |
 | D: Code Quality | 3/3 | 0 | **COMPLETE** |
-| **Total** | **9/13** | **4** | |
+| **Total** | **10/13** | **3** | |
 
 ### Completed Phases
 
@@ -28,8 +28,9 @@ This is the consolidated plan addressing all architectural issues identified in 
 | 1C | Fix Utc::now() in App DTO | `93837bc` | 2026-01-02 |
 | 4C | Cleanup orphaned services module | `93837bc` | 2026-01-02 |
 | 4B | Remove blanket impl (SceneError already existed) | `93837bc` | 2026-01-02 |
-| 2B | Port naming corrections (6 files renamed) | TBD | 2026-01-02 |
-| 2D | Document protocol exceptions | TBD | 2026-01-02 |
+| 2B | Port naming corrections (6 files renamed) | `ec6f463` | 2026-01-02 |
+| 2D | Document protocol exceptions | `ec6f463` | 2026-01-02 |
+| 3C | Documentation updates (AGENTS.md) | TBD | 2026-01-02 |
 
 ---
 
@@ -494,7 +495,7 @@ When this plan is complete, all of the following will be true:
 |-------|-------------|--------|--------------|--------|
 | 3A | Remove Duplicate Dice Parsing | Small | None | **DONE** |
 | 3B | UI Error Feedback Audit | Medium | None | Pending |
-| 3C | Documentation Updates | Small | 1A, 2B | Pending |
+| 3C | Documentation Updates | Small | 1A, 2B | **DONE** |
 
 **Note on 3A**: ~~Domain already has complete `DiceFormula` implementation. UI has duplicate with bugs (allows d1, no shorthand). Fix is to use domain directly, not create new service.~~ **COMPLETED 2026-01-01**: UI now imports `DiceFormula` from domain. Exported `DiceFormula` and `DiceRollResult` from `domain/value_objects`. Removed buggy local regex parser.
 

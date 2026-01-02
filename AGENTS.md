@@ -13,7 +13,7 @@ The single source-of-truth refactor plan to reach that target is:
 This file (`AGENTS.md`) is a practical, high-signal summary for agents.
 
 ### Key Facts
-- **~650 Rust files** across 15 workspace crates
+- **~700 Rust files** across 15 workspace crates
 - **Multi-architecture**: Backend engine server (Axum) + WebAssembly player UI (Dioxus)
 - **AI-powered**: Neo4j graph DB + Ollama LLM + ComfyUI image generation
 - **Hexagonal/Clean architecture**: domain → ports → adapters → apps → runners
@@ -55,7 +55,12 @@ This file (`AGENTS.md`) is a practical, high-signal summary for agents.
                                  │
 ┌────────────────────────────────┴────────────────────────────────────┐
 │                      SHARED KERNEL                                   │
-│  protocol (wire-format DTOs)         engine-dto (internal DTOs)     │
+│  protocol (wire-format DTOs)         common (shared utilities)      │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+┌────────────────────────────────┴────────────────────────────────────┐
+│                      ENGINE-INTERNAL                                 │
+│  engine-dto (internal DTOs - not shared with player)                │
 └────────────────────────────────┬────────────────────────────────────┘
                                  │
 ┌────────────────────────────────┴────────────────────────────────────┐
@@ -69,10 +74,10 @@ This file (`AGENTS.md`) is a practical, high-signal summary for agents.
 | Crate | Layer | Purpose |
 |-------|-------|---------|
 | `domain-types` | Domain | Shared vocabulary (archetypes, monomyth stages) |
-| `domain` | Domain | 25+ entities, value objects, 26 typed IDs |
+| `domain` | Domain | 25+ entities, value objects, 28 typed IDs |
 | `common` | Shared Kernel | Shared utilities (datetime parsing, string-to-option) |
 | `protocol` | Shared Kernel | Wire-format types for Engine↔Player communication |
-| `engine-dto` | Shared Kernel | Engine-internal DTOs (queues, persistence) |
+| `engine-dto` | Engine-Internal | Engine-internal DTOs (queues, persistence) |
 | `engine-ports` | Ports | 100+ repository/service traits (ISP-compliant) |
 | `player-ports` | Ports | Transport and connection traits |
 | `engine-app` | Application | Services, use cases, request handlers |
@@ -199,11 +204,28 @@ Single source of truth per DTO:
 
 Avoid “shadow copies” like `engine_dto::X` duplicating `engine_ports::...::X`.
 
-### 6. No Shim Import Paths
+### 7. No Shim Import Paths
 
 - No re-exports of `wrldbldr_*` from other crates
 - No crate aliasing (`use wrldbldr_* as foo`)
 - Goal: single canonical import path for every type
+
+### 8. Naming Conventions
+
+Consistent suffixes for trait types:
+
+| Suffix | Usage | Example |
+|--------|-------|---------|
+| `*Port` | All port traits (general) | `ClockPort`, `LoggingPort` |
+| `*RepositoryPort` | Data access ports | `CharacterRepositoryPort` |
+| `*ServicePort` | Business operation ports | `LlmServicePort` |
+| `*QueryPort` | Read-only query ports | `CharacterQueryPort` |
+| `*Provider` | Platform abstractions (player-ports) | `StorageProvider`, `PlatformProvider` |
+
+**Guidelines**:
+- Use `*Port` suffix for all port traits in `engine-ports` and `player-ports`
+- Use `*Provider` for player-side platform abstractions that may have multiple implementations (web, desktop, mobile)
+- Prefer specific suffixes (`*RepositoryPort`, `*ServicePort`, `*QueryPort`) over generic `*Port` when the role is clear
 
 ---
 
