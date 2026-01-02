@@ -35,23 +35,25 @@ use wrldbldr_engine_app::application::services::{
     SceneResolutionServiceImpl, SceneService, SceneServiceImpl, SheetTemplateService, SkillService,
     SkillServiceImpl, WorldService, WorldServiceImpl,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    CharacterServicePort, ItemServicePort, LocationServicePort, RelationshipServicePort,
+    SceneResolutionServicePort, SheetTemplateServicePort, SkillServicePort,
+};
+// True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
     // Repository ports (inputs)
     CharacterCrudPort,
-    // Service ports (outputs)
-    CharacterServicePort,
     CharacterWantPort,
     ClockPort,
     FlagRepositoryPort,
     InteractionRepositoryPort,
     InteractionServicePort,
     ItemRepositoryPort,
-    ItemServicePort,
     LocationConnectionPort,
     LocationCrudPort,
     LocationHierarchyPort,
     LocationMapPort,
-    LocationServicePort,
     ObservationRepositoryPort,
     // PlayerCharacter ISP ports
     PlayerCharacterCrudPort,
@@ -61,20 +63,16 @@ use wrldbldr_engine_ports::outbound::{
     PlayerCharacterServicePort,
     RegionItemPort,
     RelationshipRepositoryPort,
-    RelationshipServicePort,
     // Scene ISP ports (no god trait)
     SceneCompletionPort,
     SceneCrudPort,
     SceneFeaturedCharacterPort,
     SceneLocationPort,
     SceneQueryPort,
-    SceneResolutionServicePort,
     SceneServicePort,
     SettingsServicePort,
     SheetTemplateRepositoryPort,
-    SheetTemplateServicePort,
     SkillRepositoryPort,
-    SkillServicePort,
     WorldExporterPort,
     WorldRepositoryPort,
     WorldServicePort,

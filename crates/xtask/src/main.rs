@@ -1868,12 +1868,15 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         ),
         // Composition layer: defines service containers using port traits
         // Sits between app and adapters, allows clean DI without coupling
+        // NOTE: Depends on engine-app for internal service trait definitions (NOT ports)
+        // These are app-layer contracts used in DI containers, not adapter-implemented ports
         (
             "wrldbldr-engine-composition",
             HashSet::from([
                 "wrldbldr-domain",
                 "wrldbldr-protocol",
                 "wrldbldr-engine-ports",
+                "wrldbldr-engine-app", // For internal service traits (NOT ports)
             ]),
         ),
         (
@@ -1888,8 +1891,10 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         (
             "wrldbldr-engine-adapters",
             HashSet::from([
-                // NOTE: engine-app dependency REMOVED - adapters no longer depend on app layer
-                "wrldbldr-common", // For datetime parsing utilities
+                // NOTE: engine-app dependency for internal service traits used by wrapper adapters
+                // These wrapper adapters will be removed in a future refactor (Step 5 of ServicePort migration)
+                "wrldbldr-engine-app", // For internal service traits (temporary - wrappers will be removed)
+                "wrldbldr-common",     // For datetime parsing utilities
                 "wrldbldr-engine-ports",
                 "wrldbldr-engine-composition",
                 "wrldbldr-engine-dto",

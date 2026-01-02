@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 description = "WrldBldr Engine App - Application services and use-cases"
 
+[features]
+testing = ["mockall"]
+
 [dependencies]
 wrldbldr-common = { workspace = true }
 wrldbldr-domain = { workspace = true }
@@ -27,11 +30,13 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
 validator = { workspace = true }
+mockall = { workspace = true, optional = true }
 
 [dev-dependencies]
 wrldbldr-engine-ports = { workspace = true, features = ["testing"] }
 wrldbldr-engine-dto = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+mockall = { workspace = true }
 
 [lints]
 workspace = true

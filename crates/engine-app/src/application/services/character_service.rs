@@ -18,9 +18,10 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{Character, CharacterWant, StatBlock, Want};
 use wrldbldr_domain::value_objects::{AppSettings, CampbellArchetype, Relationship};
 use wrldbldr_domain::{CharacterId, SceneId, WantId, WorldId};
+use crate::application::services::internal::CharacterServicePort;
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterServicePort, CharacterWantPort, ClockPort,
-    RelationshipRepositoryPort, SettingsServicePort, WorldRepositoryPort,
+    CharacterCrudPort, CharacterWantPort, ClockPort, RelationshipRepositoryPort,
+    SettingsServicePort, WorldRepositoryPort,
 };
 
 /// Request to create a new character

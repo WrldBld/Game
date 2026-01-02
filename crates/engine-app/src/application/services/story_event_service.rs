@@ -22,10 +22,13 @@ use wrldbldr_domain::DomainEvent;
 use wrldbldr_domain::{
     ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
 };
+use crate::application::services::internal::{
+    DialogueContextServicePort, StoryEventAdminServicePort, StoryEventQueryServicePort,
+    StoryEventRecordingServicePort, StoryEventServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
-    ClockPort, DialogueContextServicePort, EventBusPort, StoryEventAdminServicePort,
-    StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort, StoryEventQueryPort,
-    StoryEventQueryServicePort, StoryEventRecordingServicePort, StoryEventServicePort,
+    ClockPort, EventBusPort, StoryEventCrudPort, StoryEventDialoguePort, StoryEventEdgePort,
+    StoryEventQueryPort,
 };
 
 /// Service trait for recording gameplay events to the story timeline

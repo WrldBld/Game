@@ -10,9 +10,9 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{ChainStatus, EventChain};
 use wrldbldr_domain::{EventChainId, NarrativeEventId, WorldId};
+use crate::application::services::internal::EventChainServicePort;
 use wrldbldr_engine_ports::outbound::{
-    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainServicePort,
-    EventChainStatePort,
+    EventChainCrudPort, EventChainMembershipPort, EventChainQueryPort, EventChainStatePort,
 };
 
 /// EventChain service trait defining the application use cases

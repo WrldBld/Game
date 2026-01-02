@@ -26,11 +26,13 @@ use wrldbldr_domain::entities::{Difficulty, OutcomeType};
 use wrldbldr_domain::value_objects::{AdHocOutcomes, DiceRollInput, ProposedTool};
 use wrldbldr_domain::value_objects::{EffectLevel, NarrativeResolutionConfig, Position};
 use wrldbldr_domain::{ChallengeId, CharacterId, PlayerCharacterId, SkillId, WorldId};
+use crate::application::services::internal::{
+    ChallengeResolutionServicePort, ChallengeServicePort, DiceRoll as PortDiceRoll,
+    PendingResolution as PortPendingResolution, RollResult as PortRollResult, SkillServicePort,
+};
 use wrldbldr_engine_ports::outbound::{
     ApprovalRequestLookupPort, ChallengeOutcomeApprovalServicePort, ChallengeOutcomeData,
-    ChallengeResolutionServicePort, ChallengeServicePort, ClockPort, DiceInputType,
-    DiceRoll as PortDiceRoll, PendingResolution as PortPendingResolution,
-    PlayerCharacterServicePort, RandomPort, RollResult as PortRollResult, SkillServicePort,
+    ClockPort, DiceInputType, PlayerCharacterServicePort, RandomPort,
 };
 
 // ============================================================================

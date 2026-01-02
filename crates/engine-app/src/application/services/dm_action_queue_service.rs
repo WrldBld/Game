@@ -11,10 +11,11 @@ use chrono::{DateTime, Utc};
 
 use wrldbldr_domain::value_objects::{DmActionData, DmActionType};
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{
-    ClockPort, DmAction, DmActionQueueItem, DmActionQueueServicePort,
-    DmActionType as PortDmActionType, DmDecision, QueueError, QueueItem, QueueItemId, QueuePort,
+use crate::application::services::internal::{
+    DmAction, DmActionQueueItem, DmActionQueueServicePort, DmActionType as PortDmActionType,
+    DmDecision,
 };
+use wrldbldr_engine_ports::outbound::{ClockPort, QueueError, QueueItem, QueueItemId, QueuePort};
 
 /// Service for managing the DM action queue
 pub struct DmActionQueueService<Q: QueuePort<DmActionData>> {

@@ -24,9 +24,8 @@ use wrldbldr_domain::value_objects::{
     DispositionLevel, InteractionOutcome, NpcDispositionState, RelationshipLevel,
 };
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
-use wrldbldr_engine_ports::outbound::{
-    CharacterDispositionPort, ClockPort, DispositionServicePort,
-};
+use crate::application::services::internal::DispositionServicePort;
+use wrldbldr_engine_ports::outbound::{CharacterDispositionPort, ClockPort};
 
 /// Disposition service trait defining the application use cases
 #[async_trait]

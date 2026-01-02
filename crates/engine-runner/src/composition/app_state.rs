@@ -36,17 +36,21 @@ use wrldbldr_engine_composition::{
 };
 
 use wrldbldr_engine_ports::inbound::RequestHandler;
-use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort, ApprovalRequestLookupPort, BroadcastPort,
-    ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort, ComfyUIPort,
-    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
-    ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DispositionServicePort,
-    DmActionProcessorPort, DmNotificationPort, DomainEventRepositoryPort, EventBusPort,
-    EventEffectExecutorPort, EventNotifierPort, GenerationReadStatePort,
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    ActantialContextServicePort, ChallengeResolutionServicePort, DispositionServicePort,
     NarrativeEventApprovalServicePort, OutcomeTriggerServicePort, PromptContextServicePort,
-    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
-    TriggerEvaluationServicePort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
-    WorldLifecyclePort, WorldScenePort, WorldTimePort,
+    TriggerEvaluationServicePort,
+};
+// True outbound ports (adapter-implemented infrastructure)
+use wrldbldr_engine_ports::outbound::{
+    ApprovalRequestLookupPort, BroadcastPort, ChallengeOutcomeApprovalServicePort, ComfyUIPort,
+    ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort,
+    ConnectionManagerPort, ConnectionQueryPort, ConnectionUnicastPort, DmActionProcessorPort,
+    DmNotificationPort, DomainEventRepositoryPort, EventBusPort, EventEffectExecutorPort,
+    EventNotifierPort, GenerationReadStatePort, PromptTemplateServicePort, RegionItemPort,
+    SettingsServicePort, StagingServicePort, WorldApprovalPort, WorldConversationPort,
+    WorldDirectorialPort, WorldLifecyclePort, WorldScenePort, WorldTimePort,
 };
 
 // Re-export AppStatePort for server.rs

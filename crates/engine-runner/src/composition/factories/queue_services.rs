@@ -24,14 +24,15 @@ use wrldbldr_engine_adapters::infrastructure::{
     TokioFileStorageAdapter,
 };
 use wrldbldr_engine_app::application::services::{
-    generation_service::GenerationEvent, AssetGenerationQueueService, DMApprovalQueueService,
-    DmActionProcessorService, DmActionQueueService, InteractionService, ItemServiceImpl,
-    LLMQueueService, NarrativeEventService, PlayerActionQueueService, SceneService,
+    generation_service::GenerationEvent,
+    internal::{DialogueContextServicePort, DmActionQueueServicePort},
+    AssetGenerationQueueService, DMApprovalQueueService, DmActionProcessorService,
+    DmActionQueueService, InteractionService, ItemServiceImpl, LLMQueueService,
+    NarrativeEventService, PlayerActionQueueService, SceneService,
 };
 use wrldbldr_engine_ports::outbound::{
-    AssetGenerationQueueServicePort, ClockPort, DmActionProcessorPort, DmActionQueueServicePort,
-    DmApprovalQueueServicePort, FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort,
-    QueuePort,
+    AssetGenerationQueueServicePort, ClockPort, DmActionProcessorPort, DmApprovalQueueServicePort,
+    FileStoragePort, LlmQueueServicePort, PlayerActionQueueServicePort, QueuePort,
 };
 
 use super::repositories::RepositoryPorts;
@@ -99,8 +100,7 @@ pub struct QueueServiceDependencies<'a> {
     pub repos: &'a RepositoryPorts,
     pub queue_backends: &'a QueueBackends,
     /// Dialogue context service for recording dialogue exchanges (ISP-split from StoryEventService)
-    pub dialogue_context_service:
-        Arc<dyn wrldbldr_engine_ports::outbound::DialogueContextServicePort>,
+    pub dialogue_context_service: Arc<dyn DialogueContextServicePort>,
     pub generation_event_tx: mpsc::Sender<GenerationEvent>,
     // App-layer services needed for DmActionProcessorService
     pub narrative_event_service: Arc<dyn NarrativeEventService>,

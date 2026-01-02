@@ -27,13 +27,15 @@ use tracing::{debug, info, instrument, warn};
 use async_trait::async_trait;
 use wrldbldr_domain::entities::{NarrativeEvent, TriggerContext, TriggerEvaluation};
 use wrldbldr_domain::{ChallengeId, CharacterId, LocationId, NarrativeEventId, WorldId};
-use wrldbldr_engine_ports::outbound::{
+use crate::application::services::internal::{
     CompletedChallenge as PortCompletedChallenge,
     CompletedNarrativeEvent as PortCompletedNarrativeEvent,
     GameStateSnapshot as PortGameStateSnapshot, ImmediateContext as PortImmediateContext,
-    NarrativeEventCrudPort, PlayerCharacterCrudPort, StoryEventEdgePort, StoryEventQueryPort,
     TriggerEvaluationResult as PortTriggerEvaluationResult, TriggerEvaluationServicePort,
     TriggerSource as PortTriggerSource, TriggeredEventCandidate as PortTriggeredEventCandidate,
+};
+use wrldbldr_engine_ports::outbound::{
+    NarrativeEventCrudPort, PlayerCharacterCrudPort, StoryEventEdgePort, StoryEventQueryPort,
 };
 
 // =============================================================================

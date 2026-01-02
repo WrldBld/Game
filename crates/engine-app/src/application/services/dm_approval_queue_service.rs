@@ -24,12 +24,12 @@ use wrldbldr_engine_dto::{
     challenge_suggestion_to_info, info_to_challenge_suggestion, info_to_narrative_event_suggestion,
     info_to_proposed_tool, narrative_event_suggestion_to_info, proposed_tool_to_info,
 };
+use crate::application::services::internal::DialogueContextServicePort;
 use wrldbldr_engine_ports::outbound::{
     ApprovalDecisionType as PortApprovalDecisionType, ApprovalQueueItem as PortApprovalQueueItem,
     ApprovalQueuePort, ApprovalRequest, ApprovalRequestData, ApprovalRequestLookupPort,
-    ApprovalUrgency as PortApprovalUrgency, ClockPort, DialogueContextServicePort,
-    DmApprovalDecision, DmApprovalQueueServicePort, QueueError, QueueItem, QueueItemId,
-    QueueItemStatus,
+    ApprovalUrgency as PortApprovalUrgency, ClockPort, DmApprovalDecision,
+    DmApprovalQueueServicePort, QueueError, QueueItem, QueueItemId, QueueItemStatus,
 };
 
 /// Maximum number of times a response can be rejected before requiring TakeOver

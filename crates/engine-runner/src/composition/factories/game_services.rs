@@ -29,37 +29,37 @@ use wrldbldr_engine_app::application::services::{
     ChallengeService, ChallengeServiceImpl, EventChainService, EventChainServiceImpl,
     NarrativeEventService, NarrativeEventServiceImpl, StoryEventService, StoryEventServiceImpl,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    ChallengeServicePort, DialogueContextServicePort, EventChainServicePort,
+    NarrativeEventServicePort, StoryEventRecordingServicePort, StoryEventServicePort,
+};
+// True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
     // Challenge ISP ports
     ChallengeAvailabilityPort,
     ChallengeCrudPort,
     ChallengePrerequisitePort,
     ChallengeScenePort,
-    ChallengeServicePort,
     ChallengeSkillPort,
     ClockPort,
-    DialogueContextServicePort,
     // Event bus
     EventBusPort,
     // EventChain ISP ports
     EventChainCrudPort,
     EventChainMembershipPort,
     EventChainQueryPort,
-    EventChainServicePort,
     EventChainStatePort,
     // NarrativeEvent ISP ports
     NarrativeEventCrudPort,
     NarrativeEventNpcPort,
     NarrativeEventQueryPort,
-    NarrativeEventServicePort,
     NarrativeEventTiePort,
     // StoryEvent ISP ports
     StoryEventCrudPort,
     StoryEventDialoguePort,
     StoryEventEdgePort,
     StoryEventQueryPort,
-    StoryEventRecordingServicePort,
-    StoryEventServicePort,
 };
 
 /// Dependencies required to create game services.

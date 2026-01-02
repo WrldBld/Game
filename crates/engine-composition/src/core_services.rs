@@ -32,9 +32,14 @@
 
 use std::sync::Arc;
 
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    CharacterServicePort, ItemServicePort, LocationServicePort, RelationshipServicePort,
+    SkillServicePort,
+};
+// True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
-    CharacterServicePort, InteractionServicePort, ItemServicePort, LocationServicePort,
-    RelationshipServicePort, SceneServicePort, SkillServicePort, WorldServicePort,
+    InteractionServicePort, SceneServicePort, WorldServicePort,
 };
 
 /// Core services for fundamental world-building entities using port abstractions.

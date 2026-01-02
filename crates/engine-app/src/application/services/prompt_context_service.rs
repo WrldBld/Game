@@ -35,9 +35,10 @@ use wrldbldr_domain::value_objects::{
     RegionItemContext, SceneContext, SocialStanceContext, Speaker,
 };
 use wrldbldr_domain::{CharacterId, NarrativeEventId, PlayerCharacterId, SceneId, WorldId};
+use crate::application::services::internal::{PromptContextError, PromptContextServicePort};
 use wrldbldr_engine_ports::outbound::{
-    CharacterCrudPort, CharacterData, PlayerActionData, PlayerCharacterCrudPort,
-    PromptContextError, PromptContextServicePort, QueueError, RegionItemPort, WorldStatePort,
+    CharacterCrudPort, CharacterData, PlayerActionData, PlayerCharacterCrudPort, QueueError,
+    RegionItemPort, WorldStatePort,
 };
 
 use super::{

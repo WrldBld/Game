@@ -58,16 +58,21 @@ use wrldbldr_engine_ports::inbound::{
     NarrativeEventUseCasePort, ObservationUseCasePort, PlayerActionUseCasePort, RequestHandler,
     SceneUseCasePort, StagingUseCasePort,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::{
+    ChallengeResolutionServicePort, NarrativeEventApprovalServicePort,
+};
+// True outbound ports (repository and infrastructure ports)
 use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionServicePort,
-    CharacterCrudPort, ClockPort, ConnectionBroadcastPort, ConnectionManagerPort,
-    ConnectionUnicastPort, DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
-    DmNotificationPort, InteractionServicePort, LocationCrudPort, LocationMapPort,
-    NarrativeEventApprovalServicePort, ObservationRepositoryPort, PlayerActionQueueServicePort,
-    PlayerCharacterCrudPort, PlayerCharacterInventoryPort, PlayerCharacterPositionPort,
-    PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
-    RegionItemPort, SceneServicePort, StagingServicePort as OutboundStagingServicePort,
-    StagingStateExtPort, StagingStatePort, WorldServicePort, WorldStateUpdatePort,
+    BroadcastPort, ChallengeOutcomeApprovalServicePort, CharacterCrudPort, ClockPort,
+    ConnectionBroadcastPort, ConnectionManagerPort, ConnectionUnicastPort,
+    DirectorialContextRepositoryPort, DmApprovalQueueServicePort, DmNotificationPort,
+    InteractionServicePort, LocationCrudPort, LocationMapPort, ObservationRepositoryPort,
+    PlayerActionQueueServicePort, PlayerCharacterCrudPort, PlayerCharacterInventoryPort,
+    PlayerCharacterPositionPort, PlayerCharacterServicePort, RegionConnectionPort, RegionCrudPort,
+    RegionExitPort, RegionItemPort, SceneServicePort,
+    StagingServicePort as OutboundStagingServicePort, StagingStateExtPort, StagingStatePort,
+    WorldServicePort, WorldStateUpdatePort,
 };
 
 /// Container for all use case instances and their shared infrastructure.

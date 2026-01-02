@@ -4,6 +4,10 @@
 //! for the WrldBldr Engine. Each service follows hexagonal architecture principles,
 //! accepting repository dependencies and returning domain entities or DTOs.
 
+// Internal service traits - NOT ports, just app-layer contracts
+// These traits define contracts between services within the application layer.
+pub mod internal;
+
 pub mod actantial_context_service;
 pub mod asset_generation_queue_service;
 pub mod asset_service;
@@ -105,8 +109,8 @@ pub use narrative_event_approval_service::{
 
 // Re-export skill service types
 pub use skill_service::{SkillService, SkillServiceImpl};
-// Re-export request types from ports (canonical definitions)
-pub use wrldbldr_engine_ports::outbound::{CreateSkillRequest, UpdateSkillRequest};
+// Re-export request types from internal (canonical definitions after migration)
+pub use internal::{CreateSkillRequest, UpdateSkillRequest};
 
 // Re-export interaction service types (used in HTTP routes)
 pub use interaction_service::{InteractionService, InteractionServiceImpl};

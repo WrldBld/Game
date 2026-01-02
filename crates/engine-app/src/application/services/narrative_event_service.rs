@@ -20,9 +20,9 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{EventChainMembership, FeaturedNpc, NarrativeEvent};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, NarrativeEventId, SceneId, WorldId};
+use crate::application::services::internal::NarrativeEventServicePort;
 use wrldbldr_engine_ports::outbound::{
-    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort,
-    NarrativeEventServicePort, NarrativeEventTiePort,
+    NarrativeEventCrudPort, NarrativeEventNpcPort, NarrativeEventQueryPort, NarrativeEventTiePort,
 };
 
 /// NarrativeEvent service trait defining the application use cases

@@ -6,7 +6,6 @@
 //! Ports that still depend on engine-app internals remain in `wrldbldr-engine-app`
 //! until the shared types move into `wrldbldr-domain`/`wrldbldr-protocol`.
 
-mod actantial_context_service_port;
 mod approval_request_lookup_port;
 mod asset_generation_queue_service_port;
 mod asset_service_port;
@@ -17,27 +16,20 @@ mod challenge_outcome_approval_service_port;
 mod challenge_outcome_pending_port;
 mod challenge_repository;
 mod challenge_resolution_port;
-mod challenge_resolution_service_port;
-mod challenge_service_port;
 mod character_repository;
-mod character_service_port;
 mod clock_port;
 mod comfyui_port;
 mod connection_manager_port;
-mod dialogue_context_service_port;
 mod directorial_context_dto_repository_port;
 mod directorial_context_port;
 mod directorial_context_query_port;
-mod disposition_service_port;
 mod dm_action_processor_port;
-mod dm_action_queue_service_port;
 mod dm_approval_queue_service_port;
 mod dm_notification_port;
 mod domain_event_repository_port;
 mod environment_port;
 mod event_bus_port;
 mod event_chain_repository;
-mod event_chain_service_port;
 mod event_effect_executor_port;
 mod event_notifier_port;
 mod file_storage_port;
@@ -47,21 +39,15 @@ mod generation_queue_projection_service_port;
 mod generation_read_state_port;
 mod generation_service_port;
 mod interaction_service_port;
-mod item_service_port;
 mod llm_port;
 mod llm_queue_service_port;
 mod location_repository;
-mod location_service_port;
-mod narrative_event_approval_service_port;
 mod narrative_event_repository;
-mod narrative_event_service_port;
-mod outcome_trigger_service_port;
 mod player_action_queue_port;
 mod player_action_queue_service_port;
 mod player_character_dto_port;
 mod player_character_repository;
 mod player_character_service_port;
-mod prompt_context_service_port;
 mod prompt_template_cache_port;
 mod prompt_template_port;
 mod prompt_template_service_port;
@@ -69,32 +55,22 @@ mod queue_notification_port;
 mod queue_port;
 mod random_port;
 mod region_repository;
-mod region_service_port;
-mod relationship_service_port;
 mod repository_port;
 mod scene_dm_action_queue_port;
 mod scene_interactions_query_port;
 mod scene_repository;
-mod scene_resolution_service_port;
 mod scene_service_port;
 mod scene_with_relations_query_port;
 mod settings_cache_port;
 mod settings_port;
 mod settings_service_port;
-mod sheet_template_service_port;
-mod skill_service_port;
 mod staging_repository_port;
 mod staging_service_port;
 mod staging_state_ports;
 mod staging_use_case_service_ports;
 mod state_change;
-mod story_event_admin_service_port;
-mod story_event_query_service_port;
-mod story_event_recording_service_port;
 mod story_event_repository;
-mod story_event_service_port;
 mod suggestion_enqueue_port;
-mod trigger_evaluation_service_port;
 mod use_case_errors;
 mod use_case_types;
 mod workflow_service_port;
@@ -105,27 +81,12 @@ mod world_snapshot_json_port;
 mod world_state;
 mod world_state_update_port;
 
-// Actantial context service port - interface for character motivation context
-pub use actantial_context_service_port::ActantialContextServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use actantial_context_service_port::MockActantialContextServicePort;
-
 pub use approval_request_lookup_port::ApprovalRequestLookupPort;
 #[cfg(any(test, feature = "testing"))]
 pub use approval_request_lookup_port::MockApprovalRequestLookupPort;
 
 // State change DTOs (tool/trigger execution results)
 pub use state_change::StateChange;
-
-// Outcome trigger execution
-#[cfg(any(test, feature = "testing"))]
-pub use outcome_trigger_service_port::MockOutcomeTriggerServicePort;
-pub use outcome_trigger_service_port::{OutcomeTriggerExecutionResult, OutcomeTriggerServicePort};
-
-// Challenge service port - interface for challenge operations
-pub use challenge_service_port::ChallengeServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use challenge_service_port::MockChallengeServicePort;
 
 // Clock port - time abstraction for deterministic testing
 pub use clock_port::ClockPort;
@@ -169,11 +130,6 @@ pub use generation_active_batches_port::{
 };
 
 pub use event_bus_port::{EventBusError, EventBusPort};
-
-// Event chain service port - interface for event chain (story arc) operations
-pub use event_chain_service_port::EventChainServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use event_chain_service_port::MockEventChainServicePort;
 
 // Event notifier port - interface for in-process event notification
 pub use event_notifier_port::EventNotifierPort;
@@ -378,14 +334,6 @@ pub use directorial_context_query_port::DirectorialContextQueryPort;
 // Minimal world state updates used by use cases
 pub use world_state_update_port::WorldStateUpdatePort;
 
-// Dialogue context service port - interface for dialogue context operations (LLM/staging)
-pub use dialogue_context_service_port::DialogueContextServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use dialogue_context_service_port::MockDialogueContextServicePort;
-
-// Narrative event service port - interface for narrative event operations
-pub use narrative_event_service_port::NarrativeEventServicePort;
-
 // Scene service port - interface for scene operations
 pub use scene_service_port::{SceneServicePort, SceneWithRelations};
 
@@ -393,16 +341,6 @@ pub use scene_service_port::{SceneServicePort, SceneWithRelations};
 pub use scene_dm_action_queue_port::SceneDmActionQueuePort;
 pub use scene_interactions_query_port::SceneInteractionsQueryPort;
 pub use scene_with_relations_query_port::SceneWithRelationsQueryPort;
-
-// Disposition service port - interface for NPC disposition operations
-pub use disposition_service_port::DispositionServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use disposition_service_port::MockDispositionServicePort;
-
-// Skill service port - interface for skill operations
-#[cfg(any(test, feature = "testing"))]
-pub use skill_service_port::MockSkillServicePort;
-pub use skill_service_port::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
 
 // Interaction service port - interface for interaction operations
 pub use interaction_service_port::InteractionServicePort;
@@ -415,36 +353,6 @@ pub use world_service_port::MockWorldServicePort;
 pub use world_service_port::WorldServicePort;
 
 pub use world_snapshot_json_port::WorldSnapshotJsonPort;
-
-// Character service port - interface for character operations
-pub use character_service_port::CharacterServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use character_service_port::MockCharacterServicePort;
-
-// Location service port - interface for location operations
-pub use location_service_port::LocationServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use location_service_port::MockLocationServicePort;
-
-// Region service port - interface for region operations
-#[cfg(any(test, feature = "testing"))]
-pub use region_service_port::MockRegionServicePort;
-pub use region_service_port::RegionServicePort;
-
-// Relationship service port - interface for relationship operations
-#[cfg(any(test, feature = "testing"))]
-pub use relationship_service_port::MockRelationshipServicePort;
-pub use relationship_service_port::RelationshipServicePort;
-
-// Scene resolution service port - interface for scene resolution operations
-#[cfg(any(test, feature = "testing"))]
-pub use scene_resolution_service_port::MockSceneResolutionServicePort;
-pub use scene_resolution_service_port::{SceneResolutionResult, SceneResolutionServicePort};
-
-// Sheet template service port - interface for character sheet template operations
-#[cfg(any(test, feature = "testing"))]
-pub use sheet_template_service_port::MockSheetTemplateServicePort;
-pub use sheet_template_service_port::SheetTemplateServicePort;
 
 pub use broadcast_port::BroadcastPort;
 pub use game_events::{
@@ -480,38 +388,12 @@ pub use world_state::{
     WorldScenePort, WorldStatePort, WorldTimePort,
 };
 
-// Item service port - interface for item operations
-pub use item_service_port::ItemServicePort;
-#[cfg(any(test, feature = "testing"))]
-pub use item_service_port::MockItemServicePort;
-
 // Player character service port - interface for player character operations
 #[cfg(any(test, feature = "testing"))]
 pub use player_character_service_port::MockPlayerCharacterServicePort;
 pub use player_character_service_port::PlayerCharacterServicePort;
 
 pub use player_character_dto_port::PlayerCharacterDtoPort;
-
-// Story event service port - interface for story event operations
-#[cfg(any(test, feature = "testing"))]
-pub use story_event_service_port::MockStoryEventServicePort;
-pub use story_event_service_port::StoryEventServicePort;
-
-// Story event admin service port - interface for DM/admin story event operations
-#[cfg(any(test, feature = "testing"))]
-pub use story_event_admin_service_port::MockStoryEventAdminServicePort;
-pub use story_event_admin_service_port::StoryEventAdminServicePort;
-
-// Story event query service port - interface for read-only story event queries
-#[cfg(any(test, feature = "testing"))]
-pub use story_event_query_service_port::MockStoryEventQueryServicePort;
-pub use story_event_query_service_port::StoryEventQueryServicePort;
-
-// Story event recording service port - interface for recording gameplay events
-// Part of ISP split: records dialogue, challenges, scene transitions, etc.
-#[cfg(any(test, feature = "testing"))]
-pub use story_event_recording_service_port::MockStoryEventRecordingServicePort;
-pub use story_event_recording_service_port::StoryEventRecordingServicePort;
 
 // Settings service port - interface for settings operations
 #[cfg(any(test, feature = "testing"))]
@@ -522,11 +404,6 @@ pub use settings_service_port::{LlmConfig, SettingsServicePort};
 #[cfg(any(test, feature = "testing"))]
 pub use prompt_template_service_port::MockPromptTemplateServicePort;
 pub use prompt_template_service_port::PromptTemplateServicePort;
-
-// Prompt context service port - interface for building LLM prompt context
-#[cfg(any(test, feature = "testing"))]
-pub use prompt_context_service_port::MockPromptContextServicePort;
-pub use prompt_context_service_port::{PromptContextError, PromptContextServicePort};
 
 // Asset service port - interface for asset gallery operations
 #[cfg(any(test, feature = "testing"))]
@@ -544,13 +421,6 @@ pub use workflow_service_port::WorkflowServicePort;
 #[cfg(any(test, feature = "testing"))]
 pub use generation_service_port::MockGenerationServicePort;
 pub use generation_service_port::{GenerationRequest, GenerationServicePort};
-
-// Challenge resolution service port - interface for challenge resolution operations
-#[cfg(any(test, feature = "testing"))]
-pub use challenge_resolution_service_port::MockChallengeResolutionServicePort;
-pub use challenge_resolution_service_port::{
-    ChallengeResolutionServicePort, DiceRoll, PendingResolution, RollResult,
-};
 
 // Staging service port - interface for NPC staging operations
 #[cfg(any(test, feature = "testing"))]
@@ -591,13 +461,6 @@ pub use dm_approval_queue_service_port::{
 pub use wrldbldr_protocol::{
     ChallengeSuggestionInfo, ChallengeSuggestionOutcomes, NarrativeEventSuggestionInfo,
     ProposedToolInfo,
-};
-
-// DM action queue service port - interface for DM action queue operations
-#[cfg(any(test, feature = "testing"))]
-pub use dm_action_queue_service_port::MockDmActionQueueServicePort;
-pub use dm_action_queue_service_port::{
-    DmAction, DmActionQueueItem, DmActionQueueServicePort, DmActionType, DmDecision,
 };
 
 // Asset generation queue service port - interface for asset generation queue operations
@@ -721,27 +584,13 @@ pub use use_case_types::{
 };
 
 // Challenge outcome approval service port - interface for DM approval of challenge resolutions
+// NOTE: This is a wrapper-forwarder trait that will be deleted in Step 5 of the ServicePort refactor.
 #[cfg(any(test, feature = "testing"))]
 pub use challenge_outcome_approval_service_port::MockChallengeOutcomeApprovalServicePort;
 pub use challenge_outcome_approval_service_port::{
     ChallengeApprovalResult, ChallengeOutcomeApprovalServicePort,
     OutcomeBranchInfo as ApprovalOutcomeBranchInfo, ResolvedOutcome,
     StateChangeInfo as ApprovalStateChangeInfo,
-};
-
-// Narrative event approval service port - interface for DM approval of narrative events
-#[cfg(any(test, feature = "testing"))]
-pub use narrative_event_approval_service_port::MockNarrativeEventApprovalServicePort;
-pub use narrative_event_approval_service_port::{
-    NarrativeEventApprovalServicePort, NarrativeEventTriggerResult,
-};
-
-// Trigger evaluation service port - interface for evaluating narrative event triggers
-#[cfg(any(test, feature = "testing"))]
-pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
-pub use trigger_evaluation_service_port::{
-    CompletedChallenge, CompletedNarrativeEvent, GameStateSnapshot, ImmediateContext,
-    TriggerEvaluationResult, TriggerEvaluationServicePort, TriggerSource, TriggeredEventCandidate,
 };
 
 // Event effect executor port - interface for executing narrative event outcome effects

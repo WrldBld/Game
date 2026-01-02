@@ -20,11 +20,14 @@ use std::sync::Arc;
 
 use wrldbldr_domain::value_objects::NarrativeResolutionConfig;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_engine_app::application::services::internal::{
+    ChallengeResolutionServicePort, DiceRoll,
+};
 use wrldbldr_engine_ports::outbound::{
     AdHocOutcomes, AdHocResult, ApprovalItem as UseCaseApprovalItem, ChallengeDmApprovalQueuePort,
     ChallengeOutcomeApprovalPort, ChallengeOutcomeApprovalServicePort, ChallengeResolutionPort,
-    ChallengeResolutionServicePort, DiceInputType, DiceRoll, DmApprovalQueueServicePort,
-    NarrativeRollContext, OutcomeDecision, RollResultData as RollResult, TriggerResult,
+    DiceInputType, DmApprovalQueueServicePort, NarrativeRollContext, OutcomeDecision,
+    RollResultData, TriggerResult,
 };
 
 // =============================================================================
@@ -168,7 +171,7 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
         roll: i32,
         _narrative_config: &NarrativeResolutionConfig,
         _narrative_context: Option<&NarrativeRollContext>,
-    ) -> Result<RollResult, String> {
+    ) -> Result<RollResultData, String> {
         let uuid = uuid::Uuid::parse_str(&challenge_id).map_err(|e| e.to_string())?;
         let challenge_id_parsed = wrldbldr_domain::ChallengeId::from_uuid(uuid);
 
@@ -189,7 +192,7 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
             .await
             .map_err(|e| e.to_string())?;
 
-        Ok(RollResult {
+        Ok(RollResultData {
             resolution_id: result.resolution_id,
             challenge_id: result.challenge_id,
             challenge_name: result.challenge_name,
@@ -215,7 +218,7 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
         input_type: DiceInputType,
         _narrative_config: &NarrativeResolutionConfig,
         _narrative_context: Option<&NarrativeRollContext>,
-    ) -> Result<RollResult, String> {
+    ) -> Result<RollResultData, String> {
         let uuid = uuid::Uuid::parse_str(&challenge_id).map_err(|e| e.to_string())?;
         let challenge_id_parsed = wrldbldr_domain::ChallengeId::from_uuid(uuid);
 
@@ -244,7 +247,7 @@ impl ChallengeResolutionPort for ChallengeResolutionAdapter {
             .await
             .map_err(|e| e.to_string())?;
 
-        Ok(RollResult {
+        Ok(RollResultData {
             resolution_id: result.resolution_id,
             challenge_id: result.challenge_id,
             challenge_name: result.challenge_name,

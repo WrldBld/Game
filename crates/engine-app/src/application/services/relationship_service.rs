@@ -10,9 +10,8 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
-use wrldbldr_engine_ports::outbound::{
-    RelationshipRepositoryPort, RelationshipServicePort, SocialNetwork,
-};
+use crate::application::services::internal::{RelationshipServicePort, SocialNetwork};
+use wrldbldr_engine_ports::outbound::RelationshipRepositoryPort;
 
 /// Relationship service trait defining the application use cases
 #[async_trait]

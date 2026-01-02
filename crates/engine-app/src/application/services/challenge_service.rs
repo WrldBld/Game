@@ -19,9 +19,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{Challenge, ChallengeLocationAvailability, ChallengePrerequisite};
 use wrldbldr_domain::{ChallengeId, LocationId, SceneId, SkillId, WorldId};
+use crate::application::services::internal::ChallengeServicePort;
 use wrldbldr_engine_ports::outbound::{
     ChallengeAvailabilityPort, ChallengeCrudPort, ChallengePrerequisitePort, ChallengeScenePort,
-    ChallengeServicePort, ChallengeSkillPort,
+    ChallengeSkillPort,
 };
 
 /// Challenge service trait defining the application use cases

@@ -352,50 +352,50 @@ No migration scripts or feature flags needed.
 
 ## Appendix: Full Trait Classification Table
 
-| #   | Trait                                  | Classification     | Action                         |
-| --- | -------------------------------------- | ------------------ | ------------------------------ |
-| 1   | `ActantialContextServicePort`          | NOT A PORT         | Internalize                    |
-| 2   | `AssetGenerationQueueServicePort`      | INBOUND            | Replace with UseCasePort       |
-| 3   | `AssetServicePort`                     | INBOUND            | Replace with UseCasePort       |
+| #   | Trait                                  | Classification           | Action                         |
+| --- | -------------------------------------- | ------------------------ | ------------------------------ |
+| 1   | `ActantialContextServicePort`          | NOT A PORT               | Internalize                    |
+| 2   | `AssetGenerationQueueServicePort`      | INBOUND                  | Replace with UseCasePort       |
+| 3   | `AssetServicePort`                     | INBOUND                  | Replace with UseCasePort       |
 | 4   | `ChallengeOutcomeApprovalServicePort`  | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
-| 5   | `ChallengeResolutionServicePort`       | NOT A PORT         | Internalize                    |
-| 6   | `ChallengeServicePort`                 | NOT A PORT         | Internalize                    |
-| 7   | `CharacterServicePort`                 | NOT A PORT         | Internalize                    |
-| 8   | `DialogueContextServicePort`           | NOT A PORT         | Internalize                    |
-| 9   | `DispositionServicePort`               | NOT A PORT         | Internalize                    |
-| 10  | `DmActionQueueServicePort`             | NOT A PORT         | Internalize                    |
-| 11  | `DmApprovalQueueServicePort`           | INBOUND            | Replace with UseCasePort       |
-| 12  | `EventChainServicePort`                | NOT A PORT         | Internalize                    |
-| 13  | `GenerationQueueProjectionServicePort` | INBOUND            | Replace with UseCasePort       |
-| 14  | `GenerationServicePort`                | INBOUND            | Replace with UseCasePort       |
+| 5   | `ChallengeResolutionServicePort`       | NOT A PORT               | Internalize                    |
+| 6   | `ChallengeServicePort`                 | NOT A PORT               | Internalize                    |
+| 7   | `CharacterServicePort`                 | NOT A PORT               | Internalize                    |
+| 8   | `DialogueContextServicePort`           | NOT A PORT               | Internalize                    |
+| 9   | `DispositionServicePort`               | NOT A PORT               | Internalize                    |
+| 10  | `DmActionQueueServicePort`             | NOT A PORT               | Internalize                    |
+| 11  | `DmApprovalQueueServicePort`           | INBOUND                  | Replace with UseCasePort       |
+| 12  | `EventChainServicePort`                | NOT A PORT               | Internalize                    |
+| 13  | `GenerationQueueProjectionServicePort` | INBOUND                  | Replace with UseCasePort       |
+| 14  | `GenerationServicePort`                | INBOUND                  | Replace with UseCasePort       |
 | 15  | `InteractionServicePort`               | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
-| 16  | `ItemServicePort`                      | NOT A PORT         | Internalize                    |
-| 17  | `LlmQueueServicePort`                  | INBOUND            | Replace with UseCasePort       |
-| 18  | `LocationServicePort`                  | NOT A PORT         | Internalize                    |
-| 19  | `NarrativeEventApprovalServicePort`    | NOT A PORT         | Internalize                    |
-| 20  | `NarrativeEventServicePort`            | NOT A PORT         | Internalize                    |
-| 21  | `OutcomeTriggerServicePort`            | NOT A PORT         | Internalize                    |
-| 22  | `PlayerActionQueueServicePort`         | INBOUND            | Replace with UseCasePort       |
+| 16  | `ItemServicePort`                      | NOT A PORT               | Internalize                    |
+| 17  | `LlmQueueServicePort`                  | INBOUND                  | Replace with UseCasePort       |
+| 18  | `LocationServicePort`                  | NOT A PORT               | Internalize                    |
+| 19  | `NarrativeEventApprovalServicePort`    | NOT A PORT               | Internalize                    |
+| 20  | `NarrativeEventServicePort`            | NOT A PORT               | Internalize                    |
+| 21  | `OutcomeTriggerServicePort`            | NOT A PORT               | Internalize                    |
+| 22  | `PlayerActionQueueServicePort`         | INBOUND                  | Replace with UseCasePort       |
 | 23  | `PlayerCharacterServicePort`           | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
-| 24  | `PromptContextServicePort`             | NOT A PORT         | Internalize                    |
-| 25  | `PromptTemplateServicePort`            | INBOUND            | Replace with UseCasePort       |
-| 26  | `RegionServicePort`                    | NOT A PORT         | Internalize                    |
-| 27  | `RelationshipServicePort`              | NOT A PORT         | Internalize                    |
-| 28  | `SceneResolutionServicePort`           | NOT A PORT         | Internalize                    |
+| 24  | `PromptContextServicePort`             | NOT A PORT               | Internalize                    |
+| 25  | `PromptTemplateServicePort`            | INBOUND                  | Replace with UseCasePort       |
+| 26  | `RegionServicePort`                    | NOT A PORT               | Internalize                    |
+| 27  | `RelationshipServicePort`              | NOT A PORT               | Internalize                    |
+| 28  | `SceneResolutionServicePort`           | NOT A PORT               | Internalize                    |
 | 29  | `SceneServicePort`                     | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
-| 30  | `SettingsServicePort`                  | INBOUND            | Replace with UseCasePort       |
-| 31  | `SheetTemplateServicePort`             | NOT A PORT         | Internalize                    |
-| 32  | `SkillServicePort`                     | NOT A PORT         | Internalize                    |
+| 30  | `SettingsServicePort`                  | INBOUND                  | Replace with UseCasePort       |
+| 31  | `SheetTemplateServicePort`             | NOT A PORT               | Internalize                    |
+| 32  | `SkillServicePort`                     | NOT A PORT               | Internalize                    |
 | 33  | `StagingServicePort`                   | ADAPTER-CALLED (wrapper) | Delete after removing wrapper  |
-| 34  | `StagingUseCaseServicePort`            | OUTBOUND           | **KEEP** (adapter-implemented) |
-| 35  | `StagingUseCaseServiceExtPort`         | OUTBOUND           | **KEEP** (adapter-implemented) |
-| 36  | `StoryEventAdminServicePort`           | NOT A PORT         | Internalize                    |
-| 37  | `StoryEventQueryServicePort`           | NOT A PORT         | Internalize                    |
-| 38  | `StoryEventRecordingServicePort`       | NOT A PORT         | Internalize                    |
-| 39  | `StoryEventServicePort`                | NOT A PORT         | Internalize                    |
-| 40  | `TriggerEvaluationServicePort`         | NOT A PORT         | Internalize                    |
-| 41  | `WorkflowServicePort`                  | INBOUND            | Replace with UseCasePort       |
-| 42  | `WorldServicePort`                     | INBOUND            | Replace with UseCasePort       |
+| 34  | `StagingUseCaseServicePort`            | OUTBOUND                 | **KEEP** (adapter-implemented) |
+| 35  | `StagingUseCaseServiceExtPort`         | OUTBOUND                 | **KEEP** (adapter-implemented) |
+| 36  | `StoryEventAdminServicePort`           | NOT A PORT               | Internalize                    |
+| 37  | `StoryEventQueryServicePort`           | NOT A PORT               | Internalize                    |
+| 38  | `StoryEventRecordingServicePort`       | NOT A PORT               | Internalize                    |
+| 39  | `StoryEventServicePort`                | NOT A PORT               | Internalize                    |
+| 40  | `TriggerEvaluationServicePort`         | NOT A PORT               | Internalize                    |
+| 41  | `WorkflowServicePort`                  | INBOUND                  | Replace with UseCasePort       |
+| 42  | `WorldServicePort`                     | INBOUND                  | Replace with UseCasePort       |
 
 **Summary**:
 

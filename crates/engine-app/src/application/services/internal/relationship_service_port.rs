@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use wrldbldr_domain::value_objects::Relationship;
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
-use super::SocialNetwork;
+use wrldbldr_engine_ports::outbound::SocialNetwork;
 
 /// Port for relationship service operations.
 ///

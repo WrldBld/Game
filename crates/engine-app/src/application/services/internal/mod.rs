@@ -1,0 +1,149 @@
+//! Internal service traits - NOT ports, just app-layer contracts
+//!
+//! These traits define contracts between services within the application layer.
+//! They are NOT ports in the hexagonal architecture sense (not adapter-implemented).
+//!
+//! They exist for:
+//! - Dependency injection within the app layer
+//! - Testing (mockall mocks)
+//! - Decoupling service implementations
+//!
+//! # Migration Note
+//!
+//! These traits were moved from `engine-ports/src/outbound/` as part of the
+//! hexagonal architecture cleanup. They were incorrectly classified as "outbound ports"
+//! but are actually internal application contracts.
+
+// Service trait modules - alphabetically ordered
+mod actantial_context_service_port;
+mod challenge_resolution_service_port;
+mod challenge_service_port;
+mod character_service_port;
+mod dialogue_context_service_port;
+mod disposition_service_port;
+mod dm_action_queue_service_port;
+mod event_chain_service_port;
+mod item_service_port;
+mod location_service_port;
+mod narrative_event_approval_service_port;
+mod narrative_event_service_port;
+mod outcome_trigger_service_port;
+mod prompt_context_service_port;
+mod region_service_port;
+mod relationship_service_port;
+mod scene_resolution_service_port;
+mod sheet_template_service_port;
+mod skill_service_port;
+mod story_event_admin_service_port;
+mod story_event_query_service_port;
+mod story_event_recording_service_port;
+mod story_event_service_port;
+mod trigger_evaluation_service_port;
+
+// Re-export all traits and their mocks
+pub use actantial_context_service_port::ActantialContextServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use actantial_context_service_port::MockActantialContextServicePort;
+
+pub use challenge_resolution_service_port::{
+    ChallengeResolutionServicePort, DiceRoll, PendingResolution, RollResult,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_resolution_service_port::MockChallengeResolutionServicePort;
+
+pub use challenge_service_port::ChallengeServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use challenge_service_port::MockChallengeServicePort;
+
+pub use character_service_port::CharacterServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use character_service_port::MockCharacterServicePort;
+
+pub use dialogue_context_service_port::DialogueContextServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use dialogue_context_service_port::MockDialogueContextServicePort;
+
+pub use disposition_service_port::DispositionServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use disposition_service_port::MockDispositionServicePort;
+
+pub use dm_action_queue_service_port::{
+    DmAction, DmActionQueueItem, DmActionQueueServicePort, DmActionType, DmDecision,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use dm_action_queue_service_port::MockDmActionQueueServicePort;
+
+pub use event_chain_service_port::EventChainServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use event_chain_service_port::MockEventChainServicePort;
+
+pub use item_service_port::ItemServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use item_service_port::MockItemServicePort;
+
+pub use location_service_port::LocationServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use location_service_port::MockLocationServicePort;
+
+pub use narrative_event_approval_service_port::{
+    NarrativeEventApprovalServicePort, NarrativeEventTriggerResult,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use narrative_event_approval_service_port::MockNarrativeEventApprovalServicePort;
+
+pub use narrative_event_service_port::NarrativeEventServicePort;
+
+pub use outcome_trigger_service_port::{OutcomeTriggerExecutionResult, OutcomeTriggerServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use outcome_trigger_service_port::MockOutcomeTriggerServicePort;
+
+pub use prompt_context_service_port::{PromptContextError, PromptContextServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use prompt_context_service_port::MockPromptContextServicePort;
+
+pub use region_service_port::RegionServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use region_service_port::MockRegionServicePort;
+
+pub use relationship_service_port::RelationshipServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use relationship_service_port::MockRelationshipServicePort;
+
+pub use scene_resolution_service_port::{SceneResolutionResult, SceneResolutionServicePort};
+#[cfg(any(test, feature = "testing"))]
+pub use scene_resolution_service_port::MockSceneResolutionServicePort;
+
+pub use sheet_template_service_port::SheetTemplateServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use sheet_template_service_port::MockSheetTemplateServicePort;
+
+pub use skill_service_port::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
+#[cfg(any(test, feature = "testing"))]
+pub use skill_service_port::MockSkillServicePort;
+
+pub use story_event_admin_service_port::StoryEventAdminServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_admin_service_port::MockStoryEventAdminServicePort;
+
+pub use story_event_query_service_port::StoryEventQueryServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_query_service_port::MockStoryEventQueryServicePort;
+
+pub use story_event_recording_service_port::StoryEventRecordingServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_recording_service_port::MockStoryEventRecordingServicePort;
+
+pub use story_event_service_port::StoryEventServicePort;
+#[cfg(any(test, feature = "testing"))]
+pub use story_event_service_port::MockStoryEventServicePort;
+
+pub use trigger_evaluation_service_port::{
+    CompletedChallenge, CompletedNarrativeEvent, GameStateSnapshot, ImmediateContext,
+    TriggerEvaluationResult, TriggerEvaluationServicePort, TriggerSource, TriggeredEventCandidate,
+};
+#[cfg(any(test, feature = "testing"))]
+pub use trigger_evaluation_service_port::MockTriggerEvaluationServicePort;
+
+// Re-export types from engine-ports that internal traits depend on
+// (These are true outbound port types, not internal traits)
+pub use wrldbldr_engine_ports::outbound::{SocialNetwork, StateChange};

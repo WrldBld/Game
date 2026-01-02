@@ -11,10 +11,8 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{default_skills_for_variant, Skill};
 use wrldbldr_domain::{SkillId, WorldId};
-use wrldbldr_engine_ports::outbound::{
-    CreateSkillRequest, SkillRepositoryPort, SkillServicePort, UpdateSkillRequest,
-    WorldRepositoryPort,
-};
+use super::internal::{CreateSkillRequest, SkillServicePort, UpdateSkillRequest};
+use wrldbldr_engine_ports::outbound::{SkillRepositoryPort, WorldRepositoryPort};
 
 /// Skill service trait defining the application use cases
 #[async_trait]

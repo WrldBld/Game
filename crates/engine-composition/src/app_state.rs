@@ -80,15 +80,18 @@ use wrldbldr_engine_ports::inbound::{
     MovementUseCasePort, NarrativeEventUseCasePort, ObservationUseCasePort,
     PlayerActionUseCasePort, RequestHandler, SceneUseCasePort, StagingUseCasePort,
 };
+// Internal service traits (NOT ports - internal app-layer contracts)
+use wrldbldr_engine_app::application::services::internal::PromptContextServicePort;
+// True outbound ports (adapter-implemented infrastructure)
 use wrldbldr_engine_ports::outbound::{
     AssetGenerationQueueServicePort, AssetServicePort, BroadcastPort, ClockPort, ComfyUIPort,
     ConnectionBroadcastPort, ConnectionContextPort, ConnectionLifecyclePort, ConnectionQueryPort,
     DirectorialContextRepositoryPort, DmApprovalQueueServicePort,
     GenerationQueueProjectionServicePort, GenerationReadStatePort, GenerationServicePort, LlmPort,
-    LlmQueueServicePort, PlayerActionQueueServicePort, PromptContextServicePort,
-    PromptTemplateServicePort, RegionItemPort, SettingsServicePort, StagingServicePort,
-    WorkflowServicePort, WorldApprovalPort, WorldConversationPort, WorldDirectorialPort,
-    WorldLifecyclePort, WorldScenePort, WorldServicePort, WorldTimePort,
+    LlmQueueServicePort, PlayerActionQueueServicePort, PromptTemplateServicePort, RegionItemPort,
+    SettingsServicePort, StagingServicePort, WorkflowServicePort, WorldApprovalPort,
+    WorldConversationPort, WorldDirectorialPort, WorldLifecyclePort, WorldScenePort,
+    WorldServicePort, WorldTimePort,
 };
 
 /// Type alias for LlmPort with anyhow::Error as the associated error type.

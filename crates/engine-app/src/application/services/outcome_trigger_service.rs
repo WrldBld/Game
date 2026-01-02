@@ -9,9 +9,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::OutcomeTrigger;
 use wrldbldr_domain::WorldId;
-use wrldbldr_engine_ports::outbound::{
-    ChallengeCrudPort, OutcomeTriggerExecutionResult, OutcomeTriggerServicePort, StateChange,
+use crate::application::services::internal::{
+    OutcomeTriggerExecutionResult, OutcomeTriggerServicePort, StateChange,
 };
+use wrldbldr_engine_ports::outbound::ChallengeCrudPort;
 
 use async_trait::async_trait;
 

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use wrldbldr_domain::entities::OutcomeTrigger;
 use wrldbldr_domain::WorldId;
 
-use super::StateChange;
+use wrldbldr_engine_ports::outbound::StateChange;
 
 /// Result of executing outcome triggers.
 #[derive(Debug, Clone)]

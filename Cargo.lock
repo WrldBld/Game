@@ -7133,6 +7133,7 @@ dependencies = [
  "wrldbldr-common",
  "wrldbldr-domain",
  "wrldbldr-domain-types",
+ "wrldbldr-engine-app",
  "wrldbldr-engine-dto",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",
@@ -7145,6 +7146,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "mockall",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -7169,6 +7171,7 @@ dependencies = [
  "async-trait",
  "serde",
  "wrldbldr-domain",
+ "wrldbldr-engine-app",
  "wrldbldr-engine-ports",
  "wrldbldr-protocol",
 ]

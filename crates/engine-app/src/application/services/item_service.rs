@@ -14,8 +14,9 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{AcquisitionMethod, InventoryItem, Item};
 use wrldbldr_domain::error::DomainError;
 use wrldbldr_domain::{ItemId, PlayerCharacterId, RegionId, WorldId};
+use crate::application::services::internal::ItemServicePort;
 use wrldbldr_engine_ports::outbound::{
-    ItemRepositoryPort, ItemServicePort, PlayerCharacterInventoryPort, RegionItemPort,
+    ItemRepositoryPort, PlayerCharacterInventoryPort, RegionItemPort,
 };
 
 /// Request to create a new item

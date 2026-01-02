@@ -21,9 +21,10 @@ use wrldbldr_domain::value_objects::{
     WantContext,
 };
 use wrldbldr_domain::{CharacterId, GoalId, PlayerCharacterId, WantId, WorldId};
+use crate::application::services::internal::ActantialContextServicePort;
 use wrldbldr_engine_ports::outbound::{
-    ActantialContextServicePort, CharacterActantialPort, CharacterCrudPort, CharacterWantPort,
-    ClockPort, GoalRepositoryPort, PlayerCharacterCrudPort, WantRepositoryPort,
+    CharacterActantialPort, CharacterCrudPort, CharacterWantPort, ClockPort, GoalRepositoryPort,
+    PlayerCharacterCrudPort, WantRepositoryPort,
 };
 
 // =============================================================================

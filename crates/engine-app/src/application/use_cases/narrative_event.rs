@@ -16,9 +16,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use wrldbldr_engine_ports::inbound::{NarrativeEventUseCasePort, UseCaseContext};
-use wrldbldr_engine_ports::outbound::{
-    BroadcastPort, GameEvent, NarrativeEventApprovalServicePort,
-};
+use crate::application::services::internal::NarrativeEventApprovalServicePort;
+use wrldbldr_engine_ports::outbound::{BroadcastPort, GameEvent};
 
 use super::errors::NarrativeEventError;
 

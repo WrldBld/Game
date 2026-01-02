@@ -8,9 +8,10 @@ description = "WrldBldr Engine Composition - AppState and service container type
 
 [dependencies]
 # Composition layer: defines service containers using port traits
-# No adapter dependency - adapters are only wired in by the runner
+# Now depends on engine-app for internal service traits (NOT ports)
 wrldbldr-domain = { workspace = true }
 wrldbldr-engine-ports = { workspace = true }
+wrldbldr-engine-app = { workspace = true }
 wrldbldr-protocol = { workspace = true }
 
 # Minimal runtime deps

@@ -17,7 +17,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use thiserror::Error;
 use wrldbldr_domain::{NarrativeEventId, WorldId};
-use wrldbldr_engine_ports::outbound::{
+use crate::application::services::internal::{
     NarrativeEventApprovalServicePort, NarrativeEventServicePort,
     NarrativeEventTriggerResult as PortNarrativeEventTriggerResult, StoryEventRecordingServicePort,
 };

@@ -10,9 +10,10 @@ use tracing::{debug, info, instrument};
 
 use wrldbldr_domain::entities::{Location, LocationConnection, LocationType, Region};
 use wrldbldr_domain::{GridMapId, LocationId, WorldId};
+use crate::application::services::internal::LocationServicePort;
 use wrldbldr_engine_ports::outbound::{
     LocationConnectionPort, LocationCrudPort, LocationHierarchyPort, LocationMapPort,
-    LocationServicePort, WorldRepositoryPort,
+    WorldRepositoryPort,
 };
 
 // Validation constants

@@ -11,9 +11,10 @@ use tracing::{debug, info, instrument};
 use wrldbldr_domain::entities::{Character, Region, RegionConnection, RegionExit};
 use wrldbldr_domain::value_objects::RegionRelationshipType;
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
+use crate::application::services::internal::RegionServicePort;
 use wrldbldr_engine_ports::outbound::{
     LocationCrudPort, LocationMapPort, RegionConnectionPort, RegionCrudPort, RegionExitPort,
-    RegionNpcPort, RegionServicePort,
+    RegionNpcPort,
 };
 
 // Validation constants
