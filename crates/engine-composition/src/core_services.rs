@@ -155,10 +155,10 @@ mod tests {
     use anyhow::Result;
     use wrldbldr_domain::SceneId;
     use wrldbldr_engine_app::application::services::internal::{
-        MockCharacterServicePort, MockItemServicePort, MockLocationServicePort,
-        MockRelationshipServicePort, MockSkillServicePort, MockWorldServicePort,
+        MockCharacterServicePort, MockInteractionServicePort, MockItemServicePort,
+        MockLocationServicePort, MockRelationshipServicePort, MockSkillServicePort,
+        MockWorldServicePort, SceneWithRelations,
     };
-    use wrldbldr_engine_ports::outbound::{MockInteractionServicePort, SceneWithRelations};
 
     /// Simple mock for SceneServicePort (mockall not available for this port)
     struct MockSceneServicePort;

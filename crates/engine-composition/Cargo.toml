@@ -25,6 +25,7 @@ uuid = { workspace = true }
 [dev-dependencies]
 # Enable testing feature for mock types in tests
 wrldbldr-engine-ports = { workspace = true, features = ["testing"] }
+wrldbldr-engine-app = { workspace = true, features = ["testing"] }
 anyhow = { workspace = true }
 
 [lints]
