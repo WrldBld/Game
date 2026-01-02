@@ -2,9 +2,28 @@
 
 **Status**: ACTIVE (authoritative remediation plan)  
 **Created**: 2026-01-01  
+**Last Updated**: 2026-01-01  
 **Supersedes**: `HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md`
 
 This is the consolidated plan addressing all architectural issues identified in the comprehensive code review. It builds upon the completed work from the previous master plan (Phases 1-7) and adds new phases to address remaining gaps.
+
+## Progress Summary
+
+| Track | Completed | Remaining | Next Priority |
+|-------|-----------|-----------|---------------|
+| A: Engine Domain/DTOs | 0/4 | 4 | 1A.1 (Queue Data Migration) |
+| B: Composition/Ports | 1/4 | 3 | 2A (Composition Root Refactor) |
+| C: Player/Docs | 1/3 | 2 | 3B (UI Error Feedback Audit) |
+| D: Code Quality | 1/3 | 2 | 4B (Remove Blanket Impl) |
+| **Total** | **3/14** | **11** | |
+
+### Completed Phases
+
+| Phase | Description | Commit | Date |
+|-------|-------------|--------|------|
+| 2C | Fix player_events.rs docstring | `b8e76a0` | 2026-01-01 |
+| 3A | Replace UI dice parsing with domain DiceFormula | `b8e76a0` | 2026-01-01 |
+| 4A | Fix magic number in world_connection_manager.rs | `b8e76a0` | 2026-01-01 |
 
 ---
 
@@ -403,14 +422,14 @@ When this plan is complete, all of the following will be true:
 
 ### 4. Port Layer Correctness
 
-- [ ] `player_events.rs` docstring correctly describes its `outbound/` placement
+- [x] `player_events.rs` docstring correctly describes its `outbound/` placement *(completed 2026-01-01)*
 - [ ] All protocol exceptions explicitly documented
 - [ ] Adapter files named consistently (not `ports_*.rs`)
 - [ ] `StoryEventQueryServicePort` renamed to `StoryEventQueryPort`
 
 ### 5. Player-Side Architecture
 
-- [ ] UI uses domain's `DiceFormula::parse()` instead of duplicate regex-based parsing
+- [x] UI uses domain's `DiceFormula::parse()` instead of duplicate regex-based parsing *(completed 2026-01-01)*
 - [ ] Silent failures in UI components audited and user feedback added where needed
 
 ### 6. Documentation Accuracy
@@ -421,7 +440,7 @@ When this plan is complete, all of the following will be true:
 
 ### 7. Code Quality
 
-- [ ] No magic numbers (conversation limit, buffer sizes configurable)
+- [x] No magic numbers (conversation limit, buffer sizes configurable) *(completed 2026-01-01)*
 - [ ] No blanket `impl ErrorCode for String`
 - [ ] No orphaned/deprecated modules
 
@@ -441,45 +460,45 @@ When this plan is complete, all of the following will be true:
 
 ### Parallel Track A: Engine Domain/DTOs (HIGH PRIORITY)
 
-| Phase | Description | Effort | Dependencies |
-|-------|-------------|--------|--------------|
-| 1A.1 | Queue Data Migration (move types) | Medium | None |
-| 1A.2 | Queue Data Consolidation (remove duplicates) | Medium | 1A.1 |
-| 1B | DTO Consolidation (ApprovalDecision) | Medium | 1A.2 |
-| 1C | Fix Utc::now() in App DTO | Small | None |
+| Phase | Description | Effort | Dependencies | Status |
+|-------|-------------|--------|--------------|--------|
+| 1A.1 | Queue Data Migration (move types) | Medium | None | Pending |
+| 1A.2 | Queue Data Consolidation (remove duplicates) | Medium | 1A.1 | Pending |
+| 1B | DTO Consolidation (ApprovalDecision) | Medium | 1A.2 | Pending |
+| 1C | Fix Utc::now() in App DTO | Small | None | Pending |
 
 **Note**: `ApprovalUrgency` and `ApprovalDecisionType` are **business concepts** (what needs DM approval and how urgent) - they stay in domain. Only infrastructure queue types move.
 
 ### Parallel Track B: Composition/Ports (HIGH PRIORITY)
 
-| Phase | Description | Effort | Dependencies |
-|-------|-------------|--------|--------------|
-| 2A | Composition Root Refactor | Large | None |
-| 2B | Port Naming Corrections | Small | None |
-| 2C | Fix player_events.rs Docstring | Small | None |
-| 2D | Document Protocol Exceptions | Small | None |
+| Phase | Description | Effort | Dependencies | Status |
+|-------|-------------|--------|--------------|--------|
+| 2A | Composition Root Refactor | Large | None | Pending |
+| 2B | Port Naming Corrections | Small | None | Pending |
+| 2C | Fix player_events.rs Docstring | Small | None | **DONE** |
+| 2D | Document Protocol Exceptions | Small | None | Pending |
 
-**Note on 2C**: Validation confirmed `player_events.rs` is **correctly placed** in `outbound/`. The file's docstring incorrectly claims it's in `inbound/`. Fix is to correct the docstring, not move the file.
+**Note on 2C**: ~~Validation confirmed `player_events.rs` is **correctly placed** in `outbound/`. The file's docstring incorrectly claims it's in `inbound/`. Fix is to correct the docstring, not move the file.~~ **COMPLETED 2026-01-01**: Docstring updated to correctly describe outbound placement.
 
 ### Parallel Track C: Player/Docs (MEDIUM PRIORITY)
 
-| Phase | Description | Effort | Dependencies |
-|-------|-------------|--------|--------------|
-| 3A | Remove Duplicate Dice Parsing | Small | None |
-| 3B | UI Error Feedback Audit | Medium | None |
-| 3C | Documentation Updates | Small | 1A, 2B |
+| Phase | Description | Effort | Dependencies | Status |
+|-------|-------------|--------|--------------|--------|
+| 3A | Remove Duplicate Dice Parsing | Small | None | **DONE** |
+| 3B | UI Error Feedback Audit | Medium | None | Pending |
+| 3C | Documentation Updates | Small | 1A, 2B | Pending |
 
-**Note on 3A**: Domain already has complete `DiceFormula` implementation. UI has duplicate with bugs (allows d1, no shorthand). Fix is to use domain directly, not create new service.
+**Note on 3A**: ~~Domain already has complete `DiceFormula` implementation. UI has duplicate with bugs (allows d1, no shorthand). Fix is to use domain directly, not create new service.~~ **COMPLETED 2026-01-01**: UI now imports `DiceFormula` from domain. Exported `DiceFormula` and `DiceRollResult` from `domain/value_objects`. Removed buggy local regex parser.
 
 ### Parallel Track D: Code Quality (LOW PRIORITY)
 
-| Phase | Description | Effort | Dependencies |
-|-------|-------------|--------|--------------|
-| 4A | Fix Inline Buffer Size | Small | None |
-| 4B | Remove Blanket Impl | Small | None |
-| 4C | Cleanup Orphaned Module | Small | None |
+| Phase | Description | Effort | Dependencies | Status |
+|-------|-------------|--------|--------------|--------|
+| 4A | Fix Inline Buffer Size | Small | None | **DONE** |
+| 4B | Remove Blanket Impl | Small | None | Pending |
+| 4C | Cleanup Orphaned Module | Small | None | Pending |
 
-**Note on 4A**: Conversation limit already has env var (`WRLDBLDR_MAX_CONVERSATION_TURNS`). Only fix needed is inline `256` in `world_connection_manager.rs`.
+**Note on 4A**: ~~Conversation limit already has env var (`WRLDBLDR_MAX_CONVERSATION_TURNS`). Only fix needed is inline `256` in `world_connection_manager.rs`.~~ **COMPLETED 2026-01-01**: Added `DEFAULT_BROADCAST_CHANNEL_BUFFER` constant.
 **Note on 4C**: Only `engine-runner/src/composition/services/mod.rs` is orphaned. `player-ports/src/mod.rs` is NOT orphaned.
 
 ---
