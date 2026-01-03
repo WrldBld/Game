@@ -1229,6 +1229,51 @@ async fn handle_request(
             }
         }
         
+        // Character inventory query
+        RequestPayload::GetCharacterInventory { character_id } => {
+            let uuid = match Uuid::parse_str(&character_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
+                    });
+                }
+            };
+            
+            // Try as PlayerCharacter first, then as NPC
+            let pc_id = PlayerCharacterId::from_uuid(uuid);
+            let items = match state.app.entities.inventory.get_pc_inventory(pc_id).await {
+                Ok(items) => items,
+                Err(_) => {
+                    // Try as NPC
+                    let npc_id = CharacterId::from_uuid(uuid);
+                    match state.app.entities.inventory.get_character_inventory(npc_id).await {
+                        Ok(items) => items,
+                        Err(e) => {
+                            return Some(ServerMessage::Response {
+                                request_id,
+                                result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                            });
+                        }
+                    }
+                }
+            };
+            
+            let data: Vec<serde_json::Value> = items
+                .into_iter()
+                .map(|item| serde_json::json!({
+                    "id": item.id,
+                    "name": item.name,
+                    "description": item.description,
+                    "item_type": item.item_type,
+                    "is_unique": item.is_unique,
+                    "properties": item.properties,
+                }))
+                .collect();
+            ResponseResult::success(data)
+        }
+        
         // Default - not implemented
         _ => ResponseResult::error(ErrorCode::BadRequest, "This request type is not yet implemented"),
     };
