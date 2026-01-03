@@ -97,6 +97,10 @@ pub struct SuggestionApprovalResult {
     pub final_dialogue: Option<String>,
     /// Tools that were approved
     pub approved_tools: Vec<String>,
+    /// NPC ID (speaker)
+    pub npc_id: Option<String>,
+    /// NPC name (speaker)
+    pub npc_name: Option<String>,
 }
 
 /// Approve LLM suggestion use case.
@@ -125,11 +129,25 @@ impl ApproveSuggestion {
         approval_queue_id: Uuid,
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
+        // Get the queue item first to extract NPC info
+        let queue_item = self.queue
+            .get_approval_request(approval_queue_id)
+            .await
+            .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+        
+        let (npc_id, npc_name, original_dialogue) = queue_item
+            .map(|data| (
+                data.npc_id.map(|id| id.to_string()),
+                Some(data.npc_name),
+                Some(data.proposed_dialogue),
+            ))
+            .unwrap_or((None, None, None));
+        
         let (approved, final_dialogue, approved_tools) = match &decision {
-            DmApprovalDecision::Accept => (true, None, vec![]),
+            DmApprovalDecision::Accept => (true, original_dialogue, vec![]),
             DmApprovalDecision::AcceptWithRecipients { .. } => {
                 // Item distribution handled separately
-                (true, None, vec![])
+                (true, original_dialogue, vec![])
             }
             DmApprovalDecision::AcceptWithModification {
                 modified_dialogue,
@@ -158,6 +176,8 @@ impl ApproveSuggestion {
             approved,
             final_dialogue,
             approved_tools,
+            npc_id,
+            npc_name,
         })
     }
 }

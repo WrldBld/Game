@@ -3,7 +3,7 @@
 mod enter_region;
 mod exit_location;
 
-pub use enter_region::{EnterRegion, EnterRegionError, EnterRegionResult};
+pub use enter_region::{EnterRegion, EnterRegionError, EnterRegionResult, StagingStatus};
 pub use exit_location::{ExitLocation, ExitLocationError};
 
 use std::sync::Arc;

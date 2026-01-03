@@ -281,4 +281,27 @@ impl QueuePort for SqliteQueue {
         let count: i64 = row.get("count");
         Ok(count as usize)
     }
+    
+    async fn get_approval_request(&self, id: Uuid) -> Result<Option<ApprovalRequestData>, QueueError> {
+        let result = sqlx::query(
+            r#"
+            SELECT payload_json FROM queue_items
+            WHERE id = ? AND queue_type = 'dm_approval'
+            "#,
+        )
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+        
+        match result {
+            Some(row) => {
+                let payload_json: String = row.get("payload_json");
+                let data: ApprovalRequestData = serde_json::from_str(&payload_json)
+                    .map_err(|e| QueueError::Error(e.to_string()))?;
+                Ok(Some(data))
+            }
+            None => Ok(None),
+        }
+    }
 }

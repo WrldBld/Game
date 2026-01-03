@@ -4,20 +4,36 @@
 //! Coordinates with staging, observation, and narrative systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{NarrativeEvent, PlayerCharacterId, Region, RegionId, StagedNpc};
+use wrldbldr_domain::{NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId, StagedNpc, Staging as DomainStaging};
 
 use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{ClockPort, RepoError};
 
 /// Result of entering a region.
 #[derive(Debug)]
 pub struct EnterRegionResult {
     /// The region entered
     pub region: Region,
-    /// NPCs present in the region
+    /// NPCs present in the region (empty if staging pending)
     pub npcs: Vec<StagedNpc>,
     /// Narrative events triggered by entry
     pub triggered_events: Vec<NarrativeEvent>,
+    /// Staging status for this region
+    pub staging_status: StagingStatus,
+    /// The player character who moved (for context in pending staging)
+    pub pc: DomainPlayerCharacter,
+}
+
+/// Status of staging for a region.
+#[derive(Debug)]
+pub enum StagingStatus {
+    /// Valid staging exists, NPCs are resolved
+    Ready,
+    /// No valid staging, DM approval required
+    Pending {
+        /// Previous staging if it exists (may be expired)
+        previous_staging: Option<DomainStaging>,
+    },
 }
 
 /// Enter region use case.
@@ -29,6 +45,7 @@ pub struct EnterRegion {
     staging: Arc<Staging>,
     observation: Arc<Observation>,
     narrative: Arc<Narrative>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl EnterRegion {
@@ -38,6 +55,7 @@ impl EnterRegion {
         staging: Arc<Staging>,
         observation: Arc<Observation>,
         narrative: Arc<Narrative>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -45,6 +63,7 @@ impl EnterRegion {
             staging,
             observation,
             narrative,
+            clock,
         }
     }
 
@@ -88,13 +107,48 @@ impl EnterRegion {
             }
         }
 
-        // 5. Resolve NPC staging for this region
-        let npcs = self.staging.resolve_for_region(region_id).await?;
+        // 5. Check for valid staging (with TTL check)
+        let current_game_time = self.clock.now();
+        let active_staging = self.staging.get_active_staging(region_id, current_game_time).await?;
+        
+        let (npcs, staging_status) = match active_staging {
+            Some(staging) => {
+                // Valid staging exists - resolve NPCs
+                let visible_npcs: Vec<StagedNpc> = staging.npcs
+                    .into_iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .collect();
+                (visible_npcs, StagingStatus::Ready)
+            }
+            None => {
+                // No valid staging - DM approval required
+                // Try to get any existing staging for reference (may be expired)
+                let previous = self.staging.get_staged_npcs(region_id).await.ok()
+                    .map(|npcs| {
+                        // Create a minimal staging for reference
+                        wrldbldr_domain::Staging::new(
+                            region_id,
+                            region.location_id,
+                            pc.world_id,
+                            current_game_time,
+                            "expired",
+                            wrldbldr_domain::StagingSource::RuleBased,
+                            0,
+                            current_game_time,
+                        ).with_npcs(npcs)
+                    })
+                    .filter(|s| !s.npcs.is_empty());
+                
+                (vec![], StagingStatus::Pending { previous_staging: previous })
+            }
+        };
 
-        // 6. Update player's observation state
-        self.observation
-            .record_visit(pc_id, region_id, &npcs)
-            .await?;
+        // 6. Update player's observation state (even if staging pending, record the visit)
+        if !npcs.is_empty() {
+            self.observation
+                .record_visit(pc_id, region_id, &npcs)
+                .await?;
+        }
 
         // 7. Check for triggered narrative events
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
@@ -108,6 +162,8 @@ impl EnterRegion {
             region,
             npcs,
             triggered_events,
+            staging_status,
+            pc,
         })
     }
 

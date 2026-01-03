@@ -11,6 +11,7 @@ use axum::{
     },
     response::Response,
 };
+use chrono::Timelike;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -21,7 +22,7 @@ use wrldbldr_protocol::{
 };
 
 use crate::app::App;
-use crate::use_cases::movement::EnterRegionError;
+use crate::use_cases::movement::{EnterRegionError, StagingStatus};
 use super::connections::{ConnectionManager, WorldRole};
 
 /// Buffer size for per-connection message channel.
@@ -203,6 +204,10 @@ async fn handle_message(
             handle_challenge_suggestion_decision(state, connection_id, request_id, approved, modified_difficulty).await
         }
         
+        ClientMessage::ChallengeOutcomeDecision { resolution_id, decision } => {
+            handle_challenge_outcome_decision(state, connection_id, resolution_id, decision).await
+        }
+        
         ClientMessage::NarrativeEventSuggestionDecision { request_id, event_id, approved, selected_outcome } => {
             handle_narrative_event_decision(state, connection_id, request_id, event_id, approved, selected_outcome).await
         }
@@ -376,85 +381,148 @@ async fn handle_move_to_region(
                 .map(|l| l.name.clone())
                 .unwrap_or_else(|| "Unknown Location".to_string());
             
-            // Build SceneChanged response
-            let region_data = wrldbldr_protocol::RegionData {
-                id: result.region.id.to_string(),
-                name: result.region.name.clone(),
-                location_id: result.region.location_id.to_string(),
-                location_name,
-                backdrop_asset: result.region.backdrop_asset.clone(),
-                atmosphere: result.region.atmosphere.clone(),
-                map_asset: None,
-            };
-            
-            let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = result.npcs
-                .into_iter()
-                .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
-                .map(|npc| wrldbldr_protocol::NpcPresenceData {
-                    character_id: npc.character_id.to_string(),
-                    name: npc.name,
-                    sprite_asset: npc.sprite_asset,
-                    portrait_asset: npc.portrait_asset,
-                })
-                .collect();
-            
-            // Get navigation data - we need to look up region names
-            let connections = state.app.entities.location
-                .get_connections(region_uuid)
-                .await
-                .ok()
-                .unwrap_or_default();
-            
-            let mut connected_regions = Vec::new();
-            for c in connections {
-                // Look up the target region name
-                let region_name = state.app.entities.location
-                    .get_region(c.to_region)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|r| r.name)
-                    .unwrap_or_else(|| "Unknown".to_string());
-                
-                connected_regions.push(wrldbldr_protocol::NavigationTarget {
-                    region_id: c.to_region.to_string(),
-                    name: region_name,
-                    is_locked: c.is_locked,
-                    lock_description: c.lock_description,
-                });
+            // Check staging status
+            match result.staging_status {
+                StagingStatus::Pending { previous_staging } => {
+                    // Send StagingPending to the player
+                    let pending_msg = ServerMessage::StagingPending {
+                        region_id: result.region.id.to_string(),
+                        region_name: result.region.name.clone(),
+                    };
+                    
+                    // Send StagingApprovalRequired to DMs
+                    let request_id = Uuid::new_v4().to_string();
+                    let now = chrono::Utc::now();
+                    
+                    // Get rule-based suggestions (NPCs that have relationships to this region)
+                    let rule_based_npcs = generate_rule_based_suggestions(state, result.region.id).await;
+                    
+                    let approval_msg = ServerMessage::StagingApprovalRequired {
+                        request_id,
+                        region_id: result.region.id.to_string(),
+                        region_name: result.region.name.clone(),
+                        location_id: result.region.location_id.to_string(),
+                        location_name: location_name.clone(),
+                        game_time: wrldbldr_protocol::types::GameTime {
+                            day: 1,
+                            hour: now.hour() as u8,
+                            minute: now.minute() as u8,
+                            is_paused: false,
+                        },
+                        previous_staging: previous_staging.map(|s| {
+                            wrldbldr_protocol::PreviousStagingInfo {
+                                staging_id: s.id.to_string(),
+                                approved_at: s.approved_at.to_rfc3339(),
+                                npcs: s.npcs.into_iter().map(|n| {
+                                    wrldbldr_protocol::StagedNpcInfo {
+                                        character_id: n.character_id.to_string(),
+                                        name: n.name,
+                                        sprite_asset: n.sprite_asset,
+                                        portrait_asset: n.portrait_asset,
+                                        is_present: n.is_present,
+                                        reasoning: n.reasoning,
+                                        is_hidden_from_players: n.is_hidden_from_players,
+                                    }
+                                }).collect(),
+                            }
+                        }),
+                        rule_based_npcs,
+                        llm_based_npcs: vec![], // TODO: LLM suggestions if enabled
+                        default_ttl_hours: 24,
+                        waiting_pcs: vec![
+                            wrldbldr_protocol::WaitingPcInfo {
+                                pc_id: result.pc.id.to_string(),
+                                pc_name: result.pc.name.clone(),
+                                player_id: result.pc.user_id.clone(),
+                            }
+                        ],
+                    };
+                    
+                    // Broadcast to DMs
+                    if let Some(world_id) = conn_info.world_id {
+                        state.connections.broadcast_to_dms(world_id, approval_msg).await;
+                    }
+                    
+                    Some(pending_msg)
+                }
+                StagingStatus::Ready => {
+                    // Build SceneChanged response with NPCs
+                    let region_data = wrldbldr_protocol::RegionData {
+                        id: result.region.id.to_string(),
+                        name: result.region.name.clone(),
+                        location_id: result.region.location_id.to_string(),
+                        location_name,
+                        backdrop_asset: result.region.backdrop_asset.clone(),
+                        atmosphere: result.region.atmosphere.clone(),
+                        map_asset: None,
+                    };
+                    
+                    let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = result.npcs
+                        .into_iter()
+                        .map(|npc| wrldbldr_protocol::NpcPresenceData {
+                            character_id: npc.character_id.to_string(),
+                            name: npc.name,
+                            sprite_asset: npc.sprite_asset,
+                            portrait_asset: npc.portrait_asset,
+                        })
+                        .collect();
+                    
+                    // Get navigation data
+                    let connections = state.app.entities.location
+                        .get_connections(region_uuid)
+                        .await
+                        .ok()
+                        .unwrap_or_default();
+                    
+                    let mut connected_regions = Vec::new();
+                    for c in connections {
+                        let region_name = state.app.entities.location
+                            .get_region(c.to_region)
+                            .await
+                            .ok()
+                            .flatten()
+                            .map(|r| r.name)
+                            .unwrap_or_else(|| "Unknown".to_string());
+                        
+                        connected_regions.push(wrldbldr_protocol::NavigationTarget {
+                            region_id: c.to_region.to_string(),
+                            name: region_name,
+                            is_locked: c.is_locked,
+                            lock_description: c.lock_description,
+                        });
+                    }
+                    
+                    let exits = state.app.entities.location
+                        .get_exits(region_uuid)
+                        .await
+                        .ok()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|e| wrldbldr_protocol::NavigationExit {
+                            location_id: e.location_id.to_string(),
+                            location_name: e.location_name,
+                            arrival_region_id: e.arrival_region_id.to_string(),
+                            description: e.description,
+                        })
+                        .collect();
+                    
+                    let navigation = wrldbldr_protocol::NavigationData {
+                        connected_regions,
+                        exits,
+                    };
+                    
+                    Some(ServerMessage::SceneChanged {
+                        pc_id: pc_id.clone(),
+                        region: region_data,
+                        npcs_present,
+                        navigation,
+                        region_items: vec![], // TODO: Implement region items
+                    })
+                }
             }
-            
-            // Get exits (connections to other locations)
-            let exits = state.app.entities.location
-                .get_exits(region_uuid)
-                .await
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|e| wrldbldr_protocol::NavigationExit {
-                    location_id: e.location_id.to_string(),
-                    location_name: e.location_name,
-                    arrival_region_id: e.arrival_region_id.to_string(),
-                    description: e.description,
-                })
-                .collect();
-            
-            let navigation = wrldbldr_protocol::NavigationData {
-                connected_regions,
-                exits,
-            };
-            
-            Some(ServerMessage::SceneChanged {
-                pc_id: pc_id.clone(),
-                region: region_data,
-                npcs_present,
-                navigation,
-                region_items: vec![], // TODO: Implement region items
-            })
         }
         Err(e) => {
             tracing::error!(error = %e, "Movement failed");
-            // Check for specific error types
             match e {
                 EnterRegionError::MovementBlocked(reason) => {
                     Some(ServerMessage::MovementBlocked {
@@ -466,6 +534,31 @@ async fn handle_move_to_region(
             }
         }
     }
+}
+
+/// Generate rule-based staging suggestions based on NPC relationships to a region.
+async fn generate_rule_based_suggestions(
+    state: &WsState,
+    region_id: RegionId,
+) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
+    // For now, return NPCs that are currently staged (this will be expanded with
+    // WORKS_AT, FREQUENTS, HOME_REGION relationship checks)
+    state.app.entities.staging
+        .get_staged_npcs(region_id)
+        .await
+        .ok()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|npc| wrldbldr_protocol::StagedNpcInfo {
+            character_id: npc.character_id.to_string(),
+            name: npc.name,
+            sprite_asset: npc.sprite_asset,
+            portrait_asset: npc.portrait_asset,
+            is_present: npc.is_present,
+            reasoning: npc.reasoning,
+            is_hidden_from_players: npc.is_hidden_from_players,
+        })
+        .collect()
 }
 
 async fn handle_exit_to_location(
@@ -1314,13 +1407,26 @@ async fn handle_approval_decision(
     match state.app.use_cases.approval.approve_suggestion.execute(approval_id, domain_decision).await {
         Ok(result) => {
             if result.approved {
-                // Broadcast the approved response to the world
                 if let Some(world_id) = conn_info.world_id {
-                    let msg = ServerMessage::ResponseApproved {
-                        npc_dialogue: result.final_dialogue.unwrap_or_default(),
-                        executed_tools: result.approved_tools,
+                    let dialogue = result.final_dialogue.clone().unwrap_or_default();
+                    
+                    // Send ResponseApproved to DMs (shows what tools were executed)
+                    let dm_msg = ServerMessage::ResponseApproved {
+                        npc_dialogue: dialogue.clone(),
+                        executed_tools: result.approved_tools.clone(),
                     };
-                    state.connections.broadcast_to_world(world_id, msg).await;
+                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
+                    
+                    // Send DialogueResponse to all players (for visual novel display)
+                    if !dialogue.is_empty() {
+                        let dialogue_msg = ServerMessage::DialogueResponse {
+                            speaker_id: result.npc_id.unwrap_or_default(),
+                            speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
+                            text: dialogue,
+                            choices: vec![], // Free-form input mode
+                        };
+                        state.connections.broadcast_to_world(world_id, dialogue_msg).await;
+                    }
                 }
             }
             None // No direct response - we broadcasted
@@ -1374,6 +1480,105 @@ async fn handle_challenge_suggestion_decision(
         Err(e) => {
             tracing::error!(error = %e, "Challenge suggestion decision failed");
             Some(error_response("APPROVAL_ERROR", &e.to_string()))
+        }
+    }
+}
+
+/// Handle DM decision on a challenge outcome (after dice roll, before triggers execute).
+async fn handle_challenge_outcome_decision(
+    state: &WsState,
+    connection_id: Uuid,
+    resolution_id: String,
+    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+) -> Option<ServerMessage> {
+    // Only DMs can approve challenge outcomes
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if !conn_info.is_dm() {
+        return Some(error_response("UNAUTHORIZED", "Only DMs can approve challenge outcomes"));
+    }
+    
+    // Parse resolution ID as challenge ID
+    let challenge_id = match Uuid::parse_str(&resolution_id) {
+        Ok(id) => wrldbldr_domain::ChallengeId::from_uuid(id),
+        Err(_) => return Some(error_response("INVALID_ID", "Invalid resolution ID")),
+    };
+    
+    match decision {
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
+            // Get the challenge to determine outcome type and details
+            let challenge = match state.app.entities.challenge.get(challenge_id).await {
+                Ok(Some(c)) => c,
+                Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
+                Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+            };
+            
+            // Determine outcome type from the challenge's stored roll result
+            // For now, we assume the outcome_type was stored when the roll was made
+            // In a more complete implementation, this would be stored in a pending_resolution table
+            let outcome_type = wrldbldr_domain::OutcomeType::Success; // TODO: get from stored resolution
+            
+            // Execute outcome triggers
+            if let Err(e) = state.app.use_cases.challenge.resolve.execute(challenge_id, outcome_type.clone()).await {
+                tracing::error!(error = %e, challenge_id = %challenge_id, "Failed to execute challenge outcome");
+                return Some(error_response("RESOLVE_ERROR", &e.to_string()));
+            }
+            
+            // Broadcast ChallengeResolved to all players in the world
+            if let Some(world_id) = conn_info.world_id {
+                let outcome_str = match outcome_type {
+                    wrldbldr_domain::OutcomeType::CriticalSuccess => "critical_success",
+                    wrldbldr_domain::OutcomeType::Success => "success",
+                    wrldbldr_domain::OutcomeType::Partial => "partial",
+                    wrldbldr_domain::OutcomeType::Failure => "failure",
+                    wrldbldr_domain::OutcomeType::CriticalFailure => "critical_failure",
+                };
+                
+                let outcome_description = challenge.outcomes.success.description.clone();
+                
+                let msg = ServerMessage::ChallengeResolved {
+                    challenge_id: challenge_id.to_string(),
+                    challenge_name: challenge.name.clone(),
+                    character_name: String::new(), // TODO: get from target PC
+                    roll: 0, // TODO: get from stored resolution
+                    modifier: 0,
+                    total: 0,
+                    outcome: outcome_str.to_string(),
+                    outcome_description,
+                    roll_breakdown: None,
+                    individual_rolls: None,
+                };
+                state.connections.broadcast_to_world(world_id, msg).await;
+            }
+            
+            None
+        }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
+            // TODO: Store the modified description and then resolve
+            tracing::info!(
+                challenge_id = %challenge_id,
+                modified_description = %modified_description,
+                "DM edited challenge outcome description"
+            );
+            // For now, just resolve with the modification logged
+            if let Err(e) = state.app.use_cases.challenge.resolve.execute(
+                challenge_id, 
+                wrldbldr_domain::OutcomeType::Success
+            ).await {
+                return Some(error_response("RESOLVE_ERROR", &e.to_string()));
+            }
+            None
+        }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance: _ } => {
+            // TODO: Queue LLM request to suggest alternative outcome descriptions
+            tracing::debug!(challenge_id = %challenge_id, "DM requested outcome suggestions - not yet implemented");
+            Some(error_response("NOT_IMPLEMENTED", "Outcome suggestions not yet implemented"))
+        }
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
+            Some(error_response("INVALID_DECISION", "Unknown challenge outcome decision type"))
         }
     }
 }
@@ -1581,7 +1786,7 @@ async fn handle_share_npc_location(
     connection_id: Uuid,
     pc_id: String,
     npc_id: String,
-    _location_id: String,
+    location_id: String,
     region_id: String,
     notes: Option<String>,
 ) -> Option<ServerMessage> {
@@ -1607,6 +1812,11 @@ async fn handle_share_npc_location(
         Err(_) => return Some(error_response("INVALID_ID", "Invalid NPC ID")),
     };
     
+    let location_uuid = match Uuid::parse_str(&location_id) {
+        Ok(id) => wrldbldr_domain::LocationId::from_uuid(id),
+        Err(_) => return Some(error_response("INVALID_ID", "Invalid location ID")),
+    };
+    
     let region_uuid = match Uuid::parse_str(&region_id) {
         Ok(id) => RegionId::from_uuid(id),
         Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID")),
@@ -1621,6 +1831,23 @@ async fn handle_share_npc_location(
         Ok(Some(r)) => r.name,
         _ => "Unknown".to_string(),
     };
+    
+    // Create and save the "heard about" observation
+    let now = chrono::Utc::now();
+    let observation = wrldbldr_domain::NpcObservation::heard_about(
+        pc_uuid,
+        npc_uuid,
+        location_uuid,
+        region_uuid,
+        now, // game_time - using real time for now
+        notes.clone(),
+        now, // created_at
+    );
+    
+    if let Err(e) = state.app.entities.observation.save_observation(&observation).await {
+        tracing::error!(error = %e, "Failed to save NPC observation");
+        // Continue anyway - sending the message is still useful
+    }
     
     // Send to target PC
     let msg = ServerMessage::NpcLocationShared {

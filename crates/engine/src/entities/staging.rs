@@ -1,7 +1,8 @@
 //! Staging entity operations.
 
 use std::sync::Arc;
-use wrldbldr_domain::{CharacterId, RegionId, StagedNpc, StagingId, WorldId};
+use chrono::{DateTime, Utc};
+use wrldbldr_domain::{CharacterId, RegionId, StagedNpc, Staging as DomainStaging, StagingId, WorldId};
 
 use crate::infrastructure::ports::{RepoError, StagingRepo};
 
@@ -76,6 +77,29 @@ impl Staging {
     /// Delete a pending staging proposal (after approval/rejection).
     pub async fn delete_pending(&self, id: StagingId) -> Result<(), RepoError> {
         self.repo.delete_pending_staging(id).await
+    }
+    
+    /// Get the active (non-expired) staging for a region.
+    /// 
+    /// Returns `None` if no staging exists or if the current staging has expired.
+    /// This is used to determine if DM approval is needed before showing scene.
+    pub async fn get_active_staging(
+        &self,
+        region_id: RegionId,
+        current_game_time: DateTime<Utc>,
+    ) -> Result<Option<DomainStaging>, RepoError> {
+        self.repo.get_active_staging(region_id, current_game_time).await
+    }
+    
+    /// Activate a staging after DM approval.
+    /// 
+    /// This replaces any existing current staging for the region.
+    pub async fn activate_staging(
+        &self,
+        staging_id: StagingId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError> {
+        self.repo.activate_staging(staging_id, region_id).await
     }
 
     /// Resolve which NPCs are present in a region for player view.

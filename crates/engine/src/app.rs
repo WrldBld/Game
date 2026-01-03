@@ -109,6 +109,7 @@ impl App {
                 staging.clone(),
                 observation.clone(),
                 narrative.clone(),
+                clock.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
                 player_character.clone(),
@@ -116,6 +117,7 @@ impl App {
                 staging.clone(),
                 observation.clone(),
                 narrative.clone(),
+                clock.clone(),
             )),
         );
 

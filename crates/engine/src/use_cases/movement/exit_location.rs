@@ -4,12 +4,12 @@
 //! Determines the arrival region and coordinates with staging/narrative systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, StagedNpc};
 
 use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{ClockPort, RepoError};
 
-use super::enter_region::EnterRegionResult;
+use super::enter_region::{EnterRegionResult, StagingStatus};
 
 /// Exit to location use case.
 ///
@@ -20,6 +20,7 @@ pub struct ExitLocation {
     staging: Arc<Staging>,
     observation: Arc<Observation>,
     narrative: Arc<Narrative>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ExitLocation {
@@ -29,6 +30,7 @@ impl ExitLocation {
         staging: Arc<Staging>,
         observation: Arc<Observation>,
         narrative: Arc<Narrative>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -36,6 +38,7 @@ impl ExitLocation {
             staging,
             observation,
             narrative,
+            clock,
         }
     }
 
@@ -91,21 +94,63 @@ impl ExitLocation {
             .update_position(pc_id, target_location_id, region_id)
             .await?;
 
-        // 6. Resolve staging for arrival region
-        let npcs = self.staging.resolve_for_region(region_id).await?;
+        // 6. Get fresh PC data after position update
+        let pc = self
+            .player_character
+            .get(pc_id)
+            .await?
+            .ok_or(ExitLocationError::PlayerCharacterNotFound)?;
 
-        // 7. Update observation
-        self.observation
-            .record_visit(pc_id, region_id, &npcs)
-            .await?;
+        // 7. Check for valid staging (with TTL check)
+        let current_game_time = self.clock.now();
+        let active_staging = self.staging.get_active_staging(region_id, current_game_time).await?;
+        
+        let (npcs, staging_status) = match active_staging {
+            Some(staging) => {
+                // Valid staging exists - resolve NPCs
+                let visible_npcs: Vec<StagedNpc> = staging.npcs
+                    .into_iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .collect();
+                (visible_npcs, StagingStatus::Ready)
+            }
+            None => {
+                // No valid staging - DM approval required
+                let previous = self.staging.get_staged_npcs(region_id).await.ok()
+                    .map(|npcs| {
+                        wrldbldr_domain::Staging::new(
+                            region_id,
+                            region.location_id,
+                            pc.world_id,
+                            current_game_time,
+                            "expired",
+                            wrldbldr_domain::StagingSource::RuleBased,
+                            0,
+                            current_game_time,
+                        ).with_npcs(npcs)
+                    })
+                    .filter(|s| !s.npcs.is_empty());
+                
+                (vec![], StagingStatus::Pending { previous_staging: previous })
+            }
+        };
 
-        // 8. Check triggers
+        // 8. Update observation (only if staging ready)
+        if !npcs.is_empty() {
+            self.observation
+                .record_visit(pc_id, region_id, &npcs)
+                .await?;
+        }
+
+        // 9. Check triggers
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
 
         Ok(EnterRegionResult {
             region,
             npcs,
             triggered_events,
+            staging_status,
+            pc,
         })
     }
 

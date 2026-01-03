@@ -212,6 +212,55 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
+    
+    /// Get active staging for a region, checking TTL expiry.
+    async fn get_active_staging(&self, region_id: RegionId, current_game_time: DateTime<Utc>) -> Result<Option<Staging>, RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)
+            WHERE s.is_active = true
+            RETURN s",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        
+        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let staging = row_to_staging(row, current_game_time)?;
+            
+            // Check if staging is expired
+            if staging.is_expired(&current_game_time) {
+                return Ok(None);
+            }
+            
+            // Load NPCs for this staging
+            let npcs = self.load_staging_npcs(staging.id).await?;
+            Ok(Some(Staging {
+                npcs,
+                ..staging
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    
+    /// Activate a staging, replacing any existing current staging for the region.
+    async fn activate_staging(&self, staging_id: StagingId, region_id: RegionId) -> Result<(), RepoError> {
+        // Remove existing CURRENT_STAGING relationship and add new one
+        let q = query(
+            "MATCH (r:Region {id: $region_id})
+            OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+            DELETE old
+            WITH r
+            MATCH (s:Staging {id: $staging_id})
+            SET s.is_active = true
+            CREATE (r)-[:CURRENT_STAGING]->(s)",
+        )
+        .param("region_id", region_id.to_string())
+        .param("staging_id", staging_id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        Ok(())
+    }
 }
 
 impl Neo4jStagingRepo {

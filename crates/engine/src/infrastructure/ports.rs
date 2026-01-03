@@ -177,6 +177,13 @@ pub trait StagingRepo: Send + Sync {
     async fn get_pending_staging(&self, world_id: WorldId) -> Result<Vec<Staging>, RepoError>;
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError>;
     async fn delete_pending_staging(&self, id: StagingId) -> Result<(), RepoError>;
+    
+    /// Get active staging for a region, checking TTL expiry.
+    /// Returns None if no staging exists or if the current staging is expired.
+    async fn get_active_staging(&self, region_id: RegionId, current_game_time: DateTime<Utc>) -> Result<Option<Staging>, RepoError>;
+    
+    /// Activate a staging (after DM approval), replacing any existing current staging.
+    async fn activate_staging(&self, staging_id: StagingId, region_id: RegionId) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -451,6 +458,9 @@ pub trait QueuePort: Send + Sync {
     async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError>;
     async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError>;
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
+    
+    /// Get an approval request by ID (for extracting NPC info when processing decision)
+    async fn get_approval_request(&self, id: Uuid) -> Result<Option<ApprovalRequestData>, QueueError>;
 }
 
 // =============================================================================
