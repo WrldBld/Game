@@ -19,6 +19,7 @@ pub struct App {
     pub entities: Entities,
     pub use_cases: UseCases,
     pub queue: Arc<dyn QueuePort>,
+    pub llm: Arc<dyn LlmPort>,
 }
 
 /// Container for all entity modules.
@@ -196,7 +197,10 @@ impl App {
                 player_character.clone(),
                 staging.clone(),
             )),
-            Arc::new(use_cases::queues::ProcessLlmRequest::new(queue_port, llm)),
+            Arc::new(use_cases::queues::ProcessLlmRequest::new(
+                queue_port,
+                llm.clone(),
+            )),
         );
 
         let use_cases = UseCases {
@@ -213,6 +217,7 @@ impl App {
             entities,
             use_cases,
             queue: queue,
+            llm,
         }
     }
 }

@@ -397,6 +397,15 @@ async fn handle_move_to_region(
                     // Get rule-based suggestions (NPCs that have relationships to this region)
                     let rule_based_npcs = generate_rule_based_suggestions(state, result.region.id).await;
                     
+                    // Get LLM-based suggestions (async call to LLM for context-aware suggestions)
+                    let llm_based_npcs = generate_llm_based_suggestions(
+                        state,
+                        result.region.id,
+                        &result.region.name,
+                        &location_name,
+                        None, // No guidance on initial entry
+                    ).await;
+                    
                     let approval_msg = ServerMessage::StagingApprovalRequired {
                         request_id,
                         region_id: result.region.id.to_string(),
@@ -427,7 +436,7 @@ async fn handle_move_to_region(
                             }
                         }),
                         rule_based_npcs,
-                        llm_based_npcs: vec![], // TODO: LLM suggestions if enabled
+                        llm_based_npcs,
                         default_ttl_hours: 24,
                         waiting_pcs: vec![
                             wrldbldr_protocol::WaitingPcInfo {
@@ -609,6 +618,155 @@ async fn generate_rule_based_suggestions(
     }
     
     suggestions
+}
+
+/// Generate LLM-based NPC staging suggestions.
+///
+/// Uses the LLM to analyze which NPCs should be present based on:
+/// - Region context (name, location, atmosphere)
+/// - Time of day
+/// - NPC descriptions and relationships
+/// - Any DM guidance
+async fn generate_llm_based_suggestions(
+    state: &WsState,
+    region_id: RegionId,
+    region_name: &str,
+    location_name: &str,
+    guidance: Option<&str>,
+) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
+    use crate::infrastructure::ports::{ChatMessage, LlmRequest, NpcRegionRelationType};
+    
+    // Get NPC candidates (those with relationships to this region)
+    let npcs_with_relationships = match state.app.entities.character
+        .get_npcs_for_region(region_id)
+        .await
+    {
+        Ok(npcs) => npcs,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to get NPCs for LLM staging");
+            return vec![];
+        }
+    };
+    
+    // Filter out NPCs that avoid this region
+    let candidates: Vec<_> = npcs_with_relationships
+        .into_iter()
+        .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids)
+        .collect();
+    
+    if candidates.is_empty() {
+        return vec![];
+    }
+    
+    // Build the NPC list for the prompt
+    let npc_list: String = candidates
+        .iter()
+        .enumerate()
+        .map(|(i, npc)| {
+            let relationship = match npc.relationship_type {
+                NpcRegionRelationType::HomeRegion => "lives here",
+                NpcRegionRelationType::WorksAt => "works here",
+                NpcRegionRelationType::Frequents => "frequents this area",
+                NpcRegionRelationType::Avoids => "avoids this area",
+            };
+            format!("{}. {} ({})", i + 1, npc.name, relationship)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    // Build the prompt
+    let guidance_text = guidance
+        .filter(|g| !g.is_empty())
+        .map(|g| format!("\n\nDM's guidance: {}", g))
+        .unwrap_or_default();
+    
+    let system_prompt = "You are a helpful TTRPG assistant helping decide which NPCs should be present in a scene. \
+        Respond with a JSON array of objects, each with 'name' (exact name from the list) and 'reason' (brief explanation). \
+        Select 1-4 NPCs that would logically be present. Only include NPCs from the provided list.";
+    
+    let user_prompt = format!(
+        "Region: {} (in {})\n\nAvailable NPCs:\n{}{}\n\nWhich NPCs should be present? Respond with JSON only.",
+        region_name, location_name, npc_list, guidance_text
+    );
+    
+    // Call the LLM
+    let request = LlmRequest::new(vec![ChatMessage::user(&user_prompt)])
+        .with_system_prompt(system_prompt)
+        .with_temperature(0.7);
+    
+    let response = match state.app.llm.generate(request).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::warn!(error = %e, "LLM staging suggestion failed");
+            return vec![];
+        }
+    };
+    
+    // Parse the LLM response (simple JSON parsing)
+    // Expected format: [{"name": "NPC Name", "reason": "Why they're here"}]
+    let suggestions = parse_llm_staging_response(&response.content, &candidates);
+    
+    tracing::info!(
+        region = %region_name,
+        suggestion_count = suggestions.len(),
+        "Generated LLM staging suggestions"
+    );
+    
+    suggestions
+}
+
+/// Parse LLM staging response into StagedNpcInfo structs.
+fn parse_llm_staging_response(
+    content: &str,
+    candidates: &[crate::infrastructure::ports::NpcWithRegionInfo],
+) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
+    // Try to extract JSON array from the response
+    let json_start = content.find('[');
+    let json_end = content.rfind(']');
+    
+    let json_str = match (json_start, json_end) {
+        (Some(start), Some(end)) if end > start => &content[start..=end],
+        _ => {
+            tracing::debug!("No valid JSON array found in LLM response");
+            return vec![];
+        }
+    };
+    
+    // Parse JSON
+    #[derive(serde::Deserialize)]
+    struct LlmSuggestion {
+        name: String,
+        reason: String,
+    }
+    
+    let parsed: Vec<LlmSuggestion> = match serde_json::from_str(json_str) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::debug!(error = %e, json = %json_str, "Failed to parse LLM staging JSON");
+            return vec![];
+        }
+    };
+    
+    // Match suggestions to actual NPCs
+    parsed
+        .into_iter()
+        .filter_map(|suggestion| {
+            // Find matching NPC (case-insensitive)
+            let npc = candidates.iter().find(|c| 
+                c.name.to_lowercase() == suggestion.name.to_lowercase()
+            )?;
+            
+            Some(wrldbldr_protocol::StagedNpcInfo {
+                character_id: npc.character_id.to_string(),
+                name: npc.name.clone(),
+                sprite_asset: npc.sprite_asset.clone(),
+                portrait_asset: npc.portrait_asset.clone(),
+                is_present: true,
+                reasoning: format!("[LLM] {}", suggestion.reason),
+                is_hidden_from_players: false,
+            })
+        })
+        .collect()
 }
 
 async fn handle_exit_to_location(
@@ -1699,68 +1857,45 @@ async fn handle_staging_regenerate(
         Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID")),
     };
     
+    // Get region info for the LLM prompt
+    let region = match state.app.entities.location.get_region(region_id).await {
+        Ok(Some(r)) => r,
+        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    
+    // Get location name
+    let location_name = state.app.entities.location
+        .get_location(region.location_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|l| l.name)
+        .unwrap_or_else(|| "Unknown Location".to_string());
+    
     tracing::info!(
         request_id = %request_id,
         region_id = %region_id,
+        region_name = %region.name,
         guidance = %guidance,
-        "Staging regeneration requested - generating rule-based suggestions"
+        "Staging regeneration requested - calling LLM"
     );
     
-    // Get NPCs associated with this region from the character entity
-    // This provides rule-based suggestions based on NPC relationships to the region
-    // Note: Character entity contains NPCs only (PlayerCharacter is a separate entity)
-    let npcs = match state.app.entities.character.list_in_region(region_id).await {
-        Ok(characters) => characters,
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to fetch NPCs for region");
-            return Some(error_response("STAGING_ERROR", &format!("Failed to fetch NPCs: {}", e)));
-        }
-    };
-    
-    // Convert characters to StagedNpcInfo with rule-based reasoning
-    let llm_based_npcs: Vec<wrldbldr_protocol::StagedNpcInfo> = npcs
-        .into_iter()
-        .map(|npc| {
-            // Generate reasoning based on the DM's guidance and NPC attributes
-            let reasoning = if guidance.is_empty() {
-                format!("{} is associated with this region", npc.name)
-            } else {
-                format!(
-                    "{} - considering DM guidance: \"{}\"",
-                    npc.name, guidance
-                )
-            };
-            
-            wrldbldr_protocol::StagedNpcInfo {
-                character_id: npc.id.to_string(),
-                name: npc.name,
-                sprite_asset: npc.sprite_asset,
-                portrait_asset: npc.portrait_asset,
-                is_present: true, // Suggest all as present by default
-                reasoning,
-                is_hidden_from_players: false,
-            }
-        })
-        .collect();
+    // Generate LLM-based suggestions with the DM's guidance
+    let guidance_opt = if guidance.is_empty() { None } else { Some(guidance.as_str()) };
+    let llm_based_npcs = generate_llm_based_suggestions(
+        state,
+        region_id,
+        &region.name,
+        &location_name,
+        guidance_opt,
+    ).await;
     
     tracing::info!(
         request_id = %request_id,
         npc_count = llm_based_npcs.len(),
-        "Generated rule-based staging suggestions (LLM enhancement pending)"
+        "Generated LLM staging suggestions"
     );
-    
-    // TODO: Queue LLM request for enhanced suggestions
-    // When LLM integration is ready, this would:
-    // 1. Build a prompt like:
-    //    "You are helping a DM decide which NPCs should be present in a region.
-    //     DM's guidance: {guidance}
-    //     Available NPCs: [list of NPCs with their attributes]
-    //     Suggest 2-4 NPCs that would make sense to be present. For each, provide:
-    //     - Character name
-    //     - Reason for being there
-    //     - Whether they should be visible or hidden"
-    // 2. Queue via LlmRequestData with LlmRequestType::Suggestion
-    // 3. Return a "generating" status, with actual results sent via a separate message
     
     Some(ServerMessage::StagingRegenerated {
         request_id,
