@@ -298,6 +298,55 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
 
         Ok(())
     }
+
+    /// Modify a stat on a player character.
+    /// Stats are stored in a JSON field `stats_json` on the PC node.
+    async fn modify_stat(
+        &self,
+        id: PlayerCharacterId,
+        stat: &str,
+        modifier: i32,
+    ) -> Result<(), RepoError> {
+        // Get current stats, modify, and save back
+        // We use a Cypher query that handles the JSON manipulation
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $id})
+            WITH pc, coalesce(pc.stats_json, '{}') as current_stats
+            WITH pc, apoc.convert.fromJsonMap(current_stats) as stats
+            WITH pc, stats, coalesce(stats[$stat], 0) + $modifier as new_value
+            SET pc.stats_json = apoc.convert.toJson(apoc.map.setEntry(stats, $stat, new_value))
+            RETURN new_value",
+        )
+        .param("id", id.to_string())
+        .param("stat", stat.to_string())
+        .param("modifier", modifier as i64);
+
+        // Note: If APOC is not available, fall back to a simpler approach
+        // For now, we'll log and attempt the query
+        match self.graph.run(q).await {
+            Ok(_) => {
+                tracing::info!(pc_id = %id, stat = %stat, modifier = %modifier, "Modified stat");
+                Ok(())
+            }
+            Err(e) => {
+                // If APOC is not available, try a simpler approach using separate stat properties
+                tracing::warn!(error = %e, "APOC query failed, trying fallback");
+                let fallback_q = query(
+                    "MATCH (pc:PlayerCharacter {id: $id})
+                    SET pc[$stat_key] = coalesce(pc[$stat_key], 0) + $modifier",
+                )
+                .param("id", id.to_string())
+                .param("stat_key", format!("stat_{}", stat))
+                .param("modifier", modifier as i64);
+
+                self.graph
+                    .run(fallback_q)
+                    .await
+                    .map_err(|e| RepoError::Database(e.to_string()))?;
+                Ok(())
+            }
+        }
+    }
 }
 
 // =============================================================================

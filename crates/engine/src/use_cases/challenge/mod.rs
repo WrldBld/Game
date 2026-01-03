@@ -14,7 +14,7 @@ use wrldbldr_domain::{
     OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
 };
 
-use crate::entities::{Challenge, PlayerCharacter};
+use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 
 /// Container for challenge use cases.
@@ -206,20 +206,53 @@ impl RollChallenge {
 /// Called after DM approves the outcome to execute triggers.
 pub struct ResolveOutcome {
     challenge: Arc<Challenge>,
+    inventory: Arc<Inventory>,
+    observation: Arc<Observation>,
+    scene: Arc<Scene>,
+    player_character: Arc<PlayerCharacter>,
 }
 
 impl ResolveOutcome {
-    pub fn new(challenge: Arc<Challenge>) -> Self {
-        Self { challenge }
+    pub fn new(
+        challenge: Arc<Challenge>,
+        inventory: Arc<Inventory>,
+        observation: Arc<Observation>,
+        scene: Arc<Scene>,
+        player_character: Arc<PlayerCharacter>,
+    ) -> Self {
+        Self {
+            challenge,
+            inventory,
+            observation,
+            scene,
+            player_character,
+        }
     }
 
     /// Execute the approved outcome.
     ///
     /// This marks the challenge as resolved and executes any outcome triggers.
+    ///
+    /// # Arguments
+    /// * `challenge_id` - The challenge being resolved
+    /// * `outcome_type` - The determined outcome type
+    /// * `target_pc_id` - The player character who attempted the challenge (for item/stat triggers)
     pub async fn execute(
         &self,
         challenge_id: ChallengeId,
         outcome_type: OutcomeType,
+    ) -> Result<(), ChallengeError> {
+        self.execute_for_pc(challenge_id, outcome_type, None).await
+    }
+
+    /// Execute the approved outcome with a known target PC.
+    ///
+    /// This variant is used when we know which PC attempted the challenge.
+    pub async fn execute_for_pc(
+        &self,
+        challenge_id: ChallengeId,
+        outcome_type: OutcomeType,
+        target_pc_id: Option<PlayerCharacterId>,
     ) -> Result<(), ChallengeError> {
         // Get the challenge to access its outcomes
         let challenge = self
@@ -251,7 +284,13 @@ impl ResolveOutcome {
 
         // Execute each trigger in the outcome
         for trigger in &outcome.triggers {
-            self.execute_trigger(trigger, &challenge.name).await;
+            if let Err(e) = self.execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id).await {
+                tracing::warn!(
+                    challenge = %challenge.name,
+                    error = %e,
+                    "Failed to execute trigger, continuing with remaining triggers"
+                );
+            }
         }
 
         // Mark the challenge as resolved
@@ -262,17 +301,39 @@ impl ResolveOutcome {
 
     /// Execute a single outcome trigger.
     ///
-    /// Currently logs what would happen; actual implementations will be added
-    /// as the corresponding entity modules are wired in.
-    async fn execute_trigger(&self, trigger: &OutcomeTrigger, challenge_name: &str) {
+    /// # Arguments
+    /// * `trigger` - The trigger to execute
+    /// * `challenge_name` - For logging context
+    /// * `world_id` - The world context for the trigger
+    /// * `target_pc_id` - The player character affected by this trigger (if applicable)
+    async fn execute_trigger(
+        &self,
+        trigger: &OutcomeTrigger,
+        challenge_name: &str,
+        world_id: WorldId,
+        target_pc_id: Option<PlayerCharacterId>,
+    ) -> Result<(), ChallengeError> {
         match trigger {
             OutcomeTrigger::RevealInformation { info, persist } => {
                 tracing::info!(
                     challenge = %challenge_name,
                     info = %info,
                     persist = %persist,
-                    "Would reveal information to player"
+                    target_pc = ?target_pc_id,
+                    "Revealing information to player"
                 );
+                
+                // If persistent, create an observation for the PC
+                if *persist {
+                    if let Some(pc_id) = target_pc_id {
+                        // Create a "deduced" observation from the challenge
+                        // This records that the PC learned this information
+                        if let Err(e) = self.observation.record_deduced_info(pc_id, info.clone()).await {
+                            tracing::warn!(error = %e, "Failed to persist revealed information");
+                        }
+                    }
+                }
+                Ok(())
             }
             OutcomeTrigger::GiveItem {
                 item_name,
@@ -282,44 +343,95 @@ impl ResolveOutcome {
                     challenge = %challenge_name,
                     item_name = %item_name,
                     item_description = ?item_description,
-                    "Would give item to player"
+                    target_pc = ?target_pc_id,
+                    "Giving item to player"
                 );
+                
+                if let Some(pc_id) = target_pc_id {
+                    // Create a new item and add it to the PC's inventory
+                    if let Err(e) = self.inventory.give_item_to_pc(
+                        pc_id,
+                        item_name.clone(),
+                        item_description.clone(),
+                    ).await {
+                        tracing::warn!(error = %e, "Failed to give item to player");
+                    }
+                } else {
+                    tracing::warn!(
+                        challenge = %challenge_name,
+                        "Cannot give item: no target PC specified"
+                    );
+                }
+                Ok(())
             }
             OutcomeTrigger::TriggerScene { scene_id } => {
                 tracing::info!(
                     challenge = %challenge_name,
                     scene_id = %scene_id,
-                    "Would trigger scene transition"
+                    "Triggering scene transition"
                 );
+                
+                // Set the scene as current for this world
+                if let Err(e) = self.scene.set_current(world_id, *scene_id).await {
+                    tracing::warn!(error = %e, "Failed to set current scene");
+                }
+                Ok(())
             }
             OutcomeTrigger::EnableChallenge { challenge_id } => {
-                tracing::debug!(
+                tracing::info!(
                     challenge = %challenge_name,
                     target_challenge_id = %challenge_id,
-                    "Trigger type EnableChallenge not yet implemented"
+                    "Enabling challenge"
                 );
+                
+                // Enable the target challenge (make it available)
+                if let Err(e) = self.challenge.set_enabled(*challenge_id, true).await {
+                    tracing::warn!(error = %e, "Failed to enable challenge");
+                }
+                Ok(())
             }
             OutcomeTrigger::DisableChallenge { challenge_id } => {
-                tracing::debug!(
+                tracing::info!(
                     challenge = %challenge_name,
                     target_challenge_id = %challenge_id,
-                    "Trigger type DisableChallenge not yet implemented"
+                    "Disabling challenge"
                 );
+                
+                // Disable the target challenge (remove from available)
+                if let Err(e) = self.challenge.set_enabled(*challenge_id, false).await {
+                    tracing::warn!(error = %e, "Failed to disable challenge");
+                }
+                Ok(())
             }
             OutcomeTrigger::ModifyCharacterStat { stat, modifier } => {
-                tracing::debug!(
+                tracing::info!(
                     challenge = %challenge_name,
                     stat = %stat,
                     modifier = %modifier,
-                    "Trigger type ModifyCharacterStat not yet implemented"
+                    target_pc = ?target_pc_id,
+                    "Modifying character stat"
                 );
+                
+                if let Some(pc_id) = target_pc_id {
+                    if let Err(e) = self.player_character.modify_stat(pc_id, stat, *modifier).await {
+                        tracing::warn!(error = %e, "Failed to modify character stat");
+                    }
+                } else {
+                    tracing::warn!(
+                        challenge = %challenge_name,
+                        "Cannot modify stat: no target PC specified"
+                    );
+                }
+                Ok(())
             }
             OutcomeTrigger::Custom { description } => {
-                tracing::debug!(
+                // Custom triggers are logged for DM reference but not automatically executed
+                tracing::info!(
                     challenge = %challenge_name,
                     description = %description,
-                    "Trigger type Custom not yet implemented"
+                    "Custom trigger (requires DM action)"
                 );
+                Ok(())
             }
         }
     }

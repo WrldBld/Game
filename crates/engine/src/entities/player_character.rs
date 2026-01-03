@@ -77,4 +77,21 @@ impl PlayerCharacter {
     pub async fn get_inventory(&self, id: PlayerCharacterId) -> Result<Vec<Item>, RepoError> {
         self.repo.get_inventory(id).await
     }
+
+    // =========================================================================
+    // Stats
+    // =========================================================================
+
+    /// Modify a character stat by the given amount.
+    ///
+    /// This is used by the ModifyCharacterStat trigger from challenge outcomes.
+    /// Common stats include "hp", "sanity", "fatigue", etc.
+    pub async fn modify_stat(
+        &self,
+        id: PlayerCharacterId,
+        stat: &str,
+        modifier: i32,
+    ) -> Result<(), RepoError> {
+        self.repo.modify_stat(id, stat, modifier).await
+    }
 }

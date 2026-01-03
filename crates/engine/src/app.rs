@@ -147,7 +147,13 @@ impl App {
                 random.clone(),
                 clock.clone(),
             )),
-            Arc::new(use_cases::challenge::ResolveOutcome::new(challenge.clone())),
+            Arc::new(use_cases::challenge::ResolveOutcome::new(
+                challenge.clone(),
+                inventory.clone(),
+                observation.clone(),
+                scene.clone(),
+                player_character.clone(),
+            )),
         );
 
         let approval = use_cases::ApprovalUseCases::new(

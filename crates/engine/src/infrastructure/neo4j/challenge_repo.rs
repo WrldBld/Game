@@ -394,4 +394,22 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         tracing::debug!("Marked challenge {} as resolved", id);
         Ok(())
     }
+
+    async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:Challenge {id: $id})
+            SET c.active = $enabled
+            RETURN c.id as id",
+        )
+        .param("id", id.to_string())
+        .param("enabled", enabled);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Set challenge {} enabled={}", id, enabled);
+        Ok(())
+    }
 }

@@ -34,4 +34,12 @@ impl Challenge {
     pub async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError> {
         self.repo.mark_resolved(id).await
     }
+
+    /// Enable or disable a challenge.
+    ///
+    /// Enabled challenges can be triggered, disabled ones cannot.
+    /// This is used by EnableChallenge/DisableChallenge triggers.
+    pub async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError> {
+        self.repo.set_enabled(id, enabled).await
+    }
 }

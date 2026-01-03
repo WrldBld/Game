@@ -120,4 +120,29 @@ impl ObservationRepo for Neo4jObservationRepo {
             Ok(false)
         }
     }
+
+    /// Save deduced information from a challenge outcome.
+    /// Creates a JournalEntry node linked to the PC for persistent info storage.
+    async fn save_deduced_info(&self, pc_id: PlayerCharacterId, info: String) -> Result<(), RepoError> {
+        let now = self.clock.now();
+        let entry_id = uuid::Uuid::new_v4().to_string();
+
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            CREATE (je:JournalEntry {
+                id: $entry_id,
+                content: $info,
+                entry_type: 'deduced',
+                created_at: $created_at
+            })
+            CREATE (pc)-[:HAS_JOURNAL_ENTRY]->(je)",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("entry_id", entry_id)
+        .param("info", info)
+        .param("created_at", now.to_rfc3339());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        Ok(())
+    }
 }

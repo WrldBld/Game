@@ -807,6 +807,115 @@ async fn handle_request(
             }
         }
         
+        // Game time queries
+        RequestPayload::GetGameTime { world_id: req_world_id } => {
+            let uuid = match Uuid::parse_str(&req_world_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.world.get(WorldId::from_uuid(uuid)).await {
+                Ok(Some(world)) => {
+                    let gt = &world.game_time;
+                    let game_time = wrldbldr_protocol::types::GameTime {
+                        day: gt.day_ordinal(),
+                        hour: gt.current().hour() as u8,
+                        minute: gt.current().minute() as u8,
+                        is_paused: gt.is_paused(),
+                    };
+                    ResponseResult::success(serde_json::json!({
+                        "game_time": game_time,
+                    }))
+                }
+                Ok(None) => ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        // Advance game time (DM only)
+        RequestPayload::AdvanceGameTime { world_id: req_world_id, hours } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can advance game time"),
+                });
+            }
+            
+            let uuid = match Uuid::parse_str(&req_world_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
+                    });
+                }
+            };
+            
+            let world_id_typed = WorldId::from_uuid(uuid);
+            
+            // Get the world, advance time, and save
+            let mut world = match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    });
+                }
+            };
+            
+            // Advance the game time
+            world.game_time.advance_hours(hours);
+            world.updated_at = chrono::Utc::now();
+            
+            // Save the world
+            if let Err(e) = state.app.entities.world.save(&world).await {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                });
+            }
+            
+            // Build the protocol GameTime
+            let gt = &world.game_time;
+            let game_time = wrldbldr_protocol::types::GameTime {
+                day: gt.day_ordinal(),
+                hour: gt.current().hour() as u8,
+                minute: gt.current().minute() as u8,
+                is_paused: gt.is_paused(),
+            };
+            
+            // Broadcast GameTimeUpdated to all players in the world
+            let update_msg = ServerMessage::GameTimeUpdated { game_time };
+            state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+            
+            tracing::info!(
+                world_id = %world_id_typed,
+                hours_advanced = hours,
+                new_day = gt.day_ordinal(),
+                new_hour = gt.current().hour(),
+                "Game time advanced"
+            );
+            
+            // Return success response to requester
+            ResponseResult::success(serde_json::json!({
+                "game_time": game_time,
+                "hours_advanced": hours,
+            }))
+        }
+        
         // Default - not implemented
         _ => ResponseResult::error(ErrorCode::BadRequest, "This request type is not yet implemented"),
     };

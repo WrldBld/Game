@@ -161,6 +161,45 @@ impl Inventory {
         })
     }
 
+    /// Give a new item to a player character (from challenge outcome).
+    ///
+    /// Creates a new item with the given name/description and adds it to the PC's inventory.
+    /// This is used by the GiveItem trigger in challenge outcomes.
+    pub async fn give_item_to_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_name: String,
+        item_description: Option<String>,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        // Get the PC to verify they exist and get their world_id
+        let pc = self.pc_repo.get(pc_id).await?
+            .ok_or(InventoryError::CharacterNotFound)?;
+
+        // Create a new item in the same world as the PC
+        let mut item = domain::Item::new(pc.world_id, item_name.clone());
+        if let Some(desc) = item_description {
+            item = item.with_description(desc);
+        }
+
+        // Save the item
+        self.item_repo.save(&item).await?;
+
+        // Add to PC's inventory
+        self.pc_repo.add_to_inventory(pc_id, item.id).await?;
+
+        tracing::info!(
+            pc_id = %pc_id,
+            item_id = %item.id,
+            item_name = %item_name,
+            "Item given to player character"
+        );
+
+        Ok(InventoryActionResult {
+            item_name,
+            quantity: 1,
+        })
+    }
+
     /// Pick up an item from the current region.
     /// 
     /// Returns the item name for UI feedback.

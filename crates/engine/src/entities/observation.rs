@@ -49,6 +49,20 @@ impl Observation {
         self.repo.has_observed(pc_id, target_id).await
     }
 
+    /// Record deduced information from a challenge outcome.
+    ///
+    /// Creates a "deduced" observation for the PC, storing the revealed information.
+    /// This is used by the RevealInformation trigger with persist=true.
+    pub async fn record_deduced_info(
+        &self,
+        pc_id: PlayerCharacterId,
+        info: String,
+    ) -> Result<(), RepoError> {
+        // Store the deduced info as a journal entry
+        // We use the observation repo's deduced observation functionality
+        self.repo.save_deduced_info(pc_id, info).await
+    }
+
     /// Record that a PC has visited a region and seen its NPCs.
     ///
     /// Creates direct observations for each present, visible NPC in the region.

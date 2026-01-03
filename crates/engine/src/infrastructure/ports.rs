@@ -107,6 +107,9 @@ pub trait PlayerCharacterRepo: Send + Sync {
     // Inventory management
     async fn add_to_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
     async fn remove_from_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
+    
+    /// Modify a stat on a player character (for ModifyCharacterStat trigger)
+    async fn modify_stat(&self, id: PlayerCharacterId, stat: &str, modifier: i32) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -147,6 +150,8 @@ pub trait ChallengeRepo: Send + Sync {
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError>;
     async fn list_pending_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError>;
     async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError>;
+    /// Enable or disable a challenge (for EnableChallenge/DisableChallenge triggers)
+    async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -191,6 +196,8 @@ pub trait ObservationRepo: Send + Sync {
     async fn get_observations(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>, RepoError>;
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError>;
     async fn has_observed(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<bool, RepoError>;
+    /// Save deduced information from a challenge (for RevealInformation trigger)
+    async fn save_deduced_info(&self, pc_id: PlayerCharacterId, info: String) -> Result<(), RepoError>;
 }
 
 #[async_trait]
