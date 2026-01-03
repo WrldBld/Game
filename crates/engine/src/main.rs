@@ -15,6 +15,7 @@ mod use_cases;
 
 use app::App;
 use infrastructure::{
+    clock::SystemClock,
     comfyui::ComfyUIClient,
     neo4j::Neo4jRepositories,
     ollama::OllamaClient,
@@ -48,10 +49,13 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .unwrap_or(8080);
 
+    // Create clock for repositories
+    let clock = Arc::new(SystemClock);
+
     // Connect to Neo4j
     tracing::info!("Connecting to Neo4j at {}", neo4j_uri);
     let graph = neo4rs::Graph::new(&neo4j_uri, &neo4j_user, &neo4j_pass).await?;
-    let repos = Neo4jRepositories::new(graph);
+    let repos = Neo4jRepositories::new(graph, clock);
 
     // Create infrastructure clients
     let llm = Arc::new(OllamaClient::new(ollama_url));

@@ -3,6 +3,10 @@
 use neo4rs::Graph;
 use std::sync::Arc;
 
+use crate::infrastructure::ports::ClockPort;
+
+mod helpers;
+
 mod character_repo;
 mod location_repo;
 mod scene_repo;
@@ -43,7 +47,7 @@ pub struct Neo4jRepositories {
 }
 
 impl Neo4jRepositories {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
         Self {
             character: Arc::new(Neo4jCharacterRepo::new(graph.clone())),
             player_character: Arc::new(Neo4jPlayerCharacterRepo::new(graph.clone())),
@@ -54,7 +58,7 @@ impl Neo4jRepositories {
             staging: Arc::new(Neo4jStagingRepo::new(graph.clone())),
             observation: Arc::new(Neo4jObservationRepo::new(graph.clone())),
             item: Arc::new(Neo4jItemRepo::new(graph.clone())),
-            world: Arc::new(Neo4jWorldRepo::new(graph.clone())),
+            world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock)),
             asset: Arc::new(Neo4jAssetRepo::new(graph)),
         }
     }

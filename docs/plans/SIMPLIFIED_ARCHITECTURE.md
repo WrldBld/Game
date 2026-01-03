@@ -503,32 +503,65 @@ protocol/src/
 
 ### Phase 1: Documentation & Planning
 - [x] Create architecture plan (this document)
-- [ ] Update AGENTS.md
-- [ ] Update/archive hexagonal-architecture.md
-- [ ] Commit documentation
+- [x] Update AGENTS.md
+- [x] Update/archive hexagonal-architecture.md
+- [x] Commit documentation (fbea16c)
 
 ### Phase 2: Create New Engine Structure
-- [ ] Create `engine/src/entities/` modules
-- [ ] Create `engine/src/use_cases/` modules  
-- [ ] Create `engine/src/infrastructure/ports.rs`
-- [ ] Create `engine/src/api/` modules
-- [ ] Create `engine/src/app.rs`
+- [x] Create `engine/src/entities/` modules (10 entity modules)
+- [x] Create `engine/src/use_cases/` modules (7 use case categories)
+- [x] Create `engine/src/infrastructure/ports.rs` (~10 port traits)
+- [x] Create `engine/src/api/` modules (http.rs, websocket.rs)
+- [x] Create `engine/src/app.rs`
+- [x] Commit skeleton (f101c87)
 
 ### Phase 3: Migrate Existing Code
-- [ ] Move Neo4j repositories to `engine/src/infrastructure/neo4j/`
-- [ ] Move LLM client to `engine/src/infrastructure/ollama.rs`
-- [ ] Move ComfyUI client to `engine/src/infrastructure/comfyui.rs`
-- [ ] Move queue implementations to `engine/src/infrastructure/queue.rs`
-- [ ] Migrate services to entity modules
-- [ ] Migrate use cases to use_cases modules
-- [ ] Migrate HTTP handlers to `engine/src/api/http.rs`
-- [ ] Migrate WebSocket handlers to `engine/src/api/websocket.rs`
+
+#### 3.1 Neo4j Repositories
+- [ ] CharacterRepo (from engine-adapters/src/infrastructure/persistence/character_repository/)
+- [ ] LocationRepo (from engine-adapters/src/infrastructure/persistence/location_repository.rs)
+- [ ] RegionRepo (from engine-adapters/src/infrastructure/persistence/region_repository.rs)
+- [ ] SceneRepo (from engine-adapters/src/infrastructure/persistence/scene_repository.rs)
+- [ ] ChallengeRepo (from engine-adapters/src/infrastructure/persistence/challenge_repository.rs)
+- [ ] NarrativeRepo (narrative_event_repository/, story_event_repository/, event_chain_repository.rs)
+- [ ] StagingRepo (from engine-adapters/src/infrastructure/persistence/staging/)
+- [ ] ObservationRepo (from engine-adapters/src/infrastructure/persistence/observation_repository.rs)
+- [ ] ItemRepo (inventory handling in character_repository/)
+- [x] WorldRepo (from engine-adapters/src/infrastructure/persistence/world_repository.rs) - DONE
+- [ ] AssetRepo (from engine-adapters/src/infrastructure/persistence/asset/)
+- [ ] PlayerCharacterRepo (from engine-adapters/src/infrastructure/persistence/player_character_repository.rs)
+
+#### 3.2 External Services
+- [ ] LLM client (from engine-adapters/src/infrastructure/ollama/)
+- [ ] ComfyUI client (from engine-adapters/src/infrastructure/comfyui/)
+- [ ] Queue implementations (from engine-adapters/src/infrastructure/queue/)
+
+#### 3.3 Entity Module Logic
+- [ ] character.rs - disposition, actantial, wants (from engine-app/src/application/services/)
+- [ ] scene.rs - scene resolution (from engine-app/src/application/services/scene_*)
+- [ ] challenge.rs - challenge execution (from engine-app/src/application/services/challenge_*)
+- [ ] narrative.rs - trigger evaluation (from engine-app/src/application/services/trigger_*)
+- [ ] staging.rs - staging resolution (from engine-app/src/application/services/staging_*)
+
+#### 3.4 Use Cases
+- [ ] movement/ - enter_region, exit_location (from engine-app/src/application/use_cases/movement.rs)
+- [ ] conversation/ - start, continue, tool execution (from engine-app/src/application/services/dialogue_*)
+- [ ] challenge/ - roll, resolve (from engine-app/src/application/use_cases/)
+- [ ] approval/ - staging, suggestion, challenge (from engine-app/src/application/services/dm_*)
+- [ ] assets/ - generate, retry (from engine-app/src/application/services/asset_*)
+- [ ] world/ - export, import (from engine-app/src/application/services/world_*)
+
+#### 3.5 API Layer
+- [ ] HTTP handlers (from engine-adapters/src/infrastructure/http/)
+- [ ] WebSocket handlers (from engine-adapters/src/infrastructure/websocket/)
+- [ ] Request/response routing
 
 ### Phase 4: Delete Old Structure
 - [ ] Delete `engine-ports` crate
 - [ ] Delete `engine-app` crate
 - [ ] Delete `engine-adapters` crate
 - [ ] Delete `engine-runner` crate
+- [ ] Delete `engine-composition` crate (if exists)
 - [ ] Update workspace Cargo.toml
 
 ### Phase 5: Player Restructure
