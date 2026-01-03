@@ -519,8 +519,8 @@ protocol/src/
 
 #### 3.1 Neo4j Repositories
 - [ ] CharacterRepo (from engine-adapters/src/infrastructure/persistence/character_repository/)
-- [ ] LocationRepo (from engine-adapters/src/infrastructure/persistence/location_repository.rs)
-- [ ] RegionRepo (from engine-adapters/src/infrastructure/persistence/region_repository.rs)
+- [x] LocationRepo (from engine-adapters/src/infrastructure/persistence/location_repository.rs) - DONE
+- [x] RegionRepo (merged into LocationRepo) - DONE
 - [ ] SceneRepo (from engine-adapters/src/infrastructure/persistence/scene_repository.rs)
 - [ ] ChallengeRepo (from engine-adapters/src/infrastructure/persistence/challenge_repository.rs)
 - [ ] NarrativeRepo (narrative_event_repository/, story_event_repository/, event_chain_repository.rs)
