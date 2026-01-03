@@ -1469,18 +1469,21 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
 
     for entry in walkdir_rs_files(&ports_dir)? {
         let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let path_str = entry.to_string_lossy();
 
-        // Exempt files:
+        // Exempt files and directories:
         // - request_handler.rs: Documented API boundary - uses RequestPayload/ResponseResult
         // - dm_approval_queue_service_port.rs: Re-exports wire-format types from protocol
         //   (ProposedToolInfo, ChallengeSuggestionInfo, etc.) - protocol is single source of truth
         // - queue_types.rs: Queue payload types that use protocol wire-format types
         //   (moved from domain/value_objects/queue_data.rs - Phase 1A.1)
         // - mod.rs: Re-exports protocol types for API compatibility
+        // - dto/ directory: Merged from engine-dto crate - contains boundary DTOs that use protocol types
         if file_name == "request_handler.rs"
             || file_name == "dm_approval_queue_service_port.rs"
             || file_name == "queue_types.rs"
             || file_name == "mod.rs"
+            || path_str.contains("/dto/")
         {
             continue;
         }
@@ -1763,14 +1766,12 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
         .context("finding workspace root")?;
 
     // Directories to check for glob re-exports
+    // Note: domain-types, common, engine-dto, engine-composition have been merged
     let check_dirs = [
-        workspace_root.join("crates/domain-types/src"),
         workspace_root.join("crates/domain/src"),
         workspace_root.join("crates/protocol/src"),
-        workspace_root.join("crates/engine-dto/src"),
         workspace_root.join("crates/engine-ports/src"),
         workspace_root.join("crates/engine-app/src"),
-        workspace_root.join("crates/engine-composition/src"),
         workspace_root.join("crates/engine-adapters/src"),
         workspace_root.join("crates/engine-runner/src"),
         workspace_root.join("crates/player-ports/src"),
@@ -1847,60 +1848,37 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     //
     // Note: dev-dependencies are included in cargo metadata, so we allow them here
     // with comments indicating which are dev-only.
+    //
+    // Architecture Simplification (2026-01):
+    // - wrldbldr-domain-types merged into wrldbldr-domain
+    // - wrldbldr-common merged into wrldbldr-domain
+    // - wrldbldr-engine-dto merged into wrldbldr-engine-ports
+    // - wrldbldr-engine-composition merged into wrldbldr-engine-runner
     HashMap::from([
-        // Innermost layer: shared vocabulary types with zero internal deps
-        ("wrldbldr-domain-types", HashSet::from([])),
-        // Common utilities crate: pure functions, no internal deps
-        ("wrldbldr-common", HashSet::from([])),
-        // Domain layer depends on domain-types for shared vocabulary
-        ("wrldbldr-domain", HashSet::from(["wrldbldr-domain-types"])),
-        // Protocol (API contract) depends on domain-types for shared vocabulary
-        // NOTE: wrldbldr-domain dependency was removed - From impls moved to adapters
-        (
-            "wrldbldr-protocol",
-            HashSet::from(["wrldbldr-domain-types"]),
-        ),
-        (
-            "wrldbldr-engine-dto",
-            HashSet::from([
-                "wrldbldr-protocol",
-                "wrldbldr-domain", // For domain ID types in DTOs
-            ]),
-        ),
+        // Domain layer: entities, value objects, types, common utilities
+        // Zero internal dependencies (innermost layer)
+        ("wrldbldr-domain", HashSet::from([])),
+        // Protocol (API contract) depends on domain for shared vocabulary
+        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
+        // Ports layer: trait definitions for infrastructure boundaries
         (
             "wrldbldr-engine-ports",
             HashSet::from([
                 "wrldbldr-domain",
-                "wrldbldr-protocol",
-                "wrldbldr-engine-dto",
+                "wrldbldr-protocol", // For boundary DTOs
             ]),
         ),
         (
             "wrldbldr-player-ports",
             HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
         ),
+        // Application layer: services, use cases, handlers
         (
             "wrldbldr-engine-app",
             HashSet::from([
-                "wrldbldr-common", // for datetime/string utilities (shared kernel)
-                "wrldbldr-domain",
-                "wrldbldr-domain-types", // for workflow analysis functions
-                "wrldbldr-protocol",
-                "wrldbldr-engine-ports",
-                "wrldbldr-engine-dto", // for test mocks (dev-dependency)
-            ]),
-        ),
-        // Composition layer: defines service containers using port traits
-        // Sits between app and adapters, allows clean DI without coupling
-        // NOTE: Depends on engine-app for internal service trait definitions (NOT ports)
-        // These are app-layer contracts used in DI containers, not adapter-implemented ports
-        (
-            "wrldbldr-engine-composition",
-            HashSet::from([
                 "wrldbldr-domain",
                 "wrldbldr-protocol",
                 "wrldbldr-engine-ports",
-                "wrldbldr-engine-app", // For internal service traits (NOT ports)
             ]),
         ),
         (
@@ -1912,19 +1890,14 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-adapters", // dev-dependency for MockGameConnectionPort
             ]),
         ),
+        // Adapters layer: infrastructure implementations
         (
             "wrldbldr-engine-adapters",
             HashSet::from([
-                // NOTE: engine-app dependency for internal service traits used by wrapper adapters
-                // These wrapper adapters will be removed in a future refactor (Step 5 of ServicePort migration)
-                "wrldbldr-engine-app", // For internal service traits (temporary - wrappers will be removed)
-                "wrldbldr-common",     // For datetime parsing utilities
+                "wrldbldr-engine-app", // For internal service traits used by wrapper adapters
                 "wrldbldr-engine-ports",
-                "wrldbldr-engine-composition",
-                "wrldbldr-engine-dto",
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
-                "wrldbldr-domain-types", // For DTO conversions and workflow analysis
             ]),
         ),
         (
@@ -1936,6 +1909,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-domain",
             ]),
         ),
+        // Presentation layer
         (
             "wrldbldr-player-ui",
             HashSet::from([
@@ -1946,6 +1920,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-domain",
             ]),
         ),
+        // Runner layer: composition roots
         (
             "wrldbldr-player-runner",
             HashSet::from([
@@ -1955,14 +1930,14 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-adapters",
             ]),
         ),
-        // Runner is the composition root - needs access to all layers
+        // Engine runner is the composition root - needs access to all engine layers
+        // Note: engine-composition has been merged into engine-runner
         (
             "wrldbldr-engine-runner",
             HashSet::from([
                 "wrldbldr-engine-adapters",
                 "wrldbldr-engine-app",
                 "wrldbldr-engine-ports",
-                "wrldbldr-engine-composition",
                 "wrldbldr-protocol",
                 "wrldbldr-domain",
             ]),

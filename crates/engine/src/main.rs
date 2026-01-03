@@ -2,8 +2,9 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
-
+use axum::routing::get;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -13,6 +14,7 @@ mod entities;
 mod infrastructure;
 mod use_cases;
 
+use api::{ConnectionManager, websocket::WsState};
 use app::App;
 use infrastructure::{
     clock::SystemClock,
@@ -43,6 +45,7 @@ async fn main() -> anyhow::Result<()> {
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".into());
     let neo4j_pass = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".into());
     let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".into());
+    let ollama_model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into());
     let comfyui_url = std::env::var("COMFYUI_URL").unwrap_or_else(|_| "http://localhost:8188".into());
     let server_port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8080".into())
@@ -50,26 +53,56 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(8080);
 
     // Create clock for repositories
-    let clock = Arc::new(SystemClock);
+    let clock: Arc<dyn infrastructure::ports::ClockPort> = Arc::new(SystemClock);
 
     // Connect to Neo4j
     tracing::info!("Connecting to Neo4j at {}", neo4j_uri);
     let graph = neo4rs::Graph::new(&neo4j_uri, &neo4j_user, &neo4j_pass).await?;
-    let repos = Neo4jRepositories::new(graph, clock);
+    let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients
-    let llm = Arc::new(OllamaClient::new(ollama_url));
-    let image_gen = Arc::new(ComfyUIClient::new(comfyui_url));
-    let queue = Arc::new(SqliteQueue::new("queues.db".into()));
+    let llm = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
+    let image_gen = Arc::new(ComfyUIClient::new(&comfyui_url));
+    
+    // Create queue
+    let queue_db = std::env::var("QUEUE_DB").unwrap_or_else(|_| "queues.db".into());
+    let queue = Arc::new(SqliteQueue::new(&queue_db, clock).await?);
 
     // Create application
     let app = Arc::new(App::new(repos, llm, image_gen, queue));
+    
+    // Create connection manager
+    let connections = Arc::new(ConnectionManager::new());
+    
+    // Create WebSocket state
+    let ws_state = Arc::new(WsState {
+        app: app.clone(),
+        connections,
+    });
 
-    // Build router
+    // Spawn queue processor
+    let queue_app = app.clone();
+    tokio::spawn(async move {
+        loop {
+            // Process player actions
+            if let Err(e) = queue_app.use_cases.queues.process_player_action.execute().await {
+                tracing::warn!(error = %e, "Failed to process player action");
+            }
+
+            // Process LLM requests
+            if let Err(e) = queue_app.use_cases.queues.process_llm_request.execute().await {
+                tracing::warn!(error = %e, "Failed to process LLM request");
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    });
+
+    // Build router with separate states for HTTP and WebSocket
     let router = api::http::routes()
-        .route("/ws", axum::routing::get(api::websocket::ws_handler))
-        .layer(TraceLayer::new_for_http())
-        .with_state(app);
+        .with_state(app)
+        .route("/ws", get(api::websocket::ws_handler).with_state(ws_state))
+        .layer(TraceLayer::new_for_http());
 
     // Start server
     let addr = SocketAddr::from(([0, 0, 0, 0], server_port));

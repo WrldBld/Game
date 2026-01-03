@@ -6,10 +6,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::WorkflowConfigId;
+use crate::WorkflowConfigId;
 
-// Re-export shared workflow types from domain-types
-pub use wrldbldr_domain_types::{
+// Re-export shared workflow types from types module
+pub use crate::types::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis, WorkflowInput,
     WorkflowSlot,
 };

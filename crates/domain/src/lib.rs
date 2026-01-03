@@ -1,5 +1,11 @@
 extern crate self as wrldbldr_domain;
 
+// Merged from wrldbldr-domain-types crate
+pub mod types;
+
+// Merged from wrldbldr-common crate
+pub mod common;
+
 pub mod aggregates;
 pub mod entities;
 pub mod error;

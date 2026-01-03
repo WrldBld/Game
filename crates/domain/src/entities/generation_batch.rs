@@ -4,10 +4,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::gallery_asset::{AssetType, EntityType};
-use wrldbldr_domain::{AssetId, BatchId, WorldId};
+use crate::{AssetId, BatchId, WorldId};
 
-// Re-export BatchStatus from domain-types
-pub use wrldbldr_domain_types::BatchStatus;
+// Re-export BatchStatus from types module
+pub use crate::types::BatchStatus;
 
 /// A batch of assets being generated together
 #[derive(Debug, Clone, Serialize, Deserialize)]

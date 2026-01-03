@@ -4,10 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-// Re-export shared vocabulary types from domain-types (innermost layer)
+// Re-export shared vocabulary types from domain::types
 // These are stable types used in wire format without modification.
-pub use wrldbldr_domain_types::CampbellArchetype;
-pub use wrldbldr_domain_types::MonomythStage;
+pub use wrldbldr_domain::types::CampbellArchetype;
+pub use wrldbldr_domain::types::MonomythStage;
 
 // =============================================================================
 // Session & Participant Types

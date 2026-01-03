@@ -639,7 +639,7 @@ checksum = "3fc4bff745c9b4c7fb1e97b25d13153da2bc7796260141df62378998d070207f"
 dependencies = [
  "cookie",
  "document-features",
- "idna 1.1.0",
+ "idna",
  "log",
  "publicsuffix",
  "serde",
@@ -801,36 +801,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee"
-dependencies = [
- "darling_core 0.20.11",
- "darling_macro 0.20.11",
-]
-
-[[package]]
-name = "darling"
 version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0"
 dependencies = [
- "darling_core 0.21.3",
- "darling_macro 0.21.3",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim",
- "syn 2.0.111",
+ "darling_core",
+ "darling_macro",
 ]
 
 [[package]]
@@ -848,22 +824,11 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.20.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
-dependencies = [
- "darling_core 0.20.11",
- "quote",
- "syn 2.0.111",
-]
-
-[[package]]
-name = "darling_macro"
 version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
- "darling_core 0.21.3",
+ "darling_core",
  "quote",
  "syn 2.0.111",
 ]
@@ -1739,7 +1704,7 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f43e744e4ea338060faee68ed933e46e722fb7f3617e722a5772d7e856d8b3ce"
 dependencies = [
- "darling 0.21.3",
+ "darling",
  "proc-macro2",
  "quote",
  "syn 2.0.111",
@@ -2832,16 +2797,6 @@ name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
-
-[[package]]
-name = "idna"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634d9b1461af396cad843f47fdba5597a4f9e6ddd4bfb6ff5d85028c25cb12f6"
-dependencies = [
- "unicode-bidi",
- "unicode-normalization",
-]
 
 [[package]]
 name = "idna"
@@ -4225,7 +4180,7 @@ version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42ea446cab60335f76979ec15e12619a2165b5ae2c12166bef27d283a9fadf"
 dependencies = [
- "idna 1.1.0",
+ "idna",
  "psl-types",
 ]
 
@@ -5366,12 +5321,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "strsim"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
 name = "subsecond"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6124,7 +6073,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08bc136a29a3d1758e07a9cca267be308aeebf5cfd5a10f3f67ab2097683ef5b"
 dependencies = [
  "form_urlencoded",
- "idna 1.1.0",
+ "idna",
  "percent-encoding",
  "serde",
 ]
@@ -6157,36 +6106,6 @@ dependencies = [
  "js-sys",
  "serde_core",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "validator"
-version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db79c75af171630a3148bd3e6d7c4f42b6a9a014c2945bc5ed0020cbb8d9478e"
-dependencies = [
- "idna 0.5.0",
- "once_cell",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "url",
- "validator_derive",
-]
-
-[[package]]
-name = "validator_derive"
-version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df0bcf92720c40105ac4b2dda2a4ea3aa717d4d6a862cc217da653a4bd5c6b10"
-dependencies = [
- "darling 0.20.11",
- "once_cell",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.111",
 ]
 
 [[package]]
@@ -7083,13 +7002,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
-name = "wrldbldr-common"
-version = "0.1.0"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "wrldbldr-domain"
 version = "0.1.0"
 dependencies = [
@@ -7098,19 +7010,10 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "uuid",
- "wrldbldr-domain-types",
 ]
 
 [[package]]
-name = "wrldbldr-domain-types"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "wrldbldr-engine-adapters"
+name = "wrldbldr-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -7118,7 +7021,9 @@ dependencies = [
  "axum",
  "chrono",
  "dashmap",
+ "dotenvy",
  "futures-util",
+ "mockall",
  "neo4rs",
  "rand 0.8.5",
  "reqwest",
@@ -7127,110 +7032,13 @@ dependencies = [
  "sqlx",
  "thiserror 2.0.17",
  "tokio",
+ "tokio-util",
  "tower",
- "tracing",
- "uuid",
- "wrldbldr-common",
- "wrldbldr-domain",
- "wrldbldr-domain-types",
- "wrldbldr-engine-dto",
- "wrldbldr-engine-ports",
- "wrldbldr-protocol",
-]
-
-[[package]]
-name = "wrldbldr-engine-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "mockall",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
- "validator",
- "wrldbldr-common",
- "wrldbldr-domain",
- "wrldbldr-domain-types",
- "wrldbldr-engine-dto",
- "wrldbldr-engine-ports",
- "wrldbldr-protocol",
-]
-
-[[package]]
-name = "wrldbldr-engine-composition"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "serde",
- "serde_json",
- "uuid",
- "wrldbldr-domain",
- "wrldbldr-engine-app",
- "wrldbldr-engine-ports",
- "wrldbldr-protocol",
-]
-
-[[package]]
-name = "wrldbldr-engine-dto"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "uuid",
- "wrldbldr-domain",
- "wrldbldr-protocol",
-]
-
-[[package]]
-name = "wrldbldr-engine-ports"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "mockall",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "uuid",
- "wrldbldr-domain",
- "wrldbldr-engine-dto",
- "wrldbldr-protocol",
-]
-
-[[package]]
-name = "wrldbldr-engine-runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "chrono",
- "dotenvy",
- "futures-util",
- "serde_json",
- "sqlx",
- "tokio",
- "tokio-util",
  "tower-http",
  "tracing",
  "tracing-subscriber",
  "uuid",
  "wrldbldr-domain",
- "wrldbldr-engine-adapters",
- "wrldbldr-engine-app",
- "wrldbldr-engine-composition",
- "wrldbldr-engine-ports",
  "wrldbldr-protocol",
 ]
 
@@ -7356,7 +7164,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
- "wrldbldr-domain-types",
+ "wrldbldr-domain",
 ]
 
 [[package]]

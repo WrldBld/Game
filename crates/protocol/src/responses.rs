@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-// Re-export shared vocabulary types from domain-types
-pub use wrldbldr_domain_types::{ChangeType, EntityType};
+// Re-export shared vocabulary types from domain::types
+pub use wrldbldr_domain::types::{ChangeType, EntityType};
 
 // =============================================================================
 // Response Result
@@ -235,7 +235,7 @@ impl EntityChangedData {
     }
 }
 
-// EntityType and ChangeType are re-exported from wrldbldr_domain_types at the top of this file
+// EntityType and ChangeType are re-exported from domain::types at the top of this file
 
 // =============================================================================
 // World Role

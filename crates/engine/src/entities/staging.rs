@@ -7,7 +7,21 @@ use crate::infrastructure::ports::{RepoError, StagingRepo};
 
 /// Staging entity operations.
 ///
-/// Manages NPC presence in regions (staging).
+/// Manages NPC presence in regions (staging). The staging system determines
+/// "who is on stage" for each region, using a DM approval workflow.
+///
+/// ## Staging Workflow
+///
+/// 1. **Active Staging**: A DM-approved staging with NPCs marked present/absent
+/// 2. **Staging Resolution**: When a player enters a region:
+///    - If active staging exists (not expired), use it
+///    - Otherwise, generate suggestions and queue for DM approval
+/// 3. **Rule-Based Suggestions**: Based on NPC relationships to region
+///    (WORKS_AT, FREQUENTS, HOME_REGION) and frequency settings
+/// 4. **LLM-Enhanced Suggestions**: Context-aware NPC presence reasoning
+///
+/// The full workflow with DM approval is handled at the WebSocket/API layer.
+/// This entity module provides the building blocks.
 pub struct Staging {
     repo: Arc<dyn StagingRepo>,
 }
@@ -17,18 +31,29 @@ impl Staging {
         Self { repo }
     }
 
-    /// Get NPCs currently staged in a region.
+    /// Get all NPCs in the staging configuration for a region.
+    ///
+    /// Returns the raw staging data including NPCs that may be marked
+    /// as not present or hidden.
     pub async fn get_staged_npcs(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError> {
         self.repo.get_staged_npcs(region_id).await
     }
 
     /// Stage an NPC in a region.
-    pub async fn stage_npc(&self, region_id: RegionId, character_id: CharacterId) -> Result<(), RepoError> {
+    pub async fn stage_npc(
+        &self,
+        region_id: RegionId,
+        character_id: CharacterId,
+    ) -> Result<(), RepoError> {
         self.repo.stage_npc(region_id, character_id).await
     }
 
     /// Remove an NPC from a region.
-    pub async fn unstage_npc(&self, region_id: RegionId, character_id: CharacterId) -> Result<(), RepoError> {
+    pub async fn unstage_npc(
+        &self,
+        region_id: RegionId,
+        character_id: CharacterId,
+    ) -> Result<(), RepoError> {
         self.repo.unstage_npc(region_id, character_id).await
     }
 
@@ -53,10 +78,49 @@ impl Staging {
         self.repo.delete_pending_staging(id).await
     }
 
-    /// Resolve staging for a region - get or create staged NPCs.
+    /// Resolve which NPCs are present in a region for player view.
+    ///
+    /// Returns NPCs that are:
+    /// - Currently staged in the region (from an active, DM-approved staging)
+    /// - Marked as present (`is_present = true`)
+    /// - Not hidden from players (`is_hidden_from_players = false`)
+    ///
+    /// If no staging exists, returns an empty list. The WebSocket handler
+    /// should trigger the DM approval workflow in this case.
+    ///
+    /// ## Future Improvements
+    ///
+    /// A more complete implementation would:
+    /// 1. Check if active staging is expired (TTL-based)
+    /// 2. Generate rule-based suggestions if no valid staging exists
+    /// 3. Queue for DM approval if needed
     pub async fn resolve_for_region(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError> {
-        // TODO: Implement staging resolution logic
-        // For now, just return currently staged NPCs
-        self.get_staged_npcs(region_id).await
+        let all_staged = self.get_staged_npcs(region_id).await?;
+
+        // Filter to only present, visible NPCs
+        let visible_npcs: Vec<StagedNpc> = all_staged
+            .into_iter()
+            .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+            .collect();
+
+        Ok(visible_npcs)
+    }
+
+    /// Get all staged NPCs including hidden ones (for DM view).
+    ///
+    /// Used by DM-facing UIs that need to see the full staging picture.
+    pub async fn resolve_for_region_dm_view(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<StagedNpc>, RepoError> {
+        let all_staged = self.get_staged_npcs(region_id).await?;
+
+        // Filter to only present NPCs (including hidden ones)
+        let present_npcs: Vec<StagedNpc> = all_staged
+            .into_iter()
+            .filter(|npc| npc.is_present)
+            .collect();
+
+        Ok(present_npcs)
     }
 }

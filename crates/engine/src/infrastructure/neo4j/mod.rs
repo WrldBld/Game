@@ -50,13 +50,13 @@ impl Neo4jRepositories {
     pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
         Self {
             character: Arc::new(Neo4jCharacterRepo::new(graph.clone())),
-            player_character: Arc::new(Neo4jPlayerCharacterRepo::new(graph.clone())),
+            player_character: Arc::new(Neo4jPlayerCharacterRepo::new(graph.clone(), clock.clone())),
             location: Arc::new(Neo4jLocationRepo::new(graph.clone())),
             scene: Arc::new(Neo4jSceneRepo::new(graph.clone())),
             challenge: Arc::new(Neo4jChallengeRepo::new(graph.clone())),
-            narrative: Arc::new(Neo4jNarrativeRepo::new(graph.clone())),
-            staging: Arc::new(Neo4jStagingRepo::new(graph.clone())),
-            observation: Arc::new(Neo4jObservationRepo::new(graph.clone())),
+            narrative: Arc::new(Neo4jNarrativeRepo::new(graph.clone(), clock.clone())),
+            staging: Arc::new(Neo4jStagingRepo::new(graph.clone(), clock.clone())),
+            observation: Arc::new(Neo4jObservationRepo::new(graph.clone(), clock.clone())),
             item: Arc::new(Neo4jItemRepo::new(graph.clone())),
             world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock)),
             asset: Arc::new(Neo4jAssetRepo::new(graph)),

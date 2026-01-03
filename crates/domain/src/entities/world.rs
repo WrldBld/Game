@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use crate::value_objects::RuleSystemConfig;
 use crate::{GameTime, WorldId};
 
-// Re-export MonomythStage from domain-types
-pub use wrldbldr_domain_types::MonomythStage;
+// Re-export MonomythStage from types module
+pub use crate::types::MonomythStage;
 
 /// A complete campaign world
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,20 +1,30 @@
 //! Observation entity operations.
 
 use std::sync::Arc;
-use wrldbldr_domain::{CharacterId, NpcObservation, PlayerCharacterId};
+use wrldbldr_domain::{CharacterId, NpcObservation, PlayerCharacterId, StagedNpc};
 
-use crate::infrastructure::ports::{ObservationRepo, RepoError};
+use crate::infrastructure::ports::{ClockPort, LocationRepo, ObservationRepo, RepoError};
 
 /// Observation entity operations.
 ///
 /// Tracks what NPCs a player character has observed/met.
 pub struct Observation {
     repo: Arc<dyn ObservationRepo>,
+    location_repo: Arc<dyn LocationRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Observation {
-    pub fn new(repo: Arc<dyn ObservationRepo>) -> Self {
-        Self { repo }
+    pub fn new(
+        repo: Arc<dyn ObservationRepo>,
+        location_repo: Arc<dyn LocationRepo>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
+        Self {
+            repo,
+            location_repo,
+            clock,
+        }
     }
 
     /// Get all observations for a player character.
@@ -31,18 +41,55 @@ impl Observation {
     }
 
     /// Check if a PC has observed a specific character.
-    pub async fn has_observed(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<bool, RepoError> {
+    pub async fn has_observed(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<bool, RepoError> {
         self.repo.has_observed(pc_id, target_id).await
     }
 
     /// Record that a PC has visited a region and seen its NPCs.
+    ///
+    /// Creates direct observations for each present, visible NPC in the region.
+    /// Skips NPCs the player has already observed to avoid duplicate records.
     pub async fn record_visit(
         &self,
-        _pc_id: PlayerCharacterId,
-        _region_id: wrldbldr_domain::RegionId,
-        _npcs: &[wrldbldr_domain::StagedNpc],
+        pc_id: PlayerCharacterId,
+        region_id: wrldbldr_domain::RegionId,
+        npcs: &[StagedNpc],
     ) -> Result<(), RepoError> {
-        // TODO: Create observations for each NPC in the region
+        // Get the region to find its location_id
+        let region = self.location_repo.get_region(region_id).await?;
+        let location_id = match region {
+            Some(r) => r.location_id,
+            None => return Ok(()), // Region not found, nothing to record
+        };
+
+        let now = self.clock.now();
+
+        // Create observations for each present, visible NPC
+        for npc in npcs.iter().filter(|n| n.is_present && !n.is_hidden_from_players) {
+            // Check if already observed to avoid duplicates
+            let already_observed = self
+                .repo
+                .has_observed(pc_id, npc.character_id)
+                .await?;
+
+            if !already_observed {
+                let observation = NpcObservation::direct(
+                    pc_id,
+                    npc.character_id,
+                    location_id,
+                    region_id,
+                    now, // game_time - using real time for now (TODO: game time system)
+                    now, // created_at
+                );
+
+                self.repo.save_observation(&observation).await?;
+            }
+        }
+
         Ok(())
     }
 }

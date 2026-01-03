@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CharacterId, PlayerCharacterId};
 
-// Re-export the core enums from domain-types
-pub use wrldbldr_domain_types::{DispositionLevel, RelationshipLevel};
+// Re-export the core enums from types module
+pub use crate::types::{DispositionLevel, RelationshipLevel};
 
 /// Complete disposition and relationship state for an NPC toward a specific PC
 ///

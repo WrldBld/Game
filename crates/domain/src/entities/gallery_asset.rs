@@ -3,10 +3,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{AssetId, BatchId};
+use crate::{AssetId, BatchId};
 
-// Re-export shared types from domain-types
-pub use wrldbldr_domain_types::{AssetType, EntityType};
+// Re-export shared types from types module
+pub use crate::types::{AssetType, EntityType};
 
 /// Metadata about how an asset was generated
 #[derive(Debug, Clone, Serialize, Deserialize)]

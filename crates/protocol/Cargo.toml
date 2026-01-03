@@ -7,12 +7,11 @@ authors.workspace = true
 description = "WrldBldr Protocol - Shared types for Engine and Player communication"
 
 [dependencies]
-# Shared vocabulary types (innermost layer)
-# Protocol uses only the pure vocabulary types from domain-types
-wrldbldr-domain-types = { workspace = true }
+# Domain types - protocol uses vocabulary types from domain::types
+wrldbldr-domain = { workspace = true }
 
-# NOTE: wrldbldr-domain dependency was removed as part of hexagonal architecture refactoring.
-# All domain→protocol conversions are now handled in engine-adapters or engine-app.
+# NOTE: Protocol depends on domain for the shared vocabulary types (domain::types module).
+# Domain→protocol conversions are handled in engine-adapters or engine-app.
 
 # Serialization (required for wire protocol)
 serde = { workspace = true }

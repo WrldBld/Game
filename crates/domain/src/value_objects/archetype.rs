@@ -1,11 +1,11 @@
 //! Campbell's character archetypes from "The Hero with a Thousand Faces"
 //!
-//! Re-exports shared types from domain-types crate.
+//! Re-exports shared types from the types module.
 
 use serde::{Deserialize, Serialize};
 
-// Re-export the core archetype enum from domain-types
-pub use wrldbldr_domain_types::CampbellArchetype;
+// Re-export the core archetype enum from types module
+pub use crate::types::CampbellArchetype;
 
 /// Record of an archetype change for a character
 ///

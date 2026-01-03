@@ -1,9 +1,9 @@
 //! System-agnostic rule configuration
 //!
-//! Re-exports shared types from domain-types crate.
+//! Re-exports shared types from the types module.
 
-// Re-export all rule system types from the shared domain-types crate
-pub use wrldbldr_domain_types::{
+// Re-export all rule system types from the types module
+pub use crate::types::{
     // Narrative resolution types
     BladesPoolThresholds,
     // Core rule system types

@@ -7,8 +7,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// Import shared vocabulary types from domain-types (innermost layer)
-use wrldbldr_domain_types::{DispositionLevel, RelationshipLevel, WorkflowAnalysis};
+// Import shared vocabulary types from domain::types
+use wrldbldr_domain::types::{DispositionLevel, RelationshipLevel, WorkflowAnalysis};
 
 // =============================================================================
 // NPC Disposition DTOs
@@ -158,7 +158,7 @@ pub struct ExportQueryDto {
 // Workflow DTOs (REST API)
 // =============================================================================
 
-use wrldbldr_domain_types::{PromptMapping, PromptMappingType};
+use wrldbldr_domain::types::{PromptMapping, PromptMappingType};
 
 /// DTO for prompt mapping configuration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,7 +242,7 @@ pub struct WorkflowConfigResponseDto {
 // Rule System DTOs (REST API)
 // =============================================================================
 
-use wrldbldr_domain_types::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
+use wrldbldr_domain::types::{RuleSystemConfig, RuleSystemType, RuleSystemVariant};
 
 /// Summary of a preset for browsing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -325,7 +325,7 @@ pub fn parse_variant(s: &str) -> Result<RuleSystemVariant, String> {
 // =============================================================================
 
 use std::str::FromStr;
-use wrldbldr_domain_types::{InputDefault, InputType, WorkflowInput, WorkflowSlot};
+use wrldbldr_domain::types::{InputDefault, InputType, WorkflowInput, WorkflowSlot};
 
 /// Response for workflow slot status.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -103,6 +103,10 @@ pub trait PlayerCharacterRepo: Send + Sync {
     async fn get_by_user(&self, world_id: WorldId, user_id: &str) -> Result<Option<PlayerCharacter>, RepoError>;
     async fn update_position(&self, id: PlayerCharacterId, location_id: LocationId, region_id: RegionId) -> Result<(), RepoError>;
     async fn get_inventory(&self, id: PlayerCharacterId) -> Result<Vec<Item>, RepoError>;
+    
+    // Inventory management
+    async fn add_to_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
+    async fn remove_from_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -188,6 +192,14 @@ pub trait ItemRepo: Send + Sync {
     async fn save(&self, item: &Item) -> Result<(), RepoError>;
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Item>, RepoError>;
     async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Item>, RepoError>;
+    
+    // Equipment management (EQUIPPED_BY edge)
+    async fn set_equipped(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
+    async fn set_unequipped(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
+    
+    // Region placement (IN_REGION edge for dropped items)
+    async fn place_in_region(&self, item_id: ItemId, region_id: RegionId) -> Result<(), RepoError>;
+    async fn remove_from_region(&self, item_id: ItemId) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -222,35 +234,138 @@ pub trait AssetRepo: Send + Sync {
 /// LLM request/response types
 #[derive(Debug, Clone)]
 pub struct LlmRequest {
-    pub system_prompt: String,
-    pub messages: Vec<LlmMessage>,
+    /// The conversation history
+    pub messages: Vec<ChatMessage>,
+    /// System prompt / context
+    pub system_prompt: Option<String>,
+    /// Temperature for response generation (0.0 - 2.0)
     pub temperature: Option<f32>,
+    /// Maximum tokens to generate
     pub max_tokens: Option<u32>,
+    /// Optional images for multimodal models
+    pub images: Vec<ImageData>,
 }
 
+impl LlmRequest {
+    pub fn new(messages: Vec<ChatMessage>) -> Self {
+        Self {
+            messages,
+            system_prompt: None,
+            temperature: None,
+            max_tokens: None,
+            images: Vec::new(),
+        }
+    }
+
+    pub fn with_system_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.system_prompt = Some(prompt.into());
+        self
+    }
+
+    pub fn with_temperature(mut self, temp: f32) -> Self {
+        self.temperature = Some(temp);
+        self
+    }
+
+    pub fn with_max_tokens(mut self, max_tokens: Option<u32>) -> Self {
+        self.max_tokens = max_tokens;
+        self
+    }
+}
+
+/// A message in the conversation
 #[derive(Debug, Clone)]
-pub struct LlmMessage {
-    pub role: String,
+pub struct ChatMessage {
+    pub role: MessageRole,
     pub content: String,
 }
 
+impl ChatMessage {
+    pub fn user(content: impl Into<String>) -> Self {
+        Self {
+            role: MessageRole::User,
+            content: content.into(),
+        }
+    }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self {
+            role: MessageRole::Assistant,
+            content: content.into(),
+        }
+    }
+
+    pub fn system(content: impl Into<String>) -> Self {
+        Self {
+            role: MessageRole::System,
+            content: content.into(),
+        }
+    }
+}
+
+/// Role of a message sender
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageRole {
+    User,
+    Assistant,
+    System,
+    Unknown,
+}
+
+/// Image data for multimodal requests
+#[derive(Debug, Clone)]
+pub struct ImageData {
+    /// Base64-encoded image data
+    pub data: String,
+    /// MIME type (e.g., "image/png")
+    pub media_type: String,
+}
+
+/// Response from the LLM
 #[derive(Debug, Clone)]
 pub struct LlmResponse {
+    /// The generated text content
     pub content: String,
+    /// Tool calls proposed by the model
     pub tool_calls: Vec<ToolCall>,
+    /// Finish reason
+    pub finish_reason: FinishReason,
+    /// Token usage
+    pub usage: Option<TokenUsage>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ToolCall {
-    pub name: String,
-    pub arguments: serde_json::Value,
-}
-
+/// Definition of a tool the LLM can call
 #[derive(Debug, Clone)]
 pub struct ToolDefinition {
     pub name: String,
     pub description: String,
     pub parameters: serde_json::Value,
+}
+
+/// A tool call proposed by the LLM
+#[derive(Debug, Clone)]
+pub struct ToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: serde_json::Value,
+}
+
+/// Reason the generation finished
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinishReason {
+    Stop,
+    Length,
+    ToolCalls,
+    ContentFilter,
+    Unknown,
+}
+
+/// Token usage information
+#[derive(Debug, Clone)]
+pub struct TokenUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub total_tokens: u32,
 }
 
 #[async_trait]

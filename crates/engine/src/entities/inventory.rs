@@ -1,35 +1,215 @@
 //! Inventory entity operations.
 
 use std::sync::Arc;
-use wrldbldr_domain::{self as domain, ItemId, RegionId, WorldId};
+use wrldbldr_domain::{self as domain, CharacterId, ItemId, PlayerCharacterId, RegionId, WorldId};
 
-use crate::infrastructure::ports::{ItemRepo, RepoError};
+use crate::infrastructure::ports::{CharacterRepo, ItemRepo, PlayerCharacterRepo, RepoError};
 
 /// Inventory entity operations.
 ///
-/// Handles items in the game world.
+/// Handles items in the game world and character inventories.
 pub struct Inventory {
-    repo: Arc<dyn ItemRepo>,
+    item_repo: Arc<dyn ItemRepo>,
+    character_repo: Arc<dyn CharacterRepo>,
+    pc_repo: Arc<dyn PlayerCharacterRepo>,
+}
+
+/// Result of an inventory operation.
+pub struct InventoryActionResult {
+    pub item_name: String,
+    pub quantity: u32,
 }
 
 impl Inventory {
-    pub fn new(repo: Arc<dyn ItemRepo>) -> Self {
-        Self { repo }
+    pub fn new(
+        item_repo: Arc<dyn ItemRepo>,
+        character_repo: Arc<dyn CharacterRepo>,
+        pc_repo: Arc<dyn PlayerCharacterRepo>,
+    ) -> Self {
+        Self { item_repo, character_repo, pc_repo }
     }
 
+    // =========================================================================
+    // Item CRUD
+    // =========================================================================
+
     pub async fn get(&self, id: ItemId) -> Result<Option<domain::Item>, RepoError> {
-        self.repo.get(id).await
+        self.item_repo.get(id).await
     }
 
     pub async fn save(&self, item: &domain::Item) -> Result<(), RepoError> {
-        self.repo.save(item).await
+        self.item_repo.save(item).await
     }
 
     pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Item>, RepoError> {
-        self.repo.list_in_region(region_id).await
+        self.item_repo.list_in_region(region_id).await
     }
 
     pub async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<domain::Item>, RepoError> {
-        self.repo.list_in_world(world_id).await
+        self.item_repo.list_in_world(world_id).await
     }
+
+    // =========================================================================
+    // Character Inventory Operations  
+    // =========================================================================
+
+    /// Get the inventory for a player character.
+    pub async fn get_pc_inventory(&self, pc_id: PlayerCharacterId) -> Result<Vec<domain::Item>, RepoError> {
+        self.pc_repo.get_inventory(pc_id).await
+    }
+
+    /// Get the inventory for a character (NPC).
+    pub async fn get_character_inventory(&self, character_id: CharacterId) -> Result<Vec<domain::Item>, RepoError> {
+        self.character_repo.get_inventory(character_id).await
+    }
+
+    /// Equip an item (mark it as equipped in the character's inventory).
+    /// 
+    /// Note: In the graph model, equipping creates an EQUIPPED_BY edge.
+    /// For now, this is a simplified implementation.
+    /// 
+    /// Returns the item name for UI feedback.
+    pub async fn equip_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        // Get the item to verify it exists
+        let item = self.item_repo.get(item_id).await?
+            .ok_or(InventoryError::ItemNotFound)?;
+
+        // Verify the item is in the PC's inventory
+        let inventory = self.pc_repo.get_inventory(pc_id).await?;
+        if !inventory.iter().any(|i| i.id == item_id) {
+            return Err(InventoryError::ItemNotInInventory);
+        }
+
+        // Create EQUIPPED_BY edge in graph
+        self.item_repo.set_equipped(pc_id, item_id).await?;
+
+        Ok(InventoryActionResult {
+            item_name: item.name,
+            quantity: 1,
+        })
+    }
+
+    /// Unequip an item.
+    /// 
+    /// Returns the item name for UI feedback.
+    pub async fn unequip_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        // Get the item
+        let item = self.item_repo.get(item_id).await?
+            .ok_or(InventoryError::ItemNotFound)?;
+
+        // Verify the item is in the PC's inventory
+        let inventory = self.pc_repo.get_inventory(pc_id).await?;
+        if !inventory.iter().any(|i| i.id == item_id) {
+            return Err(InventoryError::ItemNotInInventory);
+        }
+
+        // Remove EQUIPPED_BY edge in graph
+        self.item_repo.set_unequipped(pc_id, item_id).await?;
+
+        Ok(InventoryActionResult {
+            item_name: item.name,
+            quantity: 1,
+        })
+    }
+
+    /// Drop an item from inventory (place in current region or destroy).
+    /// 
+    /// Returns the item name for UI feedback.
+    pub async fn drop_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+        quantity: u32,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        // Get the PC to verify they exist and get current region
+        let pc = self.pc_repo.get(pc_id).await?
+            .ok_or(InventoryError::CharacterNotFound)?;
+
+        // Get the item
+        let item = self.item_repo.get(item_id).await?
+            .ok_or(InventoryError::ItemNotFound)?;
+
+        // Verify the item is in the PC's inventory
+        let inventory = self.pc_repo.get_inventory(pc_id).await?;
+        if !inventory.iter().any(|i| i.id == item_id) {
+            return Err(InventoryError::ItemNotInInventory);
+        }
+
+        // Get the PC's current region for placing the dropped item
+        let current_region = pc.current_region_id.ok_or(InventoryError::NotInRegion)?;
+
+        // Remove POSSESSES edge (remove from inventory)
+        self.pc_repo.remove_from_inventory(pc_id, item_id).await?;
+
+        // Also remove EQUIPPED_BY edge if the item was equipped
+        self.item_repo.set_unequipped(pc_id, item_id).await?;
+
+        // Place item in the current region (create IN_REGION edge)
+        self.item_repo.place_in_region(item_id, current_region).await?;
+
+        Ok(InventoryActionResult {
+            item_name: item.name,
+            quantity,
+        })
+    }
+
+    /// Pick up an item from the current region.
+    /// 
+    /// Returns the item name for UI feedback.
+    pub async fn pickup_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        // Get the PC
+        let pc = self.pc_repo.get(pc_id).await?
+            .ok_or(InventoryError::CharacterNotFound)?;
+
+        // Get the item
+        let item = self.item_repo.get(item_id).await?
+            .ok_or(InventoryError::ItemNotFound)?;
+
+        // Verify the item is in the PC's current region
+        let pc_region = pc.current_region_id.ok_or(InventoryError::NotInRegion)?;
+        let items_in_region = self.item_repo.list_in_region(pc_region).await?;
+        if !items_in_region.iter().any(|i| i.id == item_id) {
+            return Err(InventoryError::ItemNotInRegion);
+        }
+
+        // Remove IN_REGION edge (item is no longer on the ground)
+        self.item_repo.remove_from_region(item_id).await?;
+
+        // Add POSSESSES edge (add to inventory)
+        self.pc_repo.add_to_inventory(pc_id, item_id).await?;
+
+        Ok(InventoryActionResult {
+            item_name: item.name,
+            quantity: 1,
+        })
+    }
+}
+
+/// Errors that can occur during inventory operations.
+#[derive(Debug, thiserror::Error)]
+pub enum InventoryError {
+    #[error("Item not found")]
+    ItemNotFound,
+    #[error("Character not found")]
+    CharacterNotFound,
+    #[error("Item not in inventory")]
+    ItemNotInInventory,
+    #[error("Item not in current region")]
+    ItemNotInRegion,
+    #[error("Character not in a region")]
+    NotInRegion,
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
 }

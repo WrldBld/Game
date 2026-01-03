@@ -1,20 +1,410 @@
-//! Neo4j player character repository - stub implementation.
+//! Neo4j player character repository implementation.
+//!
+//! Handles PlayerCharacter persistence for players in game worlds.
+
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use neo4rs::Graph;
+use neo4rs::{query, Graph, Node, Row};
 use wrldbldr_domain::*;
-use crate::infrastructure::ports::{PlayerCharacterRepo, RepoError};
 
-pub struct Neo4jPlayerCharacterRepo { #[allow(dead_code)] graph: Graph }
-impl Neo4jPlayerCharacterRepo { pub fn new(graph: Graph) -> Self { Self { graph } } }
+use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
+use crate::infrastructure::ports::{ClockPort, PlayerCharacterRepo, RepoError};
+
+pub struct Neo4jPlayerCharacterRepo {
+    graph: Graph,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl Neo4jPlayerCharacterRepo {
+    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+        Self { graph, clock }
+    }
+}
 
 #[async_trait]
 impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
-    async fn get(&self, _id: PlayerCharacterId) -> Result<Option<PlayerCharacter>, RepoError> { todo!() }
-    async fn save(&self, _pc: &PlayerCharacter) -> Result<(), RepoError> { todo!() }
-    async fn delete(&self, _id: PlayerCharacterId) -> Result<(), RepoError> { todo!() }
-    async fn list_in_world(&self, _world_id: WorldId) -> Result<Vec<PlayerCharacter>, RepoError> { todo!() }
-    async fn get_by_user(&self, _world_id: WorldId, _user_id: &str) -> Result<Option<PlayerCharacter>, RepoError> { todo!() }
-    async fn update_position(&self, _id: PlayerCharacterId, _loc: LocationId, _reg: RegionId) -> Result<(), RepoError> { todo!() }
-    async fn get_inventory(&self, _id: PlayerCharacterId) -> Result<Vec<Item>, RepoError> { todo!() }
+    /// Get a player character by ID
+    async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>, RepoError> {
+        let q = query("MATCH (pc:PlayerCharacter {id: $id}) RETURN pc").param("id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            Ok(Some(row_to_player_character(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Save a player character (upsert)
+    async fn save(&self, pc: &PlayerCharacter) -> Result<(), RepoError> {
+        let sheet_data_json = pc
+            .sheet_data
+            .as_ref()
+            .map(|s| serde_json::to_string(s))
+            .transpose()
+            .map_err(|e| RepoError::Serialization(e.to_string()))?
+            .unwrap_or_else(|| "{}".to_string());
+
+        let current_region_id_str = pc
+            .current_region_id
+            .map(|r| r.to_string())
+            .unwrap_or_default();
+
+        let q = query(
+            "MERGE (pc:PlayerCharacter {id: $id})
+            ON CREATE SET
+                pc.user_id = $user_id,
+                pc.world_id = $world_id,
+                pc.name = $name,
+                pc.description = $description,
+                pc.sheet_data = $sheet_data,
+                pc.current_location_id = $current_location_id,
+                pc.current_region_id = $current_region_id,
+                pc.starting_location_id = $starting_location_id,
+                pc.sprite_asset = $sprite_asset,
+                pc.portrait_asset = $portrait_asset,
+                pc.created_at = $created_at,
+                pc.last_active_at = $last_active_at
+            ON MATCH SET
+                pc.name = $name,
+                pc.description = $description,
+                pc.sheet_data = $sheet_data,
+                pc.current_location_id = $current_location_id,
+                pc.current_region_id = $current_region_id,
+                pc.sprite_asset = $sprite_asset,
+                pc.portrait_asset = $portrait_asset,
+                pc.last_active_at = $last_active_at
+            WITH pc
+            MATCH (w:World {id: $world_id})
+            MERGE (pc)-[:IN_WORLD]->(w)
+            WITH pc
+            MATCH (l:Location {id: $current_location_id})
+            MERGE (pc)-[:AT_LOCATION]->(l)",
+        )
+        .param("id", pc.id.to_string())
+        .param("user_id", pc.user_id.clone())
+        .param("world_id", pc.world_id.to_string())
+        .param("name", pc.name.clone())
+        .param("description", pc.description.clone().unwrap_or_default())
+        .param("sheet_data", sheet_data_json)
+        .param("current_location_id", pc.current_location_id.to_string())
+        .param("current_region_id", current_region_id_str)
+        .param("starting_location_id", pc.starting_location_id.to_string())
+        .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
+        .param(
+            "portrait_asset",
+            pc.portrait_asset.clone().unwrap_or_default(),
+        )
+        .param("created_at", pc.created_at.to_rfc3339())
+        .param("last_active_at", pc.last_active_at.to_rfc3339());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Delete a player character
+    async fn delete(&self, id: PlayerCharacterId) -> Result<(), RepoError> {
+        let q = query("MATCH (pc:PlayerCharacter {id: $id}) DETACH DELETE pc")
+            .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// List all player characters in a world
+    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter)-[:IN_WORLD]->(w:World {id: $world_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut pcs = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            pcs.push(row_to_player_character(row)?);
+        }
+
+        Ok(pcs)
+    }
+
+    /// Get a player character by user ID in a specific world
+    async fn get_by_user(
+        &self,
+        world_id: WorldId,
+        user_id: &str,
+    ) -> Result<Option<PlayerCharacter>, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {user_id: $user_id})-[:IN_WORLD]->(w:World {id: $world_id})
+            RETURN pc
+            ORDER BY pc.last_active_at DESC
+            LIMIT 1",
+        )
+        .param("user_id", user_id)
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            Ok(Some(row_to_player_character(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update position (location and region)
+    async fn update_position(
+        &self,
+        id: PlayerCharacterId,
+        location_id: LocationId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError> {
+        // Delete old AT_LOCATION relationship first
+        let delete_q = query(
+            "MATCH (pc:PlayerCharacter {id: $id})-[r:AT_LOCATION]->()
+            DELETE r",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(delete_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Create new AT_LOCATION relationship and update position fields
+        let create_q = query(
+            "MATCH (pc:PlayerCharacter {id: $id})
+            MATCH (l:Location {id: $location_id})
+            CREATE (pc)-[:AT_LOCATION]->(l)
+            SET pc.current_location_id = $location_id,
+                pc.current_region_id = $region_id,
+                pc.last_active_at = $last_active_at",
+        )
+        .param("id", id.to_string())
+        .param("location_id", location_id.to_string())
+        .param("region_id", region_id.to_string())
+        .param("last_active_at", self.clock.now().to_rfc3339());
+
+        self.graph
+            .run(create_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Get inventory items for a player character
+    async fn get_inventory(&self, id: PlayerCharacterId) -> Result<Vec<Item>, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:POSSESSES]->(i:Item)
+            RETURN i
+            ORDER BY i.name",
+        )
+        .param("pc_id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut items = Vec::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            items.push(row_to_item(row)?);
+        }
+
+        Ok(items)
+    }
+
+    /// Add an item to a player character's inventory (creates POSSESSES edge)
+    async fn add_to_inventory(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (i:Item {id: $item_id})
+            MERGE (pc)-[:POSSESSES]->(i)",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Remove an item from a player character's inventory (removes POSSESSES edge)
+    async fn remove_from_inventory(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:POSSESSES]->(i:Item {id: $item_id})
+            DELETE r",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("item_id", item_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+}
+
+// =============================================================================
+// Row conversion helpers
+// =============================================================================
+
+fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
+    let node: Node = row
+        .get("pc")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let id: PlayerCharacterId =
+        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let user_id: String = node
+        .get("user_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let world_id: WorldId =
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let name: String = node
+        .get("name")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let description = node.get_optional_string("description");
+
+    // Parse sheet_data from JSON
+    let sheet_data_str = node.get_string_or("sheet_data", "{}");
+    let sheet_data = if sheet_data_str.is_empty() || sheet_data_str == "{}" {
+        None
+    } else {
+        serde_json::from_str(&sheet_data_str)
+            .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?
+    };
+
+    let current_location_id: LocationId = parse_typed_id(&node, "current_location_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let current_region_id: Option<RegionId> = parse_optional_typed_id(&node, "current_region_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let starting_location_id: LocationId = parse_typed_id(&node, "starting_location_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let sprite_asset = node.get_optional_string("sprite_asset");
+    let portrait_asset = node.get_optional_string("portrait_asset");
+
+    let created_at_str: String = node
+        .get("created_at")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
+        .map_err(|e| RepoError::Database(format!("Invalid created_at: {}", e)))?
+        .with_timezone(&chrono::Utc);
+
+    let last_active_at_str: String = node
+        .get("last_active_at")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let last_active_at = chrono::DateTime::parse_from_rfc3339(&last_active_at_str)
+        .map_err(|e| RepoError::Database(format!("Invalid last_active_at: {}", e)))?
+        .with_timezone(&chrono::Utc);
+
+    Ok(PlayerCharacter {
+        id,
+        user_id,
+        world_id,
+        name,
+        description,
+        sheet_data,
+        current_location_id,
+        current_region_id,
+        starting_location_id,
+        sprite_asset,
+        portrait_asset,
+        created_at,
+        last_active_at,
+    })
+}
+
+fn row_to_item(row: Row) -> Result<Item, RepoError> {
+    let node: Node = row
+        .get("i")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let id: ItemId =
+        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let world_id: WorldId =
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let name: String = node
+        .get("name")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let description = node.get_optional_string("description");
+    let item_type = node.get_optional_string("item_type");
+    let is_unique = node.get_bool_or("is_unique", false);
+    let properties = node.get_optional_string("properties");
+    let can_contain_items = node.get_bool_or("can_contain_items", false);
+
+    let container_limit_raw = node.get_i64_or("container_limit", -1);
+    let container_limit = if container_limit_raw < 0 {
+        None
+    } else {
+        Some(container_limit_raw as u32)
+    };
+
+    Ok(Item {
+        id,
+        world_id,
+        name,
+        description,
+        item_type,
+        is_unique,
+        properties,
+        can_contain_items,
+        container_limit,
+    })
 }

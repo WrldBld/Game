@@ -15,11 +15,11 @@
 //! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
 //! DEPRECATED and kept only for backward compatibility during migration.
 
+use crate::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 
-// Re-export narrative resolution types from domain-types
-pub use wrldbldr_domain_types::{
+// Re-export narrative resolution types from types module
+pub use crate::types::{
     DifficultyDescriptor, DifficultyLadder, EffectLevel, NarrativeResolutionConfig,
     NarrativeResolutionStyle, NarrativeThresholds, Position,
 };
@@ -321,7 +321,7 @@ impl Challenge {
         &self,
         dice_results: Option<&[i32]>,
         effect: EffectLevel,
-        config: &wrldbldr_domain_types::PositionEffectConfig,
+        config: &crate::types::PositionEffectConfig,
     ) -> OutcomeType {
         let dice = dice_results.unwrap_or(&[]);
         let highest = dice.iter().max().copied().unwrap_or(0);
@@ -501,7 +501,7 @@ impl Difficulty {
     }
 }
 
-// DifficultyDescriptor is now imported from wrldbldr_domain_types
+// DifficultyDescriptor is now imported from types module
 
 /// Outcomes for a challenge
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
