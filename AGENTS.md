@@ -1,23 +1,55 @@
 # WrldBldr Agent Guidelines
 
-## Canonical architecture (read this first)
+## Architecture (Read This First)
 
-The source of truth is:
+**Source of truth**: `docs/plans/SIMPLIFIED_ARCHITECTURE.md`
 
-- `docs/architecture/hexagonal-architecture.md` (**Hexagonal Architecture (Target)**)
+### Core Principle
 
-The single source-of-truth refactor plan to reach that target is:
+**Hexagonal architecture is for infrastructure boundaries only.** Internal code calls internal code directly as concrete types.
 
-- `docs/plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md`
+### Crate Structure (4 crates)
 
-This file (`AGENTS.md`) is a practical, high-signal summary for agents.
+```
+crates/
+  domain/       # Pure business types (entities, value objects, typed IDs)
+  protocol/     # Wire format for Engine <-> Player communication
+  engine/       # All server-side code
+  player/       # All client-side code
+```
+
+### What Gets Abstracted (Port Traits)
+
+Only infrastructure that might realistically be swapped:
+
+| Boundary | Trait | Why |
+|----------|-------|-----|
+| Database | `CharacterRepo`, `LocationRepo`, etc. | Could swap Neo4j -> Postgres |
+| LLM | `LlmPort` | Could swap Ollama -> Claude/OpenAI |
+| Image Generation | `ImageGenPort` | Could swap ComfyUI -> other |
+| Queues | `QueuePort` | Could swap SQLite -> Redis |
+| Clock/Random | `ClockPort`, `RandomPort` | For testing |
+
+**~10 port traits total.** Everything else is concrete types.
+
+### What Does NOT Get Abstracted
+
+- Entity-to-entity calls (all in same crate)
+- Use case orchestration
+- Handler-to-use-case calls
+- Application state
+
+---
+
+## Project Overview
 
 ### Key Facts
 
-- **~700 Rust files** across 15 workspace crates
-- **Multi-architecture**: Backend engine server (Axum) + WebAssembly player UI (Dioxus)
-- **AI-powered**: Neo4j graph DB + Ollama LLM + ComfyUI image generation
-- **Hexagonal/Clean architecture**: domain → ports → adapters → apps → runners
+- **4 crates**: domain, protocol, engine, player
+- **Backend**: Axum HTTP + WebSocket server
+- **Frontend**: Dioxus (WASM + Desktop)
+- **Database**: Neo4j graph database
+- **AI**: Ollama LLM + ComfyUI image generation
 
 ### Project Objectives
 
@@ -29,236 +61,182 @@ This file (`AGENTS.md`) is a practical, high-signal summary for agents.
 
 ---
 
-## Architecture Overview
-
-### Hexagon Structure
+## Engine Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           RUNNERS                                    │
-│  engine-runner (composition root)    player-runner (composition root)│
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                          ADAPTERS                                    │
-│  engine-adapters (Neo4j, Axum, WS)   player-adapters (WS, Storage)  │
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                        APPLICATION                                   │
-│  engine-app (services, use cases)    player-app (services)          │
-│  engine-composition (DI containers)                                  │
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                           PORTS                                      │
-│  engine-ports (100+ traits)          player-ports (transport traits) │
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                      SHARED KERNEL                                   │
-│  protocol (wire-format DTOs)         common (shared utilities)      │
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                      ENGINE-INTERNAL                                 │
-│  engine-dto (internal DTOs - not shared with player)                │
-└────────────────────────────────┬────────────────────────────────────┘
-                                 │
-┌────────────────────────────────┴────────────────────────────────────┐
-│                          DOMAIN                                      │
-│  domain (entities, value objects)    domain-types (shared vocab)    │
-└─────────────────────────────────────────────────────────────────────┘
+engine/src/
+  entities/           # Entity operations (one file per domain entity)
+    character.rs      # All character operations
+    location.rs       # Location/region operations
+    scene.rs          # Scene management
+    challenge.rs      # Challenge/dice operations
+    narrative.rs      # Events, triggers, chains
+    staging.rs        # NPC presence
+    observation.rs    # Player knowledge
+    inventory.rs      # Items
+    assets.rs         # Asset generation
+    world.rs          # World operations
+    
+  use_cases/          # User story orchestration
+    movement/         # Player movement
+      enter_region.rs
+      exit_location.rs
+    conversation/     # NPC dialogue
+      start.rs
+      continue.rs
+    challenge/        # Dice rolls
+      roll.rs
+      resolve.rs
+    approval/         # DM approval flows
+      staging.rs
+      suggestion.rs
+    ...
+    
+  infrastructure/     # External dependencies
+    ports.rs          # All port trait definitions
+    neo4j/            # Database implementation
+    ollama.rs         # LLM client
+    comfyui.rs        # Image generation
+    queue.rs          # SQLite queues
+    clock.rs          # System clock
+    
+  api/                # Entry points
+    http.rs           # HTTP routes
+    websocket.rs      # WebSocket handling
+    
+  app.rs              # App struct
+  main.rs             # Entry point
 ```
 
-### Crate Responsibilities
+### Entity Modules
 
-| Crate                | Layer           | Purpose                                               |
-| -------------------- | --------------- | ----------------------------------------------------- |
-| `domain-types`       | Domain          | Shared vocabulary (archetypes, monomyth stages)       |
-| `domain`             | Domain          | 25+ entities, value objects, 28 typed IDs             |
-| `common`             | Shared Kernel   | Shared utilities (datetime parsing, string-to-option) |
-| `protocol`           | Shared Kernel   | Wire-format types for Engine↔Player communication     |
-| `engine-dto`         | Engine-Internal | Engine-internal DTOs (queues, persistence)            |
-| `engine-ports`       | Ports           | 100+ repository/service traits (ISP-compliant)        |
-| `player-ports`       | Ports           | Transport and connection traits                       |
-| `engine-app`         | Application     | Services, use cases, request handlers                 |
-| `player-app`         | Application     | Player-side services                                  |
-| `engine-composition` | Application     | Dependency injection containers                       |
-| `engine-adapters`    | Adapters        | Neo4j repos, Axum handlers, WebSocket                 |
-| `player-adapters`    | Adapters        | WebSocket client, platform storage                    |
-| `player-ui`          | Presentation    | Dioxus components and routes                          |
-| `engine-runner`      | Runner          | Server entry point, wiring                            |
-| `player-runner`      | Runner          | Client entry point, WASM/desktop                      |
+Encapsulate all operations for a domain concept:
+
+```rust
+// engine/src/entities/character.rs
+pub struct Character {
+    repo: Arc<dyn CharacterRepo>,
+}
+
+impl Character {
+    pub async fn get(&self, id: CharacterId) -> Result<Option<domain::Character>> {
+        self.repo.get(id).await
+    }
+    
+    pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Character>> {
+        self.repo.list_in_region(region_id).await
+    }
+    
+    // All character operations...
+}
+```
+
+### Use Cases
+
+Orchestrate across entities for user stories:
+
+```rust
+// engine/src/use_cases/movement/enter_region.rs
+pub struct EnterRegion {
+    character: Arc<Character>,
+    staging: Arc<Staging>,
+    narrative: Arc<Narrative>,
+}
+
+impl EnterRegion {
+    pub async fn execute(&self, pc_id: PcId, region_id: RegionId) -> Result<EnterRegionResult> {
+        let npcs = self.staging.resolve_for_region(region_id).await?;
+        let events = self.narrative.check_triggers(region_id, pc_id).await?;
+        self.character.update_position(pc_id, region_id).await?;
+        Ok(EnterRegionResult { npcs, events })
+    }
+}
+```
+
+### API Layer
+
+Handlers call use cases directly:
+
+```rust
+// engine/src/api/http.rs
+async fn move_to_region(
+    State(app): State<Arc<App>>,
+    Json(req): Json<MoveRequest>,
+) -> Result<Json<MoveResponse>> {
+    let result = app.use_cases.movement.enter_region
+        .execute(req.pc_id, req.region_id)
+        .await?;
+    Ok(Json(result.into()))
+}
+```
 
 ---
 
-## Architecture Rules (STRICT)
+## Player Structure
 
-These rules are enforced (and will increasingly be enforced) by `cargo xtask arch-check`.
-**Always run this before committing.**
+```
+player/src/
+  screens/            # UI screens (Dioxus routes)
+    connection.rs
+    game.rs
+    dm_dashboard.rs
+    
+  components/         # Reusable UI components
+    scene_view.rs
+    dialogue_box.rs
+    inventory_grid.rs
+    
+  use_cases/          # Player actions
+    connection/
+      connect.rs
+    game/
+      move_to_region.rs
+      talk_to_npc.rs
+    dm/
+      approve_staging.rs
+      
+  features/           # Client-side state
+    connection.rs
+    game_state.rs
+    settings.rs
+    
+  infrastructure/
+    websocket.rs
+    storage/
+      web.rs
+      desktop.rs
+```
 
-### 1. Domain Layer Purity
+---
 
-**Location**: `crates/domain/`, `crates/domain-types/`
+## Domain Rules (STRICT)
+
+The domain crate must be **pure**:
 
 **DO**:
-
 - Use `serde`, `uuid`, `chrono`, `thiserror` only
 - Use typed IDs (`CharacterId`, not raw `Uuid`)
 - Implement business logic in entity methods
 
 **DON'T**:
+- Import tokio, axum, neo4rs, or any framework
+- Import from engine, player, or protocol
+- Call `Utc::now()` - inject via `ClockPort`
+- Use `rand` - inject via `RandomPort`
+- Perform any I/O
 
-- Import tokio, axum, neo4rs, or any framework crate
-- Import from ports, adapters, app, or runner layers
-- Call `Utc::now()` - inject time via `ClockPort`
-- Use `rand` crate - inject randomness via ports
-- Perform file I/O, network calls, or env access
-
-**Known Exception** (ADR-001): `Uuid::new_v4()` is allowed for ID generation.
-
-### 2. Ports Layer Contracts
-
-**Location**: `crates/engine-ports/`, `crates/player-ports/`
-
-**DO**:
-
-- Define traits (interfaces) and small boundary DTOs only
-- Depend only on domain (and limited `protocol` only when explicitly whitelisted)
-- Use `#[async_trait]` for async traits
-- Follow Interface Segregation - small, focused traits
-
-**DON'T**:
-
-- Add implementations (blanket impls, default impls with logic)
-- Import from adapters or app layers
-- Import protocol types (except whitelisted boundary files)
-
-**Inbound vs outbound meaning (canonical)**:
-
-- **Inbound ports** define what the application offers (implemented by use cases; called by handlers/UI).
-- **Outbound ports** define what the application needs from the outside world (depended on by use cases/services; implemented by adapters).
-
-**Mechanical classification rule (use this when in doubt)**:
-
-- If adapters/handlers/UI **call** the trait and application code **implements** it → it is **inbound**.
-- If application code **depends on** the trait and adapters implement it → it is **outbound**.
-- If both **implementation and callers are inside the application layer** → it is **not a port** (it’s an internal application interface; keep it in `engine-app`/`player-app`, not in `*-ports`).
-
-**Important**:
-
-- Application use cases/services should **not** depend on inbound ports. If you feel you “need” to, that’s usually a sign the trait is miscategorized (should be outbound) or shouldn’t be a port at all (should live in the app crate).
-
-If a trait is a dependency of a use case or service, it belongs in **outbound**.
-
-**Pattern**: Split large traits into focused sub-traits:
-
-```rust
-// Good - focused traits
-trait CharacterCrudPort { ... }
-trait CharacterWantPort { ... }
-trait CharacterInventoryPort { ... }
-
-// Bad - god trait with 20+ methods
-trait CharacterRepository { /* everything */ }
-```
-
-### 3. Adapters Layer Implementation
-
-**Location**: `crates/engine-adapters/`, `crates/player-adapters/`
-
-**DO**:
-
-- Implement port traits
-- Depend on domain, ports, protocol, external crates
-- Use parameterized queries for all database operations
-- Handle and propagate errors properly
-
-**DON'T**:
-
-- Depend on app layer
-- Put business logic here - only translation/mapping
-- Concatenate user input into queries (injection risk)
-
-### 4. Application Layer Orchestration
-
-**Location**: `crates/engine-app/`, `crates/player-app/`
-
-**DO**:
-
-- Orchestrate domain objects via **outbound port** abstractions
-- Depend on domain + ports
-- Keep protocol types at the boundary (handlers/adapters)
-
-**DON'T**:
-
-- Import adapter implementations directly
-- Store/use concrete adapter types in services/use cases
-- Perform direct I/O (database, HTTP, filesystem)
-- Duplicate domain logic - delegate to entities
-
-**Red flag**: application code depending on concrete types when a port exists.
-
-### 5. Protocol Import Rules
-
-| Layer            | Protocol Imports               | Why                      |
-| ---------------- | ------------------------------ | ------------------------ |
-| domain           | FORBIDDEN                      | Pure business logic      |
-| \*-ports         | FORBIDDEN (except whitelisted) | Infrastructure contracts |
-| \*-app/use_cases | FORBIDDEN                      | Business orchestration   |
-| \*-app/services  | FORBIDDEN                      | Business orchestration   |
-| \*-app/handlers  | ALLOWED                        | Boundary layer           |
-| \*-adapters      | ALLOWED                        | Wire-format conversion   |
-| player-ui        | ALLOWED                        | Presentation boundary    |
-
-Note: The target direction is to keep `protocol` at the boundary (handlers/adapters/UI). If a port needs a protocol type, it must be explicitly whitelisted and justified.
-
-### 6. DTO ownership (no duplication)
-
-Single source of truth per DTO:
-
-- Business semantics/invariants → `domain`
-- Engine↔Player wire format → `protocol`
-- App↔adapter contracts → `engine-ports`/`player-ports`
-- Engine-internal glue only → `engine-dto`
-
-Avoid “shadow copies” like `engine_dto::X` duplicating `engine_ports::...::X`.
-
-### 7. No Shim Import Paths
-
-- No re-exports of `wrldbldr_*` from other crates
-- No crate aliasing (`use wrldbldr_* as foo`)
-- Goal: single canonical import path for every type
-
-### 8. Naming Conventions
-
-Consistent suffixes for trait types:
-
-| Suffix            | Usage                                | Example                               |
-| ----------------- | ------------------------------------ | ------------------------------------- |
-| `*Port`           | All port traits (general)            | `ClockPort`, `LoggingPort`            |
-| `*RepositoryPort` | Data access ports                    | `CharacterRepositoryPort`             |
-| `*ServicePort`    | Business operation ports             | `LlmServicePort`                      |
-| `*QueryPort`      | Read-only query ports                | `CharacterQueryPort`                  |
-| `*Provider`       | Platform abstractions (player-ports) | `StorageProvider`, `PlatformProvider` |
-
-**Guidelines**:
-
-- Use `*Port` suffix for all port traits in `engine-ports` and `player-ports`
-- Use `*Provider` for player-side platform abstractions that may have multiple implementations (web, desktop, mobile)
-- Prefer specific suffixes (`*RepositoryPort`, `*ServicePort`, `*QueryPort`) over generic `*Port` when the role is clear
+**Exception**: `Uuid::new_v4()` is allowed for ID generation (ADR-001).
 
 ---
 
 ## Common Pitfalls
 
-### Neo4j Cypher Injection
+### Neo4j Injection
 
-**CRITICAL**: Never concatenate user input into Cypher strings.
+**CRITICAL**: Never concatenate user input into Cypher:
 
 ```rust
-// CORRECT - parameterized query
+// CORRECT
 let query = query("MATCH (c:Character {id: $id}) RETURN c")
     .param("id", id.to_string());
 
@@ -266,240 +244,113 @@ let query = query("MATCH (c:Character {id: $id}) RETURN c")
 let query = query(&format!("MATCH (c:Character {{id: '{}'}}) RETURN c", id));
 ```
 
-Dynamic edge types from validated enums are safe:
+### Typed IDs
 
-```rust
-let edge_type = match role {
-    ActantialRole::Helper => "VIEWS_AS_HELPER",
-    ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
-};
-// Safe - edge_type from controlled enum, not user input
-```
-
-### Protocol Enum Forward Compatibility
-
-When adding enums to protocol types, always include `#[serde(other)]` variant:
-
-```rust
-#[derive(Serialize, Deserialize)]
-pub enum StatusDto {
-    Active,
-    Inactive,
-    #[serde(other)]
-    Unknown,  // Handles future variants gracefully
-}
-```
-
-This prevents deserialization failures when engine sends new variants to older players.
-
-### Typed ID Usage
-
-Always use typed IDs, never raw UUIDs:
+Always use typed IDs:
 
 ```rust
 // CORRECT
 fn get_character(&self, id: CharacterId) -> Character;
 
-// WRONG - loses type safety
+// WRONG
 fn get_character(&self, id: Uuid) -> Character;
-```
-
-For tests, use `from_uuid()` for deterministic IDs:
-
-```rust
-let id = CharacterId::from_uuid(Uuid::nil());
-```
-
-### Time and Randomness
-
-Never use `Utc::now()` or `rand` directly in domain/app layers:
-
-```rust
-// WRONG - impure, untestable
-let timestamp = Utc::now();
-
-// CORRECT - inject via port
-let timestamp = clock_port.now();
 ```
 
 ### Error Handling
 
-Never swallow errors or use `.unwrap()` in production code:
+Never swallow errors:
 
 ```rust
 // WRONG
-let result = repository.get(id).unwrap();
+let result = repo.get(id).unwrap();
 
 // CORRECT
-let result = repository.get(id).await?;
+let result = repo.get(id).await?;
 ```
 
 ---
 
 ## Development Workflow
 
-### Required Checks (Always Run Before Commit)
+### Before Committing
 
 ```bash
-cargo xtask arch-check    # Architecture validation (MUST PASS)
-cargo check --workspace   # Compilation check
-cargo test --workspace    # Run all tests
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace
 ```
 
-### Quality Checks
+### Running
 
 ```bash
-cargo clippy --workspace --all-targets
-cargo fmt --all -- --check
-```
-
-### Running the Application
-
-```bash
-# Engine server
-cargo run -p wrldbldr-engine-runner
+# Engine
+cargo run -p wrldbldr-engine
 
 # Player (desktop)
-cargo run -p wrldbldr-player-runner
+cargo run -p wrldbldr-player
 
-# Player (WASM) - requires dx CLI
+# Player (WASM)
 dx serve --platform web
 ```
 
 ---
 
-## Adding New Features
+## Adding Features
 
-### Adding a New Entity
+### New Entity Operations
 
-1. **Domain** (`crates/domain/src/entities/`): Define entity struct and methods
-2. **Domain** (`crates/domain/src/ids.rs`): Add typed ID if needed
-3. **Ports** (`crates/engine-ports/src/outbound/`): Define repository trait(s)
-4. **Adapters** (`crates/engine-adapters/src/infrastructure/persistence/`): Implement Neo4j repository
-5. **Composition** (`crates/engine-composition/`): Wire up in DI container
-6. **App** (`crates/engine-app/`): Add service/use case if needed
+1. Add to `engine/src/entities/{entity}.rs`
+2. Add repository methods to port trait if needed
+3. Implement in `engine/src/infrastructure/neo4j/`
 
-### Adding a New API Endpoint
+### New Use Case
 
-1. **Protocol** (`crates/protocol/src/`): Define request/response DTOs
-2. **App Handler** (`crates/engine-app/src/application/handlers/`): Add handler
-3. **Adapters** (`crates/engine-adapters/src/infrastructure/axum/`): Wire route
+1. Create `engine/src/use_cases/{category}/{name}.rs`
+2. Inject required entity modules
+3. Add to `App` struct
+4. Wire in API layer
 
-### Adding a New Player UI Route
+### New API Endpoint
 
-1. **Protocol**: Ensure DTOs exist for data needed
-2. **Player-UI** (`crates/player-ui/src/routes/`): Add route component
-3. **Player-UI** (`crates/player-ui/src/presentation/components/`): Add components
-4. **Player-Runner**: Register route in router
-
----
-
-## Code Patterns
-
-### Entity Definition
-
-```rust
-// crates/domain/src/entities/character.rs
-use serde::{Deserialize, Serialize};
-use crate::{CharacterId, WorldId};
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Character {
-    pub id: CharacterId,
-    pub world_id: WorldId,
-    pub name: String,
-}
-
-impl Character {
-    pub fn new(world_id: WorldId, name: String) -> Self {
-        Self {
-            id: CharacterId::new(),
-            world_id,
-            name,
-        }
-    }
-}
-```
-
-### Port Trait Definition
-
-```rust
-// crates/engine-ports/src/outbound/character_repository.rs
-use async_trait::async_trait;
-use wrldbldr_domain::{Character, CharacterId};
-
-#[async_trait]
-pub trait CharacterCrudPort: Send + Sync {
-    async fn get(&self, id: CharacterId) -> Result<Character, RepositoryError>;
-    async fn create(&self, character: &Character) -> Result<(), RepositoryError>;
-    async fn update(&self, character: &Character) -> Result<(), RepositoryError>;
-    async fn delete(&self, id: CharacterId) -> Result<(), RepositoryError>;
-}
-```
-
-### Adapter Implementation
-
-```rust
-// crates/engine-adapters/src/infrastructure/persistence/character_repository.rs
-use async_trait::async_trait;
-use neo4rs::Graph;
-use wrldbldr_engine_ports::outbound::CharacterCrudPort;
-
-pub struct Neo4jCharacterRepository {
-    graph: Graph,
-}
-
-#[async_trait]
-impl CharacterCrudPort for Neo4jCharacterRepository {
-    async fn get(&self, id: CharacterId) -> Result<Character, RepositoryError> {
-        let query = query("MATCH (c:Character {id: $id}) RETURN c")
-            .param("id", id.to_string());
-        // ... execute and map
-    }
-}
-```
+1. Add handler to `engine/src/api/http.rs` or `websocket.rs`
+2. Call appropriate use case
+3. Add protocol types if needed
 
 ---
 
 ## Key Documentation
 
-| Document                                      | Purpose                         |
-| --------------------------------------------- | ------------------------------- |
-| `docs/architecture/hexagonal-architecture.md` | Authoritative architecture spec |
-| `docs/architecture/neo4j-schema.md`           | Database schema reference       |
-| `docs/architecture/queue-system.md`           | Queue processing patterns       |
-| `docs/architecture/websocket-protocol.md`     | Client-server protocol          |
-| `docs/systems/*.md`                           | Game system specifications      |
-| `crates/engine-runner/README.md`              | Engine development guide        |
-| `crates/player-runner/README.md`              | Player UI development guide     |
+| Document | Purpose |
+|----------|---------|
+| `docs/plans/SIMPLIFIED_ARCHITECTURE.md` | Architecture spec and migration progress |
+| `docs/architecture/neo4j-schema.md` | Database schema |
+| `docs/architecture/websocket-protocol.md` | Client-server protocol |
+| `docs/systems/*.md` | Game system specifications |
 
 ---
 
-## Testing Guidelines
+## Testing
 
-### Domain Tests
+### Unit Tests
+- Domain: Pure tests, no mocking
+- Entities: Mock repository ports
+- Use cases: Mock entity modules
 
-- Pure unit tests, no mocking needed
-- Test entity behavior and value object validation
-
-### Port Tests
-
-- Use `mockall` for mocking port traits
-- Test service orchestration logic
-
-### Adapter Tests
-
-- Integration tests with real dependencies (test containers)
-- Verify correct data mapping and query behavior
-
-### Deterministic Testing
+### Integration Tests
+- Use testcontainers for Neo4j
+- Test full flows with real database
 
 ```rust
-// Use from_uuid() for reproducible IDs
-let id = CharacterId::from_uuid(Uuid::nil());
-
-// Inject fixed time via ClockPort mock
-let mock_clock = MockClockPort::new();
-mock_clock.expect_now().returning(|| fixed_datetime);
+#[tokio::test]
+async fn enter_region_updates_position() {
+    let mut repo = MockCharacterRepo::new();
+    repo.expect_update_position()
+        .returning(|_, _| Ok(()));
+        
+    let character = Character::new(Arc::new(repo));
+    let use_case = EnterRegion::new(character, ...);
+    
+    let result = use_case.execute(pc_id, region_id).await;
+    assert!(result.is_ok());
+}
 ```
