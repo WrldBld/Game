@@ -1,13 +1,14 @@
 //! Narrative entity operations.
 
 use std::sync::Arc;
+
 use wrldbldr_domain::{
-    self as domain, EventChainId, LocationId, NarrativeEventId, RegionId, StoryEventId,
-    TriggerContext, WorldId,
+    self as domain, CharacterId, EventChainId, LocationId, NarrativeEventId, PlayerCharacterId,
+    RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TriggerContext, WorldId,
 };
 
 use crate::infrastructure::ports::{
-    LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
+    ClockPort, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
 };
 
 /// Narrative entity operations.
@@ -18,6 +19,7 @@ pub struct Narrative {
     location_repo: Arc<dyn LocationRepo>,
     player_character_repo: Arc<dyn PlayerCharacterRepo>,
     observation_repo: Arc<dyn ObservationRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Narrative {
@@ -26,12 +28,14 @@ impl Narrative {
         location_repo: Arc<dyn LocationRepo>,
         player_character_repo: Arc<dyn PlayerCharacterRepo>,
         observation_repo: Arc<dyn ObservationRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             repo,
             location_repo,
             player_character_repo,
             observation_repo,
+            clock,
         }
     }
 
@@ -93,6 +97,90 @@ impl Narrative {
         limit: usize,
     ) -> Result<Vec<domain::StoryEvent>, RepoError> {
         self.repo.list_story_events(world_id, limit).await
+    }
+
+    /// Record a dialogue exchange between a PC and NPC.
+    ///
+    /// Creates a StoryEvent of type DialogueExchange and updates the SPOKE_TO
+    /// relationship between the PC and NPC for dialogue history tracking.
+    ///
+    /// # Arguments
+    /// * `world_id` - The world where the dialogue occurred
+    /// * `pc_id` - The player character who initiated the dialogue
+    /// * `npc_id` - The NPC who responded
+    /// * `npc_name` - Display name of the NPC
+    /// * `player_dialogue` - What the player said
+    /// * `npc_response` - The NPC's response (after DM approval)
+    /// * `topics` - Topics discussed in this exchange
+    /// * `scene_id` - Optional scene where dialogue occurred (for future use)
+    /// * `location_id` - Optional location where dialogue occurred (for future use)
+    /// * `game_time` - Optional in-game time context
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_dialogue_exchange(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        npc_name: String,
+        player_dialogue: String,
+        npc_response: String,
+        topics: Vec<String>,
+        _scene_id: Option<SceneId>,
+        _location_id: Option<LocationId>,
+        game_time: Option<String>,
+    ) -> Result<StoryEventId, RepoError> {
+        let event_id = StoryEventId::new();
+        let timestamp = self.clock.now();
+
+        // Build summary from dialogue
+        let summary = format!(
+            "{} spoke with {}: \"{}\" - \"{}\"",
+            "Player", // TODO: Get PC name from repo
+            npc_name,
+            truncate_dialogue(&player_dialogue, 50),
+            truncate_dialogue(&npc_response, 50),
+        );
+
+        let event = StoryEvent {
+            id: event_id,
+            world_id,
+            event_type: StoryEventType::DialogueExchange {
+                npc_id,
+                npc_name: npc_name.clone(),
+                player_dialogue,
+                npc_response,
+                topics_discussed: topics.clone(),
+                tone: None,
+            },
+            timestamp,
+            game_time,
+            summary,
+            is_hidden: false,
+            tags: vec!["dialogue".to_string()],
+        };
+
+        // Save the story event
+        self.repo.save_story_event(&event).await?;
+
+        // Update SPOKE_TO relationship for dialogue history tracking
+        let last_topic = topics.first().cloned();
+        self.repo
+            .update_spoke_to(pc_id, npc_id, timestamp, last_topic)
+            .await?;
+
+        Ok(event_id)
+    }
+
+    /// Get dialogue history between a PC and NPC.
+    ///
+    /// Returns DialogueExchange story events in reverse chronological order.
+    pub async fn get_dialogues_with_npc(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<domain::StoryEvent>, RepoError> {
+        self.repo.get_dialogues_with_npc(pc_id, npc_id, limit).await
     }
 
     // =========================================================================
@@ -183,5 +271,14 @@ impl Narrative {
         triggered.sort_by(|a, b| b.priority.cmp(&a.priority));
 
         Ok(triggered)
+    }
+}
+
+/// Truncate dialogue for summary display.
+fn truncate_dialogue(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len])
     }
 }

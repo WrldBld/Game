@@ -105,8 +105,8 @@ These improvements enhance existing systems without adding major new features:
 - [ ] Context-aware challenge suggestions in Director Mode
 
 **Dialogue System Improvements**
-- [ ] Dialogue persistence as StoryEvents
-- [ ] SPOKE_TO relationship tracking
+- [x] Dialogue persistence as StoryEvents
+- [x] SPOKE_TO relationship tracking
 - [ ] Mood & Expression system (inline markers in dialogue)
 
 See individual system documents for detailed user stories.

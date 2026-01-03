@@ -1825,12 +1825,47 @@ async fn handle_approval_decision(
         }
     };
     
+    // Get the original approval request data for dialogue recording
+    let approval_data = match state.app.queue.get_approval_request(approval_id).await {
+        Ok(Some(data)) => Some(data),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to get approval request data for dialogue recording");
+            None
+        }
+    };
+    
     // Execute approval use case
     match state.app.use_cases.approval.approve_suggestion.execute(approval_id, domain_decision).await {
         Ok(result) => {
             if result.approved {
                 if let Some(world_id) = conn_info.world_id {
                     let dialogue = result.final_dialogue.clone().unwrap_or_default();
+                    
+                    // Record dialogue exchange to story events for persistence
+                    if !dialogue.is_empty() {
+                        if let Some(ref data) = approval_data {
+                            if let Some(pc_id) = data.pc_id {
+                                if let Some(npc_id) = data.npc_id {
+                                    let player_dialogue = data.player_dialogue.clone().unwrap_or_default();
+                                    if let Err(e) = state.app.entities.narrative.record_dialogue_exchange(
+                                        world_id,
+                                        pc_id,
+                                        npc_id,
+                                        data.npc_name.clone(),
+                                        player_dialogue,
+                                        dialogue.clone(),
+                                        data.topics.clone(),
+                                        data.scene_id,
+                                        data.location_id,
+                                        data.game_time.clone(),
+                                    ).await {
+                                        tracing::error!(error = %e, "Failed to record dialogue exchange");
+                                    }
+                                }
+                            }
+                        }
+                    }
                     
                     // Send ResponseApproved to DMs (shows what tools were executed)
                     let dm_msg = ServerMessage::ResponseApproved {

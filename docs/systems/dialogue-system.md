@@ -65,34 +65,33 @@ This is the heart of the AI game master experience:
 ### Implemented (Dialogue Tracking Enhancement)
 
 - [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
-  - *Implementation*: `record_dialogue_exchange()` called from `DMApprovalQueueService` after approval
-  - *Files*: `dm_approval_queue_service.rs:325-340`, `story_event_service.rs:311-359`
-  - *Completed*: 2025-12-26 code review confirmed implementation
+  - *Implementation*: `record_dialogue_exchange()` in Narrative entity, called from WebSocket approval handler
+  - *Files*: `crates/engine/src/entities/narrative.rs`, `crates/engine/src/api/websocket.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
 
 - [x] **US-DLG-012**: As a system, I can query the last dialogues with a specific NPC
-  - *Implementation*: `get_dialogues_with_npc()` and `get_dialogue_summary_for_npc()` methods
-  - *Files*: `repository_port.rs:1342-1347`, `story_event_repository.rs:1652-1686`
-  - *Completed*: 2025-12-26 code review confirmed implementation
+  - *Implementation*: `get_dialogues_with_npc()` in NarrativeRepo trait
+  - *Files*: `crates/engine/src/infrastructure/ports.rs`, `crates/engine/src/infrastructure/neo4j/narrative_repo.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
 
 - [x] **US-DLG-013**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
-  - *Implementation*: `update_spoke_to_edge()` creates/updates SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
-  - *Files*: `repository_port.rs:1349-1362`, `story_event_repository.rs:1688-1718`
-  - *Completed*: 2025-12-26 code review confirmed implementation
+  - *Implementation*: `update_spoke_to()` creates/updates SPOKE_TO edge with `first_dialogue_at`, `last_dialogue_at`, `last_topic`, `conversation_count`
+  - *Files*: `crates/engine/src/infrastructure/ports.rs`, `crates/engine/src/infrastructure/neo4j/narrative_repo.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
 
-### Remaining Gaps (Dialogue Tracking)
+- [x] **US-DLG-014**: Capture player dialogue text in exchange records
+  - *Implementation*: `ApprovalRequestData.player_dialogue` passed through approval flow
+  - *Completed*: 2026-01-03 data now captured from original player action
 
-The core functionality is implemented but has data quality gaps:
+- [x] **US-DLG-015**: Extract topics from dialogue content
+  - *Implementation*: `ApprovalRequestData.topics` passed through approval flow
+  - *Completed*: 2026-01-03 topics now captured from LLM response
 
-- [ ] **US-DLG-014**: Capture player dialogue text in exchange records
-  - *Issue*: `player_dialogue` passed as empty string (not available in ApprovalItem)
-  
-- [ ] **US-DLG-015**: Extract topics from dialogue content
-  - *Issue*: `topics_discussed` passed as empty vector
-  
-- [ ] **US-DLG-016**: Include scene/location/game_time context in records
-  - *Issue*: Currently passed as None
+- [x] **US-DLG-016**: Include scene/location/game_time context in records
+  - *Implementation*: `ApprovalRequestData` includes `scene_id`, `location_id`, `game_time` fields
+  - *Completed*: 2026-01-03 context now available (graph edges for scene/location TBD)
 
-> **Note**: Core dialogue persistence works for LLM context via `get_dialogue_summary_for_npc()` used by Staging System.
+> **Note**: Core dialogue persistence works for LLM context. Graph edges for OCCURRED_IN_SCENE and OCCURRED_AT are defined but not yet created during save.
 
 ---
 

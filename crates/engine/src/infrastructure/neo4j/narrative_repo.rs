@@ -342,6 +342,73 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         Ok(events)
     }
+
+    // =========================================================================
+    // Dialogue history
+    // =========================================================================
+
+    async fn get_dialogues_with_npc(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<StoryEvent>, RepoError> {
+        // Find StoryEvents of type DialogueExchange that involve both the PC and NPC
+        // We check the event_type_json for npc_id match
+        let q = query(
+            "MATCH (e:StoryEvent)
+            WHERE e.event_type_json CONTAINS $npc_id_str
+              AND e.event_type_json CONTAINS 'DialogueExchange'
+            WITH e
+            MATCH (pc:PlayerCharacter {id: $pc_id})-[:INVOLVED_IN]->(e)
+            RETURN e
+            ORDER BY e.timestamp DESC
+            LIMIT $limit",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id_str", npc_id.to_string())
+        .param("limit", limit as i64);
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut events = Vec::new();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            events.push(row_to_story_event(row, self.clock.now())?);
+        }
+
+        Ok(events)
+    }
+
+    async fn update_spoke_to(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        timestamp: DateTime<Utc>,
+        last_topic: Option<String>,
+    ) -> Result<(), RepoError> {
+        // Create or update SPOKE_TO relationship between PC and NPC
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (npc:Character {id: $npc_id})
+            MERGE (pc)-[r:SPOKE_TO]->(npc)
+            ON CREATE SET
+                r.first_dialogue_at = $timestamp,
+                r.last_dialogue_at = $timestamp,
+                r.last_topic = $last_topic,
+                r.conversation_count = 1
+            ON MATCH SET
+                r.last_dialogue_at = $timestamp,
+                r.last_topic = COALESCE($last_topic, r.last_topic),
+                r.conversation_count = COALESCE(r.conversation_count, 0) + 1",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("timestamp", timestamp.to_rfc3339())
+        .param("last_topic", last_topic.unwrap_or_default());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        Ok(())
+    }
 }
 
 // =============================================================================

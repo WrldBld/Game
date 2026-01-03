@@ -18,6 +18,7 @@ use crate::use_cases;
 pub struct App {
     pub entities: Entities,
     pub use_cases: UseCases,
+    pub queue: Arc<dyn QueuePort>,
 }
 
 /// Container for all entity modules.
@@ -72,6 +73,7 @@ impl App {
             repos.location.clone(),
             repos.player_character.clone(),
             repos.observation.clone(),
+            clock.clone(),
         ));
         let staging = Arc::new(entities::Staging::new(repos.staging.clone()));
         let observation = Arc::new(entities::Observation::new(
@@ -210,6 +212,7 @@ impl App {
         Self {
             entities,
             use_cases,
+            queue: queue,
         }
     }
 }

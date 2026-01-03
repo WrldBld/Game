@@ -235,6 +235,25 @@ pub trait NarrativeRepo: Send + Sync {
     async fn save_story_event(&self, event: &StoryEvent) -> Result<(), RepoError>;
     async fn list_story_events(&self, world_id: WorldId, limit: usize) -> Result<Vec<StoryEvent>, RepoError>;
     
+    // Dialogue history
+    /// Get dialogue exchanges between a PC and NPC (reverse chronological order).
+    async fn get_dialogues_with_npc(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<StoryEvent>, RepoError>;
+    
+    /// Update or create SPOKE_TO relationship between PC and NPC.
+    /// Tracks last dialogue timestamp, topic, and increments conversation count.
+    async fn update_spoke_to(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        last_topic: Option<String>,
+    ) -> Result<(), RepoError>;
+    
     // Triggers
     async fn get_triggers_for_region(&self, region_id: RegionId) -> Result<Vec<NarrativeEvent>, RepoError>;
 }
