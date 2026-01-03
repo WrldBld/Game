@@ -10,6 +10,7 @@ pub mod approval;
 pub mod assets;
 pub mod world;
 pub mod queues;
+pub mod narrative;
 
 // Re-export main types
 pub use movement::MovementUseCases;
@@ -19,3 +20,4 @@ pub use approval::ApprovalUseCases;
 pub use assets::AssetUseCases;
 pub use world::WorldUseCases;
 pub use queues::QueueUseCases;
+pub use narrative::NarrativeUseCases;

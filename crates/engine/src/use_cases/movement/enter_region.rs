@@ -1,12 +1,18 @@
 //! Enter region use case.
 //!
 //! Handles player character movement to a region within the same location.
-//! Coordinates with staging, observation, and narrative systems.
+//! Coordinates with staging, observation, scene resolution, and narrative systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId, StagedNpc, Staging as DomainStaging};
+use wrldbldr_domain::{
+    GameTime, NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId,
+    Region, RegionId, Scene as DomainScene, StagedNpc, Staging as DomainStaging,
+};
 
-use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging};
+use crate::entities::{
+    Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext,
+    Staging,
+};
 use crate::infrastructure::ports::{ClockPort, RepoError};
 
 /// Result of entering a region.
@@ -22,6 +28,8 @@ pub struct EnterRegionResult {
     pub staging_status: StagingStatus,
     /// The player character who moved (for context in pending staging)
     pub pc: DomainPlayerCharacter,
+    /// Resolved scene for this region (if any)
+    pub resolved_scene: Option<DomainScene>,
 }
 
 /// Status of staging for a region.
@@ -38,13 +46,15 @@ pub enum StagingStatus {
 
 /// Enter region use case.
 ///
-/// Orchestrates: Movement validation, staging resolution, observation updates, trigger checks.
+/// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks.
 pub struct EnterRegion {
     player_character: Arc<PlayerCharacter>,
     location: Arc<Location>,
     staging: Arc<Staging>,
     observation: Arc<Observation>,
     narrative: Arc<Narrative>,
+    scene: Arc<Scene>,
+    inventory: Arc<Inventory>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -55,6 +65,8 @@ impl EnterRegion {
         staging: Arc<Staging>,
         observation: Arc<Observation>,
         narrative: Arc<Narrative>,
+        scene: Arc<Scene>,
+        inventory: Arc<Inventory>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -63,6 +75,8 @@ impl EnterRegion {
             staging,
             observation,
             narrative,
+            scene,
+            inventory,
             clock,
         }
     }
@@ -150,10 +164,22 @@ impl EnterRegion {
                 .await?;
         }
 
-        // 7. Check for triggered narrative events
+        // 7. Resolve scene for this region
+        let resolved_scene = self.resolve_scene_for_region(pc_id, region_id).await?;
+        if let Some(ref scene) = resolved_scene {
+            tracing::info!(
+                pc_id = %pc_id,
+                region_id = %region_id,
+                scene_id = %scene.id,
+                scene_name = %scene.name,
+                "Scene resolved for region entry"
+            );
+        }
+
+        // 8. Check for triggered narrative events
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
 
-        // 8. Update player character position
+        // 9. Update player character position
         self.player_character
             .update_position(pc_id, pc.current_location_id, region_id)
             .await?;
@@ -164,7 +190,51 @@ impl EnterRegion {
             triggered_events,
             staging_status,
             pc,
+            resolved_scene,
         })
+    }
+
+    /// Resolve which scene to display for a PC entering a region.
+    ///
+    /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes)
+    /// and calls the scene resolution service.
+    async fn resolve_scene_for_region(
+        &self,
+        pc_id: PlayerCharacterId,
+        region_id: RegionId,
+    ) -> Result<Option<DomainScene>, RepoError> {
+        // Get current time of day from game time
+        let now = self.clock.now();
+        let game_time = GameTime::new(now);
+        let time_of_day = game_time.time_of_day();
+
+        // Build the scene resolution context
+        let completed_scenes = self.scene.get_completed_scenes(pc_id).await?;
+        let inventory = self.inventory.get_pc_inventory(pc_id).await?;
+        let observations = self.observation.get_observations(pc_id).await?;
+
+        let context = SceneResolutionContext::new(time_of_day)
+            .with_completed_scenes(completed_scenes)
+            .with_inventory(inventory.into_iter().map(|item| item.id))
+            .with_known_characters(observations.into_iter().map(|obs| obs.npc_id));
+        // Note: Flags not implemented yet - would need a flag storage system
+
+        // Resolve the scene
+        let result = self.scene.resolve_scene(region_id, &context).await?;
+
+        // Log considered scenes for debugging
+        for consideration in &result.considered_scenes {
+            if !consideration.conditions_met {
+                tracing::debug!(
+                    scene_id = %consideration.scene_id,
+                    scene_name = %consideration.scene_name,
+                    unmet_conditions = ?consideration.unmet_conditions,
+                    "Scene not matched due to unmet conditions"
+                );
+            }
+        }
+
+        Ok(result.scene)
     }
 
     /// Check if a connection between regions is locked.

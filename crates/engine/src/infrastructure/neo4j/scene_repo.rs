@@ -465,4 +465,92 @@ impl SceneRepo for Neo4jSceneRepo {
         );
         Ok(())
     }
+
+    async fn has_completed_scene(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<bool, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:COMPLETED_SCENE]->(s:Scene {id: $scene_id})
+            RETURN count(s) > 0 as completed",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("scene_id", scene_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let completed: bool = row
+                .get("completed")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            Ok(completed)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn mark_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})
+            MATCH (s:Scene {id: $scene_id})
+            MERGE (pc)-[r:COMPLETED_SCENE]->(s)
+            ON CREATE SET r.completed_at = datetime()
+            RETURN pc.id as pc_id",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("scene_id", scene_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
+        Ok(())
+    }
+
+    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:COMPLETED_SCENE]->(s:Scene)
+            RETURN s.id as scene_id",
+        )
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut scenes = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let scene_id_str: String = row
+                .get("scene_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let scene_id = SceneId::from(
+                uuid::Uuid::parse_str(&scene_id_str)
+                    .map_err(|e| RepoError::Database(e.to_string()))?,
+            );
+            scenes.push(scene_id);
+        }
+
+        Ok(scenes)
+    }
 }

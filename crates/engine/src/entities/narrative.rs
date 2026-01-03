@@ -194,6 +194,17 @@ impl Narrative {
         self.repo.get_triggers_for_region(region_id).await
     }
 
+    /// Set a narrative event's active status.
+    ///
+    /// Used by EnableEvent/DisableEvent effects.
+    pub async fn set_event_active(
+        &self,
+        id: NarrativeEventId,
+        active: bool,
+    ) -> Result<(), RepoError> {
+        self.repo.set_event_active(id, active).await
+    }
+
     /// Check for triggered events when entering a region.
     ///
     /// Builds a TriggerContext with current location info and evaluates all

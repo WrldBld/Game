@@ -18,7 +18,7 @@ pub mod world;
 pub use character::Character;
 pub use player_character::PlayerCharacter;
 pub use location::Location;
-pub use scene::Scene;
+pub use scene::{Scene, SceneResolutionContext, SceneResolutionResult};
 pub use challenge::Challenge;
 pub use narrative::Narrative;
 pub use staging::Staging;

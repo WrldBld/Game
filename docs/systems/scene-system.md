@@ -50,13 +50,18 @@ The visual novel format provides:
   - *Files*: `crates/engine-adapters/src/infrastructure/persistence/scene_repository.rs`
 
 - [x] **US-SCN-008**: As a DM, scenes resolve based on PC location
-  - *Implementation*: SceneResolutionService finds applicable scene
-  - *Files*: `crates/engine-app/src/application/services/scene_resolution_service.rs`
+  - *Implementation*: Scene entity `resolve_scene()` method, integrated in EnterRegion use case
+  - *Files*: `crates/engine/src/entities/scene.rs`, `crates/engine/src/use_cases/movement/enter_region.rs`
+
+- [x] **US-SCN-009**: As a DM, I can set entry conditions for scenes
+  - *Implementation*: SceneCondition enum fully evaluated in Scene::resolve_scene()
+  - *Conditions*: CompletedScene, HasItem, KnowsCharacter, FlagSet, Custom
+  - *Files*: `crates/engine/src/entities/scene.rs`, `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 
 ### Pending
 
-- [ ] **US-SCN-009**: As a DM, I can set entry conditions for scenes
-  - *Notes*: SceneCondition enum exists but evaluation not fully implemented
+- [ ] **US-SCN-010**: Flag storage system for FlagSet condition
+  - *Notes*: FlagSet condition exists but requires a flag storage system to be implemented
 
 ---
 
@@ -298,7 +303,7 @@ pub enum CharacterPosition {
 | Scene Entity | ✅ | ✅ | Full property support |
 | InteractionTemplate | ✅ | ✅ | Targets, requirements |
 | Scene Repository | ✅ | - | Neo4j with all edges |
-| SceneResolutionService | ✅ | - | Location-based resolution |
+| SceneResolutionService | ✅ | - | Scene.resolve_scene() with condition evaluation |
 | SceneService | ✅ | ✅ | CRUD operations |
 | Backdrop Component | - | ✅ | Image rendering |
 | CharacterLayer | - | ✅ | Sprite positioning |
@@ -314,12 +319,11 @@ pub enum CharacterPosition {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/scene.rs` | Scene entity |
-| Domain | `src/domain/entities/interaction.rs` | Interaction entity |
-| Application | `src/application/services/scene_service.rs` | Scene CRUD |
-| Application | `src/application/services/scene_resolution_service.rs` | Resolution |
-| Infrastructure | `src/infrastructure/persistence/scene_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/persistence/interaction_repository.rs` | Neo4j |
+| Domain | `crates/domain/src/entities/scene.rs` | Scene entity, SceneCondition enum |
+| Entity | `crates/engine/src/entities/scene.rs` | Scene operations, resolve_scene() |
+| Use Case | `crates/engine/src/use_cases/movement/enter_region.rs` | Scene resolution integration |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/scene_repo.rs` | Neo4j scene repo with COMPLETED_SCENE tracking |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | SceneRepo trait |
 
 ### Player
 

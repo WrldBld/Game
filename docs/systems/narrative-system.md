@@ -59,6 +59,15 @@ This system provides the scaffolding for emergent storytelling:
 - [ ] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
   - *Notes*: Basic trigger display exists, visual builder not implemented
 
+- [ ] **US-NAR-010**: SetFlag effect requires flag storage system
+  - *Notes*: Effect type exists but execution stubs - needs flag storage implementation
+
+- [ ] **US-NAR-011**: StartCombat effect requires combat system
+  - *Notes*: Effect type exists but execution stubs - needs combat system implementation
+
+- [ ] **US-NAR-012**: AddReward effect requires reward/XP system  
+  - *Notes*: Effect type exists but execution stubs - needs reward system implementation
+
 ---
 
 ## UI Mockups
@@ -330,7 +339,7 @@ pub enum EventEffect {
 | EventChain Entity | ✅ | ✅ | Sequencing, branching |
 | NarrativeEvent Repository | ✅ | - | Neo4j with all edges |
 | TriggerEvaluationService | ✅ | - | Evaluate against state |
-| EventEffectExecutor | ✅ | - | Execute all effect types |
+| EventEffectExecutor | ✅ | - | ExecuteEffects use case handles all effect types |
 | LLM Event Suggestions | ✅ | - | Parse XML tags |
 | Event Library UI | - | ✅ | Search, filter, favorites |
 | Event Chain Editor | - | ✅ | Add/remove events |
@@ -345,13 +354,12 @@ pub enum EventEffect {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/narrative_event.rs` | Event entity |
-| Domain | `src/domain/entities/event_chain.rs` | Chain entity |
-| Application | `src/application/services/narrative_event_service.rs` | CRUD |
-| Application | `src/application/services/trigger_evaluation_service.rs` | Trigger eval |
-| Application | `src/application/services/event_effect_executor.rs` | Execute effects |
-| Infrastructure | `src/infrastructure/persistence/narrative_event_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/websocket/handlers/narrative.rs` | WebSocket handlers |
+| Domain | `crates/domain/src/entities/narrative_event.rs` | Event entity, EventEffect enum |
+| Domain | `crates/domain/src/entities/event_chain.rs` | Chain entity |
+| Entity | `crates/engine/src/entities/narrative.rs` | Narrative operations, trigger checks |
+| Use Case | `crates/engine/src/use_cases/narrative/execute_effects.rs` | Execute all effect types |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/narrative_repo.rs` | Neo4j repo |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | NarrativeRepo trait |
 
 ### Player
 

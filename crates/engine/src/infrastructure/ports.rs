@@ -206,6 +206,14 @@ pub trait SceneRepo: Send + Sync {
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
     async fn get_featured_characters(&self, scene_id: SceneId) -> Result<Vec<CharacterId>, RepoError>;
     async fn set_featured_characters(&self, scene_id: SceneId, characters: &[CharacterId]) -> Result<(), RepoError>;
+    
+    // Completed scene tracking for scene resolution
+    /// Check if a PC has completed a specific scene.
+    async fn has_completed_scene(&self, pc_id: PlayerCharacterId, scene_id: SceneId) -> Result<bool, RepoError>;
+    /// Mark a scene as completed for a PC.
+    async fn mark_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId) -> Result<(), RepoError>;
+    /// Get all completed scene IDs for a PC.
+    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>, RepoError>;
 }
 
 #[async_trait]
@@ -256,6 +264,10 @@ pub trait NarrativeRepo: Send + Sync {
     
     // Triggers
     async fn get_triggers_for_region(&self, region_id: RegionId) -> Result<Vec<NarrativeEvent>, RepoError>;
+    
+    // Event management for effect execution
+    /// Set a narrative event's active status (for EnableEvent/DisableEvent effects)
+    async fn set_event_active(&self, id: NarrativeEventId, active: bool) -> Result<(), RepoError>;
 }
 
 #[async_trait]

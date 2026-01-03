@@ -409,6 +409,29 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
+
+    async fn set_event_active(
+        &self,
+        id: NarrativeEventId,
+        active: bool,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (e:NarrativeEvent {id: $id})
+            SET e.is_active = $active
+            RETURN e.id as id",
+        )
+        .param("id", id.to_string())
+        .param("active", active);
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        
+        tracing::debug!(
+            event_id = %id,
+            active = active,
+            "Set narrative event active status"
+        );
+        Ok(())
+    }
 }
 
 // =============================================================================

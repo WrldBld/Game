@@ -145,12 +145,16 @@ impl ExitLocation {
         // 9. Check triggers
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
 
+        // Note: Scene resolution is not implemented for ExitLocation yet.
+        // The EnterRegion use case handles full scene resolution when moving within a location.
+        // For location-to-location travel, scene resolution would need to be added here.
         Ok(EnterRegionResult {
             region,
             npcs,
             triggered_events,
             staging_status,
             pc,
+            resolved_scene: None,
         })
     }
 

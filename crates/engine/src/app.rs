@@ -46,6 +46,7 @@ pub struct UseCases {
     pub assets: use_cases::AssetUseCases,
     pub world: use_cases::WorldUseCases,
     pub queues: use_cases::QueueUseCases,
+    pub narrative: use_cases::NarrativeUseCases,
 }
 
 impl App {
@@ -112,6 +113,8 @@ impl App {
                 staging.clone(),
                 observation.clone(),
                 narrative.clone(),
+                scene.clone(),
+                inventory.clone(),
                 clock.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
@@ -203,6 +206,18 @@ impl App {
             )),
         );
 
+        let narrative_uc =
+            use_cases::NarrativeUseCases::new(Arc::new(use_cases::narrative::ExecuteEffects::new(
+                inventory.clone(),
+                challenge.clone(),
+                narrative.clone(),
+                character.clone(),
+                observation.clone(),
+                player_character.clone(),
+                scene.clone(),
+                clock.clone(),
+            )));
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -211,6 +226,7 @@ impl App {
             assets: assets_uc,
             world: world_uc,
             queues,
+            narrative: narrative_uc,
         };
 
         Self {
