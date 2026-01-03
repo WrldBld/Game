@@ -1,8 +1,12 @@
 # Hexagonal Architecture Final Assessment
 
+> **HISTORICAL DOCUMENT** - This assessment was made before the architecture simplification.
+> The codebase has been migrated from 15 crates with 128+ port traits to 4 crates with ~10 port traits.
+> See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for current architecture.
+
 **Date**: December 30, 2024  
-**Status**: 92% Compliant  
-**Arch-Check**: PASSING (15 crates)
+**Status**: SUPERSEDED (2026-01-03)  
+**Original Status**: 92% Compliant (15 crates - no longer applicable)
 
 ---
 

@@ -75,36 +75,50 @@ See [character-system.md](../systems/character-system.md) for full details.
 
 ## 3. Architecture Compliance Rules
 
-### Hexagonal Architecture Principles
+### Simplified 4-Crate Architecture
+
+WrldBldr uses a simplified hexagonal architecture with **~10 port traits** (not 100+). Hexagonal principles apply only at real infrastructure boundaries.
 
 ```
-Domain Layer (innermost)     → Pure Rust, no framework dependencies
-Application Layer            → Services, Use Cases, DTOs, Ports
-Infrastructure Layer         → Repositories, External clients, HTTP/WS
-Presentation Layer (Player)  → UI Components, Views, State
+crates/
+  domain/       # Pure business types (entities, value objects, typed IDs)
+  protocol/     # Wire format for Engine <-> Player communication
+  engine/       # All server-side code (entities/, use_cases/, infrastructure/, api/)
+  player-*/     # Client-side code (adapters, app, ports, ui, runner)
 ```
+
+### What Gets Abstracted (Port Traits)
+
+Only infrastructure that might realistically be swapped:
+
+| Boundary | Port Trait | Why Abstract |
+|----------|-----------|--------------|
+| Database | `CharacterRepo`, `LocationRepo`, etc. | Could swap Neo4j -> Postgres |
+| LLM | `LlmPort` | Could swap Ollama -> Claude/OpenAI |
+| Image Gen | `ImageGenPort` | Could swap ComfyUI -> other |
+| Queues | `QueuePort` | Could swap SQLite -> Redis |
+| Clock/Random | `ClockPort`, `RandomPort` | For deterministic testing |
+
+### What Does NOT Get Abstracted
+
+- Entity-to-entity calls (all concrete types within crate)
+- Use case orchestration
+- Handler-to-use-case calls
+- Application state
 
 ### Import Rules
 
-**NEVER ALLOWED:**
-- Domain importing from application/infrastructure
-- Application importing from infrastructure
+**Domain Crate:**
+- Pure Rust only (serde, uuid, chrono, thiserror)
+- No tokio, axum, neo4rs, or any framework imports
+- Exception: `Uuid::new_v4()` allowed for ID generation (ADR-001)
 
-**ALWAYS REQUIRED:**
-- Infrastructure implements application ports
-- Services depend on port traits, not concrete implementations
+**Engine Crate:**
+- Entities wrap repository port calls
+- Use cases orchestrate across entities
+- API handlers call use cases directly
 
-### Violation Approval Process
-
-1. Document in this MVP.md with explanation
-2. Await explicit user approval
-3. Mark in code with `// ARCHITECTURE VIOLATION: [APPROVED DATE]`
-
-### Currently Accepted Violations
-
-None tracked in this file. If a violation becomes necessary, track it in `docs/progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md` and keep the crate dependency DAG intact.
-
-See [hexagonal-architecture.md](../architecture/hexagonal-architecture.md) for full architecture documentation.
+See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full architecture documentation.
 
 ---
 
@@ -150,9 +164,9 @@ See [hexagonal-architecture.md](../architecture/hexagonal-architecture.md) for f
    - Tool calls execute via graph operations
 
 8. **Architecture is Clean**
-   - No unapproved violations
-   - All ports properly implemented
-   - Services use dependency injection
+   - ~10 port traits for real infrastructure boundaries
+   - Entities wrap repos, use cases orchestrate entities
+   - Domain crate is pure (no framework imports)
 
 ---
 

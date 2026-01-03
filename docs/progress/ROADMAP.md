@@ -2,8 +2,9 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2025-12-26  
-**Overall Progress**: Core gameplay complete; WebSocket-first migration complete; LLM context wiring complete; Code quality audit done
+**Last Updated**: 2026-01-03  
+**Overall Progress**: Core gameplay complete; Simplified architecture complete; Scene resolution and narrative effects implemented  
+**Branch**: `new-arch`
 
 ---
 
@@ -13,11 +14,11 @@ This document tracks implementation progress and remaining work. For detailed sy
 |------|-------------|--------|
 | Tier 1 | Critical Path (Core Gameplay) | **COMPLETE** |
 | Tier 2 | Feature Completeness | **COMPLETE** |
-| Tier 3 | Architecture & Quality | **IN PROGRESS** |
+| Tier 3 | Architecture & Quality | **COMPLETE** (simplified 4-crate architecture) |
 | Tier 4 | Session & World Management | **COMPLETE** (WebSocket-first) |
 | Tier 5 | Future Features | Not Started |
 
-See [CONSOLIDATED_IMPLEMENTATION_PLAN.md](./CONSOLIDATED_IMPLEMENTATION_PLAN.md) for prioritized remaining work.
+**Architecture**: See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for current 4-crate structure.
 
 ---
 
@@ -39,44 +40,29 @@ See [CONSOLIDATED_IMPLEMENTATION_PLAN.md](./CONSOLIDATED_IMPLEMENTATION_PLAN.md)
 - Phase 21: Player Character Creation
 - Prompt Template System (configurable LLM prompts)
 
-### Tier 3: Architecture & Quality - IN PROGRESS
+### Tier 3: Architecture & Quality - **COMPLETE**
 
-See [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) for detailed audit findings.
+Simplified from 11+ crates with 128+ traits to 4 crates with ~10 traits.
 
-#### 3.1 Domain-Driven Design Patterns
-- [x] Event bus architecture implemented (SQLite-backed pub/sub)
-- [ ] Wire WorldAggregate into services
-- [ ] Implement use case traits in services
+#### 3.1 Simplified Architecture (2026-01-03)
+- [x] Migrate engine from 5 crates to single `engine` crate
+- [x] Reduce port traits from 128+ to ~10
+- [x] Implement entity modules with direct repo calls
+- [x] Implement use cases orchestrating entities
+- [x] Scene resolution with condition evaluation
+- [x] Event effect executor for all narrative effects
 
-#### 3.2 Code Quality (NEW - 2025-12-26)
+#### 3.2 Code Quality
 - [x] WebSocket-first migration complete (sessions removed)
 - [x] LLM context wiring complete (mood, actantial, featured NPCs)
-- [ ] Fix player-app REST service calls to deleted endpoints (CRITICAL)
-- [ ] Delete dead code modules (~680 lines)
-- [ ] Create shared row converters module
-- [ ] Move DTOs from ports to app/domain layer
+- [ ] Extract UUID parsing helpers in websocket.rs (minor duplication)
+- [ ] Extract DM authorization macro (minor duplication)
 
-#### 3.3 Error Handling
-- [ ] Define domain/application/infrastructure errors
-- [ ] Replace `anyhow::Result` with typed errors
-- [ ] Map errors to HTTP responses
-
-#### 3.4 Testing (Engine)
-- [ ] Set up test infrastructure
+#### 3.3 Testing & Security (Deferred to Post-MVP)
 - [ ] Domain entity unit tests
-- [ ] Repository integration tests
-- [ ] API endpoint tests
-
-#### 3.5 Security (Engine)
-- [x] Fix CORS configuration (env-based)
-- [ ] Add authentication middleware
-- [ ] Add authorization checks
-- [ ] Input validation
-
-#### 3.6 Testing (Player)
-- [ ] Set up test infrastructure
-- [ ] State management tests
-- [ ] Component tests
+- [ ] Repository integration tests  
+- [ ] Authentication middleware
+- [ ] Authorization checks
 
 ### Tier 4: Session & World Management - **COMPLETE**
 - Phase 13: World Selection Flow
@@ -111,11 +97,8 @@ These improvements enhance existing systems without adding major new features:
 
 See individual system documents for detailed user stories.
 
-#### 5.2 Tactical Combat
-- Combat service (turn order, movement, attack resolution)
-- Combat WebSocket messages
-- Grid renderer
-- Combat UI
+#### 5.2 Tactical Combat - DEFERRED
+> Combat is explicitly out of scope for MVP. Focus is on narrative TTRPG gameplay.
 
 #### 5.3 Audio System
 - Audio manager (music, SFX, volume)
@@ -145,6 +128,35 @@ See individual system documents for detailed user stories.
 | - | Prompt Template System | 2025-12-20 |
 | - | Phase B User Stories (Inventory, Known NPCs, Mini-map) | 2025-12-18 |
 | - | Sprint 4 UX Polish (Split Party, Location Preview, View-as-Character, Style Reference, Visual Timeline) | 2025-12-25 |
+| - | Simplified Architecture (4 crates, ~10 port traits) | 2026-01-03 |
+| - | Scene Resolution Service (condition evaluation) | 2026-01-03 |
+| - | Event Effect Executor (all narrative effects) | 2026-01-03 |
+
+---
+
+## Identified Gaps (For Future Work)
+
+### Systems Needing Implementation
+
+| Gap | Description | Priority |
+|-----|-------------|----------|
+| Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium |
+| XP/Level Tracking | Track experience and level (no character advancement) | Low |
+| Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None |
+
+### Code Quality Items
+
+| Item | Description | Priority |
+|------|-------------|----------|
+| UUID Parsing Helpers | Extract repeated pattern in websocket.rs | Low |
+| DM Auth Macro | Extract authorization checks | Low |
+| Navigation Data Builder | Deduplicate between move handlers | Low |
+
+### Documentation Updates Needed
+
+All system documentation files in `docs/systems/` reference old file paths (`engine-app`, `engine-adapters`). These should be updated to reference the simplified `engine` crate structure. Scene system docs are up to date and can be used as a template.
+
+---
 
 For detailed specifications of each system, see:
 - [navigation-system.md](../systems/navigation-system.md) - Regions, movement, game time
@@ -176,8 +188,8 @@ export OLLAMA_BASE_URL="http://localhost:11434/v1"
 task dev
 
 # Or run individually:
-cargo run -p wrldbldr-engine-runner   # Engine only
-dx serve --hot-reload                  # Player UI (web)
+cargo run -p wrldbldr-engine   # Engine server
+dx serve --hot-reload          # Player UI (web)
 ```
 
 ### Verification Commands
@@ -185,7 +197,7 @@ dx serve --hot-reload                  # Player UI (web)
 ```bash
 # Must pass before committing
 cargo check --workspace
-cargo xtask arch-check
+cargo clippy --workspace
 ```
 
 ---

@@ -2,15 +2,35 @@
 
 Active implementation tracking for WrldBldr user stories and features.
 
-**Last Updated**: 2025-12-30
+**Last Updated**: 2026-01-03  
+**Branch**: `new-arch`
+
+---
+
+## Recently Completed (2026-01-03)
+
+### Simplified Architecture Migration
+- Migrated engine from 5 crates to single `engine` crate
+- Reduced port traits from 128+ to ~10
+- See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md)
+
+### Scene Resolution Service
+- Condition evaluation for scenes (CompletedScene, HasItem, KnowsCharacter, FlagSet)
+- COMPLETED_SCENE edge tracking
+- Integrated into EnterRegion use case
+
+### Event Effect Executor
+- Execute all narrative trigger effects
+- Implemented: GiveItem, TakeItem, Enable/Disable Challenge/Event, ModifyRelationship, RevealInformation, ModifyStat, TriggerScene
+- Stubs for: SetFlag (needs flag storage), StartCombat (deferred), AddReward (XP tracking only)
 
 ---
 
 ## Current Focus
 
-### Phase C: DM Tools & Advanced Features - IN PROGRESS
+### Documentation Updates - IN PROGRESS
 
-Improve DM workflow. These don't block player gameplay.
+All system documentation files reference old file paths and need updating. Scene system docs are current and can be used as template.
 
 ---
 
