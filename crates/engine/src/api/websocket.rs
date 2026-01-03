@@ -537,28 +537,78 @@ async fn handle_move_to_region(
 }
 
 /// Generate rule-based staging suggestions based on NPC relationships to a region.
+///
+/// Returns NPCs that have relationships to this region (home, work, frequents),
+/// with reasoning based on the relationship type.
 async fn generate_rule_based_suggestions(
     state: &WsState,
     region_id: RegionId,
 ) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
-    // For now, return NPCs that are currently staged (this will be expanded with
-    // WORKS_AT, FREQUENTS, HOME_REGION relationship checks)
-    state.app.entities.staging
-        .get_staged_npcs(region_id)
+    use crate::infrastructure::ports::NpcRegionRelationType;
+    
+    // Get NPCs that have relationships to this region
+    let npcs_with_relationships = state.app.entities.character
+        .get_npcs_for_region(region_id)
         .await
         .ok()
-        .unwrap_or_default()
+        .unwrap_or_default();
+    
+    // Convert to staging suggestions with reasoning
+    let mut suggestions: Vec<wrldbldr_protocol::StagedNpcInfo> = npcs_with_relationships
         .into_iter()
-        .map(|npc| wrldbldr_protocol::StagedNpcInfo {
-            character_id: npc.character_id.to_string(),
-            name: npc.name,
-            sprite_asset: npc.sprite_asset,
-            portrait_asset: npc.portrait_asset,
-            is_present: npc.is_present,
-            reasoning: npc.reasoning,
-            is_hidden_from_players: npc.is_hidden_from_players,
+        .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids) // Filter out NPCs that avoid this region
+        .map(|npc| {
+            let reasoning = match npc.relationship_type {
+                NpcRegionRelationType::HomeRegion => "Lives here".to_string(),
+                NpcRegionRelationType::WorksAt => {
+                    match npc.shift.as_deref() {
+                        Some("day") => "Works here (day shift)".to_string(),
+                        Some("night") => "Works here (night shift)".to_string(),
+                        _ => "Works here".to_string(),
+                    }
+                }
+                NpcRegionRelationType::Frequents => {
+                    let freq = npc.frequency.as_deref().unwrap_or("sometimes");
+                    let time = npc.time_of_day.as_deref();
+                    match time {
+                        Some(t) => format!("Frequents this area {} ({})", freq, t),
+                        None => format!("Frequents this area ({})", freq),
+                    }
+                }
+                NpcRegionRelationType::Avoids => "Avoids this area".to_string(), // Should be filtered out
+            };
+            
+            wrldbldr_protocol::StagedNpcInfo {
+                character_id: npc.character_id.to_string(),
+                name: npc.name,
+                sprite_asset: npc.sprite_asset,
+                portrait_asset: npc.portrait_asset,
+                is_present: true, // Suggest as present by default
+                reasoning,
+                is_hidden_from_players: false,
+            }
         })
-        .collect()
+        .collect();
+    
+    // Also include currently staged NPCs that might not have explicit relationships
+    if let Ok(staged_npcs) = state.app.entities.staging.get_staged_npcs(region_id).await {
+        for staged in staged_npcs {
+            // Only add if not already in suggestions
+            if !suggestions.iter().any(|s| s.character_id == staged.character_id.to_string()) {
+                suggestions.push(wrldbldr_protocol::StagedNpcInfo {
+                    character_id: staged.character_id.to_string(),
+                    name: staged.name,
+                    sprite_asset: staged.sprite_asset,
+                    portrait_asset: staged.portrait_asset,
+                    is_present: staged.is_present,
+                    reasoning: staged.reasoning,
+                    is_hidden_from_players: staged.is_hidden_from_players,
+                });
+            }
+        }
+    }
+    
+    suggestions
 }
 
 async fn handle_exit_to_location(
@@ -914,6 +964,179 @@ async fn handle_request(
                 "game_time": game_time,
                 "hours_advanced": hours,
             }))
+        }
+        
+        // =====================================================================
+        // NPC-Region Relationship Operations
+        // =====================================================================
+        
+        RequestPayload::ListCharacterRegionRelationships { character_id } => {
+            let uuid = match Uuid::parse_str(&character_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.character.get_region_relationships(CharacterId::from_uuid(uuid)).await {
+                Ok(relationships) => {
+                    let data: Vec<serde_json::Value> = relationships
+                        .into_iter()
+                        .map(|r| serde_json::json!({
+                            "region_id": r.region_id.to_string(),
+                            "relationship_type": format!("{}", r.relationship_type),
+                            "shift": r.shift,
+                            "frequency": r.frequency,
+                            "time_of_day": r.time_of_day,
+                            "reason": r.reason,
+                        }))
+                        .collect();
+                    ResponseResult::success(data)
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        RequestPayload::SetCharacterHomeRegion { character_id, region_id } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can set NPC region relationships"),
+                });
+            }
+            
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(id) => CharacterId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
+                    });
+                }
+            };
+            
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => RegionId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.character.set_home_region(char_uuid, region_uuid).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({"success": true})),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        RequestPayload::SetCharacterWorkRegion { character_id, region_id } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can set NPC region relationships"),
+                });
+            }
+            
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(id) => CharacterId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
+                    });
+                }
+            };
+            
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => RegionId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            // Note: shift parameter not in the protocol yet, using None
+            match state.app.entities.character.set_work_region(char_uuid, region_uuid, None).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({"success": true})),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        RequestPayload::RemoveCharacterRegionRelationship { character_id, region_id, relationship_type } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can modify NPC region relationships"),
+                });
+            }
+            
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(id) => CharacterId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
+                    });
+                }
+            };
+            
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => RegionId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.character.remove_region_relationship(char_uuid, region_uuid, &relationship_type).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({"success": true})),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        RequestPayload::ListRegionNpcs { region_id } => {
+            let uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.character.get_npcs_for_region(RegionId::from_uuid(uuid)).await {
+                Ok(npcs) => {
+                    let data: Vec<serde_json::Value> = npcs
+                        .into_iter()
+                        .map(|n| serde_json::json!({
+                            "character_id": n.character_id.to_string(),
+                            "name": n.name,
+                            "sprite_asset": n.sprite_asset,
+                            "portrait_asset": n.portrait_asset,
+                            "relationship_type": format!("{}", n.relationship_type),
+                            "shift": n.shift,
+                            "frequency": n.frequency,
+                            "time_of_day": n.time_of_day,
+                            "reason": n.reason,
+                        }))
+                        .collect();
+                    ResponseResult::success(data)
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
         }
         
         // Default - not implemented

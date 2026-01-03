@@ -6,7 +6,7 @@ use wrldbldr_domain::{
     Relationship, Want, WorldId,
 };
 
-use crate::infrastructure::ports::{CharacterRepo, RepoError};
+use crate::infrastructure::ports::{CharacterRepo, NpcRegionRelationship, NpcWithRegionInfo, RepoError};
 
 /// Character entity operations.
 ///
@@ -129,5 +129,44 @@ impl Character {
 
     pub async fn save_actantial_context(&self, id: CharacterId, context: &ActantialContext) -> Result<(), RepoError> {
         self.repo.save_actantial_context(id, context).await
+    }
+
+    // =========================================================================
+    // NPC-Region Relationships
+    // =========================================================================
+
+    /// Get all region relationships for an NPC (home, work, frequents, avoids)
+    pub async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError> {
+        self.repo.get_region_relationships(id).await
+    }
+
+    /// Set an NPC's home region
+    pub async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
+        self.repo.set_home_region(id, region_id).await
+    }
+
+    /// Set an NPC's work region with optional shift (day/night/always)
+    pub async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError> {
+        self.repo.set_work_region(id, region_id, shift).await
+    }
+
+    /// Add a region the NPC frequents
+    pub async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError> {
+        self.repo.add_frequents_region(id, region_id, frequency, time_of_day).await
+    }
+
+    /// Add a region the NPC avoids
+    pub async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError> {
+        self.repo.add_avoids_region(id, region_id, reason).await
+    }
+
+    /// Remove a region relationship
+    pub async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError> {
+        self.repo.remove_region_relationship(id, region_id, relationship_type).await
+    }
+
+    /// Get all NPCs that have any relationship to a region (for staging suggestions)
+    pub async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
+        self.repo.get_npcs_for_region(region_id).await
     }
 }

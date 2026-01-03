@@ -16,7 +16,7 @@ use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
-use crate::infrastructure::ports::{CharacterRepo, RepoError};
+use crate::infrastructure::ports::{CharacterRepo, NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo, RepoError};
 
 // =============================================================================
 // Stored Types for JSON serialization
@@ -821,5 +821,299 @@ impl CharacterRepo for Neo4jCharacterRepo {
             "save_actantial_context called - this is an aggregated view, underlying data should be saved via save_want and actantial edge operations"
         );
         Ok(())
+    }
+
+    // =========================================================================
+    // NPC-Region Relationship Operations
+    // =========================================================================
+
+    async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError> {
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            OPTIONAL MATCH (c)-[h:HOME_REGION]->(hr:Region)
+            OPTIONAL MATCH (c)-[w:WORKS_AT_REGION]->(wr:Region)
+            OPTIONAL MATCH (c)-[f:FREQUENTS_REGION]->(fr:Region)
+            OPTIONAL MATCH (c)-[a:AVOIDS_REGION]->(ar:Region)
+            RETURN 
+                collect(DISTINCT {region_id: hr.id, type: 'HOME_REGION'}) as home,
+                collect(DISTINCT {region_id: wr.id, type: 'WORKS_AT_REGION', shift: w.shift}) as works,
+                collect(DISTINCT {region_id: fr.id, type: 'FREQUENTS_REGION', frequency: f.frequency, time_of_day: f.time_of_day}) as frequents,
+                collect(DISTINCT {region_id: ar.id, type: 'AVOIDS_REGION', reason: a.reason}) as avoids",
+        )
+        .param("id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut relationships = Vec::new();
+
+        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            // Parse home regions
+            if let Ok(homes) = row.get::<Vec<serde_json::Value>>("home") {
+                for h in homes {
+                    if let Some(region_id_str) = h.get("region_id").and_then(|v| v.as_str()) {
+                        if !region_id_str.is_empty() {
+                            if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                relationships.push(NpcRegionRelationship {
+                                    region_id: RegionId::from_uuid(uuid),
+                                    relationship_type: NpcRegionRelationType::HomeRegion,
+                                    shift: None,
+                                    frequency: None,
+                                    time_of_day: None,
+                                    reason: None,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Parse work regions
+            if let Ok(works) = row.get::<Vec<serde_json::Value>>("works") {
+                for w in works {
+                    if let Some(region_id_str) = w.get("region_id").and_then(|v| v.as_str()) {
+                        if !region_id_str.is_empty() {
+                            if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                relationships.push(NpcRegionRelationship {
+                                    region_id: RegionId::from_uuid(uuid),
+                                    relationship_type: NpcRegionRelationType::WorksAt,
+                                    shift: w.get("shift").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    frequency: None,
+                                    time_of_day: None,
+                                    reason: None,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Parse frequents regions
+            if let Ok(frequents) = row.get::<Vec<serde_json::Value>>("frequents") {
+                for f in frequents {
+                    if let Some(region_id_str) = f.get("region_id").and_then(|v| v.as_str()) {
+                        if !region_id_str.is_empty() {
+                            if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                relationships.push(NpcRegionRelationship {
+                                    region_id: RegionId::from_uuid(uuid),
+                                    relationship_type: NpcRegionRelationType::Frequents,
+                                    shift: None,
+                                    frequency: f.get("frequency").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    time_of_day: f.get("time_of_day").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    reason: None,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Parse avoids regions
+            if let Ok(avoids) = row.get::<Vec<serde_json::Value>>("avoids") {
+                for a in avoids {
+                    if let Some(region_id_str) = a.get("region_id").and_then(|v| v.as_str()) {
+                        if !region_id_str.is_empty() {
+                            if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                relationships.push(NpcRegionRelationship {
+                                    region_id: RegionId::from_uuid(uuid),
+                                    relationship_type: NpcRegionRelationType::Avoids,
+                                    shift: None,
+                                    frequency: None,
+                                    time_of_day: None,
+                                    reason: a.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(relationships)
+    }
+
+    async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
+        // Remove existing HOME_REGION and create new one
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            OPTIONAL MATCH (c)-[old:HOME_REGION]->()
+            DELETE old
+            WITH c
+            MATCH (r:Region {id: $region_id})
+            CREATE (c)-[:HOME_REGION]->(r)",
+        )
+        .param("id", id.to_string())
+        .param("region_id", region_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Set home region for character {} to {}", id, region_id);
+        Ok(())
+    }
+
+    async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError> {
+        // Remove existing WORKS_AT_REGION and create new one
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            OPTIONAL MATCH (c)-[old:WORKS_AT_REGION]->()
+            DELETE old
+            WITH c
+            MATCH (r:Region {id: $region_id})
+            CREATE (c)-[:WORKS_AT_REGION {shift: $shift}]->(r)",
+        )
+        .param("id", id.to_string())
+        .param("region_id", region_id.to_string())
+        .param("shift", shift.unwrap_or_else(|| "always".to_string()));
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Set work region for character {} to {}", id, region_id);
+        Ok(())
+    }
+
+    async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            MATCH (r:Region {id: $region_id})
+            MERGE (c)-[f:FREQUENTS_REGION]->(r)
+            SET f.frequency = $frequency, f.time_of_day = $time_of_day",
+        )
+        .param("id", id.to_string())
+        .param("region_id", region_id.to_string())
+        .param("frequency", frequency)
+        .param("time_of_day", time_of_day.unwrap_or_default());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Added frequents region for character {} to {}", id, region_id);
+        Ok(())
+    }
+
+    async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:Character {id: $id})
+            MATCH (r:Region {id: $region_id})
+            MERGE (c)-[a:AVOIDS_REGION]->(r)
+            SET a.reason = $reason",
+        )
+        .param("id", id.to_string())
+        .param("region_id", region_id.to_string())
+        .param("reason", reason.unwrap_or_default());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Added avoids region for character {} to {}", id, region_id);
+        Ok(())
+    }
+
+    async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError> {
+        let rel_type = match relationship_type.to_uppercase().as_str() {
+            "HOME_REGION" | "HOME" => "HOME_REGION",
+            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" => "WORKS_AT_REGION",
+            "FREQUENTS_REGION" | "FREQUENTS" => "FREQUENTS_REGION",
+            "AVOIDS_REGION" | "AVOIDS" => "AVOIDS_REGION",
+            _ => return Err(RepoError::Database(format!("Unknown relationship type: {}", relationship_type))),
+        };
+
+        // Use dynamic relationship type matching
+        let cypher = format!(
+            "MATCH (c:Character {{id: $id}})-[r:{}]->(region:Region {{id: $region_id}})
+            DELETE r",
+            rel_type
+        );
+
+        let q = query(&cypher)
+            .param("id", id.to_string())
+            .param("region_id", region_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Removed {} relationship from character {} to region {}", rel_type, id, region_id);
+        Ok(())
+    }
+
+    async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})
+            OPTIONAL MATCH (c1:Character)-[h:HOME_REGION]->(r)
+            OPTIONAL MATCH (c2:Character)-[w:WORKS_AT_REGION]->(r)
+            OPTIONAL MATCH (c3:Character)-[f:FREQUENTS_REGION]->(r)
+            OPTIONAL MATCH (c4:Character)-[a:AVOIDS_REGION]->(r)
+            WITH r,
+                collect(DISTINCT {c: c1, type: 'HOME_REGION', shift: null, frequency: null, time_of_day: null, reason: null}) as homes,
+                collect(DISTINCT {c: c2, type: 'WORKS_AT_REGION', shift: w.shift, frequency: null, time_of_day: null, reason: null}) as works,
+                collect(DISTINCT {c: c3, type: 'FREQUENTS_REGION', shift: null, frequency: f.frequency, time_of_day: f.time_of_day, reason: null}) as frequents,
+                collect(DISTINCT {c: c4, type: 'AVOIDS_REGION', shift: null, frequency: null, time_of_day: null, reason: a.reason}) as avoids
+            UNWIND (homes + works + frequents + avoids) as item
+            WHERE item.c IS NOT NULL
+            RETURN DISTINCT item.c.id as character_id, item.c.name as name, 
+                   item.c.sprite_asset as sprite_asset, item.c.portrait_asset as portrait_asset,
+                   item.type as relationship_type, item.shift as shift, 
+                   item.frequency as frequency, item.time_of_day as time_of_day, item.reason as reason",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut npcs = Vec::new();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let character_id_str: String = row.get("character_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            let character_id = CharacterId::from_uuid(
+                Uuid::parse_str(&character_id_str).map_err(|e| RepoError::Database(e.to_string()))?
+            );
+            let name: String = row.get("name").map_err(|e| RepoError::Database(e.to_string()))?;
+            let sprite_asset: Option<String> = row.get("sprite_asset").ok();
+            let portrait_asset: Option<String> = row.get("portrait_asset").ok();
+            let rel_type_str: String = row.get("relationship_type").map_err(|e| RepoError::Database(e.to_string()))?;
+            let shift: Option<String> = row.get("shift").ok();
+            let frequency: Option<String> = row.get("frequency").ok();
+            let time_of_day: Option<String> = row.get("time_of_day").ok();
+            let reason: Option<String> = row.get("reason").ok();
+
+            let relationship_type = match rel_type_str.as_str() {
+                "HOME_REGION" => NpcRegionRelationType::HomeRegion,
+                "WORKS_AT_REGION" => NpcRegionRelationType::WorksAt,
+                "FREQUENTS_REGION" => NpcRegionRelationType::Frequents,
+                "AVOIDS_REGION" => NpcRegionRelationType::Avoids,
+                _ => continue,
+            };
+
+            npcs.push(NpcWithRegionInfo {
+                character_id,
+                name,
+                sprite_asset,
+                portrait_asset,
+                relationship_type,
+                shift,
+                frequency,
+                time_of_day,
+                reason,
+            });
+        }
+
+        Ok(npcs)
     }
 }

@@ -50,6 +50,55 @@ pub enum QueueError {
 }
 
 // =============================================================================
+// Infrastructure Types
+// =============================================================================
+
+/// NPC-Region relationship for staging suggestions
+#[derive(Debug, Clone)]
+pub struct NpcRegionRelationship {
+    pub region_id: RegionId,
+    pub relationship_type: NpcRegionRelationType,
+    pub shift: Option<String>,          // For WORKS_AT: "day", "night", "always"
+    pub frequency: Option<String>,      // For FREQUENTS: "always", "often", "sometimes", "rarely"
+    pub time_of_day: Option<String>,    // For FREQUENTS: "morning", "afternoon", "evening", "night"
+    pub reason: Option<String>,         // For AVOIDS: why they avoid it
+}
+
+/// Type of NPC-Region relationship
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NpcRegionRelationType {
+    HomeRegion,
+    WorksAt,
+    Frequents,
+    Avoids,
+}
+
+impl std::fmt::Display for NpcRegionRelationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::HomeRegion => write!(f, "HOME_REGION"),
+            Self::WorksAt => write!(f, "WORKS_AT_REGION"),
+            Self::Frequents => write!(f, "FREQUENTS_REGION"),
+            Self::Avoids => write!(f, "AVOIDS_REGION"),
+        }
+    }
+}
+
+/// NPC with their region relationship info (for staging suggestions)
+#[derive(Debug, Clone)]
+pub struct NpcWithRegionInfo {
+    pub character_id: CharacterId,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub relationship_type: NpcRegionRelationType,
+    pub shift: Option<String>,
+    pub frequency: Option<String>,
+    pub time_of_day: Option<String>,
+    pub reason: Option<String>,
+}
+
+// =============================================================================
 // Database Ports (one per entity type)
 // =============================================================================
 
@@ -92,6 +141,22 @@ pub trait CharacterRepo: Send + Sync {
     // Actantial
     async fn get_actantial_context(&self, id: CharacterId) -> Result<Option<ActantialContext>, RepoError>;
     async fn save_actantial_context(&self, id: CharacterId, context: &ActantialContext) -> Result<(), RepoError>;
+    
+    // NPC-Region relationships (for staging suggestions)
+    /// Get all region relationships for a character (home, work, frequents, avoids)
+    async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError>;
+    /// Set an NPC's home region
+    async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError>;
+    /// Set an NPC's work region with optional shift (day/night/always)
+    async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError>;
+    /// Add a region the NPC frequents with frequency (always/often/sometimes/rarely)
+    async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError>;
+    /// Add a region the NPC avoids
+    async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError>;
+    /// Remove a region relationship
+    async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError>;
+    /// Get NPCs that have any relationship to a region (for staging suggestions)
+    async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError>;
 }
 
 #[async_trait]
