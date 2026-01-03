@@ -273,6 +273,10 @@ pub trait StagingRepo: Send + Sync {
     
     /// Activate a staging (after DM approval), replacing any existing current staging.
     async fn activate_staging(&self, staging_id: StagingId, region_id: RegionId) -> Result<(), RepoError>;
+    
+    /// Get staging history for a region (most recent first, limited).
+    /// Returns past stagings that are no longer active.
+    async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError>;
 }
 
 #[async_trait]

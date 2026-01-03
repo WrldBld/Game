@@ -147,4 +147,18 @@ impl Staging {
 
         Ok(present_npcs)
     }
+    
+    /// Get staging history for a region (most recent first).
+    ///
+    /// Returns past stagings that are no longer active. Useful for:
+    /// - Viewing previous NPC configurations
+    /// - Restoring a past staging
+    /// - Auditing staging decisions
+    pub async fn get_history(
+        &self,
+        region_id: RegionId,
+        limit: usize,
+    ) -> Result<Vec<DomainStaging>, RepoError> {
+        self.repo.get_staging_history(region_id, limit).await
+    }
 }

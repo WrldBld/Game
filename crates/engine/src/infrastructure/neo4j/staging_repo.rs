@@ -261,6 +261,36 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
+    
+    /// Get staging history for a region (most recent first).
+    async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError> {
+        // Get past stagings that are linked via HAS_STAGING but not CURRENT_STAGING
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[:HAS_STAGING]->(s:Staging)
+            WHERE NOT (r)-[:CURRENT_STAGING]->(s)
+            RETURN s
+            ORDER BY s.approved_at DESC
+            LIMIT $limit",
+        )
+        .param("region_id", region_id.to_string())
+        .param("limit", limit as i64);
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut stagings = Vec::new();
+        let now = self.clock.now();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let staging = row_to_staging(row, now)?;
+            // Load NPCs for this staging
+            let npcs = self.load_staging_npcs(staging.id).await?;
+            stagings.push(Staging {
+                npcs,
+                ..staging
+            });
+        }
+
+        Ok(stagings)
+    }
 }
 
 impl Neo4jStagingRepo {
