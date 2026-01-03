@@ -1139,6 +1139,96 @@ async fn handle_request(
             }
         }
         
+        // =====================================================================
+        // Item Placement Operations (DM only)
+        // =====================================================================
+        
+        RequestPayload::PlaceItemInRegion { region_id, item_id } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can place items"),
+                });
+            }
+            
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => RegionId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            let item_uuid = match Uuid::parse_str(&item_id) {
+                Ok(id) => wrldbldr_domain::ItemId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid item ID"),
+                    });
+                }
+            };
+            
+            match state.app.entities.inventory.place_item_in_region(item_uuid, region_uuid).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({"success": true})),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
+        RequestPayload::CreateAndPlaceItem { world_id, region_id, data } => {
+            // Verify DM authorization
+            if !_conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can create items"),
+                });
+            }
+            
+            let world_uuid = match Uuid::parse_str(&world_id) {
+                Ok(id) => WorldId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
+                    });
+                }
+            };
+            
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(id) => RegionId::from_uuid(id),
+                Err(_) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                    });
+                }
+            };
+            
+            // Create the item
+            let mut item = wrldbldr_domain::Item::new(world_uuid, data.name.clone());
+            if let Some(desc) = data.description {
+                item = item.with_description(desc);
+            }
+            if let Some(item_type) = data.item_type {
+                item = item.with_type(item_type);
+            }
+            if let Some(props) = data.properties {
+                item = item.with_properties(props.to_string());
+            }
+            
+            // Save the item and place it in the region
+            match state.app.entities.inventory.create_and_place_in_region(item, region_uuid).await {
+                Ok(item_id) => ResponseResult::success(serde_json::json!({
+                    "success": true,
+                    "item_id": item_id.to_string(),
+                })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+        
         // Default - not implemented
         _ => ResponseResult::error(ErrorCode::BadRequest, "This request type is not yet implemented"),
     };

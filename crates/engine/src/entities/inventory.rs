@@ -234,6 +234,61 @@ impl Inventory {
             quantity: 1,
         })
     }
+
+    // =========================================================================
+    // Item Placement (DM operations)
+    // =========================================================================
+
+    /// Place an existing item in a region (DM action).
+    ///
+    /// Removes the item from any character's inventory and places it in the region.
+    pub async fn place_item_in_region(
+        &self,
+        item_id: ItemId,
+        region_id: RegionId,
+    ) -> Result<(), InventoryError> {
+        // Verify the item exists
+        let _item = self.item_repo.get(item_id).await?
+            .ok_or(InventoryError::ItemNotFound)?;
+
+        // Place item in the region (creates IN_REGION edge)
+        self.item_repo.place_in_region(item_id, region_id).await?;
+
+        tracing::info!(
+            item_id = %item_id,
+            region_id = %region_id,
+            "Item placed in region"
+        );
+
+        Ok(())
+    }
+
+    /// Create a new item and place it in a region (DM action).
+    ///
+    /// Returns the created item's ID.
+    pub async fn create_and_place_in_region(
+        &self,
+        item: domain::Item,
+        region_id: RegionId,
+    ) -> Result<ItemId, InventoryError> {
+        let item_id = item.id;
+        let item_name = item.name.clone();
+
+        // Save the item
+        self.item_repo.save(&item).await?;
+
+        // Place in the region
+        self.item_repo.place_in_region(item_id, region_id).await?;
+
+        tracing::info!(
+            item_id = %item_id,
+            item_name = %item_name,
+            region_id = %region_id,
+            "Item created and placed in region"
+        );
+
+        Ok(item_id)
+    }
 }
 
 /// Errors that can occur during inventory operations.
