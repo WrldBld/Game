@@ -52,6 +52,14 @@ pub struct StagedNpc {
     pub reasoning: String,
 }
 
+impl StagedNpc {
+    /// Returns true if this NPC should be visible to players.
+    /// An NPC is visible when present and not hidden from players.
+    pub fn is_visible_to_players(&self) -> bool {
+        self.is_present && !self.is_hidden_from_players
+    }
+}
+
 /// How a staging was created
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

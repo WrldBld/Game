@@ -583,18 +583,4 @@ pub trait RandomPort: Send + Sync {
     fn gen_uuid(&self) -> Uuid;
 }
 
-// =============================================================================
-// WebSocket/Connection Port
-// =============================================================================
 
-#[async_trait]
-pub trait ConnectionManager: Send + Sync {
-    async fn register(&self, client_id: Uuid, world_id: WorldId, user_id: String, is_dm: bool);
-    async fn unregister(&self, client_id: Uuid);
-    async fn get_world_id(&self, client_id: Uuid) -> Option<WorldId>;
-    async fn get_user_id(&self, client_id: Uuid) -> Option<String>;
-    async fn is_dm(&self, client_id: Uuid) -> bool;
-    async fn broadcast_to_world(&self, world_id: WorldId, message: &str);
-    async fn send_to_client(&self, client_id: Uuid, message: &str);
-    async fn get_dm_client(&self, world_id: WorldId) -> Option<Uuid>;
-}

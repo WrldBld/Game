@@ -16,7 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, ResponseResult, ServerMessage, WorldRole as ProtoWorldRole,
 };
@@ -348,14 +348,13 @@ async fn handle_move_to_region(
     region_id: String,
 ) -> Option<ServerMessage> {
     // Parse IDs
-    let pc_uuid = match Uuid::parse_str(&pc_id) {
-        Ok(id) => PlayerCharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid PC ID format")),
+    let pc_uuid = match parse_pc_id(&pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
-    
-    let region_uuid = match Uuid::parse_str(&region_id) {
-        Ok(id) => RegionId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID format")),
+    let region_uuid = match parse_region_id(&region_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get connection info to verify authorization
@@ -477,48 +476,10 @@ async fn handle_move_to_region(
                         .collect();
                     
                     // Get navigation data
-                    let connections = state.app.entities.location
-                        .get_connections(region_uuid)
-                        .await
-                        .ok()
-                        .unwrap_or_default();
-                    
-                    let mut connected_regions = Vec::new();
-                    for c in connections {
-                        let region_name = state.app.entities.location
-                            .get_region(c.to_region)
-                            .await
-                            .ok()
-                            .flatten()
-                            .map(|r| r.name)
-                            .unwrap_or_else(|| "Unknown".to_string());
-                        
-                        connected_regions.push(wrldbldr_protocol::NavigationTarget {
-                            region_id: c.to_region.to_string(),
-                            name: region_name,
-                            is_locked: c.is_locked,
-                            lock_description: c.lock_description,
-                        });
-                    }
-                    
-                    let exits = state.app.entities.location
-                        .get_exits(region_uuid)
-                        .await
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|e| wrldbldr_protocol::NavigationExit {
-                            location_id: e.location_id.to_string(),
-                            location_name: e.location_name,
-                            arrival_region_id: e.arrival_region_id.to_string(),
-                            description: e.description,
-                        })
-                        .collect();
-                    
-                    let navigation = wrldbldr_protocol::NavigationData {
-                        connected_regions,
-                        exits,
-                    };
+                    let navigation = build_navigation_data(
+                        &state.app.entities.location,
+                        region_uuid,
+                    ).await;
                     
                     Some(ServerMessage::SceneChanged {
                         pc_id: pc_id.clone(),
@@ -777,20 +738,18 @@ async fn handle_exit_to_location(
     arrival_region_id: Option<String>,
 ) -> Option<ServerMessage> {
     // Parse IDs
-    let pc_uuid = match Uuid::parse_str(&pc_id) {
-        Ok(id) => PlayerCharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid PC ID format")),
+    let pc_uuid = match parse_pc_id(&pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
-    
-    let location_uuid = match Uuid::parse_str(&location_id) {
-        Ok(id) => wrldbldr_domain::LocationId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid location ID format")),
+    let location_uuid = match parse_location_id(&location_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
-    
-    let arrival_uuid = match arrival_region_id {
-        Some(ref id) => match Uuid::parse_str(id) {
-            Ok(uuid) => Some(RegionId::from_uuid(uuid)),
-            Err(_) => return Some(error_response("INVALID_ID", "Invalid arrival region ID format")),
+    let arrival_uuid = match &arrival_region_id {
+        Some(id) => match parse_region_id(id) {
+            Ok(r) => Some(r),
+            Err(e) => return Some(e),
         },
         None => None,
     };
@@ -830,7 +789,7 @@ async fn handle_exit_to_location(
             
             let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = result.npcs
                 .into_iter()
-                .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                .filter(|npc| npc.is_visible_to_players())
                 .map(|npc| wrldbldr_protocol::NpcPresenceData {
                     character_id: npc.character_id.to_string(),
                     name: npc.name,
@@ -840,48 +799,10 @@ async fn handle_exit_to_location(
                 .collect();
             
             // Get navigation data for new region
-            let connections = state.app.entities.location
-                .get_connections(result.region.id)
-                .await
-                .ok()
-                .unwrap_or_default();
-            
-            let mut connected_regions = Vec::new();
-            for c in connections {
-                let region_name = state.app.entities.location
-                    .get_region(c.to_region)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|r| r.name)
-                    .unwrap_or_else(|| "Unknown".to_string());
-                
-                connected_regions.push(wrldbldr_protocol::NavigationTarget {
-                    region_id: c.to_region.to_string(),
-                    name: region_name,
-                    is_locked: c.is_locked,
-                    lock_description: c.lock_description,
-                });
-            }
-            
-            let exits = state.app.entities.location
-                .get_exits(result.region.id)
-                .await
-                .ok()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|e| wrldbldr_protocol::NavigationExit {
-                    location_id: e.location_id.to_string(),
-                    location_name: e.location_name,
-                    arrival_region_id: e.arrival_region_id.to_string(),
-                    description: e.description,
-                })
-                .collect();
-            
-            let navigation = wrldbldr_protocol::NavigationData {
-                connected_regions,
-                exits,
-            };
+            let navigation = build_navigation_data(
+                &state.app.entities.location,
+                result.region.id,
+            ).await;
             
             Some(ServerMessage::SceneChanged {
                 pc_id: pc_id.clone(),
@@ -937,17 +858,12 @@ async fn handle_request(
         }
         
         RequestPayload::GetWorld { world_id: req_world_id } => {
-            let uuid = match Uuid::parse_str(&req_world_id) {
+            let world_id_typed = match parse_world_id_for_request(&req_world_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.world.get(WorldId::from_uuid(uuid)).await {
+            match state.app.entities.world.get(world_id_typed).await {
                 Ok(Some(world)) => ResponseResult::success(serde_json::json!({
                     "id": world.id,
                     "name": world.name,
@@ -960,17 +876,12 @@ async fn handle_request(
         
         // Character queries
         RequestPayload::ListCharacters { world_id: req_world_id } => {
-            let uuid = match Uuid::parse_str(&req_world_id) {
+            let world_id_typed = match parse_world_id_for_request(&req_world_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.character.list_in_world(WorldId::from_uuid(uuid)).await {
+            match state.app.entities.character.list_in_world(world_id_typed).await {
                 Ok(chars) => {
                     let data: Vec<serde_json::Value> = chars
                         .into_iter()
@@ -989,17 +900,12 @@ async fn handle_request(
         
         // Location queries  
         RequestPayload::ListLocations { world_id: req_world_id } => {
-            let uuid = match Uuid::parse_str(&req_world_id) {
+            let world_id_typed = match parse_world_id_for_request(&req_world_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.location.list_in_world(WorldId::from_uuid(uuid)).await {
+            match state.app.entities.location.list_in_world(world_id_typed).await {
                 Ok(locations) => {
                     let data: Vec<serde_json::Value> = locations
                         .into_iter()
@@ -1017,17 +923,12 @@ async fn handle_request(
         
         // Game time queries
         RequestPayload::GetGameTime { world_id: req_world_id } => {
-            let uuid = match Uuid::parse_str(&req_world_id) {
+            let world_id_typed = match parse_world_id_for_request(&req_world_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.world.get(WorldId::from_uuid(uuid)).await {
+            match state.app.entities.world.get(world_id_typed).await {
                 Ok(Some(world)) => {
                     let gt = &world.game_time;
                     let game_time = wrldbldr_protocol::types::GameTime {
@@ -1048,24 +949,14 @@ async fn handle_request(
         // Advance game time (DM only)
         RequestPayload::AdvanceGameTime { world_id: req_world_id, hours } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can advance game time"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let uuid = match Uuid::parse_str(&req_world_id) {
-                Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
             };
-            
-            let world_id_typed = WorldId::from_uuid(uuid);
             
             // Get the world, advance time, and save
             let mut world = match state.app.entities.world.get(world_id_typed).await {
@@ -1129,17 +1020,12 @@ async fn handle_request(
         // =====================================================================
         
         RequestPayload::ListCharacterRegionRelationships { character_id } => {
-            let uuid = match Uuid::parse_str(&character_id) {
+            let char_id_typed = match parse_character_id_for_request(&character_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.character.get_region_relationships(CharacterId::from_uuid(uuid)).await {
+            match state.app.entities.character.get_region_relationships(char_id_typed).await {
                 Ok(relationships) => {
                     let data: Vec<serde_json::Value> = relationships
                         .into_iter()
@@ -1160,31 +1046,18 @@ async fn handle_request(
         
         RequestPayload::SetCharacterHomeRegion { character_id, region_id } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can set NPC region relationships"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(id) => CharacterId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
-                    });
-                }
+            let char_uuid = match parse_character_id_for_request(&character_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
-            let region_uuid = match Uuid::parse_str(&region_id) {
-                Ok(id) => RegionId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+            let region_uuid = match parse_region_id_for_request(&region_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
             match state.app.entities.character.set_home_region(char_uuid, region_uuid).await {
@@ -1195,31 +1068,18 @@ async fn handle_request(
         
         RequestPayload::SetCharacterWorkRegion { character_id, region_id } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can set NPC region relationships"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(id) => CharacterId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
-                    });
-                }
+            let char_uuid = match parse_character_id_for_request(&character_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
-            let region_uuid = match Uuid::parse_str(&region_id) {
-                Ok(id) => RegionId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+            let region_uuid = match parse_region_id_for_request(&region_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
             // Note: shift parameter not in the protocol yet, using None
@@ -1231,31 +1091,18 @@ async fn handle_request(
         
         RequestPayload::RemoveCharacterRegionRelationship { character_id, region_id, relationship_type } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can modify NPC region relationships"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(id) => CharacterId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
-                    });
-                }
+            let char_uuid = match parse_character_id_for_request(&character_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
-            let region_uuid = match Uuid::parse_str(&region_id) {
-                Ok(id) => RegionId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+            let region_uuid = match parse_region_id_for_request(&region_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
             match state.app.entities.character.remove_region_relationship(char_uuid, region_uuid, &relationship_type).await {
@@ -1265,17 +1112,12 @@ async fn handle_request(
         }
         
         RequestPayload::ListRegionNpcs { region_id } => {
-            let uuid = match Uuid::parse_str(&region_id) {
+            let region_id_typed = match parse_region_id_for_request(&region_id, &request_id) {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
-            match state.app.entities.character.get_npcs_for_region(RegionId::from_uuid(uuid)).await {
+            match state.app.entities.character.get_npcs_for_region(region_id_typed).await {
                 Ok(npcs) => {
                     let data: Vec<serde_json::Value> = npcs
                         .into_iter()
@@ -1303,31 +1145,18 @@ async fn handle_request(
         
         RequestPayload::PlaceItemInRegion { region_id, item_id } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can place items"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let region_uuid = match Uuid::parse_str(&region_id) {
-                Ok(id) => RegionId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+            let region_uuid = match parse_region_id_for_request(&region_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
-            let item_uuid = match Uuid::parse_str(&item_id) {
-                Ok(id) => wrldbldr_domain::ItemId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid item ID"),
-                    });
-                }
+            let item_uuid = match parse_item_id_for_request(&item_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
             match state.app.entities.inventory.place_item_in_region(item_uuid, region_uuid).await {
@@ -1338,31 +1167,18 @@ async fn handle_request(
         
         RequestPayload::CreateAndPlaceItem { world_id, region_id, data } => {
             // Verify DM authorization
-            if !_conn_info.is_dm() {
-                return Some(ServerMessage::Response {
-                    request_id,
-                    result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can create items"),
-                });
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
             }
             
-            let world_uuid = match Uuid::parse_str(&world_id) {
-                Ok(id) => WorldId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world ID"),
-                    });
-                }
+            let world_uuid = match parse_world_id_for_request(&world_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
-            let region_uuid = match Uuid::parse_str(&region_id) {
-                Ok(id) => RegionId::from_uuid(id),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
-                    });
-                }
+            let region_uuid = match parse_region_id_for_request(&region_id, &request_id) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
             
             // Create the item
@@ -1389,23 +1205,18 @@ async fn handle_request(
         
         // Character inventory query
         RequestPayload::GetCharacterInventory { character_id } => {
-            let uuid = match Uuid::parse_str(&character_id) {
+            let char_uuid = match parse_uuid_for_request(&character_id, &request_id, "Invalid character ID") {
                 Ok(id) => id,
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id,
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character ID"),
-                    });
-                }
+                Err(e) => return Some(e),
             };
             
             // Try as PlayerCharacter first, then as NPC
-            let pc_id = PlayerCharacterId::from_uuid(uuid);
+            let pc_id = PlayerCharacterId::from_uuid(char_uuid);
             let items = match state.app.entities.inventory.get_pc_inventory(pc_id).await {
                 Ok(items) => items,
                 Err(_) => {
                     // Try as NPC
-                    let npc_id = CharacterId::from_uuid(uuid);
+                    let npc_id = CharacterId::from_uuid(char_uuid);
                     match state.app.entities.inventory.get_character_inventory(npc_id).await {
                         Ok(items) => items,
                         Err(e) => {
@@ -1460,14 +1271,13 @@ async fn handle_inventory_action(
     quantity: u32,
 ) -> Option<ServerMessage> {
     // Parse IDs
-    let pc_uuid = match Uuid::parse_str(pc_id) {
-        Ok(id) => PlayerCharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid PC ID format")),
+    let pc_uuid = match parse_pc_id(pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
-    
-    let item_uuid = match Uuid::parse_str(item_id) {
-        Ok(id) => wrldbldr_domain::ItemId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid item ID format")),
+    let item_uuid = match parse_item_id(item_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get connection info
@@ -1541,9 +1351,9 @@ async fn handle_challenge_roll(
     roll: i32,
 ) -> Option<ServerMessage> {
     // Parse challenge ID
-    let challenge_uuid = match Uuid::parse_str(&challenge_id) {
-        Ok(id) => wrldbldr_domain::ChallengeId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid challenge ID format")),
+    let challenge_uuid = match parse_challenge_id(&challenge_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get connection info
@@ -1602,9 +1412,9 @@ async fn handle_challenge_roll_input(
     input_type: wrldbldr_protocol::DiceInputType,
 ) -> Option<ServerMessage> {
     // Parse challenge ID
-    let challenge_uuid = match Uuid::parse_str(&challenge_id) {
-        Ok(id) => wrldbldr_domain::ChallengeId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid challenge ID format")),
+    let challenge_uuid = match parse_challenge_id(&challenge_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get connection info
@@ -1677,15 +1487,15 @@ async fn handle_trigger_challenge(
     target_character_id: String,
 ) -> Option<ServerMessage> {
     // Parse challenge ID
-    let challenge_uuid = match Uuid::parse_str(&challenge_id) {
-        Ok(id) => wrldbldr_domain::ChallengeId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid challenge ID format")),
+    let challenge_uuid = match parse_challenge_id(&challenge_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Parse target character ID (could be PC or NPC, but we use PlayerCharacterId for PCs)
-    let target_uuid = match Uuid::parse_str(&target_character_id) {
+    let _target_uuid = match parse_pc_id(&target_character_id) {
         Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid target character ID format")),
+        Err(e) => return Some(e),
     };
     
     // Get connection info
@@ -1695,8 +1505,8 @@ async fn handle_trigger_challenge(
     };
     
     // Only DMs can trigger challenges manually
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can trigger challenges"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Get the challenge to send a prompt to the target player
@@ -1778,14 +1588,14 @@ async fn handle_staging_approval(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can approve staging"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse request_id as region_id (the request_id is typically the region being staged)
-    let region_id = match Uuid::parse_str(&request_id) {
-        Ok(id) => RegionId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid request/region ID")),
+    let region_id = match parse_region_id(&request_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Convert approved NPCs to CharacterIds
@@ -1847,14 +1657,14 @@ async fn handle_staging_regenerate(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can regenerate staging"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse the request_id as a RegionId (it's the region being staged)
-    let region_id = match Uuid::parse_str(&request_id) {
-        Ok(id) => RegionId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID")),
+    let region_id = match parse_region_id(&request_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get region info for the LLM prompt
@@ -1916,14 +1726,14 @@ async fn handle_pre_stage_region(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can pre-stage regions"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse region ID
-    let region_uuid = match Uuid::parse_str(&region_id) {
-        Ok(id) => RegionId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID")),
+    let region_uuid = match parse_region_id(&region_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Convert approved NPCs to CharacterIds
@@ -1963,14 +1773,14 @@ async fn handle_approval_decision(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can approve/reject suggestions"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
-    // Parse request ID
-    let approval_id = match Uuid::parse_str(&request_id) {
+    // Parse request ID as approval UUID
+    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
         Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid request ID")),
+        Err(e) => return Some(e),
     };
     
     // Convert protocol decision to domain decision
@@ -2088,14 +1898,14 @@ async fn handle_challenge_suggestion_decision(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can approve challenges"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
-    // Parse request ID
-    let approval_id = match Uuid::parse_str(&request_id) {
+    // Parse request ID as approval UUID
+    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
         Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid request ID")),
+        Err(e) => return Some(e),
     };
     
     let decision = if approved {
@@ -2134,14 +1944,14 @@ async fn handle_challenge_outcome_decision(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can approve challenge outcomes"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse resolution ID as challenge ID
-    let challenge_id = match Uuid::parse_str(&resolution_id) {
-        Ok(id) => wrldbldr_domain::ChallengeId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid resolution ID")),
+    let challenge_id = match parse_challenge_id(&resolution_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     match decision {
@@ -2234,14 +2044,14 @@ async fn handle_narrative_event_decision(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can approve narrative events"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
-    // Parse request ID
-    let approval_id = match Uuid::parse_str(&request_id) {
+    // Parse request ID as approval UUID
+    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
         Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid request ID")),
+        Err(e) => return Some(e),
     };
     
     let decision = if approved {
@@ -2290,8 +2100,8 @@ async fn handle_directorial_update(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can update directorial context"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     let world_id = match conn_info.world_id {
@@ -2355,20 +2165,20 @@ async fn handle_trigger_approach_event(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can trigger approach events"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse target PC ID
-    let pc_uuid = match Uuid::parse_str(&target_pc_id) {
-        Ok(id) => PlayerCharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid PC ID")),
+    let pc_uuid = match parse_pc_id(&target_pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get NPC details
-    let npc_uuid = match Uuid::parse_str(&npc_id) {
-        Ok(id) => wrldbldr_domain::CharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid NPC ID")),
+    let npc_uuid = match parse_character_id(&npc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     let (npc_name, npc_sprite) = match state.app.entities.character.get(npc_uuid).await {
@@ -2402,8 +2212,8 @@ async fn handle_trigger_location_event(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can trigger location events"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Broadcast location event to all in the world
@@ -2433,30 +2243,30 @@ async fn handle_share_npc_location(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
     
-    if !conn_info.is_dm() {
-        return Some(error_response("UNAUTHORIZED", "Only DMs can share NPC locations"));
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
     }
     
     // Parse PC ID
-    let pc_uuid = match Uuid::parse_str(&pc_id) {
-        Ok(id) => PlayerCharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid PC ID")),
+    let pc_uuid = match parse_pc_id(&pc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     // Get NPC and region names
-    let npc_uuid = match Uuid::parse_str(&npc_id) {
-        Ok(id) => wrldbldr_domain::CharacterId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid NPC ID")),
+    let npc_uuid = match parse_character_id(&npc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
-    let location_uuid = match Uuid::parse_str(&location_id) {
-        Ok(id) => wrldbldr_domain::LocationId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid location ID")),
+    let location_uuid = match parse_location_id(&location_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
-    let region_uuid = match Uuid::parse_str(&region_id) {
-        Ok(id) => RegionId::from_uuid(id),
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid region ID")),
+    let region_uuid = match parse_region_id(&region_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
     };
     
     let npc_name = match state.app.entities.character.get(npc_uuid).await {
@@ -2547,11 +2357,9 @@ async fn handle_player_action(
     if action_type == "talk" {
         if let (Some(target_str), Some(dialogue_text)) = (target.as_ref(), dialogue.as_ref()) {
             // Parse target as NPC ID
-            let npc_id = match Uuid::parse_str(target_str) {
-                Ok(id) => CharacterId::from_uuid(id),
-                Err(_) => {
-                    return Some(error_response("INVALID_ID", "Invalid NPC ID format"));
-                }
+            let npc_id = match parse_character_id(target_str) {
+                Ok(id) => id,
+                Err(e) => return Some(e),
             };
 
             // Start conversation - validates NPC is in region and queues for LLM
@@ -2613,4 +2421,176 @@ fn error_response(code: &str, message: &str) -> ServerMessage {
         code: code.to_string(),
         message: message.to_string(),
     }
+}
+
+/// Build navigation data for a region, including connected regions and exits.
+async fn build_navigation_data(
+    location_entity: &crate::entities::Location,
+    region_id: RegionId,
+) -> wrldbldr_protocol::NavigationData {
+    // Get region connections
+    let connections = location_entity
+        .get_connections(region_id)
+        .await
+        .ok()
+        .unwrap_or_default();
+    
+    // Build connected regions with names
+    let mut connected_regions = Vec::new();
+    for c in connections {
+        let region_name = location_entity
+            .get_region(c.to_region)
+            .await
+            .ok()
+            .flatten()
+            .map(|r| r.name)
+            .unwrap_or_else(|| "Unknown".to_string());
+        
+        connected_regions.push(wrldbldr_protocol::NavigationTarget {
+            region_id: c.to_region.to_string(),
+            name: region_name,
+            is_locked: c.is_locked,
+            lock_description: c.lock_description,
+        });
+    }
+    
+    // Get location exits
+    let exits = location_entity
+        .get_exits(region_id)
+        .await
+        .ok()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| wrldbldr_protocol::NavigationExit {
+            location_id: e.location_id.to_string(),
+            location_name: e.location_name,
+            arrival_region_id: e.arrival_region_id.to_string(),
+            description: e.description,
+        })
+        .collect();
+    
+    wrldbldr_protocol::NavigationData {
+        connected_regions,
+        exits,
+    }
+}
+
+/// Parse a string ID into a typed domain ID, returning an error response on failure.
+fn parse_id<T, F>(id_str: &str, from_uuid: F, error_msg: &str) -> Result<T, ServerMessage>
+where
+    F: FnOnce(Uuid) -> T,
+{
+    Uuid::parse_str(id_str)
+        .map(from_uuid)
+        .map_err(|_| error_response("INVALID_ID", error_msg))
+}
+
+/// Parse a player character ID from a string.
+fn parse_pc_id(id_str: &str) -> Result<PlayerCharacterId, ServerMessage> {
+    parse_id(id_str, PlayerCharacterId::from_uuid, "Invalid PC ID format")
+}
+
+/// Parse a character ID from a string.
+fn parse_character_id(id_str: &str) -> Result<CharacterId, ServerMessage> {
+    parse_id(id_str, CharacterId::from_uuid, "Invalid character ID format")
+}
+
+/// Parse a region ID from a string.
+fn parse_region_id(id_str: &str) -> Result<RegionId, ServerMessage> {
+    parse_id(id_str, RegionId::from_uuid, "Invalid region ID format")
+}
+
+/// Parse a world ID from a string.
+fn parse_world_id(id_str: &str) -> Result<WorldId, ServerMessage> {
+    parse_id(id_str, WorldId::from_uuid, "Invalid world ID format")
+}
+
+/// Parse a location ID from a string.
+fn parse_location_id(id_str: &str) -> Result<LocationId, ServerMessage> {
+    parse_id(id_str, LocationId::from_uuid, "Invalid location ID format")
+}
+
+/// Parse an item ID from a string.
+fn parse_item_id(id_str: &str) -> Result<ItemId, ServerMessage> {
+    parse_id(id_str, ItemId::from_uuid, "Invalid item ID format")
+}
+
+/// Parse a challenge ID from a string.
+fn parse_challenge_id(id_str: &str) -> Result<ChallengeId, ServerMessage> {
+    parse_id(id_str, ChallengeId::from_uuid, "Invalid challenge ID format")
+}
+
+/// Verify that the connection has DM authorization, returning an error response if not.
+fn require_dm(conn_info: &super::connections::ConnectionInfo) -> Result<(), ServerMessage> {
+    if conn_info.is_dm() {
+        Ok(())
+    } else {
+        Err(error_response("UNAUTHORIZED", "Only DMs can perform this action"))
+    }
+}
+
+/// Verify that the connection has DM authorization for Request/Response pattern.
+fn require_dm_for_request(
+    conn_info: &super::connections::ConnectionInfo,
+    request_id: &str,
+) -> Result<(), ServerMessage> {
+    if conn_info.is_dm() {
+        Ok(())
+    } else {
+        Err(ServerMessage::Response {
+            request_id: request_id.to_string(),
+            result: ResponseResult::error(ErrorCode::Unauthorized, "Only DMs can perform this action"),
+        })
+    }
+}
+
+/// Parse a UUID from a string for Request/Response pattern.
+fn parse_uuid_for_request(id_str: &str, request_id: &str, error_msg: &str) -> Result<Uuid, ServerMessage> {
+    Uuid::parse_str(id_str).map_err(|_| ServerMessage::Response {
+        request_id: request_id.to_string(),
+        result: ResponseResult::error(ErrorCode::BadRequest, error_msg),
+    })
+}
+
+/// Generic typed ID parser for Request/Response pattern.
+fn parse_id_for_request<T, F>(
+    id_str: &str,
+    request_id: &str,
+    from_uuid: F,
+    error_msg: &str,
+) -> Result<T, ServerMessage>
+where
+    F: FnOnce(Uuid) -> T,
+{
+    parse_uuid_for_request(id_str, request_id, error_msg).map(from_uuid)
+}
+
+/// Parse a world ID for Request/Response pattern.
+fn parse_world_id_for_request(id_str: &str, request_id: &str) -> Result<WorldId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, WorldId::from_uuid, "Invalid world ID")
+}
+
+/// Parse a character ID for Request/Response pattern.
+fn parse_character_id_for_request(id_str: &str, request_id: &str) -> Result<CharacterId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, CharacterId::from_uuid, "Invalid character ID")
+}
+
+/// Parse a region ID for Request/Response pattern.
+fn parse_region_id_for_request(id_str: &str, request_id: &str) -> Result<RegionId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, RegionId::from_uuid, "Invalid region ID")
+}
+
+/// Parse a location ID for Request/Response pattern.
+fn parse_location_id_for_request(id_str: &str, request_id: &str) -> Result<LocationId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, LocationId::from_uuid, "Invalid location ID")
+}
+
+/// Parse an item ID for Request/Response pattern.
+fn parse_item_id_for_request(id_str: &str, request_id: &str) -> Result<ItemId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, ItemId::from_uuid, "Invalid item ID")
+}
+
+/// Parse a challenge ID for Request/Response pattern.
+fn parse_challenge_id_for_request(id_str: &str, request_id: &str) -> Result<ChallengeId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, ChallengeId::from_uuid, "Invalid challenge ID")
 }

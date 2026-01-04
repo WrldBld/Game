@@ -4,4 +4,4 @@ pub mod connections;
 pub mod http;
 pub mod websocket;
 
-pub use connections::{ConnectionManager, SharedConnectionManager};
+pub use connections::ConnectionManager;

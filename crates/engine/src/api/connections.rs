@@ -3,7 +3,6 @@
 //! Tracks connected clients and their world associations.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
@@ -226,6 +225,3 @@ pub enum ConnectionError {
     #[error("Not authorized for this action")]
     Unauthorized,
 }
-
-/// Shared connection manager type for handlers.
-pub type SharedConnectionManager = Arc<ConnectionManager>;

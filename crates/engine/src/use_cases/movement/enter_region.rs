@@ -127,10 +127,10 @@ impl EnterRegion {
         
         let (npcs, staging_status) = match active_staging {
             Some(staging) => {
-                // Valid staging exists - resolve NPCs
+                // Valid staging exists - resolve NPCs visible to players
                 let visible_npcs: Vec<StagedNpc> = staging.npcs
                     .into_iter()
-                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .filter(|npc| npc.is_visible_to_players())
                     .collect();
                 (visible_npcs, StagingStatus::Ready)
             }
