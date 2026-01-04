@@ -16,7 +16,8 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use wrldbldr_domain::{ChallengeId, CharacterId, ItemId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId, WorldId};
+use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, ResponseResult, ServerMessage, WorldRole as ProtoWorldRole,
 };
@@ -2036,7 +2037,7 @@ async fn handle_narrative_event_decision(
     request_id: String,
     event_id: String,
     approved: bool,
-    _selected_outcome: Option<String>,
+    selected_outcome: Option<String>,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can make decisions
     let conn_info = match state.connections.get(connection_id).await {
@@ -2062,16 +2063,92 @@ async fn handle_narrative_event_decision(
         }
     };
     
+    // Get the approval data for PC context
+    let approval_data = state.app.queue.get_approval_request(approval_id).await.ok().flatten();
+    
     match state.app.use_cases.approval.approve_suggestion.execute(approval_id, decision).await {
         Ok(_) => {
             if approved {
-                // Broadcast that the narrative event was triggered
                 if let Some(world_id) = conn_info.world_id {
+                    // Parse the event ID to fetch the narrative event
+                    let narrative_event_id = match parse_id(&event_id, NarrativeEventId::from_uuid, "Invalid event ID") {
+                        Ok(id) => id,
+                        Err(e) => return Some(e),
+                    };
+                    
+                    // Fetch the narrative event
+                    let event = match state.app.entities.narrative.get_event(narrative_event_id).await {
+                        Ok(Some(e)) => e,
+                        Ok(None) => {
+                            tracing::warn!(event_id = %event_id, "Narrative event not found");
+                            // Still broadcast the trigger, just without effect execution
+                            let msg = ServerMessage::NarrativeEventTriggered {
+                                event_id: event_id.clone(),
+                                event_name: String::new(),
+                                outcome_description: String::new(),
+                                scene_direction: String::new(),
+                            };
+                            state.connections.broadcast_to_world(world_id, msg).await;
+                            return None;
+                        }
+                        Err(e) => {
+                            tracing::error!(error = %e, "Failed to fetch narrative event");
+                            return Some(error_response("FETCH_ERROR", &e.to_string()));
+                        }
+                    };
+                    
+                    // Find the selected outcome
+                    let outcome_name = selected_outcome
+                        .or_else(|| approval_data.as_ref()
+                            .and_then(|d| d.narrative_event_suggestion.as_ref())
+                            .and_then(|s| s.suggested_outcome.clone()))
+                        .or_else(|| event.default_outcome.clone())
+                        .unwrap_or_else(|| event.outcomes.first().map(|o| o.name.clone()).unwrap_or_default());
+                    
+                    let outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
+                    
+                    // Execute effects if we have an outcome with effects
+                    if let Some(outcome) = outcome {
+                        if !outcome.effects.is_empty() {
+                            // Build execution context
+                            let pc_id = approval_data.as_ref().and_then(|d| d.pc_id);
+                            
+                            if let Some(pc_id) = pc_id {
+                                let context = EffectExecutionContext {
+                                    pc_id,
+                                    world_id,
+                                    current_scene_id: approval_data.as_ref().and_then(|d| d.scene_id),
+                                };
+                                
+                                let summary = state.app.use_cases.narrative.execute_effects.execute(
+                                    narrative_event_id,
+                                    outcome_name.clone(),
+                                    &outcome.effects,
+                                    &context,
+                                ).await;
+                                
+                                tracing::info!(
+                                    event_id = %event_id,
+                                    outcome = %outcome_name,
+                                    success_count = summary.success_count,
+                                    failure_count = summary.failure_count,
+                                    "Executed narrative event effects"
+                                );
+                            } else {
+                                tracing::warn!(
+                                    event_id = %event_id,
+                                    "No PC context for effect execution, skipping effects"
+                                );
+                            }
+                        }
+                    }
+                    
+                    // Broadcast that the narrative event was triggered
                     let msg = ServerMessage::NarrativeEventTriggered {
                         event_id,
-                        event_name: String::new(), // Would need to fetch
-                        outcome_description: String::new(),
-                        scene_direction: String::new(),
+                        event_name: event.name.clone(),
+                        outcome_description: outcome.map(|o| o.description.clone()).unwrap_or_default(),
+                        scene_direction: event.scene_direction.clone(),
                     };
                     state.connections.broadcast_to_world(world_id, msg).await;
                 }
