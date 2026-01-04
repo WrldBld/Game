@@ -14,6 +14,7 @@ pub mod observation;
 pub mod inventory;
 pub mod assets;
 pub mod world;
+pub mod flag;
 
 pub use character::Character;
 pub use player_character::PlayerCharacter;
@@ -26,3 +27,4 @@ pub use observation::Observation;
 pub use inventory::Inventory;
 pub use assets::Assets;
 pub use world::World;
+pub use flag::Flag;

@@ -35,6 +35,7 @@ pub struct Entities {
     pub inventory: Arc<entities::Inventory>,
     pub assets: Arc<entities::Assets>,
     pub world: Arc<entities::World>,
+    pub flag: Arc<entities::Flag>,
 }
 
 /// Container for all use cases.
@@ -90,6 +91,7 @@ impl App {
         ));
         let assets = Arc::new(entities::Assets::new(repos.asset.clone(), image_gen));
         let world = Arc::new(entities::World::new(repos.world.clone()));
+        let flag = Arc::new(entities::Flag::new(repos.flag.clone()));
 
         let entities = Entities {
             character: character.clone(),
@@ -103,6 +105,7 @@ impl App {
             inventory: inventory.clone(),
             assets: assets.clone(),
             world: world.clone(),
+            flag: flag.clone(),
         };
 
         // Create use cases
@@ -115,6 +118,7 @@ impl App {
                 narrative.clone(),
                 scene.clone(),
                 inventory.clone(),
+                flag.clone(),
                 clock.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(

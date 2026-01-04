@@ -571,6 +571,38 @@ pub trait QueuePort: Send + Sync {
 }
 
 // =============================================================================
+// Flag Storage Port
+// =============================================================================
+
+/// Repository for game flags (used in scene conditions and narrative triggers).
+#[async_trait]
+pub trait FlagRepo: Send + Sync {
+    /// Get all set flags for a world (world-scoped flags).
+    async fn get_world_flags(&self, world_id: WorldId) -> Result<Vec<String>, RepoError>;
+    
+    /// Get all set flags for a player character (PC-scoped flags).
+    async fn get_pc_flags(&self, pc_id: PlayerCharacterId) -> Result<Vec<String>, RepoError>;
+    
+    /// Set a world-scoped flag.
+    async fn set_world_flag(&self, world_id: WorldId, flag_name: &str) -> Result<(), RepoError>;
+    
+    /// Unset a world-scoped flag.
+    async fn unset_world_flag(&self, world_id: WorldId, flag_name: &str) -> Result<(), RepoError>;
+    
+    /// Set a PC-scoped flag.
+    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<(), RepoError>;
+    
+    /// Unset a PC-scoped flag.
+    async fn unset_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<(), RepoError>;
+    
+    /// Check if a world-scoped flag is set.
+    async fn is_world_flag_set(&self, world_id: WorldId, flag_name: &str) -> Result<bool, RepoError>;
+    
+    /// Check if a PC-scoped flag is set.
+    async fn is_pc_flag_set(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<bool, RepoError>;
+}
+
+// =============================================================================
 // Testability Ports
 // =============================================================================
 

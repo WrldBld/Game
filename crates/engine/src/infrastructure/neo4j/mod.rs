@@ -18,6 +18,7 @@ mod item_repo;
 mod world_repo;
 mod asset_repo;
 mod player_character_repo;
+mod flag_repo;
 
 pub use character_repo::Neo4jCharacterRepo;
 pub use location_repo::Neo4jLocationRepo;
@@ -30,6 +31,7 @@ pub use item_repo::Neo4jItemRepo;
 pub use world_repo::Neo4jWorldRepo;
 pub use asset_repo::Neo4jAssetRepo;
 pub use player_character_repo::Neo4jPlayerCharacterRepo;
+pub use flag_repo::Neo4jFlagRepo;
 
 /// Create all Neo4j repositories from a graph connection.
 pub struct Neo4jRepositories {
@@ -44,6 +46,7 @@ pub struct Neo4jRepositories {
     pub item: Arc<Neo4jItemRepo>,
     pub world: Arc<Neo4jWorldRepo>,
     pub asset: Arc<Neo4jAssetRepo>,
+    pub flag: Arc<Neo4jFlagRepo>,
 }
 
 impl Neo4jRepositories {
@@ -59,7 +62,8 @@ impl Neo4jRepositories {
             observation: Arc::new(Neo4jObservationRepo::new(graph.clone(), clock.clone())),
             item: Arc::new(Neo4jItemRepo::new(graph.clone())),
             world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock)),
-            asset: Arc::new(Neo4jAssetRepo::new(graph)),
+            asset: Arc::new(Neo4jAssetRepo::new(graph.clone())),
+            flag: Arc::new(Neo4jFlagRepo::new(Arc::new(graph))),
         }
     }
 }

@@ -10,7 +10,7 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::{
-    Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext,
+    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext,
     Staging,
 };
 use crate::infrastructure::ports::{ClockPort, RepoError};
@@ -55,6 +55,7 @@ pub struct EnterRegion {
     narrative: Arc<Narrative>,
     scene: Arc<Scene>,
     inventory: Arc<Inventory>,
+    flag: Arc<Flag>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -67,6 +68,7 @@ impl EnterRegion {
         narrative: Arc<Narrative>,
         scene: Arc<Scene>,
         inventory: Arc<Inventory>,
+        flag: Arc<Flag>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -77,6 +79,7 @@ impl EnterRegion {
             narrative,
             scene,
             inventory,
+            flag,
             clock,
         }
     }
@@ -165,7 +168,7 @@ impl EnterRegion {
         }
 
         // 7. Resolve scene for this region
-        let resolved_scene = self.resolve_scene_for_region(pc_id, region_id).await?;
+        let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id).await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -196,11 +199,12 @@ impl EnterRegion {
 
     /// Resolve which scene to display for a PC entering a region.
     ///
-    /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes)
+    /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes, flags)
     /// and calls the scene resolution service.
     async fn resolve_scene_for_region(
         &self,
         pc_id: PlayerCharacterId,
+        world_id: wrldbldr_domain::WorldId,
         region_id: RegionId,
     ) -> Result<Option<DomainScene>, RepoError> {
         // Get current time of day from game time
@@ -212,12 +216,13 @@ impl EnterRegion {
         let completed_scenes = self.scene.get_completed_scenes(pc_id).await?;
         let inventory = self.inventory.get_pc_inventory(pc_id).await?;
         let observations = self.observation.get_observations(pc_id).await?;
+        let flags = self.flag.get_all_flags_for_pc(world_id, pc_id).await?;
 
         let context = SceneResolutionContext::new(time_of_day)
             .with_completed_scenes(completed_scenes)
             .with_inventory(inventory.into_iter().map(|item| item.id))
-            .with_known_characters(observations.into_iter().map(|obs| obs.npc_id));
-        // Note: Flags not implemented yet - would need a flag storage system
+            .with_known_characters(observations.into_iter().map(|obs| obs.npc_id))
+            .with_flags(flags);
 
         // Resolve the scene
         let result = self.scene.resolve_scene(region_id, &context).await?;
