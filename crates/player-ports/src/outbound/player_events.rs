@@ -305,6 +305,14 @@ pub enum PlayerEvent {
         choices: Vec<DialogueChoice>,
     },
 
+    /// Conversation has ended
+    ConversationEnded {
+        npc_id: String,
+        npc_name: String,
+        pc_id: String,
+        summary: Option<String>,
+    },
+
     /// Response was approved and executed
     ResponseApproved {
         npc_dialogue: String,
@@ -817,6 +825,7 @@ impl PlayerEvent {
             Self::LLMProcessing { .. } => "LLMProcessing",
             Self::QueueStatus { .. } => "QueueStatus",
             Self::DialogueResponse { .. } => "DialogueResponse",
+            Self::ConversationEnded { .. } => "ConversationEnded",
             Self::ResponseApproved { .. } => "ResponseApproved",
             Self::ApprovalRequired { .. } => "ApprovalRequired",
             Self::ChallengePrompt { .. } => "ChallengePrompt",

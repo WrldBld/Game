@@ -7,29 +7,35 @@
 //! 4. Response goes to DM for approval
 //! 5. Approved response is sent to player
 //! 6. Player can continue conversation (ContinueConversation)
+//! 7. Player ends conversation (EndConversation)
 
 use std::sync::Arc;
 
-mod start;
 mod continue_conversation;
+mod end;
+mod start;
 
-pub use start::{StartConversation, ConversationStarted, ConversationError};
 pub use continue_conversation::{ContinueConversation, ConversationContinued};
+pub use end::{ConversationEnded, EndConversation, EndConversationError};
+pub use start::{ConversationError, ConversationStarted, StartConversation};
 
 /// Container for conversation use cases.
 pub struct ConversationUseCases {
     pub start: Arc<StartConversation>,
     pub continue_conversation: Arc<ContinueConversation>,
+    pub end: Arc<EndConversation>,
 }
 
 impl ConversationUseCases {
     pub fn new(
         start: Arc<StartConversation>,
         continue_conversation: Arc<ContinueConversation>,
+        end: Arc<EndConversation>,
     ) -> Self {
         Self {
             start,
             continue_conversation,
+            end,
         }
     }
 }

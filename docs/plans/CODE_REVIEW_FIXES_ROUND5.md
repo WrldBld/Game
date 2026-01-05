@@ -449,38 +449,57 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 12: Low - Missing Features (Complexity: High)
 
 ### CR5-12.1 - Add Region Connection Validation
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/use_cases/movement/enter_region.rs`
 
 **Issue**: Players can teleport to any region in a location
 
 **Tasks**:
-- [ ] Check that a connection exists from current region to target
-- [ ] Add `EnterRegionError::NoPathToRegion` variant
-- [ ] Allow exception for initial spawn (no current region)
+- [x] Check that a connection exists from current region to target
+- [x] Add `EnterRegionError::NoPathToRegion` variant
+- [x] Allow exception for initial spawn (no current region)
+
+**Implementation Notes**:
+- Added `ConnectionCheckResult` enum with `Open`, `Locked(reason)`, `NoConnection` variants
+- Replaced `check_locked_connection` with `check_connection` method
+- Skip validation when `current_region_id` is None (initial spawn)
+- Skip validation when moving to same region
 
 ---
 
 ### CR5-12.2 - Add EndConversation Use Case
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/use_cases/conversation/mod.rs`
 
 **Tasks**:
-- [ ] Create `EndConversation` use case
-- [ ] Mark conversation as ended
-- [ ] Record final dialogue state
-- [ ] Broadcast conversation end to clients
+- [x] Create `EndConversation` use case
+- [x] Mark conversation as ended
+- [x] Record final dialogue state
+- [x] Broadcast conversation end to clients
+
+**Implementation Notes**:
+- Created `end.rs` with `EndConversation` use case
+- Added `ConversationEnded` message to protocol
+- Added `PlayerEvent::ConversationEnded` variant
+- Added translation in message_translator.rs
+- Added handler in session_message_handler.rs (clears dialogue state)
+- Use case returns data; caller (websocket) is responsible for broadcast (hexagonal pattern)
 
 ---
 
 ### CR5-12.3 - Store CharacterLoreResponse Data
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Lines**: 1585-1598
 
 **Tasks**:
-- [ ] Add `lore_summaries` signal to LoreState
-- [ ] Store summaries when CharacterLoreResponse received
+- [x] Add `lore_summaries` signal to LoreState
+- [x] Store summaries when CharacterLoreResponse received
+
+**Implementation Notes**:
+- Added `lore_summaries: Signal<HashMap<String, Vec<LoreSummaryData>>>` to LoreState
+- Added `set_character_lore_summaries()` and `get_character_lore_summaries()` methods
+- Updated handler to call `set_character_lore_summaries()` on CharacterLoreResponse
 
 ---
 
@@ -501,8 +520,8 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 9 | 4 | 4 | COMPLETE |
 | Phase 10 | 3 | 3 | COMPLETE |
 | Phase 11 | 3 | 3 | COMPLETE |
-| Phase 12 | 3 | 0 | PENDING |
-| **Total** | **30** | **0** | **PENDING** |
+| Phase 12 | 3 | 3 | COMPLETE |
+| **Total** | **30** | **30** | **COMPLETE** |
 
 ---
 
@@ -520,5 +539,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | f83e3b4 | Phase 8 | Add forward compatibility variants (CR5-8.3 deferred) |
 | 7edb992 | Phase 9 | Fix Player UI bugs |
 | a6dec21 | Phase 10 | Add request timeouts and fix EventChain propagation |
-| - | Phase 11 | Code deduplication (CharacterSheetDataApi, StagedNpc, GraphExt) |
+| 80fd67f | Phase 11 | Code deduplication (CharacterSheetDataApi, StagedNpc, GraphExt) |
+| e960d2b | Phase 12 | Add missing features (region validation, EndConversation, lore summaries) |
 

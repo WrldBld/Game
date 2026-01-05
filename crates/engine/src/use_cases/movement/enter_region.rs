@@ -125,10 +125,22 @@ impl EnterRegion {
             return Err(EnterRegionError::RegionNotInCurrentLocation);
         }
 
-        // 4. Check for locked connections if PC has a current region
+        // 4. Validate connection exists and is not locked (if PC has a current region)
+        // Skip validation for initial spawn when PC has no current region
         if let Some(current_region_id) = pc.current_region_id {
-            if let Some(reason) = self.check_locked_connection(current_region_id, region_id).await {
-                return Err(EnterRegionError::MovementBlocked(reason));
+            // Don't require path if already in target region
+            if current_region_id != region_id {
+                match self.check_connection(current_region_id, region_id).await {
+                    ConnectionCheckResult::NoConnection => {
+                        return Err(EnterRegionError::NoPathToRegion);
+                    }
+                    ConnectionCheckResult::Locked(reason) => {
+                        return Err(EnterRegionError::MovementBlocked(reason));
+                    }
+                    ConnectionCheckResult::Open => {
+                        // Connection exists and is unlocked - proceed
+                    }
+                }
             }
         }
 
@@ -208,23 +220,45 @@ impl EnterRegion {
         })
     }
 
-    /// Check if a connection between regions is locked.
-    async fn check_locked_connection(
+    /// Check if a valid connection exists between regions.
+    ///
+    /// Returns:
+    /// - `Open` if connection exists and is unlocked
+    /// - `Locked(reason)` if connection exists but is locked
+    /// - `NoConnection` if no path exists between regions
+    async fn check_connection(
         &self,
         from_region_id: RegionId,
         to_region_id: RegionId,
-    ) -> Option<String> {
-        let connections = self.location.get_connections(from_region_id).await.ok()?;
+    ) -> ConnectionCheckResult {
+        let connections = match self.location.get_connections(from_region_id).await {
+            Ok(c) => c,
+            Err(_) => return ConnectionCheckResult::NoConnection,
+        };
 
-        connections
-            .iter()
-            .find(|c| c.to_region == to_region_id && c.is_locked)
-            .map(|c| {
-                c.lock_description
+        // Find connection to target region
+        match connections.iter().find(|c| c.to_region == to_region_id) {
+            Some(connection) if connection.is_locked => {
+                let reason = connection
+                    .lock_description
                     .clone()
-                    .unwrap_or_else(|| "The way is blocked".to_string())
-            })
+                    .unwrap_or_else(|| "The way is blocked".to_string());
+                ConnectionCheckResult::Locked(reason)
+            }
+            Some(_) => ConnectionCheckResult::Open,
+            None => ConnectionCheckResult::NoConnection,
+        }
     }
+}
+
+/// Result of checking a connection between regions.
+enum ConnectionCheckResult {
+    /// Connection exists and is open
+    Open,
+    /// Connection exists but is locked
+    Locked(String),
+    /// No connection exists between regions
+    NoConnection,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -237,6 +271,8 @@ pub enum EnterRegionError {
     WorldNotFound,
     #[error("Region is not in the current location")]
     RegionNotInCurrentLocation,
+    #[error("No path exists to that region")]
+    NoPathToRegion,
     #[error("Movement blocked: {0}")]
     MovementBlocked(String),
     #[error("Repository error: {0}")]

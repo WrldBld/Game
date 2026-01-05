@@ -180,6 +180,18 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             choices, // Direct assignment - same type now
         },
 
+        ServerMessage::ConversationEnded {
+            npc_id,
+            npc_name,
+            pc_id,
+            summary,
+        } => PlayerEvent::ConversationEnded {
+            npc_id,
+            npc_name,
+            pc_id,
+            summary,
+        },
+
         ServerMessage::ResponseApproved {
             npc_dialogue,
             executed_tools,

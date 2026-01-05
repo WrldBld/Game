@@ -368,6 +368,17 @@ pub enum ServerMessage {
         text: String,
         choices: Vec<DialogueChoice>,
     },
+    /// Conversation has ended
+    ConversationEnded {
+        /// The NPC the conversation was with
+        npc_id: String,
+        npc_name: String,
+        /// The player character who was conversing
+        pc_id: String,
+        /// Optional summary of the conversation
+        #[serde(default)]
+        summary: Option<String>,
+    },
     /// LLM is processing (shown to DM)
     LLMProcessing { action_id: String },
     /// Action queued for processing

@@ -3,13 +3,17 @@
 //! Tracks lore entries known to the current player character.
 
 use dioxus::prelude::*;
-use wrldbldr_protocol::types::{LoreData, LoreKnowledgeData};
+use std::collections::HashMap;
+use wrldbldr_protocol::types::{LoreData, LoreKnowledgeData, LoreSummaryData};
 
 /// Lore state for tracking player knowledge
 #[derive(Clone)]
 pub struct LoreState {
-    /// Lore entries known to the current PC
+    /// Lore entries known to the current PC (full data)
     pub known_lore: Signal<Vec<KnownLoreEntry>>,
+    /// Lore summaries by character ID (for list views)
+    /// Key is character_id, value is list of summaries
+    pub lore_summaries: Signal<HashMap<String, Vec<LoreSummaryData>>>,
 }
 
 /// A lore entry with knowledge metadata
@@ -26,7 +30,26 @@ impl LoreState {
     pub fn new() -> Self {
         Self {
             known_lore: Signal::new(Vec::new()),
+            lore_summaries: Signal::new(HashMap::new()),
         }
+    }
+
+    /// Set lore summaries for a character (from CharacterLoreResponse)
+    pub fn set_character_lore_summaries(
+        &mut self,
+        character_id: String,
+        summaries: Vec<LoreSummaryData>,
+    ) {
+        self.lore_summaries.write().insert(character_id, summaries);
+    }
+
+    /// Get lore summaries for a character
+    pub fn get_character_lore_summaries(&self, character_id: &str) -> Vec<LoreSummaryData> {
+        self.lore_summaries
+            .read()
+            .get(character_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Add a newly discovered lore entry
@@ -68,6 +91,7 @@ impl LoreState {
     /// Clear all lore (e.g., on disconnect)
     pub fn clear(&mut self) {
         self.known_lore.write().clear();
+        self.lore_summaries.write().clear();
     }
 
     /// Get lore entries by category

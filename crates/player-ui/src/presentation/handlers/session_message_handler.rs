@@ -64,6 +64,22 @@ pub fn handle_server_message(
             dialogue_state.apply_dialogue(speaker_id, speaker_name, text, choices);
         }
 
+        PlayerEvent::ConversationEnded {
+            npc_id: _,
+            npc_name,
+            pc_id: _,
+            summary,
+        } => {
+            // Log the conversation end
+            let msg = match summary {
+                Some(s) => format!("Conversation ended: {}", s),
+                None => "Conversation ended.".to_string(),
+            };
+            session_state.add_log_entry(npc_name, msg, false, platform);
+            // Clear dialogue state since conversation is over
+            dialogue_state.clear();
+        }
+
         PlayerEvent::LLMProcessing { action_id } => {
             dialogue_state.is_llm_processing.set(true);
             session_state.add_log_entry(
@@ -1542,8 +1558,7 @@ pub fn handle_server_message(
                 character_id,
                 known_lore.len()
             );
-            // TODO: Store summaries in a separate signal for lore list views
-            let _ = known_lore;
+            lore_state.set_character_lore_summaries(character_id, known_lore);
         }
 
         // Catch-all for unhandled or future event types

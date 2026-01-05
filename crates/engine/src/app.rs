@@ -176,6 +176,10 @@ impl App {
                 queue_port.clone(),
                 clock.clone(),
             )),
+            Arc::new(use_cases::conversation::EndConversation::new(
+                character.clone(),
+                player_character.clone(),
+            )),
         );
 
         let challenge_uc = use_cases::ChallengeUseCases::new(
