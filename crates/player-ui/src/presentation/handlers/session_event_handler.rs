@@ -52,11 +52,17 @@ pub fn handle_session_event(
 
             session_state.connection_status().set(presentation_status);
 
+            // Clear all state on disconnect or failure to prevent stale data
             if matches!(
                 state,
                 PortConnectionState::Disconnected | PortConnectionState::Failed
             ) {
                 session_state.engine_client().set(None);
+                game_state.clear();
+                dialogue_state.clear();
+                generation_state.clear();
+                session_state.clear();
+                tracing::info!("Connection lost - cleared all session state");
             }
         }
         SessionEvent::MessageReceived(message) => {
