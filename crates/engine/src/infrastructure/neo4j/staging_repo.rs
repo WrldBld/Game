@@ -122,10 +122,22 @@ impl StagingRepo for Neo4jStagingRepo {
 
     /// Get pending stagings awaiting DM approval for a world
     async fn get_pending_staging(&self, world_id: WorldId) -> Result<Vec<Staging>, RepoError> {
+        // Use COLLECT to fetch NPCs in single query (avoids N+1)
         let q = query(
             "MATCH (s:Staging {world_id: $world_id})
             WHERE s.is_active = false AND NOT EXISTS((s)<-[:CURRENT_STAGING]-())
-            RETURN s
+            OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
+            WITH s, COLLECT({
+                character_id: c.id,
+                name: c.name,
+                sprite_asset: c.sprite_asset,
+                portrait_asset: c.portrait_asset,
+                is_present: rel.is_present,
+                is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
+                reasoning: rel.reasoning,
+                mood: COALESCE(rel.mood, c.default_mood, 'calm')
+            }) as npcs
+            RETURN s, npcs
             ORDER BY s.approved_at DESC",
         )
         .param("world_id", world_id.to_string());
@@ -135,13 +147,8 @@ impl StagingRepo for Neo4jStagingRepo {
         let now = self.clock.now();
 
         while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let staging = row_to_staging(row, now)?;
-            // Load NPCs for this staging
-            let npcs = self.load_staging_npcs(staging.id).await?;
-            stagings.push(Staging {
-                npcs,
-                ..staging
-            });
+            let staging = row_to_staging_with_npcs(row, now)?;
+            stagings.push(staging);
         }
 
         Ok(stagings)
@@ -277,10 +284,22 @@ impl StagingRepo for Neo4jStagingRepo {
     /// Get staging history for a region (most recent first).
     async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError> {
         // Get past stagings that are linked via HAS_STAGING but not CURRENT_STAGING
+        // Use COLLECT to fetch NPCs in single query (avoids N+1)
         let q = query(
             "MATCH (r:Region {id: $region_id})-[:HAS_STAGING]->(s:Staging)
             WHERE NOT (r)-[:CURRENT_STAGING]->(s)
-            RETURN s
+            OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
+            WITH s, COLLECT({
+                character_id: c.id,
+                name: c.name,
+                sprite_asset: c.sprite_asset,
+                portrait_asset: c.portrait_asset,
+                is_present: rel.is_present,
+                is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
+                reasoning: rel.reasoning,
+                mood: COALESCE(rel.mood, c.default_mood, 'calm')
+            }) as npcs
+            RETURN s, npcs
             ORDER BY s.approved_at DESC
             LIMIT $limit",
         )
@@ -292,13 +311,8 @@ impl StagingRepo for Neo4jStagingRepo {
         let now = self.clock.now();
 
         while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let staging = row_to_staging(row, now)?;
-            // Load NPCs for this staging
-            let npcs = self.load_staging_npcs(staging.id).await?;
-            stagings.push(Staging {
-                npcs,
-                ..staging
-            });
+            let staging = row_to_staging_with_npcs(row, now)?;
+            stagings.push(staging);
         }
 
         Ok(stagings)
@@ -427,6 +441,95 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
         reasoning,
         mood,
     })
+}
+
+/// Parse a staging row that includes collected NPCs
+fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
+    let node: Node = row.get("s").map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let id: StagingId = parse_typed_id(&node, "id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let region_id: RegionId = parse_typed_id(&node, "region_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let location_id: LocationId = parse_typed_id(&node, "location_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let ttl_hours: i64 = node.get("ttl_hours").map_err(|e| RepoError::Database(e.to_string()))?;
+    let approved_by: String = node.get("approved_by").map_err(|e| RepoError::Database(e.to_string()))?;
+    let source_str: String = node.get("source").map_err(|e| RepoError::Database(e.to_string()))?;
+    let is_active: bool = node.get("is_active").map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let game_time = node.get_datetime_or("game_time", fallback);
+    let approved_at = node.get_datetime_or("approved_at", fallback);
+    let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
+    let dm_guidance = node.get_optional_string("dm_guidance");
+
+    // Parse collected NPCs from the row
+    let npcs = parse_collected_npcs(&row)?;
+
+    Ok(Staging {
+        id,
+        region_id,
+        location_id,
+        world_id,
+        npcs,
+        game_time,
+        approved_at,
+        ttl_hours: ttl_hours as i32,
+        approved_by,
+        source,
+        dm_guidance,
+        is_active,
+        location_state_id: None,
+        region_state_id: None,
+        visual_state_source: VisualStateSource::default(),
+        visual_state_reasoning: None,
+    })
+}
+
+/// Parse NPCs from a COLLECT result
+fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
+    // COLLECT returns a list of maps
+    let npcs_data: Vec<neo4rs::BoltMap> = row.get("npcs")
+        .map_err(|e| RepoError::Database(format!("Failed to get npcs: {}", e)))?;
+
+    let mut npcs = Vec::with_capacity(npcs_data.len());
+    for npc_map in npcs_data {
+        // Skip null entries (from OPTIONAL MATCH with no NPCs)
+        let character_id_str: Option<String> = npc_map.get("character_id").ok();
+        let character_id_str = match character_id_str {
+            Some(id) => id,
+            None => continue, // Skip null NPC entries
+        };
+
+        let character_id = uuid::Uuid::parse_str(&character_id_str)
+            .map(CharacterId::from)
+            .map_err(|e| RepoError::Database(format!("Invalid character_id: {}", e)))?;
+
+        let name: String = npc_map.get("name").unwrap_or_default();
+        let sprite_asset: Option<String> = npc_map.get("sprite_asset").ok().filter(|s: &String| !s.is_empty());
+        let portrait_asset: Option<String> = npc_map.get("portrait_asset").ok().filter(|s: &String| !s.is_empty());
+        let is_present: bool = npc_map.get("is_present").unwrap_or(true);
+        let is_hidden_from_players: bool = npc_map.get("is_hidden_from_players").unwrap_or(false);
+        let reasoning: String = npc_map.get("reasoning").unwrap_or_default();
+        let mood_str: String = npc_map.get("mood").unwrap_or_else(|_| "calm".to_string());
+        let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
+
+        npcs.push(StagedNpc {
+            character_id,
+            name,
+            sprite_asset,
+            portrait_asset,
+            is_present,
+            is_hidden_from_players,
+            reasoning,
+            mood,
+        });
+    }
+
+    Ok(npcs)
 }
 
 fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {

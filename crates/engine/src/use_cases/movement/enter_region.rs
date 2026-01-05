@@ -13,7 +13,7 @@ use crate::entities::{
     Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene,
     Staging, World,
 };
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
@@ -63,7 +63,6 @@ pub struct EnterRegion {
     flag: Arc<Flag>,
     world: Arc<World>,
     suggest_time: Arc<SuggestTime>,
-    clock: Arc<dyn ClockPort>,
 }
 
 impl EnterRegion {
@@ -78,7 +77,6 @@ impl EnterRegion {
         flag: Arc<Flag>,
         world: Arc<World>,
         suggest_time: Arc<SuggestTime>,
-        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -91,7 +89,6 @@ impl EnterRegion {
             flag,
             world,
             suggest_time,
-            clock,
         }
     }
 

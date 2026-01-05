@@ -2,6 +2,7 @@
 //!
 //! Handles game flag operations for scene conditions and narrative triggers.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
@@ -29,15 +30,22 @@ impl Flag {
     }
 
     /// Get all flags relevant to a PC (combines world and PC-scoped flags).
+    /// 
+    /// Uses HashSet to deduplicate flags that may exist at both scopes.
     pub async fn get_all_flags_for_pc(
         &self,
         world_id: WorldId,
         pc_id: PlayerCharacterId,
     ) -> Result<Vec<String>, RepoError> {
-        let mut flags = self.get_world_flags(world_id).await?;
+        let world_flags = self.get_world_flags(world_id).await?;
         let pc_flags = self.get_pc_flags(pc_id).await?;
-        flags.extend(pc_flags);
-        Ok(flags)
+        
+        // Deduplicate using HashSet
+        let mut unique_flags: HashSet<String> = HashSet::with_capacity(world_flags.len() + pc_flags.len());
+        unique_flags.extend(world_flags);
+        unique_flags.extend(pc_flags);
+        
+        Ok(unique_flags.into_iter().collect())
     }
 
     /// Set a world-scoped flag.

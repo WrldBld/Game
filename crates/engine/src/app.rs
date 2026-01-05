@@ -141,7 +141,6 @@ impl App {
                 flag.clone(),
                 world.clone(),
                 suggest_time.clone(),
-                clock.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
                 player_character.clone(),
@@ -154,7 +153,6 @@ impl App {
                 flag.clone(),
                 world.clone(),
                 suggest_time.clone(),
-                clock.clone(),
             )),
         );
 

@@ -178,6 +178,27 @@ impl ConnectionManager {
         }
     }
 
+    /// Broadcast a message to all connections in a world except one.
+    pub async fn broadcast_to_world_except(
+        &self,
+        world_id: WorldId,
+        exclude_connection_id: Uuid,
+        message: ServerMessage,
+    ) {
+        let connections = self.connections.read().await;
+        for (info, sender) in connections.values() {
+            if info.world_id == Some(world_id) && info.connection_id != exclude_connection_id {
+                if let Err(e) = sender.try_send(message.clone()) {
+                    tracing::warn!(
+                        connection_id = %info.connection_id,
+                        error = %e,
+                        "Failed to broadcast message"
+                    );
+                }
+            }
+        }
+    }
+
     /// Broadcast a message to all DMs in a world.
     pub async fn broadcast_to_dms(&self, world_id: WorldId, message: ServerMessage) {
         let connections = self.connections.read().await;

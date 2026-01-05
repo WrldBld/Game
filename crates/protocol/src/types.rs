@@ -481,6 +481,30 @@ pub enum TimeOfDayData {
     Unknown,
 }
 
+impl From<wrldbldr_domain::TimeOfDay> for TimeOfDayData {
+    fn from(tod: wrldbldr_domain::TimeOfDay) -> Self {
+        match tod {
+            wrldbldr_domain::TimeOfDay::Morning => TimeOfDayData::Morning,
+            wrldbldr_domain::TimeOfDay::Afternoon => TimeOfDayData::Afternoon,
+            wrldbldr_domain::TimeOfDay::Evening => TimeOfDayData::Evening,
+            wrldbldr_domain::TimeOfDay::Night => TimeOfDayData::Night,
+        }
+    }
+}
+
+impl From<TimeOfDayData> for wrldbldr_domain::TimeOfDay {
+    fn from(tod: TimeOfDayData) -> Self {
+        match tod {
+            TimeOfDayData::Morning => wrldbldr_domain::TimeOfDay::Morning,
+            TimeOfDayData::Afternoon => wrldbldr_domain::TimeOfDay::Afternoon,
+            TimeOfDayData::Evening => wrldbldr_domain::TimeOfDay::Evening,
+            TimeOfDayData::Night => wrldbldr_domain::TimeOfDay::Night,
+            // Unknown defaults to Morning (safe fallback)
+            TimeOfDayData::Unknown => wrldbldr_domain::TimeOfDay::Morning,
+        }
+    }
+}
+
 /// Activation rule for visual states (wire format)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -681,6 +705,9 @@ pub enum TriggerCategory {
     Event,
     /// Custom/LLM-evaluated triggers
     Custom,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl TriggerCategory {
@@ -694,6 +721,7 @@ impl TriggerCategory {
             TriggerCategory::State => "State",
             TriggerCategory::Event => "Event",
             TriggerCategory::Custom => "Custom",
+            TriggerCategory::Unknown => "Unknown",
         }
     }
 }
@@ -748,6 +776,9 @@ pub enum TriggerFieldType {
     Keywords,
     /// Sentiment value (-1.0 to 1.0)
     Sentiment,
+    /// Unknown variant for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// Option for trigger logic selection

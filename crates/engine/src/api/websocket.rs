@@ -139,6 +139,19 @@ async fn handle_message(
         }
         
         ClientMessage::LeaveWorld => {
+            // Broadcast UserLeft to other world members before leaving
+            if let Some(conn_info) = state.connections.get(connection_id).await {
+                if let Some(world_id) = conn_info.world_id {
+                    let user_left_msg = ServerMessage::UserLeft {
+                        user_id: conn_info.user_id,
+                    };
+                    state.connections.broadcast_to_world_except(
+                        world_id,
+                        connection_id,
+                        user_left_msg,
+                    ).await;
+                }
+            }
             state.connections.leave_world(connection_id).await;
             None
         }
@@ -393,6 +406,21 @@ async fn handle_join_world(
         None
     };
     
+    // Get connection info to broadcast UserJoined to other world members
+    if let Some(conn_info) = state.connections.get(connection_id).await {
+        let user_joined_msg = ServerMessage::UserJoined {
+            user_id: conn_info.user_id,
+            username: None,
+            role,
+            pc: your_pc.clone(),
+        };
+        state.connections.broadcast_to_world_except(
+            world_id_typed,
+            connection_id,
+            user_joined_msg,
+        ).await;
+    }
+
     Some(ServerMessage::WorldJoined {
         world_id,
         snapshot,

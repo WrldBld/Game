@@ -94,7 +94,14 @@ impl Observation {
         let region = self.location_repo.get_region(region_id).await?;
         let location_id = match region {
             Some(r) => r.location_id,
-            None => return Ok(()), // Region not found, nothing to record
+            None => {
+                tracing::warn!(
+                    region_id = %region_id,
+                    pc_id = %pc_id,
+                    "Cannot record visit: region not found"
+                );
+                return Ok(()); // Region not found, nothing to record
+            }
         };
 
         let now = self.clock.now(); // Real time for created_at

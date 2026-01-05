@@ -183,109 +183,108 @@ The Suggested mode correctly uses these variables for its period_change field.
 ## Phase 6: High - WebSocket Broadcast Issues (Complexity: Medium)
 
 ### CR4-6.1 - Add UserJoined Broadcast
-**Status**: PENDING
-**Files**: `crates/engine/src/api/websocket.rs`
-**Lines**: 288-403 (handle_join_world)
+**Status**: COMPLETE
+**Files**: 
+- `crates/engine/src/api/websocket.rs`
+- `crates/engine/src/api/connections.rs`
 
 **Tasks**:
-- [ ] After successful join, broadcast UserJoined to other world members
+- [x] Add `broadcast_to_world_except` method to ConnectionManager
+- [x] After successful join, broadcast UserJoined to other world members
 
 ---
 
 ### CR4-6.2 - Add UserLeft Broadcast
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/api/websocket.rs`
-**Lines**: 141-144 (LeaveWorld handler)
 
 **Tasks**:
-- [ ] Before leaving, broadcast UserLeft to other world members
+- [x] Before leaving, broadcast UserLeft to other world members
 
 ---
 
 ## Phase 7: High - Entity Bugs (Complexity: Low)
 
 ### CR4-7.1 - Fix Observation Silent Failure
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/observation.rs`
-**Lines**: 94-98
 
 **Issue**: Returns `Ok(())` on invalid region instead of error or warning.
 
 **Tasks**:
-- [ ] Add tracing::warn when region not found
-- [ ] Consider returning error instead of silent success
+- [x] Add tracing::warn when region not found
+- [x] Keep returning Ok() as it's a valid edge case (not an error)
 
 ---
 
 ## Phase 8: Medium - Protocol/Domain Conversions (Complexity: Medium)
 
 ### CR4-8.1 - Add TimeOfDay Conversion
-**Status**: PENDING
-**Files**: 
-- `crates/protocol/src/types.rs`
-- Or create adapter module
+**Status**: COMPLETE
+**Files**: `crates/protocol/src/types.rs`
 
 **Tasks**:
-- [ ] Add `From<domain::TimeOfDay> for TimeOfDayData`
-- [ ] Add `From<TimeOfDayData> for domain::TimeOfDay`
+- [x] Add `From<domain::TimeOfDay> for TimeOfDayData`
+- [x] Add `From<TimeOfDayData> for domain::TimeOfDay`
 
 ---
 
 ### CR4-8.2 - Add Missing Unknown Variants
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/protocol/src/types.rs`
 
 **Tasks**:
-- [ ] Add `#[serde(other)] Unknown` to TriggerCategory
-- [ ] Add `#[serde(other)] Unknown` to TriggerFieldType
+- [x] Add `#[serde(other)] Unknown` to TriggerCategory
+- [x] Add `#[serde(other)] Unknown` to TriggerFieldType
+- [x] Update TriggerCategory::label() to handle Unknown variant
 
 ---
 
 ## Phase 9: Medium - Neo4j Issues (Complexity: Medium)
 
 ### CR4-9.1 - Fix N+1 Query in Staging
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
-**Lines**: 123-148, 278-304
 
 **Tasks**:
-- [ ] Refactor get_pending_staging to use COLLECT() for NPCs
-- [ ] Refactor get_staging_history similarly
+- [x] Refactor get_pending_staging to use COLLECT() for NPCs
+- [x] Refactor get_staging_history similarly
+- [x] Add row_to_staging_with_npcs and parse_collected_npcs helpers
 
 ---
 
 ### CR4-9.2 - Fix Item UNION ORDER BY
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/item_repo.rs`
-**Lines**: 87-95
 
 **Tasks**:
-- [ ] Move ORDER BY outside the UNION
-- [ ] Fix relationship name (STAGED_IN vs CURRENTLY_IN)
+- [x] Move ORDER BY outside the UNION (was incorrectly inside each branch)
+- [x] Verified relationship names are correct (IN_REGION, CURRENTLY_IN)
 
 ---
 
 ## Phase 10: Low - Cleanup (Complexity: Low)
 
 ### CR4-10.1 - Remove Unused Clock Fields
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/use_cases/movement/enter_region.rs`
 - `crates/engine/src/use_cases/movement/exit_location.rs`
+- `crates/engine/src/app.rs`
 
 **Tasks**:
-- [ ] Remove unused `clock` field from both structs
-- [ ] Update constructors and App wiring
+- [x] Remove unused `clock` field from EnterRegion
+- [x] Remove unused `clock` field from ExitLocation
+- [x] Update App wiring
 
 ---
 
 ### CR4-10.2 - Fix Flag Deduplication
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/flag.rs`
-**Lines**: 32-41
 
 **Tasks**:
-- [ ] Use HashSet to deduplicate flags in get_all_flags_for_pc
+- [x] Use HashSet to deduplicate flags in get_all_flags_for_pc
 
 ---
 
@@ -300,12 +299,12 @@ The Suggested mode correctly uses these variables for its period_change field.
 | Phase 3 | 2 | 2 | COMPLETE |
 | Phase 4 | 1 | 1 | COMPLETE |
 | Phase 5 | 3 | 3 | COMPLETE |
-| Phase 6 | 2 | 0 | PENDING |
-| Phase 7 | 1 | 0 | PENDING |
-| Phase 8 | 2 | 0 | PENDING |
-| Phase 9 | 2 | 0 | PENDING |
-| Phase 10 | 2 | 0 | PENDING |
-| **Total** | **21** | **0** | **PENDING** |
+| Phase 6 | 2 | 2 | COMPLETE |
+| Phase 7 | 1 | 1 | COMPLETE |
+| Phase 8 | 2 | 2 | COMPLETE |
+| Phase 9 | 2 | 2 | COMPLETE |
+| Phase 10 | 2 | 2 | COMPLETE |
+| **Total** | **21** | **21** | **COMPLETE** |
 
 ---
 
@@ -313,4 +312,7 @@ The Suggested mode correctly uses these variables for its period_change field.
 
 | Commit | Task | Description |
 |--------|------|-------------|
-| - | - | - |
+| 8761791 | Phase 1 | Add delete operations for all major entities |
+| 277462d | Phase 2, 3 | Cleanup unused vars and clear UI state on disconnect |
+| c52b3cc | Phase 4, 5 | Extract scene helper and fix UI state bugs |
+| TBD | Phase 6-10 | WebSocket broadcasts, observation warning, protocol types, Neo4j fixes, cleanup |

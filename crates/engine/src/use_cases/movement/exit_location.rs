@@ -4,10 +4,10 @@
 //! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, Scene as DomainScene};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 
 use crate::entities::{Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, Staging, World};
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::SuggestTime;
 
 use super::enter_region::EnterRegionResult;
@@ -27,7 +27,6 @@ pub struct ExitLocation {
     flag: Arc<Flag>,
     world: Arc<World>,
     suggest_time: Arc<SuggestTime>,
-    clock: Arc<dyn ClockPort>,
 }
 
 impl ExitLocation {
@@ -42,7 +41,6 @@ impl ExitLocation {
         flag: Arc<Flag>,
         world: Arc<World>,
         suggest_time: Arc<SuggestTime>,
-        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -55,7 +53,6 @@ impl ExitLocation {
             flag,
             world,
             suggest_time,
-            clock,
         }
     }
 

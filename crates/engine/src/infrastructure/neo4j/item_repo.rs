@@ -96,13 +96,12 @@ impl ItemRepo for Neo4jItemRepo {
     /// List items in a region (items that are "in" the region via some relationship)
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Item>, RepoError> {
         // Items in a region could be:
-        // - Items possessed by characters in the region
-        // - Items placed in the region directly
-        // For now, we'll return items connected to the region
+        // - Items possessed by characters in the region (via CURRENTLY_IN)
+        // - Items placed in the region directly (via IN_REGION)
+        // Note: ORDER BY must be outside UNION in Cypher
         let q = query(
             "MATCH (r:Region {id: $region_id})<-[:IN_REGION]-(i:Item)
             RETURN i
-            ORDER BY i.name
             UNION
             MATCH (r:Region {id: $region_id})<-[:CURRENTLY_IN]-(c:Character)-[:POSSESSES]->(i:Item)
             RETURN i
