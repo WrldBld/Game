@@ -138,6 +138,9 @@ pub enum AcquisitionMethod {
     Looted,
     Crafted,
     Inherited,
+    /// Unknown method for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl std::fmt::Display for AcquisitionMethod {
@@ -149,6 +152,7 @@ impl std::fmt::Display for AcquisitionMethod {
             Self::Looted => write!(f, "Looted"),
             Self::Crafted => write!(f, "Crafted"),
             Self::Inherited => write!(f, "Inherited"),
+            Self::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -164,7 +168,7 @@ impl std::str::FromStr for AcquisitionMethod {
             "Looted" => Ok(Self::Looted),
             "Crafted" => Ok(Self::Crafted),
             "Inherited" => Ok(Self::Inherited),
-            _ => Err(()),
+            _ => Ok(Self::Unknown),
         }
     }
 }
@@ -177,6 +181,9 @@ pub enum FrequencyLevel {
     Sometimes,
     Often,
     Always,
+    /// Unknown frequency for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl std::fmt::Display for FrequencyLevel {
@@ -186,6 +193,7 @@ impl std::fmt::Display for FrequencyLevel {
             Self::Sometimes => write!(f, "Sometimes"),
             Self::Often => write!(f, "Often"),
             Self::Always => write!(f, "Always"),
+            Self::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -199,7 +207,7 @@ impl std::str::FromStr for FrequencyLevel {
             "Sometimes" => Ok(Self::Sometimes),
             "Often" => Ok(Self::Often),
             "Always" => Ok(Self::Always),
-            _ => Err(()),
+            _ => Ok(Self::Unknown),
         }
     }
 }

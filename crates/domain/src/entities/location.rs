@@ -126,6 +126,9 @@ pub enum LocationType {
     Exterior,
     /// Abstract or metaphysical location (dreamscape, etc.)
     Abstract,
+    /// Unknown type for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 /// A connection between two locations

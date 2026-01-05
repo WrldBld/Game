@@ -393,6 +393,9 @@ pub enum ChallengeType {
     OpposedCheck,
     /// Multi-roll challenge requiring accumulated successes
     ComplexChallenge,
+    /// Unknown type for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl ChallengeType {
@@ -403,6 +406,7 @@ impl ChallengeType {
             Self::SavingThrow => "Saving Throw",
             Self::OpposedCheck => "Opposed Check",
             Self::ComplexChallenge => "Complex Challenge",
+            Self::Unknown => "Unknown",
         }
     }
 }

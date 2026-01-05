@@ -257,17 +257,17 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-6.2 - Add Missing Unknown Variants
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/domain/src/entities/*.rs`
 **Issue**: Multiple enums lack forward-compatible Unknown variants.
 
 **Tasks**:
-- [ ] Add Unknown to ChallengeType
-- [ ] Add Unknown to Difficulty
-- [ ] Add Unknown to LocationType
-- [ ] Add Unknown to OutcomeTrigger
-- [ ] Add Unknown to AcquisitionMethod
-- [ ] Add Unknown to FrequencyLevel
+- [x] Add Unknown to ChallengeType
+- [x] Difficulty already has Custom(String) for forward compat - SKIPPED
+- [x] Add Unknown to LocationType
+- [x] OutcomeTrigger has struct variants making Unknown impractical - SKIPPED
+- [x] Add Unknown to AcquisitionMethod (+ update Display/FromStr)
+- [x] Add Unknown to FrequencyLevel (+ update Display/FromStr)
 
 ---
 
@@ -399,7 +399,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-5.2 | Movement staging extraction | PENDING | - |
 | CR3-5.3 | Time suggestion extraction | PENDING | - |
 | CR3-6.1 | Serde case fixes | COMPLETE | - |
-| CR3-6.2 | Unknown variants | PENDING | - |
+| CR3-6.2 | Unknown variants | COMPLETE | - |
 | CR3-7.1 | Lore state | PENDING | - |
 | CR3-7.2 | ViewMode PC fix | PENDING | - |
 | CR3-7.3 | Error message clear | PENDING | - |
