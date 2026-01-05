@@ -153,20 +153,165 @@ impl WorldRepo for Neo4jWorldRepo {
     }
 
     async fn delete(&self, id: WorldId) -> Result<(), RepoError> {
-        // Delete all related entities first (cascading delete)
-        let q = query(
-            "MATCH (w:World {id: $id})
-            OPTIONAL MATCH (w)-[*]->(related)
-            DETACH DELETE related, w",
+        // Delete world entities in order to respect dependencies.
+        // Uses explicit node types to avoid deleting unrelated data.
+        let world_id_str = id.to_string();
+
+        // 1. Delete Stagings (depend on Regions)
+        let q1 = query(
+            "MATCH (s:Staging {world_id: $id})
+            DETACH DELETE s",
         )
-        .param("id", id.to_string());
+        .param("id", world_id_str.clone());
+        self.graph.run(q1).await.map_err(|e| RepoError::Database(e.to_string()))?;
 
-        self.graph
-            .run(q)
-            .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        // 2. Delete NarrativeEvents, EventChains, StoryEvents
+        let q2 = query(
+            "MATCH (e:NarrativeEvent {world_id: $id})
+            DETACH DELETE e",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q2).await.map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Deleted world: {}", id);
+        let q2b = query(
+            "MATCH (ec:EventChain {world_id: $id})
+            DETACH DELETE ec",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q2b).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let q2c = query(
+            "MATCH (se:StoryEvent {world_id: $id})
+            DETACH DELETE se",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q2c).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 3. Delete Scenes
+        let q3 = query(
+            "MATCH (s:Scene {world_id: $id})
+            DETACH DELETE s",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q3).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 4. Delete Challenges
+        let q4 = query(
+            "MATCH (c:Challenge {world_id: $id})
+            DETACH DELETE c",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q4).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 5. Delete RegionStates, then Regions
+        let q5a = query(
+            "MATCH (rs:RegionState)-[:STATE_OF]->(r:Region)-[:WITHIN]->(l:Location {world_id: $id})
+            DETACH DELETE rs",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q5a).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let q5b = query(
+            "MATCH (r:Region)-[:WITHIN]->(l:Location {world_id: $id})
+            DETACH DELETE r",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q5b).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 6. Delete LocationStates, then Locations
+        let q6a = query(
+            "MATCH (ls:LocationState)-[:STATE_OF]->(l:Location {world_id: $id})
+            DETACH DELETE ls",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q6a).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let q6b = query(
+            "MATCH (l:Location {world_id: $id})
+            DETACH DELETE l",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q6b).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 7. Delete Character relationships (Wants, NpcDispositions), then Characters
+        let q7a = query(
+            "MATCH (w:Want)-[:WANTS]->(c:Character {world_id: $id})
+            DETACH DELETE w",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q7a).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let q7b = query(
+            "MATCH (c:Character {world_id: $id})
+            DETACH DELETE c",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q7b).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 8. Delete PlayerCharacters
+        let q8 = query(
+            "MATCH (pc:PlayerCharacter {world_id: $id})
+            DETACH DELETE pc",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q8).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 9. Delete Items
+        let q9 = query(
+            "MATCH (i:Item {world_id: $id})
+            DETACH DELETE i",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q9).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 10. Delete Acts
+        let q10 = query(
+            "MATCH (a:Act {world_id: $id})
+            DETACH DELETE a",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q10).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 11. Delete Lore and LoreChunks
+        let q11a = query(
+            "MATCH (lc:LoreChunk)-[:CHUNK_OF]->(l:Lore {world_id: $id})
+            DETACH DELETE lc",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q11a).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let q11b = query(
+            "MATCH (l:Lore {world_id: $id})
+            DETACH DELETE l",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q11b).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 12. Delete Observations
+        let q12 = query(
+            "MATCH (o:Observation)-[:OBSERVED_BY]->(pc:PlayerCharacter {world_id: $id})
+            DETACH DELETE o",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q12).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 13. Delete Flags
+        let q13 = query(
+            "MATCH (f:Flag)-[:FLAG_OF]->(w:World {id: $id})
+            DETACH DELETE f",
+        )
+        .param("id", world_id_str.clone());
+        self.graph.run(q13).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // 14. Finally delete the World itself
+        let q14 = query(
+            "MATCH (w:World {id: $id})
+            DETACH DELETE w",
+        )
+        .param("id", world_id_str);
+        self.graph.run(q14).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::info!(world_id = %id, "Deleted world and all related entities");
         Ok(())
     }
 }

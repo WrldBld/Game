@@ -45,7 +45,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 2: Critical - Fix Dangerous World Deletion (Complexity: Medium)
 
 ### CR5-2.1 - Safe World Deletion with Explicit Node Types
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/infrastructure/neo4j/world_repo.rs`
 **Lines**: 155-171
 
@@ -408,7 +408,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase | Items | Completed | Status |
 |-------|-------|-----------|--------|
 | Phase 1 | 2 | 2 | COMPLETE |
-| Phase 2 | 1 | 0 | PENDING |
+| Phase 2 | 1 | 1 | COMPLETE |
 | Phase 3 | 1 | 0 | PENDING |
 | Phase 4 | 1 | 0 | PENDING |
 | Phase 5 | 3 | 0 | PENDING |
