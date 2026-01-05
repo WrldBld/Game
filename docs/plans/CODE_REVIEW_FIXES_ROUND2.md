@@ -45,14 +45,15 @@
 ---
 
 ### CR2-1.4 - Duplicate ConversationError Types
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/use_cases/conversation/continue_conversation.rs`
 **Issue**: `ConversationError` defined in both `start.rs` and `continue_conversation.rs`
 **Impact**: Import conflicts, type confusion
 
 **Tasks**:
-- [ ] Remove duplicate `ConversationError` from `continue_conversation.rs`
-- [ ] Import from `start.rs` or create shared type in `mod.rs`
+- [x] Add `NpcLeftRegion` variant to shared `ConversationError` in `start.rs`
+- [x] Remove duplicate `ConversationError` from `continue_conversation.rs`
+- [x] Import shared error from `start.rs`
 
 ---
 
@@ -254,7 +255,7 @@
 | CR2-1.1 | Protocol GameTimeConfig | COMPLETE | - |
 | CR2-1.2 | Protocol AdHocOutcomes | COMPLETE | - |
 | CR2-1.3 | WebSocket Unknown Message | COMPLETE | - |
-| CR2-1.4 | Duplicate ConversationError | PENDING | - |
+| CR2-1.4 | Duplicate ConversationError | COMPLETE | - |
 | CR2-2.1 | UI State clear_scene | PENDING | - |
 | CR2-2.2 | ResponseApproved handler | PENDING | - |
 | CR2-2.3 | StagingReady NPC names | PENDING | - |

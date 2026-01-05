@@ -149,6 +149,8 @@ pub enum ConversationError {
     PlayerNotInRegion,
     #[error("NPC is not in the player's region")]
     NpcNotInRegion,
+    #[error("NPC has left the region")]
+    NpcLeftRegion,
     #[error("Queue error: {0}")]
     QueueError(String),
     #[error("Repository error: {0}")]

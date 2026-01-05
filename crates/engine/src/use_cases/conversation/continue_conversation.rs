@@ -9,7 +9,10 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
 use crate::entities::{Character, PlayerCharacter, Staging};
-use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::infrastructure::ports::{ClockPort, QueuePort};
+
+// Re-use the shared ConversationError from start.rs
+use super::start::ConversationError;
 
 /// Response from continuing a conversation.
 #[derive(Debug)]
@@ -118,18 +121,4 @@ impl ContinueConversation {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ConversationError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("NPC not found")]
-    NpcNotFound,
-    #[error("Player is not in a region")]
-    PlayerNotInRegion,
-    #[error("NPC has left the region")]
-    NpcLeftRegion,
-    #[error("Queue error: {0}")]
-    QueueError(String),
-    #[error("Repository error: {0}")]
-    Repo(#[from] RepoError),
-}
+
