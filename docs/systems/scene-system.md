@@ -47,7 +47,7 @@ The visual novel format provides:
 
 - [x] **US-SCN-007**: As a DM, I can feature characters in scenes with roles
   - *Implementation*: FEATURES_CHARACTER edge with role and entrance_cue
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/scene_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 
 - [x] **US-SCN-008**: As a DM, scenes resolve based on PC location
   - *Implementation*: Scene entity `resolve_scene()` method, integrated in EnterRegion use case

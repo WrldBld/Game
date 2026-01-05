@@ -27,7 +27,7 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-002**: As a DM, I can queue image generation with prompts
   - *Implementation*: GenerationBatch entity, AssetGenerationQueue
-  - *Files*: `crates/engine-app/src/application/services/asset_generation_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/assets/queue.rs`
 
 - [x] **US-AST-003**: As a DM, I can see real-time generation progress
   - *Implementation*: GenerationQueued/Progress/Complete/Failed WebSocket messages
@@ -39,7 +39,7 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-005**: As a DM, I can set a generated asset as active for an entity
   - *Implementation*: Asset activation sets portrait_asset/sprite_asset/backdrop_asset
-  - *Files*: `crates/engine-app/src/application/services/generation_service.rs`
+  - *Files*: `crates/engine/src/entities/assets.rs`
 
 - [x] **US-AST-006**: As a DM, I can cancel/retry/clear generation batches
   - *Implementation*: Batch management UI with status-appropriate actions
@@ -47,7 +47,7 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-007**: As a DM, I can use style references for consistent art
   - *Implementation*: StyleReferenceMapping, IPAdapter detection
-  - *Files*: `crates/engine-adapters/src/infrastructure/comfyui.rs`
+  - *Files*: `crates/engine/src/infrastructure/comfyui.rs`
 
 - [x] **US-AST-008**: As a DM, I can see ComfyUI connection status
   - *Implementation*: ComfyUIBanner component with health indicator
@@ -300,15 +300,13 @@ pub enum BatchStatus {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/gallery_asset.rs` | Asset entity |
-| Domain | `src/domain/entities/generation_batch.rs` | Batch entity |
-| Domain | `src/domain/entities/workflow_config.rs` | Workflow entity |
-| Application | `src/application/services/asset_service.rs` | Asset CRUD |
-| Application | `src/application/services/generation_service.rs` | Generation logic |
-| Application | `src/application/services/asset_generation_queue_service.rs` | Queue |
-| Application | `src/application/services/workflow_service.rs` | Workflow exec |
-| Infrastructure | `src/infrastructure/comfyui.rs` | ComfyUI client |
-| Infrastructure | `src/infrastructure/persistence/asset_repository.rs` | Neo4j |
+| Domain | `crates/domain/src/entities/gallery_asset.rs` | Asset entity |
+| Domain | `crates/domain/src/entities/generation_batch.rs` | Batch entity |
+| Domain | `crates/domain/src/entities/workflow_config.rs` | Workflow entity |
+| Entity | `crates/engine/src/entities/assets.rs` | Asset operations |
+| Use Case | `crates/engine/src/use_cases/assets/queue.rs` | Generation queue |
+| Infrastructure | `crates/engine/src/infrastructure/comfyui.rs` | ComfyUI client |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/asset_repo.rs` | Neo4j persistence |
 
 ### Player
 

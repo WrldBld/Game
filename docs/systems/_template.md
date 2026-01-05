@@ -18,7 +18,7 @@ How this system affects player experience. What gameplay loop it enables. Why it
 
 - [x] **US-001**: As a [role], I can [action] so that [benefit]
   - *Implementation*: Brief summary of how it was done
-  - *Files*: `crates/engine-*/src/...`, `crates/player-*/src/...`
+  - *Files*: `crates/engine/src/...`, `crates/player-*/src/...`
 
 - [x] **US-002**: As a [role], I can [action] so that [benefit]
   - *Implementation*: Summary
@@ -114,17 +114,18 @@ How this system affects player experience. What gameplay loop it enables. Why it
 
 ## Key Files
 
-### Engine
+### Engine (Simplified Architecture)
 
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/xxx.rs` | Entity definition |
 | Domain | `crates/domain/src/value_objects/xxx.rs` | Value objects |
-| Ports | `crates/engine-ports/src/outbound/*.rs` | Port traits |
-| Application | `crates/engine-app/src/application/services/xxx_service.rs` | Business logic |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/xxx_repository.rs` | Neo4j impl |
-| Adapters | `crates/engine-adapters/src/infrastructure/websocket/handlers/*.rs` | WebSocket handlers |
-| Adapters | `crates/engine-adapters/src/infrastructure/http/*.rs` | HTTP routes (uploads, exports) |
+| Entity | `crates/engine/src/entities/xxx.rs` | Entity operations (wraps repo) |
+| Use Case | `crates/engine/src/use_cases/xxx/mod.rs` | Orchestration logic |
+| Ports | `crates/engine/src/infrastructure/ports.rs` | All port traits |
+| Repository | `crates/engine/src/infrastructure/neo4j/xxx_repo.rs` | Neo4j implementation |
+| API | `crates/engine/src/api/websocket.rs` | WebSocket handlers |
+| API | `crates/engine/src/api/http.rs` | HTTP routes |
 
 ### Player
 

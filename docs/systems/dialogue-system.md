@@ -24,27 +24,27 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-001**: As a player, I can speak to NPCs and receive contextual responses
   - *Implementation*: PlayerAction → LLMQueueService → Ollama → DM approval → DialogueResponse
-  - *Files*: `crates/engine-app/src/application/services/llm_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
 
 - [x] **US-DLG-002**: As a DM, I can approve LLM responses before players see them
   - *Implementation*: ApprovalRequired WebSocket message, ApprovalDecision handling
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-DLG-003**: As a DM, I can modify LLM responses before approving
   - *Implementation*: AcceptWithModification decision type, modified dialogue text
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`
 
 - [x] **US-DLG-004**: As a DM, I can reject and request regeneration with feedback
   - *Implementation*: Reject decision type, feedback included in retry, max 3 retries
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`
 
 - [x] **US-DLG-005**: As a DM, I can take over and write my own response
   - *Implementation*: TakeOver decision type, DM-written dialogue
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`
 
 - [x] **US-DLG-006**: As a DM, I can approve/reject LLM tool call suggestions
   - *Implementation*: ProposedToolInfo in approval, approved_tools filtering
-  - *Files*: `crates/engine-app/src/application/services/tool_execution_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/tool_execution.rs`
 
 - [x] **US-DLG-007**: As a DM, I can set directorial notes that guide the LLM
   - *Implementation*: DirectorialNotes value object, included in LLM system prompt
@@ -56,11 +56,11 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-009**: As a DM, I can configure token budgets per context category
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
-  - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine-adapters/src/infrastructure/http/settings_routes.rs`
+  - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine/src/api/http.rs`
 
 - [x] **US-DLG-010**: As a DM, I can customize the LLM response format through configurable templates
   - *Implementation*: `PromptBuilder` resolves `dialogue.response_format`, `dialogue.challenge_suggestion_format`, and `dialogue.narrative_event_format` templates via `PromptTemplateService`
-  - *Files*: `crates/engine-app/src/application/services/llm/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
 
 ### Implemented (Dialogue Tracking Enhancement)
 
@@ -269,16 +269,16 @@ pub enum GameTool {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/value_objects/llm_context.rs` | Context structures |
-| Domain | `src/domain/value_objects/context_budget.rs` | Budget config |
-| Domain | `src/domain/value_objects/game_tools.rs` | Tool definitions |
-| Domain | `src/domain/value_objects/directorial.rs` | Directorial notes |
-| Application | `src/application/services/prompt_context_service.rs` | Build context |
-| Application | `src/application/services/llm/prompt_builder.rs` | Build prompts |
-| Application | `src/application/services/llm_queue_service.rs` | LLM processing |
-| Application | `src/application/services/tool_execution_service.rs` | Execute tools |
-| Infrastructure | `src/infrastructure/ollama.rs` | LLM client |
-| Infrastructure | `src/infrastructure/websocket.rs` | Approval handling |
+| Domain | `crates/domain/src/value_objects/llm_context.rs` | Context structures |
+| Domain | `crates/domain/src/value_objects/context_budget.rs` | Budget config |
+| Domain | `crates/domain/src/value_objects/game_tools.rs` | Tool definitions |
+| Domain | `crates/domain/src/value_objects/directorial.rs` | Directorial notes |
+| Entity | `crates/engine/src/entities/llm.rs` | LLM operations |
+| Use Case | `crates/engine/src/use_cases/conversation/prompt_builder.rs` | Build prompts |
+| Use Case | `crates/engine/src/use_cases/conversation/llm_queue.rs` | LLM processing |
+| Use Case | `crates/engine/src/use_cases/conversation/tool_execution.rs` | Execute tools |
+| Infrastructure | `crates/engine/src/infrastructure/ollama.rs` | LLM client |
+| API | `crates/engine/src/api/websocket.rs` | Approval handling |
 
 ### Player
 

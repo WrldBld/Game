@@ -32,7 +32,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-001**: As a player, I see NPCs appear after entering a region when the DM approves
   - *Implementation*: Background approval workflow with StagingPending → StagingReady messages
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/views/pc_view.rs`
 
 - [x] **US-STG-002**: As a DM, I see a staging approval popup when a player enters an unstaged region
   - *Implementation*: StagingApprovalRequired message triggers popup with rule/LLM options
@@ -40,7 +40,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-003**: As a DM, I can choose between rule-based and LLM-based NPC suggestions
   - *Implementation*: Both options shown side-by-side with reasoning
-  - *Files*: `crates/engine-app/src/application/services/staging_service.rs`
+  - *Files*: `crates/engine/src/entities/staging.rs`
 
 - [x] **US-STG-004**: As a DM, I can customize which NPCs are present by toggling checkboxes
   - *Implementation*: Manual override of any suggestion before approval
@@ -48,7 +48,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-005**: As a DM, I can regenerate LLM suggestions with additional guidance
   - *Implementation*: Text field for DM guidance, re-query LLM with context
-  - *Files*: `crates/engine-app/src/application/services/staging_service.rs`
+  - *Files*: `crates/engine/src/entities/staging.rs`
 
 - [x] **US-STG-006**: As a DM, I can use the previous staging if it's still relevant
   - *Implementation*: Previous staging shown with "Use Previous" button
@@ -72,7 +72,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-011**: As a DM, I can view staging history for a region
   - *Implementation*: History list in pre-staging UI (via StagingRepository.get_history)
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
 
 - [x] **US-STG-012**: As a player, I see a loading indicator while staging is pending
   - *Implementation*: Dimmed backdrop with "Setting the scene..." overlay
@@ -88,8 +88,8 @@ WrldBldr uses theatre and story terminology throughout:
     - DM UI shows hidden state and allows toggling
   - *Key files*:
     - `crates/domain/src/entities/staging.rs`
-    - `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs`
-    - `crates/engine-adapters/src/infrastructure/websocket.rs`
+    - `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
+    - `crates/engine/src/api/websocket.rs`
     - `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
 
 ---
@@ -444,11 +444,10 @@ pub struct StagingContext {
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/staging.rs` | Staging entity |
 | Domain | `crates/domain/src/value_objects/staging_context.rs` | LLM context types |
-| Application | `crates/engine-app/src/application/services/staging_service.rs` | Core staging logic |
-| Application | `crates/engine-app/src/application/services/staging_context_provider.rs` | Context provider |
-| Application | `crates/engine-ports/src/outbound/staging_repository_port.rs` | Repository trait |
-| Infrastructure | `crates/engine-adapters/src/infrastructure/persistence/staging_repository.rs` | Neo4j implementation |
-| Infrastructure | `crates/engine-adapters/src/infrastructure/websocket.rs` | Staging message handlers |
+| Entity | `crates/engine/src/entities/staging.rs` | Core staging logic |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository trait |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Neo4j implementation |
+| API | `crates/engine/src/api/websocket.rs` | Staging message handlers |
 
 ### Player
 

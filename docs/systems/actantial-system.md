@@ -276,12 +276,10 @@ Opponents:
 | Domain | `crates/domain/src/entities/goal.rs` | Goal entity |
 | Domain | `crates/domain/src/value_objects/actantial_context.rs` | Actantial context types |
 | Domain | `crates/domain/src/value_objects/llm_context.rs` | MotivationsContext for LLM |
-| Ports | `crates/engine-ports/src/outbound/character_repository/want_port.rs` | Want port |
-| Ports | `crates/engine-ports/src/outbound/character_repository/actantial_port.rs` | Actantial port |
-| Ports | `crates/engine-ports/src/outbound/goal_repository_port.rs` | Goal port |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs` | Want/actantial persistence |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/goal_repository.rs` | Goal persistence |
-| Application | `crates/engine-app/src/application/services/actantial_context_service.rs` | Context builder |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Want, actantial, goal port traits |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Want/actantial persistence |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Goal persistence |
+| Entity | `crates/engine/src/entities/character.rs` | Actantial context operations |
 
 ### Player
 

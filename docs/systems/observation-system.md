@@ -25,15 +25,15 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-001**: As a player, my observations are recorded when NPCs appear in scenes
   - *Implementation*: `record_observation()` called when scene displays NPCs
-  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 
 - [x] **US-OBS-002**: As a DM, I can share NPC location information with a player
   - *Implementation*: `ShareNpcLocation` WebSocket message creates `HeardAbout` observation
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`
 
 - [x] **US-OBS-003**: As a player, challenge successes can reveal NPC information
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
-  - *Files*: `crates/engine-app/src/application/services/event_effect_executor.rs`
+  - *Files*: `crates/engine/src/use_cases/narrative/execute_effects.rs`
 
 - [x] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
   - *Implementation*: `KnownNpcsPanel` component with observation cards and type icons
@@ -52,7 +52,7 @@ This supports mystery scenarios where players must investigate to find people.
     - Approach events can set `reveal=false` to create an unrevealed direct observation
     - Observation list API scrubs identity when unrevealed
     - Player Known NPCs UI respects the reveal flag
-  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine-adapters/src/infrastructure/persistence/observation_repository.rs`
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 
 ---
 
@@ -192,9 +192,9 @@ pub struct ObservationSummary {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/observation.rs` | Observation entity |
-| Infrastructure | `src/infrastructure/persistence/observation_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/websocket/handlers/misc.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
+| Domain | `crates/domain/src/entities/observation.rs` | Observation entity |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/observation_repo.rs` | Neo4j persistence |
+| API | `crates/engine/src/api/websocket.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
 
 ### Player
 

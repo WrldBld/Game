@@ -162,10 +162,9 @@ The Inventory System provides classic RPG item management:
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/item.rs` | Item entity |
-| Ports | `crates/engine-ports/src/outbound/item_repository_port.rs` | Repository trait |
-| Ports | `crates/engine-ports/src/outbound/player_character_repository/inventory_port.rs` | PC inventory port |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/item_repository.rs` | Neo4j implementation |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/player_character_repository.rs` | Inventory edges |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository traits |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/item_repo.rs` | Neo4j item persistence |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/player_character_repo.rs` | Inventory edges |
 
 ### Player
 

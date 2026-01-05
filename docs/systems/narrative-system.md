@@ -36,15 +36,15 @@ This system provides the scaffolding for emergent storytelling:
 
 - [x] **US-NAR-004**: As a DM, the Engine detects when trigger conditions are met
   - *Implementation*: TriggerEvaluationService evaluates triggers against GameStateSnapshot
-  - *Files*: `crates/engine-app/src/application/services/trigger_evaluation_service.rs`
+  - *Files*: `crates/engine/src/entities/narrative.rs`
 
 - [x] **US-NAR-005**: As a DM, the LLM can suggest triggering events during dialogue
   - *Implementation*: LLM outputs `<narrative_event_suggestion>` tags
-  - *Files*: `crates/engine-app/src/application/services/llm_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
 
 - [x] **US-NAR-006**: As a DM, I can approve/reject event triggers before they execute
   - *Implementation*: NarrativeEventSuggestionDecision WebSocket message
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`
 
 - [x] **US-NAR-007**: As a DM, I can browse and manage a narrative event library
   - *Implementation*: NarrativeEventLibrary with search, filters, favorites

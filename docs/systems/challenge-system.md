@@ -32,11 +32,11 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-003**: As a player, the LLM suggests challenges during dialogue
   - *Implementation*: LLM outputs `<challenge_suggestion>` XML tags, parsed by LlmService
-  - *Files*: `crates/engine-app/src/application/services/llm_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
 
 - [x] **US-CHAL-004**: As a DM, I can approve or reject challenge suggestions
   - *Implementation*: ChallengeSuggestionDecision WebSocket message, DM approval popup
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-CHAL-005**: As a player, I can roll dice for challenges
   - *Implementation*: ChallengeRollModal with d20 rolls, platform-specific randomness
@@ -48,7 +48,7 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-007**: As a DM, I can approve/edit challenge outcomes before they execute
   - *Implementation*: ChallengeOutcomeApproval component, DM can edit narrative text
-  - *Files*: `crates/engine-app/src/application/services/challenge_resolution_service.rs`
+  - *Files*: `crates/engine/src/use_cases/challenge/resolve.rs`
 
 - [x] **US-CHAL-008**: As a DM, I can browse and manage a challenge library
   - *Implementation*: ChallengeLibrary with search, filtering, favorites
@@ -60,12 +60,12 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-010**: As a DM, I can bind challenges to specific regions (not just locations)
   - *Implementation*: `AVAILABLE_AT_REGION` edge with `ChallengeRegionAvailability` entity
-  - *Files*: `crates/domain/src/entities/challenge.rs`, `crates/engine-adapters/src/infrastructure/persistence/challenge_repository.rs`
+  - *Files*: `crates/domain/src/entities/challenge.rs`, `crates/engine/src/infrastructure/neo4j/challenge_repo.rs`
   - *Completed*: 2025-12-24
 
 - [x] **US-CHAL-011**: Character stats are updated when challenge outcomes modify them
   - *Implementation*: `CharacterStatUpdated` message broadcast after approval; handler resolves "active_pc" placeholder
-  - *Files*: `crates/engine-app/src/application/services/challenge_outcome_approval_service.rs`, `crates/protocol/src/messages.rs`
+  - *Files*: `crates/engine/src/use_cases/approval/challenge_outcome.rs`, `crates/protocol/src/messages.rs`
   - *Completed*: 2025-12-26
 
 ### Future Improvements
@@ -294,13 +294,13 @@ pub enum OutcomeTrigger {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/challenge.rs` | Challenge entity |
-| Domain | `src/domain/entities/skill.rs` | Skill entity |
-| Application | `src/application/services/challenge_service.rs` | CRUD |
-| Application | `src/application/services/challenge_resolution_service.rs` | Resolution |
-| Application | `src/application/services/challenge_outcome_approval_service.rs` | Approval |
-| Infrastructure | `src/infrastructure/persistence/challenge_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/websocket/handlers/challenge.rs` | WebSocket handlers |
+| Domain | `crates/domain/src/entities/challenge.rs` | Challenge entity |
+| Domain | `crates/domain/src/entities/skill.rs` | Skill entity |
+| Entity | `crates/engine/src/entities/challenge.rs` | Challenge operations |
+| Use Case | `crates/engine/src/use_cases/challenge/resolve.rs` | Resolution |
+| Use Case | `crates/engine/src/use_cases/approval/challenge_outcome.rs` | Approval |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/challenge_repo.rs` | Neo4j persistence |
+| API | `crates/engine/src/api/websocket.rs` | WebSocket handlers |
 
 ### Player
 

@@ -29,11 +29,11 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-002**: As a DM, I can define what a character wants (their desire/goal)
   - *Implementation*: Want entity with `HAS_WANT` edge, intensity 0.0-1.0
-  - *Files*: `crates/domain/src/entities/want.rs`, `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/domain/src/entities/want.rs`, `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-CHAR-003**: As a DM, I can set who a character views as helper/opponent/sender/receiver
   - *Implementation*: `VIEWS_AS_*` edges with want_id and reason
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-CHAR-004**: As a DM, I can define relationships between characters with sentiment
   - *Implementation*: `RELATES_TO` edge with sentiment (-1.0 to 1.0) and relationship_type
@@ -41,7 +41,7 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-005**: As a DM, I can change a character's archetype and track the history
   - *Implementation*: `ARCHETYPE_CHANGED` self-referential edge with timestamp
-  - *Files*: `crates/engine-app/src/application/services/character_service.rs`
+  - *Files*: `crates/engine/src/entities/character.rs`
 
 - [x] **US-CHAR-006**: As a player, I can create a PC and bind it to a session
   - *Implementation*: PlayerCharacter entity with session binding, character sheet data
@@ -49,7 +49,7 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-007**: As a player, I can give/receive items from NPCs
   - *Implementation*: `POSSESSES` edge with quantity, equipped, acquisition_method
-  - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine-app/src/application/services/tool_execution_service.rs`
+  - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine/src/use_cases/conversation/tool_execution.rs`
 
 - [x] **US-CHAR-008**: As a DM, I can view and edit character sheets based on rule system
   - *Implementation*: CharacterSheetTemplate with dynamic field types
@@ -57,7 +57,7 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-009**: As a player, I can view my character's inventory
   - *Implementation*: Full inventory panel with item categories (All/Equipped/Consumables/Key) and actions
-  - *Files*: `crates/player-ui/src/presentation/components/inventory_panel.rs`, `crates/engine-app/src/application/dto/item.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/inventory_panel.rs`, `crates/engine/src/entities/inventory.rs`
 
 ### Pending
 
@@ -426,14 +426,12 @@ The key insight is that the same person can be a HELPER in one character's model
 | Domain | `src/domain/value_objects/actantial_context.rs` | ActantialContext, WantContext |
 | Domain | `src/domain/value_objects/llm_context.rs` | MotivationsContext for LLM |
 | Domain | `src/domain/value_objects/relationship.rs` | Relationship types |
-| Application | `src/application/services/character_service.rs` | NPC logic |
-| Application | `src/application/services/player_character_service.rs` | PC logic |
-| Application | `src/application/services/actantial_context_service.rs` | Actantial aggregation |
-| Application | `src/application/services/relationship_service.rs` | Relationship logic |
-| Infrastructure | `src/infrastructure/persistence/character_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/persistence/goal_repository.rs` | Neo4j goal impl |
-| Infrastructure | `src/infrastructure/persistence/player_character_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/websocket/handlers/request.rs` | Want/Goal via RequestPayload |
+| Entity | `crates/engine/src/entities/character.rs` | Character operations |
+| Entity | `crates/engine/src/entities/player_character.rs` | PC operations |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Neo4j character persistence |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Neo4j goal persistence |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/player_character_repo.rs` | Neo4j PC persistence |
+| API | `crates/engine/src/api/websocket.rs` | Want/Goal via RequestPayload |
 
 ### Player
 

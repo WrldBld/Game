@@ -23,31 +23,31 @@ Navigation creates the physical framework for storytelling. Players explore the 
 
 - [x] **US-NAV-001**: As a player, I can move between regions within a location so that I can explore different areas
   - *Implementation*: `MoveToRegion` WebSocket message validates connection and updates PC position
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/domain/src/entities/region.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/domain/src/entities/region.rs`
 
 - [x] **US-NAV-002**: As a player, I can exit a location to travel to a connected location so that I can explore the world
   - *Implementation*: `ExitToLocation` WebSocket message uses `EXITS_TO_LOCATION` edge, sets arrival region
-  - *Files*: `crates/engine-adapters/src/infrastructure/websocket.rs`, `crates/engine-adapters/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-003**: As a DM, I can create locations with a hierarchy (town contains tavern contains back room)
   - *Implementation*: `CONTAINS_LOCATION` edges in Neo4j, LocationService methods
-  - *Files*: `crates/engine-app/src/application/services/location_service.rs`
+  - *Files*: `crates/engine/src/entities/location.rs`
 
 - [x] **US-NAV-004**: As a DM, I can create regions within a location with spawn points
   - *Implementation*: Region entity with `is_spawn_point` flag, `HAS_REGION` edge
-  - *Files*: `crates/domain/src/entities/region.rs`, `crates/engine-adapters/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/domain/src/entities/region.rs`, `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-005**: As a DM, I can advance game time to affect NPC schedules
   - *Implementation*: `AdvanceGameTime` WebSocket message updates `GameTime`, invalidates presence cache
-  - *Files*: `crates/domain/src/value_objects/game_time.rs`, `crates/engine-adapters/src/infrastructure/websocket.rs`
+  - *Files*: `crates/domain/src/value_objects/game_time.rs`, `crates/engine/src/api/websocket.rs`
 
 - [x] **US-NAV-006**: As a DM, I can connect regions within a location
   - *Implementation*: `CONNECTED_TO_REGION` edge with bidirectional flag
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-007**: As a DM, I can create exits from regions to other locations
   - *Implementation*: `EXITS_TO_LOCATION` edge with arrival_region_id
-  - *Files*: `crates/engine-adapters/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-008**: As a player, I can see navigation options in the scene UI
   - *Implementation*: `NavigationPanel` modal and `NavigationButtons` inline variant with region/exit buttons
@@ -340,14 +340,13 @@ pub enum TimeOfDay {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/location.rs` | Location entity |
-| Domain | `src/domain/entities/region.rs` | Region entity |
-| Domain | `src/domain/value_objects/game_time.rs` | GameTime, TimeOfDay |
-| Application | `src/application/services/location_service.rs` | Location business logic |
-| Infrastructure | `src/infrastructure/persistence/location_repository.rs` | Neo4j Location CRUD |
-| Infrastructure | `src/infrastructure/persistence/region_repository.rs` | Neo4j Region CRUD |
-| Infrastructure | `src/infrastructure/websocket/handlers/movement.rs` | Movement handlers |
-| Infrastructure | `src/infrastructure/websocket/handlers/staging.rs` | Staging handlers |
+| Domain | `crates/domain/src/entities/location.rs` | Location entity |
+| Domain | `crates/domain/src/entities/region.rs` | Region entity |
+| Domain | `crates/domain/src/value_objects/game_time.rs` | GameTime, TimeOfDay |
+| Entity | `crates/engine/src/entities/location.rs` | Location operations |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/location_repo.rs` | Neo4j Location CRUD |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/region_repo.rs` | Neo4j Region CRUD |
+| API | `crates/engine/src/api/websocket.rs` | Movement and staging handlers |
 
 ### Player
 

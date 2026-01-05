@@ -24,27 +24,27 @@ This system enables:
 
 - [x] **US-PT-001**: As a DM, I can customize NPC dialogue response format so that NPCs speak in my world's style
   - *Implementation*: `PromptTemplateService` resolves `dialogue.response_format` per world
-  - *Files*: `crates/engine-app/src/application/services/prompt_template_service.rs`
+  - *Files*: `crates/engine/src/entities/prompt_template.rs`
 
 - [x] **US-PT-002**: As a DM, I can customize staging decision prompts so that NPC presence logic matches my world
   - *Implementation*: `StagingService` resolves staging templates before LLM calls
-  - *Files*: `crates/engine-app/src/application/services/staging_service.rs`
+  - *Files*: `crates/engine/src/entities/staging.rs`
 
 - [x] **US-PT-003**: As a DM, I can customize challenge outcome descriptions so that successes/failures match my tone
   - *Implementation*: `OutcomeSuggestionService` resolves outcome templates
-  - *Files*: `crates/engine-app/src/application/services/outcome_suggestion_service.rs`
+  - *Files*: `crates/engine/src/entities/challenge.rs`
 
 - [x] **US-PT-004**: As a DM, I can customize worldbuilding suggestion prompts for character/location generation
   - *Implementation*: `SuggestionService` resolves 10 different suggestion templates
-  - *Files*: `crates/engine-app/src/application/services/suggestion_service.rs`
+  - *Files*: `crates/engine/src/entities/suggestion.rs`
 
 - [x] **US-PT-005**: As an admin, I can set global template overrides that apply to all worlds
   - *Implementation*: REST API for global template CRUD
-  - *Files*: `crates/engine-adapters/src/infrastructure/http/prompt_template_routes.rs`
+  - *Files*: `crates/engine/src/api/http.rs`
 
 - [x] **US-PT-006**: As a DM, I can set world-specific template overrides that only apply to my world
   - *Implementation*: REST API for per-world template CRUD
-  - *Files*: `crates/engine-adapters/src/infrastructure/http/prompt_template_routes.rs`
+  - *Files*: `crates/engine/src/api/http.rs`
 
 ### Pending
 
@@ -182,20 +182,20 @@ CREATE TABLE world_prompt_templates (
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `crates/domain/src/value_objects/prompt_templates.rs` | Template keys, defaults, metadata |
-| Ports | `crates/engine-ports/src/outbound/prompt_template_port.rs` | Repository port trait |
-| Application | `crates/engine-app/src/application/services/prompt_template_service.rs` | Resolution logic with caching |
-| Adapters | `crates/engine-adapters/src/infrastructure/persistence/prompt_template_repository.rs` | SQLite implementation |
-| Adapters | `crates/engine-adapters/src/infrastructure/http/prompt_template_routes.rs` | REST endpoints |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository port trait |
+| Entity | `crates/engine/src/entities/prompt_template.rs` | Resolution logic with caching |
+| Infrastructure | `crates/engine/src/infrastructure/sqlite/prompt_template_repo.rs` | SQLite implementation |
+| API | `crates/engine/src/api/http.rs` | REST endpoints |
 
 ### Integrated Services
 
 | Service | File | Templates Used |
 |---------|------|----------------|
-| LLMService | `crates/engine-app/src/application/services/llm/mod.rs` | `dialogue.*` |
-| PromptBuilder | `crates/engine-app/src/application/services/llm/prompt_builder.rs` | `dialogue.*` |
-| StagingService | `crates/engine-app/src/application/services/staging_service.rs` | `staging.*` |
-| OutcomeSuggestionService | `crates/engine-app/src/application/services/outcome_suggestion_service.rs` | `outcome.*` |
-| SuggestionService | `crates/engine-app/src/application/services/suggestion_service.rs` | `suggestion.*` |
+| LLM Entity | `crates/engine/src/entities/llm.rs` | `dialogue.*` |
+| PromptBuilder | `crates/engine/src/use_cases/conversation/prompt_builder.rs` | `dialogue.*` |
+| Staging Entity | `crates/engine/src/entities/staging.rs` | `staging.*` |
+| Challenge Entity | `crates/engine/src/entities/challenge.rs` | `outcome.*` |
+| Suggestion Entity | `crates/engine/src/entities/suggestion.rs` | `suggestion.*` |
 
 ---
 
