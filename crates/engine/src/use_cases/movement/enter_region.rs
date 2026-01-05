@@ -16,6 +16,8 @@ use crate::entities::{
 use crate::infrastructure::ports::{ClockPort, RepoError};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 
+use super::resolve_staging_for_region;
+
 /// Result of entering a region.
 #[derive(Debug)]
 pub struct EnterRegionResult {
@@ -142,39 +144,13 @@ impl EnterRegion {
         let current_game_time = world_data.game_time.current();
 
         // 6. Check for valid staging (with TTL check using game time)
-        let active_staging = self.staging.get_active_staging(region_id, current_game_time).await?;
-        
-        let (npcs, staging_status) = match active_staging {
-            Some(staging) => {
-                // Valid staging exists - resolve NPCs visible to players
-                let visible_npcs: Vec<StagedNpc> = staging.npcs
-                    .into_iter()
-                    .filter(|npc| npc.is_visible_to_players())
-                    .collect();
-                (visible_npcs, StagingStatus::Ready)
-            }
-            None => {
-                // No valid staging - DM approval required
-                // Try to get any existing staging for reference (may be expired)
-                let previous = self.staging.get_staged_npcs(region_id).await.ok()
-                    .map(|npcs| {
-                        // Create a minimal staging for reference
-                        wrldbldr_domain::Staging::new(
-                            region_id,
-                            region.location_id,
-                            pc.world_id,
-                            current_game_time,
-                            "expired",
-                            wrldbldr_domain::StagingSource::RuleBased,
-                            0,
-                            current_game_time,
-                        ).with_npcs(npcs)
-                    })
-                    .filter(|s| !s.npcs.is_empty());
-                
-                (vec![], StagingStatus::Pending { previous_staging: previous })
-            }
-        };
+        let (npcs, staging_status) = resolve_staging_for_region(
+            &self.staging,
+            region_id,
+            region.location_id,
+            pc.world_id,
+            current_game_time,
+        ).await?;
 
         // 7. Update player's observation state (even if staging pending, record the visit)
         // Use game time for when the observation occurred in-game
