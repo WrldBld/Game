@@ -120,7 +120,16 @@ impl Location {
                     let regions = self.repo.list_regions_in_location(exit.to_location).await?;
                     match regions.into_iter().find(|r| r.is_spawn_point) {
                         Some(r) => r.id,
-                        None => continue, // Skip if no valid arrival region
+                        None => {
+                            // Log warning for invalid exit configuration
+                            tracing::warn!(
+                                from_region = %region_id,
+                                to_location = %exit.to_location,
+                                target_location_name = %target_location.name,
+                                "Skipping exit: target location has no default region and no spawn point"
+                            );
+                            continue;
+                        }
                     }
                 };
 

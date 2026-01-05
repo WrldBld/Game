@@ -66,13 +66,13 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 2: Critical Entity/Use Case Fixes
 
 ### CR3-2.1 - Fix Location.get_exits() Silent Skip
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/location.rs`
 **Issue**: Invalid exits are silently skipped with `continue`. Should log warning.
 
 **Tasks**:
-- [ ] Add tracing::warn! when skipping invalid exits
-- [ ] Include location and target info in warning
+- [x] Add tracing::warn! when skipping invalid exits
+- [x] Include location and target info in warning
 
 ---
 
@@ -380,7 +380,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-1.2 | Bound conversation log | COMPLETE | - |
 | CR3-1.3 | Bound challenge results | COMPLETE | - |
 | CR3-1.4 | Bound decision history | COMPLETE | - |
-| CR3-2.1 | Location exits warning | PENDING | - |
+| CR3-2.1 | Location exits warning | COMPLETE | - |
 | CR3-2.2 | Narrative trigger errors | PENDING | - |
 | CR3-2.3 | ExitLocation scene resolution | PENDING | - |
 | CR3-2.4 | Scene custom conditions | PENDING | - |
