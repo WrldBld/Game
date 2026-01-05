@@ -2,8 +2,44 @@
 
 Active implementation tracking for WrldBldr user stories and features.
 
-**Last Updated**: 2026-01-04  
+**Last Updated**: 2026-01-05  
 **Branch**: `new-arch`
+
+---
+
+## Recently Completed (2026-01-05)
+
+### Lore & Visual State Systems - COMPLETE
+
+Full implementation of two new game systems with bug fixes:
+
+**Lore System**:
+- Domain: `Lore`, `LoreChunk`, `LoreKnowledge`, `LoreDiscoverySource` entities
+- Neo4j: `LoreRepo` with search, knowledge tracking, character associations
+- WebSocket: Full CRUD + `GrantLoreKnowledge`, `RevokeLoreKnowledge` handlers
+- UI: `LoreJournal` for players, `LoreForm` for DM creation
+- Security: DM authorization on all write handlers
+
+**Visual State System**:
+- Domain: `LocationState`, `RegionState` entities with `ActivationRule` value objects
+- Supports hard rules (date, time, flags, events, character presence) and soft rules (LLM-evaluated)
+- Neo4j: `LocationStateRepo`, `RegionStateRepo` with atomic `set_active`
+- Use Case: `ResolveVisualState` with rule evaluation and default fallback
+- UI: `VisualStateIndicator` component
+
+**Game Time Enhancements**:
+- Use Case: `TimeUseCases` for time advancement and period skipping
+- UI: `TimeControl` component for DM panel
+- Documentation: `game-time-system.md`
+
+**Bug Fixes**:
+1. Fixed `search_by_tags` Neo4j JSON array handling
+2. Fixed `add_chunks_to_knowledge` deduplication logic
+3. Fixed `set_active` atomicity (match before delete)
+4. Added default state fallback when no activation rules match
+5. Added `PartialEq` to domain structs for testing
+6. Fixed `CreateLoreChunkData.title` to be `Option<String>`
+7. Added `Any` logic short-circuit optimization
 
 ---
 
@@ -61,9 +97,10 @@ All high-priority TODOs resolved:
 
 ### Remaining TODOs - LOW PRIORITY
 
-1. **Game Time System** (`observation.rs:99`)
+1. **Game Time in Observations** (`observation.rs:99`)
    - Using real time instead of in-game time for observations
-   - Requires designing time progression mechanics
+   - Game time system is now implemented (2026-01-05)
+   - Need to wire observation timestamps to use game time
 
 2. **Event Outcomes Tracking** (`narrative.rs:279`)
    - `event_outcomes` HashMap for trigger evaluation
@@ -247,6 +284,8 @@ Remaining work includes:
 | P1.1-P1.6 | Core functionality (staging, dialogue, handlers) | 2025-12-27 |
 | P2.1-P2.6 | Feature completion (websocket split, DTOs, docs) | 2025-12-27 |
 | P3.2-P3.4 | Polish (deps, types, legacy messages) | 2025-12-27 |
+| US-LORE-001 | Lore System (CRUD, knowledge, UI) | 2026-01-05 |
+| US-VS-001 | Visual State System (states, rules, resolution) | 2026-01-05 |
 
 ---
 
@@ -254,6 +293,10 @@ Remaining work includes:
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | Lore System complete - domain, repo, handlers, UI components |
+| 2026-01-05 | Visual State System complete - LocationState, RegionState, activation rules |
+| 2026-01-05 | Game Time enhancements - TimeUseCases, TimeControl UI |
+| 2026-01-05 | Bug fixes - Neo4j JSON arrays, atomicity, default fallback, PartialEq, short-circuit |
 | 2026-01-04 | WebSocket TODOs complete - PC data, region items, challenge flow, directorial context |
 | 2026-01-04 | Challenge resolution flow rewritten - uses stored approval data, proper outcome types |
 | 2026-01-04 | LLM outcome suggestions queued (broadcast pending) |

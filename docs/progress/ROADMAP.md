@@ -2,8 +2,8 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2026-01-04  
-**Overall Progress**: Core gameplay complete; Simplified architecture complete; WebSocket implementation complete; Scene resolution and narrative effects implemented  
+**Last Updated**: 2026-01-05  
+**Overall Progress**: Core gameplay complete; Simplified architecture complete; WebSocket implementation complete; Scene resolution and narrative effects implemented; Lore & Visual State systems complete  
 **Branch**: `new-arch`
 
 ---
@@ -137,6 +137,9 @@ See individual system documents for detailed user stories.
 | - | Event Effect Executor (all narrative effects) | 2026-01-03 |
 | - | Code Quality: Helper extraction, Flag Storage | 2026-01-04 |
 | - | WebSocket Implementation: PC data, region items, challenge flow, directorial context | 2026-01-04 |
+| - | Lore System (entities, repo, handlers, UI) | 2026-01-05 |
+| - | Visual State System (LocationState, RegionState, activation rules) | 2026-01-05 |
+| - | Game Time Enhancements (TimeUseCases, TimeControl UI) | 2026-01-05 |
 
 ---
 
@@ -178,6 +181,9 @@ For detailed specifications of each system, see:
 - [asset-system.md](../systems/asset-system.md) - ComfyUI, image generation
 - [staging-system.md](../systems/staging-system.md) - NPC presence staging, DM approval
 - [prompt-template-system.md](../systems/prompt-template-system.md) - Configurable LLM prompts
+- [lore-system.md](../systems/lore-system.md) - World knowledge, discoverable chunks
+- [visual-state-system.md](../systems/visual-state-system.md) - LocationState, RegionState, activation rules
+- [game-time-system.md](../systems/game-time-system.md) - Game time tracking and advancement
 
 ---
 
@@ -226,6 +232,10 @@ A task is complete when:
 
 | Date | Changes |
 |------|---------|
+| 2026-01-05 | Feature: Lore System - domain entities, Neo4j repo, WebSocket handlers, LoreJournal/LoreForm UI |
+| 2026-01-05 | Feature: Visual State System - LocationState/RegionState, activation rules, ResolveVisualState use case |
+| 2026-01-05 | Feature: Game Time enhancements - TimeUseCases, TimeControl UI component |
+| 2026-01-05 | Bug fixes: Neo4j JSON arrays, set_active atomicity, default state fallback, PartialEq, short-circuit |
 | 2026-01-04 | Code quality: UUID helpers, DM auth helpers, navigation builder, staging filter, flag storage |
 | 2026-01-04 | Feature: ExecuteEffects wired into narrative event approval, flag storage for scene conditions |
 | 2025-12-26 | LLM context wiring complete: mood, actantial context, featured NPC names |
