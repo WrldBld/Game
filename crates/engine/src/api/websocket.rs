@@ -2858,7 +2858,7 @@ async fn handle_staging_regenerate(
     
     // Get location name
     let location_name = state.app.entities.location
-        .get_location(region.location_id)
+        .get(region.location_id)
         .await
         .ok()
         .flatten()

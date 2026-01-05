@@ -1043,22 +1043,28 @@ impl CharacterRepo for Neo4jCharacterRepo {
     }
 
     async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError> {
-        let rel_type = match relationship_type.to_uppercase().as_str() {
-            "HOME_REGION" | "HOME" => "HOME_REGION",
-            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" => "WORKS_AT_REGION",
-            "FREQUENTS_REGION" | "FREQUENTS" => "FREQUENTS_REGION",
-            "AVOIDS_REGION" | "AVOIDS" => "AVOIDS_REGION",
+        // Use static queries per relationship type to avoid any format-based injection risk
+        let (cypher, rel_type_name) = match relationship_type.to_uppercase().as_str() {
+            "HOME_REGION" | "HOME" => (
+                "MATCH (c:Character {id: $id})-[r:HOME_REGION]->(region:Region {id: $region_id}) DELETE r",
+                "HOME_REGION"
+            ),
+            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" => (
+                "MATCH (c:Character {id: $id})-[r:WORKS_AT_REGION]->(region:Region {id: $region_id}) DELETE r",
+                "WORKS_AT_REGION"
+            ),
+            "FREQUENTS_REGION" | "FREQUENTS" => (
+                "MATCH (c:Character {id: $id})-[r:FREQUENTS_REGION]->(region:Region {id: $region_id}) DELETE r",
+                "FREQUENTS_REGION"
+            ),
+            "AVOIDS_REGION" | "AVOIDS" => (
+                "MATCH (c:Character {id: $id})-[r:AVOIDS_REGION]->(region:Region {id: $region_id}) DELETE r",
+                "AVOIDS_REGION"
+            ),
             _ => return Err(RepoError::Database(format!("Unknown relationship type: {}", relationship_type))),
         };
 
-        // Use dynamic relationship type matching
-        let cypher = format!(
-            "MATCH (c:Character {{id: $id}})-[r:{}]->(region:Region {{id: $region_id}})
-            DELETE r",
-            rel_type
-        );
-
-        let q = query(&cypher)
+        let q = query(cypher)
             .param("id", id.to_string())
             .param("region_id", region_id.to_string());
 
@@ -1067,7 +1073,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Removed {} relationship from character {} to region {}", rel_type, id, region_id);
+        tracing::debug!("Removed {} relationship from character {} to region {}", rel_type_name, id, region_id);
         Ok(())
     }
 

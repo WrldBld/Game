@@ -601,6 +601,7 @@ mod tests {
     fn create_test_resolve() -> ResolveVisualState {
         use std::sync::Arc;
         use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo, FlagRepo};
+        use wrldbldr_domain::{LocationStateId, RegionStateId};
         use async_trait::async_trait;
 
         // Mock implementations for testing

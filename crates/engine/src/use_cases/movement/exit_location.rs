@@ -75,7 +75,7 @@ impl ExitLocation {
         // 2. Get the target location
         let location = self
             .location
-            .get_location(target_location_id)
+            .get(target_location_id)
             .await?
             .ok_or(ExitLocationError::LocationNotFound)?;
 
@@ -237,7 +237,7 @@ impl ExitLocation {
         // Try location's default arrival region
         let location = self
             .location
-            .get_location(location_id)
+            .get(location_id)
             .await?
             .ok_or(ExitLocationError::LocationNotFound)?;
 

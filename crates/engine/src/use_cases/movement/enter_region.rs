@@ -184,8 +184,8 @@ impl EnterRegion {
                 .await?;
         }
 
-        // 8. Resolve scene for this region
-        let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id).await?;
+        // 8. Resolve scene for this region (use world's game time for time-of-day checks)
+        let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id, &world_data.game_time).await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -265,10 +265,9 @@ impl EnterRegion {
         pc_id: PlayerCharacterId,
         world_id: wrldbldr_domain::WorldId,
         region_id: RegionId,
+        game_time: &GameTime,
     ) -> Result<Option<DomainScene>, RepoError> {
-        // Get current time of day from game time
-        let now = self.clock.now();
-        let game_time = GameTime::new(now);
+        // Get current time of day from the world's game time (not wall clock)
         let time_of_day = game_time.time_of_day();
 
         // Build the scene resolution context

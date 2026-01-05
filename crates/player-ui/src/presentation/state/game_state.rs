@@ -214,6 +214,9 @@ pub struct GameState {
     pub time_mode: Signal<TimeMode>,
     /// Whether game time is currently paused
     pub time_paused: Signal<bool>,
+    /// Current moods of NPCs in the scene (npc_id -> mood string)
+    /// Updated by NpcMoodChanged events, used for expression/sprite display
+    pub npc_moods: Signal<HashMap<String, String>>,
 }
 
 impl GameState {
@@ -244,6 +247,7 @@ impl GameState {
             pending_time_suggestions: Signal::new(Vec::new()),
             time_mode: Signal::new(TimeMode::default()),
             time_paused: Signal::new(true),
+            npc_moods: Signal::new(HashMap::new()),
         }
     }
 
@@ -278,6 +282,8 @@ impl GameState {
         self.npcs_present.set(npcs_present);
         self.navigation.set(Some(navigation));
         self.region_items.set(region_items);
+        // Clear NPC moods when changing scene - they'll be repopulated from staging
+        self.clear_npc_moods();
     }
 
     /// Remove an item from region_items (for optimistic pickup updates)
@@ -407,6 +413,22 @@ impl GameState {
     /// Clear NPC dispositions (when changing scene or PC)
     pub fn clear_npc_dispositions(&mut self) {
         self.npc_dispositions.set(Vec::new());
+    }
+
+    /// Update an NPC's current mood (from NpcMoodChanged event)
+    /// This is used for character expression/sprite display
+    pub fn update_npc_mood(&mut self, npc_id: String, mood: String) {
+        self.npc_moods.write().insert(npc_id, mood);
+    }
+
+    /// Get the current mood for an NPC (returns None if not set)
+    pub fn get_npc_mood(&self, npc_id: &str) -> Option<String> {
+        self.npc_moods.read().get(npc_id).cloned()
+    }
+
+    /// Clear all NPC moods (when changing scene)
+    pub fn clear_npc_moods(&mut self) {
+        self.npc_moods.write().clear();
     }
 
     /// Set the staging status for a specific region

@@ -10,7 +10,7 @@ use wrldbldr_domain::{
     RelationshipType, SceneId, WorldId,
 };
 
-use crate::entities::{Challenge, Character, Inventory, Narrative, Observation, PlayerCharacter, Scene};
+use crate::entities::{Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene};
 use crate::infrastructure::ports::ClockPort;
 
 /// Result of executing a single effect.
@@ -64,6 +64,7 @@ pub struct EffectExecutionContext {
 /// - RevealInformation via Observation
 /// - ModifyStat via PlayerCharacter
 /// - TriggerScene via Scene
+/// - SetFlag via Flag
 pub struct ExecuteEffects {
     inventory: Arc<Inventory>,
     challenge: Arc<Challenge>,
@@ -72,6 +73,7 @@ pub struct ExecuteEffects {
     observation: Arc<Observation>,
     player_character: Arc<PlayerCharacter>,
     scene: Arc<Scene>,
+    flag: Arc<Flag>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -84,6 +86,7 @@ impl ExecuteEffects {
         observation: Arc<Observation>,
         player_character: Arc<PlayerCharacter>,
         scene: Arc<Scene>,
+        flag: Arc<Flag>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -94,6 +97,7 @@ impl ExecuteEffects {
             observation,
             player_character,
             scene,
+            flag,
             clock,
         }
     }
@@ -263,16 +267,8 @@ impl ExecuteEffects {
             }
 
             EventEffect::SetFlag { flag_name, value } => {
-                // GAP: Flag storage system not implemented
-                EffectExecutionResult {
-                    description: format!(
-                        "Set flag '{}' to {} (NOT IMPLEMENTED - flag storage needed)",
-                        flag_name, value
-                    ),
-                    success: false,
-                    error: Some("Flag storage system not implemented".to_string()),
-                    requires_dm_action: false,
-                }
+                self.execute_set_flag(context.world_id, flag_name, *value)
+                    .await
             }
 
             EventEffect::StartCombat {
@@ -633,6 +629,38 @@ impl ExecuteEffects {
             },
             Err(e) => EffectExecutionResult {
                 description: format!("Failed to trigger scene: {}", scene_name),
+                success: false,
+                error: Some(e.to_string()),
+                requires_dm_action: false,
+            },
+        }
+    }
+
+    async fn execute_set_flag(
+        &self,
+        world_id: WorldId,
+        flag_name: &str,
+        value: bool,
+    ) -> EffectExecutionResult {
+        let result = if value {
+            self.flag.set_world_flag(world_id, flag_name).await
+        } else {
+            self.flag.unset_world_flag(world_id, flag_name).await
+        };
+
+        match result {
+            Ok(()) => EffectExecutionResult {
+                description: format!(
+                    "Set flag '{}' to {}",
+                    flag_name,
+                    if value { "true" } else { "false" }
+                ),
+                success: true,
+                error: None,
+                requires_dm_action: false,
+            },
+            Err(e) => EffectExecutionResult {
+                description: format!("Failed to set flag '{}'", flag_name),
                 success: false,
                 error: Some(e.to_string()),
                 requires_dm_action: false,

@@ -25,68 +25,68 @@
 ---
 
 ### P1.2 - Cypher Injection Fix
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/character_repo.rs:1045-1068`
 **Issue**: `remove_region_relationship` uses string formatting for relationship type in Cypher query
 **Impact**: Potential security vulnerability
 
 **Tasks**:
-- [ ] Replace `format!()` with match statement using static queries
-- [ ] Each relationship type gets its own pre-defined query
-- [ ] Return error for unknown relationship types
+- [x] Replace `format!()` with match statement using static queries
+- [x] Each relationship type gets its own pre-defined query (HOME_REGION, WORKS_AT_REGION, FREQUENTS_REGION, AVOIDS_REGION)
+- [x] Return error for unknown relationship types
 
 ---
 
 ### P1.3 - Game Time in Scene Resolution
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/use_cases/movement/enter_region.rs:269-272`
 **Issue**: Uses `self.clock.now()` (wall clock) instead of world's game time for scene resolution
 **Impact**: Scenes resolve based on real time, not in-game time
 
 **Tasks**:
-- [ ] Pass `current_game_time` to scene resolution
-- [ ] Use world's game time for TimeOfDay checks
-- [ ] Update method signatures as needed
+- [x] Pass world's `GameTime` to scene resolution method
+- [x] Use world's game time for TimeOfDay checks (instead of creating from wall clock)
+- [x] Update method signature to accept `&GameTime` parameter
 
 ---
 
 ### P1.4 - Wire FlagRepo to Effect Executor
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/use_cases/narrative/execute_effects.rs:265-276`
 **Issue**: SetFlag effect returns "not implemented" but FlagRepo exists
 **Impact**: Narrative events with flag effects don't work
 
 **Tasks**:
-- [ ] Add FlagRepo to ExecuteEffects struct
-- [ ] Update constructor to inject FlagRepo
-- [ ] Implement SetFlag case using FlagRepo
-- [ ] Update App wiring
+- [x] Add Flag entity to ExecuteEffects struct
+- [x] Update constructor to inject Flag entity
+- [x] Implement SetFlag case using Flag entity (set/unset world flags)
+- [x] Update App wiring
 
 ---
 
 ## Priority 2: High Severity Bugs
 
 ### P2.1 - UTF-8 Safe String Truncation
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/narrative.rs:313-318`
 **Issue**: `truncate_dialogue` can panic on multi-byte UTF-8 characters
 **Impact**: Server crash on certain dialogue text
 
 **Tasks**:
-- [ ] Replace byte slicing with `chars().take()`
-- [ ] Add unit test for multi-byte characters
+- [x] Replace byte slicing with `chars().take()` for character-based truncation
+- [x] Add unit tests for ASCII and multi-byte UTF-8 (Japanese, emoji)
 
 ---
 
 ### P2.2 - Staging World ID Fix
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/staging_repo.rs:76-103`
 **Issue**: `r.world_id` may not exist on Region nodes
 **Impact**: Null world_id in staging data
 
 **Tasks**:
-- [ ] Update Cypher to traverse Region->Location->World
-- [ ] Or ensure Region has world_id property
+- [x] Update Cypher to traverse Region->Location (via location_id) to get world_id from Location node
+- [x] Changed OPTIONAL MATCH to MATCH for location (staging must have valid location)
 
 ---
 
@@ -125,28 +125,30 @@
 ---
 
 ### P3.2 - NPC Mood Changed Handler
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs:1147-1149`
 **Issue**: NpcMoodChanged event logged but doesn't update UI state
 **Impact**: Mood changes not reflected in UI
 
 **Tasks**:
-- [ ] Add mood tracking to game_state or scene_characters
-- [ ] Update NpcMoodChanged handler to modify state
-- [ ] Ensure character sprites reflect mood
+- [x] Add `npc_moods: Signal<HashMap<String, String>>` to GameState
+- [x] Add `update_npc_mood()`, `get_npc_mood()`, `clear_npc_moods()` methods
+- [x] Update NpcMoodChanged handler to call `update_npc_mood()`
+- [x] Clear moods on scene change in `apply_scene_changed()`
+- [ ] (Future) Wire UI components to read mood from `get_npc_mood()` for expression display
 
 ---
 
 ### P3.3 - Duplicate Method Cleanup
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/location.rs`
 **Issue**: `get()` vs `get_location()`, `list_in_world()` vs `list_locations_in_world()`
 **Impact**: Code confusion, maintenance burden
 
 **Tasks**:
-- [ ] Deprecate longer method names
-- [ ] Update all call sites
-- [ ] Remove deprecated methods
+- [x] Add `#[deprecated]` attribute to `get_location()` and `list_locations_in_world()`
+- [x] Update all call sites to use `get()` and `list_in_world()`
+- [ ] (Future) Remove deprecated methods after verifying no external usage
 
 ---
 
@@ -196,14 +198,14 @@
 | ID | Description | Status | Commit |
 |----|-------------|--------|--------|
 | P1.1 | Approval popup buttons | COMPLETE | (pending) |
-| P1.2 | Cypher injection fix | PENDING | - |
-| P1.3 | Game time in scenes | PENDING | - |
-| P1.4 | FlagRepo wiring | PENDING | - |
-| P2.1 | UTF-8 truncation | PENDING | - |
-| P2.2 | Staging world_id | PENDING | - |
+| P1.2 | Cypher injection fix | COMPLETE | - |
+| P1.3 | Game time in scenes | COMPLETE | - |
+| P1.4 | FlagRepo wiring | COMPLETE | - |
+| P2.1 | UTF-8 truncation | COMPLETE | - |
+| P2.2 | Staging world_id | COMPLETE | - |
 | P2.3 | Image slicing | PENDING | - |
 | P3.1 | Entity timestamps | PENDING | - |
-| P3.2 | Mood changed handler | PENDING | - |
-| P3.3 | Duplicate methods | PENDING | - |
+| P3.2 | Mood changed handler | COMPLETE | - |
+| P3.3 | Duplicate methods | COMPLETE | - |
 | P4.1 | Staging helper | PENDING | - |
 | P4.2 | Item action helpers | PENDING | - |

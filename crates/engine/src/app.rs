@@ -249,6 +249,7 @@ impl App {
                 observation.clone(),
                 player_character.clone(),
                 scene.clone(),
+                flag.clone(),
                 clock.clone(),
             )));
 

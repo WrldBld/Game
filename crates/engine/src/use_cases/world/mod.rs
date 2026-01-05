@@ -84,7 +84,7 @@ impl ExportWorld {
             .ok_or(WorldError::NotFound)?;
 
         // Get all locations
-        let locations = self.location.list_locations_in_world(world_id).await?;
+        let locations = self.location.list_in_world(world_id).await?;
 
         // Get all regions
         let mut regions = Vec::new();

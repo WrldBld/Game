@@ -1144,8 +1144,8 @@ pub fn handle_server_message(
                 reason = ?reason,
                 "NPC mood changed (Tier 2 emotional model)"
             );
-            // TODO: Update NPC mood in game state when UI is ready
-            // This would trigger expression/sprite changes in the scene view
+            // Update NPC mood in game state - this enables UI to display correct expression/sprite
+            game_state.update_npc_mood(npc_id.clone(), new_mood.clone());
         }
 
         // =========================================================================

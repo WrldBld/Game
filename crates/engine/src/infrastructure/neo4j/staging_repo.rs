@@ -73,11 +73,12 @@ impl StagingRepo for Neo4jStagingRepo {
             let staging_id = StagingId::new();
             
             // Create new staging and link it
+            // Get world_id via Region -> Location (location_id property) -> Location.world_id
             let create_q = query(
                 "MATCH (r:Region {id: $region_id})
                 MATCH (c:Character {id: $character_id})
-                OPTIONAL MATCH (r)-[:IN_LOCATION]->(l:Location)
-                WITH r, c, COALESCE(l.id, r.id) as location_id, r.world_id as world_id
+                MATCH (l:Location {id: r.location_id})
+                WITH r, c, l.id as location_id, l.world_id as world_id
                 CREATE (s:Staging {
                     id: $staging_id,
                     region_id: $region_id,

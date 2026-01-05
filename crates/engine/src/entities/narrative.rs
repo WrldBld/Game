@@ -310,10 +310,36 @@ impl Narrative {
 }
 
 /// Truncate dialogue for summary display.
-fn truncate_dialogue(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
+/// Uses character-based truncation to avoid panics on multi-byte UTF-8.
+fn truncate_dialogue(s: &str, max_chars: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_chars {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len])
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{}...", truncated)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_dialogue_ascii() {
+        assert_eq!(truncate_dialogue("hello", 10), "hello");
+        assert_eq!(truncate_dialogue("hello world", 5), "hello...");
+    }
+
+    #[test]
+    fn test_truncate_dialogue_multibyte_utf8() {
+        // Japanese text (3 bytes per char)
+        let japanese = "こんにちは"; // 5 characters, 15 bytes
+        assert_eq!(truncate_dialogue(japanese, 10), "こんにちは");
+        assert_eq!(truncate_dialogue(japanese, 3), "こんに...");
+
+        // Emoji (4 bytes per char)
+        let emoji = "👋🌍🎉"; // 3 characters, 12 bytes
+        assert_eq!(truncate_dialogue(emoji, 2), "👋🌍...");
     }
 }
