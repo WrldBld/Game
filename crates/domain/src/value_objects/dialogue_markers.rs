@@ -118,7 +118,7 @@ impl DialogueMarker {
 }
 
 /// Result of parsing dialogue text for markers
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedDialogue {
     /// The original text with markers
     pub original: String,

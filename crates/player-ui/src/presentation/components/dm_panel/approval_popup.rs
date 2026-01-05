@@ -2,8 +2,10 @@
 //!
 //! Shows proposed NPC dialogue and actions for DM approval before execution.
 //! Supports challenge outcome regeneration and discard functionality.
+//! Supports expression marker editing and validation (three-tier emotional model).
 
 use dioxus::prelude::*;
+use wrldbldr_domain::{parse_dialogue, validate_markers, ExpressionConfig};
 use wrldbldr_player_app::application::dto::{
     ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData,
 };
@@ -81,9 +83,23 @@ pub struct ApprovalPopupProps {
 ///
 /// Displays proposed NPC dialogue and tool calls with checkboxes.
 /// DM can approve, modify, or reject the proposed actions.
+/// Supports expression marker editing with validation.
 #[component]
 pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
     let mut actions = use_signal(|| props.proposed_actions.clone());
+    let mut edited_dialogue = use_signal(|| props.dialogue.clone());
+    let mut is_editing_dialogue = use_signal(|| false);
+
+    // Parse and validate dialogue markers
+    let dialogue_validation = use_memo(move || {
+        let text = edited_dialogue.read();
+        let parsed = parse_dialogue(&text);
+        let config = ExpressionConfig::default();
+        let warnings = validate_markers(&parsed.markers, &config.expressions, &config.actions);
+        (parsed, warnings)
+    });
+
+    let has_validation_errors = !dialogue_validation.read().1.is_empty();
 
     rsx! {
         div {
@@ -105,18 +121,122 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                 }
             }
 
-            // Dialogue box
+            // Dialogue box (editable with marker support)
             div {
-                class: "mb-4 p-4 bg-black bg-opacity-30 border-l-4 border-blue-500 rounded-lg",
+                class: format!(
+                    "mb-4 p-4 bg-black bg-opacity-30 border-l-4 rounded-lg {}",
+                    if has_validation_errors { "border-red-500" } else { "border-blue-500" }
+                ),
 
-                p {
-                    class: "text-gray-400 text-xs uppercase m-0 mb-2",
-                    "Proposed Dialogue"
+                // Header with edit toggle
+                div {
+                    class: "flex justify-between items-center mb-2",
+
+                    p {
+                        class: "text-gray-400 text-xs uppercase m-0",
+                        "Proposed Dialogue"
+                    }
+
+                    button {
+                        class: "text-xs text-blue-400 hover:text-blue-300 bg-transparent border-0 cursor-pointer",
+                        onclick: move |_| {
+                            let current = *is_editing_dialogue.read();
+                            is_editing_dialogue.set(!current);
+                        },
+                        if *is_editing_dialogue.read() { "Done" } else { "Edit" }
+                    }
                 }
 
-                p {
-                    class: "text-white italic m-0 leading-normal",
-                    "\"{props.dialogue}\""
+                // Dialogue content (editable or display)
+                if *is_editing_dialogue.read() {
+                    textarea {
+                        class: "w-full min-h-[80px] p-2 bg-dark-bg border border-gray-600 rounded text-white italic resize-y",
+                        value: "{edited_dialogue}",
+                        oninput: move |e| edited_dialogue.set(e.value()),
+                        placeholder: "Enter dialogue with optional *expression* markers...",
+                    }
+                } else {
+                    // Display with highlighted markers
+                    DialogueWithMarkers {
+                        text: edited_dialogue.read().clone(),
+                    }
+                }
+
+                // Expression timeline preview
+                {
+                    let (parsed, _) = &*dialogue_validation.read();
+                    let marker_displays: Vec<(String, bool)> = parsed.markers.iter()
+                        .filter_map(|marker| {
+                            let display = match (&marker.action, &marker.expression) {
+                                (Some(action), Some(expr)) => format!("{}|{}", action, expr),
+                                (Some(action), None) => format!("[{}]", action),
+                                (None, Some(expr)) => expr.clone(),
+                                (None, None) => return None,
+                            };
+                            let is_action_only = marker.expression.is_none() && marker.action.is_some();
+                            Some((display, is_action_only))
+                        })
+                        .collect();
+
+                    if !marker_displays.is_empty() {
+                        rsx! {
+                            div {
+                                class: "mt-3 pt-3 border-t border-gray-600",
+
+                                p {
+                                    class: "text-gray-500 text-xs uppercase m-0 mb-2",
+                                    "Expression Timeline"
+                                }
+
+                                div {
+                                    class: "flex flex-wrap gap-1",
+
+                                    for (idx, (marker_display, is_action_only)) in marker_displays.iter().enumerate() {
+                                        span {
+                                            key: "marker-{idx}",
+                                            class: format!(
+                                                "px-2 py-0.5 rounded text-xs {}",
+                                                if *is_action_only {
+                                                    "bg-amber-900/50 text-amber-200"
+                                                } else {
+                                                    "bg-purple-900/50 text-purple-200"
+                                                }
+                                            ),
+                                            "{marker_display}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        rsx! {}
+                    }
+                }
+
+                // Validation warnings
+                {
+                    let (_, warnings) = &*dialogue_validation.read();
+                    if !warnings.is_empty() {
+                        rsx! {
+                            div {
+                                class: "mt-2 p-2 bg-red-900/30 border border-red-700 rounded text-xs",
+
+                                p {
+                                    class: "text-red-400 m-0 mb-1 font-medium",
+                                    "Validation Issues:"
+                                }
+
+                                ul {
+                                    class: "text-red-300 m-0 pl-4",
+                                    for warning in warnings.iter() {
+                                        li { "{warning}" }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        rsx! {}
+                    }
                 }
             }
 
@@ -699,6 +819,102 @@ fn OutcomeTab(props: OutcomeTabProps) -> Element {
                     }
                 }
             }
+        }
+    }
+}
+
+/// Segment types for dialogue rendering
+#[derive(Clone)]
+enum DialogueSegment {
+    Text(String),
+    Marker {
+        content: String,
+        has_action: bool,
+        has_expr: bool,
+    },
+}
+
+/// Display dialogue text with expression markers highlighted
+///
+/// Renders the dialogue with markers shown inline as colored spans.
+#[component]
+fn DialogueWithMarkers(text: String) -> Element {
+    let parsed = parse_dialogue(&text);
+
+    // If no markers, just show the text
+    if parsed.markers.is_empty() {
+        return rsx! {
+            p {
+                class: "text-white italic m-0 leading-normal",
+                "\"{text}\""
+            }
+        };
+    }
+
+    // Build segments with alternating text and markers
+    let mut segments: Vec<DialogueSegment> = Vec::new();
+    let mut last_end = 0;
+
+    for marker in &parsed.markers {
+        // Add text before this marker
+        if marker.start_offset > last_end {
+            let before = text[last_end..marker.start_offset].to_string();
+            if !before.is_empty() {
+                segments.push(DialogueSegment::Text(before));
+            }
+        }
+
+        // Add the marker itself
+        segments.push(DialogueSegment::Marker {
+            content: marker.raw.clone(),
+            has_action: marker.action.is_some(),
+            has_expr: marker.expression.is_some(),
+        });
+
+        last_end = marker.end_offset;
+    }
+
+    // Add remaining text after last marker
+    if last_end < text.len() {
+        let after = text[last_end..].to_string();
+        if !after.is_empty() {
+            segments.push(DialogueSegment::Text(after));
+        }
+    }
+
+    rsx! {
+        p {
+            class: "text-white italic m-0 leading-normal",
+
+            "\""
+
+            for (idx, segment) in segments.iter().enumerate() {
+                match segment {
+                    DialogueSegment::Text(content) => rsx! {
+                        span {
+                            key: "text-{idx}",
+                            "{content}"
+                        }
+                    },
+                    DialogueSegment::Marker { content, has_action, has_expr } => {
+                        let class = match (*has_action, *has_expr) {
+                            (true, true) => "px-1 mx-0.5 rounded bg-purple-600/50 text-purple-200 not-italic",
+                            (true, false) => "px-1 mx-0.5 rounded bg-amber-600/50 text-amber-200 not-italic",
+                            (false, true) => "px-1 mx-0.5 rounded bg-purple-600/50 text-purple-200 not-italic",
+                            (false, false) => "text-gray-400",
+                        };
+                        rsx! {
+                            span {
+                                key: "marker-{idx}",
+                                class: "{class}",
+                                "{content}"
+                            }
+                        }
+                    }
+                }
+            }
+
+            "\""
         }
     }
 }
