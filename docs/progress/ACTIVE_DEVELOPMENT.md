@@ -97,10 +97,9 @@ All high-priority TODOs resolved:
 
 ### Remaining TODOs - LOW PRIORITY
 
-1. **Game Time in Observations** (`observation.rs:99`)
-   - Using real time instead of in-game time for observations
-   - Game time system is now implemented (2026-01-05)
-   - Need to wire observation timestamps to use game time
+1. ~~**Game Time in Observations**~~ - RESOLVED (2026-01-05)
+   - Observations now correctly use `world.game_time.current()` for in-game time
+   - `created_at` uses real time for record timestamps
 
 2. **Event Outcomes Tracking** (`narrative.rs:279`)
    - `event_outcomes` HashMap for trigger evaluation
@@ -114,9 +113,13 @@ All high-priority TODOs resolved:
    - `flags` HashMap for trigger evaluation
    - Would enable custom state tracking per PC
 
-### Documentation Updates - IN PROGRESS
+### Documentation Updates - COMPLETE (2026-01-05)
 
-All system documentation files reference old file paths and need updating. Scene system docs are current and can be used as template.
+All 14 system documentation files updated to use simplified architecture paths:
+- `engine-app/services/*` → `engine/src/entities/*` or `use_cases/*`
+- `engine-adapters/persistence/*` → `engine/src/infrastructure/neo4j/*`
+- `engine-adapters/websocket/*` → `engine/src/api/websocket.rs`
+- `engine-ports/*` → `engine/src/infrastructure/ports.rs`
 
 ---
 
@@ -293,6 +296,7 @@ Remaining work includes:
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | Documentation updated - 14 system docs with new architecture file paths |
 | 2026-01-05 | Lore System complete - domain, repo, handlers, UI components |
 | 2026-01-05 | Visual State System complete - LocationState, RegionState, activation rules |
 | 2026-01-05 | Game Time enhancements - TimeUseCases, TimeControl UI |
