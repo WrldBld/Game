@@ -111,33 +111,43 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 5: High - Add Missing Entity Operations (Complexity: Medium)
 
 ### CR5-5.1 - Add World Game Time Operations
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/entities/world.rs`
 
 **Tasks**:
-- [ ] Add `advance_time(id, minutes)` method
-- [ ] Add `get_current_time(id)` method  
-- [ ] Add `set_time(id, game_time)` method
-- [ ] Add `pause_time(id)` / `resume_time(id)` methods
+- [x] Add `advance_time(id, minutes)` method
+- [x] Add `get_current_time(id)` method  
+- [x] Add `set_time(id, game_time)` method
+- [x] Add `pause_time(id)` / `resume_time(id)` methods (implemented as `set_time_mode()` and `get_time_mode()`)
+
+**Implementation Notes**:
+- Added `WorldError` enum for operation errors
+- Added ClockPort dependency to World entity
+- All time operations do read-modify-write via repository
+- `TimeAdvanceResult` exported from domain crate
 
 ---
 
 ### CR5-5.2 - Fix Staging TTL Check
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/entities/staging.rs`
 **Lines**: 121-131
 
 **Issue**: `resolve_for_region()` ignores TTL/expiry
 
 **Tasks**:
-- [ ] Add `current_game_time` parameter to `resolve_for_region()`
-- [ ] Check staging expiry before returning NPCs
-- [ ] Update all callers to pass game time
+- [x] Add `current_game_time` parameter to `resolve_for_region()`
+- [x] Check staging expiry before returning NPCs
+- [x] Update all callers to pass game time
+
+**Implementation Notes**:
+- `resolve_for_region` now delegates to `get_active_staging` which handles TTL
+- Returns empty vec if no valid staging (expired or missing)
 
 ---
 
 ### CR5-5.3 - Fix Conversation TTL Check
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/use_cases/conversation/start.rs`
 - `crates/engine/src/use_cases/conversation/continue_conversation.rs`
@@ -145,9 +155,14 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 **Issue**: Uses `staging.resolve_for_region()` without TTL check
 
 **Tasks**:
-- [ ] Add World entity dependency to conversation use cases
-- [ ] Fetch current game time from world
-- [ ] Pass game time to staging resolution
+- [x] Add World entity dependency to conversation use cases
+- [x] Fetch current game time from world
+- [x] Pass game time to staging resolution
+
+**Implementation Notes**:
+- Both StartConversation and ContinueConversation now have World dependency
+- Added `WorldNotFound` variant to ConversationError
+- Game time fetched from world and passed to staging.resolve_for_region()
 
 ---
 
@@ -425,7 +440,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 2 | 1 | 1 | COMPLETE |
 | Phase 3 | 1 | 1 | COMPLETE |
 | Phase 4 | 1 | 1 | COMPLETE |
-| Phase 5 | 3 | 0 | PENDING |
+| Phase 5 | 3 | 3 | COMPLETE |
 | Phase 6 | 2 | 0 | PENDING |
 | Phase 7 | 4 | 0 | PENDING |
 | Phase 8 | 3 | 0 | PENDING |
@@ -444,5 +459,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | 91cb9d0 | Phase 1 | Remove APOC dependencies from Neo4j repositories |
 | 282b843 | Phase 2 | Safe world deletion with explicit node types |
 | 16ff0dc | Phase 3 | Add backpressure for critical messages |
-| - | Phase 4 | Populate TriggerContext properly |
+| e7f6d44 | Phase 4 | Populate TriggerContext properly |
+| - | Phase 5 | Add game time operations and fix TTL checks |
 

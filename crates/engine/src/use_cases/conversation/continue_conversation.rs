@@ -8,7 +8,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{Character, PlayerCharacter, Staging};
+use crate::entities::{Character, PlayerCharacter, Staging, World};
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 
 // Re-use the shared ConversationError from start.rs
@@ -30,6 +30,7 @@ pub struct ContinueConversation {
     character: Arc<Character>,
     player_character: Arc<PlayerCharacter>,
     staging: Arc<Staging>,
+    world: Arc<World>,
     queue: Arc<dyn QueuePort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -39,6 +40,7 @@ impl ContinueConversation {
         character: Arc<Character>,
         player_character: Arc<PlayerCharacter>,
         staging: Arc<Staging>,
+        world: Arc<World>,
         queue: Arc<dyn QueuePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -46,6 +48,7 @@ impl ContinueConversation {
             character,
             player_character,
             staging,
+            world,
             queue,
             clock,
         }
@@ -89,7 +92,12 @@ impl ContinueConversation {
         let pc_region_id = pc.current_region_id
             .ok_or(ConversationError::PlayerNotInRegion)?;
 
-        let staged_npcs = self.staging.resolve_for_region(pc_region_id).await?;
+        // Get current game time for staging TTL check
+        let world_data = self.world.get(world_id).await?
+            .ok_or(ConversationError::WorldNotFound)?;
+        let current_game_time = world_data.game_time.current();
+
+        let staged_npcs = self.staging.resolve_for_region(pc_region_id, current_game_time).await?;
         let npc_in_region = staged_npcs.iter().any(|staged| staged.character_id == npc_id);
 
         if !npc_in_region {

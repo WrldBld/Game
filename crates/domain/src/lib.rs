@@ -35,9 +35,10 @@ pub use entities::{
     ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
     SceneCondition, SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId, Skill,
     SkillCategory, StagedNpc, Staging, StagingSource, StatBlock, StoryEvent,
-    StoryEventInfoImportance, StoryEventType, TimeContext, TriggerCondition, TriggerContext,
-    TriggerEvaluation, TriggerLogic, TriggerType, VisualStateSource, Want, WantTargetType,
-    WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput, WorkflowSlot, World,
+    StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
+    TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, VisualStateSource, Want,
+    WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
+    WorkflowSlot, World,
 };
 
 pub use error::DomainError;

@@ -106,28 +106,39 @@ impl Staging {
     ///
     /// Returns NPCs that are:
     /// - Currently staged in the region (from an active, DM-approved staging)
+    /// - Not expired (based on TTL and current game time)
     /// - Marked as present (`is_present = true`)
     /// - Not hidden from players (`is_hidden_from_players = false`)
     ///
-    /// If no staging exists, returns an empty list. The WebSocket handler
-    /// should trigger the DM approval workflow in this case.
+    /// If no valid staging exists (none, or expired), returns an empty list. 
+    /// The WebSocket handler should trigger the DM approval workflow in this case.
     ///
-    /// ## Future Improvements
-    ///
-    /// A more complete implementation would:
-    /// 1. Check if active staging is expired (TTL-based)
-    /// 2. Generate rule-based suggestions if no valid staging exists
-    /// 3. Queue for DM approval if needed
-    pub async fn resolve_for_region(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError> {
-        let all_staged = self.get_staged_npcs(region_id).await?;
-
-        // Filter to only present, visible NPCs
-        let visible_npcs: Vec<StagedNpc> = all_staged
-            .into_iter()
-            .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
-            .collect();
-
-        Ok(visible_npcs)
+    /// # Arguments
+    /// * `region_id` - The region to resolve NPCs for
+    /// * `current_game_time` - Current in-game time for TTL checking
+    pub async fn resolve_for_region(
+        &self, 
+        region_id: RegionId,
+        current_game_time: DateTime<Utc>,
+    ) -> Result<Vec<StagedNpc>, RepoError> {
+        // Get active staging with TTL check
+        let staging = self.get_active_staging(region_id, current_game_time).await?;
+        
+        match staging {
+            Some(s) => {
+                // Filter to only present, visible NPCs
+                let visible_npcs: Vec<StagedNpc> = s.npcs
+                    .into_iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .collect();
+                Ok(visible_npcs)
+            }
+            None => {
+                // No valid staging - return empty list
+                // Caller should check if DM approval is needed
+                Ok(Vec::new())
+            }
+        }
     }
 
     /// Get all staged NPCs including hidden ones (for DM view).

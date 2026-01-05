@@ -98,7 +98,7 @@ impl App {
             repos.player_character.clone(),
         ));
         let assets = Arc::new(entities::Assets::new(repos.asset.clone(), image_gen));
-        let world = Arc::new(entities::World::new(repos.world.clone()));
+        let world = Arc::new(entities::World::new(repos.world.clone(), clock.clone()));
         let flag = Arc::new(entities::Flag::new(repos.flag.clone()));
         let lore = Arc::new(entities::Lore::new(repos.lore.clone()));
         let location_state = Arc::new(entities::LocationStateEntity::new(
@@ -164,6 +164,7 @@ impl App {
                 player_character.clone(),
                 staging.clone(),
                 scene.clone(),
+                world.clone(),
                 queue_port.clone(),
                 clock.clone(),
             )),
@@ -171,6 +172,7 @@ impl App {
                 character.clone(),
                 player_character.clone(),
                 staging.clone(),
+                world.clone(),
                 queue_port.clone(),
                 clock.clone(),
             )),

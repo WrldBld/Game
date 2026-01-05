@@ -8,7 +8,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{Character, PlayerCharacter, Scene, Staging};
+use crate::entities::{Character, PlayerCharacter, Scene, Staging, World};
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Result of starting a conversation.
@@ -32,6 +32,7 @@ pub struct StartConversation {
     player_character: Arc<PlayerCharacter>,
     staging: Arc<Staging>,
     scene: Arc<Scene>,
+    world: Arc<World>,
     queue: Arc<dyn QueuePort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -42,6 +43,7 @@ impl StartConversation {
         player_character: Arc<PlayerCharacter>,
         staging: Arc<Staging>,
         scene: Arc<Scene>,
+        world: Arc<World>,
         queue: Arc<dyn QueuePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -50,6 +52,7 @@ impl StartConversation {
             player_character,
             staging,
             scene,
+            world,
             queue,
             clock,
         }
@@ -93,8 +96,13 @@ impl StartConversation {
         let pc_region_id = pc.current_region_id
             .ok_or(ConversationError::PlayerNotInRegion)?;
 
-        // Check if NPC is staged in this region
-        let staged_npcs = self.staging.resolve_for_region(pc_region_id).await?;
+        // Get current game time for staging TTL check
+        let world_data = self.world.get(world_id).await?
+            .ok_or(ConversationError::WorldNotFound)?;
+        let current_game_time = world_data.game_time.current();
+
+        // Check if NPC is staged in this region (with TTL check)
+        let staged_npcs = self.staging.resolve_for_region(pc_region_id, current_game_time).await?;
         let npc_in_region = staged_npcs.iter().any(|staged| staged.character_id == npc_id);
 
         if !npc_in_region {
@@ -145,6 +153,8 @@ pub enum ConversationError {
     PlayerCharacterNotFound,
     #[error("NPC not found")]
     NpcNotFound,
+    #[error("World not found")]
+    WorldNotFound,
     #[error("Player is not in a region")]
     PlayerNotInRegion,
     #[error("NPC is not in the player's region")]
