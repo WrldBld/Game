@@ -31,13 +31,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-1.2 - Bound Conversation Log Growth
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/approval_state.rs`
 **Issue**: `conversation_log` grows unbounded - memory leak in long sessions.
 
 **Tasks**:
-- [ ] Add MAX_LOG_ENTRIES constant (500)
-- [ ] Trim old entries when limit exceeded in `add_log_entry()`
+- [x] Add MAX_LOG_ENTRIES constant (500)
+- [x] Trim old entries when limit exceeded in `add_log_entry()`
 
 ---
 
@@ -53,13 +53,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-1.4 - Bound Decision History Growth
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/approval_state.rs`
 **Issue**: `decision_history` grows unbounded.
 
 **Tasks**:
-- [ ] Add MAX_HISTORY constant (200)
-- [ ] Trim old entries when limit exceeded
+- [x] Add MAX_HISTORY_ENTRIES constant (200)
+- [x] Trim old entries when limit exceeded
 
 ---
 
@@ -377,9 +377,9 @@ Authentication-related items are explicitly excluded per requirements.
 | ID | Description | Status | Commit |
 |----|-------------|--------|--------|
 | CR3-1.1 | State clearing on disconnect | COMPLETE | - |
-| CR3-1.2 | Bound conversation log | PENDING | - |
+| CR3-1.2 | Bound conversation log | COMPLETE | - |
 | CR3-1.3 | Bound challenge results | PENDING | - |
-| CR3-1.4 | Bound decision history | PENDING | - |
+| CR3-1.4 | Bound decision history | COMPLETE | - |
 | CR3-2.1 | Location exits warning | PENDING | - |
 | CR3-2.2 | Narrative trigger errors | PENDING | - |
 | CR3-2.3 | ExitLocation scene resolution | PENDING | - |

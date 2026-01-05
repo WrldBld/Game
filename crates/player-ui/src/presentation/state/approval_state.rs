@@ -3,6 +3,12 @@
 //! Tracks pending approvals, decision history, and conversation log for DM view.
 
 use dioxus::prelude::*;
+
+/// Maximum number of conversation log entries to retain (prevents memory leak in long sessions)
+const MAX_LOG_ENTRIES: usize = 500;
+
+/// Maximum number of decision history entries to retain
+const MAX_HISTORY_ENTRIES: usize = 200;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::dto::{
@@ -128,8 +134,17 @@ impl ApprovalState {
     }
 
     /// Add an entry to the approval decision history
+    ///
+    /// Automatically trims oldest entries when MAX_HISTORY_ENTRIES is exceeded
+    /// to prevent unbounded memory growth in long sessions.
     pub fn add_approval_history_entry(&mut self, entry: ApprovalHistoryEntry) {
-        self.decision_history.write().push(entry);
+        let mut history = self.decision_history.write();
+        history.push(entry);
+        // Trim oldest entries if we exceed the limit
+        if history.len() > MAX_HISTORY_ENTRIES {
+            let excess = history.len() - MAX_HISTORY_ENTRIES;
+            history.drain(0..excess);
+        }
     }
 
     /// Get a snapshot of the approval decision history
@@ -138,6 +153,9 @@ impl ApprovalState {
     }
 
     /// Add a conversation log entry
+    ///
+    /// Automatically trims oldest entries when MAX_LOG_ENTRIES is exceeded
+    /// to prevent unbounded memory growth in long sessions.
     pub fn add_log_entry(
         &mut self,
         speaker: String,
@@ -146,12 +164,18 @@ impl ApprovalState {
         platform: &dyn wrldbldr_player_ports::outbound::PlatformPort,
     ) {
         let timestamp = platform.now_unix_secs();
-        self.conversation_log.write().push(ConversationLogEntry {
+        let mut log = self.conversation_log.write();
+        log.push(ConversationLogEntry {
             speaker,
             text,
             is_system,
             timestamp,
         });
+        // Trim oldest entries if we exceed the limit
+        if log.len() > MAX_LOG_ENTRIES {
+            let excess = log.len() - MAX_LOG_ENTRIES;
+            log.drain(0..excess);
+        }
     }
 
     /// Record an approval decision: send it to the Engine, log it locally with
