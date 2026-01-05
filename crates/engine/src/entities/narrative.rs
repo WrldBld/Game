@@ -64,6 +64,13 @@ impl Narrative {
         self.repo.list_events_for_world(world_id).await
     }
 
+    /// Delete a narrative event by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError> {
+        self.repo.delete_event(id).await
+    }
+
     // =========================================================================
     // Event Chains
     // =========================================================================
@@ -79,6 +86,13 @@ impl Narrative {
         self.repo.save_chain(chain).await
     }
 
+    /// Delete an event chain by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError> {
+        self.repo.delete_chain(id).await
+    }
+
     // =========================================================================
     // Story Events
     // =========================================================================
@@ -92,6 +106,13 @@ impl Narrative {
 
     pub async fn save_story_event(&self, event: &domain::StoryEvent) -> Result<(), RepoError> {
         self.repo.save_story_event(event).await
+    }
+
+    /// Delete a story event by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError> {
+        self.repo.delete_story_event(id).await
     }
 
     pub async fn list_story_events(

@@ -96,6 +96,13 @@ impl Scene {
         self.repo.save(scene).await
     }
 
+    /// Delete a scene by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete(&self, id: SceneId) -> Result<(), RepoError> {
+        self.repo.delete(id).await
+    }
+
     pub async fn get_current(&self, world_id: WorldId) -> Result<Option<domain::Scene>, RepoError> {
         self.repo.get_current(world_id).await
     }

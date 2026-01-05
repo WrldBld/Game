@@ -150,6 +150,19 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         Ok(events)
     }
 
+    async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (e:NarrativeEvent {id: $id})
+            DETACH DELETE e",
+        )
+        .param("id", id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted narrative event: {}", id);
+        Ok(())
+    }
+
     // =========================================================================
     // EventChain operations
     // =========================================================================
@@ -224,6 +237,19 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         Ok(())
     }
 
+    async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:EventChain {id: $id})
+            DETACH DELETE c",
+        )
+        .param("id", id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted event chain: {}", id);
+        Ok(())
+    }
+
     // =========================================================================
     // StoryEvent operations
     // =========================================================================
@@ -279,6 +305,19 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         .param("tags_json", tags_json);
 
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (e:StoryEvent {id: $id})
+            DETACH DELETE e",
+        )
+        .param("id", id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted story event: {}", id);
         Ok(())
     }
 

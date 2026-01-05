@@ -315,6 +315,22 @@ impl LocationRepo for Neo4jLocationRepo {
         Ok(locations)
     }
 
+    async fn delete_location(&self, id: LocationId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (l:Location {id: $id})
+            DETACH DELETE l",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted location: {}", id);
+        Ok(())
+    }
+
     // =========================================================================
     // Region CRUD
     // =========================================================================
@@ -418,6 +434,22 @@ impl LocationRepo for Neo4jLocationRepo {
         }
 
         Ok(regions)
+    }
+
+    async fn delete_region(&self, id: RegionId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $id})
+            DETACH DELETE r",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted region: {}", id);
+        Ok(())
     }
 
     // =========================================================================

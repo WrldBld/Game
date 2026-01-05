@@ -62,6 +62,13 @@ impl Location {
         self.repo.list_locations_in_world(world_id).await
     }
 
+    /// Delete a location by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete(&self, id: LocationId) -> Result<(), RepoError> {
+        self.repo.delete_location(id).await
+    }
+
     // =========================================================================
     // Region CRUD
     // =========================================================================
@@ -76,6 +83,13 @@ impl Location {
 
     pub async fn list_regions_in_location(&self, location_id: LocationId) -> Result<Vec<domain::Region>, RepoError> {
         self.repo.list_regions_in_location(location_id).await
+    }
+
+    /// Delete a region by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete_region(&self, id: RegionId) -> Result<(), RepoError> {
+        self.repo.delete_region(id).await
     }
 
     // =========================================================================

@@ -72,6 +72,11 @@ impl Character {
         self.repo.save_relationship(relationship).await
     }
 
+    /// Delete a relationship by ID.
+    pub async fn delete_relationship(&self, id: wrldbldr_domain::RelationshipId) -> Result<(), RepoError> {
+        self.repo.delete_relationship(id).await
+    }
+
     // =========================================================================
     // Inventory
     // =========================================================================
@@ -98,6 +103,13 @@ impl Character {
 
     pub async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError> {
         self.repo.save_want(character_id, want).await
+    }
+
+    /// Delete a want by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete_want(&self, id: wrldbldr_domain::WantId) -> Result<(), RepoError> {
+        self.repo.delete_want(id).await
     }
 
     // =========================================================================

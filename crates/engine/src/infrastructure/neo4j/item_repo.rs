@@ -78,6 +78,21 @@ impl ItemRepo for Neo4jItemRepo {
         Ok(())
     }
 
+    /// Delete an item by ID.
+    /// Uses DETACH DELETE to remove all relationships.
+    async fn delete(&self, id: ItemId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (i:Item {id: $id})
+            DETACH DELETE i",
+        )
+        .param("id", id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted item: {}", id);
+        Ok(())
+    }
+
     /// List items in a region (items that are "in" the region via some relationship)
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Item>, RepoError> {
         // Items in a region could be:

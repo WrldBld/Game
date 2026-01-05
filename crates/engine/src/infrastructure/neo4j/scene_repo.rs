@@ -311,6 +311,22 @@ impl SceneRepo for Neo4jSceneRepo {
         Ok(())
     }
 
+    async fn delete(&self, id: SceneId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (s:Scene {id: $id})
+            DETACH DELETE s",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted scene: {}", id);
+        Ok(())
+    }
+
     async fn get_current(&self, world_id: WorldId) -> Result<Option<Scene>, RepoError> {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:CURRENT_SCENE]->(s:Scene)

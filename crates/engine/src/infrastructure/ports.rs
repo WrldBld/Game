@@ -122,6 +122,7 @@ pub trait CharacterRepo: Send + Sync {
     // Relationships
     async fn get_relationships(&self, id: CharacterId) -> Result<Vec<Relationship>, RepoError>;
     async fn save_relationship(&self, relationship: &Relationship) -> Result<(), RepoError>;
+    async fn delete_relationship(&self, id: RelationshipId) -> Result<(), RepoError>;
     
     // Inventory
     async fn get_inventory(&self, id: CharacterId) -> Result<Vec<Item>, RepoError>;
@@ -131,6 +132,7 @@ pub trait CharacterRepo: Send + Sync {
     // Wants/Goals
     async fn get_wants(&self, id: CharacterId) -> Result<Vec<Want>, RepoError>;
     async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError>;
+    async fn delete_want(&self, id: WantId) -> Result<(), RepoError>;
     
     // Disposition (NPC's view of a specific PC)
     async fn get_disposition(
@@ -184,11 +186,13 @@ pub trait LocationRepo: Send + Sync {
     // Location CRUD
     async fn get_location(&self, id: LocationId) -> Result<Option<Location>, RepoError>;
     async fn save_location(&self, location: &Location) -> Result<(), RepoError>;
+    async fn delete_location(&self, id: LocationId) -> Result<(), RepoError>;
     async fn list_locations_in_world(&self, world_id: WorldId) -> Result<Vec<Location>, RepoError>;
     
     // Region CRUD
     async fn get_region(&self, id: RegionId) -> Result<Option<Region>, RepoError>;
     async fn save_region(&self, region: &Region) -> Result<(), RepoError>;
+    async fn delete_region(&self, id: RegionId) -> Result<(), RepoError>;
     async fn list_regions_in_location(&self, location_id: LocationId) -> Result<Vec<Region>, RepoError>;
     
     // Connections
@@ -203,6 +207,7 @@ pub trait LocationRepo: Send + Sync {
 pub trait SceneRepo: Send + Sync {
     async fn get(&self, id: SceneId) -> Result<Option<Scene>, RepoError>;
     async fn save(&self, scene: &Scene) -> Result<(), RepoError>;
+    async fn delete(&self, id: SceneId) -> Result<(), RepoError>;
     async fn get_current(&self, world_id: WorldId) -> Result<Option<Scene>, RepoError>;
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError>;
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
@@ -238,15 +243,18 @@ pub trait NarrativeRepo: Send + Sync {
     // Events
     async fn get_event(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>, RepoError>;
     async fn save_event(&self, event: &NarrativeEvent) -> Result<(), RepoError>;
+    async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError>;
     async fn list_events_for_world(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>, RepoError>;
     
     // Event chains
     async fn get_chain(&self, id: EventChainId) -> Result<Option<EventChain>, RepoError>;
     async fn save_chain(&self, chain: &EventChain) -> Result<(), RepoError>;
+    async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError>;
     
     // Story events
     async fn get_story_event(&self, id: StoryEventId) -> Result<Option<StoryEvent>, RepoError>;
     async fn save_story_event(&self, event: &StoryEvent) -> Result<(), RepoError>;
+    async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError>;
     async fn list_story_events(&self, world_id: WorldId, limit: usize) -> Result<Vec<StoryEvent>, RepoError>;
     
     // Dialogue history
@@ -327,6 +335,7 @@ pub trait ObservationRepo: Send + Sync {
 pub trait ItemRepo: Send + Sync {
     async fn get(&self, id: ItemId) -> Result<Option<Item>, RepoError>;
     async fn save(&self, item: &Item) -> Result<(), RepoError>;
+    async fn delete(&self, id: ItemId) -> Result<(), RepoError>;
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Item>, RepoError>;
     async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Item>, RepoError>;
     

@@ -523,6 +523,22 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
+    async fn delete_relationship(&self, id: RelationshipId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH ()-[r:RELATES_TO {id: $id}]->()
+            DELETE r",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted relationship: {}", id);
+        Ok(())
+    }
+
     // =========================================================================
     // Inventory Operations
     // =========================================================================
@@ -689,6 +705,22 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         tracing::debug!("Saved want {} for character {}", want.id, character_id);
+        Ok(())
+    }
+
+    async fn delete_want(&self, id: WantId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (w:Want {id: $id})
+            DETACH DELETE w",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted want: {}", id);
         Ok(())
     }
 

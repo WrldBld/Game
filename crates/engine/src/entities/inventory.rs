@@ -41,6 +41,13 @@ impl Inventory {
         self.item_repo.save(item).await
     }
 
+    /// Delete an item by ID.
+    /// 
+    /// Uses DETACH DELETE to remove all relationships.
+    pub async fn delete(&self, id: ItemId) -> Result<(), RepoError> {
+        self.item_repo.delete(id).await
+    }
+
     pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Item>, RepoError> {
         self.item_repo.list_in_region(region_id).await
     }
