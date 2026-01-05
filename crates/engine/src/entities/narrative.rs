@@ -1,5 +1,6 @@
 //! Narrative entity operations.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
@@ -8,7 +9,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, ClockPort, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
+    ChallengeRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
 };
 
 /// Narrative entity operations.
@@ -20,16 +21,21 @@ pub struct Narrative {
     player_character_repo: Arc<dyn PlayerCharacterRepo>,
     observation_repo: Arc<dyn ObservationRepo>,
     challenge_repo: Arc<dyn ChallengeRepo>,
+    flag_repo: Arc<dyn FlagRepo>,
+    scene_repo: Arc<dyn SceneRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Narrative {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo: Arc<dyn NarrativeRepo>,
         location_repo: Arc<dyn LocationRepo>,
         player_character_repo: Arc<dyn PlayerCharacterRepo>,
         observation_repo: Arc<dyn ObservationRepo>,
         challenge_repo: Arc<dyn ChallengeRepo>,
+        flag_repo: Arc<dyn FlagRepo>,
+        scene_repo: Arc<dyn SceneRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -38,6 +44,8 @@ impl Narrative {
             player_character_repo,
             observation_repo,
             challenge_repo,
+            flag_repo,
+            scene_repo,
             clock,
         }
     }
@@ -325,22 +333,69 @@ impl Narrative {
             (Vec::new(), Vec::new())
         };
 
+        // Get flags for this PC (both world and PC-scoped)
+        let flags: HashMap<String, bool> = if let Some(world_id) = world_id {
+            match self.flag_repo.get_world_flags(world_id).await {
+                Ok(world_flags) => {
+                    let pc_flags = self.flag_repo.get_pc_flags(pc_id).await.unwrap_or_default();
+                    // Combine world and PC flags into a HashMap<String, bool>
+                    let mut flag_map = HashMap::new();
+                    for flag in world_flags {
+                        flag_map.insert(flag, true);
+                    }
+                    for flag in pc_flags {
+                        flag_map.insert(flag, true);
+                    }
+                    flag_map
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch flags for trigger evaluation"
+                    );
+                    HashMap::new()
+                }
+            }
+        } else {
+            HashMap::new()
+        };
+
+        // Get current scene for the world
+        let current_scene: Option<SceneId> = if let Some(world_id) = world_id {
+            match self.scene_repo.get_current(world_id).await {
+                Ok(scene_opt) => scene_opt.map(|s: domain::Scene| s.id),
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch current scene for trigger evaluation"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Build trigger context with enriched PC state
-        // NOTE: flags, event_outcomes, challenge_successes are still TODO for future enhancements
+        // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count 
+        // are caller-specific context that cannot be determined here.
+        // These should be passed in by callers that have this information.
         let context = TriggerContext {
             current_location: location_id,
-            current_scene: None, // Would need SceneRepo to get current scene
-            time_context: None,
-            flags: std::collections::HashMap::new(),
+            current_scene,
+            time_context: None, // Caller can provide game_time context if needed
+            flags,
             inventory,
             completed_events,
-            event_outcomes: std::collections::HashMap::new(),
-            turns_since_event: std::collections::HashMap::new(),
+            event_outcomes: HashMap::new(),        // Caller responsibility - not stored in DB
+            turns_since_event: HashMap::new(),     // Caller responsibility - session state
             completed_challenges,
-            challenge_successes: std::collections::HashMap::new(), // TODO: Track success/failure
-            turn_count: 0,
-            recent_dialogue_topics: Vec::new(),
-            recent_player_action: None,
+            challenge_successes: HashMap::new(),   // TODO: Could query from ChallengeRepo if needed
+            turn_count: 0,                         // Caller responsibility - session state
+            recent_dialogue_topics: Vec::new(),    // Caller responsibility - session state  
+            recent_player_action: None,            // Caller responsibility - session state
         };
 
         // Evaluate each candidate and collect triggered events

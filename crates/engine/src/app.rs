@@ -82,6 +82,8 @@ impl App {
             repos.player_character.clone(),
             repos.observation.clone(),
             repos.challenge.clone(),
+            repos.flag.clone(),
+            repos.scene.clone(),
             clock.clone(),
         ));
         let staging = Arc::new(entities::Staging::new(repos.staging.clone()));

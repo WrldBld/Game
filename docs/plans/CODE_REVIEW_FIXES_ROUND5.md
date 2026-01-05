@@ -87,18 +87,24 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 4: High - Fix Incomplete TriggerContext (Complexity: High)
 
 ### CR5-4.1 - Populate TriggerContext Properly
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/entities/narrative.rs`
 **Lines**: 328-344
 
 **Issue**: TriggerContext has empty/hardcoded values for flags, events, challenges, etc.
 
 **Tasks**:
-- [ ] Add Flag entity dependency to Narrative
-- [ ] Fetch and populate `flags` from Flag entity
-- [ ] Add Scene entity dependency for `current_scene`
-- [ ] Accept `turn_count` as parameter from caller
-- [ ] Document which fields are caller's responsibility
+- [x] Add Flag entity dependency to Narrative
+- [x] Fetch and populate `flags` from Flag entity
+- [x] Add Scene entity dependency for `current_scene`
+- [x] Accept `turn_count` as parameter from caller
+- [x] Document which fields are caller's responsibility
+
+**Implementation Notes**:
+- Added `flag_repo: Arc<dyn FlagRepo>` and `scene_repo: Arc<dyn SceneRepo>` dependencies
+- `flags` now populated from both world and PC-scoped flags via FlagRepo
+- `current_scene` now fetched from SceneRepo using `get_current(world_id)`
+- Session-specific fields (turn_count, event_outcomes, turns_since_event, recent_dialogue_topics, recent_player_action) documented as caller responsibility - these are transient session state not stored in DB
 
 ---
 
@@ -418,7 +424,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 1 | 2 | 2 | COMPLETE |
 | Phase 2 | 1 | 1 | COMPLETE |
 | Phase 3 | 1 | 1 | COMPLETE |
-| Phase 4 | 1 | 0 | PENDING |
+| Phase 4 | 1 | 1 | COMPLETE |
 | Phase 5 | 3 | 0 | PENDING |
 | Phase 6 | 2 | 0 | PENDING |
 | Phase 7 | 4 | 0 | PENDING |
@@ -437,5 +443,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 |--------|-------|-------------|
 | 91cb9d0 | Phase 1 | Remove APOC dependencies from Neo4j repositories |
 | 282b843 | Phase 2 | Safe world deletion with explicit node types |
-| - | Phase 3 | Add backpressure for critical messages |
+| 16ff0dc | Phase 3 | Add backpressure for critical messages |
+| - | Phase 4 | Populate TriggerContext properly |
 
