@@ -106,7 +106,7 @@ pub async fn suggest_time_for_movement(
     ).await {
         Ok(SuggestTimeResult::SuggestionCreated(suggestion)) => Some(suggestion),
         Ok(SuggestTimeResult::AutoAdvanced { .. }) => {
-            // In auto mode, time was advanced - no suggestion needed
+            // In auto mode, time was already persisted by SuggestTime - no suggestion needed
             None
         }
         Ok(SuggestTimeResult::NoCost) | Ok(SuggestTimeResult::ManualMode) => None,

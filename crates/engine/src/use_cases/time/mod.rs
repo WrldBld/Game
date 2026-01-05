@@ -13,7 +13,7 @@ use wrldbldr_domain::{
     GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, WorldId,
 };
 
-use crate::entities::World;
+use crate::entities::{World, WorldError};
 use crate::infrastructure::ports::{ClockPort, RepoError};
 
 /// Container for time use cases.
@@ -126,18 +126,13 @@ impl SuggestTime {
                 Ok(SuggestTimeResult::ManualMode)
             }
             TimeMode::Auto => {
-                // Auto-advance time immediately
-                // Note: The actual world update should be done by the caller
-                // after receiving this result, to maintain transaction boundaries.
-                // Period change detection is handled by build_time_advance_data().
-                let mut new_time = world.game_time.clone();
-                new_time.advance_minutes(cost_minutes);
-
+                // Auto-advance time immediately and persist
                 let reason = self.build_reason(action_type, &action_description);
+                let result = self.world.advance_time(world_id, cost_minutes, reason.clone()).await?;
 
                 Ok(SuggestTimeResult::AutoAdvanced {
-                    previous_time: world.game_time.clone(),
-                    new_time,
+                    previous_time: result.previous_time,
+                    new_time: result.new_time,
                     minutes: cost_minutes,
                     reason,
                 })
@@ -206,6 +201,8 @@ pub enum SuggestTimeError {
     WorldNotFound,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+    #[error("World error: {0}")]
+    World(#[from] WorldError),
 }
 
 // =============================================================================

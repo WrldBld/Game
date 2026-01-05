@@ -40,14 +40,14 @@ Plus: 15+ unimplemented features documented in system specs.
 ---
 
 ### CR6-1.2 - Auto Mode Time Never Actually Advances
-**Severity**: CRITICAL
+**Severity**: CRITICAL (FIXED)
 **File**: `crates/engine/src/use_cases/time/mod.rs:128-143`
 
 **Issue**: Despite being named "Auto-advance time immediately", the `SuggestTime::execute` method returns a result but **never persists** the time change. Callers just log the result.
 
 **Tasks**:
-- [ ] Either persist time in `SuggestTime::execute` for Auto mode
-- [ ] Or ensure all callers persist the returned time change
+- [x] Persist time in `SuggestTime::execute` for Auto mode (calls `world.advance_time`)
+- [x] Updated comment in movement use case to clarify behavior
 
 ---
 

@@ -29,7 +29,7 @@ pub use staging::Staging;
 pub use observation::Observation;
 pub use inventory::Inventory;
 pub use assets::Assets;
-pub use world::World;
+pub use world::{World, WorldError};
 pub use flag::Flag;
 pub use lore::Lore;
 pub use location_state::LocationStateEntity;
