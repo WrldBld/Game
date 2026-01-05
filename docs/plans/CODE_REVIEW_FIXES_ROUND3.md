@@ -308,12 +308,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-7.3 - Clear Error Message on Reconnect
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/connection_state.rs`
 **Issue**: Error message persists after successful reconnection.
 
 **Tasks**:
-- [ ] Clear error_message when transitioning to Connected state
+- [x] Clear error_message in set_world_joined (successful connection)
+- [x] Clear error_message in set_reconnecting (starting new attempt)
 
 ---
 
@@ -411,7 +412,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-6.2 | Unknown variants | COMPLETE | - |
 | CR3-7.1 | Lore state | COMPLETE | - |
 | CR3-7.2 | ViewMode PC fix | COMPLETE | - |
-| CR3-7.3 | Error message clear | PENDING | - |
+| CR3-7.3 | Error message clear | COMPLETE | - |
 | CR3-8.1 | Scene system docs | PENDING | - |
 | CR3-8.2 | Narrative system docs | PENDING | - |
 | CR3-8.3 | Lore system docs | PENDING | - |

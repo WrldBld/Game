@@ -133,6 +133,8 @@ impl ConnectionState {
         self.world_role.set(Some(role));
         self.connected_users.set(connected_users);
         self.connection_status.set(ConnectionStatus::Connected);
+        // Clear any previous error message on successful connection
+        self.error_message.set(None);
     }
 
     /// Add a user to the connected users list
@@ -180,6 +182,8 @@ impl ConnectionState {
     /// Set the connection to reconnecting state
     pub fn set_reconnecting(&mut self) {
         self.connection_status.set(ConnectionStatus::Reconnecting);
+        // Clear previous error since we're attempting a new connection
+        self.error_message.set(None);
     }
 
     /// Check if we have an active client
