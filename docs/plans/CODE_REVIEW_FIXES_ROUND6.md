@@ -52,26 +52,28 @@ Plus: 15+ unimplemented features documented in system specs.
 ---
 
 ### CR6-1.3 - Dice Roll Range Off By One
-**Severity**: CRITICAL
+**Severity**: ~~CRITICAL~~ NOT A BUG
 **File**: `crates/engine/src/use_cases/challenge/mod.rs:132-134`
 
-**Issue**: Assuming `gen_range` uses exclusive upper bound (Rust standard), D20 generates 1-19, D100 generates 1-99, missing the maximum values.
+**Issue**: ~~Assuming `gen_range` uses exclusive upper bound (Rust standard), D20 generates 1-19, D100 generates 1-99, missing the maximum values.~~
+
+**Resolution**: Verified that `RandomPort::gen_range` uses `min..=max` (inclusive range) in `clock.rs:46`. The code `gen_range(1, 20)` correctly generates 1-20 inclusive. No fix needed.
 
 **Tasks**:
-- [ ] Verify `RandomPort::gen_range` semantics
-- [ ] Fix to `gen_range(1, 21)` and `gen_range(1, 101)` if exclusive
+- [x] Verify `RandomPort::gen_range` semantics - uses inclusive range `..=`
+- [x] No fix needed - implementation is correct
 
 ---
 
 ### CR6-1.4 - Data Loss in UpdateEventChainRequest Conversion
-**Severity**: CRITICAL
+**Severity**: CRITICAL (FIXED)
 **File**: `crates/player-app/src/application/services/event_chain_service.rs:121-128`
 
 **Issue**: `From<&UpdateEventChainRequest>` only converts 2 of 7 fields. `events`, `act_id`, `tags`, `color`, `is_active` are silently discarded.
 
 **Tasks**:
-- [ ] Update `From` implementation to include all fields
-- [ ] Update protocol `UpdateEventChainData` if missing fields
+- [x] Update `From` implementation to include all fields
+- [x] Update protocol `UpdateEventChainData` if missing fields
 
 ---
 

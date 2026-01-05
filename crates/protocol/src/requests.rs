@@ -1154,6 +1154,21 @@ pub struct UpdateEventChainData {
     pub name: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Events to set (replaces existing)
+    #[serde(default)]
+    pub events: Option<Vec<String>>,
+    /// Optional act association
+    #[serde(default)]
+    pub act_id: Option<String>,
+    /// Tags for categorization
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    /// Display color (hex or named)
+    #[serde(default)]
+    pub color: Option<String>,
+    /// Whether the chain is active
+    #[serde(default)]
+    pub is_active: Option<bool>,
 }
 
 /// Data for creating a DM marker

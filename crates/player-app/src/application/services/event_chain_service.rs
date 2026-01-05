@@ -123,6 +123,11 @@ impl From<&UpdateEventChainRequest> for wrldbldr_protocol::requests::UpdateEvent
         Self {
             name: req.name.clone(),
             description: req.description.clone(),
+            events: req.events.clone(),
+            act_id: req.act_id.clone(),
+            tags: req.tags.clone(),
+            color: req.color.clone(),
+            is_active: req.is_active,
         }
     }
 }
