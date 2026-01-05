@@ -60,25 +60,25 @@
 ## Priority 2: High Severity Fixes
 
 ### CR2-2.1 - UI State clear_scene() Missing Fields
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/game_state.rs`
 **Issue**: `clear_scene()` doesn't clear `region_items` or `npc_moods`
 **Impact**: Stale data persists across sessions
 
 **Tasks**:
-- [ ] Add `self.region_items.set(Vec::new())` to `clear_scene()`
-- [ ] Add `self.npc_moods.write().clear()` to `clear_scene()`
+- [x] Add `self.region_items.set(Vec::new())` to `clear_scene()`
+- [x] Add `self.npc_moods.write().clear()` to `clear_scene()`
 
 ---
 
 ### CR2-2.2 - ResponseApproved Not Updating State
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Issue**: `ResponseApproved` event only logs, doesn't clear `is_llm_processing`
 **Impact**: UI may show processing state incorrectly
 
 **Tasks**:
-- [ ] Add `dialogue_state.set_llm_processing(false)` in handler
+- [x] Add `dialogue_state.is_llm_processing.set(false)` in handler
 
 ---
 
@@ -144,13 +144,13 @@
 ## Priority 3: Medium Severity Fixes
 
 ### CR2-3.1 - StagingReady Not Clearing pending_staging_approval
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Issue**: DM approval popup not cleared when staging becomes ready
 **Impact**: Stale approval popup for DM
 
 **Tasks**:
-- [ ] Clear `pending_staging_approval` in `StagingReady` handler
+- [x] Clear `pending_staging_approval` in `StagingReady` handler
 
 ---
 
@@ -256,14 +256,14 @@
 | CR2-1.2 | Protocol AdHocOutcomes | COMPLETE | - |
 | CR2-1.3 | WebSocket Unknown Message | COMPLETE | - |
 | CR2-1.4 | Duplicate ConversationError | COMPLETE | - |
-| CR2-2.1 | UI State clear_scene | PENDING | - |
-| CR2-2.2 | ResponseApproved handler | PENDING | - |
+| CR2-2.1 | UI State clear_scene | COMPLETE | - |
+| CR2-2.2 | ResponseApproved handler | COMPLETE | - |
 | CR2-2.3 | StagingReady NPC names | PENDING | - |
 | CR2-2.4 | Neo4j delete transaction | PENDING | - |
 | CR2-2.5 | Neo4j update_position | PENDING | - |
 | CR2-2.6 | Domain enum forward compat | PENDING | - |
 | CR2-2.7 | Player-App type mismatch | PENDING | - |
-| CR2-3.1 | StagingReady clear approval | PENDING | - |
+| CR2-3.1 | StagingReady clear approval | COMPLETE | - |
 | CR2-3.2 | Extract staging resolution | PENDING | - |
 | CR2-3.3 | Extract time suggestion | PENDING | - |
 | CR2-3.4 | Extract row_to_item | PENDING | - |

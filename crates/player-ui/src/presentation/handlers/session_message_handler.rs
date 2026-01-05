@@ -99,6 +99,8 @@ pub fn handle_server_message(
             executed_tools,
         } => {
             tracing::info!("ResponseApproved: executed {} tools", executed_tools.len());
+            // Clear processing state - the response has been approved and delivered
+            dialogue_state.is_llm_processing.set(false);
         }
 
         PlayerEvent::Error { code, message } => {
@@ -928,8 +930,10 @@ pub fn handle_server_message(
                 npcs_present.len()
             );
 
-            // Clear the pending staging overlay
+            // Clear the pending staging overlay (for players)
             game_state.clear_staging_pending();
+            // Clear the DM approval popup (staging has been approved)
+            game_state.clear_pending_staging_approval();
 
             // Update region staging status to Active with NPC names
             let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();

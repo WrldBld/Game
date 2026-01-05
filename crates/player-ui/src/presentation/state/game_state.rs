@@ -570,6 +570,7 @@ impl GameState {
         self.current_region.set(None);
         self.navigation.set(None);
         self.npcs_present.set(Vec::new());
+        self.region_items.set(Vec::new());
         self.game_time.set(None);
         self.approach_event.set(None);
         self.location_event.set(None);
@@ -578,6 +579,7 @@ impl GameState {
         self.split_party_locations.set(Vec::new());
         self.view_mode.set(ViewMode::Director);
         self.npc_dispositions.set(Vec::new());
+        self.npc_moods.write().clear();
         self.region_staging_statuses.write().clear();
         self.pending_time_suggestions.write().clear();
         self.time_mode.set(TimeMode::default());
