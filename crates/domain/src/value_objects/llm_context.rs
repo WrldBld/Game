@@ -102,16 +102,33 @@ pub struct CharacterContext {
     pub name: String,
     /// Character archetype / personality summary
     pub archetype: String,
-    /// Current emotional state
+    /// Current emotional state (Tier 2 of emotional model)
+    /// E.g., "Anxious", "Calm", "Excited"
     pub current_mood: Option<String>,
+    /// NPC's disposition toward the player (Tier 1 of emotional model)
+    /// E.g., "Friendly", "Suspicious", "Hostile"
+    /// This is the emotional stance, separate from relationship level
+    #[serde(default)]
+    pub disposition_toward_player: Option<String>,
     /// Character's motivations (rich actantial model context)
     #[serde(default)]
     pub motivations: Option<MotivationsContext>,
     /// Character's social stance (aggregated allies/enemies)
     #[serde(default)]
     pub social_stance: Option<SocialStanceContext>,
-    /// How this character relates to the player
+    /// How this character relates to the player (relationship level)
+    /// E.g., "Stranger", "Acquaintance", "Friend", "Ally"
     pub relationship_to_player: Option<String>,
+    /// Available expression names for this character's sprite sheet (Tier 3 of emotional model)
+    /// E.g., ["neutral", "happy", "sad", "angry", "surprised"]
+    /// Used for expression markers in dialogue: *happy*, *suspicious*
+    #[serde(default)]
+    pub available_expressions: Option<Vec<String>>,
+    /// Available action descriptions for this character
+    /// E.g., ["crosses arms", "narrows eyes", "sighs"]
+    /// Used for action markers in dialogue: *crosses arms*
+    #[serde(default)]
+    pub available_actions: Option<Vec<String>>,
 }
 
 // =============================================================================

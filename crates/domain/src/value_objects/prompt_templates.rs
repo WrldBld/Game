@@ -142,6 +142,18 @@ This section is hidden from the player but shown to the Game Master for review.
 Your character's spoken response. Stay in character.
 Write naturally as the character would speak. Use appropriate dialect or speech patterns.
 Keep responses concise but meaningful (1-3 sentences typically).
+
+EXPRESSION MARKERS (use these to show character emotions and actions):
+- Use *expression* to change the character's visual expression (e.g., *happy*, *suspicious*)
+- Use *action* for physical actions that don't have sprites (e.g., *sighs*, *crosses arms*)
+- Use *expression|fallback* if the expression might not exist (e.g., *nervous|worried*)
+- Place markers naturally within the dialogue text
+- The expression shown will persist until the next marker or end of dialogue
+
+Example: *curious* "You seek the Heartstone?" *narrows eyes* *suspicious* "But why?"
+
+Available expressions depend on the character - use only expressions from the character's available list.
+Actions (like *sighs*, *crosses arms*) are shown as italicized text and don't change the sprite.
 </dialogue>
 
 <topics>
@@ -166,10 +178,13 @@ AVAILABLE TOOLS:
 You may propose tool calls to affect game state. Available tools:
 - give_item: Give an item to the player (item_name: string, description: string)
 - reveal_info: Reveal plot-relevant information (info_type: string, content: string, importance: "minor"|"major"|"critical")
-- change_relationship: Modify relationship with player (change: "improve"|"worsen", amount: "slight"|"moderate"|"significant", reason: string)
+- change_relationship: Modify relationship level with player (change: "improve"|"worsen", amount: "slight"|"moderate"|"significant", reason: string)
+- change_disposition: Change NPC's emotional stance toward player (new_disposition: "friendly"|"neutral"|"suspicious"|"hostile"|"grateful"|"respectful"|"dismissive", reason: string)
+- change_mood: Change NPC's current emotional state (new_mood: "happy"|"calm"|"anxious"|"excited"|"melancholic"|"irritated"|"alert"|"bored"|"fearful"|"hopeful"|"curious"|"contemplative"|"amused"|"weary"|"confident"|"nervous", reason: string)
 - trigger_event: Trigger a game event (event_type: string, description: string)
 
 Only propose tool calls when dramatically appropriate. The Game Master will approve or reject them.
+Disposition/mood changes require DM approval and should reflect significant emotional shifts.
 "#;
 
     /// Challenge suggestion format for dialogue

@@ -181,9 +181,12 @@ impl ProcessPlayerAction {
             name: target_name.clone(),
             archetype: "NPC".to_string(),
             current_mood: None,
+            disposition_toward_player: None,
             motivations: None,
             social_stance: None,
             relationship_to_player: None,
+            available_expressions: None,
+            available_actions: None,
         };
 
         // Build directorial notes with the prompt
@@ -241,9 +244,12 @@ impl ProcessPlayerAction {
             name: target_name.clone(),
             archetype: "NPC".to_string(),
             current_mood: None,
+            disposition_toward_player: None,
             motivations: None,
             social_stance: None,
             relationship_to_player: None,
+            available_expressions: None,
+            available_actions: None,
         };
 
         let directorial_notes = format!(
