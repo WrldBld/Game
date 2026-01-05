@@ -161,4 +161,43 @@ impl Staging {
     ) -> Result<Vec<DomainStaging>, RepoError> {
         self.repo.get_staging_history(region_id, limit).await
     }
+    
+    // =========================================================================
+    // Mood Operations (Tier 2 of three-tier emotional model)
+    // =========================================================================
+    
+    /// Get an NPC's current mood in a region.
+    ///
+    /// The mood is stored on the INCLUDES_NPC edge in the active staging.
+    /// Returns the NPC's default_mood if not staged or no mood override set.
+    ///
+    /// ## Three-Tier Emotional Model
+    /// - **Tier 1 (Disposition)**: NPC's view of a specific PC (persistent)
+    /// - **Tier 2 (Mood)**: NPC's current emotional state (this method)
+    /// - **Tier 3 (Expression)**: Transient visual cues in dialogue
+    pub async fn get_npc_mood(
+        &self,
+        region_id: RegionId,
+        npc_id: CharacterId,
+    ) -> Result<wrldbldr_domain::MoodState, RepoError> {
+        self.repo.get_npc_mood(region_id, npc_id).await
+    }
+    
+    /// Set an NPC's mood in a region's active staging.
+    ///
+    /// Updates the mood property on the INCLUDES_NPC edge. The NPC must be
+    /// currently staged in the region (returns NotFound otherwise).
+    ///
+    /// ## Use Cases
+    /// - DM manually adjusting NPC mood
+    /// - LLM-driven mood changes from dialogue
+    /// - Narrative events affecting NPC emotional state
+    pub async fn set_npc_mood(
+        &self,
+        region_id: RegionId,
+        npc_id: CharacterId,
+        mood: wrldbldr_domain::MoodState,
+    ) -> Result<(), RepoError> {
+        self.repo.set_npc_mood(region_id, npc_id, mood).await
+    }
 }

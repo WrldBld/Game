@@ -662,14 +662,20 @@ pub enum RequestPayload {
     /// Mood is per-NPC (not per-PC) and affects dialogue tone and default expression
     SetNpcMood {
         npc_id: String,
+        /// Region where NPC is staged (mood is per-staging)
+        region_id: String,
         /// Mood state: "happy", "calm", "anxious", "excited", "melancholic", etc.
         mood: String,
         #[serde(default)]
         reason: Option<String>,
     },
 
-    /// Get an NPC's current mood
-    GetNpcMood { npc_id: String },
+    /// Get an NPC's current mood in a specific region
+    GetNpcMood {
+        npc_id: String,
+        /// Region where NPC is staged
+        region_id: String,
+    },
 
     // =========================================================================
     // LLM Suggestion Operations

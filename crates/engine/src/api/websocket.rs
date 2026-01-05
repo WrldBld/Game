@@ -16,7 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use wrldbldr_domain::{ChallengeId, CharacterId, ItemId, LocationId, NarrativeEventId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{ChallengeId, CharacterId, ItemId, LocationId, MoodState, NarrativeEventId, PlayerCharacterId, RegionId, WorldId};
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, ResponseResult, ServerMessage, WorldRole as ProtoWorldRole,
@@ -2206,6 +2206,133 @@ async fn handle_request(
         RequestPayload::GetTriggerSchema => {
             let schema = wrldbldr_protocol::TriggerSchema::generate();
             ResponseResult::success(schema)
+        }
+        
+        // =========================================================================
+        // NPC Mood Operations (Tier 2 of emotional model)
+        // =========================================================================
+        RequestPayload::SetNpcMood { npc_id, region_id, mood, reason } => {
+            // Parse NPC ID
+            let npc_uuid = match Uuid::parse_str(&npc_id) {
+                Ok(u) => CharacterId::from(u),
+                Err(_) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::BadRequest, "Invalid NPC ID"),
+                }),
+            };
+            
+            // Parse region ID
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(u) => RegionId::from(u),
+                Err(_) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                }),
+            };
+            
+            // Parse mood
+            let mood_state: MoodState = mood.parse().unwrap_or(MoodState::Calm);
+            
+            // Get connection info and world_id
+            let conn_info = match state.connections.get(connection_id).await {
+                Some(info) => info,
+                None => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, "Connection not found"),
+                }),
+            };
+            
+            // Only DM can set mood
+            if !conn_info.is_dm() {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::Forbidden, "Only DM can set NPC mood"),
+                });
+            }
+            
+            // Get world_id from connection
+            let world_id = match conn_info.world_id {
+                Some(wid) => wid,
+                None => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::BadRequest, "Not connected to a world"),
+                }),
+            };
+            
+            // Get the NPC to get their name and old mood for the broadcast
+            let npc = match state.app.entities.character.get(npc_uuid).await {
+                Ok(Some(c)) => c,
+                Ok(None) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::NotFound, "NPC not found"),
+                }),
+                Err(e) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                }),
+            };
+            
+            // Get the old mood from the staging (for the broadcast)
+            let old_mood = state.app.entities.staging.get_npc_mood(region_uuid, npc_uuid).await
+                .unwrap_or(npc.default_mood);
+            
+            // Set the mood in the staging
+            match state.app.entities.staging.set_npc_mood(region_uuid, npc_uuid, mood_state).await {
+                Ok(_) => {
+                    // Broadcast mood change to relevant clients
+                    let mood_changed_msg = ServerMessage::NpcMoodChanged {
+                        npc_id: npc_id.clone(),
+                        npc_name: npc.name.clone(),
+                        old_mood: old_mood.to_string(),
+                        new_mood: mood_state.to_string(),
+                        reason,
+                        region_id: Some(region_id.clone()),
+                    };
+                    
+                    // Broadcast to all connections in this world
+                    state.connections.broadcast_to_world(world_id, mood_changed_msg).await;
+                    
+                    ResponseResult::success(serde_json::json!({
+                        "npc_id": npc_id,
+                        "region_id": region_id,
+                        "mood": mood_state.to_string(),
+                    }))
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::GetNpcMood { npc_id, region_id } => {
+            // Parse NPC ID
+            let npc_uuid = match Uuid::parse_str(&npc_id) {
+                Ok(u) => CharacterId::from(u),
+                Err(_) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::BadRequest, "Invalid NPC ID"),
+                }),
+            };
+            
+            // Parse region ID
+            let region_uuid = match Uuid::parse_str(&region_id) {
+                Ok(u) => RegionId::from(u),
+                Err(_) => return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::BadRequest, "Invalid region ID"),
+                }),
+            };
+            
+            // Get the mood from the staging
+            match state.app.entities.staging.get_npc_mood(region_uuid, npc_uuid).await {
+                Ok(mood) => {
+                    ResponseResult::success(serde_json::json!({
+                        "npc_id": npc_id,
+                        "region_id": region_id,
+                        "mood": mood.to_string(),
+                        "default_expression": mood.default_expression(),
+                    }))
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
         }
         
         // Default - not implemented

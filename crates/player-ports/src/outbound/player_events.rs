@@ -564,7 +564,7 @@ pub enum PlayerEvent {
         source: String,
     },
 
-    /// NPC disposition changed
+    /// NPC disposition changed (Tier 1 of emotional model)
     NpcDispositionChanged {
         npc_id: String,
         npc_name: String,
@@ -572,6 +572,16 @@ pub enum PlayerEvent {
         disposition: String,
         relationship: String,
         reason: Option<String>,
+    },
+
+    /// NPC mood changed (Tier 2 of emotional model)
+    NpcMoodChanged {
+        npc_id: String,
+        npc_name: String,
+        old_mood: String,
+        new_mood: String,
+        reason: Option<String>,
+        region_id: Option<String>,
     },
 
     /// All NPC dispositions for a PC
@@ -837,6 +847,7 @@ impl PlayerEvent {
             Self::InventoryUpdated { .. } => "InventoryUpdated",
             Self::CharacterStatUpdated { .. } => "CharacterStatUpdated",
             Self::NpcDispositionChanged { .. } => "NpcDispositionChanged",
+            Self::NpcMoodChanged { .. } => "NpcMoodChanged",
             Self::NpcDispositionsResponse { .. } => "NpcDispositionsResponse",
             Self::NpcWantCreated { .. } => "NpcWantCreated",
             Self::NpcWantUpdated { .. } => "NpcWantUpdated",

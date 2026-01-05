@@ -298,6 +298,18 @@ pub trait StagingRepo: Send + Sync {
     /// Get staging history for a region (most recent first, limited).
     /// Returns past stagings that are no longer active.
     async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError>;
+    
+    // =========================================================================
+    // Mood Operations (Tier 2 of three-tier emotional model)
+    // =========================================================================
+    
+    /// Get an NPC's current mood in a region's active staging.
+    /// Returns the NPC's default_mood if not staged or no mood override set.
+    async fn get_npc_mood(&self, region_id: RegionId, npc_id: CharacterId) -> Result<MoodState, RepoError>;
+    
+    /// Set an NPC's mood in a region's active staging.
+    /// Creates or updates the mood property on the INCLUDES_NPC edge.
+    async fn set_npc_mood(&self, region_id: RegionId, npc_id: CharacterId, mood: MoodState) -> Result<(), RepoError>;
 }
 
 #[async_trait]

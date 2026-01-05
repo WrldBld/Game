@@ -241,6 +241,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                             is_present,
                                             reasoning: None,
                                             is_hidden_from_players,
+                                            mood: None, // Use character's default_mood
                                         })
                                         .collect();
 

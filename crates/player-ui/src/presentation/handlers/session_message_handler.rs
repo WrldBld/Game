@@ -1128,6 +1128,26 @@ pub fn handle_server_message(
             game_state.set_npc_dispositions(dispositions);
         }
 
+        PlayerEvent::NpcMoodChanged {
+            npc_id,
+            npc_name,
+            old_mood,
+            new_mood,
+            reason,
+            region_id: _,
+        } => {
+            tracing::info!(
+                npc_id = %npc_id,
+                npc_name = %npc_name,
+                old_mood = %old_mood,
+                new_mood = %new_mood,
+                reason = ?reason,
+                "NPC mood changed (Tier 2 emotional model)"
+            );
+            // TODO: Update NPC mood in game state when UI is ready
+            // This would trigger expression/sprite changes in the scene view
+        }
+
         // =========================================================================
         // Actantial Model / Motivations (P1.5)
         // TODO: Implement in Step 8 of Phase 4

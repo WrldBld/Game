@@ -295,6 +295,68 @@ impl StagingRepo for Neo4jStagingRepo {
 
         Ok(stagings)
     }
+    
+    // =========================================================================
+    // Mood Operations (Tier 2 of three-tier emotional model)
+    // =========================================================================
+    
+    /// Get an NPC's current mood in a region's active staging.
+    /// Returns the NPC's default_mood if not staged or no mood override set.
+    async fn get_npc_mood(&self, region_id: RegionId, npc_id: CharacterId) -> Result<MoodState, RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)-[rel:INCLUDES_NPC]->(c:Character {id: $npc_id})
+            WHERE s.is_active = true
+            RETURN COALESCE(rel.mood, c.default_mood, 'calm') as mood",
+        )
+        .param("region_id", region_id.to_string())
+        .param("npc_id", npc_id.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        
+        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
+            Ok(mood_str.parse().unwrap_or(MoodState::Calm))
+        } else {
+            // NPC not staged in this region, try to get their default mood
+            let default_q = query(
+                "MATCH (c:Character {id: $npc_id})
+                RETURN COALESCE(c.default_mood, 'calm') as mood",
+            )
+            .param("npc_id", npc_id.to_string());
+            
+            let mut default_result = self.graph.execute(default_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+            
+            if let Some(row) = default_result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+                let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
+                Ok(mood_str.parse().unwrap_or(MoodState::Calm))
+            } else {
+                Err(RepoError::NotFound)
+            }
+        }
+    }
+    
+    /// Set an NPC's mood in a region's active staging.
+    /// Creates or updates the mood property on the INCLUDES_NPC edge.
+    async fn set_npc_mood(&self, region_id: RegionId, npc_id: CharacterId, mood: MoodState) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)-[rel:INCLUDES_NPC]->(c:Character {id: $npc_id})
+            WHERE s.is_active = true
+            SET rel.mood = $mood
+            RETURN rel",
+        )
+        .param("region_id", region_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("mood", mood.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        
+        if result.next().await.map_err(|e| RepoError::Database(e.to_string()))?.is_none() {
+            // NPC is not staged in this region
+            return Err(RepoError::NotFound);
+        }
+        
+        Ok(())
+    }
 }
 
 impl Neo4jStagingRepo {

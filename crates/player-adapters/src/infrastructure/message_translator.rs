@@ -571,6 +571,22 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             reason,
         },
 
+        ServerMessage::NpcMoodChanged {
+            npc_id,
+            npc_name,
+            old_mood,
+            new_mood,
+            reason,
+            region_id,
+        } => PlayerEvent::NpcMoodChanged {
+            npc_id,
+            npc_name,
+            old_mood,
+            new_mood,
+            reason,
+            region_id,
+        },
+
         ServerMessage::NpcDispositionsResponse {
             pc_id,
             dispositions,
