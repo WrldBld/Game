@@ -244,14 +244,15 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 6: Protocol/Domain Alignment
 
 ### CR3-6.1 - Fix Serde Case Mismatches
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/protocol/src/messages.rs`
 **Issue**: WantVisibility, ActantialRole, WantTargetType use `lowercase` in protocol but `camelCase` in domain.
 
 **Tasks**:
-- [ ] Change WantVisibilityData to `#[serde(rename_all = "camelCase")]`
-- [ ] Change ActantialRoleData to `#[serde(rename_all = "camelCase")]`
-- [ ] Change WantTargetTypeData to `#[serde(rename_all = "camelCase")]`
+- [x] Change WantVisibilityData to `#[serde(rename_all = "camelCase")]`
+- [x] Change ActorTypeData to `#[serde(rename_all = "camelCase")]`
+- [x] Change ActantialRoleData to `#[serde(rename_all = "camelCase")]`
+- [x] Change WantTargetTypeData to `#[serde(rename_all = "camelCase")]`
 
 ---
 
@@ -397,7 +398,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-5.1 | row_to_item extraction | COMPLETE | - |
 | CR3-5.2 | Movement staging extraction | PENDING | - |
 | CR3-5.3 | Time suggestion extraction | PENDING | - |
-| CR3-6.1 | Serde case fixes | PENDING | - |
+| CR3-6.1 | Serde case fixes | COMPLETE | - |
 | CR3-6.2 | Unknown variants | PENDING | - |
 | CR3-7.1 | Lore state | PENDING | - |
 | CR3-7.2 | ViewMode PC fix | PENDING | - |

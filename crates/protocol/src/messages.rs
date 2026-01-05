@@ -1294,7 +1294,7 @@ pub struct NpcDispositionData {
 
 /// Want visibility level - how much the player knows
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum WantVisibilityData {
     /// Player knows this motivation openly
     Known,
@@ -1310,7 +1310,7 @@ pub enum WantVisibilityData {
 
 /// Type discriminator for actors (NPC vs PC)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ActorTypeData {
     Npc,
     Pc,
@@ -1321,7 +1321,7 @@ pub enum ActorTypeData {
 
 /// Actantial role type for character views
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum ActantialRoleData {
     Helper,
     Opponent,
@@ -1334,7 +1334,7 @@ pub enum ActantialRoleData {
 
 /// Target type for wants
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum WantTargetTypeData {
     Character,
     Item,
