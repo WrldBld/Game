@@ -34,31 +34,39 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 
 ## User Stories
 
-### Pending
+### Backend Implemented (UI Pending)
 
-- [ ] **US-LORE-001**: As a DM, I can create lore entries with multiple chunks so that players discover information gradually
-  - *Implementation*: Lore CRUD in Creator mode
+- [x] **US-LORE-001**: As a DM, I can create lore entries with multiple chunks so that players discover information gradually
+  - *Backend*: `Lore` entity with `save()` in `lore.rs`, `lore_repo.rs`
+  - *UI*: Creator mode editor not yet implemented
 
-- [ ] **US-LORE-002**: As a DM, I can link lore to characters, locations, regions, or items so that lore is contextually organized
-  - *Implementation*: Neo4j ABOUT_* edges
+- [x] **US-LORE-002**: As a DM, I can link lore to characters, locations, regions, or items so that lore is contextually organized
+  - *Backend*: Domain supports `about_*` references in Lore entity
+  - *UI*: Link editor not yet implemented
 
-- [ ] **US-LORE-003**: As a DM, I can mark lore as common knowledge so that all characters automatically know it
-  - *Implementation*: `is_common_knowledge` flag on Lore entity
+- [x] **US-LORE-003**: As a DM, I can mark lore as common knowledge so that all characters automatically know it
+  - *Backend*: `is_common_knowledge` field, `list_common_knowledge()` method
+  - *UI*: Toggle in lore editor not yet implemented
 
-- [ ] **US-LORE-004**: As a DM, I can associate common lore with a location so that visitors learn it
-  - *Implementation*: COMMON_LORE edge from Location to Lore
+- [x] **US-LORE-004**: As a DM, I can associate common lore with a location so that visitors learn it
+  - *Backend*: COMMON_LORE edge support in lore_repo.rs
+  - *UI*: Location lore association not yet implemented
+
+- [x] **US-LORE-007**: As a DM, I can manually grant lore (full or specific chunks) to characters
+  - *Backend*: `grant_knowledge()`, `add_chunks_to_knowledge()` methods
+  - *UI*: Grant action in character panel not yet implemented
+
+- [x] **US-LORE-008**: As a DM, I can revoke lore knowledge from characters
+  - *Backend*: `revoke_knowledge()` method in lore.rs
+  - *UI*: Revoke action not yet implemented
+
+### UI Pending
 
 - [ ] **US-LORE-005**: As a player, I can view my character's known lore in a journal/codex
-  - *Implementation*: Lore journal UI component
+  - *Implementation*: LoreState exists in UI, journal component pending
 
 - [ ] **US-LORE-006**: As a player, I see partial lore entries when I only know some chunks
   - *Implementation*: Chunk-aware rendering with "unknown" placeholders
-
-- [ ] **US-LORE-007**: As a DM, I can manually grant lore (full or specific chunks) to characters
-  - *Implementation*: DM action in character panel
-
-- [ ] **US-LORE-008**: As a DM, I can revoke lore knowledge from characters
-  - *Implementation*: DM action to remove KNOWS_LORE edge
 
 - [ ] **US-LORE-009**: As a DM, I can see which characters know which lore in an overview
   - *Implementation*: Knowledge matrix view

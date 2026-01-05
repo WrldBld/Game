@@ -331,39 +331,41 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 8: Documentation Updates
 
 ### CR3-8.1 - Update Scene System Docs
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `docs/systems/scene-system.md`
 
 **Tasks**:
-- [ ] Mark US-SCN-010 (Flag storage) as Implemented
+- [x] Mark US-SCN-010 (Flag storage) as Implemented
 
 ---
 
 ### CR3-8.2 - Update Narrative System Docs
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `docs/systems/narrative-system.md`
 
 **Tasks**:
-- [ ] Mark US-NAR-010 (SetFlag) as Implemented
+- [x] Mark US-NAR-010 (SetFlag) as Implemented
 
 ---
 
 ### CR3-8.3 - Update Lore System Docs
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `docs/systems/lore-system.md`
 
 **Tasks**:
-- [ ] Mark US-LORE-001 through US-LORE-008 backend as Implemented
-- [ ] Note UI components still pending
+- [x] Reorganize into "Backend Implemented" and "UI Pending" sections
+- [x] Mark US-LORE-001 through US-LORE-008 backend as Implemented
+- [x] Note UI components still pending
 
 ---
 
 ### CR3-8.4 - Update Visual State System Docs
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `docs/systems/visual-state-system.md`
 
 **Tasks**:
-- [ ] Update implementation status table to reflect actual state
+- [x] Reorganize into "Backend Implemented" and "UI Pending" sections
+- [x] Mark RegionState related user stories as backend complete
 
 ---
 
@@ -423,7 +425,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-7.1 | Lore state | COMPLETE | - |
 | CR3-7.2 | ViewMode PC fix | COMPLETE | - |
 | CR3-7.3 | Error message clear | COMPLETE | - |
-| CR3-8.1 | Scene system docs | PENDING | - |
-| CR3-8.2 | Narrative system docs | PENDING | - |
-| CR3-8.3 | Lore system docs | PENDING | - |
-| CR3-8.4 | Visual state docs | PENDING | - |
+| CR3-8.1 | Scene system docs | COMPLETE | - |
+| CR3-8.2 | Narrative system docs | COMPLETE | - |
+| CR3-8.3 | Lore system docs | COMPLETE | - |
+| CR3-8.4 | Visual state docs | COMPLETE | - |

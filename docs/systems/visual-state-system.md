@@ -53,25 +53,31 @@ Location (City)
 
 ## User Stories
 
-### Pending
+### Backend Implemented (UI Pending)
+
+- [x] **US-VS-002**: As a DM, I can create region states with visual overrides
+  - *Backend*: `RegionState` entity with CRUD operations in `region_state.rs`, `region_state_repo.rs`
+  - *UI*: Creator mode editor not yet implemented
+
+- [x] **US-VS-003**: As a DM, I can define hard activation rules (date, time, event, flag)
+  - *Backend*: `ActivationRule` enum in domain with all rule types
+  - *UI*: Rule editor not yet implemented
+
+- [x] **US-VS-005**: As a DM, I can set priorities for states when multiple might match
+  - *Backend*: `priority` field on RegionState, resolution logic implemented
+  - *UI*: Priority control not yet implemented
+
+- [x] **US-VS-006**: As a DM, I can mark a state as the default fallback
+  - *Backend*: `is_default` field, `get_default()` method
+  - *UI*: Default toggle not yet implemented
+
+### UI Pending
 
 - [ ] **US-VS-001**: As a DM, I can create location states with visual overrides (backdrop, atmosphere, sound)
-  - *Implementation*: LocationState CRUD in Creator mode
-
-- [ ] **US-VS-002**: As a DM, I can create region states with visual overrides
-  - *Implementation*: RegionState CRUD in Creator mode
-
-- [ ] **US-VS-003**: As a DM, I can define hard activation rules (date, time, event, flag)
-  - *Implementation*: Rule editor with type selector
+  - *Note*: LocationState entity not yet implemented (only RegionState exists)
 
 - [ ] **US-VS-004**: As a DM, I can define soft activation rules (custom LLM conditions)
   - *Implementation*: Free-text condition with optional LLM prompt
-
-- [ ] **US-VS-005**: As a DM, I can set priorities for states when multiple might match
-  - *Implementation*: Priority field on state entities
-
-- [ ] **US-VS-006**: As a DM, I can mark a state as the default fallback
-  - *Implementation*: `is_default` flag on state entities
 
 - [ ] **US-VS-007**: As a DM, I see resolved visual states in the staging approval popup
   - *Implementation*: Extend StagingApproval component

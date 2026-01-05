@@ -60,8 +60,9 @@ The visual novel format provides:
 
 ### Pending
 
-- [ ] **US-SCN-010**: Flag storage system for FlagSet condition
-  - *Notes*: FlagSet condition exists but requires a flag storage system to be implemented
+- [x] **US-SCN-010**: Flag storage system for FlagSet condition
+  - *Status*: Implemented - Flag entity with Neo4j storage in `flag.rs` and `flag_repo.rs`
+  - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
 
 ---
 

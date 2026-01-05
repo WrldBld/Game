@@ -60,8 +60,9 @@ This system provides the scaffolding for emergent storytelling:
 
 ### Pending
 
-- [ ] **US-NAR-010**: SetFlag effect requires flag storage system
-  - *Notes*: Effect type exists but execution stubs - needs flag storage implementation
+- [x] **US-NAR-010**: SetFlag effect with flag storage system
+  - *Status*: Implemented - Flag entity with Neo4j storage
+  - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
 
 - [ ] **US-NAR-011**: StartCombat effect requires combat system
   - *Notes*: Effect type exists but execution stubs - needs combat system implementation
