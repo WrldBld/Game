@@ -3,10 +3,10 @@
 //! Handles item persistence in the game world.
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Graph};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::row_to_item;
 use crate::infrastructure::ports::{ItemRepo, RepoError};
 
 #[allow(unused_imports)]
@@ -204,41 +204,4 @@ impl ItemRepo for Neo4jItemRepo {
     }
 }
 
-// =============================================================================
-// Row conversion helpers
-// =============================================================================
 
-fn row_to_item(row: Row) -> Result<Item, RepoError> {
-    let node: Node = row.get("i").map_err(|e| RepoError::Database(e.to_string()))?;
-
-    let id: ItemId = parse_typed_id(&node, "id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-    let world_id: WorldId = parse_typed_id(&node, "world_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-    let name: String = node.get("name").map_err(|e| RepoError::Database(e.to_string()))?;
-    
-    let description = node.get_optional_string("description");
-    let item_type = node.get_optional_string("item_type");
-    let is_unique = node.get_bool_or("is_unique", false);
-    let properties = node.get_optional_string("properties");
-    let can_contain_items = node.get_bool_or("can_contain_items", false);
-    
-    let container_limit_raw = node.get_i64_or("container_limit", -1);
-    let container_limit = if container_limit_raw < 0 {
-        None
-    } else {
-        Some(container_limit_raw as u32)
-    };
-
-    Ok(Item {
-        id,
-        world_id,
-        name,
-        description,
-        item_type,
-        is_unique,
-        properties,
-        can_contain_items,
-        container_limit,
-    })
-}

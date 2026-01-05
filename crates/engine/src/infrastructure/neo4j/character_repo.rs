@@ -15,7 +15,7 @@ use neo4rs::{query, Graph, Row};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{parse_typed_id, row_to_item, NodeExt};
 use crate::infrastructure::ports::{CharacterRepo, NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo, RepoError};
 
 // =============================================================================
@@ -181,32 +181,6 @@ impl Neo4jCharacterRepo {
         })
     }
 
-    /// Convert a Neo4j row to an Item entity.
-    fn row_to_item(&self, row: Row) -> Result<Item, RepoError> {
-        let node: neo4rs::Node = row
-            .get("i")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        let id: ItemId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        Ok(Item {
-            id,
-            world_id,
-            name,
-            description: node.get_optional_string("description"),
-            item_type: node.get_optional_string("item_type"),
-            is_unique: node.get_bool_or("is_unique", false),
-            properties: node.get_optional_string("properties"),
-            can_contain_items: node.get_bool_or("can_contain_items", false),
-            container_limit: node.get_positive_i64("container_limit"),
-        })
-    }
 }
 
 #[async_trait]
@@ -572,7 +546,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            items.push(self.row_to_item(row)?);
+            items.push(row_to_item(row)?);
         }
 
         Ok(items)

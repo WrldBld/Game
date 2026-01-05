@@ -206,15 +206,15 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 5: Code Duplication Extraction
 
 ### CR3-5.1 - Extract row_to_item Helper
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/helpers.rs`
 **Issue**: `row_to_item` duplicated in character_repo, player_character_repo, item_repo.
 
 **Tasks**:
-- [ ] Move row_to_item to helpers.rs
-- [ ] Update character_repo to use shared helper
-- [ ] Update player_character_repo to use shared helper
-- [ ] Update item_repo to use shared helper
+- [x] Move row_to_item to helpers.rs
+- [x] Update character_repo to use shared helper
+- [x] Update player_character_repo to use shared helper
+- [x] Update item_repo to use shared helper
 
 ---
 
@@ -394,7 +394,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-4.1 | Challenge delete | PENDING | - |
 | CR3-4.2 | Observation delete | PENDING | - |
 | CR3-4.3 | Asset delete | PENDING | - |
-| CR3-5.1 | row_to_item extraction | PENDING | - |
+| CR3-5.1 | row_to_item extraction | COMPLETE | - |
 | CR3-5.2 | Movement staging extraction | PENDING | - |
 | CR3-5.3 | Time suggestion extraction | PENDING | - |
 | CR3-6.1 | Serde case fixes | PENDING | - |

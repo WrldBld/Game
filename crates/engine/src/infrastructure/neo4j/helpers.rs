@@ -214,3 +214,50 @@ where
     let uuid = row.get_uuid(column)?;
     Ok(T::from(uuid))
 }
+
+// =============================================================================
+// Common Row-to-Entity Converters
+// =============================================================================
+
+use crate::infrastructure::ports::RepoError;
+use wrldbldr_domain::{Item, ItemId, WorldId};
+
+/// Convert a Neo4j row containing an Item node (aliased as 'i') to an Item entity.
+///
+/// This helper reduces duplication across character_repo, player_character_repo, and item_repo.
+pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
+    let node: Node = row
+        .get("i")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+
+    let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let world_id: WorldId =
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let name: String = node
+        .get("name")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let description = node.get_optional_string("description");
+    let item_type = node.get_optional_string("item_type");
+    let is_unique = node.get_bool_or("is_unique", false);
+    let properties = node.get_optional_string("properties");
+    let can_contain_items = node.get_bool_or("can_contain_items", false);
+
+    let container_limit_raw = node.get_i64_or("container_limit", -1);
+    let container_limit = if container_limit_raw < 0 {
+        None
+    } else {
+        Some(container_limit_raw as u32)
+    };
+
+    Ok(Item {
+        id,
+        world_id,
+        name,
+        description,
+        item_type,
+        is_unique,
+        properties,
+        can_contain_items,
+        container_limit,
+    })
+}
