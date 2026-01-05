@@ -148,14 +148,14 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-3.4 - Add Silent Failure Checks
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: Multiple Neo4j repos
 **Issue**: Many operations don't verify success.
 
 **Tasks**:
-- [ ] Add RETURN clause and check result for `character_repo.save`
-- [ ] Add RETURN clause and check result for `scene_repo.set_current`
-- [ ] Add RETURN clause and check result for `character_repo.update_position`
+- [x] Add RETURN clause and check result for `character_repo.save`
+- [x] Add RETURN clause and check result for `scene_repo.set_current` (done in CR3-3.2)
+- [x] Add RETURN clause and check result for `character_repo.update_position`
 
 ---
 
@@ -390,7 +390,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-3.1 | Scene save atomic | COMPLETE | - |
 | CR3-3.2 | Scene set_current atomic | COMPLETE | - |
 | CR3-3.3 | Staging save atomic | COMPLETE | - |
-| CR3-3.4 | Silent failure checks | PENDING | - |
+| CR3-3.4 | Silent failure checks | COMPLETE | - |
 | CR3-4.1 | Challenge delete | PENDING | - |
 | CR3-4.2 | Observation delete | PENDING | - |
 | CR3-4.3 | Asset delete | PENDING | - |

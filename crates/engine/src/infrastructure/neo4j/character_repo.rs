@@ -299,10 +299,26 @@ impl CharacterRepo for Neo4jCharacterRepo {
         .param("default_mood", character.default_mood.to_string())
         .param("expression_config", expression_config_json);
 
-        self.graph
-            .run(q)
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Verify the operation succeeded
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
+            tracing::warn!(
+                "save failed: World {} not found for character {}",
+                character.world_id,
+                character.id
+            );
+            return Err(RepoError::NotFound);
+        }
 
         tracing::debug!("Saved character: {}", character.name);
         Ok(())
@@ -401,15 +417,32 @@ impl CharacterRepo for Neo4jCharacterRepo {
             DELETE old
             WITH c
             MATCH (r:Region {id: $region_id})
-            CREATE (c)-[:STAGED_IN]->(r)",
+            CREATE (c)-[:STAGED_IN]->(r)
+            RETURN c.id as id",
         )
         .param("id", id.to_string())
         .param("region_id", region_id.to_string());
 
-        self.graph
-            .run(q)
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Verify the operation succeeded
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
+            tracing::warn!(
+                "update_position failed: Character {} or Region {} not found",
+                id,
+                region_id
+            );
+            return Err(RepoError::NotFound);
+        }
 
         tracing::debug!("Updated character {} position to region {}", id, region_id);
         Ok(())
