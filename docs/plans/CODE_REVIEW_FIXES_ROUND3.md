@@ -237,13 +237,17 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-5.3 - Extract Time Suggestion Helper
-**Status**: PENDING
-**Files**: `crates/engine/src/use_cases/movement/mod.rs`
+**Status**: COMPLETE
+**Files**: 
+- `crates/engine/src/use_cases/movement/mod.rs`
+- `crates/engine/src/use_cases/movement/enter_region.rs`
+- `crates/engine/src/use_cases/movement/exit_location.rs`
 **Issue**: Time suggestion logic duplicated.
 
 **Tasks**:
-- [ ] Create `suggest_time_for_movement` helper function
-- [ ] Refactor both use cases to use helper
+- [x] Create `suggest_time_for_movement` helper function
+- [x] Refactor EnterRegion to use helper
+- [x] Refactor ExitLocation to use helper
 
 ---
 
@@ -413,7 +417,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-4.3 | Asset delete | COMPLETE | - |
 | CR3-5.1 | row_to_item extraction | COMPLETE | - |
 | CR3-5.2 | Movement staging extraction | COMPLETE | - |
-| CR3-5.3 | Time suggestion extraction | PENDING | - |
+| CR3-5.3 | Time suggestion extraction | COMPLETE | - |
 | CR3-6.1 | Serde case fixes | COMPLETE | - |
 | CR3-6.2 | Unknown variants | COMPLETE | - |
 | CR3-7.1 | Lore state | COMPLETE | - |

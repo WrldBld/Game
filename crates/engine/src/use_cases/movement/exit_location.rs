@@ -8,10 +8,10 @@ use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId, Scene a
 
 use crate::entities::{Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext, Staging, World};
 use crate::infrastructure::ports::{ClockPort, RepoError};
-use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
+use crate::use_cases::time::SuggestTime;
 
 use super::enter_region::EnterRegionResult;
-use super::resolve_staging_for_region;
+use super::{resolve_staging_for_region, suggest_time_for_movement};
 
 /// Exit to location use case.
 ///
@@ -147,10 +147,12 @@ impl ExitLocation {
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
 
         // 11. Generate time suggestion for location travel
-        let time_suggestion = self.suggest_time_for_travel(
+        let time_suggestion = suggest_time_for_movement(
+            &self.suggest_time,
             pc.world_id,
             pc_id,
             pc.name.clone(),
+            "travel_location",
             &location.name,
         ).await;
 
@@ -175,36 +177,6 @@ impl ExitLocation {
             resolved_scene,
             time_suggestion,
         })
-    }
-
-    /// Generate a time suggestion for location-to-location travel.
-    ///
-    /// Uses the "travel_location" action type to look up time cost.
-    async fn suggest_time_for_travel(
-        &self,
-        world_id: wrldbldr_domain::WorldId,
-        pc_id: PlayerCharacterId,
-        pc_name: String,
-        destination_name: &str,
-    ) -> Option<TimeSuggestion> {
-        match self.suggest_time.execute(
-            world_id,
-            pc_id,
-            pc_name,
-            "travel_location",
-            format!("Travel to {}", destination_name),
-        ).await {
-            Ok(SuggestTimeResult::SuggestionCreated(suggestion)) => Some(suggestion),
-            Ok(SuggestTimeResult::AutoAdvanced { .. }) => {
-                // In auto mode, time was advanced - no suggestion needed
-                None
-            }
-            Ok(SuggestTimeResult::NoCost) | Ok(SuggestTimeResult::ManualMode) => None,
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to generate time suggestion for location travel");
-                None
-            }
-        }
     }
 
     /// Resolve which scene to display for a PC arriving in a region.

@@ -14,9 +14,9 @@ use crate::entities::{
     Staging, World,
 };
 use crate::infrastructure::ports::{ClockPort, RepoError};
-use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
+use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
-use super::resolve_staging_for_region;
+use super::{resolve_staging_for_region, suggest_time_for_movement};
 
 /// Result of entering a region.
 #[derive(Debug)]
@@ -182,10 +182,12 @@ impl EnterRegion {
 
         // 11. Generate time suggestion for movement
         // This is a region-to-region move within the same location (travel_region)
-        let time_suggestion = self.suggest_time_for_movement(
+        let time_suggestion = suggest_time_for_movement(
+            &self.suggest_time,
             pc.world_id,
             pc_id,
             pc.name.clone(),
+            "travel_region",
             &region.name,
         ).await;
 
@@ -198,38 +200,6 @@ impl EnterRegion {
             resolved_scene,
             time_suggestion,
         })
-    }
-
-    /// Generate a time suggestion for regional movement.
-    ///
-    /// Uses the "travel_region" action type to look up time cost.
-    async fn suggest_time_for_movement(
-        &self,
-        world_id: wrldbldr_domain::WorldId,
-        pc_id: PlayerCharacterId,
-        pc_name: String,
-        destination_name: &str,
-    ) -> Option<TimeSuggestion> {
-        match self.suggest_time.execute(
-            world_id,
-            pc_id,
-            pc_name,
-            "travel_region",
-            format!("Travel to {}", destination_name),
-        ).await {
-            Ok(SuggestTimeResult::SuggestionCreated(suggestion)) => Some(suggestion),
-            Ok(SuggestTimeResult::AutoAdvanced { .. }) => {
-                // In auto mode, time was advanced - we could emit a different event
-                // but for now we don't return a suggestion since it's already done
-                // The caller can handle auto-advance separately if needed
-                None
-            }
-            Ok(SuggestTimeResult::NoCost) | Ok(SuggestTimeResult::ManualMode) => None,
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to generate time suggestion for movement");
-                None
-            }
-        }
     }
 
     /// Resolve which scene to display for a PC entering a region.
