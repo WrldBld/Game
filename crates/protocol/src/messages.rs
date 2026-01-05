@@ -1019,10 +1019,14 @@ pub struct CharacterData {
     pub portrait_asset: Option<String>,
     pub position: CharacterPosition,
     pub is_speaking: bool,
-    /// Character's current emotional state (for visual novel display)
-    /// Note: Engine may send None; Player can derive from context
+    /// Character's current expression (Tier 3 - for sprite swapping)
+    /// Used to build expression-specific sprite URL
     #[serde(default)]
-    pub emotion: Option<String>,
+    pub expression: Option<String>,
+    /// Character's current mood (Tier 2 - shown as badge on sprite)
+    /// E.g., "anxious", "calm", "excited"
+    #[serde(default)]
+    pub mood: Option<String>,
 }
 
 /// Character position on screen

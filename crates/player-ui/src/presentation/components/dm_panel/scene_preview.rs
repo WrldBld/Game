@@ -152,12 +152,22 @@ fn CharacterSpritePreview(character: SceneCharacterState) -> Element {
                 "{character.name}"
             }
 
-            // Emotion indicator
-            if let Some(emotion) = &character.emotion {
-                if !emotion.is_empty() {
+            // Mood indicator (Tier 2 emotional state)
+            if let Some(mood) = &character.mood {
+                if !mood.is_empty() {
                     div {
-                        class: "absolute -top-2 -right-2 bg-purple-500 text-white text-xs py-1 px-2 rounded-md whitespace-nowrap",
-                        "{emotion}"
+                        class: "absolute -top-2 -right-2 bg-amber-600 text-white text-xs py-1 px-2 rounded-md whitespace-nowrap",
+                        "{mood}"
+                    }
+                }
+            }
+
+            // Expression indicator (Tier 3 transient expression)
+            if let Some(expression) = &character.expression {
+                if !expression.is_empty() {
+                    div {
+                        class: "absolute -bottom-8 left-1/2 -translate-x-1/2 bg-purple-500 text-white text-xs py-0.5 px-2 rounded whitespace-nowrap",
+                        "[{expression}]"
                     }
                 }
             }

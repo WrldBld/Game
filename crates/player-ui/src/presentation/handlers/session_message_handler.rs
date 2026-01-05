@@ -1388,7 +1388,8 @@ pub fn handle_server_message(
                                         portrait_asset: c.portrait_asset.clone(),
                                         position: CharacterPosition::Center,
                                         is_speaking: false,
-                                        emotion: None,
+                                        expression: None,
+                                        mood: None,
                                     })
                             })
                             .collect();
