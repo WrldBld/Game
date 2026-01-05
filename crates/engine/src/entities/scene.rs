@@ -265,11 +265,13 @@ impl Scene {
                     }
                 }
                 SceneCondition::Custom(expr) => {
-                    // Custom conditions are not evaluated - log a warning
+                    // Custom conditions are not supported - treat as unmet
+                    // This prevents scenes with custom conditions from being incorrectly shown
                     tracing::warn!(
                         expression = %expr,
-                        "Custom scene condition not evaluated - assuming met"
+                        "Custom scene condition not supported - treating as unmet"
                     );
+                    unmet.push(format!("Custom condition not evaluated: {}", expr));
                 }
             }
         }

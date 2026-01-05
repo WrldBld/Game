@@ -102,14 +102,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-2.4 - Fix Scene Custom Conditions
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/scene.rs`
 **Issue**: `SceneCondition::Custom` always passes with a warning log.
 
 **Tasks**:
-- [ ] Either remove Custom variant
-- [ ] Or implement basic expression evaluation
-- [ ] Or return false with explicit "not supported" behavior
+- [x] Return false with explicit "not supported" behavior
+- [x] Add to unmet list with descriptive message
 
 ---
 
@@ -385,7 +384,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-2.1 | Location exits warning | COMPLETE | - |
 | CR3-2.2 | Narrative trigger errors | COMPLETE | - |
 | CR3-2.3 | ExitLocation scene resolution | PENDING | - |
-| CR3-2.4 | Scene custom conditions | PENDING | - |
+| CR3-2.4 | Scene custom conditions | COMPLETE | - |
 | CR3-3.1 | Scene save atomic | PENDING | - |
 | CR3-3.2 | Scene set_current atomic | PENDING | - |
 | CR3-3.3 | Staging save atomic | PENDING | - |
