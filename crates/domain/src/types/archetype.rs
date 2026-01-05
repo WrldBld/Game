@@ -125,7 +125,7 @@ impl std::str::FromStr for CampbellArchetype {
     /// - lowercase: "hero", "threshold_guardian"
     /// - With spaces: "Threshold Guardian"
     ///
-    /// Unknown values default to `Ally`.
+    /// Unrecognized values return `Unknown`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let normalized = s.to_lowercase().replace(['_', ' '], "");
 
@@ -138,7 +138,8 @@ impl std::str::FromStr for CampbellArchetype {
             "shadow" => Self::Shadow,
             "trickster" => Self::Trickster,
             "ally" => Self::Ally,
-            _ => Self::Ally,
+            "unknown" => Self::Unknown,
+            _ => Self::Unknown,
         })
     }
 }

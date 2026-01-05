@@ -37,10 +37,8 @@ pub use crate::types::{DispositionLevel, MoodState, RelationshipLevel};
 /// Combines two dimensions:
 /// - disposition: Emotional stance (how they feel about the PC)
 /// - relationship: Social distance (how well they know each other)
-///
-/// Note: We don't derive Serialize/Deserialize because the ID types don't support it.
-/// This struct is used internally; for wire format, convert to/from protocol types.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NpcDispositionState {
     /// The NPC this disposition belongs to
     pub npc_id: CharacterId,

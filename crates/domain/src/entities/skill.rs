@@ -89,6 +89,10 @@ pub enum SkillCategory {
     // General
     Other,
     Custom,
+
+    /// Unknown category for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 impl SkillCategory {
@@ -106,6 +110,7 @@ impl SkillCategory {
             Self::Aspect => "Aspect",
             Self::Other => "Other",
             Self::Custom => "Custom",
+            Self::Unknown => "Unknown",
         }
     }
 }

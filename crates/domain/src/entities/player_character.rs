@@ -35,9 +35,21 @@ pub struct PlayerCharacter {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
 
+    // Status flags
+    /// Whether the character is alive (false if killed/removed from play)
+    #[serde(default = "default_true")]
+    pub is_alive: bool,
+    /// Whether the character is currently active in the world
+    #[serde(default = "default_true")]
+    pub is_active: bool,
+
     // Metadata
     pub created_at: DateTime<Utc>,
     pub last_active_at: DateTime<Utc>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl PlayerCharacter {
@@ -61,6 +73,8 @@ impl PlayerCharacter {
             starting_location_id,
             sprite_asset: None,
             portrait_asset: None,
+            is_alive: true,
+            is_active: true,
             created_at: now,
             last_active_at: now,
         }

@@ -206,45 +206,53 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 7: High - Fix Domain Model Issues (Complexity: Low)
 
 ### CR5-7.1 - Fix CampbellArchetype::from_str Default
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/domain/src/types/archetype.rs`
 **Lines**: 129-143
 
 **Issue**: Defaults to `Ally` instead of `Unknown` for unrecognized strings
 
 **Tasks**:
-- [ ] Change default case to return `Self::Unknown`
+- [x] Change default case to return `Self::Unknown`
 
 ---
 
 ### CR5-7.2 - Add Unknown to SkillCategory
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/domain/src/entities/skill.rs`
 **Lines**: 69-92
 
 **Tasks**:
-- [ ] Add `#[serde(other)] Unknown` variant to SkillCategory
+- [x] Add `#[serde(other)] Unknown` variant to SkillCategory
 
 ---
 
 ### CR5-7.3 - Add Missing PlayerCharacter Fields
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/domain/src/entities/player_character.rs`
 
 **Tasks**:
-- [ ] Add `is_alive: bool` field (default true)
-- [ ] Add `is_active: bool` field (default true)
+- [x] Add `is_alive: bool` field (default true)
+- [x] Add `is_active: bool` field (default true)
+
+**Implementation Notes**:
+- Updated Neo4j player_character_repo.rs to save/load new fields
+- Fields use serde default_true function for backward compatibility
 
 ---
 
 ### CR5-7.4 - Make NpcDispositionState Serializable
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/domain/src/value_objects/disposition.rs`
 **Lines**: 42-61
 
 **Tasks**:
-- [ ] Add `#[derive(Serialize, Deserialize)]` to NpcDispositionState
-- [ ] Add `#[serde(rename_all = "camelCase")]`
+- [x] Add `#[derive(Serialize, Deserialize)]` to NpcDispositionState
+- [x] Add `#[serde(rename_all = "camelCase")]`
+
+**Implementation Notes**:
+- Removed outdated comment about ID types not supporting serialization
+- ID types do derive Serialize/Deserialize via macro
 
 ---
 
@@ -451,7 +459,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 4 | 1 | 1 | COMPLETE |
 | Phase 5 | 3 | 3 | COMPLETE |
 | Phase 6 | 2 | 2 | COMPLETE |
-| Phase 7 | 4 | 0 | PENDING |
+| Phase 7 | 4 | 4 | COMPLETE |
 | Phase 8 | 3 | 0 | PENDING |
 | Phase 9 | 4 | 0 | PENDING |
 | Phase 10 | 3 | 0 | PENDING |
@@ -470,5 +478,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | 16ff0dc | Phase 3 | Add backpressure for critical messages |
 | e7f6d44 | Phase 4 | Populate TriggerContext properly |
 | 625ece6 | Phase 5 | Add game time operations and fix TTL checks |
-| - | Phase 6 | Fix N+1 queries in staging and narrative repos |
+| 999ece0 | Phase 6 | Fix N+1 queries in staging and narrative repos |
+| - | Phase 7 | Fix domain model issues |
 

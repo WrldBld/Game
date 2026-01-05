@@ -73,6 +73,8 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
                 pc.starting_location_id = $starting_location_id,
                 pc.sprite_asset = $sprite_asset,
                 pc.portrait_asset = $portrait_asset,
+                pc.is_alive = $is_alive,
+                pc.is_active = $is_active,
                 pc.created_at = $created_at,
                 pc.last_active_at = $last_active_at
             ON MATCH SET
@@ -83,6 +85,8 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
                 pc.current_region_id = $current_region_id,
                 pc.sprite_asset = $sprite_asset,
                 pc.portrait_asset = $portrait_asset,
+                pc.is_alive = $is_alive,
+                pc.is_active = $is_active,
                 pc.last_active_at = $last_active_at
             WITH pc
             MATCH (w:World {id: $world_id})
@@ -105,6 +109,8 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             "portrait_asset",
             pc.portrait_asset.clone().unwrap_or_default(),
         )
+        .param("is_alive", pc.is_alive)
+        .param("is_active", pc.is_active)
         .param("created_at", pc.created_at.to_rfc3339())
         .param("last_active_at", pc.last_active_at.to_rfc3339());
 
@@ -415,6 +421,10 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
         .map_err(|e| RepoError::Database(format!("Invalid last_active_at: {}", e)))?
         .with_timezone(&chrono::Utc);
 
+    // Status flags with defaults
+    let is_alive: bool = node.get("is_alive").unwrap_or(true);
+    let is_active: bool = node.get("is_active").unwrap_or(true);
+
     Ok(PlayerCharacter {
         id,
         user_id,
@@ -427,6 +437,8 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
         starting_location_id,
         sprite_asset,
         portrait_asset,
+        is_alive,
+        is_active,
         created_at,
         last_active_at,
     })
