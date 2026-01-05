@@ -261,10 +261,13 @@ async fn handle_message(
             handle_player_action(state, connection_id, action_type, target, dialogue).await
         }
 
-        // Forward compatibility
+        // Forward compatibility - return error so client doesn't hang
         ClientMessage::Unknown => {
             tracing::warn!(connection_id = %connection_id, "Received unknown message type");
-            None
+            Some(ServerMessage::Error {
+                code: "UNKNOWN_MESSAGE".to_string(),
+                message: "Unrecognized message type".to_string(),
+            })
         }
 
         // All other message types - return not implemented for now

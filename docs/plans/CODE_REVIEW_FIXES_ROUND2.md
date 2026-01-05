@@ -34,13 +34,13 @@
 ---
 
 ### CR2-1.3 - WebSocket Unknown Message No Response
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/api/websocket.rs`
 **Issue**: `ClientMessage::Unknown` logs but returns `None` - client hangs
 **Impact**: Client hangs indefinitely on unknown messages
 
 **Tasks**:
-- [ ] Return error response for `ClientMessage::Unknown`
+- [x] Return error response for `ClientMessage::Unknown`
 
 ---
 
@@ -253,7 +253,7 @@
 |----|-------------|--------|--------|
 | CR2-1.1 | Protocol GameTimeConfig | COMPLETE | - |
 | CR2-1.2 | Protocol AdHocOutcomes | COMPLETE | - |
-| CR2-1.3 | WebSocket Unknown Message | PENDING | - |
+| CR2-1.3 | WebSocket Unknown Message | COMPLETE | - |
 | CR2-1.4 | Duplicate ConversationError | PENDING | - |
 | CR2-2.1 | UI State clear_scene | PENDING | - |
 | CR2-2.2 | ResponseApproved handler | PENDING | - |
