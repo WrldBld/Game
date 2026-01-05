@@ -283,6 +283,8 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     
     // Read the version to establish dependency - effect re-runs when this changes
     let dialogue_version = *dialogue_state.dialogue_version.read();
+    // Also keep a signal reference to check for version changes in the async loop
+    let dialogue_version_signal = dialogue_state.dialogue_version;
     
     let clean_text = dialogue_state.clean_text;
     let mut displayed_text = dialogue_state.displayed_text;
@@ -295,8 +297,8 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
 
     // Use use_effect with dialogue_version as dependency to restart on new dialogue
     use_effect(move || {
-        // Capture the version to make dependency explicit
-        let _version = dialogue_version;
+        // Capture the version this effect was started with
+        let started_version = dialogue_version;
         
         // Check if we should start typing (read current signal value)
         if !*is_typing_signal.read() {
@@ -315,8 +317,14 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
             let mut char_index = 0;
 
             for ch in text.chars() {
-                // Check if we should stop (user skipped or new dialogue arrived)
+                // Check if we should stop:
+                // 1. User skipped (is_typing set to false)
+                // 2. New dialogue arrived (version changed)
                 if !*is_typing_signal.read() {
+                    break;
+                }
+                if *dialogue_version_signal.read() != started_version {
+                    // New dialogue arrived, stop this animation immediately
                     break;
                 }
 
@@ -358,8 +366,8 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
                 platform.sleep_ms(delay).await;
             }
 
-            // Mark as complete (only if we weren't interrupted)
-            if *is_typing_signal.read() {
+            // Mark as complete (only if we weren't interrupted AND version still matches)
+            if *is_typing_signal.read() && *dialogue_version_signal.read() == started_version {
                 is_typing_signal.set(false);
                 awaiting_signal.set(true);
                 current_action.set(None); // Clear action when done

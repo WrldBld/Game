@@ -77,14 +77,14 @@ Plus: 15+ unimplemented features documented in system specs.
 ---
 
 ### CR6-1.5 - Typewriter Effect Race Condition
-**Severity**: CRITICAL
+**Severity**: CRITICAL (FIXED)
 **File**: `crates/player-ui/src/presentation/state/dialogue_state.rs:313-366`
 
 **Issue**: If `apply_dialogue` is called while typewriter is running, old task continues briefly causing visual glitches.
 
 **Tasks**:
-- [ ] Add generation counter to typewriter effect
-- [ ] Check version hasn't changed before continuing animation
+- [x] Capture `dialogue_version` at start of typewriter animation
+- [x] Check version hasn't changed before each character and at completion
 
 ---
 
