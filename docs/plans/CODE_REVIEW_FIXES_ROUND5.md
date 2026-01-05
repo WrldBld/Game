@@ -169,28 +169,37 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 6: High - Fix N+1 Queries (Complexity: Medium)
 
 ### CR5-6.1 - Fix get_active_staging N+1
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
 **Lines**: 236-263
 
 **Issue**: Fetches Staging then makes second query for NPCs
 
 **Tasks**:
-- [ ] Combine into single query using COLLECT (like get_pending_staging)
-- [ ] Reuse `row_to_staging_with_npcs` helper
+- [x] Combine into single query using COLLECT (like get_pending_staging)
+- [x] Reuse `row_to_staging_with_npcs` helper
+
+**Implementation Notes**:
+- Used OPTIONAL MATCH with COLLECT to fetch NPCs in same query
+- Single round-trip to database instead of N+1
 
 ---
 
 ### CR5-6.2 - Fix get_triggers_for_region Inefficiency
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/infrastructure/neo4j/narrative_repo.rs`
 **Lines**: 349-383
 
 **Issue**: Fetches ALL events then filters in Rust
 
 **Tasks**:
-- [ ] Add Cypher filtering for region-specific triggers
-- [ ] Consider adding TRIGGERS_AT relationship for indexed lookup
+- [x] Add Cypher filtering for region-specific triggers
+- [x] Consider adding TRIGGERS_AT relationship for indexed lookup
+
+**Implementation Notes**:
+- Added fast path using TIED_TO_LOCATION edge (indexed lookup)
+- Falls back to JSON filtering for legacy events without edges
+- Added TODO for migration to add edges to all location-based triggers
 
 ---
 
@@ -441,7 +450,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 3 | 1 | 1 | COMPLETE |
 | Phase 4 | 1 | 1 | COMPLETE |
 | Phase 5 | 3 | 3 | COMPLETE |
-| Phase 6 | 2 | 0 | PENDING |
+| Phase 6 | 2 | 2 | COMPLETE |
 | Phase 7 | 4 | 0 | PENDING |
 | Phase 8 | 3 | 0 | PENDING |
 | Phase 9 | 4 | 0 | PENDING |
@@ -460,5 +469,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | 282b843 | Phase 2 | Safe world deletion with explicit node types |
 | 16ff0dc | Phase 3 | Add backpressure for critical messages |
 | e7f6d44 | Phase 4 | Populate TriggerContext properly |
-| - | Phase 5 | Add game time operations and fix TTL checks |
+| 625ece6 | Phase 5 | Add game time operations and fix TTL checks |
+| - | Phase 6 | Fix N+1 queries in staging and narrative repos |
 

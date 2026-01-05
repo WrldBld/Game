@@ -347,8 +347,34 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     // =========================================================================
 
     async fn get_triggers_for_region(&self, region_id: RegionId) -> Result<Vec<NarrativeEvent>, RepoError> {
-        // Get active narrative events tied to this region via location trigger
+        // First, try to find events with a direct TIED_TO_LOCATION edge (preferred path)
+        // This uses an indexed relationship lookup which is fast.
         let q = query(
+            "MATCH (e:NarrativeEvent)-[:TIED_TO_LOCATION]->(r:Region {id: $region_id})
+            WHERE e.is_active = true
+              AND e.is_triggered = false
+            RETURN e
+            ORDER BY e.priority DESC",
+        )
+        .param("region_id", region_id.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut events = Vec::new();
+        let now = self.clock.now();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            events.push(row_to_narrative_event(row, now)?);
+        }
+        
+        // If we found events via edge, return them
+        if !events.is_empty() {
+            return Ok(events);
+        }
+
+        // Fallback: check trigger_conditions JSON (slower - requires fetching all events)
+        // This handles legacy events that don't have TIED_TO_LOCATION edges
+        // TODO: Migration to add TIED_TO_LOCATION edges for all location-based triggers
+        let q_fallback = query(
             "MATCH (e:NarrativeEvent)
             WHERE e.is_active = true
               AND e.is_triggered = false
@@ -356,12 +382,11 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             ORDER BY e.priority DESC",
         );
 
-        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        let mut events = Vec::new();
+        let mut result = self.graph.execute(q_fallback).await.map_err(|e| RepoError::Database(e.to_string()))?;
         let region_id_str = region_id.to_string();
 
         while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let event = row_to_narrative_event(row, self.clock.now())?;
+            let event = row_to_narrative_event(row, now)?;
             // Filter events that have a trigger condition for this region/location
             let has_region_trigger = event.trigger_conditions.iter().any(|t| {
                 match &t.trigger_type {

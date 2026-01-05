@@ -229,30 +229,37 @@ impl StagingRepo for Neo4jStagingRepo {
     }
     
     /// Get active staging for a region, checking TTL expiry.
+    /// Uses a single query with COLLECT to fetch staging and NPCs together (avoids N+1).
     async fn get_active_staging(&self, region_id: RegionId, current_game_time: DateTime<Utc>) -> Result<Option<Staging>, RepoError> {
         let q = query(
             "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)
             WHERE s.is_active = true
-            RETURN s",
+            OPTIONAL MATCH (s)-[rel:INCLUDES_NPC]->(c:Character)
+            WITH s, COLLECT({
+                character_id: c.id,
+                name: c.name,
+                sprite_asset: c.sprite_asset,
+                portrait_asset: c.portrait_asset,
+                is_present: rel.is_present,
+                is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
+                reasoning: rel.reasoning,
+                mood: COALESCE(rel.mood, c.default_mood, 'calm')
+            }) as npcs
+            RETURN s, npcs",
         )
         .param("region_id", region_id.to_string());
 
         let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         
         if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let staging = row_to_staging(row, current_game_time)?;
+            let staging = row_to_staging_with_npcs(row, current_game_time)?;
             
             // Check if staging is expired
             if staging.is_expired(&current_game_time) {
                 return Ok(None);
             }
             
-            // Load NPCs for this staging
-            let npcs = self.load_staging_npcs(staging.id).await?;
-            Ok(Some(Staging {
-                npcs,
-                ..staging
-            }))
+            Ok(Some(staging))
         } else {
             Ok(None)
         }
