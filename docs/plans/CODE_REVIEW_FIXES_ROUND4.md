@@ -132,7 +132,7 @@ The Suggested mode correctly uses these variables for its period_change field.
 ## Phase 4: High - Code Duplication (Complexity: Medium)
 
 ### CR4-4.1 - Extract Scene Resolution Helper
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/use_cases/movement/mod.rs`
 - `crates/engine/src/use_cases/movement/enter_region.rs`
@@ -141,42 +141,42 @@ The Suggested mode correctly uses these variables for its period_change field.
 **Issue**: `resolve_scene_for_region` is copy-pasted between both use cases.
 
 **Tasks**:
-- [ ] Create shared `resolve_scene_for_region` function in mod.rs
-- [ ] Update EnterRegion to use shared helper
-- [ ] Update ExitLocation to use shared helper
+- [x] Create shared `resolve_scene_for_region` function in mod.rs
+- [x] Update EnterRegion to use shared helper
+- [x] Update ExitLocation to use shared helper
 
 ---
 
 ## Phase 5: High - UI State Bugs (Complexity: Low)
 
 ### CR4-5.1 - Clear NPC Dispositions on PC Switch
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Lines**: 547-570 (PcSelected handler)
 
 **Tasks**:
-- [ ] Add `game_state.clear_npc_dispositions()` after PC selection
+- [x] Add `game_state.clear_npc_dispositions()` after PC selection
 
 ---
 
 ### CR4-5.2 - Clear Dialogue on Scene Change
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Lines**: 572-606 (SceneChanged handler)
 
 **Tasks**:
-- [ ] Add `dialogue_state.clear()` at start of SceneChanged handler
+- [x] Add `dialogue_state.clear()` at start of SceneChanged handler
 
 ---
 
 ### CR4-5.3 - Add Bounds to Pending Collections
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/approval_state.rs`
 
 **Tasks**:
-- [ ] Add MAX_PENDING_APPROVALS constant (e.g., 50)
-- [ ] Add MAX_PENDING_CHALLENGE_OUTCOMES constant (e.g., 50)
-- [ ] Implement bounds checking with oldest removal
+- [x] Add MAX_PENDING_APPROVALS constant (50)
+- [x] Add MAX_PENDING_CHALLENGE_OUTCOMES constant (50)
+- [x] Implement bounds checking with oldest removal in add methods
 
 ---
 
@@ -298,8 +298,8 @@ The Suggested mode correctly uses these variables for its period_change field.
 | Phase 1 | 5 | 5 | COMPLETE |
 | Phase 2 | 1 | 1 | COMPLETE |
 | Phase 3 | 2 | 2 | COMPLETE |
-| Phase 4 | 1 | 0 | PENDING |
-| Phase 5 | 3 | 0 | PENDING |
+| Phase 4 | 1 | 1 | COMPLETE |
+| Phase 5 | 3 | 3 | COMPLETE |
 | Phase 6 | 2 | 0 | PENDING |
 | Phase 7 | 1 | 0 | PENDING |
 | Phase 8 | 2 | 0 | PENDING |

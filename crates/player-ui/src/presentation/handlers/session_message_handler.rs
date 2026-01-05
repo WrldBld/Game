@@ -560,6 +560,9 @@ pub fn handle_server_message(
 
             // Update selected PC in game state
             game_state.selected_pc_id.set(Some(pc_id.clone()));
+            
+            // Clear NPC dispositions from previous PC (dispositions are PC-specific)
+            game_state.clear_npc_dispositions();
 
             session_state.add_log_entry(
                 "System".to_string(),
@@ -586,6 +589,9 @@ pub fn handle_server_message(
                 navigation.exits.len(),
                 region_items.len()
             );
+
+            // Clear any active dialogue when changing scenes
+            dialogue_state.clear();
 
             // PlayerEvent already contains application-layer types
             // Update game state with navigation data and region items

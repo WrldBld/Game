@@ -9,6 +9,12 @@ const MAX_LOG_ENTRIES: usize = 500;
 
 /// Maximum number of decision history entries to retain
 const MAX_HISTORY_ENTRIES: usize = 200;
+
+/// Maximum number of pending approvals to retain (prevents memory issues if approvals accumulate)
+const MAX_PENDING_APPROVALS: usize = 50;
+
+/// Maximum number of pending challenge outcomes to retain
+const MAX_PENDING_CHALLENGE_OUTCOMES: usize = 50;
 use std::sync::Arc;
 
 use wrldbldr_player_app::application::dto::{
@@ -122,8 +128,17 @@ impl ApprovalState {
     }
 
     /// Add a pending approval request
+    ///
+    /// Automatically removes oldest entries when MAX_PENDING_APPROVALS is exceeded
+    /// to prevent unbounded memory growth if approvals accumulate.
     pub fn add_pending_approval(&mut self, approval: PendingApproval) {
-        self.pending_approvals.write().push(approval);
+        let mut approvals = self.pending_approvals.write();
+        approvals.push(approval);
+        // Remove oldest entries if we exceed the limit
+        if approvals.len() > MAX_PENDING_APPROVALS {
+            let excess = approvals.len() - MAX_PENDING_APPROVALS;
+            approvals.drain(0..excess);
+        }
     }
 
     /// Remove a pending approval by request_id
@@ -241,8 +256,17 @@ impl ApprovalState {
     }
 
     /// Add a pending challenge outcome for DM approval (P3.3/P3.4)
+    ///
+    /// Automatically removes oldest entries when MAX_PENDING_CHALLENGE_OUTCOMES is exceeded
+    /// to prevent unbounded memory growth if outcomes accumulate.
     pub fn add_pending_challenge_outcome(&mut self, outcome: PendingChallengeOutcome) {
-        self.pending_challenge_outcomes.write().push(outcome);
+        let mut outcomes = self.pending_challenge_outcomes.write();
+        outcomes.push(outcome);
+        // Remove oldest entries if we exceed the limit
+        if outcomes.len() > MAX_PENDING_CHALLENGE_OUTCOMES {
+            let excess = outcomes.len() - MAX_PENDING_CHALLENGE_OUTCOMES;
+            outcomes.drain(0..excess);
+        }
     }
 
     /// Remove a pending challenge outcome by resolution_id (P3.3/P3.4)

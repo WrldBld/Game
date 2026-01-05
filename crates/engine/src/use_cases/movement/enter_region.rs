@@ -5,18 +5,18 @@
 
 use std::sync::Arc;
 use wrldbldr_domain::{
-    GameTime, NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId,
+    NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId,
     Region, RegionId, Scene as DomainScene, StagedNpc, Staging as DomainStaging,
 };
 
 use crate::entities::{
-    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext,
+    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene,
     Staging, World,
 };
 use crate::infrastructure::ports::{ClockPort, RepoError};
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
-use super::{resolve_staging_for_region, suggest_time_for_movement};
+use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
 
 /// Result of entering a region.
 #[derive(Debug)]
@@ -161,7 +161,16 @@ impl EnterRegion {
         }
 
         // 8. Resolve scene for this region (use world's game time for time-of-day checks)
-        let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id, &world_data.game_time).await?;
+        let resolved_scene = resolve_scene_for_region(
+            &self.scene,
+            &self.inventory,
+            &self.observation,
+            &self.flag,
+            pc_id,
+            pc.world_id,
+            region_id,
+            &world_data.game_time,
+        ).await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -200,50 +209,6 @@ impl EnterRegion {
             resolved_scene,
             time_suggestion,
         })
-    }
-
-    /// Resolve which scene to display for a PC entering a region.
-    ///
-    /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes, flags)
-    /// and calls the scene resolution service.
-    async fn resolve_scene_for_region(
-        &self,
-        pc_id: PlayerCharacterId,
-        world_id: wrldbldr_domain::WorldId,
-        region_id: RegionId,
-        game_time: &GameTime,
-    ) -> Result<Option<DomainScene>, RepoError> {
-        // Get current time of day from the world's game time (not wall clock)
-        let time_of_day = game_time.time_of_day();
-
-        // Build the scene resolution context
-        let completed_scenes = self.scene.get_completed_scenes(pc_id).await?;
-        let inventory = self.inventory.get_pc_inventory(pc_id).await?;
-        let observations = self.observation.get_observations(pc_id).await?;
-        let flags = self.flag.get_all_flags_for_pc(world_id, pc_id).await?;
-
-        let context = SceneResolutionContext::new(time_of_day)
-            .with_completed_scenes(completed_scenes)
-            .with_inventory(inventory.into_iter().map(|item| item.id))
-            .with_known_characters(observations.into_iter().map(|obs| obs.npc_id))
-            .with_flags(flags);
-
-        // Resolve the scene
-        let result = self.scene.resolve_scene(region_id, &context).await?;
-
-        // Log considered scenes for debugging
-        for consideration in &result.considered_scenes {
-            if !consideration.conditions_met {
-                tracing::debug!(
-                    scene_id = %consideration.scene_id,
-                    scene_name = %consideration.scene_name,
-                    unmet_conditions = ?consideration.unmet_conditions,
-                    "Scene not matched due to unmet conditions"
-                );
-            }
-        }
-
-        Ok(result.scene)
     }
 
     /// Check if a connection between regions is locked.
