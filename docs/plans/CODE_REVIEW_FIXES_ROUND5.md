@@ -364,32 +364,36 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 10: Medium - Fix Player Services (Complexity: Low)
 
 ### CR5-10.1 - Add Request Timeouts to ChallengeService
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-app/src/application/services/challenge_service.rs`
 
 **Tasks**:
-- [ ] Replace all `request()` calls with `request_with_timeout()`
-- [ ] Use `get_request_timeout_ms()` for timeout value
+- [x] Replace all `request()` calls with `request_with_timeout()`
+- [x] Use `get_request_timeout_ms()` for timeout value
 
 ---
 
 ### CR5-10.2 - Add Request Timeouts to NarrativeEventService
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-app/src/application/services/narrative_event_service.rs`
 
 **Tasks**:
-- [ ] Replace all `request()` calls with `request_with_timeout()`
+- [x] Replace all `request()` calls with `request_with_timeout()`
 
 ---
 
 ### CR5-10.3 - Fix EventChain Request Propagation
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-app/src/application/services/event_chain_service.rs`
 **Lines**: 95-115
 
 **Tasks**:
-- [ ] Update protocol CreateEventChainData to include all fields
-- [ ] Update From impl to propagate events, act_id, tags, color, is_active
+- [x] Update protocol CreateEventChainData to include all fields
+- [x] Update From impl to propagate events, act_id, tags, color, is_active
+
+**Implementation Notes**:
+- Added `events`, `act_id`, `tags`, `color`, `is_active` fields to protocol's `CreateEventChainData`
+- Updated `From<&CreateEventChainRequest>` impl to propagate all fields
 
 ---
 
@@ -481,7 +485,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 7 | 4 | 4 | COMPLETE |
 | Phase 8 | 3 | 2 | PARTIAL (CR5-8.3 deferred) |
 | Phase 9 | 4 | 4 | COMPLETE |
-| Phase 10 | 3 | 0 | PENDING |
+| Phase 10 | 3 | 3 | COMPLETE |
 | Phase 11 | 3 | 0 | PENDING |
 | Phase 12 | 3 | 0 | PENDING |
 | **Total** | **30** | **0** | **PENDING** |

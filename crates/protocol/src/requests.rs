@@ -1130,6 +1130,21 @@ pub struct CreateEventChainData {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Initial events to add to the chain
+    #[serde(default)]
+    pub events: Option<Vec<String>>,
+    /// Optional act association
+    #[serde(default)]
+    pub act_id: Option<String>,
+    /// Tags for categorization
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    /// Display color (hex or named)
+    #[serde(default)]
+    pub color: Option<String>,
+    /// Whether the chain is active (defaults to true if not specified)
+    #[serde(default)]
+    pub is_active: Option<bool>,
 }
 
 /// Data for updating an event chain

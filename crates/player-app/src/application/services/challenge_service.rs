@@ -9,7 +9,7 @@ use std::sync::Arc;
 use wrldbldr_protocol::RequestPayload;
 
 use crate::application::dto::ChallengeData;
-use crate::application::error::{ParseResponse, ServiceError};
+use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Challenge service for managing challenges
@@ -37,7 +37,10 @@ impl ChallengeService {
         let payload = RequestPayload::ListChallenges {
             world_id: world_id.to_string(),
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 
@@ -46,7 +49,10 @@ impl ChallengeService {
         let payload = RequestPayload::GetChallenge {
             challenge_id: challenge_id.to_string(),
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 
@@ -69,7 +75,10 @@ impl ChallengeService {
             world_id: world_id.to_string(),
             data,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 
@@ -91,7 +100,10 @@ impl ChallengeService {
             challenge_id: challenge.id.clone(),
             data,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 
@@ -100,7 +112,10 @@ impl ChallengeService {
         let payload = RequestPayload::DeleteChallenge {
             challenge_id: challenge_id.to_string(),
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse_empty()
     }
 
@@ -117,7 +132,10 @@ impl ChallengeService {
             challenge_id: challenge_id.to_string(),
             favorite: new_favorite,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse_empty()?;
         Ok(new_favorite)
     }
@@ -128,7 +146,10 @@ impl ChallengeService {
             challenge_id: challenge_id.to_string(),
             active,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse_empty()
     }
 }

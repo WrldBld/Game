@@ -101,6 +101,19 @@ impl From<&CreateEventChainRequest> for wrldbldr_protocol::requests::CreateEvent
             } else {
                 Some(req.description.clone())
             },
+            events: if req.events.is_empty() {
+                None
+            } else {
+                Some(req.events.clone())
+            },
+            act_id: req.act_id.clone(),
+            tags: if req.tags.is_empty() {
+                None
+            } else {
+                Some(req.tags.clone())
+            },
+            color: req.color.clone(),
+            is_active: if req.is_active { None } else { Some(false) },
         }
     }
 }

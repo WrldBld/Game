@@ -9,7 +9,7 @@ use std::sync::Arc;
 use wrldbldr_protocol::RequestPayload;
 
 use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
-use crate::application::error::{ParseResponse, ServiceError};
+use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 
 /// Narrative event service for managing narrative events
@@ -36,7 +36,10 @@ impl NarrativeEventService {
         let payload = RequestPayload::ListNarrativeEvents {
             world_id: world_id.to_string(),
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 
@@ -63,7 +66,10 @@ impl NarrativeEventService {
         let payload = RequestPayload::GetNarrativeEvent {
             event_id: event_id.to_string(),
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         let event: NarrativeEventData = response.parse()?;
         let new_favorite = !event.is_favorite;
 
@@ -72,7 +78,10 @@ impl NarrativeEventService {
             event_id: event_id.to_string(),
             favorite: new_favorite,
         };
-        let set_response = self.connection.request(set_payload).await?;
+        let set_response = self
+            .connection
+            .request_with_timeout(set_payload, get_request_timeout_ms())
+            .await?;
         set_response.parse_empty()?;
         Ok(new_favorite)
     }
@@ -83,7 +92,10 @@ impl NarrativeEventService {
             event_id: event_id.to_string(),
             active,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse_empty()
     }
 
@@ -121,7 +133,10 @@ impl NarrativeEventService {
             world_id: world_id.to_string(),
             data,
         };
-        let response = self.connection.request(payload).await?;
+        let response = self
+            .connection
+            .request_with_timeout(payload, get_request_timeout_ms())
+            .await?;
         response.parse()
     }
 }
