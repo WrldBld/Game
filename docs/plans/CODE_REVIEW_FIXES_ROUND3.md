@@ -297,13 +297,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-7.2 - Fix ViewMode PC Selection
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/game_state.rs`
 **Issue**: `start_viewing_as()` doesn't update `selected_pc_id`.
 
 **Tasks**:
-- [ ] Update selected_pc_id when entering ViewingAsCharacter mode
-- [ ] Clear/restore selected_pc_id when exiting view mode
+- [x] Update selected_pc_id when entering ViewingAsCharacter mode
+- [x] Document that stop_viewing_as doesn't clear selected_pc_id (intentional)
 
 ---
 
@@ -410,7 +410,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-6.1 | Serde case fixes | COMPLETE | - |
 | CR3-6.2 | Unknown variants | COMPLETE | - |
 | CR3-7.1 | Lore state | COMPLETE | - |
-| CR3-7.2 | ViewMode PC fix | PENDING | - |
+| CR3-7.2 | ViewMode PC fix | COMPLETE | - |
 | CR3-7.3 | Error message clear | PENDING | - |
 | CR3-8.1 | Scene system docs | PENDING | - |
 | CR3-8.2 | Narrative system docs | PENDING | - |

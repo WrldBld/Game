@@ -516,7 +516,12 @@ impl GameState {
     }
 
     /// Start viewing as a specific character (read-only perspective mode)
+    ///
+    /// This updates both view_mode and selected_pc_id to ensure the UI
+    /// shows the correct character's perspective.
     pub fn start_viewing_as(&mut self, character_id: String, character_name: String) {
+        // Update selected_pc_id so scene/location views show this character's perspective
+        self.selected_pc_id.set(Some(character_id.clone()));
         self.view_mode.set(ViewMode::ViewingAsCharacter {
             character_id,
             character_name,
@@ -524,6 +529,9 @@ impl GameState {
     }
 
     /// Stop viewing as character and return to normal Director mode
+    ///
+    /// Note: This doesn't clear selected_pc_id - the DM may still want to
+    /// view a specific PC's scene data even when not in "viewing as" mode.
     pub fn stop_viewing_as(&mut self) {
         self.view_mode.set(ViewMode::Director);
     }
