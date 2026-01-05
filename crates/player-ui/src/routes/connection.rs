@@ -7,7 +7,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::state::{
-    ConnectionStatus, DialogueState, GameState, GenerationState, SessionState,
+    ConnectionStatus, DialogueState, GameState, GenerationState, LoreState, SessionState,
 };
 use crate::Platform;
 use wrldbldr_player_app::application::services::{SessionService, DEFAULT_ENGINE_URL};
@@ -26,6 +26,7 @@ pub fn ensure_connection(
     game_state: GameState,
     dialogue_state: DialogueState,
     generation_state: GenerationState,
+    lore_state: LoreState,
     platform: Platform,
 ) {
     let status = *session_state.connection_status().read();
@@ -59,6 +60,7 @@ pub fn ensure_connection(
         game_state,
         dialogue_state,
         generation_state,
+        lore_state,
         platform,
     );
 }
@@ -78,6 +80,7 @@ fn initiate_connection(
     mut game_state: GameState,
     mut dialogue_state: DialogueState,
     mut generation_state: GenerationState,
+    mut lore_state: LoreState,
     platform: Platform,
 ) {
     // Update session state to connecting
@@ -103,6 +106,7 @@ fn initiate_connection(
                         &mut game_state,
                         &mut dialogue_state,
                         &mut generation_state,
+                        &mut lore_state,
                         platform.as_ref(),
                     );
                 }
@@ -124,6 +128,7 @@ pub fn handle_disconnect(
     mut session_state: SessionState,
     mut game_state: GameState,
     mut dialogue_state: DialogueState,
+    mut lore_state: LoreState,
 ) {
     // Disconnect client if present
     if let Some(client) = session_state.engine_client().read().as_ref() {
@@ -134,4 +139,5 @@ pub fn handle_disconnect(
     session_state.clear();
     game_state.clear();
     dialogue_state.clear();
+    lore_state.clear();
 }

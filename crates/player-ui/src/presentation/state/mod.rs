@@ -8,6 +8,7 @@ pub mod connection_state;
 pub mod dialogue_state;
 pub mod game_state;
 pub mod generation_state;
+pub mod lore_state;
 pub mod session_state;
 
 // Export individual substates
@@ -19,6 +20,7 @@ pub use game_state::{ApproachEventData, GameState, LocationEventData, TimeMode, 
 pub use generation_state::{
     BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
 };
+pub use lore_state::{KnownLoreEntry, LoreState};
 
 // SessionState is the facade that composes the substates (backward-compatible)
 pub use session_state::SessionState;
@@ -55,4 +57,12 @@ pub fn use_dialogue_state() -> DialogueState {
 /// Panics if GenerationState has not been provided via use_context_provider
 pub fn use_generation_state() -> GenerationState {
     use_context::<GenerationState>()
+}
+
+/// Get the lore state from context
+///
+/// # Panics
+/// Panics if LoreState has not been provided via use_context_provider
+pub fn use_lore_state() -> LoreState {
+    use_context::<LoreState>()
 }

@@ -3,7 +3,9 @@
 use super::connection::handle_disconnect;
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;
-use crate::presentation::state::{ConnectionStatus, DialogueState, GameState, SessionState};
+use crate::presentation::state::{
+    ConnectionStatus, DialogueState, GameState, LoreState, SessionState,
+};
 use crate::presentation::views::dm_view::DMMode;
 use crate::use_platform;
 use dioxus::prelude::*;
@@ -186,6 +188,7 @@ fn DMViewContent(props: DMViewContentProps) -> Element {
     let session_state = use_context::<SessionState>();
     let game_state = use_context::<GameState>();
     let dialogue_state = use_context::<DialogueState>();
+    let lore_state = use_context::<LoreState>();
 
     let connection_status = *session_state.connection_status().read();
 
@@ -203,11 +206,13 @@ fn DMViewContent(props: DMViewContentProps) -> Element {
                     let session_state = session_state.clone();
                     let game_state = game_state.clone();
                     let dialogue_state = dialogue_state.clone();
+                    let lore_state = lore_state.clone();
                     move |_| {
                         handle_disconnect(
                             session_state.clone(),
                             game_state.clone(),
                             dialogue_state.clone(),
+                            lore_state.clone(),
                         );
                         platform.storage_remove(storage_keys::LAST_WORLD);
                         navigator.push(Route::RoleSelectRoute {});

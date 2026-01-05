@@ -274,16 +274,25 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 7: UI Handler Fixes
 
 ### CR3-7.1 - Store Lore Events in State
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
+- `crates/player-ui/src/presentation/state/lore_state.rs` (NEW)
 - `crates/player-ui/src/presentation/state/mod.rs`
 - `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
+- `crates/player-ui/src/presentation/handlers/session_event_handler.rs`
+- `crates/player-ui/src/routes/connection.rs`
+- `crates/player-ui/src/routes/world_session_layout.rs`
+- `crates/player-ui/src/routes/dm_routes.rs`
+- `crates/player-ui/src/lib.rs`
 
 **Tasks**:
-- [ ] Create LoreState struct with known_lore signal
-- [ ] Handle LoreDiscovered event to add lore
-- [ ] Handle LoreRevoked event to remove lore
-- [ ] Handle LoreUpdated event to update lore
+- [x] Create LoreState struct with known_lore signal
+- [x] Handle LoreDiscovered event to add lore
+- [x] Handle LoreRevoked event to remove lore
+- [x] Handle LoreUpdated event to update lore
+- [x] Wire LoreState through handler chain
+- [x] Provide LoreState in Dioxus context
+- [x] Clear LoreState on disconnect
 
 ---
 
@@ -400,7 +409,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-5.3 | Time suggestion extraction | PENDING | - |
 | CR3-6.1 | Serde case fixes | COMPLETE | - |
 | CR3-6.2 | Unknown variants | COMPLETE | - |
-| CR3-7.1 | Lore state | PENDING | - |
+| CR3-7.1 | Lore state | COMPLETE | - |
 | CR3-7.2 | ViewMode PC fix | PENDING | - |
 | CR3-7.3 | Error message clear | PENDING | - |
 | CR3-8.1 | Scene system docs | PENDING | - |

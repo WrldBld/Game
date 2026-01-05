@@ -8,7 +8,7 @@ use crate::presentation::state::{
     approval_state::PendingChallengeOutcome,
     challenge_state::{ChallengePromptData, ChallengeResultData},
     game_state::RegionStagingStatus,
-    DialogueState, GameState, GenerationState, PendingApproval, SessionState,
+    DialogueState, GameState, GenerationState, LoreState, PendingApproval, SessionState,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
 use wrldbldr_player_app::application::dto::SessionWorldSnapshot;
@@ -24,6 +24,7 @@ pub fn handle_server_message(
     game_state: &mut GameState,
     dialogue_state: &mut DialogueState,
     generation_state: &mut GenerationState,
+    lore_state: &mut LoreState,
     platform: &dyn PlatformPort,
 ) {
     match message {
@@ -1540,12 +1541,22 @@ pub fn handle_server_message(
             discovery_source,
         } => {
             tracing::info!(
-                "Character {} discovered lore: {} ({} chunks)",
+                "Character {} discovered lore: {} ({} chunks via {:?})",
                 character_id,
                 lore.title,
-                discovered_chunk_ids.len()
+                discovered_chunk_ids.len(),
+                discovery_source
             );
-            let _ = discovery_source; // TODO: Handle lore discovery in UI
+            // Create knowledge metadata for the discovery
+            let knowledge = wrldbldr_protocol::types::LoreKnowledgeData {
+                lore_id: lore.id.clone(),
+                character_id: character_id.clone(),
+                known_chunk_ids: discovered_chunk_ids,
+                discovery_source,
+                discovered_at: chrono::Utc::now().to_rfc3339(),
+                notes: None,
+            };
+            lore_state.add_lore(lore, knowledge);
         }
 
         PlayerEvent::LoreRevoked {
@@ -1557,24 +1568,27 @@ pub fn handle_server_message(
                 lore_id,
                 character_id
             );
-            // TODO: Update UI lore state
+            lore_state.remove_lore(&lore_id);
         }
 
         PlayerEvent::LoreUpdated { lore } => {
             tracing::info!("Lore updated: {}", lore.title);
-            // TODO: Refresh lore in DM UI
+            lore_state.update_lore(lore);
         }
 
         PlayerEvent::CharacterLoreResponse {
             character_id,
             known_lore,
         } => {
+            // CharacterLoreResponse provides summaries only, not full lore data.
+            // This is used for list views; full lore is fetched on demand.
             tracing::info!(
-                "Character {} knows {} lore entries",
+                "Character {} knows {} lore entries (summaries)",
                 character_id,
                 known_lore.len()
             );
-            // TODO: Display in UI
+            // TODO: Store summaries in a separate signal for lore list views
+            let _ = known_lore;
         }
 
         // Catch-all for unhandled or future event types

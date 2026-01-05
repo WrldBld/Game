@@ -40,6 +40,7 @@ fn AppRoot() -> Element {
     use_context_provider(presentation::state::SessionState::new);
     use_context_provider(presentation::state::DialogueState::new);
     use_context_provider(presentation::state::GenerationState::new);
+    use_context_provider(presentation::state::LoreState::new);
 
     rsx! {
         document::Stylesheet {

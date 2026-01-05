@@ -10,7 +10,7 @@ use wrldbldr_player_ports::outbound::{ConnectionState as PortConnectionState, Pl
 
 use crate::presentation::handlers::handle_server_message;
 use crate::presentation::state::{
-    ConnectionStatus, DialogueState, GameState, GenerationState, SessionState,
+    ConnectionStatus, DialogueState, GameState, GenerationState, LoreState, SessionState,
 };
 use dioxus::prelude::WritableExt;
 
@@ -24,6 +24,7 @@ pub fn handle_session_event(
     game_state: &mut GameState,
     dialogue_state: &mut DialogueState,
     generation_state: &mut GenerationState,
+    lore_state: &mut LoreState,
     platform: &dyn PlatformPort,
 ) {
     match event {
@@ -61,6 +62,7 @@ pub fn handle_session_event(
                 game_state.clear();
                 dialogue_state.clear();
                 generation_state.clear();
+                lore_state.clear();
                 session_state.clear();
                 tracing::info!("Connection lost - cleared all session state");
             }
@@ -72,6 +74,7 @@ pub fn handle_session_event(
                 game_state,
                 dialogue_state,
                 generation_state,
+                lore_state,
                 platform,
             );
         }

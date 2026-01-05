@@ -9,7 +9,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::state::{
-    ConnectionStatus, DialogueState, GameState, GenerationState, SessionState,
+    ConnectionStatus, DialogueState, GameState, GenerationState, LoreState, SessionState,
 };
 use crate::use_platform;
 use uuid::Uuid;
@@ -52,6 +52,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
     let game_state = use_context::<GameState>();
     let dialogue_state = use_context::<DialogueState>();
     let generation_state = use_context::<GenerationState>();
+    let lore_state = use_context::<LoreState>();
 
     // Set page title
     {
@@ -71,6 +72,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
         let game_state = game_state.clone();
         let dialogue_state = dialogue_state.clone();
         let generation_state = generation_state;
+        let lore_state = lore_state.clone();
         use_effect(move || {
             // If we're already connected to a different world (e.g., deep link without a full reload),
             // reset the session first so we can join the requested world.
@@ -86,6 +88,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                     session_state.clone(),
                     game_state.clone(),
                     dialogue_state.clone(),
+                    lore_state.clone(),
                 );
             }
 
@@ -96,6 +99,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                 game_state.clone(),
                 dialogue_state.clone(),
                 generation_state,
+                lore_state.clone(),
                 platform.clone(),
             );
         });
@@ -128,6 +132,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
                         let generation_state = generation_state;
+                        let lore_state = lore_state.clone();
                         move |_| {
                             // Force reconnection attempt by setting disconnected first
                             session_state.set_disconnected();
@@ -138,6 +143,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                                 game_state.clone(),
                                 dialogue_state.clone(),
                                 generation_state,
+                                lore_state.clone(),
                                 platform.clone(),
                             );
                         }
@@ -147,11 +153,13 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let session_state = session_state.clone();
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
+                        let lore_state = lore_state.clone();
                         move |_| {
                             handle_disconnect(
                                 session_state.clone(),
                                 game_state.clone(),
                                 dialogue_state.clone(),
+                                lore_state.clone(),
                             );
                             platform.storage_remove(storage_keys::LAST_WORLD);
                             navigator.push(Route::RoleSelectRoute {});
