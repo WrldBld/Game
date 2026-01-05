@@ -280,33 +280,32 @@ impl SceneRepo for Neo4jSceneRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        // Update FEATURES_CHARACTER edges
-        // First remove existing
-        let remove_q = query(
-            "MATCH (s:Scene {id: $id})-[f:FEATURES_CHARACTER]->()
-            DELETE f",
+        // Update FEATURES_CHARACTER edges atomically:
+        // Delete existing edges and create new ones in a single query using UNWIND
+        let char_ids: Vec<String> = scene
+            .featured_characters
+            .iter()
+            .map(|id| id.to_string())
+            .collect();
+
+        let features_q = query(
+            "MATCH (s:Scene {id: $scene_id})
+            OPTIONAL MATCH (s)-[old:FEATURES_CHARACTER]->()
+            DELETE old
+            WITH s
+            UNWIND CASE WHEN $char_ids = [] THEN [null] ELSE $char_ids END AS char_id
+            WITH s, char_id WHERE char_id IS NOT NULL
+            MATCH (c:Character {id: char_id})
+            CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)
+            RETURN count(*) as created",
         )
-        .param("id", scene.id.to_string());
+        .param("scene_id", scene.id.to_string())
+        .param("char_ids", char_ids);
+
         self.graph
-            .run(remove_q)
+            .run(features_q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Then add new edges for each featured character
-        for char_id in &scene.featured_characters {
-            let char_q = query(
-                "MATCH (s:Scene {id: $scene_id})
-                MATCH (c:Character {id: $char_id})
-                CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)",
-            )
-            .param("scene_id", scene.id.to_string())
-            .param("char_id", char_id.to_string());
-
-            self.graph
-                .run(char_q)
-                .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-        }
 
         tracing::debug!("Saved scene: {}", scene.name);
         Ok(())
@@ -337,30 +336,39 @@ impl SceneRepo for Neo4jSceneRepo {
     }
 
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError> {
-        // Remove any existing CURRENT_SCENE edge
-        let remove_q = query(
-            "MATCH (w:World {id: $world_id})-[r:CURRENT_SCENE]->()
-            DELETE r",
-        )
-        .param("world_id", world_id.to_string());
-
-        self.graph
-            .run(remove_q)
-            .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Create new CURRENT_SCENE edge
+        // Atomically remove any existing CURRENT_SCENE edge and create new one
         let q = query(
-            "MATCH (w:World {id: $world_id}), (s:Scene {id: $scene_id})
-            CREATE (w)-[:CURRENT_SCENE]->(s)",
+            "MATCH (w:World {id: $world_id})
+            OPTIONAL MATCH (w)-[old:CURRENT_SCENE]->()
+            DELETE old
+            WITH w
+            MATCH (s:Scene {id: $scene_id})
+            CREATE (w)-[:CURRENT_SCENE]->(s)
+            RETURN s.id as scene_id",
         )
         .param("world_id", world_id.to_string())
         .param("scene_id", scene_id.to_string());
 
-        self.graph
-            .run(q)
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Verify the operation succeeded
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
+            tracing::warn!(
+                "set_current failed: World {} or Scene {} not found",
+                world_id,
+                scene_id
+            );
+            return Err(RepoError::NotFound);
+        }
 
         tracing::debug!("Set current scene {} for world {}", scene_id, world_id);
         Ok(())
@@ -430,33 +438,27 @@ impl SceneRepo for Neo4jSceneRepo {
         scene_id: SceneId,
         characters: &[CharacterId],
     ) -> Result<(), RepoError> {
-        // Remove existing FEATURES_CHARACTER edges
-        let remove_q = query(
-            "MATCH (s:Scene {id: $scene_id})-[f:FEATURES_CHARACTER]->()
-            DELETE f",
+        // Delete existing edges and create new ones atomically using UNWIND
+        let char_ids: Vec<String> = characters.iter().map(|id| id.to_string()).collect();
+
+        let q = query(
+            "MATCH (s:Scene {id: $scene_id})
+            OPTIONAL MATCH (s)-[old:FEATURES_CHARACTER]->()
+            DELETE old
+            WITH s
+            UNWIND CASE WHEN $char_ids = [] THEN [null] ELSE $char_ids END AS char_id
+            WITH s, char_id WHERE char_id IS NOT NULL
+            MATCH (c:Character {id: char_id})
+            CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)
+            RETURN count(*) as created",
         )
-        .param("scene_id", scene_id.to_string());
+        .param("scene_id", scene_id.to_string())
+        .param("char_ids", char_ids);
 
         self.graph
-            .run(remove_q)
+            .run(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Add new edges for each character
-        for char_id in characters {
-            let char_q = query(
-                "MATCH (s:Scene {id: $scene_id})
-                MATCH (c:Character {id: $char_id})
-                CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)",
-            )
-            .param("scene_id", scene_id.to_string())
-            .param("char_id", char_id.to_string());
-
-            self.graph
-                .run(char_q)
-                .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-        }
 
         tracing::debug!(
             "Set {} featured characters for scene {}",

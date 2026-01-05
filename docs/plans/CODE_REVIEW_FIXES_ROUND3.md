@@ -115,23 +115,24 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 3: Neo4j Transaction Safety
 
 ### CR3-3.1 - Make Scene Save Atomic
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 **Issue**: `save()` deletes then loops to add characters - non-atomic.
 
 **Tasks**:
-- [ ] Use UNWIND for batch character edge creation
-- [ ] Combine delete and create into single query
+- [x] Use UNWIND for batch character edge creation
+- [x] Combine delete and create into single query
 
 ---
 
 ### CR3-3.2 - Make Scene set_current Atomic
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 **Issue**: `set_current()` has separate DELETE then CREATE queries.
 
 **Tasks**:
-- [ ] Combine into single atomic query with OPTIONAL MATCH for old current
+- [x] Combine into single atomic query with OPTIONAL MATCH for old current
+- [x] Add verification that World and Scene exist (returns NotFound if not)
 
 ---
 
@@ -385,8 +386,8 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-2.2 | Narrative trigger errors | COMPLETE | - |
 | CR3-2.3 | ExitLocation scene resolution | PENDING | - |
 | CR3-2.4 | Scene custom conditions | COMPLETE | - |
-| CR3-3.1 | Scene save atomic | PENDING | - |
-| CR3-3.2 | Scene set_current atomic | PENDING | - |
+| CR3-3.1 | Scene save atomic | COMPLETE | - |
+| CR3-3.2 | Scene set_current atomic | COMPLETE | - |
 | CR3-3.3 | Staging save atomic | PENDING | - |
 | CR3-3.4 | Silent failure checks | PENDING | - |
 | CR3-4.1 | Challenge delete | PENDING | - |
