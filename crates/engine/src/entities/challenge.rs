@@ -23,6 +23,10 @@ impl Challenge {
         self.repo.save(challenge).await
     }
 
+    pub async fn delete(&self, id: ChallengeId) -> Result<(), RepoError> {
+        self.repo.delete(id).await
+    }
+
     pub async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<domain::Challenge>, RepoError> {
         self.repo.list_for_scene(scene_id).await
     }

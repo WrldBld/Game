@@ -124,6 +124,23 @@ impl AssetRepo for Neo4jAssetRepo {
         Ok(())
     }
 
+    /// Delete an asset by ID
+    async fn delete(&self, id: AssetId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (a:GalleryAsset {id: $id})
+            DETACH DELETE a",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted asset: {}", id);
+        Ok(())
+    }
+
     /// List all assets for an entity
     async fn list_for_entity(
         &self,

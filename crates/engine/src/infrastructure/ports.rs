@@ -222,6 +222,7 @@ pub trait SceneRepo: Send + Sync {
 pub trait ChallengeRepo: Send + Sync {
     async fn get(&self, id: ChallengeId) -> Result<Option<Challenge>, RepoError>;
     async fn save(&self, challenge: &Challenge) -> Result<(), RepoError>;
+    async fn delete(&self, id: ChallengeId) -> Result<(), RepoError>;
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError>;
     async fn list_pending_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError>;
     async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError>;
@@ -316,6 +317,7 @@ pub trait StagingRepo: Send + Sync {
 pub trait ObservationRepo: Send + Sync {
     async fn get_observations(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>, RepoError>;
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError>;
+    async fn delete_observation(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<(), RepoError>;
     async fn has_observed(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<bool, RepoError>;
     /// Save deduced information from a challenge (for RevealInformation trigger)
     async fn save_deduced_info(&self, pc_id: PlayerCharacterId, info: String) -> Result<(), RepoError>;
@@ -407,6 +409,7 @@ pub trait RegionStateRepo: Send + Sync {
 pub trait AssetRepo: Send + Sync {
     async fn get(&self, id: AssetId) -> Result<Option<GalleryAsset>, RepoError>;
     async fn save(&self, asset: &GalleryAsset) -> Result<(), RepoError>;
+    async fn delete(&self, id: AssetId) -> Result<(), RepoError>;
     async fn list_for_entity(
         &self,
         entity_type: &str,

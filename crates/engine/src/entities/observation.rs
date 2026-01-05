@@ -41,6 +41,15 @@ impl Observation {
         self.repo.save_observation(observation).await
     }
 
+    /// Delete an observation between a PC and NPC.
+    pub async fn delete_observation(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<(), RepoError> {
+        self.repo.delete_observation(pc_id, target_id).await
+    }
+
     /// Check if a PC has observed a specific character.
     pub async fn has_observed(
         &self,

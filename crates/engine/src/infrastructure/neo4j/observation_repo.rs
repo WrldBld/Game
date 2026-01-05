@@ -74,6 +74,20 @@ impl ObservationRepo for Neo4jObservationRepo {
         Ok(observations)
     }
 
+    /// Delete an observation between a PC and NPC
+    async fn delete_observation(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
+            DELETE r",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", target_id.to_string());
+
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        tracing::debug!("Deleted observation from PC {} to NPC {}", pc_id, target_id);
+        Ok(())
+    }
+
     /// Save an observation (upsert - updates if exists)
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError> {
         let q = query(

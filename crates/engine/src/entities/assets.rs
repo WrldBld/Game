@@ -27,6 +27,10 @@ impl Assets {
         self.repo.save(asset).await
     }
 
+    pub async fn delete(&self, id: AssetId) -> Result<(), RepoError> {
+        self.repo.delete(id).await
+    }
+
     pub async fn list_for_entity(
         &self,
         entity_type: &str,

@@ -162,44 +162,44 @@ Authentication-related items are explicitly excluded per requirements.
 ## Phase 4: Missing Entity Operations
 
 ### CR3-4.1 - Add Challenge Delete
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/infrastructure/ports.rs`
 - `crates/engine/src/infrastructure/neo4j/challenge_repo.rs`
 - `crates/engine/src/entities/challenge.rs`
 
 **Tasks**:
-- [ ] Add `delete` to ChallengeRepo trait
-- [ ] Implement in challenge_repo.rs
-- [ ] Add wrapper in Challenge entity
+- [x] Add `delete` to ChallengeRepo trait
+- [x] Implement in challenge_repo.rs
+- [x] Add wrapper in Challenge entity
 
 ---
 
 ### CR3-4.2 - Add Observation Delete
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/infrastructure/ports.rs`
 - `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 - `crates/engine/src/entities/observation.rs`
 
 **Tasks**:
-- [ ] Add `delete_observation` to ObservationRepo trait
-- [ ] Implement in observation_repo.rs
-- [ ] Add wrapper in Observation entity
+- [x] Add `delete_observation` to ObservationRepo trait
+- [x] Implement in observation_repo.rs
+- [x] Add wrapper in Observation entity
 
 ---
 
 ### CR3-4.3 - Add Asset Delete
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/infrastructure/ports.rs`
 - `crates/engine/src/infrastructure/neo4j/asset_repo.rs`
 - `crates/engine/src/entities/assets.rs`
 
 **Tasks**:
-- [ ] Add `delete` to AssetRepo trait
-- [ ] Implement in asset_repo.rs
-- [ ] Add wrapper in Assets entity
+- [x] Add `delete` to AssetRepo trait
+- [x] Implement in asset_repo.rs
+- [x] Add wrapper in Assets entity
 
 ---
 
@@ -392,9 +392,9 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-3.2 | Scene set_current atomic | COMPLETE | - |
 | CR3-3.3 | Staging save atomic | COMPLETE | - |
 | CR3-3.4 | Silent failure checks | COMPLETE | - |
-| CR3-4.1 | Challenge delete | PENDING | - |
-| CR3-4.2 | Observation delete | PENDING | - |
-| CR3-4.3 | Asset delete | PENDING | - |
+| CR3-4.1 | Challenge delete | COMPLETE | - |
+| CR3-4.2 | Observation delete | COMPLETE | - |
+| CR3-4.3 | Asset delete | COMPLETE | - |
 | CR3-5.1 | row_to_item extraction | COMPLETE | - |
 | CR3-5.2 | Movement staging extraction | PENDING | - |
 | CR3-5.3 | Time suggestion extraction | PENDING | - |

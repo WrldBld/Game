@@ -324,6 +324,22 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         Ok(())
     }
 
+    async fn delete(&self, id: ChallengeId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (c:Challenge {id: $id})
+            DETACH DELETE c",
+        )
+        .param("id", id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!("Deleted challenge: {}", id);
+        Ok(())
+    }
+
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError> {
         let q = query(
             "MATCH (c:Challenge)-[:TIED_TO_SCENE]->(s:Scene {id: $scene_id})
