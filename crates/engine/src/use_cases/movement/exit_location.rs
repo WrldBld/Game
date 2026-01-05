@@ -1,12 +1,12 @@
 //! Exit to location use case.
 //!
 //! Handles player character movement to a different location entirely.
-//! Determines the arrival region and coordinates with staging/narrative/time systems.
+//! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, StagedNpc};
+use wrldbldr_domain::{GameTime, LocationId, PlayerCharacterId, RegionId, Scene as DomainScene, StagedNpc};
 
-use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging, World};
+use crate::entities::{Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext, Staging, World};
 use crate::infrastructure::ports::{ClockPort, RepoError};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 
@@ -21,6 +21,9 @@ pub struct ExitLocation {
     staging: Arc<Staging>,
     observation: Arc<Observation>,
     narrative: Arc<Narrative>,
+    scene: Arc<Scene>,
+    inventory: Arc<Inventory>,
+    flag: Arc<Flag>,
     world: Arc<World>,
     suggest_time: Arc<SuggestTime>,
     clock: Arc<dyn ClockPort>,
@@ -33,6 +36,9 @@ impl ExitLocation {
         staging: Arc<Staging>,
         observation: Arc<Observation>,
         narrative: Arc<Narrative>,
+        scene: Arc<Scene>,
+        inventory: Arc<Inventory>,
+        flag: Arc<Flag>,
         world: Arc<World>,
         suggest_time: Arc<SuggestTime>,
         clock: Arc<dyn ClockPort>,
@@ -43,6 +49,9 @@ impl ExitLocation {
             staging,
             observation,
             narrative,
+            scene,
+            inventory,
+            flag,
             world,
             suggest_time,
             clock,
@@ -168,16 +177,25 @@ impl ExitLocation {
             &location.name,
         ).await;
 
-        // Note: Scene resolution is not implemented for ExitLocation yet.
-        // The EnterRegion use case handles full scene resolution when moving within a location.
-        // For location-to-location travel, scene resolution would need to be added here.
+        // 12. Resolve scene for the arrival region
+        let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id, &world_data.game_time).await?;
+        if let Some(ref scene) = resolved_scene {
+            tracing::info!(
+                pc_id = %pc_id,
+                region_id = %region_id,
+                scene_id = %scene.id,
+                scene_name = %scene.name,
+                "Scene resolved for location arrival"
+            );
+        }
+
         Ok(EnterRegionResult {
             region,
             npcs,
             triggered_events,
             staging_status,
             pc,
-            resolved_scene: None,
+            resolved_scene,
             time_suggestion,
         })
     }
@@ -210,6 +228,50 @@ impl ExitLocation {
                 None
             }
         }
+    }
+
+    /// Resolve which scene to display for a PC arriving in a region.
+    ///
+    /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes, flags)
+    /// and calls the scene resolution service.
+    async fn resolve_scene_for_region(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: wrldbldr_domain::WorldId,
+        region_id: RegionId,
+        game_time: &GameTime,
+    ) -> Result<Option<DomainScene>, RepoError> {
+        // Get current time of day from the world's game time (not wall clock)
+        let time_of_day = game_time.time_of_day();
+
+        // Build the scene resolution context
+        let completed_scenes = self.scene.get_completed_scenes(pc_id).await?;
+        let inventory = self.inventory.get_pc_inventory(pc_id).await?;
+        let observations = self.observation.get_observations(pc_id).await?;
+        let flags = self.flag.get_all_flags_for_pc(world_id, pc_id).await?;
+
+        let context = SceneResolutionContext::new(time_of_day)
+            .with_completed_scenes(completed_scenes)
+            .with_inventory(inventory.into_iter().map(|item| item.id))
+            .with_known_characters(observations.into_iter().map(|obs| obs.npc_id))
+            .with_flags(flags);
+
+        // Resolve the scene
+        let result = self.scene.resolve_scene(region_id, &context).await?;
+
+        // Log considered scenes for debugging
+        for consideration in &result.considered_scenes {
+            if !consideration.conditions_met {
+                tracing::debug!(
+                    scene_id = %consideration.scene_id,
+                    scene_name = %consideration.scene_name,
+                    unmet_conditions = ?consideration.unmet_conditions,
+                    "Scene not matched due to unmet conditions"
+                );
+            }
+        }
+
+        Ok(result.scene)
     }
 
     /// Determine the arrival region for a location.

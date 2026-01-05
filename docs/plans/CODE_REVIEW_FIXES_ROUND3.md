@@ -90,14 +90,17 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-2.3 - Add Scene Resolution to ExitLocation
-**Status**: PENDING
-**Files**: `crates/engine/src/use_cases/movement/exit_location.rs`
+**Status**: COMPLETE
+**Files**: 
+- `crates/engine/src/use_cases/movement/exit_location.rs`
+- `crates/engine/src/app.rs`
 **Issue**: ExitLocation always returns `resolved_scene: None`, missing scene content.
 
 **Tasks**:
-- [ ] Extract scene resolution logic from EnterRegion to shared helper
-- [ ] Call scene resolution in ExitLocation
-- [ ] Update ExitLocationResult to include resolved scene
+- [x] Add Scene, Inventory, Flag dependencies to ExitLocation
+- [x] Add resolve_scene_for_region method (same logic as EnterRegion)
+- [x] Call scene resolution and include in result
+- [x] Update app.rs to wire new dependencies
 
 ---
 
@@ -396,7 +399,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-1.4 | Bound decision history | COMPLETE | - |
 | CR3-2.1 | Location exits warning | COMPLETE | - |
 | CR3-2.2 | Narrative trigger errors | COMPLETE | - |
-| CR3-2.3 | ExitLocation scene resolution | PENDING | - |
+| CR3-2.3 | ExitLocation scene resolution | COMPLETE | - |
 | CR3-2.4 | Scene custom conditions | COMPLETE | - |
 | CR3-3.1 | Scene save atomic | COMPLETE | - |
 | CR3-3.2 | Scene set_current atomic | COMPLETE | - |
