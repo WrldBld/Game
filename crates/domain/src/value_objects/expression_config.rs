@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 ///     .with_actions(vec!["sighs", "laughs", "nods", "shakes head"])
 ///     .with_default_expression("neutral");
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpressionConfig {
     /// Available expression names for this character's sprite sheet

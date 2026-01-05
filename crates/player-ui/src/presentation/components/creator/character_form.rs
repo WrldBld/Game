@@ -4,12 +4,14 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use super::asset_gallery::AssetGallery;
+use super::expression_config_editor::ExpressionConfigEditor;
 use super::motivations_tab::MotivationsTab;
 use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
+use wrldbldr_domain::{ExpressionConfig, MoodState};
 use wrldbldr_player_app::application::dto::{FieldValue, SheetTemplate};
 use wrldbldr_player_app::application::services::SuggestionContext;
 use wrldbldr_player_app::application::services::{CharacterFormData, CharacterSheetDataApi};
@@ -57,6 +59,11 @@ pub fn CharacterForm(
     let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
     let mut sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(HashMap::new);
     let mut show_sheet_section = use_signal(|| true);
+
+    // Expression config state (Tier 2 & 3 of emotional model)
+    let mut expression_config = use_signal(ExpressionConfig::default);
+    let mut default_mood = use_signal(|| MoodState::Calm);
+    let mut show_expression_section = use_signal(|| false);
 
     // Load sheet template on mount
     {
@@ -325,6 +332,68 @@ pub fn CharacterForm(
                         }
                     }
                 }
+
+                    // Expression Config section (Tier 2 & 3 of emotional model)
+                    div {
+                        class: "expression-section mt-6 border-t border-gray-700 pt-4",
+
+                        // Section header with collapse toggle
+                        div {
+                            class: "flex justify-between items-center mb-4 cursor-pointer",
+                            onclick: move |_| {
+                                let current = *show_expression_section.read();
+                                show_expression_section.set(!current);
+                            },
+
+                            h3 {
+                                class: "text-gray-400 text-sm uppercase m-0",
+                                "Expressions & Mood"
+                            }
+
+                            span {
+                                class: "text-gray-500 text-sm",
+                                if *show_expression_section.read() { "[-]" } else { "[+]" }
+                            }
+                        }
+
+                        if *show_expression_section.read() {
+                            ExpressionConfigEditor {
+                                config: expression_config.read().clone(),
+                                default_mood: *default_mood.read(),
+                                on_config_change: move |config| {
+                                    expression_config.set(config);
+                                },
+                                on_mood_change: move |mood| {
+                                    default_mood.set(mood);
+                                },
+                            }
+                        } else {
+                            // Compact summary when collapsed
+                            div {
+                                class: "flex flex-wrap gap-2 text-xs",
+
+                                // Mood badge
+                                span {
+                                    class: "px-2 py-1 bg-amber-900/50 text-amber-200 rounded",
+                                    "{default_mood.read().emoji()} {default_mood.read().display_name()}"
+                                }
+
+                                // Expression count
+                                span {
+                                    class: "px-2 py-1 bg-purple-900/50 text-purple-200 rounded",
+                                    "{expression_config.read().expressions.len()} expressions"
+                                }
+
+                                // Action count  
+                                if !expression_config.read().actions.is_empty() {
+                                    span {
+                                        class: "px-2 py-1 bg-gray-700 text-gray-300 rounded",
+                                        "{expression_config.read().actions.len()} actions"
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Character Sheet section (if template available)
                     if let Some(template) = sheet_template.read().as_ref() {
