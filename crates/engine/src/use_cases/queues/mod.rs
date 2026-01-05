@@ -10,10 +10,24 @@
 use std::sync::Arc;
 use wrldbldr_domain::{
     CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType, PlayerActionContext,
-    PlayerActionData, SceneContext,
+    PlayerActionData, SceneContext, WorldId,
 };
 
 use crate::infrastructure::ports::{LlmPort, QueuePort, RepoError};
+
+/// Events that need to be broadcast to clients after queue processing.
+///
+/// These are returned from queue processors and should be handled by the
+/// caller (typically main.rs) which has access to ConnectionManager.
+#[derive(Debug)]
+pub enum BroadcastEvent {
+    /// LLM-generated outcome suggestions ready to send to DMs
+    OutcomeSuggestionReady {
+        world_id: WorldId,
+        resolution_id: uuid::Uuid,
+        suggestions: Vec<String>,
+    },
+}
 
 /// Container for queue use cases.
 pub struct QueueUseCases {
@@ -265,6 +279,8 @@ pub struct LlmRequestProcessed {
     pub approval_id: uuid::Uuid,
     /// The generated NPC dialogue
     pub npc_dialogue: String,
+    /// Events to broadcast to clients
+    pub broadcast_events: Vec<BroadcastEvent>,
 }
 
 /// Process LLM request from queue.
@@ -301,90 +317,169 @@ impl ProcessLlmRequest {
             }
         };
 
-        // Build LLM request from the queued prompt data
-        let llm_request = if let Some(ref prompt) = request_data.prompt {
-            // Use the full GamePromptRequest to build a rich prompt
-            let system_prompt = format!(
-                "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
-                Scene: {} at {}\n\
-                Present characters: {}\n\n\
-                Respond in character. Keep responses concise (1-3 sentences). \
-                Stay true to the NPC's personality and motivations.",
-                prompt.directorial_notes,
-                prompt.scene_context.scene_name,
-                prompt.scene_context.location_name,
-                prompt.scene_context.present_characters.join(", ")
-            );
+        // Handle different request types
+        match &request_data.request_type {
+            LlmRequestType::OutcomeSuggestion { 
+                resolution_id, 
+                world_id, 
+                challenge_name, 
+                current_description, 
+                guidance 
+            } => {
+                // Build prompt for outcome suggestions
+                let system_prompt = "You are a creative TTRPG game master assistant. \
+                    Generate 3 alternative narrative descriptions for a challenge outcome. \
+                    Each suggestion should be evocative and fit the fantasy setting. \
+                    Return each suggestion on a separate line, numbered 1-3.";
+                
+                let user_message = format!(
+                    "Challenge: {}\nCurrent outcome description: \"{}\"\n{}Generate 3 alternative descriptions.",
+                    challenge_name,
+                    current_description,
+                    guidance.as_ref().map(|g| format!("DM guidance: {}\n", g)).unwrap_or_default()
+                );
 
-            let user_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
-                format!(
-                    "The player character says to {}: \"{}\"",
-                    prompt.player_action.target.as_deref().unwrap_or("you"),
-                    dialogue
-                )
-            } else {
-                format!(
-                    "The player character performs action '{}' targeting {}",
-                    prompt.player_action.action_type,
-                    prompt.player_action.target.as_deref().unwrap_or("you")
-                )
-            };
+                let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
+                    crate::infrastructure::ports::ChatMessage::user(&user_message),
+                ])
+                .with_system_prompt(system_prompt.to_string())
+                .with_temperature(0.8);
 
-            crate::infrastructure::ports::LlmRequest::new(vec![
-                crate::infrastructure::ports::ChatMessage::user(&user_message),
-            ])
-            .with_system_prompt(system_prompt)
-            .with_temperature(0.7)
-        } else {
-            // Fallback if no prompt was provided
-            tracing::warn!("LLM request has no prompt data, using fallback");
-            crate::infrastructure::ports::LlmRequest::new(vec![
-                crate::infrastructure::ports::ChatMessage::user(
-                    "Generate a brief, in-character NPC response to the player's action.",
-                ),
-            ])
-            .with_system_prompt("You are an NPC in a fantasy TTRPG. Respond briefly and in character.")
-        };
+                let llm_response = self
+                    .llm
+                    .generate(llm_request)
+                    .await
+                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
 
-        let llm_response = self
-            .llm
-            .generate(llm_request)
-            .await
-            .map_err(|e| QueueError::LlmError(e.to_string()))?;
+                // Parse suggestions from response (one per line)
+                let suggestions: Vec<String> = llm_response.content
+                    .lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .map(|line| {
+                        // Strip numbering if present (e.g., "1. ", "1) ", etc.)
+                        let trimmed = line.trim();
+                        if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit()) {
+                            rest.trim_start_matches(['.', ')', ':', '-', ' ']).trim().to_string()
+                        } else {
+                            trimmed.to_string()
+                        }
+                    })
+                    .take(3)
+                    .collect();
 
-        // Create approval request
-        let approval_data = wrldbldr_domain::ApprovalRequestData {
-            world_id: request_data.world_id,
-            source_action_id: item.id,
-            decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-            urgency: wrldbldr_domain::ApprovalUrgency::AwaitingPlayer,
-            pc_id: request_data.pc_id,
-            npc_id: None,
-            npc_name: String::new(),
-            proposed_dialogue: llm_response.content.clone(),
-            internal_reasoning: String::new(),
-            proposed_tools: vec![],
-            retry_count: 0,
-            challenge_suggestion: None,
-            narrative_event_suggestion: None,
-            player_dialogue: None,
-            scene_id: None,
-            location_id: None,
-            game_time: None,
-            topics: vec![],
-        };
+                tracing::info!(
+                    resolution_id = %resolution_id,
+                    world_id = %world_id,
+                    suggestion_count = suggestions.len(),
+                    "Generated outcome suggestions"
+                );
 
-        // Enqueue for DM approval
-        let approval_id = self.queue.enqueue_dm_approval(&approval_data).await?;
+                // Create broadcast event for DMs
+                let broadcast_event = BroadcastEvent::OutcomeSuggestionReady {
+                    world_id: *world_id,
+                    resolution_id: *resolution_id,
+                    suggestions: suggestions.clone(),
+                };
 
-        // Mark the LLM request as complete
-        self.queue.mark_complete(item.id).await?;
+                // Mark the LLM request as complete
+                self.queue.mark_complete(item.id).await?;
 
-        Ok(Some(LlmRequestProcessed {
-            request_id: item.id,
-            approval_id,
-            npc_dialogue: llm_response.content,
-        }))
+                Ok(Some(LlmRequestProcessed {
+                    request_id: item.id,
+                    approval_id: *resolution_id, // Use resolution_id as the "approval" for tracking
+                    npc_dialogue: llm_response.content,
+                    broadcast_events: vec![broadcast_event],
+                }))
+            }
+            LlmRequestType::NpcResponse { .. } | LlmRequestType::Suggestion { .. } => {
+                // Build LLM request from the queued prompt data
+                let llm_request = if let Some(ref prompt) = request_data.prompt {
+                    // Use the full GamePromptRequest to build a rich prompt
+                    let system_prompt = format!(
+                        "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
+                        Scene: {} at {}\n\
+                        Present characters: {}\n\n\
+                        Respond in character. Keep responses concise (1-3 sentences). \
+                        Stay true to the NPC's personality and motivations.",
+                        prompt.directorial_notes,
+                        prompt.scene_context.scene_name,
+                        prompt.scene_context.location_name,
+                        prompt.scene_context.present_characters.join(", ")
+                    );
+
+                    let user_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
+                        format!(
+                            "The player character says to {}: \"{}\"",
+                            prompt.player_action.target.as_deref().unwrap_or("you"),
+                            dialogue
+                        )
+                    } else {
+                        format!(
+                            "The player character performs action '{}' targeting {}",
+                            prompt.player_action.action_type,
+                            prompt.player_action.target.as_deref().unwrap_or("you")
+                        )
+                    };
+
+                    crate::infrastructure::ports::LlmRequest::new(vec![
+                        crate::infrastructure::ports::ChatMessage::user(&user_message),
+                    ])
+                    .with_system_prompt(system_prompt)
+                    .with_temperature(0.7)
+                } else {
+                    // Fallback if no prompt was provided
+                    tracing::warn!("LLM request has no prompt data, using fallback");
+                    crate::infrastructure::ports::LlmRequest::new(vec![
+                        crate::infrastructure::ports::ChatMessage::user(
+                            "Generate a brief, in-character NPC response to the player's action.",
+                        ),
+                    ])
+                    .with_system_prompt("You are an NPC in a fantasy TTRPG. Respond briefly and in character.")
+                };
+
+                let llm_response = self
+                    .llm
+                    .generate(llm_request)
+                    .await
+                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
+
+                // Create approval request
+                let approval_data = wrldbldr_domain::ApprovalRequestData {
+                    world_id: request_data.world_id,
+                    source_action_id: item.id,
+                    decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
+                    urgency: wrldbldr_domain::ApprovalUrgency::AwaitingPlayer,
+                    pc_id: request_data.pc_id,
+                    npc_id: None,
+                    npc_name: String::new(),
+                    proposed_dialogue: llm_response.content.clone(),
+                    internal_reasoning: String::new(),
+                    proposed_tools: vec![],
+                    retry_count: 0,
+                    challenge_suggestion: None,
+                    narrative_event_suggestion: None,
+                    challenge_outcome: None,
+                    player_dialogue: None,
+                    scene_id: None,
+                    location_id: None,
+                    game_time: None,
+                    topics: vec![],
+                };
+
+                // Enqueue for DM approval
+                let approval_id = self.queue.enqueue_dm_approval(&approval_data).await?;
+
+                // Mark the LLM request as complete
+                self.queue.mark_complete(item.id).await?;
+
+                Ok(Some(LlmRequestProcessed {
+                    request_id: item.id,
+                    approval_id,
+                    npc_dialogue: llm_response.content,
+                    broadcast_events: vec![],
+                }))
+            }
+        }
     }
 }
 

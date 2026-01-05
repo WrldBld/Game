@@ -9,6 +9,7 @@ pub mod comfyui_banner;
 pub mod entity_browser;
 pub mod generation_queue;
 pub mod location_form;
+pub mod lore_form;
 pub mod motivations_tab;
 pub mod sheet_field_input;
 pub mod suggestion_button;

@@ -1,6 +1,7 @@
 //! Observation entity operations.
 
 use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use wrldbldr_domain::{CharacterId, NpcObservation, PlayerCharacterId, StagedNpc};
 
 use crate::infrastructure::ports::{ClockPort, LocationRepo, ObservationRepo, RepoError};
@@ -67,11 +68,18 @@ impl Observation {
     ///
     /// Creates direct observations for each present, visible NPC in the region.
     /// Skips NPCs the player has already observed to avoid duplicate records.
+    ///
+    /// # Arguments
+    /// * `pc_id` - The player character who visited
+    /// * `region_id` - The region that was visited
+    /// * `npcs` - NPCs present in the region
+    /// * `game_time` - Current game time (from World.game_time.current())
     pub async fn record_visit(
         &self,
         pc_id: PlayerCharacterId,
         region_id: wrldbldr_domain::RegionId,
         npcs: &[StagedNpc],
+        game_time: DateTime<Utc>,
     ) -> Result<(), RepoError> {
         // Get the region to find its location_id
         let region = self.location_repo.get_region(region_id).await?;
@@ -80,7 +88,7 @@ impl Observation {
             None => return Ok(()), // Region not found, nothing to record
         };
 
-        let now = self.clock.now();
+        let now = self.clock.now(); // Real time for created_at
 
         // Create observations for each present, visible NPC
         for npc in npcs.iter().filter(|n| n.is_present && !n.is_hidden_from_players) {
@@ -96,8 +104,8 @@ impl Observation {
                     npc.character_id,
                     location_id,
                     region_id,
-                    now, // game_time - using real time for now (TODO: game time system)
-                    now, // created_at
+                    game_time, // Game time for when the observation occurred in-game
+                    now,       // Real time for when record was created
                 );
 
                 self.repo.save_observation(&observation).await?;

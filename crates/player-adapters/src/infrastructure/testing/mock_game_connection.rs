@@ -336,6 +336,27 @@ impl GameConnectionPort for MockGameConnectionPort {
         Ok(())
     }
 
+    fn advance_time(&self, _world_id: &str, _minutes: u32, _reason: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn set_game_time(&self, _world_id: &str, _day: u32, _hour: u8) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn skip_to_period(&self, _world_id: &str, _period: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn respond_to_time_suggestion(
+        &self,
+        _suggestion_id: &str,
+        _decision: &str,
+        _modified_minutes: Option<u32>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>) {
         let mut s = self.state.lock().unwrap();
         s.on_state_change = Some(callback);

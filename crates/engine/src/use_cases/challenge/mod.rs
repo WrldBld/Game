@@ -46,6 +46,18 @@ pub struct RollResult {
     pub requires_approval: bool,
     /// ID of the approval queue item (if approval required)
     pub approval_queue_id: Option<uuid::Uuid>,
+    /// Challenge ID
+    pub challenge_id: ChallengeId,
+    /// Challenge name
+    pub challenge_name: String,
+    /// Character ID who attempted the challenge
+    pub character_id: PlayerCharacterId,
+    /// Character name who attempted the challenge  
+    pub character_name: String,
+    /// Outcome triggers (tools) to execute on approval
+    pub outcome_triggers: Vec<ProposedTool>,
+    /// Roll breakdown string (e.g., "d20(18) + modifier(3) = 21")
+    pub roll_breakdown: Option<String>,
 }
 
 /// Roll a challenge use case.
@@ -176,6 +188,7 @@ impl RollChallenge {
             retry_count: 0,
             challenge_suggestion: None,
             narrative_event_suggestion: None,
+            challenge_outcome: Some(outcome_data.clone()),
             player_dialogue: None,
             scene_id: None,
             location_id: None,
@@ -197,6 +210,12 @@ impl RollChallenge {
             outcome_description: outcome.description.clone(),
             requires_approval: true,
             approval_queue_id: Some(approval_queue_id),
+            challenge_id,
+            challenge_name: challenge.name.clone(),
+            character_id: pc_id,
+            character_name: pc.name.clone(),
+            outcome_triggers: outcome_data.outcome_triggers,
+            roll_breakdown: outcome_data.roll_breakdown,
         })
     }
 }

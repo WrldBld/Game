@@ -1,15 +1,19 @@
-//! Staging entity - DM-approved NPC presence for a region
+//! Staging entity - DM-approved NPC presence and visual state for a region
 //!
 //! # Neo4j Relationships
 //! - `(Region)-[:CURRENT_STAGING]->(Staging)` - Active staging for region
 //! - `(Region)-[:HAS_STAGING]->(Staging)` - Historical stagings
 //! - `(Staging)-[:INCLUDES_NPC {is_present, reasoning}]->(Character)` - NPCs in staging
+//! - `(Staging)-[:USES_LOCATION_STATE]->(LocationState)` - Visual state at location level
+//! - `(Staging)-[:USES_REGION_STATE]->(RegionState)` - Visual state at region level
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use wrldbldr_domain::{CharacterId, LocationId, RegionId, StagingId, WorldId};
+use wrldbldr_domain::{
+    CharacterId, LocationId, LocationStateId, RegionId, RegionStateId, StagingId, WorldId,
+};
 
-/// A DM-approved configuration of NPC presence for a region
+/// A DM-approved configuration of NPC presence and visual state for a region
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Staging {
@@ -33,6 +37,16 @@ pub struct Staging {
     pub dm_guidance: Option<String>,
     /// Whether this is the current active staging
     pub is_active: bool,
+
+    // Visual State
+    /// Resolved location state for this staging (if any)
+    pub location_state_id: Option<LocationStateId>,
+    /// Resolved region state for this staging (if any)
+    pub region_state_id: Option<RegionStateId>,
+    /// How the visual state was resolved
+    pub visual_state_source: VisualStateSource,
+    /// LLM reasoning for soft rule evaluation (if any)
+    pub visual_state_reasoning: Option<String>,
 }
 
 /// An NPC with presence status in a staging
@@ -74,6 +88,40 @@ pub enum StagingSource {
     PreStaged,
 }
 
+/// How visual state was resolved for a staging
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VisualStateSource {
+    /// States resolved from hard rules only
+    #[default]
+    HardRulesOnly,
+    /// States included LLM soft rule evaluation
+    WithLlmEvaluation,
+    /// DM manually selected states
+    DmOverride,
+    /// Using default states (no specific rules matched)
+    Default,
+}
+
+/// Summary of resolved visual state for display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedVisualState {
+    pub location_state: Option<ResolvedStateInfo>,
+    pub region_state: Option<ResolvedStateInfo>,
+}
+
+/// Info about a resolved state for display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedStateInfo {
+    pub id: String,
+    pub name: String,
+    pub backdrop_override: Option<String>,
+    pub atmosphere_override: Option<String>,
+    pub ambient_sound: Option<String>,
+}
+
 impl Staging {
     pub fn new(
         region_id: RegionId,
@@ -98,6 +146,10 @@ impl Staging {
             source,
             dm_guidance: None,
             is_active: true,
+            location_state_id: None,
+            region_state_id: None,
+            visual_state_source: VisualStateSource::default(),
+            visual_state_reasoning: None,
         }
     }
 
@@ -109,6 +161,31 @@ impl Staging {
     pub fn with_guidance(mut self, guidance: impl Into<String>) -> Self {
         self.dm_guidance = Some(guidance.into());
         self
+    }
+
+    pub fn with_location_state(mut self, state_id: LocationStateId) -> Self {
+        self.location_state_id = Some(state_id);
+        self
+    }
+
+    pub fn with_region_state(mut self, state_id: RegionStateId) -> Self {
+        self.region_state_id = Some(state_id);
+        self
+    }
+
+    pub fn with_visual_state_source(mut self, source: VisualStateSource) -> Self {
+        self.visual_state_source = source;
+        self
+    }
+
+    pub fn with_visual_state_reasoning(mut self, reasoning: impl Into<String>) -> Self {
+        self.visual_state_reasoning = Some(reasoning.into());
+        self
+    }
+
+    /// Check if this staging has any visual state configured
+    pub fn has_visual_state(&self) -> bool {
+        self.location_state_id.is_some() || self.region_state_id.is_some()
     }
 
     /// Check if staging has expired based on game time
@@ -182,5 +259,86 @@ impl std::str::FromStr for StagingSource {
             "prestaged" => Ok(StagingSource::PreStaged),
             _ => Err(format!("Unknown staging source: {}", s)),
         }
+    }
+}
+
+impl std::fmt::Display for VisualStateSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VisualStateSource::HardRulesOnly => write!(f, "rules"),
+            VisualStateSource::WithLlmEvaluation => write!(f, "llm"),
+            VisualStateSource::DmOverride => write!(f, "dm"),
+            VisualStateSource::Default => write!(f, "default"),
+        }
+    }
+}
+
+impl std::str::FromStr for VisualStateSource {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "rules" | "hardrulesonly" => Ok(VisualStateSource::HardRulesOnly),
+            "llm" | "withllmevaluation" => Ok(VisualStateSource::WithLlmEvaluation),
+            "dm" | "dmoverride" => Ok(VisualStateSource::DmOverride),
+            "default" => Ok(VisualStateSource::Default),
+            _ => Err(format!("Unknown visual state source: {}", s)),
+        }
+    }
+}
+
+impl ResolvedVisualState {
+    pub fn new() -> Self {
+        Self {
+            location_state: None,
+            region_state: None,
+        }
+    }
+
+    pub fn with_location_state(mut self, info: ResolvedStateInfo) -> Self {
+        self.location_state = Some(info);
+        self
+    }
+
+    pub fn with_region_state(mut self, info: ResolvedStateInfo) -> Self {
+        self.region_state = Some(info);
+        self
+    }
+
+    pub fn has_any(&self) -> bool {
+        self.location_state.is_some() || self.region_state.is_some()
+    }
+}
+
+impl Default for ResolvedVisualState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ResolvedStateInfo {
+    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            backdrop_override: None,
+            atmosphere_override: None,
+            ambient_sound: None,
+        }
+    }
+
+    pub fn with_backdrop(mut self, path: impl Into<String>) -> Self {
+        self.backdrop_override = Some(path.into());
+        self
+    }
+
+    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
+        self.atmosphere_override = Some(atmosphere.into());
+        self
+    }
+
+    pub fn with_ambient_sound(mut self, path: impl Into<String>) -> Self {
+        self.ambient_sound = Some(path.into());
+        self
     }
 }

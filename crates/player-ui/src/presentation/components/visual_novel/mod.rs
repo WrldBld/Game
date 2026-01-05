@@ -6,7 +6,9 @@ pub mod backdrop;
 pub mod character_sprite;
 pub mod choice_menu;
 pub mod dialogue_box;
+pub mod visual_state_indicator;
 
 pub use backdrop::Backdrop;
 pub use character_sprite::CharacterLayer;
 pub use dialogue_box::{DialogueBox, EmptyDialogueBox};
+pub use visual_state_indicator::{TimeOfDayIndicator, VisualStateIndicator, VisualStateInfo};

@@ -198,6 +198,27 @@ pub trait GameConnectionPort: Send + Sync {
     /// Request NPC dispositions for a PC (fetches current disposition data)
     fn get_npc_dispositions(&self, pc_id: &str) -> anyhow::Result<()>;
 
+    // =========================================================================
+    // Time Control (DM only)
+    // =========================================================================
+
+    /// Advance game time by a number of minutes
+    fn advance_time(&self, world_id: &str, minutes: u32, reason: &str) -> anyhow::Result<()>;
+
+    /// Set game time to a specific day and hour
+    fn set_game_time(&self, world_id: &str, day: u32, hour: u8) -> anyhow::Result<()>;
+
+    /// Skip to the next occurrence of a time period (Morning, Afternoon, Evening, Night)
+    fn skip_to_period(&self, world_id: &str, period: &str) -> anyhow::Result<()>;
+
+    /// Respond to a time suggestion (approve, modify, or skip)
+    fn respond_to_time_suggestion(
+        &self,
+        suggestion_id: &str,
+        decision: &str,
+        modified_minutes: Option<u32>,
+    ) -> anyhow::Result<()>;
+
     /// Register a callback for state changes
     fn on_state_change(&self, callback: Box<dyn FnMut(ConnectionState) + Send + 'static>);
 

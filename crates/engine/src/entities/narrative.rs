@@ -8,7 +8,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ClockPort, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
+    ChallengeRepo, ClockPort, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError,
 };
 
 /// Narrative entity operations.
@@ -19,6 +19,7 @@ pub struct Narrative {
     location_repo: Arc<dyn LocationRepo>,
     player_character_repo: Arc<dyn PlayerCharacterRepo>,
     observation_repo: Arc<dyn ObservationRepo>,
+    challenge_repo: Arc<dyn ChallengeRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -28,6 +29,7 @@ impl Narrative {
         location_repo: Arc<dyn LocationRepo>,
         player_character_repo: Arc<dyn PlayerCharacterRepo>,
         observation_repo: Arc<dyn ObservationRepo>,
+        challenge_repo: Arc<dyn ChallengeRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -35,6 +37,7 @@ impl Narrative {
             location_repo,
             player_character_repo,
             observation_repo,
+            challenge_repo,
             clock,
         }
     }
@@ -132,10 +135,18 @@ impl Narrative {
         let event_id = StoryEventId::new();
         let timestamp = self.clock.now();
 
+        // Get PC name from repo
+        let pc_name = self
+            .player_character_repo
+            .get(pc_id)
+            .await?
+            .map(|pc| pc.name)
+            .unwrap_or_else(|| "Player".to_string());
+
         // Build summary from dialogue
         let summary = format!(
             "{} spoke with {}: \"{}\" - \"{}\"",
-            "Player", // TODO: Get PC name from repo
+            pc_name,
             npc_name,
             truncate_dialogue(&player_dialogue, 50),
             truncate_dialogue(&npc_response, 50),
@@ -247,23 +258,36 @@ impl Narrative {
             .await
             .unwrap_or_default();
 
+        // Get completed events from event chains in the world
+        // Note: This is world-wide rather than PC-specific. A future enhancement
+        // would be to track per-PC event completion via PC->Event edges.
+        let world_id = self
+            .player_character_repo
+            .get(pc_id)
+            .await?
+            .map(|pc| pc.world_id);
+        
+        let (completed_events, completed_challenges) = if let Some(world_id) = world_id {
+            let events = self.repo.get_completed_events(world_id).await.unwrap_or_default();
+            let challenges = self.challenge_repo.get_resolved_challenges(world_id).await.unwrap_or_default();
+            (events, challenges)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+
         // Build trigger context with enriched PC state
-        // NOTE: completed_events would ideally come from a PC-specific event tracking system.
-        // For now, we populate inventory and location. Future enhancements could add:
-        // - flags: from a PC flags/state system
-        // - completed_events: from event chain progress tracking
-        // - completed_challenges: from challenge history
+        // NOTE: flags, event_outcomes, challenge_successes are still TODO for future enhancements
         let context = TriggerContext {
             current_location: location_id,
             current_scene: None, // Would need SceneRepo to get current scene
             time_context: None,
             flags: std::collections::HashMap::new(),
             inventory,
-            completed_events: Vec::new(), // TODO: Add PC event completion tracking
+            completed_events,
             event_outcomes: std::collections::HashMap::new(),
             turns_since_event: std::collections::HashMap::new(),
-            completed_challenges: Vec::new(), // TODO: Add challenge history tracking
-            challenge_successes: std::collections::HashMap::new(),
+            completed_challenges,
+            challenge_successes: std::collections::HashMap::new(), // TODO: Track success/failure
             turn_count: 0,
             recent_dialogue_topics: Vec::new(),
             recent_player_action: None,

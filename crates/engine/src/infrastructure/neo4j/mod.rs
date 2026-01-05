@@ -19,6 +19,9 @@ mod world_repo;
 mod asset_repo;
 mod player_character_repo;
 mod flag_repo;
+mod lore_repo;
+mod location_state_repo;
+mod region_state_repo;
 
 pub use character_repo::Neo4jCharacterRepo;
 pub use location_repo::Neo4jLocationRepo;
@@ -32,6 +35,9 @@ pub use world_repo::Neo4jWorldRepo;
 pub use asset_repo::Neo4jAssetRepo;
 pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use flag_repo::Neo4jFlagRepo;
+pub use lore_repo::Neo4jLoreRepo;
+pub use location_state_repo::Neo4jLocationStateRepo;
+pub use region_state_repo::Neo4jRegionStateRepo;
 
 /// Create all Neo4j repositories from a graph connection.
 pub struct Neo4jRepositories {
@@ -47,6 +53,9 @@ pub struct Neo4jRepositories {
     pub world: Arc<Neo4jWorldRepo>,
     pub asset: Arc<Neo4jAssetRepo>,
     pub flag: Arc<Neo4jFlagRepo>,
+    pub lore: Arc<Neo4jLoreRepo>,
+    pub location_state: Arc<Neo4jLocationStateRepo>,
+    pub region_state: Arc<Neo4jRegionStateRepo>,
 }
 
 impl Neo4jRepositories {
@@ -61,9 +70,12 @@ impl Neo4jRepositories {
             staging: Arc::new(Neo4jStagingRepo::new(graph.clone(), clock.clone())),
             observation: Arc::new(Neo4jObservationRepo::new(graph.clone(), clock.clone())),
             item: Arc::new(Neo4jItemRepo::new(graph.clone())),
-            world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock)),
+            world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock.clone())),
             asset: Arc::new(Neo4jAssetRepo::new(graph.clone())),
-            flag: Arc::new(Neo4jFlagRepo::new(Arc::new(graph))),
+            flag: Arc::new(Neo4jFlagRepo::new(Arc::new(graph.clone()))),
+            lore: Arc::new(Neo4jLoreRepo::new(graph.clone(), clock.clone())),
+            location_state: Arc::new(Neo4jLocationStateRepo::new(graph.clone(), clock.clone())),
+            region_state: Arc::new(Neo4jRegionStateRepo::new(graph, clock)),
         }
     }
 }

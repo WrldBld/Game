@@ -1,7 +1,7 @@
 //! Enter region use case.
 //!
 //! Handles player character movement to a region within the same location.
-//! Coordinates with staging, observation, scene resolution, and narrative systems.
+//! Coordinates with staging, observation, scene resolution, narrative, and time systems.
 
 use std::sync::Arc;
 use wrldbldr_domain::{
@@ -11,9 +11,10 @@ use wrldbldr_domain::{
 
 use crate::entities::{
     Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, SceneResolutionContext,
-    Staging,
+    Staging, World,
 };
 use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 
 /// Result of entering a region.
 #[derive(Debug)]
@@ -30,6 +31,8 @@ pub struct EnterRegionResult {
     pub pc: DomainPlayerCharacter,
     /// Resolved scene for this region (if any)
     pub resolved_scene: Option<DomainScene>,
+    /// Time suggestion for this movement (if time mode is Suggested)
+    pub time_suggestion: Option<TimeSuggestion>,
 }
 
 /// Status of staging for a region.
@@ -46,7 +49,7 @@ pub enum StagingStatus {
 
 /// Enter region use case.
 ///
-/// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks.
+/// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks, time suggestions.
 pub struct EnterRegion {
     player_character: Arc<PlayerCharacter>,
     location: Arc<Location>,
@@ -56,6 +59,8 @@ pub struct EnterRegion {
     scene: Arc<Scene>,
     inventory: Arc<Inventory>,
     flag: Arc<Flag>,
+    world: Arc<World>,
+    suggest_time: Arc<SuggestTime>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -69,6 +74,8 @@ impl EnterRegion {
         scene: Arc<Scene>,
         inventory: Arc<Inventory>,
         flag: Arc<Flag>,
+        world: Arc<World>,
+        suggest_time: Arc<SuggestTime>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -80,6 +87,8 @@ impl EnterRegion {
             scene,
             inventory,
             flag,
+            world,
+            suggest_time,
             clock,
         }
     }
@@ -124,8 +133,15 @@ impl EnterRegion {
             }
         }
 
-        // 5. Check for valid staging (with TTL check)
-        let current_game_time = self.clock.now();
+        // 5. Get the world to access game time for TTL checks and observations
+        let world_data = self
+            .world
+            .get(pc.world_id)
+            .await?
+            .ok_or(EnterRegionError::WorldNotFound)?;
+        let current_game_time = world_data.game_time.current();
+
+        // 6. Check for valid staging (with TTL check using game time)
         let active_staging = self.staging.get_active_staging(region_id, current_game_time).await?;
         
         let (npcs, staging_status) = match active_staging {
@@ -160,14 +176,15 @@ impl EnterRegion {
             }
         };
 
-        // 6. Update player's observation state (even if staging pending, record the visit)
+        // 7. Update player's observation state (even if staging pending, record the visit)
+        // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.observation
-                .record_visit(pc_id, region_id, &npcs)
+                .record_visit(pc_id, region_id, &npcs, current_game_time)
                 .await?;
         }
 
-        // 7. Resolve scene for this region
+        // 8. Resolve scene for this region
         let resolved_scene = self.resolve_scene_for_region(pc_id, pc.world_id, region_id).await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
@@ -179,13 +196,22 @@ impl EnterRegion {
             );
         }
 
-        // 8. Check for triggered narrative events
+        // 9. Check for triggered narrative events
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
 
-        // 9. Update player character position
+        // 10. Update player character position
         self.player_character
             .update_position(pc_id, pc.current_location_id, region_id)
             .await?;
+
+        // 11. Generate time suggestion for movement
+        // This is a region-to-region move within the same location (travel_region)
+        let time_suggestion = self.suggest_time_for_movement(
+            pc.world_id,
+            pc_id,
+            pc.name.clone(),
+            &region.name,
+        ).await;
 
         Ok(EnterRegionResult {
             region,
@@ -194,7 +220,40 @@ impl EnterRegion {
             staging_status,
             pc,
             resolved_scene,
+            time_suggestion,
         })
+    }
+
+    /// Generate a time suggestion for regional movement.
+    ///
+    /// Uses the "travel_region" action type to look up time cost.
+    async fn suggest_time_for_movement(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        pc_id: PlayerCharacterId,
+        pc_name: String,
+        destination_name: &str,
+    ) -> Option<TimeSuggestion> {
+        match self.suggest_time.execute(
+            world_id,
+            pc_id,
+            pc_name,
+            "travel_region",
+            format!("Travel to {}", destination_name),
+        ).await {
+            Ok(SuggestTimeResult::SuggestionCreated(suggestion)) => Some(suggestion),
+            Ok(SuggestTimeResult::AutoAdvanced { .. }) => {
+                // In auto mode, time was advanced - we could emit a different event
+                // but for now we don't return a suggestion since it's already done
+                // The caller can handle auto-advance separately if needed
+                None
+            }
+            Ok(SuggestTimeResult::NoCost) | Ok(SuggestTimeResult::ManualMode) => None,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to generate time suggestion for movement");
+                None
+            }
+        }
     }
 
     /// Resolve which scene to display for a PC entering a region.
@@ -267,6 +326,8 @@ pub enum EnterRegionError {
     PlayerCharacterNotFound,
     #[error("Region not found")]
     RegionNotFound,
+    #[error("World not found")]
+    WorldNotFound,
     #[error("Region is not in the current location")]
     RegionNotInCurrentLocation,
     #[error("Movement blocked: {0}")]

@@ -104,5 +104,13 @@ define_id!(GridMapId);
 // Staging IDs
 define_id!(StagingId);
 
+// Lore IDs
+define_id!(LoreId);
+define_id!(LoreChunkId);
+
+// Visual State IDs
+define_id!(LocationStateId);
+define_id!(RegionStateId);
+
 // Misc IDs (present in codebase)
 define_id!(WorkflowId);

@@ -26,30 +26,35 @@ pub use entities::{
     GameFlag, GenerationBatch, GenerationMetadata, GenerationRequest, Goal, GridMap, InfoType,
     InputDefault, InputType, InteractionCondition, InteractionRequirement, InteractionTarget,
     InteractionTargetType, InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter,
-    Item, ItemListType, ItemSource, Location, LocationConnection, LocationType, MapBounds,
-    MarkerImportance, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
-    NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
-    OutcomeType, PlayerCharacter, PromptMapping, PromptMappingType, Region, RegionConnection,
-    RegionExit, Scene, SceneCharacter, SceneCharacterRole, SceneCondition, SectionLayout,
-    SelectOption, SheetField, SheetSection, SheetTemplateId, Skill, SkillCategory, StagedNpc,
-    Staging, StagingSource, StatBlock, StoryEvent, StoryEventInfoImportance, StoryEventType,
-    TimeContext, TriggerCondition, TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType,
-    Want, WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
-    WorkflowSlot, World,
+    Item, ItemListType, ItemSource, Location, LocationConnection, LocationState,
+    LocationStateSummary, LocationType, Lore, LoreCategory, LoreChunk, LoreDiscoverySource,
+    LoreKnowledge, MapBounds, MarkerImportance, MonomythStage, NarrativeEvent, NarrativeTrigger,
+    NarrativeTriggerType, NpcObservation, ObservationSummary, ObservationType, Outcome,
+    OutcomeCondition, OutcomeTrigger, OutcomeType, PlayerCharacter, PromptMapping,
+    PromptMappingType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
+    ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
+    SceneCondition, SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId, Skill,
+    SkillCategory, StagedNpc, Staging, StagingSource, StatBlock, StoryEvent,
+    StoryEventInfoImportance, StoryEventType, TimeContext, TriggerCondition, TriggerContext,
+    TriggerEvaluation, TriggerLogic, TriggerType, VisualStateSource, Want, WantTargetType,
+    WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput, WorkflowSlot, World,
 };
 
 pub use error::DomainError;
 pub use events::DomainEvent;
 
 // Re-export game time types
-pub use game_time::{GameTime, TimeOfDay};
+pub use game_time::{
+    GameTime, GameTimeConfig, TimeAdvanceReason, TimeCostConfig, TimeFormat, TimeMode, TimeOfDay,
+};
 
 // Re-export ID types
 pub use ids::{
     ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, EventChainId,
-    EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, NarrativeEventId, ParticipantId,
-    PlayerCharacterId, QueueItemId, RegionId, RelationshipId, SceneId, SkillId, StagingId,
-    StoryEventId, UserId, WantId, WorkflowConfigId, WorkflowId, WorldId,
+    EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, LocationStateId, LoreChunkId,
+    LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId, QueueItemId, RegionId,
+    RegionStateId, RelationshipId, SceneId, SkillId, StagingId, StoryEventId, UserId, WantId,
+    WorkflowConfigId, WorkflowId, WorldId,
 };
 
 // Re-export value objects (explicit list in value_objects/mod.rs)
@@ -68,6 +73,9 @@ pub use value_objects::{
     ActantialContext,
     ActantialLLMContext,
     ActantialTarget,
+    ActivationEvaluation,
+    ActivationLogic,
+    ActivationRule,
     ActiveChallengeContext,
     ActiveEventContext,
     ActiveNarrativeEventContext,

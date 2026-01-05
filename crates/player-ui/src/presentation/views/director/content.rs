@@ -14,6 +14,7 @@ use crate::presentation::components::dm_panel::split_party_banner::SplitPartyBan
 use crate::presentation::components::dm_panel::staging_approval::{
     StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest,
 };
+use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
 use crate::presentation::services::{use_challenge_service, use_skill_service};
 use crate::presentation::state::{
@@ -204,6 +205,9 @@ pub fn DirectorModeContent() -> Element {
             // Right panel - Directorial controls
             div {
                 class: "control-panel flex flex-col gap-4 overflow-y-auto",
+
+                // Game Time Control Panel
+                TimeControlPanel {}
 
                 // Connection status
                 div {

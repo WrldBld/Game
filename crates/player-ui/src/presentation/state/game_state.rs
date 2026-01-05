@@ -118,6 +118,51 @@ pub enum RegionStagingStatus {
     },
 }
 
+/// Time suggestion pending DM approval
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeSuggestionData {
+    pub suggestion_id: String,
+    pub pc_id: String,
+    pub pc_name: String,
+    pub action_type: String,
+    pub action_description: String,
+    pub suggested_minutes: u32,
+    pub current_time: GameTime,
+    pub resulting_time: GameTime,
+    pub period_change: Option<(String, String)>,
+}
+
+/// Time mode for the world
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum TimeMode {
+    /// DM manually controls time
+    Manual,
+    /// System suggests, DM approves
+    #[default]
+    Suggested,
+    /// Time advances automatically
+    Auto,
+}
+
+impl TimeMode {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "manual" => TimeMode::Manual,
+            "suggested" => TimeMode::Suggested,
+            "auto" | "automatic" => TimeMode::Auto,
+            _ => TimeMode::Suggested,
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            TimeMode::Manual => "Manual",
+            TimeMode::Suggested => "Suggested",
+            TimeMode::Auto => "Automatic",
+        }
+    }
+}
+
 /// Central game state stored as Dioxus signals
 #[derive(Clone)]
 pub struct GameState {
@@ -163,6 +208,12 @@ pub struct GameState {
     pub npc_dispositions: Signal<Vec<NpcDispositionData>>,
     /// Per-region staging status for DM panel (updated from staging events)
     pub region_staging_statuses: Signal<HashMap<String, RegionStagingStatus>>,
+    /// Pending time suggestions for DM approval
+    pub pending_time_suggestions: Signal<Vec<TimeSuggestionData>>,
+    /// Current time mode for the world
+    pub time_mode: Signal<TimeMode>,
+    /// Whether game time is currently paused
+    pub time_paused: Signal<bool>,
 }
 
 impl GameState {
@@ -190,6 +241,9 @@ impl GameState {
             actantial_refresh_counter: Signal::new(0),
             npc_dispositions: Signal::new(Vec::new()),
             region_staging_statuses: Signal::new(HashMap::new()),
+            pending_time_suggestions: Signal::new(Vec::new()),
+            time_mode: Signal::new(TimeMode::default()),
+            time_paused: Signal::new(true),
         }
     }
 
@@ -376,6 +430,33 @@ impl GameState {
         self.region_staging_statuses.write().clear();
     }
 
+    /// Add a pending time suggestion (for DM approval)
+    pub fn add_time_suggestion(&mut self, suggestion: TimeSuggestionData) {
+        self.pending_time_suggestions.write().push(suggestion);
+    }
+
+    /// Remove a time suggestion by ID (after DM action)
+    pub fn remove_time_suggestion(&mut self, suggestion_id: &str) {
+        self.pending_time_suggestions
+            .write()
+            .retain(|s| s.suggestion_id != suggestion_id);
+    }
+
+    /// Clear all pending time suggestions
+    pub fn clear_time_suggestions(&mut self) {
+        self.pending_time_suggestions.write().clear();
+    }
+
+    /// Set the time mode
+    pub fn set_time_mode(&mut self, mode: TimeMode) {
+        self.time_mode.set(mode);
+    }
+
+    /// Set whether time is paused
+    pub fn set_time_paused(&mut self, paused: bool) {
+        self.time_paused.set(paused);
+    }
+
     /// Trigger appropriate refresh based on entity change notification
     pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
         match entity_changed.entity_type.as_str() {
@@ -476,6 +557,9 @@ impl GameState {
         self.view_mode.set(ViewMode::Director);
         self.npc_dispositions.set(Vec::new());
         self.region_staging_statuses.write().clear();
+        self.pending_time_suggestions.write().clear();
+        self.time_mode.set(TimeMode::default());
+        self.time_paused.set(true);
     }
 
     /// Clear all state

@@ -2,7 +2,7 @@
 //!
 //! Provides reusable components for the DM view including scene preview,
 //! directorial notes, NPC motivation tracking, LLM response approval,
-//! staging approval, and challenge management.
+//! staging approval, challenge management, and time controls.
 
 pub mod adhoc_challenge_modal;
 pub mod approval_popup;
@@ -24,6 +24,7 @@ pub mod pc_management;
 pub mod scene_preview;
 pub mod split_party_banner;
 pub mod staging_approval;
+pub mod time_control;
 pub mod tone_selector;
 pub mod trigger_challenge_modal;
 
@@ -38,3 +39,4 @@ pub use npc_disposition_panel::{
 };
 pub use split_party_banner::SplitPartyBanner;
 pub use staging_approval::{StagingApprovalPopup, StagingApprovalResult, StagingRegenerateRequest};
+pub use time_control::TimeControlPanel;

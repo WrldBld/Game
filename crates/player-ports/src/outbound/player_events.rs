@@ -78,10 +78,13 @@ pub use wrldbldr_protocol::{
     ProposedToolInfo,
     RegionData,
     RegionItemData,
+    // Visual State types
+    ResolvedVisualStateData,
     SceneData,
     // Split party
     SplitPartyLocation,
     StagedNpcInfo,
+    StateOptionData,
     WaitingPcInfo,
 };
 
@@ -458,6 +461,10 @@ pub enum PlayerEvent {
         llm_based_npcs: Vec<StagedNpcInfo>,
         default_ttl_hours: i32,
         waiting_pcs: Vec<WaitingPcInfo>,
+        // Visual State Fields
+        resolved_visual_state: Option<ResolvedVisualStateData>,
+        available_location_states: Vec<StateOptionData>,
+        available_region_states: Vec<StateOptionData>,
     },
 
     /// Staging is pending approval (Player)
@@ -470,12 +477,42 @@ pub enum PlayerEvent {
     StagingReady {
         region_id: String,
         npcs_present: Vec<NpcPresentInfo>,
+        /// Resolved visual state for scene display
+        visual_state: Option<ResolvedVisualStateData>,
     },
 
     /// Staging was regenerated (DM only)
     StagingRegenerated {
         request_id: String,
         llm_based_npcs: Vec<StagedNpcInfo>,
+    },
+
+    // =========================================================================
+    // Lore Events
+    // =========================================================================
+    /// Character discovered lore
+    LoreDiscovered {
+        character_id: String,
+        lore: wrldbldr_protocol::types::LoreData,
+        discovered_chunk_ids: Vec<String>,
+        discovery_source: wrldbldr_protocol::types::LoreDiscoverySourceData,
+    },
+
+    /// Lore was revoked from a character
+    LoreRevoked {
+        character_id: String,
+        lore_id: String,
+    },
+
+    /// Lore entry was updated (DM only)
+    LoreUpdated {
+        lore: wrldbldr_protocol::types::LoreData,
+    },
+
+    /// Response to GetCharacterLore request
+    CharacterLoreResponse {
+        character_id: String,
+        known_lore: Vec<wrldbldr_protocol::types::LoreSummaryData>,
     },
 
     // =========================================================================
@@ -678,8 +715,44 @@ pub enum PlayerEvent {
     // =========================================================================
     // Time Events
     // =========================================================================
-    /// Game time was updated
+    /// Game time was updated (legacy)
     GameTimeUpdated { game_time: GameTime },
+
+    /// Game time advanced with detailed info
+    GameTimeAdvanced {
+        previous_time: GameTime,
+        new_time: GameTime,
+        minutes_advanced: u32,
+        reason: String,
+        period_changed: bool,
+        new_period: Option<String>,
+    },
+
+    /// Time suggestion for DM approval
+    TimeSuggestion {
+        suggestion_id: String,
+        pc_id: String,
+        pc_name: String,
+        action_type: String,
+        action_description: String,
+        suggested_minutes: u32,
+        current_time: GameTime,
+        resulting_time: GameTime,
+        period_change: Option<(String, String)>,
+    },
+
+    /// Time mode changed
+    TimeModeChanged { world_id: String, mode: String },
+
+    /// Game time paused/unpaused
+    GameTimePaused { world_id: String, paused: bool },
+
+    /// Time config updated
+    TimeConfigUpdated {
+        world_id: String,
+        mode: String,
+        show_time_to_players: bool,
+    },
 
     // =========================================================================
     // Request/Response Events
@@ -753,6 +826,10 @@ impl PlayerEvent {
             Self::StagingPending { .. } => "StagingPending",
             Self::StagingReady { .. } => "StagingReady",
             Self::StagingRegenerated { .. } => "StagingRegenerated",
+            Self::LoreDiscovered { .. } => "LoreDiscovered",
+            Self::LoreRevoked { .. } => "LoreRevoked",
+            Self::LoreUpdated { .. } => "LoreUpdated",
+            Self::CharacterLoreResponse { .. } => "CharacterLoreResponse",
             Self::ItemEquipped { .. } => "ItemEquipped",
             Self::ItemUnequipped { .. } => "ItemUnequipped",
             Self::ItemDropped { .. } => "ItemDropped",
@@ -787,6 +864,11 @@ impl PlayerEvent {
             Self::SuggestionFailed { .. } => "SuggestionFailed",
             Self::ComfyUIStateChanged { .. } => "ComfyUIStateChanged",
             Self::GameTimeUpdated { .. } => "GameTimeUpdated",
+            Self::GameTimeAdvanced { .. } => "GameTimeAdvanced",
+            Self::TimeSuggestion { .. } => "TimeSuggestion",
+            Self::TimeModeChanged { .. } => "TimeModeChanged",
+            Self::GameTimePaused { .. } => "GameTimePaused",
+            Self::TimeConfigUpdated { .. } => "TimeConfigUpdated",
             Self::Response { .. } => "Response",
             Self::EntityChanged { .. } => "EntityChanged",
             Self::SpectateTargetChanged { .. } => "SpectateTargetChanged",

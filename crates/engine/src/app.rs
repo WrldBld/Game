@@ -36,6 +36,9 @@ pub struct Entities {
     pub assets: Arc<entities::Assets>,
     pub world: Arc<entities::World>,
     pub flag: Arc<entities::Flag>,
+    pub lore: Arc<entities::Lore>,
+    pub location_state: Arc<entities::LocationStateEntity>,
+    pub region_state: Arc<entities::RegionStateEntity>,
 }
 
 /// Container for all use cases.
@@ -48,6 +51,8 @@ pub struct UseCases {
     pub world: use_cases::WorldUseCases,
     pub queues: use_cases::QueueUseCases,
     pub narrative: use_cases::NarrativeUseCases,
+    pub time: use_cases::TimeUseCases,
+    pub visual_state: use_cases::VisualStateUseCases,
 }
 
 impl App {
@@ -76,6 +81,7 @@ impl App {
             repos.location.clone(),
             repos.player_character.clone(),
             repos.observation.clone(),
+            repos.challenge.clone(),
             clock.clone(),
         ));
         let staging = Arc::new(entities::Staging::new(repos.staging.clone()));
@@ -92,6 +98,11 @@ impl App {
         let assets = Arc::new(entities::Assets::new(repos.asset.clone(), image_gen));
         let world = Arc::new(entities::World::new(repos.world.clone()));
         let flag = Arc::new(entities::Flag::new(repos.flag.clone()));
+        let lore = Arc::new(entities::Lore::new(repos.lore.clone()));
+        let location_state = Arc::new(entities::LocationStateEntity::new(
+            repos.location_state.clone(),
+        ));
+        let region_state = Arc::new(entities::RegionStateEntity::new(repos.region_state.clone()));
 
         let entities = Entities {
             character: character.clone(),
@@ -106,7 +117,16 @@ impl App {
             assets: assets.clone(),
             world: world.clone(),
             flag: flag.clone(),
+            lore: lore.clone(),
+            location_state: location_state.clone(),
+            region_state: region_state.clone(),
         };
+
+        // Create time use case first (needed by movement)
+        let suggest_time = Arc::new(use_cases::time::SuggestTime::new(
+            world.clone(),
+            clock.clone(),
+        ));
 
         // Create use cases
         let movement = use_cases::MovementUseCases::new(
@@ -119,6 +139,8 @@ impl App {
                 scene.clone(),
                 inventory.clone(),
                 flag.clone(),
+                world.clone(),
+                suggest_time.clone(),
                 clock.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
@@ -127,6 +149,8 @@ impl App {
                 staging.clone(),
                 observation.clone(),
                 narrative.clone(),
+                world.clone(),
+                suggest_time.clone(),
                 clock.clone(),
             )),
         );
@@ -222,6 +246,16 @@ impl App {
                 clock.clone(),
             )));
 
+        let time_uc = use_cases::TimeUseCases::new(suggest_time);
+
+        let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
+            use_cases::visual_state::ResolveVisualState::new(
+                location_state.clone(),
+                region_state.clone(),
+                flag.clone(),
+            ),
+        ));
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -231,6 +265,8 @@ impl App {
             world: world_uc,
             queues,
             narrative: narrative_uc,
+            time: time_uc,
+            visual_state: visual_state_uc,
         };
 
         Self {

@@ -2,31 +2,80 @@
 
 Active implementation tracking for WrldBldr user stories and features.
 
-**Last Updated**: 2026-01-03  
+**Last Updated**: 2026-01-04  
 **Branch**: `new-arch`
 
 ---
 
-## Recently Completed (2026-01-03)
+## Recently Completed (2026-01-04)
 
-### Simplified Architecture Migration
-- Migrated engine from 5 crates to single `engine` crate
-- Reduced port traits from 128+ to ~10
-- See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md)
+### WebSocket Implementation - COMPLETE
+All WebSocket TODOs resolved:
+1. ✅ `WorldJoined` response now fetches PC data when role is Player
+2. ✅ Region items returned in `SceneChanged` response via `build_region_items()` helper
+3. ✅ Challenge outcome decision uses stored approval data (not hardcoded)
+4. ✅ `ChallengeOutcomeDecision::Edit` broadcasts with DM's modified description
+5. ✅ `DirectorialContext` stored in per-world cache in ConnectionManager
+6. ✅ `ChallengeOutcomePending` sent to DMs when rolls require approval
+7. ✅ `ChallengeOutcomeDecision::Suggest` queues LLM request for outcome suggestions
 
-### Scene Resolution Service
-- Condition evaluation for scenes (CompletedScene, HasItem, KnowsCharacter, FlagSet)
-- COMPLETED_SCENE edge tracking
-- Integrated into EnterRegion use case
+### Challenge Resolution Flow - COMPLETE
+- Extended `RollResult` with challenge/character metadata for DM notifications
+- Added `challenge_outcome: Option<ChallengeOutcomeData>` to `ApprovalRequestData`
+- Handler uses stored approval data for outcome type, roll, modifier, character info
+- `execute_for_pc()` variant passes PC context for trigger execution
 
-### Event Effect Executor
-- Execute all narrative trigger effects
-- Implemented: GiveItem, TakeItem, Enable/Disable Challenge/Event, ModifyRelationship, RevealInformation, ModifyStat, TriggerScene
-- Stubs for: SetFlag (needs flag storage), StartCombat (deferred), AddReward (XP tracking only)
+### LLM Outcome Suggestions - COMPLETE
+- Added `LlmRequestType::OutcomeSuggestion` variant with challenge context
+- Queue processor handles OutcomeSuggestion and generates 3 alternatives
+- Added `BroadcastEvent` type for queue->main communication
+- Main loop broadcasts `OutcomeSuggestionReady` to DMs in world
+
+### Code Quality Improvements (2026-01-04)
+- Extracted UUID parsing helpers (30+ occurrences reduced to helper calls)
+- Extracted DM authorization helpers (`require_dm`, `require_dm_for_request`)
+- Extracted `build_navigation_data()` async helper
+- Extracted `build_region_items()` async helper
+- Added `StagedNpc::is_visible_to_players()` method to domain
+- Removed unused `ConnectionManager` trait from ports.rs
+- Wired `ExecuteEffects` into narrative event approval handler
+
+### Flag Storage System (2026-01-04)
+- Added `FlagRepo` port trait with world and PC-scoped flag operations
+- Implemented Neo4j flag repository
+- Created `Flag` entity module
+- Wired into `EnterRegion` use case for scene condition evaluation
 
 ---
 
 ## Current Focus
+
+### Outstanding Engine TODOs - COMPLETE (2026-01-04 Session 2)
+
+All high-priority TODOs resolved:
+
+1. ✅ **Broadcast OutcomeSuggestionReady to DMs** - Added `BroadcastEvent` enum, handled in main loop
+2. ✅ **PC Name in Dialogue Events** - Now fetches from `player_character_repo`
+3. ✅ **Event Completion Tracking** - `get_completed_events()` queries event chains
+4. ✅ **Challenge Completion Tracking** - `get_resolved_challenges()` queries resolved challenges
+
+### Remaining TODOs - LOW PRIORITY
+
+1. **Game Time System** (`observation.rs:99`)
+   - Using real time instead of in-game time for observations
+   - Requires designing time progression mechanics
+
+2. **Event Outcomes Tracking** (`narrative.rs:279`)
+   - `event_outcomes` HashMap for trigger evaluation
+   - Would enable "trigger if event X had outcome Y"
+
+3. **Challenge Success/Failure Tracking** (`narrative.rs:290`)
+   - `challenge_successes` HashMap for trigger evaluation
+   - Would enable "trigger if challenge X was succeeded/failed"
+
+4. **Per-PC Flags System** (`narrative.rs:279`)
+   - `flags` HashMap for trigger evaluation
+   - Would enable custom state tracking per PC
 
 ### Documentation Updates - IN PROGRESS
 
@@ -205,6 +254,12 @@ Remaining work includes:
 
 | Date | Change |
 |------|--------|
+| 2026-01-04 | WebSocket TODOs complete - PC data, region items, challenge flow, directorial context |
+| 2026-01-04 | Challenge resolution flow rewritten - uses stored approval data, proper outcome types |
+| 2026-01-04 | LLM outcome suggestions queued (broadcast pending) |
+| 2026-01-04 | Flag storage system implemented |
+| 2026-01-04 | Code quality: helper functions extracted |
+| 2026-01-03 | Simplified architecture migration complete |
 | 2025-12-30 | Consolidated documentation - moved remediation to ARCHITECTURE_GAP_REMEDIATION_PLAN |
 | 2025-12-27 | Sprint 6 Code Quality Remediation complete (P0-P3.4) |
 | 2025-12-25 | Sprint 5 Actantial Completion complete |

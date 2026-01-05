@@ -2,8 +2,8 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2026-01-03  
-**Overall Progress**: Core gameplay complete; Simplified architecture complete; Scene resolution and narrative effects implemented  
+**Last Updated**: 2026-01-04  
+**Overall Progress**: Core gameplay complete; Simplified architecture complete; WebSocket implementation complete; Scene resolution and narrative effects implemented  
 **Branch**: `new-arch`
 
 ---
@@ -55,8 +55,12 @@ Simplified from 11+ crates with 128+ traits to 4 crates with ~10 traits.
 #### 3.2 Code Quality
 - [x] WebSocket-first migration complete (sessions removed)
 - [x] LLM context wiring complete (mood, actantial, featured NPCs)
-- [ ] Extract UUID parsing helpers in websocket.rs (minor duplication)
-- [ ] Extract DM authorization macro (minor duplication)
+- [x] Extract UUID parsing helpers in websocket.rs (2026-01-04)
+- [x] Extract DM authorization helpers (2026-01-04)
+- [x] Extract navigation data builder (2026-01-04)
+- [x] Extract staging NPC filter to domain method (2026-01-04)
+- [x] Wire ExecuteEffects into narrative approval handler (2026-01-04)
+- [x] Implement flag storage system for scene conditions (2026-01-04)
 
 #### 3.3 Testing & Security (Deferred to Post-MVP)
 - [ ] Domain entity unit tests
@@ -131,6 +135,8 @@ See individual system documents for detailed user stories.
 | - | Simplified Architecture (4 crates, ~10 port traits) | 2026-01-03 |
 | - | Scene Resolution Service (condition evaluation) | 2026-01-03 |
 | - | Event Effect Executor (all narrative effects) | 2026-01-03 |
+| - | Code Quality: Helper extraction, Flag Storage | 2026-01-04 |
+| - | WebSocket Implementation: PC data, region items, challenge flow, directorial context | 2026-01-04 |
 
 ---
 
@@ -138,19 +144,21 @@ See individual system documents for detailed user stories.
 
 ### Systems Needing Implementation
 
-| Gap | Description | Priority |
-|-----|-------------|----------|
-| Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium |
-| XP/Level Tracking | Track experience and level (no character advancement) | Low |
-| Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None |
+| Gap | Description | Priority | Status |
+|-----|-------------|----------|--------|
+| Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium | **COMPLETE** (2026-01-04) |
+| XP/Level Tracking | Track experience and level (no character advancement) | Low | Not Started |
+| Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None | Deferred |
 
 ### Code Quality Items
 
-| Item | Description | Priority |
-|------|-------------|----------|
-| UUID Parsing Helpers | Extract repeated pattern in websocket.rs | Low |
-| DM Auth Macro | Extract authorization checks | Low |
-| Navigation Data Builder | Deduplicate between move handlers | Low |
+| Item | Description | Priority | Status |
+|------|-------------|----------|--------|
+| UUID Parsing Helpers | Extract repeated pattern in websocket.rs | Low | **COMPLETE** (2026-01-04) |
+| DM Auth Macro | Extract authorization checks | Low | **COMPLETE** (2026-01-04) |
+| Navigation Data Builder | Deduplicate between move handlers | Low | **COMPLETE** (2026-01-04) |
+| Staging NPC Filter | Extract visibility filter to domain method | Low | **COMPLETE** (2026-01-04) |
+| ExecuteEffects Wiring | Wire effect executor into approval handlers | Medium | **COMPLETE** (2026-01-04) |
 
 ### Documentation Updates Needed
 
@@ -218,6 +226,8 @@ A task is complete when:
 
 | Date | Changes |
 |------|---------|
+| 2026-01-04 | Code quality: UUID helpers, DM auth helpers, navigation builder, staging filter, flag storage |
+| 2026-01-04 | Feature: ExecuteEffects wired into narrative event approval, flag storage for scene conditions |
 | 2025-12-26 | LLM context wiring complete: mood, actantial context, featured NPC names |
 | 2025-12-26 | WebSocket migration Phases 1-5 complete: ~10,100 lines removed |
 | 2025-12-26 | Code quality audit complete: 6 categories, 53-80h estimated remediation |

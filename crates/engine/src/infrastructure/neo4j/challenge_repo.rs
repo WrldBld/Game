@@ -412,4 +412,25 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         tracing::debug!("Set challenge {} enabled={}", id, enabled);
         Ok(())
     }
+
+    async fn get_resolved_challenges(&self, world_id: WorldId) -> Result<Vec<ChallengeId>, RepoError> {
+        // Get all challenges that have been resolved (active = false)
+        let q = query(
+            "MATCH (c:Challenge {world_id: $world_id, active: false})
+            RETURN c.id AS id",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut challenge_ids = Vec::new();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let id_str: String = row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                challenge_ids.push(ChallengeId::from(id));
+            }
+        }
+
+        Ok(challenge_ids)
+    }
 }

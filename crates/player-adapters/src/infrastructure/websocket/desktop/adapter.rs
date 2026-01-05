@@ -348,6 +348,43 @@ impl GameConnectionPort for DesktopGameConnection {
         Ok(())
     }
 
+    fn advance_time(&self, world_id: &str, minutes: u32, reason: &str) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::advance_time(world_id, minutes, reason),
+            "advance time",
+        );
+        Ok(())
+    }
+
+    fn set_game_time(&self, world_id: &str, day: u32, hour: u8) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::set_game_time(world_id, day, hour),
+            "set game time",
+        );
+        Ok(())
+    }
+
+    fn skip_to_period(&self, world_id: &str, period: &str) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::skip_to_period(world_id, period),
+            "skip to period",
+        );
+        Ok(())
+    }
+
+    fn respond_to_time_suggestion(
+        &self,
+        suggestion_id: &str,
+        decision: &str,
+        modified_minutes: Option<u32>,
+    ) -> Result<()> {
+        self.spawn_send(
+            ClientMessageBuilder::respond_to_time_suggestion(suggestion_id, decision, modified_minutes),
+            "respond to time suggestion",
+        );
+        Ok(())
+    }
+
     fn on_state_change(&self, callback: Box<dyn FnMut(PortConnectionState) + Send + 'static>) {
         let state_slot = Arc::clone(&self.state);
         let cb = Arc::new(tokio::sync::Mutex::new(callback));

@@ -115,6 +115,9 @@ pub use rule_system::{
 // Shared Types
 // =============================================================================
 pub use types::{
+    // Activation rules
+    ActivationLogicData,
+    ActivationRuleData,
     // Approval types
     ApprovalDecision,
     // Character archetypes
@@ -123,12 +126,27 @@ pub use types::{
     ChallengeSuggestionOutcomes,
     // Game time
     GameTime,
+    // Location/Region states
+    LocationStateData,
+    // Lore types
+    LoreCategoryData,
+    LoreChunkData,
+    LoreData,
+    LoreDiscoverySourceData,
+    LoreKnowledgeData,
+    LoreSummaryData,
     // Monomyth stages
     MonomythStage,
     NarrativeEventSuggestionInfo,
     // Participant roles
     ParticipantRole,
     ProposedToolInfo,
+    RegionStateData,
+    ResolvedStateInfoData,
+    ResolvedVisualStateData,
+    StateOptionData,
+    TimeOfDayData,
+    VisualStateSourceData,
 };
 
 // =============================================================================

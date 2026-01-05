@@ -52,12 +52,19 @@ impl Neo4jWorldRepo {
         };
         game_time.set_paused(game_time_paused);
 
+        // Parse time config or use defaults
+        let time_config: GameTimeConfig = node
+            .get_optional_string("time_config")
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+
         Ok(World {
             id,
             name,
             description,
             rule_system,
             game_time,
+            time_config,
             created_at,
             updated_at,
         })
@@ -89,6 +96,8 @@ impl WorldRepo for Neo4jWorldRepo {
     async fn save(&self, world: &World) -> Result<(), RepoError> {
         let rule_system_json = serde_json::to_string(&world.rule_system)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let time_config_json = serde_json::to_string(&world.time_config)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE to handle both create and update
         let q = query(
@@ -98,6 +107,7 @@ impl WorldRepo for Neo4jWorldRepo {
                 w.rule_system = $rule_system,
                 w.game_time = $game_time,
                 w.game_time_paused = $game_time_paused,
+                w.time_config = $time_config,
                 w.created_at = $created_at,
                 w.updated_at = $updated_at
             RETURN w.id as id",
@@ -108,6 +118,7 @@ impl WorldRepo for Neo4jWorldRepo {
         .param("rule_system", rule_system_json)
         .param("game_time", world.game_time.current().to_rfc3339())
         .param("game_time_paused", world.game_time.is_paused())
+        .param("time_config", time_config_json)
         .param("created_at", world.created_at.to_rfc3339())
         .param("updated_at", world.updated_at.to_rfc3339());
 

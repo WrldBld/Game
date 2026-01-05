@@ -1,6 +1,7 @@
 //! Value objects - Immutable objects defined by their attributes
 
 mod actantial_context;
+mod activation_rules;
 mod ad_hoc_outcomes;
 mod archetype;
 mod comfyui_config;
@@ -21,6 +22,9 @@ mod rule_system;
 mod settings;
 mod staging_context;
 mod world_state;
+
+// Activation rules for visual states
+pub use activation_rules::{ActivationEvaluation, ActivationLogic, ActivationRule};
 
 // Ad-hoc challenge outcomes
 pub use ad_hoc_outcomes::AdHocOutcomes;

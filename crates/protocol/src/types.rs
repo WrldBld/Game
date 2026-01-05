@@ -168,4 +168,444 @@ impl GameTime {
             is_paused,
         }
     }
+
+    /// Get the time of day period
+    pub fn time_of_day(&self) -> &'static str {
+        match self.hour {
+            5..=11 => "morning",
+            12..=17 => "afternoon",
+            18..=21 => "evening",
+            _ => "night",
+        }
+    }
+
+    /// Format as display string (e.g., "Day 3, 9:00 AM")
+    pub fn display(&self) -> String {
+        let period = if self.hour >= 12 { "PM" } else { "AM" };
+        let display_hour = if self.hour == 0 {
+            12
+        } else if self.hour > 12 {
+            self.hour - 12
+        } else {
+            self.hour
+        };
+        format!(
+            "Day {}, {}:{:02} {}",
+            self.day, display_hour, self.minute, period
+        )
+    }
+}
+
+// =============================================================================
+// Time Mode
+// =============================================================================
+
+/// How time suggestions are handled (wire format)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeMode {
+    /// Time only advances via explicit DM action
+    Manual,
+    /// System suggests, DM approves (default)
+    #[default]
+    Suggested,
+    /// Time advances automatically
+    Auto,
+}
+
+// =============================================================================
+// Time Cost Configuration
+// =============================================================================
+
+/// Time costs for various actions (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeCostConfig {
+    /// Minutes for travel between locations
+    pub travel_location: u32,
+    /// Minutes for travel between regions
+    pub travel_region: u32,
+    /// Minutes for short rest
+    pub rest_short: u32,
+    /// Minutes for long rest
+    pub rest_long: u32,
+    /// Minutes per conversation exchange
+    pub conversation: u32,
+    /// Minutes per challenge attempt
+    pub challenge: u32,
+    /// Minutes for scene transitions
+    pub scene_transition: u32,
+}
+
+impl Default for TimeCostConfig {
+    fn default() -> Self {
+        Self {
+            travel_location: 60,
+            travel_region: 10,
+            rest_short: 60,
+            rest_long: 480,
+            conversation: 0,
+            challenge: 10,
+            scene_transition: 0,
+        }
+    }
+}
+
+// =============================================================================
+// Game Time Configuration
+// =============================================================================
+
+/// Complete time configuration (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameTimeConfig {
+    /// How time suggestions are handled
+    pub mode: TimeMode,
+    /// Default time costs per action type
+    pub time_costs: TimeCostConfig,
+    /// Whether to show exact time to players
+    pub show_time_to_players: bool,
+}
+
+impl Default for GameTimeConfig {
+    fn default() -> Self {
+        Self {
+            mode: TimeMode::default(),
+            time_costs: TimeCostConfig::default(),
+            show_time_to_players: true,
+        }
+    }
+}
+
+// =============================================================================
+// Time Suggestion
+// =============================================================================
+
+/// A time suggestion awaiting DM approval
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeSuggestionData {
+    /// Unique ID for this suggestion
+    pub suggestion_id: String,
+    /// PC that triggered this suggestion
+    pub pc_id: String,
+    /// PC name for display
+    pub pc_name: String,
+    /// Type of action (travel_location, rest_short, etc.)
+    pub action_type: String,
+    /// Human-readable description
+    pub action_description: String,
+    /// Suggested time cost in minutes
+    pub suggested_minutes: u32,
+    /// Current time before advancement
+    pub current_time: GameTime,
+    /// Time after advancement if approved
+    pub resulting_time: GameTime,
+    /// If period changes, (from_period, to_period)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period_change: Option<(String, String)>,
+}
+
+// =============================================================================
+// Time Advance Data
+// =============================================================================
+
+/// Data about a time advancement (for broadcasting)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeAdvanceData {
+    /// Time before advancement
+    pub previous_time: GameTime,
+    /// Time after advancement
+    pub new_time: GameTime,
+    /// Minutes that were advanced
+    pub minutes_advanced: u32,
+    /// Human-readable reason
+    pub reason: String,
+    /// Whether the time period changed
+    pub period_changed: bool,
+    /// New period name if changed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_period: Option<String>,
+}
+
+// =============================================================================
+// Time Suggestion Decision
+// =============================================================================
+
+/// DM's decision on a time suggestion
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "decision")]
+pub enum TimeSuggestionDecision {
+    /// Accept the suggested time cost
+    Approve,
+    /// Modify the time cost
+    Modify { minutes: u32 },
+    /// Skip this time suggestion (no advancement)
+    Skip,
+}
+
+// =============================================================================
+// Lore Types
+// =============================================================================
+
+/// Category of lore (wire format)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LoreCategoryData {
+    Historical,
+    Legend,
+    Secret,
+    Common,
+    Technical,
+    Political,
+    Natural,
+    Religious,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Lore chunk for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreChunkData {
+    pub id: String,
+    pub order: u32,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub content: String,
+    #[serde(default)]
+    pub discovery_hint: Option<String>,
+}
+
+/// Lore entry for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreData {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: LoreCategoryData,
+    pub chunks: Vec<LoreChunkData>,
+    pub is_common_knowledge: bool,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// How lore was discovered (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum LoreDiscoverySourceData {
+    ReadBook {
+        book_name: String,
+    },
+    Conversation {
+        npc_id: String,
+        npc_name: String,
+    },
+    Investigation,
+    DmGranted {
+        reason: Option<String>,
+    },
+    CommonKnowledge,
+    LlmDiscovered {
+        context: String,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+/// Character's knowledge of lore (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreKnowledgeData {
+    pub lore_id: String,
+    pub character_id: String,
+    /// Empty = knows all chunks
+    pub known_chunk_ids: Vec<String>,
+    pub discovery_source: LoreDiscoverySourceData,
+    pub discovered_at: String,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+/// Lore summary for list views
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreSummaryData {
+    pub id: String,
+    pub title: String,
+    pub category: LoreCategoryData,
+    pub is_common_knowledge: bool,
+    pub chunk_count: u32,
+    /// How many chunks the character knows (for partial knowledge display)
+    #[serde(default)]
+    pub known_chunk_count: Option<u32>,
+}
+
+// =============================================================================
+// Visual State Types
+// =============================================================================
+
+/// Time of day period (wire format, matches domain::TimeOfDay)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeOfDayData {
+    Morning,
+    Afternoon,
+    Evening,
+    Night,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Activation rule for visual states (wire format)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ActivationRuleData {
+    Always,
+    DateExact {
+        month: u32,
+        day: u32,
+    },
+    DateRange {
+        start_month: u32,
+        start_day: u32,
+        end_month: u32,
+        end_day: u32,
+    },
+    TimeOfDay {
+        period: TimeOfDayData,
+    },
+    EventTriggered {
+        event_id: String,
+        event_name: String,
+    },
+    FlagSet {
+        flag_name: String,
+    },
+    CharacterPresent {
+        character_id: String,
+        character_name: String,
+    },
+    Custom {
+        description: String,
+        #[serde(default)]
+        llm_prompt: Option<String>,
+    },
+    #[serde(other)]
+    Unknown,
+}
+
+/// How rules are combined (wire format)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ActivationLogicData {
+    All,
+    Any,
+    AtLeast(u32),
+    #[serde(other)]
+    Unknown,
+}
+
+impl Default for ActivationLogicData {
+    fn default() -> Self {
+        ActivationLogicData::All
+    }
+}
+
+/// Location state for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationStateData {
+    pub id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub map_overlay: Option<String>,
+    pub activation_rules: Vec<ActivationRuleData>,
+    #[serde(default)]
+    pub activation_logic: ActivationLogicData,
+    pub priority: i32,
+    pub is_default: bool,
+}
+
+/// Region state for wire transfer
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionStateData {
+    pub id: String,
+    pub region_id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    pub activation_rules: Vec<ActivationRuleData>,
+    #[serde(default)]
+    pub activation_logic: ActivationLogicData,
+    pub priority: i32,
+    pub is_default: bool,
+}
+
+/// Resolved state info for staging (lightweight)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedStateInfoData {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub backdrop_override: Option<String>,
+    #[serde(default)]
+    pub atmosphere_override: Option<String>,
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+}
+
+/// How visual state was resolved
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum VisualStateSourceData {
+    #[default]
+    HardRulesOnly,
+    WithLlmEvaluation,
+    DmOverride,
+    Default,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Complete resolved visual state for staging
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedVisualStateData {
+    #[serde(default)]
+    pub location_state: Option<ResolvedStateInfoData>,
+    #[serde(default)]
+    pub region_state: Option<ResolvedStateInfoData>,
+}
+
+/// State option for DM selection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StateOptionData {
+    pub id: String,
+    pub name: String,
+    pub priority: i32,
+    pub is_default: bool,
+    /// Why this state was suggested (rule match description)
+    #[serde(default)]
+    pub match_reason: Option<String>,
 }

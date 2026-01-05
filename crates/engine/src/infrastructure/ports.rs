@@ -225,6 +225,9 @@ pub trait ChallengeRepo: Send + Sync {
     async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError>;
     /// Enable or disable a challenge (for EnableChallenge/DisableChallenge triggers)
     async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError>;
+    /// Get all resolved (inactive) challenge IDs in a world.
+    /// Used for trigger context building.
+    async fn get_resolved_challenges(&self, world_id: WorldId) -> Result<Vec<ChallengeId>, RepoError>;
 }
 
 #[async_trait]
@@ -268,6 +271,10 @@ pub trait NarrativeRepo: Send + Sync {
     // Event management for effect execution
     /// Set a narrative event's active status (for EnableEvent/DisableEvent effects)
     async fn set_event_active(&self, id: NarrativeEventId, active: bool) -> Result<(), RepoError>;
+    
+    /// Get all completed event IDs from all event chains in a world.
+    /// Used for trigger context building.
+    async fn get_completed_events(&self, world_id: WorldId) -> Result<Vec<NarrativeEventId>, RepoError>;
 }
 
 #[async_trait]
@@ -322,6 +329,64 @@ pub trait WorldRepo: Send + Sync {
     async fn save(&self, world: &World) -> Result<(), RepoError>;
     async fn list_all(&self) -> Result<Vec<World>, RepoError>;
     async fn delete(&self, id: WorldId) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait LoreRepo: Send + Sync {
+    // CRUD
+    async fn get(&self, id: LoreId) -> Result<Option<Lore>, RepoError>;
+    async fn save(&self, lore: &Lore) -> Result<(), RepoError>;
+    async fn delete(&self, id: LoreId) -> Result<(), RepoError>;
+    
+    // Queries
+    async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<Lore>, RepoError>;
+    async fn list_by_category(&self, world_id: WorldId, category: LoreCategory) -> Result<Vec<Lore>, RepoError>;
+    async fn list_common_knowledge(&self, world_id: WorldId) -> Result<Vec<Lore>, RepoError>;
+    async fn search_by_tags(&self, world_id: WorldId, tags: &[String]) -> Result<Vec<Lore>, RepoError>;
+    
+    // Knowledge management
+    async fn grant_knowledge(&self, knowledge: &LoreKnowledge) -> Result<(), RepoError>;
+    async fn revoke_knowledge(&self, character_id: CharacterId, lore_id: LoreId) -> Result<(), RepoError>;
+    async fn get_character_knowledge(&self, character_id: CharacterId) -> Result<Vec<LoreKnowledge>, RepoError>;
+    async fn get_knowledge_for_lore(&self, lore_id: LoreId) -> Result<Vec<LoreKnowledge>, RepoError>;
+    async fn character_knows_lore(&self, character_id: CharacterId, lore_id: LoreId) -> Result<Option<LoreKnowledge>, RepoError>;
+    
+    // Add chunks to existing knowledge
+    async fn add_chunks_to_knowledge(&self, character_id: CharacterId, lore_id: LoreId, chunk_ids: &[LoreChunkId]) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait LocationStateRepo: Send + Sync {
+    // CRUD
+    async fn get(&self, id: LocationStateId) -> Result<Option<LocationState>, RepoError>;
+    async fn save(&self, state: &LocationState) -> Result<(), RepoError>;
+    async fn delete(&self, id: LocationStateId) -> Result<(), RepoError>;
+    
+    // Queries
+    async fn list_for_location(&self, location_id: LocationId) -> Result<Vec<LocationState>, RepoError>;
+    async fn get_default(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError>;
+    
+    // Active state management
+    async fn set_active(&self, location_id: LocationId, state_id: LocationStateId) -> Result<(), RepoError>;
+    async fn get_active(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError>;
+    async fn clear_active(&self, location_id: LocationId) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait RegionStateRepo: Send + Sync {
+    // CRUD
+    async fn get(&self, id: RegionStateId) -> Result<Option<RegionState>, RepoError>;
+    async fn save(&self, state: &RegionState) -> Result<(), RepoError>;
+    async fn delete(&self, id: RegionStateId) -> Result<(), RepoError>;
+    
+    // Queries
+    async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<RegionState>, RepoError>;
+    async fn get_default(&self, region_id: RegionId) -> Result<Option<RegionState>, RepoError>;
+    
+    // Active state management
+    async fn set_active(&self, region_id: RegionId, state_id: RegionStateId) -> Result<(), RepoError>;
+    async fn get_active(&self, region_id: RegionId) -> Result<Option<RegionState>, RepoError>;
+    async fn clear_active(&self, region_id: RegionId) -> Result<(), RepoError>;
 }
 
 #[async_trait]

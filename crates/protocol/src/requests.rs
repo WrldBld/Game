@@ -6,6 +6,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+fn default_true() -> bool {
+    true
+}
+
 use crate::messages::{
     ActantialRoleData, ActorTypeData, CreateGoalData, CreateWantData, UpdateGoalData,
     UpdateWantData, WantTargetTypeData,
@@ -560,8 +564,42 @@ pub enum RequestPayload {
     /// Get the current game time for a world
     GetGameTime { world_id: String },
 
-    /// Advance the game time
+    /// Advance the game time (hours)
     AdvanceGameTime { world_id: String, hours: u32 },
+
+    /// Advance the game time (minutes, with reason)
+    AdvanceGameTimeMinutes {
+        world_id: String,
+        minutes: u32,
+        /// Reason for display (optional)
+        reason: Option<String>,
+    },
+
+    /// Set the exact game time
+    SetGameTime {
+        world_id: String,
+        day: u32,
+        hour: u8,
+        /// Whether to notify players
+        #[serde(default = "default_true")]
+        notify_players: bool,
+    },
+
+    /// Skip to the next occurrence of a time period
+    SkipToPeriod {
+        world_id: String,
+        /// Period: "morning", "afternoon", "evening", "night"
+        period: String,
+    },
+
+    /// Get time configuration for a world
+    GetTimeConfig { world_id: String },
+
+    /// Update time configuration for a world
+    UpdateTimeConfig {
+        world_id: String,
+        config: crate::types::GameTimeConfig,
+    },
 
     // =========================================================================
     // Character-Region Relationship Operations
@@ -695,6 +733,71 @@ pub enum RequestPayload {
         region_id: String,
         data: CreateItemData,
     },
+
+    // =========================================================================
+    // Lore Operations
+    // =========================================================================
+    /// List all lore entries in a world
+    ListLore { world_id: String },
+
+    /// Get a specific lore entry
+    GetLore { lore_id: String },
+
+    /// Create a new lore entry
+    CreateLore {
+        world_id: String,
+        data: CreateLoreData,
+    },
+
+    /// Update a lore entry
+    UpdateLore {
+        lore_id: String,
+        data: UpdateLoreData,
+    },
+
+    /// Delete a lore entry
+    DeleteLore { lore_id: String },
+
+    /// Add a chunk to a lore entry
+    AddLoreChunk {
+        lore_id: String,
+        data: CreateLoreChunkData,
+    },
+
+    /// Update a lore chunk
+    UpdateLoreChunk {
+        chunk_id: String,
+        data: UpdateLoreChunkData,
+    },
+
+    /// Delete a lore chunk
+    DeleteLoreChunk { chunk_id: String },
+
+    /// Grant lore knowledge to a character (DM only)
+    GrantLoreKnowledge {
+        character_id: String,
+        lore_id: String,
+        /// Specific chunk IDs to grant (if None, grants all chunks)
+        #[serde(default)]
+        chunk_ids: Option<Vec<String>>,
+        /// How the lore was discovered
+        discovery_source: crate::types::LoreDiscoverySourceData,
+    },
+
+    /// Revoke lore knowledge from a character (DM only)
+    RevokeLoreKnowledge {
+        character_id: String,
+        lore_id: String,
+        /// Specific chunk IDs to revoke (if None, revokes all)
+        #[serde(default)]
+        chunk_ids: Option<Vec<String>>,
+    },
+
+    /// Get all lore known by a character
+    GetCharacterLore { character_id: String },
+
+    /// Get characters who know a specific lore entry
+    GetLoreKnowers { lore_id: String },
 
     /// Unknown request type for forward compatibility
     ///
@@ -1096,4 +1199,70 @@ pub struct CreateItemData {
     pub item_type: Option<String>,
     #[serde(default)]
     pub properties: Option<serde_json::Value>,
+}
+
+// =============================================================================
+// Lore Data Types
+// =============================================================================
+
+/// Data for creating a lore entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateLoreData {
+    pub title: String,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub is_common_knowledge: Option<bool>,
+    /// Initial chunks to create with the lore
+    #[serde(default)]
+    pub chunks: Option<Vec<CreateLoreChunkData>>,
+}
+
+/// Data for updating a lore entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateLoreData {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub is_common_knowledge: Option<bool>,
+}
+
+/// Data for creating a lore chunk
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateLoreChunkData {
+    /// Optional title for this chunk (may be omitted)
+    #[serde(default)]
+    pub title: Option<String>,
+    pub content: String,
+    #[serde(default)]
+    pub order: Option<u32>,
+    #[serde(default)]
+    pub discovery_hint: Option<String>,
+}
+
+/// Data for updating a lore chunk
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateLoreChunkData {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub order: Option<u32>,
+    #[serde(default)]
+    pub discovery_hint: Option<String>,
 }

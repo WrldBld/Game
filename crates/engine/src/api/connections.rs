@@ -3,11 +3,12 @@
 //! Tracks connected clients and their world associations.
 
 use std::collections::HashMap;
+use dashmap::DashMap;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_protocol::ServerMessage;
+use wrldbldr_protocol::{DirectorialContext, ServerMessage};
 
 /// Represents a connected client's role in a world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +49,8 @@ impl ConnectionInfo {
 pub struct ConnectionManager {
     /// Map of connection_id -> (ConnectionInfo, sender channel)
     connections: RwLock<HashMap<Uuid, (ConnectionInfo, mpsc::Sender<ServerMessage>)>>,
+    /// Per-world directorial context (scene notes, NPC motivations, etc.)
+    directorial_contexts: DashMap<WorldId, DirectorialContext>,
 }
 
 impl ConnectionManager {
@@ -55,6 +58,7 @@ impl ConnectionManager {
     pub fn new() -> Self {
         Self {
             connections: RwLock::new(HashMap::new()),
+            directorial_contexts: DashMap::new(),
         }
     }
 
@@ -204,6 +208,26 @@ impl ConnectionManager {
                 }
             }
         }
+    }
+
+    /// Set the directorial context for a world.
+    ///
+    /// This is used by the DM to provide scene notes, NPC motivations,
+    /// and other guidance for LLM prompts.
+    pub fn set_directorial_context(&self, world_id: WorldId, context: DirectorialContext) {
+        self.directorial_contexts.insert(world_id, context);
+    }
+
+    /// Get the directorial context for a world.
+    ///
+    /// Returns None if no context has been set.
+    pub fn get_directorial_context(&self, world_id: WorldId) -> Option<DirectorialContext> {
+        self.directorial_contexts.get(&world_id).map(|r| r.clone())
+    }
+
+    /// Clear the directorial context for a world.
+    pub fn clear_directorial_context(&self, world_id: WorldId) {
+        self.directorial_contexts.remove(&world_id);
     }
 }
 

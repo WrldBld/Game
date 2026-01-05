@@ -637,6 +637,121 @@ pub fn handle_server_message(
             );
         }
 
+        PlayerEvent::GameTimeAdvanced {
+            new_time,
+            reason,
+            period_changed,
+            new_period,
+            ..
+        } => {
+            let time_display = crate::presentation::game_time_format::display_date(new_time);
+
+            tracing::info!(
+                "Game time advanced: {} (reason: {}, period_changed: {})",
+                time_display,
+                reason,
+                period_changed
+            );
+
+            game_state.apply_game_time_update(new_time);
+
+            let message = if period_changed {
+                if let Some(ref period) = new_period {
+                    format!("{} - It is now {}.", reason, period)
+                } else {
+                    format!("{} - Time is now: {}", reason, time_display)
+                }
+            } else {
+                format!("{} - Time is now: {}", reason, time_display)
+            };
+
+            session_state.add_log_entry("System".to_string(), message, true, platform);
+        }
+
+        PlayerEvent::TimeSuggestion {
+            suggestion_id,
+            pc_id,
+            pc_name,
+            action_type,
+            action_description,
+            suggested_minutes,
+            current_time,
+            resulting_time,
+            period_change,
+        } => {
+            // DM-only: show time suggestion for approval
+            let current_display = crate::presentation::game_time_format::display_date(current_time);
+            let resulting_display =
+                crate::presentation::game_time_format::display_date(resulting_time);
+
+            tracing::info!(
+                "Time suggestion: {} - {} ({} -> {}, +{} min)",
+                suggestion_id,
+                action_description,
+                current_display,
+                resulting_display,
+                suggested_minutes
+            );
+
+            // Add to DM time suggestions queue
+            game_state.add_time_suggestion(crate::presentation::state::TimeSuggestionData {
+                suggestion_id: suggestion_id.clone(),
+                pc_id,
+                pc_name: pc_name.clone(),
+                action_type,
+                action_description: action_description.clone(),
+                suggested_minutes,
+                current_time,
+                resulting_time,
+                period_change,
+            });
+
+            session_state.add_log_entry(
+                "Time".to_string(),
+                format!(
+                    "{}: {} suggests +{} min ({} -> {})",
+                    pc_name,
+                    action_description,
+                    suggested_minutes,
+                    current_display,
+                    resulting_display
+                ),
+                true,
+                platform,
+            );
+        }
+
+        PlayerEvent::TimeModeChanged { world_id, mode } => {
+            tracing::info!("Time mode changed for world {}: {}", world_id, mode);
+            game_state.set_time_mode(crate::presentation::state::TimeMode::from_str(&mode));
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Time mode changed to: {}", mode),
+                true,
+                platform,
+            );
+        }
+
+        PlayerEvent::GameTimePaused { paused, .. } => {
+            tracing::info!("Game time paused: {}", paused);
+            game_state.set_time_paused(paused);
+            session_state.add_log_entry(
+                "System".to_string(),
+                if paused {
+                    "Time has been paused".to_string()
+                } else {
+                    "Time has resumed".to_string()
+                },
+                true,
+                platform,
+            );
+        }
+
+        PlayerEvent::TimeConfigUpdated { mode, .. } => {
+            tracing::info!("Time config updated: mode={}", mode);
+            // DM-only notification
+        }
+
         // =========================================================================
         // Queue Status (DM-only, can be ignored by Player view)
         // =========================================================================
@@ -687,6 +802,7 @@ pub fn handle_server_message(
             llm_based_npcs,
             default_ttl_hours,
             waiting_pcs,
+            .. // Visual state fields - TODO: Handle in UI when implemented
         } => {
             tracing::info!(
                 "Staging approval required for region {} ({}): {} rule-based, {} LLM-based NPCs",
@@ -804,6 +920,7 @@ pub fn handle_server_message(
         PlayerEvent::StagingReady {
             region_id,
             npcs_present,
+            .. // visual_state - TODO: Handle in UI when implemented
         } => {
             tracing::info!(
                 "Staging ready for region {}: {} NPCs present",
@@ -1386,6 +1503,53 @@ pub fn handle_server_message(
                 platform,
             );
             // The spectate target change should trigger scene updates via SceneChanged messages
+        }
+
+        // =========================================================================
+        // Lore Events
+        // =========================================================================
+        PlayerEvent::LoreDiscovered {
+            character_id,
+            lore,
+            discovered_chunk_ids,
+            discovery_source,
+        } => {
+            tracing::info!(
+                "Character {} discovered lore: {} ({} chunks)",
+                character_id,
+                lore.title,
+                discovered_chunk_ids.len()
+            );
+            let _ = discovery_source; // TODO: Handle lore discovery in UI
+        }
+
+        PlayerEvent::LoreRevoked {
+            character_id,
+            lore_id,
+        } => {
+            tracing::info!(
+                "Lore {} revoked from character {}",
+                lore_id,
+                character_id
+            );
+            // TODO: Update UI lore state
+        }
+
+        PlayerEvent::LoreUpdated { lore } => {
+            tracing::info!("Lore updated: {}", lore.title);
+            // TODO: Refresh lore in DM UI
+        }
+
+        PlayerEvent::CharacterLoreResponse {
+            character_id,
+            known_lore,
+        } => {
+            tracing::info!(
+                "Character {} knows {} lore entries",
+                character_id,
+                known_lore.len()
+            );
+            // TODO: Display in UI
         }
 
         // Catch-all for unhandled or future event types

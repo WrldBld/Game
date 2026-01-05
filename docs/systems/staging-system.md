@@ -466,9 +466,29 @@ pub struct StagingContext {
 
 ## Related Systems
 
-- **Depends on**: [NPC System](./npc-system.md) (NPC-Region relationships), [Navigation System](./navigation-system.md) (region movement), [Dialogue System](./dialogue-system.md) (conversation history for LLM context), [Narrative System](./narrative-system.md) (active events for LLM context), [Prompt Template System](./prompt-template-system.md) (configurable staging prompts)
+- **Depends on**: [NPC System](./npc-system.md) (NPC-Region relationships), [Navigation System](./navigation-system.md) (region movement), [Dialogue System](./dialogue-system.md) (conversation history for LLM context), [Narrative System](./narrative-system.md) (active events for LLM context), [Prompt Template System](./prompt-template-system.md) (configurable staging prompts), [Visual State System](./visual-state-system.md) (visual state resolved alongside NPC presence)
 - **Replaces**: PresenceService (simple rule-based presence calculation)
 - **Used by**: [Scene System](./scene-system.md) (NPCs in scene)
+
+---
+
+## Visual State Integration
+
+As of 2026-01-05, staging includes **visual state resolution** alongside NPC presence:
+
+- **LocationState**: City-wide visual configurations (holidays, sieges, festivals)
+- **RegionState**: Region-specific visual configurations (time-of-day, post-event states)
+
+Both NPC presence AND visual state are resolved together and presented to the DM for approval. The Staging entity tracks:
+
+```rust
+pub location_state_id: Option<LocationStateId>,
+pub region_state_id: Option<RegionStateId>,
+pub visual_state_source: VisualStateSource,
+pub visual_state_reasoning: Option<String>,
+```
+
+See [Visual State System](./visual-state-system.md) for full details.
 
 ---
 
@@ -527,6 +547,7 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | Added Visual State Integration section (LocationState, RegionState) |
 | 2025-12-26 | Marked US-STG-013 (hidden NPCs) as complete |
 | 2025-12-24 | Updated status: Engine complete, UI partial |
 | 2025-12-19 | Initial version - Phase 3 planning |

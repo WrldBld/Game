@@ -24,6 +24,7 @@ use wrldbldr_protocol::{
 
 use crate::app::App;
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
+use crate::use_cases::visual_state::StateResolutionContext;
 use super::connections::{ConnectionManager, WorldRole};
 
 /// Buffer size for per-connection message channel.
@@ -184,16 +185,16 @@ async fn handle_message(
         }
 
         // Staging handlers
-        ClientMessage::StagingApprovalResponse { request_id, approved_npcs, ttl_hours, source } => {
-            handle_staging_approval(state, connection_id, request_id, approved_npcs, ttl_hours, source).await
+        ClientMessage::StagingApprovalResponse { request_id, approved_npcs, ttl_hours, source, location_state_id, region_state_id } => {
+            handle_staging_approval(state, connection_id, request_id, approved_npcs, ttl_hours, source, location_state_id, region_state_id).await
         }
         
         ClientMessage::StagingRegenerateRequest { request_id, guidance } => {
             handle_staging_regenerate(state, connection_id, request_id, guidance).await
         }
         
-        ClientMessage::PreStageRegion { region_id, npcs, ttl_hours } => {
-            handle_pre_stage_region(state, connection_id, region_id, npcs, ttl_hours).await
+        ClientMessage::PreStageRegion { region_id, npcs, ttl_hours, location_state_id, region_state_id } => {
+            handle_pre_stage_region(state, connection_id, region_id, npcs, ttl_hours, location_state_id, region_state_id).await
         }
 
         // Approval handlers
@@ -228,6 +229,31 @@ async fn handle_message(
         
         ClientMessage::ShareNpcLocation { pc_id, npc_id, location_id, region_id, notes } => {
             handle_share_npc_location(state, connection_id, pc_id, npc_id, location_id, region_id, notes).await
+        }
+
+        // Time control handlers (DM only)
+        ClientMessage::SetGameTime { world_id, day, hour, notify_players } => {
+            handle_set_game_time(state, connection_id, world_id, day, hour, notify_players).await
+        }
+        
+        ClientMessage::SkipToPeriod { world_id, period } => {
+            handle_skip_to_period(state, connection_id, world_id, period).await
+        }
+        
+        ClientMessage::PauseGameTime { world_id, paused } => {
+            handle_pause_game_time(state, connection_id, world_id, paused).await
+        }
+        
+        ClientMessage::SetTimeMode { world_id, mode } => {
+            handle_set_time_mode(state, connection_id, world_id, mode).await
+        }
+        
+        ClientMessage::SetTimeCosts { world_id, costs } => {
+            handle_set_time_costs(state, connection_id, world_id, costs).await
+        }
+        
+        ClientMessage::RespondToTimeSuggestion { suggestion_id, decision } => {
+            handle_respond_to_time_suggestion(state, connection_id, suggestion_id, decision).await
         }
 
         // Player action handler
@@ -333,12 +359,43 @@ async fn handle_join_world(
         }
     });
     
+    // Fetch PC data if role is Player and pc_id is provided
+    let your_pc = if matches!(role, ProtoWorldRole::Player) {
+        if let Some(pc_id) = pc_id_typed {
+            match state.app.entities.player_character.get(pc_id).await {
+                Ok(Some(pc)) => {
+                    Some(serde_json::json!({
+                        "id": pc.id.to_string(),
+                        "name": pc.name,
+                        "description": pc.description,
+                        "portrait_asset": pc.portrait_asset,
+                        "sprite_asset": pc.sprite_asset,
+                        "current_location_id": pc.current_location_id.to_string(),
+                        "current_region_id": pc.current_region_id.map(|id| id.to_string()),
+                    }))
+                }
+                Ok(None) => {
+                    tracing::warn!(pc_id = %pc_id, "PC not found when joining world");
+                    None
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to fetch PC data");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    
     Some(ServerMessage::WorldJoined {
         world_id,
         snapshot,
         connected_users,
         your_role: role,
-        your_pc: None, // TODO: Fetch PC data if role is Player
+        your_pc,
     })
 }
 
@@ -406,6 +463,15 @@ async fn handle_move_to_region(
                         None, // No guidance on initial entry
                     ).await;
                     
+                    // Resolve visual states for this region
+                    let (resolved_visual_state, available_location_states, available_region_states) = 
+                        resolve_visual_states_for_staging(
+                            state,
+                            conn_info.world_id,
+                            result.region.location_id,
+                            result.region.id,
+                        ).await;
+                    
                     let approval_msg = ServerMessage::StagingApprovalRequired {
                         request_id,
                         region_id: result.region.id.to_string(),
@@ -445,11 +511,20 @@ async fn handle_move_to_region(
                                 player_id: result.pc.user_id.clone(),
                             }
                         ],
+                        resolved_visual_state,
+                        available_location_states,
+                        available_region_states,
                     };
                     
-                    // Broadcast to DMs
+                    // Broadcast staging approval and time suggestion to DMs
                     if let Some(world_id) = conn_info.world_id {
                         state.connections.broadcast_to_dms(world_id, approval_msg).await;
+                        
+                        // Also send time suggestion if present
+                        if let Some(ref time_suggestion) = result.time_suggestion {
+                            let suggestion_msg = ServerMessage::TimeSuggestion { data: time_suggestion.to_protocol() };
+                            state.connections.broadcast_to_dms(world_id, suggestion_msg).await;
+                        }
                     }
                     
                     Some(pending_msg)
@@ -482,12 +557,26 @@ async fn handle_move_to_region(
                         region_uuid,
                     ).await;
                     
+                    // Get items in the region
+                    let region_items = build_region_items(
+                        &state.app.entities.inventory,
+                        region_uuid,
+                    ).await;
+                    
+                    // Broadcast time suggestion to DMs if present
+                    if let Some(ref time_suggestion) = result.time_suggestion {
+                        if let Some(world_id) = conn_info.world_id {
+                            let suggestion_msg = ServerMessage::TimeSuggestion { data: time_suggestion.to_protocol() };
+                            state.connections.broadcast_to_dms(world_id, suggestion_msg).await;
+                        }
+                    }
+                    
                     Some(ServerMessage::SceneChanged {
                         pc_id: pc_id.clone(),
                         region: region_data,
                         npcs_present,
                         navigation,
-                        region_items: vec![], // TODO: Implement region items
+                        region_items,
                     })
                 }
             }
@@ -731,6 +820,170 @@ fn parse_llm_staging_response(
         .collect()
 }
 
+/// Resolve visual states for a staging request.
+///
+/// Returns the auto-resolved visual state (if determinable) and all available
+/// location/region states for DM selection.
+async fn resolve_visual_states_for_staging(
+    state: &WsState,
+    world_id: Option<WorldId>,
+    location_id: LocationId,
+    region_id: RegionId,
+) -> (
+    Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
+    Vec<wrldbldr_protocol::types::StateOptionData>,
+    Vec<wrldbldr_protocol::types::StateOptionData>,
+) {
+    // Get world to build context
+    let world_id = match world_id {
+        Some(id) => id,
+        None => return (None, vec![], vec![]),
+    };
+
+    // Get the world for game time
+    let game_time = match state.app.entities.world.get(world_id).await {
+        Ok(Some(w)) => w.game_time,
+        _ => return (None, vec![], vec![]),
+    };
+
+    // Get world flags
+    let world_flags = state.app.entities.flag
+        .get_world_flags(world_id)
+        .await
+        .unwrap_or_default();
+
+    // Build resolution context
+    let context = StateResolutionContext::new(world_id, game_time)
+        .with_world_flags(world_flags);
+
+    // Resolve visual states
+    let resolution = match state.app.use_cases.visual_state.resolve
+        .execute(location_id, region_id, &context)
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to resolve visual states");
+            return (None, vec![], vec![]);
+        }
+    };
+
+    // Convert to protocol types
+    let resolved = if resolution.is_complete {
+        Some(wrldbldr_protocol::types::ResolvedVisualStateData {
+            location_state: resolution.location_state.as_ref().map(|s| {
+                wrldbldr_protocol::types::ResolvedStateInfoData {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    backdrop_override: s.backdrop_override.clone(),
+                    atmosphere_override: s.atmosphere_override.clone(),
+                    ambient_sound: s.ambient_sound.clone(),
+                }
+            }),
+            region_state: resolution.region_state.as_ref().map(|s| {
+                wrldbldr_protocol::types::ResolvedStateInfoData {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    backdrop_override: s.backdrop_override.clone(),
+                    atmosphere_override: s.atmosphere_override.clone(),
+                    ambient_sound: s.ambient_sound.clone(),
+                }
+            }),
+        })
+    } else {
+        None // Incomplete resolution (needs LLM for soft rules)
+    };
+
+    // Convert available location states
+    let available_location: Vec<wrldbldr_protocol::types::StateOptionData> = resolution
+        .available_location_states
+        .iter()
+        .map(|s| {
+            let match_reason = if s.evaluation.is_active {
+                Some(s.evaluation.matched_rules.join(", "))
+            } else {
+                None
+            };
+            wrldbldr_protocol::types::StateOptionData {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                priority: 0, // TODO: Add priority to ResolvedStateInfo
+                is_default: false,
+                match_reason,
+            }
+        })
+        .collect();
+
+    // Convert available region states
+    let available_region: Vec<wrldbldr_protocol::types::StateOptionData> = resolution
+        .available_region_states
+        .iter()
+        .map(|s| {
+            let match_reason = if s.evaluation.is_active {
+                Some(s.evaluation.matched_rules.join(", "))
+            } else {
+                None
+            };
+            wrldbldr_protocol::types::StateOptionData {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                priority: 0,
+                is_default: false,
+                match_reason,
+            }
+        })
+        .collect();
+
+    (resolved, available_location, available_region)
+}
+
+/// Build visual state data from currently active states for StagingReady message.
+async fn build_visual_state_for_staging(
+    state: &WsState,
+    location_id: wrldbldr_domain::LocationId,
+    region_id: wrldbldr_domain::RegionId,
+) -> Option<wrldbldr_protocol::types::ResolvedVisualStateData> {
+    // Fetch active location state
+    let location_state = state.app.entities.location_state
+        .get_active(location_id)
+        .await
+        .ok()
+        .flatten();
+    
+    // Fetch active region state
+    let region_state = state.app.entities.region_state
+        .get_active(region_id)
+        .await
+        .ok()
+        .flatten();
+    
+    // If neither is set, return None
+    if location_state.is_none() && region_state.is_none() {
+        return None;
+    }
+    
+    Some(wrldbldr_protocol::types::ResolvedVisualStateData {
+        location_state: location_state.map(|s| {
+            wrldbldr_protocol::types::ResolvedStateInfoData {
+                id: s.id.to_string(),
+                name: s.name,
+                backdrop_override: s.backdrop_override,
+                atmosphere_override: s.atmosphere_override,
+                ambient_sound: s.ambient_sound,
+            }
+        }),
+        region_state: region_state.map(|s| {
+            wrldbldr_protocol::types::ResolvedStateInfoData {
+                id: s.id.to_string(),
+                name: s.name,
+                backdrop_override: s.backdrop_override,
+                atmosphere_override: s.atmosphere_override,
+                ambient_sound: s.ambient_sound,
+            }
+        }),
+    })
+}
+
 async fn handle_exit_to_location(
     state: &WsState,
     connection_id: Uuid,
@@ -805,12 +1058,18 @@ async fn handle_exit_to_location(
                 result.region.id,
             ).await;
             
+            // Get items in the region
+            let region_items = build_region_items(
+                &state.app.entities.inventory,
+                result.region.id,
+            ).await;
+            
             Some(ServerMessage::SceneChanged {
                 pc_id: pc_id.clone(),
                 region: region_data,
                 npcs_present,
                 navigation,
-                region_items: vec![],
+                region_items,
             })
         }
         Err(e) => {
@@ -1014,6 +1273,310 @@ async fn handle_request(
                 "game_time": game_time,
                 "hours_advanced": hours,
             }))
+        }
+
+        // Advance game time by minutes (DM only)
+        RequestPayload::AdvanceGameTimeMinutes { world_id: req_world_id, minutes, reason } => {
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
+            };
+            
+            let mut world = match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    });
+                }
+            };
+            
+            let previous_time = world.game_time.clone();
+            let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual { hours: minutes / 60 };
+            let result = world.advance_time(minutes, advance_reason.clone(), chrono::Utc::now());
+            
+            if let Err(e) = state.app.entities.world.save(&world).await {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                });
+            }
+            
+            // Broadcast GameTimeAdvanced to all players
+            let advance_data = crate::use_cases::time::build_time_advance_data(
+                &previous_time,
+                &result.new_time,
+                minutes,
+                &advance_reason,
+            );
+            let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+            state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+            
+            tracing::info!(
+                world_id = %world_id_typed,
+                minutes_advanced = minutes,
+                "Game time advanced (minutes)"
+            );
+            
+            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            ResponseResult::success(serde_json::json!({
+                "game_time": game_time,
+                "minutes_advanced": minutes,
+            }))
+        }
+
+        // Set exact game time (DM only)
+        RequestPayload::SetGameTime { world_id: req_world_id, day, hour, notify_players } => {
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
+            };
+            
+            let mut world = match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    });
+                }
+            };
+            
+            let previous_time = world.game_time.clone();
+            world.game_time.set_day_and_hour(day, hour as u32);
+            world.updated_at = chrono::Utc::now();
+            
+            if let Err(e) = state.app.entities.world.save(&world).await {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                });
+            }
+            
+            if notify_players {
+                let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
+                let advance_data = crate::use_cases::time::build_time_advance_data(
+                    &previous_time,
+                    &world.game_time,
+                    0, // No specific minutes
+                    &reason,
+                );
+                let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+                state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+            }
+            
+            tracing::info!(
+                world_id = %world_id_typed,
+                new_day = day,
+                new_hour = hour,
+                "Game time set"
+            );
+            
+            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            ResponseResult::success(serde_json::json!({
+                "game_time": game_time,
+            }))
+        }
+
+        // Skip to next occurrence of time period (DM only)
+        RequestPayload::SkipToPeriod { world_id: req_world_id, period } => {
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
+            };
+            
+            // Parse the period string
+            let target_period = match period.to_lowercase().as_str() {
+                "morning" => wrldbldr_domain::TimeOfDay::Morning,
+                "afternoon" => wrldbldr_domain::TimeOfDay::Afternoon,
+                "evening" => wrldbldr_domain::TimeOfDay::Evening,
+                "night" => wrldbldr_domain::TimeOfDay::Night,
+                _ => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid period. Use: morning, afternoon, evening, night"),
+                    });
+                }
+            };
+            
+            let mut world = match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    });
+                }
+            };
+            
+            let previous_time = world.game_time.clone();
+            let minutes_until = world.game_time.minutes_until_period(target_period);
+            world.game_time.skip_to_period(target_period);
+            world.updated_at = chrono::Utc::now();
+            
+            if let Err(e) = state.app.entities.world.save(&world).await {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                });
+            }
+            
+            let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod { period: target_period };
+            let advance_data = crate::use_cases::time::build_time_advance_data(
+                &previous_time,
+                &world.game_time,
+                minutes_until,
+                &reason,
+            );
+            let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+            state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+            
+            tracing::info!(
+                world_id = %world_id_typed,
+                target_period = %target_period,
+                "Skipped to time period"
+            );
+            
+            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            ResponseResult::success(serde_json::json!({
+                "game_time": game_time,
+                "skipped_to": period,
+            }))
+        }
+
+        // Get time configuration (any role)
+        RequestPayload::GetTimeConfig { world_id: req_world_id } => {
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
+            };
+            
+            match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(world)) => {
+                    let config = &world.time_config;
+                    ResponseResult::success(serde_json::json!({
+                        "mode": format!("{:?}", config.mode).to_lowercase(),
+                        "time_costs": {
+                            "travel_location": config.time_costs.travel_location,
+                            "travel_region": config.time_costs.travel_region,
+                            "rest_short": config.time_costs.rest_short,
+                            "rest_long": config.time_costs.rest_long,
+                            "conversation": config.time_costs.conversation,
+                            "challenge": config.time_costs.challenge,
+                            "scene_transition": config.time_costs.scene_transition,
+                        },
+                        "show_time_to_players": config.show_time_to_players,
+                    }))
+                }
+                Ok(None) => ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            }
+        }
+
+        // Update time configuration (DM only)
+        RequestPayload::UpdateTimeConfig { world_id: req_world_id, config } => {
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let world_id_typed = match parse_uuid_for_request(&req_world_id, &request_id, "Invalid world ID") {
+                Ok(uuid) => WorldId::from_uuid(uuid),
+                Err(e) => return Some(e),
+            };
+            
+            let mut world = match state.app.entities.world.get(world_id_typed).await {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Some(ServerMessage::Response {
+                        request_id,
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    });
+                }
+            };
+            
+            // Convert protocol config to domain config
+            let mode = match config.mode {
+                wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
+                wrldbldr_protocol::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
+                wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Auto,
+            };
+            
+            let time_costs = wrldbldr_domain::TimeCostConfig {
+                travel_location: config.time_costs.travel_location,
+                travel_region: config.time_costs.travel_region,
+                rest_short: config.time_costs.rest_short,
+                rest_long: config.time_costs.rest_long,
+                conversation: config.time_costs.conversation,
+                challenge: config.time_costs.challenge,
+                scene_transition: config.time_costs.scene_transition,
+            };
+            
+            world.time_config = wrldbldr_domain::GameTimeConfig {
+                mode,
+                time_costs,
+                show_time_to_players: config.show_time_to_players,
+                time_format: wrldbldr_domain::TimeFormat::TwelveHour, // Default
+            };
+            world.updated_at = chrono::Utc::now();
+            
+            if let Err(e) = state.app.entities.world.save(&world).await {
+                return Some(ServerMessage::Response {
+                    request_id,
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                });
+            }
+            
+            // Broadcast config update to DMs
+            let update_msg = ServerMessage::TimeConfigUpdated {
+                world_id: world_id_typed.to_string(),
+                config: config.clone(),
+            };
+            state.connections.broadcast_to_dms(world_id_typed, update_msg).await;
+            
+            tracing::info!(
+                world_id = %world_id_typed,
+                mode = ?mode,
+                "Time config updated"
+            );
+            
+            ResponseResult::success_empty()
         }
         
         // =====================================================================
@@ -1244,6 +1807,395 @@ async fn handle_request(
             ResponseResult::success(data)
         }
         
+        // =========================================================================
+        // Lore Operations
+        // =========================================================================
+        RequestPayload::ListLore { world_id: req_world_id } => {
+            let world_uuid = match Uuid::parse_str(&req_world_id) {
+                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id") }),
+            };
+            
+            match state.app.entities.lore.list_for_world(world_uuid).await {
+                Ok(lore_list) => {
+                    let data: Vec<serde_json::Value> = lore_list
+                        .into_iter()
+                        .map(|l| serde_json::json!({
+                            "id": l.id.to_string(),
+                            "worldId": l.world_id.to_string(),
+                            "title": l.title,
+                            "summary": l.summary,
+                            "category": format!("{}", l.category),
+                            "isCommonKnowledge": l.is_common_knowledge,
+                            "tags": l.tags,
+                            "chunkCount": l.chunks.len(),
+                            "createdAt": l.created_at.to_rfc3339(),
+                            "updatedAt": l.updated_at.to_rfc3339(),
+                        }))
+                        .collect();
+                    ResponseResult::success(data)
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::GetLore { lore_id } => {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            match state.app.entities.lore.get(lore_uuid).await {
+                Ok(Some(lore)) => {
+                    let chunks: Vec<serde_json::Value> = lore.chunks
+                        .iter()
+                        .map(|c| serde_json::json!({
+                            "id": c.id.to_string(),
+                            "order": c.order,
+                            "title": c.title,
+                            "content": c.content,
+                            "discoveryHint": c.discovery_hint,
+                        }))
+                        .collect();
+                    
+                    ResponseResult::success(serde_json::json!({
+                        "id": lore.id.to_string(),
+                        "worldId": lore.world_id.to_string(),
+                        "title": lore.title,
+                        "summary": lore.summary,
+                        "category": format!("{}", lore.category),
+                        "isCommonKnowledge": lore.is_common_knowledge,
+                        "tags": lore.tags,
+                        "chunks": chunks,
+                        "createdAt": lore.created_at.to_rfc3339(),
+                        "updatedAt": lore.updated_at.to_rfc3339(),
+                    }))
+                }
+                Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::CreateLore { world_id, data } => {
+            // DM authorization required for lore creation
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let world_uuid = match Uuid::parse_str(&world_id) {
+                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id") }),
+            };
+            
+            let category = data.category
+                .as_deref()
+                .unwrap_or("common")
+                .parse::<wrldbldr_domain::LoreCategory>()
+                .unwrap_or(wrldbldr_domain::LoreCategory::Common);
+            
+            let now = chrono::Utc::now();
+            let mut lore = wrldbldr_domain::Lore::new(world_uuid, &data.title, category, now);
+            
+            if let Some(summary) = &data.summary {
+                lore = lore.with_summary(summary);
+            }
+            if let Some(tags) = &data.tags {
+                lore = lore.with_tags(tags.clone());
+            }
+            if data.is_common_knowledge.unwrap_or(false) {
+                lore = lore.as_common_knowledge();
+            }
+            
+            // Add chunks if provided
+            if let Some(chunks) = &data.chunks {
+                let mut domain_chunks = Vec::new();
+                for (i, chunk_data) in chunks.iter().enumerate() {
+                    let mut chunk = wrldbldr_domain::LoreChunk::new(&chunk_data.content)
+                        .with_order(chunk_data.order.unwrap_or(i as u32));
+                    if let Some(title) = &chunk_data.title {
+                        chunk = chunk.with_title(title);
+                    }
+                    if let Some(hint) = &chunk_data.discovery_hint {
+                        chunk = chunk.with_discovery_hint(hint);
+                    }
+                    domain_chunks.push(chunk);
+                }
+                lore = lore.with_chunks(domain_chunks);
+            }
+            
+            match state.app.entities.lore.save(&lore).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({
+                    "id": lore.id.to_string(),
+                    "title": lore.title,
+                })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::UpdateLore { lore_id, data } => {
+            // DM authorization required for lore updates
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
+                Ok(Some(l)) => l,
+                Ok(None) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::NotFound, "Lore not found") }),
+                Err(e) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()) }),
+            };
+            
+            if let Some(title) = &data.title {
+                lore.title = title.clone();
+            }
+            if let Some(summary) = &data.summary {
+                lore.summary = summary.clone();
+            }
+            if let Some(category_str) = &data.category {
+                if let Ok(cat) = category_str.parse::<wrldbldr_domain::LoreCategory>() {
+                    lore.category = cat;
+                }
+            }
+            if let Some(tags) = &data.tags {
+                lore.tags = tags.clone();
+            }
+            if let Some(is_common) = data.is_common_knowledge {
+                lore.is_common_knowledge = is_common;
+            }
+            lore.updated_at = chrono::Utc::now();
+            
+            match state.app.entities.lore.save(&lore).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({
+                    "id": lore.id.to_string(),
+                    "title": lore.title,
+                })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::DeleteLore { lore_id } => {
+            // DM authorization required for lore deletion
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            match state.app.entities.lore.delete(lore_uuid).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({ "deleted": true })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::AddLoreChunk { lore_id, data } => {
+            // DM authorization required for adding lore chunks
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
+                Ok(Some(l)) => l,
+                Ok(None) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::NotFound, "Lore not found") }),
+                Err(e) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()) }),
+            };
+            
+            let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content)
+                .with_order(data.order.unwrap_or(lore.chunks.len() as u32));
+            if let Some(title) = &data.title {
+                chunk = chunk.with_title(title);
+            }
+            if let Some(hint) = &data.discovery_hint {
+                chunk = chunk.with_discovery_hint(hint);
+            }
+            
+            let chunk_id = chunk.id.to_string();
+            lore.chunks.push(chunk);
+            lore.updated_at = chrono::Utc::now();
+            
+            match state.app.entities.lore.save(&lore).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({
+                    "chunkId": chunk_id,
+                })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::UpdateLoreChunk { chunk_id, data } => {
+            // DM authorization required for updating lore chunks
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
+                Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id") }),
+            };
+            
+            // Note: This would require finding which lore contains this chunk
+            // For simplicity, we return not implemented for now
+            // A proper implementation would need a repo method to find lore by chunk ID
+            let _ = chunk_uuid;
+            let _ = data;
+            ResponseResult::error(ErrorCode::BadRequest, "UpdateLoreChunk requires finding parent lore - not yet implemented")
+        }
+        
+        RequestPayload::DeleteLoreChunk { chunk_id } => {
+            // DM authorization required for deleting lore chunks
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
+                Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id") }),
+            };
+            
+            // Note: Same as UpdateLoreChunk - requires finding parent lore
+            let _ = chunk_uuid;
+            ResponseResult::error(ErrorCode::BadRequest, "DeleteLoreChunk requires finding parent lore - not yet implemented")
+        }
+        
+        RequestPayload::GrantLoreKnowledge { character_id, lore_id, chunk_ids, discovery_source } => {
+            // DM authorization required for granting lore knowledge
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id") }),
+            };
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            // Convert discovery source from protocol to domain
+            let domain_source = match discovery_source {
+                wrldbldr_protocol::types::LoreDiscoverySourceData::ReadBook { book_name } => {
+                    wrldbldr_domain::LoreDiscoverySource::ReadBook { book_name }
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
+                    let npc_uuid = Uuid::parse_str(&npc_id)
+                        .map(wrldbldr_domain::CharacterId::from_uuid)
+                        .unwrap_or_else(|_| wrldbldr_domain::CharacterId::new());
+                    wrldbldr_domain::LoreDiscoverySource::Conversation { npc_id: npc_uuid, npc_name }
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::Investigation => {
+                    wrldbldr_domain::LoreDiscoverySource::Investigation
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::DmGranted { reason } => {
+                    wrldbldr_domain::LoreDiscoverySource::DmGranted { reason }
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::CommonKnowledge => {
+                    wrldbldr_domain::LoreDiscoverySource::CommonKnowledge
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::LlmDiscovered { context } => {
+                    wrldbldr_domain::LoreDiscoverySource::LlmDiscovered { context }
+                }
+                wrldbldr_protocol::types::LoreDiscoverySourceData::Unknown => {
+                    // Default to DM granted for unknown source types
+                    wrldbldr_domain::LoreDiscoverySource::DmGranted { reason: Some("Unknown source type".to_string()) }
+                }
+            };
+            
+            let now = chrono::Utc::now();
+            let knowledge = if let Some(ids) = chunk_ids {
+                let chunk_uuids: Vec<wrldbldr_domain::LoreChunkId> = ids
+                    .iter()
+                    .filter_map(|id| Uuid::parse_str(id).ok().map(wrldbldr_domain::LoreChunkId::from_uuid))
+                    .collect();
+                wrldbldr_domain::LoreKnowledge::partial(lore_uuid, char_uuid, chunk_uuids, domain_source, now)
+            } else {
+                wrldbldr_domain::LoreKnowledge::full(lore_uuid, char_uuid, domain_source, now)
+            };
+            
+            match state.app.entities.lore.grant_knowledge(&knowledge).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({ "granted": true })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::RevokeLoreKnowledge { character_id, lore_id, chunk_ids: _ } => {
+            // DM authorization required for revoking lore knowledge
+            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
+                return Some(e);
+            }
+            
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id") }),
+            };
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            // Note: chunk_ids for partial revocation would need additional repo support
+            match state.app.entities.lore.revoke_knowledge(char_uuid, lore_uuid).await {
+                Ok(()) => ResponseResult::success(serde_json::json!({ "revoked": true })),
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::GetCharacterLore { character_id } => {
+            let char_uuid = match Uuid::parse_str(&character_id) {
+                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id") }),
+            };
+            
+            match state.app.entities.lore.get_character_knowledge(char_uuid).await {
+                Ok(knowledge_list) => {
+                    let data: Vec<serde_json::Value> = knowledge_list
+                        .into_iter()
+                        .map(|k| serde_json::json!({
+                            "loreId": k.lore_id.to_string(),
+                            "characterId": k.character_id.to_string(),
+                            "knownChunkIds": k.known_chunk_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+                            "discoveredAt": k.discovered_at.to_rfc3339(),
+                            "notes": k.notes,
+                        }))
+                        .collect();
+                    ResponseResult::success(data)
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
+        RequestPayload::GetLoreKnowers { lore_id } => {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
+                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
+                Err(_) => return Some(ServerMessage::Response { request_id: request_id.clone(), result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id") }),
+            };
+            
+            match state.app.entities.lore.get_knowledge_for_lore(lore_uuid).await {
+                Ok(knowledge_list) => {
+                    let data: Vec<serde_json::Value> = knowledge_list
+                        .into_iter()
+                        .map(|k| serde_json::json!({
+                            "characterId": k.character_id.to_string(),
+                            "knownChunkIds": k.known_chunk_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+                            "discoveredAt": k.discovered_at.to_rfc3339(),
+                        }))
+                        .collect();
+                    ResponseResult::success(data)
+                }
+                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+            }
+        }
+        
         // Default - not implemented
         _ => ResponseResult::error(ErrorCode::BadRequest, "This request type is not yet implemented"),
     };
@@ -1385,9 +2337,37 @@ async fn handle_challenge_roll(
         0, // No modifier for legacy roll
     ).await {
         Ok(result) => {
+            // If approval is required, notify DMs
+            if result.requires_approval {
+                if let Some(approval_id) = result.approval_queue_id {
+                    let dm_msg = ServerMessage::ChallengeOutcomePending {
+                        resolution_id: approval_id.to_string(),
+                        challenge_id: result.challenge_id.to_string(),
+                        challenge_name: result.challenge_name.clone(),
+                        character_id: result.character_id.to_string(),
+                        character_name: result.character_name.clone(),
+                        roll: result.roll,
+                        modifier: result.modifier,
+                        total: result.total,
+                        outcome_type: format!("{:?}", result.outcome_type),
+                        outcome_description: result.outcome_description.clone(),
+                        outcome_triggers: result.outcome_triggers.iter().map(|t| {
+                            wrldbldr_protocol::ProposedToolInfo {
+                                id: t.id.clone(),
+                                name: t.name.clone(),
+                                description: t.description.clone(),
+                                arguments: t.arguments.clone(),
+                            }
+                        }).collect(),
+                        roll_breakdown: result.roll_breakdown.clone(),
+                    };
+                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
+                }
+            }
+            
             Some(ServerMessage::ChallengeRollSubmitted {
                 challenge_id,
-                challenge_name: String::new(), // We don't have access to name from result
+                challenge_name: result.challenge_name,
                 roll: result.roll,
                 modifier: result.modifier,
                 total: result.total,
@@ -1460,9 +2440,37 @@ async fn handle_challenge_roll_input(
         modifier,
     ).await {
         Ok(result) => {
+            // If approval is required, notify DMs
+            if result.requires_approval {
+                if let Some(approval_id) = result.approval_queue_id {
+                    let dm_msg = ServerMessage::ChallengeOutcomePending {
+                        resolution_id: approval_id.to_string(),
+                        challenge_id: result.challenge_id.to_string(),
+                        challenge_name: result.challenge_name.clone(),
+                        character_id: result.character_id.to_string(),
+                        character_name: result.character_name.clone(),
+                        roll: result.roll,
+                        modifier: result.modifier,
+                        total: result.total,
+                        outcome_type: format!("{:?}", result.outcome_type),
+                        outcome_description: result.outcome_description.clone(),
+                        outcome_triggers: result.outcome_triggers.iter().map(|t| {
+                            wrldbldr_protocol::ProposedToolInfo {
+                                id: t.id.clone(),
+                                name: t.name.clone(),
+                                description: t.description.clone(),
+                                arguments: t.arguments.clone(),
+                            }
+                        }).collect(),
+                        roll_breakdown: result.roll_breakdown.clone(),
+                    };
+                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
+                }
+            }
+            
             Some(ServerMessage::ChallengeRollSubmitted {
                 challenge_id,
-                challenge_name: String::new(),
+                challenge_name: result.challenge_name,
                 roll: result.roll,
                 modifier: result.modifier,
                 total: result.total,
@@ -1582,6 +2590,8 @@ async fn handle_staging_approval(
     approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
     _ttl_hours: i32,
     _source: String,
+    location_state_id: Option<String>,
+    region_state_id: Option<String>,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can approve staging
     let conn_info = match state.connections.get(connection_id).await {
@@ -1599,6 +2609,14 @@ async fn handle_staging_approval(
         Err(e) => return Some(e),
     };
     
+    // Get region to find location_id (needed for setting location state)
+    let region = match state.app.entities.location.get_region(region_id).await {
+        Ok(Some(r)) => r,
+        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    let location_id = region.location_id;
+    
     // Convert approved NPCs to CharacterIds
     let npc_ids: Vec<wrldbldr_domain::CharacterId> = approved_npcs
         .iter()
@@ -1613,6 +2631,25 @@ async fn handle_staging_approval(
     // Execute staging approval use case
     match state.app.use_cases.approval.approve_staging.execute(region_id, npc_ids.clone()).await {
         Ok(_result) => {
+            // Store selected visual states if provided
+            if let Some(loc_state_str) = &location_state_id {
+                if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
+                    let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
+                    if let Err(e) = state.app.entities.location_state.set_active(location_id, loc_state_id).await {
+                        tracing::warn!(error = %e, "Failed to set active location state");
+                    }
+                }
+            }
+            
+            if let Some(reg_state_str) = &region_state_id {
+                if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
+                    let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
+                    if let Err(e) = state.app.entities.region_state.set_active(region_id, reg_state_id).await {
+                        tracing::warn!(error = %e, "Failed to set active region state");
+                    }
+                }
+            }
+            
             // Get the world ID to broadcast staging ready
             if let Some(world_id) = conn_info.world_id {
                 // Get NPC details for the response
@@ -1629,10 +2666,14 @@ async fn handle_staging_approval(
                     }
                 }
                 
+                // Fetch active visual states for the response
+                let visual_state = build_visual_state_for_staging(state, location_id, region_id).await;
+                
                 // Broadcast StagingReady to all players in the world
                 let staging_ready = ServerMessage::StagingReady {
                     region_id: request_id.clone(),
                     npcs_present,
+                    visual_state,
                 };
                 state.connections.broadcast_to_world(world_id, staging_ready).await;
             }
@@ -1720,6 +2761,8 @@ async fn handle_pre_stage_region(
     region_id: String,
     npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
     _ttl_hours: i32,
+    _location_state_id: Option<String>,
+    _region_state_id: Option<String>,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can pre-stage
     let conn_info = match state.connections.get(connection_id).await {
@@ -1949,30 +2992,59 @@ async fn handle_challenge_outcome_decision(
         return Some(e);
     }
     
-    // Parse resolution ID as challenge ID
-    let challenge_id = match parse_challenge_id(&resolution_id) {
+    // Parse resolution ID as approval queue UUID
+    let approval_id = match Uuid::parse_str(&resolution_id) {
+        Ok(id) => id,
+        Err(_) => return Some(error_response("INVALID_ID", "Invalid resolution ID format")),
+    };
+    
+    // Get the approval request data containing challenge outcome details
+    let approval_data = match state.app.queue.get_approval_request(approval_id).await {
+        Ok(Some(data)) => data,
+        Ok(None) => return Some(error_response("NOT_FOUND", "Approval request not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    
+    // Extract challenge outcome data
+    let outcome_data = match &approval_data.challenge_outcome {
+        Some(data) => data,
+        None => return Some(error_response("INVALID_DATA", "No challenge outcome data in approval request")),
+    };
+    
+    // Parse challenge ID from stored data
+    let challenge_id = match parse_challenge_id(&outcome_data.challenge_id) {
         Ok(id) => id,
         Err(e) => return Some(e),
     };
     
+    // Parse outcome type from stored string
+    let outcome_type = match outcome_data.outcome_type.as_str() {
+        "CriticalSuccess" => wrldbldr_domain::OutcomeType::CriticalSuccess,
+        "Success" => wrldbldr_domain::OutcomeType::Success,
+        "Partial" => wrldbldr_domain::OutcomeType::Partial,
+        "Failure" => wrldbldr_domain::OutcomeType::Failure,
+        "CriticalFailure" => wrldbldr_domain::OutcomeType::CriticalFailure,
+        _ => wrldbldr_domain::OutcomeType::Success, // Default fallback
+    };
+    
     match decision {
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
-            // Get the challenge to determine outcome type and details
-            let challenge = match state.app.entities.challenge.get(challenge_id).await {
-                Ok(Some(c)) => c,
-                Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
-                Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-            };
+            // Get PC ID for trigger execution
+            let pc_id = approval_data.pc_id;
             
-            // Determine outcome type from the challenge's stored roll result
-            // For now, we assume the outcome_type was stored when the roll was made
-            // In a more complete implementation, this would be stored in a pending_resolution table
-            let outcome_type = wrldbldr_domain::OutcomeType::Success; // TODO: get from stored resolution
-            
-            // Execute outcome triggers
-            if let Err(e) = state.app.use_cases.challenge.resolve.execute(challenge_id, outcome_type.clone()).await {
+            // Execute outcome triggers with PC context
+            if let Err(e) = state.app.use_cases.challenge.resolve.execute_for_pc(
+                challenge_id, 
+                outcome_type.clone(),
+                pc_id
+            ).await {
                 tracing::error!(error = %e, challenge_id = %challenge_id, "Failed to execute challenge outcome");
                 return Some(error_response("RESOLVE_ERROR", &e.to_string()));
+            }
+            
+            // Mark the approval request as processed
+            if let Err(e) = state.app.queue.mark_complete(approval_id).await {
+                tracing::warn!(error = %e, "Failed to mark approval request as complete");
             }
             
             // Broadcast ChallengeResolved to all players in the world
@@ -1985,18 +3057,16 @@ async fn handle_challenge_outcome_decision(
                     wrldbldr_domain::OutcomeType::CriticalFailure => "critical_failure",
                 };
                 
-                let outcome_description = challenge.outcomes.success.description.clone();
-                
                 let msg = ServerMessage::ChallengeResolved {
                     challenge_id: challenge_id.to_string(),
-                    challenge_name: challenge.name.clone(),
-                    character_name: String::new(), // TODO: get from target PC
-                    roll: 0, // TODO: get from stored resolution
-                    modifier: 0,
-                    total: 0,
+                    challenge_name: outcome_data.challenge_name.clone(),
+                    character_name: outcome_data.character_name.clone(),
+                    roll: outcome_data.roll,
+                    modifier: outcome_data.modifier,
+                    total: outcome_data.total,
                     outcome: outcome_str.to_string(),
-                    outcome_description,
-                    roll_breakdown: None,
+                    outcome_description: outcome_data.outcome_description.clone(),
+                    roll_breakdown: outcome_data.roll_breakdown.clone(),
                     individual_rolls: None,
                 };
                 state.connections.broadcast_to_world(world_id, msg).await;
@@ -2005,25 +3075,110 @@ async fn handle_challenge_outcome_decision(
             None
         }
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
-            // TODO: Store the modified description and then resolve
+            // Get PC ID for trigger execution
+            let pc_id = approval_data.pc_id;
+            
             tracing::info!(
                 challenge_id = %challenge_id,
                 modified_description = %modified_description,
                 "DM edited challenge outcome description"
             );
-            // For now, just resolve with the modification logged
-            if let Err(e) = state.app.use_cases.challenge.resolve.execute(
+            
+            // Execute outcome triggers with PC context
+            if let Err(e) = state.app.use_cases.challenge.resolve.execute_for_pc(
                 challenge_id, 
-                wrldbldr_domain::OutcomeType::Success
+                outcome_type.clone(),
+                pc_id
             ).await {
                 return Some(error_response("RESOLVE_ERROR", &e.to_string()));
             }
+            
+            // Mark the approval request as processed
+            if let Err(e) = state.app.queue.mark_complete(approval_id).await {
+                tracing::warn!(error = %e, "Failed to mark approval request as complete");
+            }
+            
+            // Broadcast ChallengeResolved with modified description
+            if let Some(world_id) = conn_info.world_id {
+                let outcome_str = match outcome_type {
+                    wrldbldr_domain::OutcomeType::CriticalSuccess => "critical_success",
+                    wrldbldr_domain::OutcomeType::Success => "success",
+                    wrldbldr_domain::OutcomeType::Partial => "partial",
+                    wrldbldr_domain::OutcomeType::Failure => "failure",
+                    wrldbldr_domain::OutcomeType::CriticalFailure => "critical_failure",
+                };
+                
+                let msg = ServerMessage::ChallengeResolved {
+                    challenge_id: challenge_id.to_string(),
+                    challenge_name: outcome_data.challenge_name.clone(),
+                    character_name: outcome_data.character_name.clone(),
+                    roll: outcome_data.roll,
+                    modifier: outcome_data.modifier,
+                    total: outcome_data.total,
+                    outcome: outcome_str.to_string(),
+                    outcome_description: modified_description, // Use the DM's edited description
+                    roll_breakdown: outcome_data.roll_breakdown.clone(),
+                    individual_rolls: None,
+                };
+                state.connections.broadcast_to_world(world_id, msg).await;
+            }
+            
             None
         }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance: _ } => {
-            // TODO: Queue LLM request to suggest alternative outcome descriptions
-            tracing::debug!(challenge_id = %challenge_id, "DM requested outcome suggestions - not yet implemented");
-            Some(error_response("NOT_IMPLEMENTED", "Outcome suggestions not yet implemented"))
+        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
+            // Queue LLM request to generate alternative outcome descriptions
+            let world_id = match conn_info.world_id {
+                Some(id) => id,
+                None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+            };
+            
+            let llm_request = wrldbldr_domain::LlmRequestData {
+                request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
+                    resolution_id: approval_id,
+                    world_id,
+                    challenge_name: outcome_data.challenge_name.clone(),
+                    current_description: outcome_data.outcome_description.clone(),
+                    guidance: guidance.clone(),
+                },
+                world_id,
+                pc_id: approval_data.pc_id,
+                prompt: None,
+                suggestion_context: Some(wrldbldr_domain::SuggestionContext {
+                    entity_type: Some("challenge_outcome".to_string()),
+                    entity_name: Some(outcome_data.challenge_name.clone()),
+                    world_setting: None,
+                    hints: guidance.clone(),
+                    additional_context: Some(format!(
+                        "Current outcome: {} ({})\nRoll: {} + {} = {}",
+                        outcome_data.outcome_description,
+                        outcome_data.outcome_type,
+                        outcome_data.roll,
+                        outcome_data.modifier,
+                        outcome_data.total
+                    )),
+                    world_id: Some(world_id),
+                }),
+                callback_id: format!("outcome_suggestion:{}", approval_id),
+            };
+            
+            match state.app.queue.enqueue_llm_request(&llm_request).await {
+                Ok(request_id) => {
+                    tracing::info!(
+                        resolution_id = %resolution_id,
+                        request_id = %request_id,
+                        "Queued LLM request for outcome suggestions"
+                    );
+                    
+                    // Notify DM that suggestions are being generated
+                    // Note: The actual OutcomeSuggestionReady will be sent when the LLM responds
+                    // via the queue processor (requires background task implementation)
+                    None
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to queue LLM request for outcome suggestions");
+                    Some(error_response("QUEUE_ERROR", &e.to_string()))
+                }
+            }
         }
         wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
             Some(error_response("INVALID_DECISION", "Unknown challenge outcome decision type"))
@@ -2218,12 +3373,15 @@ async fn handle_directorial_update(
         );
     }
     
-    // TODO: Persist directorial context to domain
-    // The Scene entity has `directorial_notes: String` but not full DirectorialContext.
-    // Options for future implementation:
-    // 1. Add DirectorialContext fields to Scene domain type
-    // 2. Create a separate DirectorialContext entity/value object
-    // 3. Store in a world-scoped in-memory cache for LLM prompts
+    // Store directorial context in per-world cache for LLM prompts
+    // This is session-scoped storage. For persistent storage, the context
+    // would need to be saved to the Scene entity or a dedicated table.
+    state.connections.set_directorial_context(world_id, context);
+    
+    tracing::info!(
+        world_id = %world_id,
+        "Directorial context stored for world"
+    );
     
     None
 }
@@ -2490,6 +3648,309 @@ async fn handle_player_action(
 }
 
 // =============================================================================
+// Time Control Handlers
+// =============================================================================
+
+async fn handle_set_game_time(
+    state: &WsState,
+    connection_id: Uuid,
+    world_id: String,
+    day: u32,
+    hour: u8,
+    notify_players: bool,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id_typed = match parse_world_id(&world_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+    
+    let mut world = match state.app.entities.world.get(world_id_typed).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
+    };
+    
+    let previous_time = world.game_time.clone();
+    world.game_time.set_day_and_hour(day, hour as u32);
+    world.updated_at = chrono::Utc::now();
+    
+    if let Err(e) = state.app.entities.world.save(&world).await {
+        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    }
+    
+    if notify_players {
+        let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
+        let advance_data = crate::use_cases::time::build_time_advance_data(
+            &previous_time,
+            &world.game_time,
+            0,
+            &reason,
+        );
+        let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+        state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+    }
+    
+    tracing::info!(world_id = %world_id_typed, day = day, hour = hour, "Game time set");
+    None
+}
+
+async fn handle_skip_to_period(
+    state: &WsState,
+    connection_id: Uuid,
+    world_id: String,
+    period: String,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id_typed = match parse_world_id(&world_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+    
+    let target_period = match period.to_lowercase().as_str() {
+        "morning" => wrldbldr_domain::TimeOfDay::Morning,
+        "afternoon" => wrldbldr_domain::TimeOfDay::Afternoon,
+        "evening" => wrldbldr_domain::TimeOfDay::Evening,
+        "night" => wrldbldr_domain::TimeOfDay::Night,
+        _ => return Some(error_response("INVALID_PERIOD", "Use: morning, afternoon, evening, night")),
+    };
+    
+    let mut world = match state.app.entities.world.get(world_id_typed).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
+    };
+    
+    let previous_time = world.game_time.clone();
+    let minutes_until = world.game_time.minutes_until_period(target_period);
+    world.game_time.skip_to_period(target_period);
+    world.updated_at = chrono::Utc::now();
+    
+    if let Err(e) = state.app.entities.world.save(&world).await {
+        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    }
+    
+    let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod { period: target_period };
+    let advance_data = crate::use_cases::time::build_time_advance_data(
+        &previous_time,
+        &world.game_time,
+        minutes_until,
+        &reason,
+    );
+    let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+    state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+    
+    tracing::info!(world_id = %world_id_typed, period = %target_period, "Skipped to period");
+    None
+}
+
+async fn handle_pause_game_time(
+    state: &WsState,
+    connection_id: Uuid,
+    world_id: String,
+    paused: bool,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id_typed = match parse_world_id(&world_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+    
+    let mut world = match state.app.entities.world.get(world_id_typed).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
+    };
+    
+    world.game_time.set_paused(paused);
+    world.updated_at = chrono::Utc::now();
+    
+    if let Err(e) = state.app.entities.world.save(&world).await {
+        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    }
+    
+    let update_msg = ServerMessage::GameTimePaused {
+        world_id: world_id_typed.to_string(),
+        paused,
+    };
+    state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+    
+    tracing::info!(world_id = %world_id_typed, paused = paused, "Game time pause state changed");
+    None
+}
+
+async fn handle_set_time_mode(
+    state: &WsState,
+    connection_id: Uuid,
+    world_id: String,
+    mode: wrldbldr_protocol::types::TimeMode,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id_typed = match parse_world_id(&world_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+    
+    let mut world = match state.app.entities.world.get(world_id_typed).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
+    };
+    
+    let domain_mode = match mode {
+        wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
+        wrldbldr_protocol::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
+        wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Auto,
+    };
+    
+    world.time_config.mode = domain_mode;
+    world.updated_at = chrono::Utc::now();
+    
+    if let Err(e) = state.app.entities.world.save(&world).await {
+        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    }
+    
+    let update_msg = ServerMessage::TimeModeChanged {
+        world_id: world_id_typed.to_string(),
+        mode,
+    };
+    state.connections.broadcast_to_world(world_id_typed, update_msg).await;
+    
+    tracing::info!(world_id = %world_id_typed, mode = ?mode, "Time mode changed");
+    None
+}
+
+async fn handle_set_time_costs(
+    state: &WsState,
+    connection_id: Uuid,
+    world_id: String,
+    costs: wrldbldr_protocol::types::TimeCostConfig,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id_typed = match parse_world_id(&world_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+    
+    let mut world = match state.app.entities.world.get(world_id_typed).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
+    };
+    
+    world.time_config.time_costs = wrldbldr_domain::TimeCostConfig {
+        travel_location: costs.travel_location,
+        travel_region: costs.travel_region,
+        rest_short: costs.rest_short,
+        rest_long: costs.rest_long,
+        conversation: costs.conversation,
+        challenge: costs.challenge,
+        scene_transition: costs.scene_transition,
+    };
+    world.updated_at = chrono::Utc::now();
+    
+    if let Err(e) = state.app.entities.world.save(&world).await {
+        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    }
+    
+    tracing::info!(world_id = %world_id_typed, "Time costs updated");
+    None
+}
+
+async fn handle_respond_to_time_suggestion(
+    state: &WsState,
+    connection_id: Uuid,
+    suggestion_id: String,
+    decision: wrldbldr_protocol::types::TimeSuggestionDecision,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+    
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+    
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => return Some(error_response("NOT_IN_WORLD", "Must be in a world")),
+    };
+    
+    // TODO: Retrieve the pending suggestion from storage
+    // For now, we'll log the decision
+    tracing::info!(
+        world_id = %world_id,
+        suggestion_id = %suggestion_id,
+        decision = ?decision,
+        "Time suggestion response (storage not yet implemented)"
+    );
+    
+    // In a full implementation:
+    // 1. Look up the pending TimeSuggestion by ID
+    // 2. Based on decision:
+    //    - Approve: Advance time by suggested_minutes
+    //    - Modify: Advance time by modified minutes
+    //    - Skip: Do nothing
+    // 3. Remove the suggestion from pending storage
+    // 4. Broadcast GameTimeAdvanced if time was advanced
+    
+    match decision {
+        wrldbldr_protocol::types::TimeSuggestionDecision::Skip => {
+            tracing::debug!("Time suggestion skipped");
+        }
+        wrldbldr_protocol::types::TimeSuggestionDecision::Approve => {
+            tracing::debug!("Time suggestion approved (would advance time)");
+        }
+        wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => {
+            tracing::debug!("Time suggestion modified to {} minutes", minutes);
+        }
+    }
+    
+    None
+}
+
+// =============================================================================
 // Helpers
 // =============================================================================
 
@@ -2549,6 +4010,28 @@ async fn build_navigation_data(
     wrldbldr_protocol::NavigationData {
         connected_regions,
         exits,
+    }
+}
+
+/// Build region items data (items that can be picked up in this region).
+async fn build_region_items(
+    inventory_entity: &crate::entities::Inventory,
+    region_id: RegionId,
+) -> Vec<wrldbldr_protocol::RegionItemData> {
+    match inventory_entity.list_in_region(region_id).await {
+        Ok(items) => items
+            .into_iter()
+            .map(|item| wrldbldr_protocol::RegionItemData {
+                id: item.id.to_string(),
+                name: item.name,
+                description: item.description,
+                item_type: item.item_type,
+            })
+            .collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, region_id = %region_id, "Failed to fetch region items");
+            vec![]
+        }
     }
 }
 

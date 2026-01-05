@@ -15,6 +15,9 @@ pub mod inventory;
 pub mod assets;
 pub mod world;
 pub mod flag;
+pub mod lore;
+pub mod location_state;
+pub mod region_state;
 
 pub use character::Character;
 pub use player_character::PlayerCharacter;
@@ -28,3 +31,6 @@ pub use inventory::Inventory;
 pub use assets::Assets;
 pub use world::World;
 pub use flag::Flag;
+pub use lore::Lore;
+pub use location_state::LocationStateEntity;
+pub use region_state::RegionStateEntity;

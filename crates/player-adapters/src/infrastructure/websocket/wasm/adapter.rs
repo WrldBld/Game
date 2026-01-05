@@ -332,6 +332,39 @@ impl GameConnectionPort for WasmGameConnection {
             .send(ClientMessageBuilder::get_npc_dispositions(pc_id))
     }
 
+    fn advance_time(&self, world_id: &str, minutes: u32, reason: &str) -> Result<()> {
+        self.inner.client.send(ClientMessageBuilder::advance_time(
+            world_id, minutes, reason,
+        ))
+    }
+
+    fn set_game_time(&self, world_id: &str, day: u32, hour: u8) -> Result<()> {
+        self.inner
+            .client
+            .send(ClientMessageBuilder::set_game_time(world_id, day, hour))
+    }
+
+    fn skip_to_period(&self, world_id: &str, period: &str) -> Result<()> {
+        self.inner
+            .client
+            .send(ClientMessageBuilder::skip_to_period(world_id, period))
+    }
+
+    fn respond_to_time_suggestion(
+        &self,
+        suggestion_id: &str,
+        decision: &str,
+        modified_minutes: Option<u32>,
+    ) -> Result<()> {
+        self.inner
+            .client
+            .send(ClientMessageBuilder::respond_to_time_suggestion(
+                suggestion_id,
+                decision,
+                modified_minutes,
+            ))
+    }
+
     /// Register callback for state changes
     ///
     /// The Send callback is wrapped in Rc<RefCell> for internal WASM use.

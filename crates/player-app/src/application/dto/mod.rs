@@ -135,4 +135,10 @@ pub use wrldbldr_protocol::{
     SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
 };
 
+// Re-export Lore types from protocol (same facade pattern)
+pub use wrldbldr_protocol::types::{
+    LoreCategoryData, LoreChunkData, LoreData, LoreDiscoverySourceData, LoreKnowledgeData,
+    LoreSummaryData,
+};
+
 // NOTE: Infrastructure asset loader now depends inward on these DTOs.

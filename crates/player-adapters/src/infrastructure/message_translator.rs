@@ -408,6 +408,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             llm_based_npcs,
             default_ttl_hours,
             waiting_pcs,
+            resolved_visual_state,
+            available_location_states,
+            available_region_states,
         } => PlayerEvent::StagingApprovalRequired {
             request_id,
             region_id,
@@ -420,6 +423,9 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             llm_based_npcs,
             default_ttl_hours,
             waiting_pcs, // Direct assignment - same type now
+            resolved_visual_state,
+            available_location_states,
+            available_region_states,
         },
 
         ServerMessage::StagingPending {
@@ -433,9 +439,11 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         ServerMessage::StagingReady {
             region_id,
             npcs_present,
+            visual_state,
         } => PlayerEvent::StagingReady {
             region_id,
             npcs_present, // Direct assignment - same type now
+            visual_state,
         },
 
         ServerMessage::StagingRegenerated {
@@ -444,6 +452,39 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         } => PlayerEvent::StagingRegenerated {
             request_id,
             llm_based_npcs, // Direct assignment - same type now
+        },
+
+        // =====================================================================
+        // Lore Events
+        // =====================================================================
+        ServerMessage::LoreDiscovered {
+            character_id,
+            lore,
+            discovered_chunk_ids,
+            discovery_source,
+        } => PlayerEvent::LoreDiscovered {
+            character_id,
+            lore,
+            discovered_chunk_ids,
+            discovery_source,
+        },
+
+        ServerMessage::LoreRevoked {
+            character_id,
+            lore_id,
+        } => PlayerEvent::LoreRevoked {
+            character_id,
+            lore_id,
+        },
+
+        ServerMessage::LoreUpdated { lore } => PlayerEvent::LoreUpdated { lore },
+
+        ServerMessage::CharacterLoreResponse {
+            character_id,
+            known_lore,
+        } => PlayerEvent::CharacterLoreResponse {
+            character_id,
+            known_lore,
         },
 
         // =====================================================================
@@ -719,6 +760,42 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         // =====================================================================
         ServerMessage::GameTimeUpdated { game_time } => PlayerEvent::GameTimeUpdated {
             game_time, // Direct assignment - same type now
+        },
+
+        ServerMessage::GameTimeAdvanced { data } => PlayerEvent::GameTimeAdvanced {
+            previous_time: data.previous_time,
+            new_time: data.new_time,
+            minutes_advanced: data.minutes_advanced,
+            reason: data.reason,
+            period_changed: data.period_changed,
+            new_period: data.new_period,
+        },
+
+        ServerMessage::TimeSuggestion { data } => PlayerEvent::TimeSuggestion {
+            suggestion_id: data.suggestion_id,
+            pc_id: data.pc_id,
+            pc_name: data.pc_name,
+            action_type: data.action_type,
+            action_description: data.action_description,
+            suggested_minutes: data.suggested_minutes,
+            current_time: data.current_time,
+            resulting_time: data.resulting_time,
+            period_change: data.period_change,
+        },
+
+        ServerMessage::TimeModeChanged { world_id, mode } => PlayerEvent::TimeModeChanged {
+            world_id,
+            mode: format!("{:?}", mode).to_lowercase(),
+        },
+
+        ServerMessage::GameTimePaused { world_id, paused } => {
+            PlayerEvent::GameTimePaused { world_id, paused }
+        }
+
+        ServerMessage::TimeConfigUpdated { world_id, config } => PlayerEvent::TimeConfigUpdated {
+            world_id,
+            mode: format!("{:?}", config.mode).to_lowercase(),
+            show_time_to_players: config.show_time_to_players,
         },
 
         // =====================================================================

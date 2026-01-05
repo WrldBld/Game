@@ -146,6 +146,8 @@ impl ClientMessageBuilder {
             approved_npcs,
             ttl_hours,
             source: source.to_string(),
+            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
+            region_state_id: None,
         }
     }
 
@@ -167,6 +169,8 @@ impl ClientMessageBuilder {
             region_id: region_id.to_string(),
             npcs,
             ttl_hours,
+            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
+            region_state_id: None,
         }
     }
 
@@ -267,6 +271,71 @@ impl ClientMessageBuilder {
             request_id: uuid::Uuid::new_v4().to_string(),
             payload: RequestPayload::GetNpcDispositions {
                 pc_id: pc_id.to_string(),
+            },
+        }
+    }
+
+    // =========================================================================
+    // Time Control Messages (DM only)
+    // =========================================================================
+
+    /// Create a SetGameTime message
+    ///
+    /// Note: world_id should be provided by the caller from session state.
+    /// Pass empty string if not available - handler should fill from session.
+    pub fn set_game_time(world_id: &str, day: u32, hour: u8) -> ClientMessage {
+        ClientMessage::SetGameTime {
+            world_id: world_id.to_string(),
+            day,
+            hour,
+            notify_players: true,
+        }
+    }
+
+    /// Create a SkipToPeriod message
+    ///
+    /// Note: world_id should be provided by the caller from session state.
+    pub fn skip_to_period(world_id: &str, period: &str) -> ClientMessage {
+        ClientMessage::SkipToPeriod {
+            world_id: world_id.to_string(),
+            period: period.to_string(),
+        }
+    }
+
+    /// Create a RespondToTimeSuggestion message
+    pub fn respond_to_time_suggestion(
+        suggestion_id: &str,
+        decision: &str,
+        modified_minutes: Option<u32>,
+    ) -> ClientMessage {
+        use wrldbldr_protocol::types::TimeSuggestionDecision;
+
+        let decision = match decision {
+            "approve" => TimeSuggestionDecision::Approve,
+            "modify" => TimeSuggestionDecision::Modify {
+                minutes: modified_minutes.unwrap_or(0),
+            },
+            "skip" => TimeSuggestionDecision::Skip,
+            _ => TimeSuggestionDecision::Skip,
+        };
+
+        ClientMessage::RespondToTimeSuggestion {
+            suggestion_id: suggestion_id.to_string(),
+            decision,
+        }
+    }
+
+    /// Create an AdvanceGameTimeMinutes request message
+    ///
+    /// Note: world_id should be provided by the caller from session state.
+    /// Pass empty string if not available - handler should fill from session.
+    pub fn advance_time(world_id: &str, minutes: u32, reason: &str) -> ClientMessage {
+        ClientMessage::Request {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            payload: RequestPayload::AdvanceGameTimeMinutes {
+                world_id: world_id.to_string(),
+                minutes,
+                reason: Some(reason.to_string()),
             },
         }
     }

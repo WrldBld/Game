@@ -384,5 +384,10 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
         source,
         dm_guidance,
         is_active,
+        // Visual state fields - will be loaded from edges in future
+        location_state_id: None,
+        region_state_id: None,
+        visual_state_source: VisualStateSource::default(),
+        visual_state_reasoning: None,
     })
 }

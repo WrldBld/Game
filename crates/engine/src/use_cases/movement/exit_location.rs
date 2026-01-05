@@ -1,13 +1,14 @@
 //! Exit to location use case.
 //!
 //! Handles player character movement to a different location entirely.
-//! Determines the arrival region and coordinates with staging/narrative systems.
+//! Determines the arrival region and coordinates with staging/narrative/time systems.
 
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, StagedNpc};
 
-use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging};
+use crate::entities::{Location, Narrative, Observation, PlayerCharacter, Staging, World};
 use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 
 use super::enter_region::{EnterRegionResult, StagingStatus};
 
@@ -20,6 +21,8 @@ pub struct ExitLocation {
     staging: Arc<Staging>,
     observation: Arc<Observation>,
     narrative: Arc<Narrative>,
+    world: Arc<World>,
+    suggest_time: Arc<SuggestTime>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -30,6 +33,8 @@ impl ExitLocation {
         staging: Arc<Staging>,
         observation: Arc<Observation>,
         narrative: Arc<Narrative>,
+        world: Arc<World>,
+        suggest_time: Arc<SuggestTime>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -38,6 +43,8 @@ impl ExitLocation {
             staging,
             observation,
             narrative,
+            world,
+            suggest_time,
             clock,
         }
     }
@@ -101,8 +108,15 @@ impl ExitLocation {
             .await?
             .ok_or(ExitLocationError::PlayerCharacterNotFound)?;
 
-        // 7. Check for valid staging (with TTL check)
-        let current_game_time = self.clock.now();
+        // 7. Get the world to access game time for TTL checks and observations
+        let world_data = self
+            .world
+            .get(pc.world_id)
+            .await?
+            .ok_or(ExitLocationError::WorldNotFound)?;
+        let current_game_time = world_data.game_time.current();
+
+        // 8. Check for valid staging (with TTL check using game time)
         let active_staging = self.staging.get_active_staging(region_id, current_game_time).await?;
         
         let (npcs, staging_status) = match active_staging {
@@ -135,15 +149,24 @@ impl ExitLocation {
             }
         };
 
-        // 8. Update observation (only if staging ready)
+        // 9. Update observation (only if staging ready)
+        // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.observation
-                .record_visit(pc_id, region_id, &npcs)
+                .record_visit(pc_id, region_id, &npcs, current_game_time)
                 .await?;
         }
 
-        // 9. Check triggers
+        // 10. Check triggers
         let triggered_events = self.narrative.check_triggers(region_id, pc_id).await?;
+
+        // 11. Generate time suggestion for location travel
+        let time_suggestion = self.suggest_time_for_travel(
+            pc.world_id,
+            pc_id,
+            pc.name.clone(),
+            &location.name,
+        ).await;
 
         // Note: Scene resolution is not implemented for ExitLocation yet.
         // The EnterRegion use case handles full scene resolution when moving within a location.
@@ -155,7 +178,38 @@ impl ExitLocation {
             staging_status,
             pc,
             resolved_scene: None,
+            time_suggestion,
         })
+    }
+
+    /// Generate a time suggestion for location-to-location travel.
+    ///
+    /// Uses the "travel_location" action type to look up time cost.
+    async fn suggest_time_for_travel(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        pc_id: PlayerCharacterId,
+        pc_name: String,
+        destination_name: &str,
+    ) -> Option<TimeSuggestion> {
+        match self.suggest_time.execute(
+            world_id,
+            pc_id,
+            pc_name,
+            "travel_location",
+            format!("Travel to {}", destination_name),
+        ).await {
+            Ok(SuggestTimeResult::SuggestionCreated(suggestion)) => Some(suggestion),
+            Ok(SuggestTimeResult::AutoAdvanced { .. }) => {
+                // In auto mode, time was advanced - no suggestion needed
+                None
+            }
+            Ok(SuggestTimeResult::NoCost) | Ok(SuggestTimeResult::ManualMode) => None,
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to generate time suggestion for location travel");
+                None
+            }
+        }
     }
 
     /// Determine the arrival region for a location.
@@ -213,6 +267,8 @@ pub enum ExitLocationError {
     PlayerCharacterNotFound,
     #[error("Location not found")]
     LocationNotFound,
+    #[error("World not found")]
+    WorldNotFound,
     #[error("Region not found")]
     RegionNotFound,
     #[error("No arrival region specified and no default found")]

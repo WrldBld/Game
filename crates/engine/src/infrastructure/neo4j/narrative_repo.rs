@@ -432,6 +432,34 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         );
         Ok(())
     }
+
+    async fn get_completed_events(&self, world_id: WorldId) -> Result<Vec<NarrativeEventId>, RepoError> {
+        // Get all completed event IDs from event chains in this world
+        let q = query(
+            "MATCH (c:EventChain {world_id: $world_id})
+            WHERE c.completed_events IS NOT NULL
+            RETURN c.completed_events AS completed",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut completed_events = Vec::new();
+
+        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+            let completed_strs: Vec<String> = row.get("completed").unwrap_or_default();
+            for id_str in completed_strs {
+                if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                    completed_events.push(NarrativeEventId::from(id));
+                }
+            }
+        }
+
+        // Deduplicate (in case same event is in multiple chains)
+        let mut seen = std::collections::HashSet::new();
+        completed_events.retain(|id| seen.insert(*id));
+
+        Ok(completed_events)
+    }
 }
 
 // =============================================================================

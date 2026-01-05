@@ -42,4 +42,11 @@ impl Challenge {
     pub async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError> {
         self.repo.set_enabled(id, enabled).await
     }
+
+    /// Get all resolved challenge IDs in a world.
+    ///
+    /// Used for building trigger context.
+    pub async fn get_resolved(&self, world_id: WorldId) -> Result<Vec<ChallengeId>, RepoError> {
+        self.repo.get_resolved_challenges(world_id).await
+    }
 }

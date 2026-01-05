@@ -152,6 +152,19 @@ pub enum LlmRequestType {
         /// Entity the suggestion is for (if applicable)
         entity_id: Option<String>,
     },
+    /// Generate alternative outcome descriptions for a challenge
+    OutcomeSuggestion {
+        /// The approval queue ID (resolution_id) for this challenge outcome
+        resolution_id: Uuid,
+        /// World ID for broadcasting the result
+        world_id: WorldId,
+        /// Challenge name for context
+        challenge_name: String,
+        /// Current outcome description to improve upon
+        current_description: String,
+        /// DM's guidance for the suggestions
+        guidance: Option<String>,
+    },
 }
 
 /// LLM request data.
@@ -341,6 +354,8 @@ pub struct ApprovalRequestData {
     pub challenge_suggestion: Option<ChallengeSuggestion>,
     /// Narrative event suggestion if applicable
     pub narrative_event_suggestion: Option<NarrativeEventSuggestion>,
+    /// Challenge outcome data (for ChallengeOutcome decisions)
+    pub challenge_outcome: Option<ChallengeOutcomeData>,
     /// Player dialogue that triggered this (for recording)
     pub player_dialogue: Option<String>,
     /// Current scene ID (for recording)

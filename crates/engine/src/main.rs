@@ -82,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn queue processor
     let queue_app = app.clone();
+    let queue_connections = ws_state.connections.clone();
     tokio::spawn(async move {
         loop {
             // Process player actions
@@ -90,8 +91,34 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Process LLM requests
-            if let Err(e) = queue_app.use_cases.queues.process_llm_request.execute().await {
-                tracing::warn!(error = %e, "Failed to process LLM request");
+            match queue_app.use_cases.queues.process_llm_request.execute().await {
+                Ok(Some(result)) => {
+                    // Handle broadcast events
+                    for event in result.broadcast_events {
+                        match event {
+                            use_cases::queues::BroadcastEvent::OutcomeSuggestionReady {
+                                world_id,
+                                resolution_id,
+                                suggestions,
+                            } => {
+                                let msg = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                    resolution_id: resolution_id.to_string(),
+                                    suggestions,
+                                };
+                                queue_connections.broadcast_to_dms(world_id, msg).await;
+                                tracing::info!(
+                                    world_id = %world_id,
+                                    resolution_id = %resolution_id,
+                                    "Broadcast OutcomeSuggestionReady to DMs"
+                                );
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {} // Queue empty
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to process LLM request");
+                }
             }
 
             tokio::time::sleep(Duration::from_millis(100)).await;

@@ -11,10 +11,13 @@ mod grid_map;
 mod interaction;
 mod item;
 mod location;
+mod location_state;
+mod lore;
 mod narrative_event;
 mod observation;
 mod player_character;
 mod region;
+mod region_state;
 mod scene;
 mod sheet_template;
 mod skill;
@@ -42,6 +45,8 @@ pub use interaction::{
 };
 pub use item::{AcquisitionMethod, FrequencyLevel, InventoryItem, Item};
 pub use location::{Location, LocationConnection, LocationType};
+pub use location_state::{LocationState, LocationStateSummary};
+pub use lore::{Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge};
 pub use narrative_event::{
     ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
     NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation,
@@ -50,13 +55,16 @@ pub use narrative_event::{
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
 pub use player_character::PlayerCharacter;
 pub use region::{MapBounds, Region, RegionConnection, RegionExit};
+pub use region_state::{RegionState, RegionStateSummary};
 pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
 pub use sheet_template::{
     CharacterSheetData, CharacterSheetTemplate, FieldType, FieldValue, ItemListType, SectionLayout,
     SelectOption, SheetField, SheetSection, SheetTemplateId,
 };
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
-pub use staging::{StagedNpc, Staging, StagingSource};
+pub use staging::{
+    ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource, VisualStateSource,
+};
 pub use story_event::InfoImportance as StoryEventInfoImportance;
 pub use story_event::{
     ChallengeEventOutcome, CombatEventType, CombatOutcome, DmMarkerType, InfoType,
@@ -67,4 +75,4 @@ pub use workflow_config::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
     WorkflowConfiguration, WorkflowInput, WorkflowSlot,
 };
-pub use world::{Act, MonomythStage, World};
+pub use world::{Act, MonomythStage, TimeAdvanceResult, World};

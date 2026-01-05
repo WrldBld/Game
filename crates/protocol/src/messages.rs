@@ -171,7 +171,7 @@ pub enum ClientMessage {
     },
 
     // =========================================================================
-    // Staging System (NPC Presence Approval)
+    // Staging System (NPC Presence + Visual State Approval)
     // =========================================================================
     /// DM approves/modifies staging for a region
     StagingApprovalResponse {
@@ -182,6 +182,13 @@ pub enum ClientMessage {
         ttl_hours: i32,
         /// How this staging was finalized: "rule", "llm", "custom"
         source: String,
+        // Visual State Fields
+        /// Selected location state ID (None = use default or no override)
+        #[serde(default)]
+        location_state_id: Option<String>,
+        /// Selected region state ID (None = use default or no override)
+        #[serde(default)]
+        region_state_id: Option<String>,
     },
 
     /// DM requests LLM to regenerate staging suggestions
@@ -197,6 +204,13 @@ pub enum ClientMessage {
         /// NPCs to pre-stage
         npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
+        // Visual State Fields
+        /// Selected location state ID
+        #[serde(default)]
+        location_state_id: Option<String>,
+        /// Selected region state ID
+        #[serde(default)]
+        region_state_id: Option<String>,
     },
 
     // =========================================================================
@@ -219,6 +233,71 @@ pub enum ClientMessage {
 
     /// Player picks up an item from their current region
     PickupItem { pc_id: String, item_id: String },
+
+    // =========================================================================
+    // Time Control (DM Only)
+    // =========================================================================
+    /// DM sets the exact game time
+    SetGameTime {
+        world_id: String,
+        day: u32,
+        hour: u8,
+        /// Whether to notify players of the time change
+        #[serde(default = "default_true")]
+        notify_players: bool,
+    },
+
+    /// DM skips to the next occurrence of a time period
+    SkipToPeriod {
+        world_id: String,
+        /// Period to skip to: "morning", "afternoon", "evening", "night"
+        period: String,
+    },
+
+    /// DM pauses or unpauses game time
+    PauseGameTime { world_id: String, paused: bool },
+
+    /// DM changes the time mode
+    SetTimeMode {
+        world_id: String,
+        mode: crate::types::TimeMode,
+    },
+
+    /// DM updates time costs
+    SetTimeCosts {
+        world_id: String,
+        costs: crate::types::TimeCostConfig,
+    },
+
+    /// DM responds to a time suggestion
+    RespondToTimeSuggestion {
+        suggestion_id: String,
+        decision: crate::types::TimeSuggestionDecision,
+    },
+
+    // =========================================================================
+    // Lore System
+    // =========================================================================
+    /// DM grants lore knowledge to a character
+    GrantLore {
+        /// Character receiving lore (PC or NPC ID)
+        character_id: String,
+        lore_id: String,
+        /// Specific chunk IDs to grant (empty = all chunks)
+        #[serde(default)]
+        chunk_ids: Vec<String>,
+        /// How the lore was discovered
+        discovery_source: crate::types::LoreDiscoverySourceData,
+        /// Optional notes
+        #[serde(default)]
+        notes: Option<String>,
+    },
+
+    /// DM revokes lore knowledge from a character
+    RevokeLore {
+        character_id: String,
+        lore_id: String,
+    },
 
     // =========================================================================
     // WebSocket-First Protocol (World-scoped connections)
@@ -508,10 +587,36 @@ pub enum ServerMessage {
     MovementBlocked { pc_id: String, reason: String },
 
     /// Game time has been updated (broadcast to all)
+    /// Legacy - use GameTimeAdvanced for richer information
     GameTimeUpdated { game_time: crate::types::GameTime },
 
+    /// Game time has advanced (broadcast to all)
+    /// Includes reason and period change information
+    GameTimeAdvanced { data: crate::types::TimeAdvanceData },
+
+    /// Time suggestion for DM approval
+    /// Sent when a player action suggests time passage and mode is "suggested"
+    TimeSuggestion {
+        data: crate::types::TimeSuggestionData,
+    },
+
+    /// Time mode has changed (broadcast to all)
+    TimeModeChanged {
+        world_id: String,
+        mode: crate::types::TimeMode,
+    },
+
+    /// Game time has been paused/unpaused (broadcast to all)
+    GameTimePaused { world_id: String, paused: bool },
+
+    /// Time configuration has been updated (broadcast to DMs)
+    TimeConfigUpdated {
+        world_id: String,
+        config: crate::types::GameTimeConfig,
+    },
+
     // =========================================================================
-    // Staging System (NPC Presence Approval)
+    // Staging System (NPC Presence + Visual State Approval)
     // =========================================================================
     /// Staging approval required (sent to DM)
     /// Sent when a PC enters a region without valid staging
@@ -533,6 +638,16 @@ pub enum ServerMessage {
         default_ttl_hours: i32,
         /// PCs waiting for this staging
         waiting_pcs: Vec<WaitingPcInfo>,
+        // Visual State Fields
+        /// Auto-resolved visual state based on activation rules
+        #[serde(default)]
+        resolved_visual_state: Option<crate::types::ResolvedVisualStateData>,
+        /// Available location states for DM selection
+        #[serde(default)]
+        available_location_states: Vec<crate::types::StateOptionData>,
+        /// Available region states for DM selection
+        #[serde(default)]
+        available_region_states: Vec<crate::types::StateOptionData>,
     },
 
     /// Staging is pending approval (sent to Player)
@@ -548,6 +663,9 @@ pub enum ServerMessage {
         region_id: String,
         /// NPCs present in this staging
         npcs_present: Vec<NpcPresentInfo>,
+        /// Resolved visual state for scene display
+        #[serde(default)]
+        visual_state: Option<crate::types::ResolvedVisualStateData>,
     },
 
     /// Staging was regenerated by LLM (sent to DM)
@@ -625,6 +743,36 @@ pub enum ServerMessage {
     NpcDispositionsResponse {
         pc_id: String,
         dispositions: Vec<NpcDispositionData>,
+    },
+
+    // =========================================================================
+    // Lore System
+    // =========================================================================
+    /// Character discovered lore (sent to player owning the character)
+    LoreDiscovered {
+        character_id: String,
+        /// Full lore data (or just discovered chunks)
+        lore: crate::types::LoreData,
+        /// Which chunks were just discovered (empty = all)
+        #[serde(default)]
+        discovered_chunk_ids: Vec<String>,
+        /// How it was discovered
+        discovery_source: crate::types::LoreDiscoverySourceData,
+    },
+
+    /// Lore was revoked from a character (sent to player owning the character)
+    LoreRevoked {
+        character_id: String,
+        lore_id: String,
+    },
+
+    /// Lore entry was updated (broadcast to DMs for editor refresh)
+    LoreUpdated { lore: crate::types::LoreData },
+
+    /// All known lore for a character (response to GetCharacterLore)
+    CharacterLoreResponse {
+        character_id: String,
+        known_lore: Vec<crate::types::LoreSummaryData>,
     },
 
     // =========================================================================

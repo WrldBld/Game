@@ -11,6 +11,8 @@ pub mod assets;
 pub mod world;
 pub mod queues;
 pub mod narrative;
+pub mod time;
+pub mod visual_state;
 
 // Re-export main types
 pub use movement::MovementUseCases;
@@ -21,3 +23,5 @@ pub use assets::AssetUseCases;
 pub use world::WorldUseCases;
 pub use queues::QueueUseCases;
 pub use narrative::NarrativeUseCases;
+pub use time::TimeUseCases;
+pub use visual_state::VisualStateUseCases;
