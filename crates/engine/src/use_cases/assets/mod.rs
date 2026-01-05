@@ -2,6 +2,8 @@
 //!
 //! Handles image generation for game entities (characters, locations, items).
 
+pub mod expression_sheet;
+
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
@@ -11,14 +13,23 @@ use wrldbldr_domain::{
 use crate::entities::Assets;
 use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
 
+pub use expression_sheet::{
+    ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult,
+    GenerateExpressionSheet, SlicedExpression, STANDARD_EXPRESSION_ORDER,
+};
+
 /// Container for asset use cases.
 pub struct AssetUseCases {
     pub generate: Arc<GenerateAsset>,
+    pub expression_sheet: Arc<GenerateExpressionSheet>,
 }
 
 impl AssetUseCases {
-    pub fn new(generate: Arc<GenerateAsset>) -> Self {
-        Self { generate }
+    pub fn new(
+        generate: Arc<GenerateAsset>,
+        expression_sheet: Arc<GenerateExpressionSheet>,
+    ) -> Self {
+        Self { generate, expression_sheet }
     }
 }
 

@@ -197,12 +197,18 @@ impl App {
             )),
         );
 
-        let assets_uc =
-            use_cases::AssetUseCases::new(Arc::new(use_cases::assets::GenerateAsset::new(
-                assets.clone(),
-                queue_port.clone(),
-                clock.clone(),
-            )));
+        let generate_asset = Arc::new(use_cases::assets::GenerateAsset::new(
+            assets.clone(),
+            queue_port.clone(),
+            clock.clone(),
+        ));
+        let expression_sheet = Arc::new(use_cases::assets::GenerateExpressionSheet::new(
+            assets.clone(),
+            character.clone(),
+            queue_port.clone(),
+            clock.clone(),
+        ));
+        let assets_uc = use_cases::AssetUseCases::new(generate_asset, expression_sheet);
 
         let world_uc = use_cases::WorldUseCases::new(
             Arc::new(use_cases::world::ExportWorld::new(

@@ -727,6 +727,33 @@ pub enum RequestPayload {
     },
 
     // =========================================================================
+    // Expression Sheet Generation (Mood & Expression System)
+    // =========================================================================
+    /// Queue expression sheet generation for a character.
+    ///
+    /// Generates a grid of expression sprites (e.g., 4x4 = 16 expressions)
+    /// that can be used for dialogue expression markers.
+    ///
+    /// Returns a batch_id for tracking progress. When complete, the sheet
+    /// is automatically sliced into individual expression sprites.
+    GenerateExpressionSheet {
+        /// Character to generate expressions for
+        character_id: String,
+        /// ComfyUI workflow to use for generation
+        workflow: String,
+        /// Expressions to generate (optional, defaults to standard 16)
+        /// Order matches grid layout: left-to-right, top-to-bottom
+        #[serde(default)]
+        expressions: Option<Vec<String>>,
+        /// Grid layout as "cols x rows" (optional, defaults to "4x4")
+        #[serde(default)]
+        grid_layout: Option<String>,
+        /// Additional style prompt for generation
+        #[serde(default)]
+        style_prompt: Option<String>,
+    },
+
+    // =========================================================================
     // Content Suggestion Operations (General LLM Suggestions)
     // =========================================================================
     /// Enqueue a content suggestion request (async, queued)
