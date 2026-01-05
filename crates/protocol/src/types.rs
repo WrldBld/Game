@@ -609,3 +609,616 @@ pub struct StateOptionData {
     #[serde(default)]
     pub match_reason: Option<String>,
 }
+
+// =============================================================================
+// Trigger Schema Types (for Visual Trigger Builder)
+// =============================================================================
+
+/// Complete schema describing all available trigger types for the visual builder
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerSchema {
+    /// All available trigger types
+    pub trigger_types: Vec<TriggerTypeSchema>,
+    /// Available logic options (All, Any, AtLeast)
+    pub logic_options: Vec<TriggerLogicOption>,
+}
+
+/// Schema for a single trigger type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerTypeSchema {
+    /// Internal type name (e.g., "PlayerEntersLocation")
+    pub type_name: String,
+    /// Display label for UI
+    pub label: String,
+    /// Description of what this trigger does
+    pub description: String,
+    /// Category for grouping in UI
+    pub category: TriggerCategory,
+    /// Fields required/available for this trigger type
+    pub fields: Vec<TriggerFieldSchema>,
+}
+
+/// Category for grouping trigger types in UI
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TriggerCategory {
+    /// Location-based triggers
+    Location,
+    /// NPC/character-based triggers
+    Character,
+    /// Item/inventory triggers
+    Inventory,
+    /// Challenge/combat triggers
+    Challenge,
+    /// Time-based triggers
+    Time,
+    /// Flag/state triggers
+    State,
+    /// Event-based triggers
+    Event,
+    /// Custom/LLM-evaluated triggers
+    Custom,
+}
+
+impl TriggerCategory {
+    pub fn label(&self) -> &'static str {
+        match self {
+            TriggerCategory::Location => "Location",
+            TriggerCategory::Character => "Character",
+            TriggerCategory::Inventory => "Inventory",
+            TriggerCategory::Challenge => "Challenge",
+            TriggerCategory::Time => "Time",
+            TriggerCategory::State => "State",
+            TriggerCategory::Event => "Event",
+            TriggerCategory::Custom => "Custom",
+        }
+    }
+}
+
+/// Schema for a single field within a trigger type
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerFieldSchema {
+    /// Field name (matches JSON key)
+    pub name: String,
+    /// Display label for UI
+    pub label: String,
+    /// Field data type
+    pub field_type: TriggerFieldType,
+    /// Whether this field is required
+    pub required: bool,
+    /// Help text for UI
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Default value (as JSON)
+    #[serde(default)]
+    pub default_value: Option<serde_json::Value>,
+}
+
+/// Data type for a trigger field
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TriggerFieldType {
+    /// Plain text string
+    String,
+    /// Numeric value (integer)
+    Integer,
+    /// Numeric value (float)
+    Float,
+    /// Boolean (checkbox)
+    Boolean,
+    /// Reference to a Location entity (picker)
+    LocationRef,
+    /// Reference to a Region entity (picker)
+    RegionRef,
+    /// Reference to a Character/NPC entity (picker)
+    CharacterRef,
+    /// Reference to a Challenge entity (picker)
+    ChallengeRef,
+    /// Reference to a NarrativeEvent entity (picker)
+    EventRef,
+    /// Reference to an Item (picker or text)
+    ItemRef,
+    /// Time of day enum (Morning, Afternoon, Evening, Night)
+    TimeOfDay,
+    /// Array of keyword strings (tag input)
+    Keywords,
+    /// Sentiment value (-1.0 to 1.0)
+    Sentiment,
+}
+
+/// Option for trigger logic selection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerLogicOption {
+    /// Value to use (e.g., "all", "any", "atLeast")
+    pub value: String,
+    /// Display label
+    pub label: String,
+    /// Description
+    pub description: String,
+    /// Whether this option requires a count parameter
+    pub requires_count: bool,
+}
+
+impl TriggerSchema {
+    /// Generate the complete trigger schema
+    pub fn generate() -> Self {
+        Self {
+            trigger_types: Self::generate_trigger_types(),
+            logic_options: vec![
+                TriggerLogicOption {
+                    value: "all".to_string(),
+                    label: "All must match".to_string(),
+                    description: "All conditions must be true (AND)".to_string(),
+                    requires_count: false,
+                },
+                TriggerLogicOption {
+                    value: "any".to_string(),
+                    label: "Any can match".to_string(),
+                    description: "Any single condition can be true (OR)".to_string(),
+                    requires_count: false,
+                },
+                TriggerLogicOption {
+                    value: "atLeast".to_string(),
+                    label: "At least N".to_string(),
+                    description: "At least N conditions must be true".to_string(),
+                    requires_count: true,
+                },
+            ],
+        }
+    }
+
+    fn generate_trigger_types() -> Vec<TriggerTypeSchema> {
+        vec![
+            // Location triggers
+            TriggerTypeSchema {
+                type_name: "PlayerEntersLocation".to_string(),
+                label: "Player Enters Location".to_string(),
+                description: "Triggers when a player enters a specific location (city/area)"
+                    .to_string(),
+                category: TriggerCategory::Location,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "location_id".to_string(),
+                        label: "Location".to_string(),
+                        field_type: TriggerFieldType::LocationRef,
+                        required: true,
+                        description: Some("The location that triggers this event".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "location_name".to_string(),
+                        label: "Location Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: Some("Display name (auto-filled from selection)".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "TimeAtLocation".to_string(),
+                label: "Time at Location".to_string(),
+                description: "Triggers when player is at location during specific time".to_string(),
+                category: TriggerCategory::Location,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "location_id".to_string(),
+                        label: "Location".to_string(),
+                        field_type: TriggerFieldType::LocationRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "location_name".to_string(),
+                        label: "Location Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "time_context".to_string(),
+                        label: "Time Context".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some(
+                            "Time description (e.g., 'at night', 'during the festival')"
+                                .to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Character triggers
+            TriggerTypeSchema {
+                type_name: "NpcAction".to_string(),
+                label: "NPC Action".to_string(),
+                description: "Triggers when an NPC performs a specific action".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "npc_id".to_string(),
+                        label: "NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "npc_name".to_string(),
+                        label: "NPC Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "action_keywords".to_string(),
+                        label: "Action Keywords".to_string(),
+                        field_type: TriggerFieldType::Keywords,
+                        required: true,
+                        description: Some("Keywords that identify the action".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "action_description".to_string(),
+                        label: "Action Description".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some("Human-readable description of the action".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "DialogueTopic".to_string(),
+                label: "Dialogue Topic".to_string(),
+                description: "Triggers when a specific topic is discussed".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "keywords".to_string(),
+                        label: "Topic Keywords".to_string(),
+                        field_type: TriggerFieldType::Keywords,
+                        required: true,
+                        description: Some("Keywords that identify the topic".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_npc".to_string(),
+                        label: "With NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: false,
+                        description: Some("Optional: Only trigger with specific NPC".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "npc_name".to_string(),
+                        label: "NPC Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "RelationshipThreshold".to_string(),
+                label: "Relationship Threshold".to_string(),
+                description: "Triggers when relationship sentiment reaches a threshold".to_string(),
+                category: TriggerCategory::Character,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "character_id".to_string(),
+                        label: "Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "character_name".to_string(),
+                        label: "Character Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_character".to_string(),
+                        label: "With Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "with_character_name".to_string(),
+                        label: "With Character Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "min_sentiment".to_string(),
+                        label: "Min Sentiment".to_string(),
+                        field_type: TriggerFieldType::Sentiment,
+                        required: false,
+                        description: Some("Minimum sentiment (-1.0 to 1.0)".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "max_sentiment".to_string(),
+                        label: "Max Sentiment".to_string(),
+                        field_type: TriggerFieldType::Sentiment,
+                        required: false,
+                        description: Some("Maximum sentiment (-1.0 to 1.0)".to_string()),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Inventory triggers
+            TriggerTypeSchema {
+                type_name: "HasItem".to_string(),
+                label: "Has Item".to_string(),
+                description: "Triggers when player has a specific item".to_string(),
+                category: TriggerCategory::Inventory,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "item_name".to_string(),
+                        label: "Item Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "quantity".to_string(),
+                        label: "Quantity".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: Some("Minimum quantity required (default: 1)".to_string()),
+                        default_value: Some(serde_json::json!(1)),
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "MissingItem".to_string(),
+                label: "Missing Item".to_string(),
+                description: "Triggers when player does NOT have a specific item".to_string(),
+                category: TriggerCategory::Inventory,
+                fields: vec![TriggerFieldSchema {
+                    name: "item_name".to_string(),
+                    label: "Item Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: None,
+                    default_value: None,
+                }],
+            },
+            // Challenge triggers
+            TriggerTypeSchema {
+                type_name: "ChallengeCompleted".to_string(),
+                label: "Challenge Completed".to_string(),
+                description: "Triggers when a challenge is completed".to_string(),
+                category: TriggerCategory::Challenge,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "challenge_id".to_string(),
+                        label: "Challenge".to_string(),
+                        field_type: TriggerFieldType::ChallengeRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "challenge_name".to_string(),
+                        label: "Challenge Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "requires_success".to_string(),
+                        label: "Requires Success".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some(
+                            "If set, only triggers on success or failure".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            TriggerTypeSchema {
+                type_name: "CombatResult".to_string(),
+                label: "Combat Result".to_string(),
+                description: "Triggers after combat ends".to_string(),
+                category: TriggerCategory::Challenge,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "victory".to_string(),
+                        label: "Victory Required".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some("If set, only triggers on victory or defeat".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "involved_npc".to_string(),
+                        label: "Involved NPC".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: false,
+                        description: Some(
+                            "Optional: Only trigger if this NPC was involved".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Time triggers
+            TriggerTypeSchema {
+                type_name: "TurnCount".to_string(),
+                label: "Turn Count".to_string(),
+                description: "Triggers after a certain number of turns".to_string(),
+                category: TriggerCategory::Time,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "turns".to_string(),
+                        label: "Turn Count".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: true,
+                        description: Some("Number of turns to wait".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "since_event".to_string(),
+                        label: "Since Event".to_string(),
+                        field_type: TriggerFieldType::EventRef,
+                        required: false,
+                        description: Some(
+                            "Count turns since this event (or session start)".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // State triggers
+            TriggerTypeSchema {
+                type_name: "FlagSet".to_string(),
+                label: "Flag Set".to_string(),
+                description: "Triggers when a game flag is set to true".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![TriggerFieldSchema {
+                    name: "flag_name".to_string(),
+                    label: "Flag Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: Some("Name of the flag to check".to_string()),
+                    default_value: None,
+                }],
+            },
+            TriggerTypeSchema {
+                type_name: "FlagNotSet".to_string(),
+                label: "Flag Not Set".to_string(),
+                description: "Triggers when a game flag is NOT set (or false)".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![TriggerFieldSchema {
+                    name: "flag_name".to_string(),
+                    label: "Flag Name".to_string(),
+                    field_type: TriggerFieldType::String,
+                    required: true,
+                    description: Some("Name of the flag to check".to_string()),
+                    default_value: None,
+                }],
+            },
+            TriggerTypeSchema {
+                type_name: "StatThreshold".to_string(),
+                label: "Stat Threshold".to_string(),
+                description: "Triggers when a character stat reaches a threshold".to_string(),
+                category: TriggerCategory::State,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "character_id".to_string(),
+                        label: "Character".to_string(),
+                        field_type: TriggerFieldType::CharacterRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "stat_name".to_string(),
+                        label: "Stat Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "min_value".to_string(),
+                        label: "Min Value".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "max_value".to_string(),
+                        label: "Max Value".to_string(),
+                        field_type: TriggerFieldType::Integer,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                ],
+            },
+            // Event triggers
+            TriggerTypeSchema {
+                type_name: "EventCompleted".to_string(),
+                label: "Event Completed".to_string(),
+                description: "Triggers when another narrative event is completed".to_string(),
+                category: TriggerCategory::Event,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "event_id".to_string(),
+                        label: "Event".to_string(),
+                        field_type: TriggerFieldType::EventRef,
+                        required: true,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "event_name".to_string(),
+                        label: "Event Name".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: None,
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "outcome_name".to_string(),
+                        label: "Required Outcome".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: false,
+                        description: Some(
+                            "Optional: Only trigger if this outcome was selected".to_string(),
+                        ),
+                        default_value: None,
+                    },
+                ],
+            },
+            // Custom triggers
+            TriggerTypeSchema {
+                type_name: "Custom".to_string(),
+                label: "Custom Condition".to_string(),
+                description: "A custom condition described in natural language".to_string(),
+                category: TriggerCategory::Custom,
+                fields: vec![
+                    TriggerFieldSchema {
+                        name: "description".to_string(),
+                        label: "Description".to_string(),
+                        field_type: TriggerFieldType::String,
+                        required: true,
+                        description: Some("Describe when this should trigger".to_string()),
+                        default_value: None,
+                    },
+                    TriggerFieldSchema {
+                        name: "llm_evaluation".to_string(),
+                        label: "LLM Evaluation".to_string(),
+                        field_type: TriggerFieldType::Boolean,
+                        required: false,
+                        description: Some("If true, LLM will evaluate this condition".to_string()),
+                        default_value: Some(serde_json::json!(true)),
+                    },
+                ],
+            },
+        ]
+    }
+}

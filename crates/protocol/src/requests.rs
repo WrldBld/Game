@@ -338,6 +338,10 @@ pub enum RequestPayload {
     /// Reset a narrative event
     ResetNarrativeEvent { event_id: String },
 
+    /// Get the trigger schema for building trigger conditions
+    /// Returns all available trigger types with their fields
+    GetTriggerSchema,
+
     // =========================================================================
     // Event Chain Operations
     // =========================================================================

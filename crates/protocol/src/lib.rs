@@ -146,6 +146,13 @@ pub use types::{
     ResolvedVisualStateData,
     StateOptionData,
     TimeOfDayData,
+    // Trigger schema types (for Visual Trigger Builder)
+    TriggerCategory,
+    TriggerFieldSchema,
+    TriggerFieldType,
+    TriggerLogicOption,
+    TriggerSchema,
+    TriggerTypeSchema,
     VisualStateSourceData,
 };
 

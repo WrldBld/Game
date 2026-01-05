@@ -2196,6 +2196,14 @@ async fn handle_request(
             }
         }
         
+        // =========================================================================
+        // Trigger Schema (for Visual Trigger Builder)
+        // =========================================================================
+        RequestPayload::GetTriggerSchema => {
+            let schema = wrldbldr_protocol::TriggerSchema::generate();
+            ResponseResult::success(schema)
+        }
+        
         // Default - not implemented
         _ => ResponseResult::error(ErrorCode::BadRequest, "This request type is not yet implemented"),
     };
