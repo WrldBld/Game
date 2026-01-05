@@ -4,6 +4,9 @@
 
 use dioxus::prelude::*;
 
+/// Maximum number of challenge results to retain (prevents memory leak in long sessions)
+const MAX_CHALLENGE_RESULTS: usize = 100;
+
 use crate::presentation::components::tactical::PlayerSkillData;
 
 /// Roll submission status for challenge outcomes (P3.3/P3.4)
@@ -108,8 +111,17 @@ impl ChallengeState {
     }
 
     /// Add a challenge result
+    ///
+    /// Automatically trims oldest entries when MAX_CHALLENGE_RESULTS is exceeded
+    /// to prevent unbounded memory growth in long sessions.
     pub fn add_challenge_result(&mut self, result: ChallengeResultData) {
-        self.challenge_results.write().push(result);
+        let mut results = self.challenge_results.write();
+        results.push(result);
+        // Trim oldest entries if we exceed the limit
+        if results.len() > MAX_CHALLENGE_RESULTS {
+            let excess = results.len() - MAX_CHALLENGE_RESULTS;
+            results.drain(0..excess);
+        }
     }
 
     /// Set player skills

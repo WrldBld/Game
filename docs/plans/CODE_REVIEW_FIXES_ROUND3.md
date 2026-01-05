@@ -42,13 +42,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-1.3 - Bound Challenge Results Growth
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/challenge_state.rs`
 **Issue**: `challenge_results` grows unbounded.
 
 **Tasks**:
-- [ ] Add MAX_RESULTS constant (100)
-- [ ] Trim old entries when limit exceeded
+- [x] Add MAX_CHALLENGE_RESULTS constant (100)
+- [x] Trim old entries when limit exceeded
 
 ---
 
@@ -378,7 +378,7 @@ Authentication-related items are explicitly excluded per requirements.
 |----|-------------|--------|--------|
 | CR3-1.1 | State clearing on disconnect | COMPLETE | - |
 | CR3-1.2 | Bound conversation log | COMPLETE | - |
-| CR3-1.3 | Bound challenge results | PENDING | - |
+| CR3-1.3 | Bound challenge results | COMPLETE | - |
 | CR3-1.4 | Bound decision history | COMPLETE | - |
 | CR3-2.1 | Location exits warning | PENDING | - |
 | CR3-2.2 | Narrative trigger errors | PENDING | - |
