@@ -156,7 +156,7 @@ pub fn default_skills_for_variant(world_id: WorldId, variant: &RuleSystemVariant
         RuleSystemVariant::FateCore => fate_core_skills(world_id),
         RuleSystemVariant::PoweredByApocalypse => pbta_skills(world_id),
         RuleSystemVariant::BladesInTheDark => blades_skills(world_id),
-        RuleSystemVariant::Custom(_) => vec![],
+        RuleSystemVariant::Custom(_) | RuleSystemVariant::Unknown => vec![],
     }
 }
 

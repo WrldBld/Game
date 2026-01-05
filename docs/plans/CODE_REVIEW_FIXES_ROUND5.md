@@ -259,28 +259,34 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 8: High - Fix Protocol Forward Compatibility (Complexity: Low)
 
 ### CR5-8.1 - Add Unknown to TimeSuggestionDecision
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/protocol/src/types.rs`
 **Lines**: 358-367
 
 **Tasks**:
-- [ ] Add `#[serde(other)] Unknown` variant
+- [x] Add `#[serde(other)] Unknown` variant
 
 ---
 
 ### CR5-8.2 - Add Unknown to RuleSystemVariant
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/domain/src/types/rule_system.rs`
 **Lines**: 27-47
 
 **Tasks**:
-- [ ] Add `#[serde(other)] Unknown` variant
+- [x] Add `Unknown` variant (note: #[serde(other)] doesn't work with tuple variants like Custom(String))
+
+**Implementation Notes**:
+- Updated all match statements across crates to handle Unknown variant
+- Unknown defaults to generic behaviors (GenericD20, minimal_template, etc.)
 
 ---
 
 ### CR5-8.3 - Add Missing Act CRUD Operations
-**Status**: PENDING
+**Status**: DEFERRED
 **File**: `crates/protocol/src/requests.rs`
+
+**Reason**: This is new feature work, not a fix. Act CRUD doesn't currently exist anywhere in the protocol. Deferred to a future feature phase.
 
 **Tasks**:
 - [ ] Add `GetAct { act_id: String }` to RequestPayload
@@ -460,7 +466,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 5 | 3 | 3 | COMPLETE |
 | Phase 6 | 2 | 2 | COMPLETE |
 | Phase 7 | 4 | 4 | COMPLETE |
-| Phase 8 | 3 | 0 | PENDING |
+| Phase 8 | 3 | 2 | PARTIAL (CR5-8.3 deferred) |
 | Phase 9 | 4 | 0 | PENDING |
 | Phase 10 | 3 | 0 | PENDING |
 | Phase 11 | 3 | 0 | PENDING |
@@ -479,5 +485,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | e7f6d44 | Phase 4 | Populate TriggerContext properly |
 | 625ece6 | Phase 5 | Add game time operations and fix TTL checks |
 | 999ece0 | Phase 6 | Fix N+1 queries in staging and narrative repos |
-| - | Phase 7 | Fix domain model issues |
+| fa30089 | Phase 7 | Fix domain model issues |
+| - | Phase 8 | Add forward compatibility variants (CR5-8.3 deferred) |
 

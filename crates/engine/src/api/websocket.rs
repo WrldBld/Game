@@ -4131,6 +4131,9 @@ async fn handle_respond_to_time_suggestion(
         wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => {
             tracing::debug!("Time suggestion modified to {} minutes", minutes);
         }
+        wrldbldr_protocol::types::TimeSuggestionDecision::Unknown => {
+            tracing::warn!("Unknown time suggestion decision received, treating as skip");
+        }
     }
     
     None

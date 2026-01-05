@@ -285,6 +285,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
             RuleSystemVariant::PoweredByApocalypse => "Powered by the Apocalypse",
             RuleSystemVariant::BladesInTheDark => "Blades in the Dark",
             RuleSystemVariant::Custom(_) => "Custom",
+            RuleSystemVariant::Unknown => "Unknown",
         }
     }
 
@@ -300,7 +301,7 @@ impl RuleSystemVariantExt for RuleSystemVariant {
             RuleSystemVariant::FateCore => "Aspects, skills, and stunts",
             RuleSystemVariant::PoweredByApocalypse => "2d6 with 3 outcome tiers",
             RuleSystemVariant::BladesInTheDark => "Position/Effect with d6 pools",
-            RuleSystemVariant::Custom(_) => "Custom configuration",
+            RuleSystemVariant::Custom(_) | RuleSystemVariant::Unknown => "Custom configuration",
         }
     }
 }

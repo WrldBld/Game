@@ -44,6 +44,10 @@ pub enum RuleSystemVariant {
     BladesInTheDark,
     // Custom
     Custom(String),
+    // Unknown for forward compatibility
+    // Note: #[serde(other)] doesn't work with tuple variants, so Unknown will
+    // only match if explicitly sent as "unknown" in JSON
+    Unknown,
 }
 
 impl RuleSystemVariant {
@@ -61,6 +65,7 @@ impl RuleSystemVariant {
             Self::PoweredByApocalypse => "Powered by the Apocalypse",
             Self::BladesInTheDark => "Blades in the Dark",
             Self::Custom(name) => name,
+            Self::Unknown => "Unknown",
         }
     }
 
@@ -73,7 +78,7 @@ impl RuleSystemVariant {
             | Self::FateCore
             | Self::PoweredByApocalypse
             | Self::BladesInTheDark => RuleSystemType::Narrative,
-            Self::Custom(_) => RuleSystemType::Custom,
+            Self::Custom(_) | Self::Unknown => RuleSystemType::Unknown,
         }
     }
 
@@ -142,6 +147,7 @@ impl RuleSystemConfig {
             RuleSystemVariant::PoweredByApocalypse => Self::powered_by_apocalypse(),
             RuleSystemVariant::BladesInTheDark => Self::blades_in_the_dark(),
             RuleSystemVariant::Custom(name) => Self::custom(name),
+            RuleSystemVariant::Unknown => Self::generic_d20(), // Default to generic D20 for unknown
         }
     }
 

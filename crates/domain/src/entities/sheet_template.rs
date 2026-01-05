@@ -443,7 +443,9 @@ impl CharacterSheetTemplate {
             RuleSystemVariant::FateCore => Self::fate_template(world_id),
             RuleSystemVariant::PoweredByApocalypse => Self::pbta_template(world_id),
             RuleSystemVariant::BladesInTheDark => Self::blades_template(world_id),
-            RuleSystemVariant::Custom(_) => Self::minimal_template(world_id),
+            RuleSystemVariant::Custom(_) | RuleSystemVariant::Unknown => {
+                Self::minimal_template(world_id)
+            }
         }
     }
 

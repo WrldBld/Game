@@ -364,6 +364,9 @@ pub enum TimeSuggestionDecision {
     Modify { minutes: u32 },
     /// Skip this time suggestion (no advancement)
     Skip,
+    /// Unknown decision type for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
 // =============================================================================
