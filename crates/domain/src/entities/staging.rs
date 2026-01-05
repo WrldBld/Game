@@ -7,6 +7,7 @@
 //! - `(Staging)-[:USES_LOCATION_STATE]->(LocationState)` - Visual state at location level
 //! - `(Staging)-[:USES_REGION_STATE]->(RegionState)` - Visual state at region level
 
+use crate::value_objects::MoodState;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{
@@ -64,6 +65,10 @@ pub struct StagedNpc {
     pub is_hidden_from_players: bool,
     /// Reasoning for presence/absence (from rules or LLM)
     pub reasoning: String,
+    /// NPC's current mood for this staging (Tier 2 of emotional model)
+    /// Affects default expression and dialogue tone
+    /// Set by DM during staging approval, or defaults to character's default_mood
+    pub mood: MoodState,
 }
 
 impl StagedNpc {
@@ -223,6 +228,7 @@ impl StagedNpc {
             is_present,
             is_hidden_from_players: false,
             reasoning: reasoning.into(),
+            mood: MoodState::default(),
         }
     }
 
@@ -233,6 +239,11 @@ impl StagedNpc {
 
     pub fn with_portrait(mut self, asset: impl Into<String>) -> Self {
         self.portrait_asset = Some(asset.into());
+        self
+    }
+
+    pub fn with_mood(mut self, mood: MoodState) -> Self {
+        self.mood = mood;
         self
     }
 }

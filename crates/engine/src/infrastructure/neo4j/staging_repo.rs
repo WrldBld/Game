@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use neo4rs::{query, Graph, Node, Row};
 
 use wrldbldr_domain::*;
+use wrldbldr_domain::MoodState;
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ClockPort, StagingRepo, RepoError};
@@ -35,7 +36,8 @@ impl StagingRepo for Neo4jStagingRepo {
                    c.portrait_asset as portrait_asset,
                    rel.is_present as is_present,
                    COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
-                   rel.reasoning as reasoning",
+                   rel.reasoning as reasoning,
+                   COALESCE(rel.mood, c.default_mood, 'calm') as mood",
         )
         .param("region_id", region_id.to_string());
 
@@ -56,7 +58,7 @@ impl StagingRepo for Neo4jStagingRepo {
             "MATCH (r:Region {id: $region_id})-[:CURRENT_STAGING]->(s:Staging)
             MATCH (c:Character {id: $character_id})
             MERGE (s)-[rel:INCLUDES_NPC]->(c)
-            ON CREATE SET rel.is_present = true, rel.is_hidden_from_players = false, rel.reasoning = 'Manually staged'
+            ON CREATE SET rel.is_present = true, rel.is_hidden_from_players = false, rel.reasoning = 'Manually staged', rel.mood = COALESCE(c.default_mood, 'calm')
             ON MATCH SET rel.is_present = true
             RETURN s.id as staging_id",
         )
@@ -90,7 +92,7 @@ impl StagingRepo for Neo4jStagingRepo {
                 })
                 CREATE (r)-[:CURRENT_STAGING]->(s)
                 CREATE (r)-[:HAS_STAGING]->(s)
-                CREATE (s)-[:INCLUDES_NPC {is_present: true, is_hidden_from_players: false, reasoning: 'Manually staged'}]->(c)",
+                CREATE (s)-[:INCLUDES_NPC {is_present: true, is_hidden_from_players: false, reasoning: 'Manually staged', mood: COALESCE(c.default_mood, 'calm')}]->(c)",
             )
             .param("region_id", region_id.to_string())
             .param("character_id", character_id.to_string())
@@ -186,14 +188,16 @@ impl StagingRepo for Neo4jStagingRepo {
                 CREATE (s)-[:INCLUDES_NPC {
                     is_present: $is_present,
                     is_hidden_from_players: $is_hidden_from_players,
-                    reasoning: $reasoning
+                    reasoning: $reasoning,
+                    mood: $mood
                 }]->(c)",
             )
             .param("staging_id", staging.id.to_string())
             .param("character_id", npc.character_id.to_string())
             .param("is_present", npc.is_present)
             .param("is_hidden_from_players", npc.is_hidden_from_players)
-            .param("reasoning", npc.reasoning.clone());
+            .param("reasoning", npc.reasoning.clone())
+            .param("mood", npc.mood.to_string());
 
             self.graph.run(npc_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         }
@@ -304,7 +308,8 @@ impl Neo4jStagingRepo {
                    c.portrait_asset as portrait_asset,
                    rel.is_present as is_present,
                    COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
-                   rel.reasoning as reasoning",
+                   rel.reasoning as reasoning,
+                   COALESCE(rel.mood, c.default_mood, 'calm') as mood",
         )
         .param("staging_id", staging_id.to_string());
 
@@ -338,6 +343,10 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     let sprite_asset: Option<String> = row.get("sprite_asset").ok().filter(|s: &String| !s.is_empty());
     let portrait_asset: Option<String> = row.get("portrait_asset").ok().filter(|s: &String| !s.is_empty());
 
+    // Parse mood - defaults to Calm if not present or invalid
+    let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
+    let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
+
     Ok(StagedNpc {
         character_id,
         name,
@@ -346,6 +355,7 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
         is_present,
         is_hidden_from_players,
         reasoning,
+        mood,
     })
 }
 

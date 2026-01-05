@@ -10,7 +10,9 @@
 //!
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
 
-use crate::value_objects::{ArchetypeChange, CampbellArchetype, DispositionLevel};
+use crate::value_objects::{
+    ArchetypeChange, CampbellArchetype, DispositionLevel, ExpressionConfig, MoodState,
+};
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, WorldId};
 
@@ -44,6 +46,14 @@ pub struct Character {
 
     /// Default disposition for this NPC (used when no PC-specific disposition is set)
     pub default_disposition: DispositionLevel,
+
+    // Mood & Expression System (Three-Tier Model)
+    /// Default mood for this NPC (Tier 2)
+    /// Used when staging doesn't specify a mood; affects default expression and dialogue tone
+    pub default_mood: MoodState,
+    /// Expression configuration (Tier 3)
+    /// Defines available expressions and actions for this character's sprite sheet
+    pub expression_config: ExpressionConfig,
 }
 
 impl Character {
@@ -62,11 +72,23 @@ impl Character {
             is_alive: true,
             is_active: true,
             default_disposition: DispositionLevel::Neutral,
+            default_mood: MoodState::default(),
+            expression_config: ExpressionConfig::default(),
         }
     }
 
     pub fn with_default_disposition(mut self, disposition: DispositionLevel) -> Self {
         self.default_disposition = disposition;
+        self
+    }
+
+    pub fn with_default_mood(mut self, mood: MoodState) -> Self {
+        self.default_mood = mood;
+        self
+    }
+
+    pub fn with_expression_config(mut self, config: ExpressionConfig) -> Self {
+        self.expression_config = config;
         self
     }
 

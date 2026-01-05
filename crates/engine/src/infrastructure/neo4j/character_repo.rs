@@ -149,6 +149,19 @@ impl Neo4jCharacterRepo {
             .parse()
             .map_err(|e: String| RepoError::Database(e))?;
 
+        // Parse default_mood from stored string (falls back to Calm)
+        let default_mood_str: String = node
+            .get("default_mood")
+            .unwrap_or_else(|_| "calm".to_string());
+        let default_mood: MoodState = default_mood_str.parse().unwrap_or(MoodState::Calm);
+
+        // Parse expression_config from JSON (falls back to default)
+        let expression_config: ExpressionConfig = node
+            .get::<String>("expression_config")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+
         Ok(Character {
             id,
             world_id,
@@ -163,6 +176,8 @@ impl Neo4jCharacterRepo {
             is_alive: node.get_bool_or("is_alive", true),
             is_active: node.get_bool_or("is_active", true),
             default_disposition,
+            default_mood,
+            expression_config,
         })
     }
 
@@ -232,6 +247,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .collect::<Vec<_>>(),
         )
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let expression_config_json = serde_json::to_string(&character.expression_config)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE to handle both create and update, with CONTAINS_CHARACTER edge
         let q = query(
@@ -248,7 +265,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 c.stats = $stats,
                 c.is_alive = $is_alive,
                 c.is_active = $is_active,
-                c.default_disposition = $default_disposition
+                c.default_disposition = $default_disposition,
+                c.default_mood = $default_mood,
+                c.expression_config = $expression_config
             MERGE (w)-[:CONTAINS_CHARACTER]->(c)
             RETURN c.id as id",
         )
@@ -276,7 +295,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
         .param(
             "default_disposition",
             character.default_disposition.to_string(),
-        );
+        )
+        .param("default_mood", character.default_mood.to_string())
+        .param("expression_config", expression_config_json);
 
         self.graph
             .run(q)
@@ -1067,7 +1088,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
             RETURN DISTINCT item.c.id as character_id, item.c.name as name, 
                    item.c.sprite_asset as sprite_asset, item.c.portrait_asset as portrait_asset,
                    item.type as relationship_type, item.shift as shift, 
-                   item.frequency as frequency, item.time_of_day as time_of_day, item.reason as reason",
+                   item.frequency as frequency, item.time_of_day as time_of_day, item.reason as reason,
+                   COALESCE(item.c.default_mood, 'calm') as default_mood",
         )
         .param("region_id", region_id.to_string());
 
@@ -1101,6 +1123,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 _ => continue,
             };
 
+            // Parse default_mood from string
+            let default_mood_str: String = row.get("default_mood").unwrap_or_else(|_| "calm".to_string());
+            let default_mood: MoodState = default_mood_str.parse().unwrap_or(MoodState::Calm);
+
             npcs.push(NpcWithRegionInfo {
                 character_id,
                 name,
@@ -1111,6 +1137,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 frequency,
                 time_of_day,
                 reason,
+                default_mood,
             });
         }
 

@@ -23,6 +23,10 @@ pub use archetype::CampbellArchetype;
 mod disposition;
 pub use disposition::{DispositionLevel, RelationshipLevel};
 
+// Mood types (three-tier emotional model)
+mod mood;
+pub use mood::MoodState;
+
 // Generation types
 mod batch_status;
 pub use batch_status::BatchStatus;

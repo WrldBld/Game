@@ -656,6 +656,22 @@ pub enum RequestPayload {
     GetNpcDispositions { pc_id: String },
 
     // =========================================================================
+    // NPC Mood Operations (Tier 2 of emotional model)
+    // =========================================================================
+    /// Set an NPC's current mood (Tier 2 of three-tier emotional model)
+    /// Mood is per-NPC (not per-PC) and affects dialogue tone and default expression
+    SetNpcMood {
+        npc_id: String,
+        /// Mood state: "happy", "calm", "anxious", "excited", "melancholic", etc.
+        mood: String,
+        #[serde(default)]
+        reason: Option<String>,
+    },
+
+    /// Get an NPC's current mood
+    GetNpcMood { npc_id: String },
+
+    // =========================================================================
     // LLM Suggestion Operations
     // =========================================================================
     /// Request LLM suggestions for deflection behavior

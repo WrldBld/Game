@@ -739,6 +739,23 @@ pub enum ServerMessage {
         reason: Option<String>,
     },
 
+    /// NPC mood changed (sent to DM and players in same region)
+    /// Part of the three-tier emotional model (Tier 2: Mood)
+    NpcMoodChanged {
+        npc_id: String,
+        npc_name: String,
+        /// Previous mood state
+        old_mood: String,
+        /// New mood state
+        new_mood: String,
+        /// Reason for the mood change
+        #[serde(default)]
+        reason: Option<String>,
+        /// Region where this NPC is currently staged (for routing)
+        #[serde(default)]
+        region_id: Option<String>,
+    },
+
     /// All NPC dispositions for a PC (response to GetNpcDispositions)
     NpcDispositionsResponse {
         pc_id: String,
@@ -1190,6 +1207,10 @@ pub struct StagedNpcInfo {
     /// When true, NPC is present but hidden from players
     #[serde(default)]
     pub is_hidden_from_players: bool,
+    /// NPC's current mood (Tier 2 of emotional model)
+    /// Affects default expression and dialogue tone
+    #[serde(default)]
+    pub mood: Option<String>,
 }
 
 /// Info about previous staging (for reference)
@@ -1220,6 +1241,10 @@ pub struct NpcPresentInfo {
     /// When true, NPC is present but hidden from players
     #[serde(default)]
     pub is_hidden_from_players: bool,
+    /// NPC's current mood (Tier 2 of emotional model)
+    /// Used by Player UI to set default expression
+    #[serde(default)]
+    pub mood: Option<String>,
 }
 
 /// DM's decision for an NPC in staging
@@ -1233,6 +1258,10 @@ pub struct ApprovedNpcInfo {
     /// When true, NPC is present but hidden from players
     #[serde(default)]
     pub is_hidden_from_players: bool,
+    /// NPC's mood for this staging (Tier 2 of emotional model)
+    /// If None, uses character's default_mood
+    #[serde(default)]
+    pub mood: Option<String>,
 }
 
 // =============================================================================

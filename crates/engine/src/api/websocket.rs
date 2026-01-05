@@ -497,6 +497,7 @@ async fn handle_move_to_region(
                                         is_present: n.is_present,
                                         reasoning: n.reasoning,
                                         is_hidden_from_players: n.is_hidden_from_players,
+                                        mood: Some(n.mood.to_string()),
                                     }
                                 }).collect(),
                             }
@@ -646,6 +647,7 @@ async fn generate_rule_based_suggestions(
                 is_present: true, // Suggest as present by default
                 reasoning,
                 is_hidden_from_players: false,
+                mood: Some(npc.default_mood.to_string()),
             }
         })
         .collect();
@@ -663,6 +665,7 @@ async fn generate_rule_based_suggestions(
                     is_present: staged.is_present,
                     reasoning: staged.reasoning,
                     is_hidden_from_players: staged.is_hidden_from_players,
+                    mood: Some(staged.mood.to_string()),
                 });
             }
         }
@@ -815,6 +818,7 @@ fn parse_llm_staging_response(
                 is_present: true,
                 reasoning: format!("[LLM] {}", suggestion.reason),
                 is_hidden_from_players: false,
+                mood: Some(npc.default_mood.to_string()),
             })
         })
         .collect()
@@ -2670,6 +2674,7 @@ async fn handle_staging_approval(
                             sprite_asset: None,
                             portrait_asset: None,
                             is_hidden_from_players: npc_info.is_hidden_from_players,
+                            mood: npc_info.mood.clone(),
                         });
                     }
                 }

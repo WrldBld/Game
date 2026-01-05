@@ -96,6 +96,8 @@ pub struct NpcWithRegionInfo {
     pub frequency: Option<String>,
     pub time_of_day: Option<String>,
     pub reason: Option<String>,
+    /// NPC's default mood (used when staging doesn't override)
+    pub default_mood: MoodState,
 }
 
 // =============================================================================

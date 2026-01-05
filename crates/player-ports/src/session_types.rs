@@ -71,6 +71,10 @@ pub struct ApprovedNpcInfo {
     /// When true, NPC is present but hidden from players
     #[serde(default)]
     pub is_hidden_from_players: bool,
+    /// NPC's mood for this staging (Tier 2 of emotional model)
+    /// If None, uses character's default_mood
+    #[serde(default)]
+    pub mood: Option<String>,
 }
 
 /// Ad-hoc challenge outcomes
@@ -154,6 +158,7 @@ impl From<ProtoApprovedNpcInfo> for ApprovedNpcInfo {
             is_present: proto.is_present,
             reasoning: proto.reasoning,
             is_hidden_from_players: proto.is_hidden_from_players,
+            mood: proto.mood,
         }
     }
 }
@@ -237,6 +242,7 @@ impl From<ApprovedNpcInfo> for ProtoApprovedNpcInfo {
             is_present: local.is_present,
             reasoning: local.reasoning,
             is_hidden_from_players: local.is_hidden_from_players,
+            mood: local.mood,
         }
     }
 }

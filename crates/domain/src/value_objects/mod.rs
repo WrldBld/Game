@@ -11,7 +11,9 @@ mod directorial;
 mod game_tools;
 // IDs live in `wrldbldr-domain`
 mod context_budget_enforcement;
+mod dialogue_markers;
 mod disposition;
+mod expression_config;
 mod llm_context;
 mod prompt_templates;
 mod quantity;
@@ -46,14 +48,18 @@ pub use context_budget::{
 pub use context_budget_enforcement::{
     ContextBudgetEnforcer, ContextBuilder, EnforcementResult, EnforcementStats,
 };
+pub use dialogue_markers::{
+    parse_dialogue, parse_dialogue_markers, validate_markers, DialogueMarker, ParsedDialogue,
+};
 pub use dice::{DiceFormula, DiceParseError, DiceRollInput, DiceRollResult};
 pub use directorial::{
     DirectorialNotes, NpcMotivation as DomainNpcMotivation, PacingGuidance, ToneGuidance,
 };
 pub use disposition::{
-    ChallengeSignificance, DispositionLevel, InteractionOutcome, NpcDispositionState,
+    ChallengeSignificance, DispositionLevel, InteractionOutcome, MoodState, NpcDispositionState,
     RelationshipLevel,
 };
+pub use expression_config::ExpressionConfig;
 pub use game_tools::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
 pub use llm_context::{
     ActantialActorEntry, ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext,
