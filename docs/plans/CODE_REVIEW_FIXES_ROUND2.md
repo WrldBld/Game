@@ -118,15 +118,16 @@
 ---
 
 ### CR2-2.6 - Forward Compatibility Missing in Domain Enums
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/domain/src/entities/want.rs`, `crates/domain/src/entities/lore.rs`
 **Issue**: Domain enums missing `#[serde(other)] Unknown` variants
 **Impact**: Deserialization fails on new enum values
 
 **Tasks**:
-- [ ] Add `Unknown` variant to `WantTargetType`
-- [ ] Add `Unknown` variant to `LoreCategory`
-- [ ] Add `Unknown` variant to `StagingSource`
+- [x] Add `Unknown` variant to `WantTargetType`
+- [x] Add `Unknown` variant to `LoreCategory`
+- [x] Add `Unknown` variant to `StagingSource`
+- [x] Add `Unknown` variant to `ActantialRole`
 
 ---
 
@@ -261,7 +262,7 @@
 | CR2-2.3 | StagingReady NPC names | COMPLETE | - |
 | CR2-2.4 | Neo4j delete transaction | COMPLETE | - |
 | CR2-2.5 | Neo4j update_position | COMPLETE | - |
-| CR2-2.6 | Domain enum forward compat | PENDING | - |
+| CR2-2.6 | Domain enum forward compat | COMPLETE | - |
 | CR2-2.7 | Player-App type mismatch | PENDING | - |
 | CR2-3.1 | StagingReady clear approval | COMPLETE | - |
 | CR2-3.2 | Extract staging resolution | PENDING | - |

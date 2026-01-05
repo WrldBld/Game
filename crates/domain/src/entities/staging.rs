@@ -91,6 +91,9 @@ pub enum StagingSource {
     DmCustomized,
     /// DM pre-staged before player arrival
     PreStaged,
+    /// Unknown source (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// How visual state was resolved for a staging

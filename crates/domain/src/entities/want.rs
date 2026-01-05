@@ -186,6 +186,9 @@ pub enum WantTargetType {
     Character,
     Item,
     Goal,
+    /// Unknown target type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// Actantial role type for character views
@@ -200,6 +203,9 @@ pub enum ActantialRole {
     Sender,
     /// Character sees target as benefiting from their want's fulfillment
     Receiver,
+    /// Unknown role type (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// Data for actantial view edges (VIEWS_AS_HELPER, etc.)

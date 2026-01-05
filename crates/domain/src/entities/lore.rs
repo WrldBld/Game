@@ -78,6 +78,9 @@ pub enum LoreCategory {
     Natural,
     /// Religious beliefs, prophecies
     Religious,
+    /// Unknown category (for forward compatibility)
+    #[serde(other)]
+    Unknown,
 }
 
 /// How a character discovered lore (stored on KNOWS_LORE edge)
@@ -295,6 +298,7 @@ impl std::fmt::Display for LoreCategory {
             LoreCategory::Political => write!(f, "Political"),
             LoreCategory::Natural => write!(f, "Natural"),
             LoreCategory::Religious => write!(f, "Religious"),
+            LoreCategory::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -323,6 +327,7 @@ impl LoreCategory {
             LoreCategory::Political => "Political",
             LoreCategory::Natural => "Natural",
             LoreCategory::Religious => "Religious",
+            LoreCategory::Unknown => "Unknown",
         }
     }
 }
@@ -340,7 +345,8 @@ impl std::str::FromStr for LoreCategory {
             "political" => Ok(LoreCategory::Political),
             "natural" => Ok(LoreCategory::Natural),
             "religious" => Ok(LoreCategory::Religious),
-            _ => Err(format!("Unknown lore category: {}", s)),
+            "unknown" => Ok(LoreCategory::Unknown),
+            _ => Ok(LoreCategory::Unknown), // Forward compatibility - unknown strings become Unknown
         }
     }
 }
@@ -415,6 +421,10 @@ mod tests {
             "SECRET".parse::<LoreCategory>().unwrap(),
             LoreCategory::Secret
         );
-        assert!("invalid".parse::<LoreCategory>().is_err());
+        // Unknown strings become Unknown for forward compatibility
+        assert_eq!(
+            "invalid".parse::<LoreCategory>().unwrap(),
+            LoreCategory::Unknown
+        );
     }
 }
