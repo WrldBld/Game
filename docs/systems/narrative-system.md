@@ -54,10 +54,11 @@ This system provides the scaffolding for emergent storytelling:
   - *Implementation*: EventChainVisualizer component
   - *Files*: `crates/player-ui/src/presentation/components/story_arc/event_chain_visualizer.rs`
 
-### Pending
+- [x] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
+  - *Implementation*: TriggerBuilder component with schema-driven form generation
+  - *Files*: `crates/player-ui/src/presentation/components/story_arc/trigger_builder.rs`, `crates/protocol/src/types.rs` (TriggerSchema)
 
-- [ ] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
-  - *Notes*: Basic trigger display exists, visual builder not implemented
+### Pending
 
 - [ ] **US-NAR-010**: SetFlag effect requires flag storage system
   - *Notes*: Effect type exists but execution stubs - needs flag storage implementation
@@ -176,7 +177,7 @@ This system provides the scaffolding for emergent storytelling:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAR-009 - trigger schema exists, visual builder not implemented)
+**Status**: ✅ Implemented (US-NAR-009)
 
 ---
 
@@ -345,6 +346,7 @@ pub enum EventEffect {
 | Event Chain Editor | - | ✅ | Add/remove events |
 | Event Chain Visualizer | - | ✅ | Flowchart view |
 | Pending Events Widget | - | ✅ | Director sidebar |
+| Visual Trigger Builder | ✅ | ✅ | Schema endpoint + TriggerBuilder component |
 
 ---
 
@@ -384,4 +386,5 @@ pub enum EventEffect {
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-NAR-009 complete - Visual Trigger Condition Builder |
 | 2025-12-18 | Initial version extracted from MVP.md |

@@ -125,23 +125,28 @@ All 14 system documentation files updated to use simplified architecture paths:
 
 ## Upcoming Features
 
-### US-NAR-009: Visual Trigger Condition Builder
+### US-NAR-009: Visual Trigger Condition Builder - COMPLETE (2026-01-05)
 
 | Field | Value |
 |-------|-------|
-| **Status** | Not Started |
+| **Status** | Complete |
 | **Priority** | Low |
-| **Effort** | 3-4 days |
+| **Effort** | 2 days |
 | **System** | [Narrative](../systems/narrative-system.md) |
 
 **Description**: Visual builder for narrative trigger conditions.
 
-**Implementation Notes**:
-- Engine: Trigger schema exists
-- Add `/api/triggers/schema` endpoint for available types
-- Create visual builder component with dropdowns
-- Support all trigger types (location, NPC, challenge, time, etc.)
-- Add AND/OR/AtLeast logic selection
+**Implementation**:
+- Engine: Added `GetTriggerSchema` WebSocket request with full schema for 14 trigger types
+- Protocol: Added `TriggerSchema`, `TriggerTypeSchema`, `TriggerFieldSchema` types
+- Player UI: Created `TriggerBuilder` component (~770 lines) with:
+  - Category dropdown (Location, Character, Inventory, Challenge, Time, State, Event, Custom)
+  - Dynamic form fields based on trigger type schema
+  - All/Any/AtLeast logic selection
+  - Character picker integration for NPC-related triggers
+  - Collapsible condition cards with remove functionality
+- Integration: Wired into `NarrativeEventFormModal` in narrative event library
+- Service: `NarrativeEventService.create_narrative_event` passes conditions to engine
 
 ---
 
@@ -289,6 +294,7 @@ Remaining work includes:
 | P3.2-P3.4 | Polish (deps, types, legacy messages) | 2025-12-27 |
 | US-LORE-001 | Lore System (CRUD, knowledge, UI) | 2026-01-05 |
 | US-VS-001 | Visual State System (states, rules, resolution) | 2026-01-05 |
+| US-NAR-009 | Visual Trigger Condition Builder | 2026-01-05 |
 
 ---
 
@@ -296,6 +302,7 @@ Remaining work includes:
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-NAR-009 complete - Visual Trigger Condition Builder with 14 trigger types |
 | 2026-01-05 | Documentation updated - 14 system docs with new architecture file paths |
 | 2026-01-05 | Lore System complete - domain, repo, handlers, UI components |
 | 2026-01-05 | Visual State System complete - LocationState, RegionState, activation rules |

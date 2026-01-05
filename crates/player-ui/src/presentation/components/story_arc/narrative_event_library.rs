@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::components::story_arc::narrative_event_card::NarrativeEventCard;
+use crate::presentation::components::story_arc::trigger_builder::TriggerBuilder;
 use crate::presentation::services::use_narrative_event_service;
 use wrldbldr_player_app::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 
@@ -284,6 +285,12 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
     let mut scene_direction = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
     let mut save_error: Signal<Option<String>> = use_signal(|| None);
+    
+    // Trigger builder state
+    let mut trigger_conditions: Signal<Vec<serde_json::Value>> = use_signal(Vec::new);
+    let mut trigger_logic = use_signal(|| "all".to_string());
+    let mut trigger_at_least_count = use_signal(|| 1u32);
+    let mut show_triggers = use_signal(|| false);
 
     let save_event = {
         let world_id = props.world_id.clone();
@@ -296,6 +303,9 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
             let name_val = name.read().clone();
             let desc_val = description.read().clone();
             let direction_val = scene_direction.read().clone();
+            let conditions = trigger_conditions.read().clone();
+            let logic = trigger_logic.read().clone();
+            let at_least = *trigger_at_least_count.read();
 
             if name_val.trim().is_empty() {
                 save_error.set(Some("Name is required".to_string()));
@@ -306,10 +316,19 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
             save_error.set(None);
 
             spawn(async move {
+                // Build trigger logic value
+                let trigger_logic_value = match logic.as_str() {
+                    "any" => serde_json::json!("any"),
+                    "atLeast" => serde_json::json!({"atLeast": at_least}),
+                    _ => serde_json::json!("all"),
+                };
+                
                 let request = CreateNarrativeEventRequest {
                     name: name_val,
                     description: desc_val,
                     scene_direction: direction_val,
+                    trigger_conditions: if conditions.is_empty() { None } else { Some(conditions) },
+                    trigger_logic: Some(trigger_logic_value),
                     ..Default::default()
                 };
 
@@ -390,6 +409,47 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
                             value: "{scene_direction}",
                             oninput: move |e| scene_direction.set(e.value()),
                             class: "w-full min-h-[60px] px-3 py-3 bg-dark-bg border border-gray-700 rounded-lg text-white resize-y box-border",
+                        }
+                    }
+
+                    // Trigger conditions section
+                    div {
+                        class: "border-t border-gray-700 pt-4 mt-4",
+
+                        {
+                            let is_expanded = *show_triggers.read();
+                            let condition_count = trigger_conditions.read().len();
+                            rsx! {
+                                button {
+                                    r#type: "button",
+                                    class: "flex items-center gap-2 text-blue-400 hover:text-blue-300 bg-transparent border-none cursor-pointer text-sm",
+                                    onclick: move |_| show_triggers.set(!is_expanded),
+                                    
+                                    span { 
+                                        class: "text-xs",
+                                        if is_expanded { "▼" } else { "▶" }
+                                    }
+                                    span { "Trigger Conditions" }
+                                    span { 
+                                        class: "text-gray-500 text-xs", 
+                                        "({condition_count} defined)" 
+                                    }
+                                }
+                            }
+                        }
+
+                        if *show_triggers.read() {
+                            div { 
+                                class: "mt-4",
+                                TriggerBuilder {
+                                    world_id: props.world_id.clone(),
+                                    on_change: move |(conds, logic, count): (Vec<serde_json::Value>, String, u32)| {
+                                        trigger_conditions.set(conds);
+                                        trigger_logic.set(logic);
+                                        trigger_at_least_count.set(count);
+                                    }
+                                }
+                            }
                         }
                     }
 

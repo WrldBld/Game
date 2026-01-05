@@ -1017,6 +1017,12 @@ pub struct CreateNarrativeEventRequest {
     pub is_active: bool,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Trigger conditions for when this event should fire
+    #[serde(default)]
+    pub trigger_conditions: Option<Vec<serde_json::Value>>,
+    /// Logic for combining conditions: "all", "any", or {"atLeast": n}
+    #[serde(default)]
+    pub trigger_logic: Option<serde_json::Value>,
 }
 
 fn default_active() -> bool {
@@ -1036,6 +1042,8 @@ impl Default for CreateNarrativeEventRequest {
             priority: 0,
             is_active: true,
             tags: Vec::new(),
+            trigger_conditions: None,
+            trigger_logic: None,
         }
     }
 }

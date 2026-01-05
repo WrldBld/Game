@@ -93,10 +93,27 @@ impl NarrativeEventService {
         world_id: &str,
         request: CreateNarrativeEventRequest,
     ) -> Result<NarrativeEventData, ServiceError> {
+        // Build trigger conditions JSON if provided
+        let trigger_conditions = match (&request.trigger_conditions, &request.trigger_logic) {
+            (Some(conditions), Some(logic)) if !conditions.is_empty() => {
+                Some(serde_json::json!({
+                    "logic": logic,
+                    "conditions": conditions
+                }))
+            }
+            (Some(conditions), None) if !conditions.is_empty() => {
+                Some(serde_json::json!({
+                    "logic": "all",
+                    "conditions": conditions
+                }))
+            }
+            _ => None,
+        };
+
         let data = wrldbldr_protocol::CreateNarrativeEventData {
             name: request.name,
             description: Some(request.description),
-            trigger_conditions: None,
+            trigger_conditions,
             outcomes: None,
         };
 
