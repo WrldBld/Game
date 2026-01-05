@@ -226,10 +226,12 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .map_err(|e| RepoError::Database(e.to_string()))?
             .is_none()
         {
-            return Err(RepoError::NotFound(format!(
-                "PlayerCharacter {} or Location {} not found",
-                id, location_id
-            )));
+            tracing::warn!(
+                pc_id = %id,
+                location_id = %location_id,
+                "update_position failed: PC or Location not found"
+            );
+            return Err(RepoError::NotFound);
         }
 
         Ok(())

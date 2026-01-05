@@ -132,13 +132,13 @@
 ---
 
 ### CR2-2.7 - Player-App Type Mismatch
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-app/src/application/services/actantial_service.rs`
 **Issue**: `WantResponse.priority` is `i32` but protocol uses `u32`
 **Impact**: Type confusion, potential overflow
 
 **Tasks**:
-- [ ] Change `WantResponse.priority` to `u32`
+- [x] Change `WantResponse.priority` to `u32`
 
 ---
 
@@ -263,7 +263,7 @@
 | CR2-2.4 | Neo4j delete transaction | COMPLETE | - |
 | CR2-2.5 | Neo4j update_position | COMPLETE | - |
 | CR2-2.6 | Domain enum forward compat | COMPLETE | - |
-| CR2-2.7 | Player-App type mismatch | PENDING | - |
+| CR2-2.7 | Player-App type mismatch | COMPLETE | - |
 | CR2-3.1 | StagingReady clear approval | COMPLETE | - |
 | CR2-3.2 | Extract staging resolution | PENDING | - |
 | CR2-3.3 | Extract time suggestion | PENDING | - |

@@ -101,7 +101,7 @@ pub struct WantResponse {
     pub id: String,
     pub description: String,
     pub intensity: f32,
-    pub priority: i32,
+    pub priority: u32,
     pub visibility: WantVisibilityData,
     pub target: Option<WantTargetData>,
     pub deflection_behavior: Option<String>,
