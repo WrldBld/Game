@@ -3,9 +3,14 @@
 //! Tracks connected clients and their world associations.
 
 use std::collections::HashMap;
+use std::time::Duration;
 use dashmap::DashMap;
 use tokio::sync::{mpsc, RwLock};
+use tokio::time::timeout;
 use uuid::Uuid;
+
+/// Timeout for critical message sends (5 seconds)
+const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_protocol::{DirectorialContext, ServerMessage};
@@ -231,6 +236,106 @@ impl ConnectionManager {
         }
     }
 
+    /// Send a critical message to a specific connection with timeout.
+    /// 
+    /// Unlike try_send, this will wait (with timeout) for channel capacity.
+    /// Use for messages that must not be dropped: state changes, approvals, errors.
+    pub async fn send_critical(&self, connection_id: Uuid, message: ServerMessage) -> Result<(), CriticalSendError> {
+        let connections = self.connections.read().await;
+        if let Some((_, sender)) = connections.get(&connection_id) {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message)).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(_)) => {
+                    tracing::error!(connection_id = %connection_id, "Channel closed for critical message");
+                    Err(CriticalSendError::ChannelClosed)
+                }
+                Err(_) => {
+                    tracing::error!(connection_id = %connection_id, "Timeout sending critical message");
+                    Err(CriticalSendError::Timeout)
+                }
+            }
+        } else {
+            Err(CriticalSendError::ConnectionNotFound)
+        }
+    }
+
+    /// Broadcast a critical message to all connections in a world.
+    /// 
+    /// Waits with timeout for each send. Logs errors but continues to other connections.
+    /// Use for messages that must not be dropped.
+    pub async fn broadcast_critical_to_world(&self, world_id: WorldId, message: ServerMessage) {
+        let connections = self.connections.read().await;
+        for (info, sender) in connections.values() {
+            if info.world_id == Some(world_id) {
+                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            "Channel closed during critical broadcast"
+                        );
+                    }
+                    Err(_) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            "Timeout during critical broadcast (slow client?)"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Broadcast a critical message to all DMs in a world.
+    pub async fn broadcast_critical_to_dms(&self, world_id: WorldId, message: ServerMessage) {
+        let connections = self.connections.read().await;
+        for (info, sender) in connections.values() {
+            if info.world_id == Some(world_id) && info.is_dm() {
+                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            "Channel closed during critical DM broadcast"
+                        );
+                    }
+                    Err(_) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            "Timeout during critical DM broadcast"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Send a critical message to a specific PC's player.
+    pub async fn send_critical_to_pc(&self, pc_id: PlayerCharacterId, message: ServerMessage) {
+        let connections = self.connections.read().await;
+        for (info, sender) in connections.values() {
+            if info.pc_id == Some(pc_id) || info.spectate_pc_id == Some(pc_id) {
+                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            pc_id = %pc_id,
+                            "Channel closed during critical PC send"
+                        );
+                    }
+                    Err(_) => {
+                        tracing::error!(
+                            connection_id = %info.connection_id,
+                            pc_id = %pc_id,
+                            "Timeout during critical PC send"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// Set the directorial context for a world.
     ///
     /// This is used by the DM to provide scene notes, NPC motivations,
@@ -269,4 +374,15 @@ pub enum ConnectionError {
     WorldNotFound,
     #[error("Not authorized for this action")]
     Unauthorized,
+}
+
+/// Errors that can occur when sending critical messages.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum CriticalSendError {
+    #[error("Connection not found")]
+    ConnectionNotFound,
+    #[error("Channel closed")]
+    ChannelClosed,
+    #[error("Send timeout - client may be slow or unresponsive")]
+    Timeout,
 }

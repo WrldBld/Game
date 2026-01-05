@@ -61,7 +61,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 3: Critical - Fix Message Loss (Complexity: High)
 
 ### CR5-3.1 - Add Backpressure for Critical Messages
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/api/connections.rs`
 - `crates/engine/src/api/websocket.rs`
@@ -69,10 +69,18 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 **Issue**: `try_send()` drops messages when channel full
 
 **Tasks**:
-- [ ] Create `send_critical()` method that uses `send().await` with timeout
-- [ ] Identify critical message types (state changes, approvals, errors)
-- [ ] Use `send_critical()` for those, keep `try_send()` for non-critical
-- [ ] Add channel fullness logging/metrics
+- [x] Create `send_critical()` method that uses `send().await` with timeout
+- [x] Identify critical message types (state changes, approvals, errors)
+- [x] Use `send_critical()` for those, keep `try_send()` for non-critical
+- [x] Add channel fullness logging/metrics
+
+**Implementation Notes**:
+- Added `CriticalSendError` enum with `ConnectionNotFound`, `ChannelClosed`, `Timeout` variants
+- Added `send_critical()` for single connection with 5-second timeout
+- Added `broadcast_critical_to_world()` for all connections in a world
+- Added `broadcast_critical_to_dms()` for DM connections only
+- Added `send_critical_to_pc()` for specific player character's connection
+- All critical methods log errors but don't fail the caller (except `send_critical` which returns Result)
 
 ---
 
@@ -409,7 +417,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 |-------|-------|-----------|--------|
 | Phase 1 | 2 | 2 | COMPLETE |
 | Phase 2 | 1 | 1 | COMPLETE |
-| Phase 3 | 1 | 0 | PENDING |
+| Phase 3 | 1 | 1 | COMPLETE |
 | Phase 4 | 1 | 0 | PENDING |
 | Phase 5 | 3 | 0 | PENDING |
 | Phase 6 | 2 | 0 | PENDING |
@@ -427,5 +435,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 
 | Commit | Phase | Description |
 |--------|-------|-------------|
-| - | - | - |
+| 91cb9d0 | Phase 1 | Remove APOC dependencies from Neo4j repositories |
+| 282b843 | Phase 2 | Safe world deletion with explicit node types |
+| - | Phase 3 | Add backpressure for critical messages |
 
