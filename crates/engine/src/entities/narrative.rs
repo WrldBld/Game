@@ -241,22 +241,31 @@ impl Narrative {
             .map(|region| region.location_id);
 
         // Get PC's inventory (item names for trigger matching)
-        let inventory: Vec<String> = self
-            .player_character_repo
-            .get_inventory(pc_id)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|item| item.name)
-            .collect();
+        let inventory: Vec<String> = match self.player_character_repo.get_inventory(pc_id).await {
+            Ok(items) => items.into_iter().map(|item| item.name).collect(),
+            Err(e) => {
+                tracing::warn!(
+                    pc_id = %pc_id,
+                    error = %e,
+                    "Failed to fetch inventory for trigger evaluation, using empty inventory"
+                );
+                Vec::new()
+            }
+        };
 
         // Get PC's observations - these represent what the PC has "witnessed"
         // While not direct event completions, observations can proxy for story progress
-        let _observations = self
-            .observation_repo
-            .get_observations(pc_id)
-            .await
-            .unwrap_or_default();
+        let _observations = match self.observation_repo.get_observations(pc_id).await {
+            Ok(obs) => obs,
+            Err(e) => {
+                tracing::warn!(
+                    pc_id = %pc_id,
+                    error = %e,
+                    "Failed to fetch observations for trigger evaluation"
+                );
+                Vec::new()
+            }
+        };
 
         // Get completed events from event chains in the world
         // Note: This is world-wide rather than PC-specific. A future enhancement
@@ -268,8 +277,28 @@ impl Narrative {
             .map(|pc| pc.world_id);
         
         let (completed_events, completed_challenges) = if let Some(world_id) = world_id {
-            let events = self.repo.get_completed_events(world_id).await.unwrap_or_default();
-            let challenges = self.challenge_repo.get_resolved_challenges(world_id).await.unwrap_or_default();
+            let events = match self.repo.get_completed_events(world_id).await {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch completed events for trigger evaluation"
+                    );
+                    Vec::new()
+                }
+            };
+            let challenges = match self.challenge_repo.get_resolved_challenges(world_id).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch resolved challenges for trigger evaluation"
+                    );
+                    Vec::new()
+                }
+            };
             (events, challenges)
         } else {
             (Vec::new(), Vec::new())

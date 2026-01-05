@@ -77,13 +77,15 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-2.2 - Fix Narrative Trigger Error Swallowing
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/entities/narrative.rs`
 **Issue**: `check_triggers()` uses `unwrap_or_default()` on observation fetch, hiding DB errors.
 
 **Tasks**:
-- [ ] Propagate observation fetch errors properly
-- [ ] Or log warning when observations can't be fetched
+- [x] Log warning when inventory can't be fetched
+- [x] Log warning when observations can't be fetched
+- [x] Log warning when completed events can't be fetched
+- [x] Log warning when resolved challenges can't be fetched
 
 ---
 
@@ -381,7 +383,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-1.3 | Bound challenge results | COMPLETE | - |
 | CR3-1.4 | Bound decision history | COMPLETE | - |
 | CR3-2.1 | Location exits warning | COMPLETE | - |
-| CR3-2.2 | Narrative trigger errors | PENDING | - |
+| CR3-2.2 | Narrative trigger errors | COMPLETE | - |
 | CR3-2.3 | ExitLocation scene resolution | PENDING | - |
 | CR3-2.4 | Scene custom conditions | PENDING | - |
 | CR3-3.1 | Scene save atomic | PENDING | - |
