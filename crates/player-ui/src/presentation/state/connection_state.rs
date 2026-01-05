@@ -202,6 +202,10 @@ impl ConnectionState {
         self.server_url.set(None);
         self.engine_client.set(None);
         self.error_message.set(None);
+        // Reset ComfyUI state on disconnect
+        self.comfyui_state.set("connected".to_string());
+        self.comfyui_message.set(None);
+        self.comfyui_retry_in_seconds.set(None);
     }
 }
 

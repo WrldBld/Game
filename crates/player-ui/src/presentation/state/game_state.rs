@@ -586,6 +586,7 @@ impl GameState {
         self.pending_staging_approval.set(None);
         self.split_party_locations.set(Vec::new());
         self.view_mode.set(ViewMode::Director);
+        self.selected_pc_id.set(None);
         self.npc_dispositions.set(Vec::new());
         self.npc_moods.write().clear();
         self.region_staging_statuses.write().clear();

@@ -128,11 +128,10 @@ impl SuggestTime {
             TimeMode::Auto => {
                 // Auto-advance time immediately
                 // Note: The actual world update should be done by the caller
-                // after receiving this result, to maintain transaction boundaries
+                // after receiving this result, to maintain transaction boundaries.
+                // Period change detection is handled by build_time_advance_data().
                 let mut new_time = world.game_time.clone();
-                let previous_period = new_time.time_of_day();
                 new_time.advance_minutes(cost_minutes);
-                let new_period = new_time.time_of_day();
 
                 let reason = self.build_reason(action_type, &action_description);
 

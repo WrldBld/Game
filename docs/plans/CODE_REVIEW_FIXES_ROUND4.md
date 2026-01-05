@@ -90,40 +90,42 @@ Missing delete operations prevent proper data cleanup and world management.
 ## Phase 2: Critical - Time Period Detection Bug (Complexity: Low)
 
 ### CR4-2.1 - Fix Time Period Detection
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/use_cases/time/mod.rs`
 **Lines**: 133, 149
 
-**Issue**: `previous_period` is calculated AFTER time advance, breaking period change detection.
+**Issue**: Unused variables `previous_period` and `new_period` in Auto mode (warnings).
+**Analysis**: Period detection is actually handled correctly by `build_time_advance_data()`.
+The Suggested mode correctly uses these variables for its period_change field.
 
 **Tasks**:
-- [ ] Fix Auto mode: capture period BEFORE cloning/advancing
-- [ ] Fix Suggested mode: same issue
-- [ ] Add period_changed to return values if needed
+- [x] Remove unused variables in Auto mode
+- [x] Add comment explaining period detection is handled by build_time_advance_data()
+- [x] Suggested mode was already correct (uses period_change field)
 
 ---
 
 ## Phase 3: Critical - UI State Clear on Disconnect (Complexity: Low)
 
 ### CR4-3.1 - Clear selected_pc_id on Disconnect
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/game_state.rs`
 **Lines**: 574-595 (clear_scene method)
 
 **Tasks**:
-- [ ] Add `self.selected_pc_id.set(None)` to `clear_scene()`
+- [x] Add `self.selected_pc_id.set(None)` to `clear_scene()`
 
 ---
 
 ### CR4-3.2 - Clear ComfyUI State on Disconnect
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/player-ui/src/presentation/state/connection_state.rs`
 **Lines**: 195-205 (clear method)
 
 **Tasks**:
-- [ ] Reset comfyui_state to "connected"
-- [ ] Reset comfyui_message to None
-- [ ] Reset comfyui_retry_in_seconds to None
+- [x] Reset comfyui_state to "connected"
+- [x] Reset comfyui_message to None
+- [x] Reset comfyui_retry_in_seconds to None
 
 ---
 
@@ -294,8 +296,8 @@ Missing delete operations prevent proper data cleanup and world management.
 | Phase | Items | Completed | Status |
 |-------|-------|-----------|--------|
 | Phase 1 | 5 | 5 | COMPLETE |
-| Phase 2 | 1 | 0 | PENDING |
-| Phase 3 | 2 | 0 | PENDING |
+| Phase 2 | 1 | 1 | COMPLETE |
+| Phase 3 | 2 | 2 | COMPLETE |
 | Phase 4 | 1 | 0 | PENDING |
 | Phase 5 | 3 | 0 | PENDING |
 | Phase 6 | 2 | 0 | PENDING |
