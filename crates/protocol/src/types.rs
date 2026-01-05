@@ -252,6 +252,23 @@ impl Default for TimeCostConfig {
 }
 
 // =============================================================================
+// Time Format
+// =============================================================================
+
+/// How time is displayed to players.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeFormat {
+    /// "9:00 AM"
+    #[default]
+    TwelveHour,
+    /// "09:00"
+    TwentyFourHour,
+    /// "Morning" (period only, no specific time)
+    PeriodOnly,
+}
+
+// =============================================================================
 // Game Time Configuration
 // =============================================================================
 
@@ -265,6 +282,9 @@ pub struct GameTimeConfig {
     pub time_costs: TimeCostConfig,
     /// Whether to show exact time to players
     pub show_time_to_players: bool,
+    /// Time format preference for display
+    #[serde(default)]
+    pub time_format: TimeFormat,
 }
 
 impl Default for GameTimeConfig {
@@ -273,6 +293,7 @@ impl Default for GameTimeConfig {
             mode: TimeMode::default(),
             time_costs: TimeCostConfig::default(),
             show_time_to_players: true,
+            time_format: TimeFormat::default(),
         }
     }
 }

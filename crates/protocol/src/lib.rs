@@ -126,6 +126,7 @@ pub use types::{
     ChallengeSuggestionOutcomes,
     // Game time
     GameTime,
+    GameTimeConfig,
     // Location/Region states
     LocationStateData,
     // Lore types
@@ -145,7 +146,12 @@ pub use types::{
     ResolvedStateInfoData,
     ResolvedVisualStateData,
     StateOptionData,
+    TimeCostConfig,
+    TimeFormat,
+    TimeMode,
     TimeOfDayData,
+    TimeSuggestionData,
+    TimeSuggestionDecision,
     // Trigger schema types (for Visual Trigger Builder)
     TriggerCategory,
     TriggerFieldSchema,
