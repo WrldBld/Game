@@ -28,14 +28,13 @@ Plus: 15+ unimplemented features documented in system specs.
 ## Phase 1: CRITICAL Bugs (Must Fix)
 
 ### CR6-1.1 - Race Condition in `modify_stat` (Player Character Repo)
-**Severity**: CRITICAL
+**Severity**: CRITICAL (FIXED)
 **File**: `crates/engine/src/infrastructure/neo4j/player_character_repo.rs:319-367`
 
 **Issue**: Read-modify-write pattern without transaction isolation. Another request could modify the same stat between read and write, causing lost updates.
 
 **Tasks**:
-- [ ] Wrap read+write in Neo4j transaction
-- [ ] Or use atomic Cypher JSON modification
+- [x] Wrap read+write in Neo4j transaction using `graph.start_txn()`
 
 ---
 
