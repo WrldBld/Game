@@ -77,6 +77,18 @@ pub struct ApprovalPopupProps {
     /// Handler when discard challenge is requested (optional)
     #[props(default)]
     pub on_discard_challenge: Option<EventHandler<DiscardChallengeData>>,
+    /// Handler when DM approves the suggested challenge
+    #[props(default)]
+    pub on_approve_challenge: Option<EventHandler<ChallengeSuggestionInfo>>,
+    /// Handler when DM skips/rejects the suggested challenge
+    #[props(default)]
+    pub on_skip_challenge: Option<EventHandler<ChallengeSuggestionInfo>>,
+    /// Handler when DM triggers the suggested narrative event
+    #[props(default)]
+    pub on_trigger_event: Option<EventHandler<NarrativeEventSuggestionInfo>>,
+    /// Handler when DM skips/rejects the suggested narrative event
+    #[props(default)]
+    pub on_skip_event: Option<EventHandler<NarrativeEventSuggestionInfo>>,
 }
 
 /// ApprovalPopup component - Shows LLM response for approval
@@ -330,14 +342,36 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                             div {
                                 class: "flex gap-2",
 
-                                button {
-                                    class: "flex-1 p-2 bg-green-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold",
-                                    "Approve Challenge"
+                                {
+                                    let suggestion_for_approve = suggestion.clone();
+                                    let on_approve = props.on_approve_challenge;
+                                    rsx! {
+                                        button {
+                                            class: "flex-1 p-2 bg-green-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold hover:bg-opacity-100",
+                                            onclick: move |_| {
+                                                if let Some(handler) = &on_approve {
+                                                    handler.call(suggestion_for_approve.clone());
+                                                }
+                                            },
+                                            "Approve Challenge"
+                                        }
+                                    }
                                 }
 
-                                button {
-                                    class: "flex-1 p-2 bg-red-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold",
-                                    "Skip Challenge"
+                                {
+                                    let suggestion_for_skip = suggestion.clone();
+                                    let on_skip = props.on_skip_challenge;
+                                    rsx! {
+                                        button {
+                                            class: "flex-1 p-2 bg-red-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold hover:bg-opacity-100",
+                                            onclick: move |_| {
+                                                if let Some(handler) = &on_skip {
+                                                    handler.call(suggestion_for_skip.clone());
+                                                }
+                                            },
+                                            "Skip Challenge"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -392,14 +426,36 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                     div {
                         class: "flex gap-2",
 
-                        button {
-                            class: "flex-1 p-2 bg-purple-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold",
-                            "Trigger Event"
+                        {
+                            let suggestion_for_trigger = suggestion.clone();
+                            let on_trigger = props.on_trigger_event;
+                            rsx! {
+                                button {
+                                    class: "flex-1 p-2 bg-purple-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold hover:bg-opacity-100",
+                                    onclick: move |_| {
+                                        if let Some(handler) = &on_trigger {
+                                            handler.call(suggestion_for_trigger.clone());
+                                        }
+                                    },
+                                    "Trigger Event"
+                                }
+                            }
                         }
 
-                        button {
-                            class: "flex-1 p-2 bg-gray-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold",
-                            "Skip Event"
+                        {
+                            let suggestion_for_skip = suggestion.clone();
+                            let on_skip = props.on_skip_event;
+                            rsx! {
+                                button {
+                                    class: "flex-1 p-2 bg-gray-500 bg-opacity-80 text-white border-0 rounded-md cursor-pointer text-xs font-semibold hover:bg-opacity-100",
+                                    onclick: move |_| {
+                                        if let Some(handler) = &on_skip {
+                                            handler.call(suggestion_for_skip.clone());
+                                        }
+                                    },
+                                    "Skip Event"
+                                }
+                            }
                         }
                     }
                 }
