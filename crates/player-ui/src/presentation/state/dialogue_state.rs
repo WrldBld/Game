@@ -41,6 +41,8 @@ pub struct DialogueState {
     pub speaker_id: Signal<Option<String>>,
     /// Whether LLM is processing (show loading indicator)
     pub is_llm_processing: Signal<bool>,
+    /// Version counter - increments when new dialogue arrives (for reactivity)
+    pub dialogue_version: Signal<u32>,
 
     // Expression system (Tier 3 of emotional model)
     /// Current expression for the speaker (changes during typewriter)
@@ -69,6 +71,7 @@ impl DialogueState {
             custom_input: Signal::new(String::new()),
             speaker_id: Signal::new(None),
             is_llm_processing: Signal::new(false),
+            dialogue_version: Signal::new(0),
             current_expression: Signal::new(None),
             current_mood: Signal::new(None),
             positioned_markers: Signal::new(Vec::new()),
@@ -129,6 +132,10 @@ impl DialogueState {
         self.positioned_markers.set(positioned);
         self.next_marker_index.set(0);
         self.current_action.set(None);
+        
+        // Increment version to trigger typewriter restart
+        let current_version = *self.dialogue_version.read();
+        self.dialogue_version.set(current_version.wrapping_add(1));
     }
 
     /// Skip to the end of the typewriter animation
@@ -270,40 +277,45 @@ impl Default for DialogueState {
 ///
 /// Call this in a component to drive the typewriter animation.
 /// Updates expressions and actions as markers are encountered.
+/// Restarts automatically when new dialogue arrives (detected via dialogue_version).
 pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     let platform = use_platform();
-    let is_typing = *dialogue_state.is_typing.read();
+    
+    // Read the version to establish dependency - effect re-runs when this changes
+    let dialogue_version = *dialogue_state.dialogue_version.read();
+    
     let clean_text = dialogue_state.clean_text;
-    let displayed_text = dialogue_state.displayed_text;
-    let is_typing_signal = dialogue_state.is_typing;
-    let awaiting_signal = dialogue_state.awaiting_input;
+    let mut displayed_text = dialogue_state.displayed_text;
+    let mut is_typing_signal = dialogue_state.is_typing;
+    let mut awaiting_signal = dialogue_state.awaiting_input;
     let positioned_markers = dialogue_state.positioned_markers;
-    let next_marker_index = dialogue_state.next_marker_index;
-    let current_expression = dialogue_state.current_expression;
-    let current_action = dialogue_state.current_action;
+    let mut next_marker_index = dialogue_state.next_marker_index;
+    let mut current_expression = dialogue_state.current_expression;
+    let mut current_action = dialogue_state.current_action;
 
-    use_future(move || {
+    // Use use_effect with dialogue_version as dependency to restart on new dialogue
+    use_effect(move || {
+        // Capture the version to make dependency explicit
+        let _version = dialogue_version;
+        
+        // Check if we should start typing (read current signal value)
+        if !*is_typing_signal.read() {
+            return;
+        }
+
+        let text = clean_text.read().clone();
+        if text.is_empty() {
+            return;
+        }
+
+        // Spawn the async typewriter animation
         let platform = platform.clone();
-        let clean_text = clean_text;
-        let mut displayed_text = displayed_text;
-        let mut is_typing_signal = is_typing_signal;
-        let mut awaiting_signal = awaiting_signal;
-        let positioned_markers = positioned_markers;
-        let mut next_marker_index = next_marker_index;
-        let mut current_expression = current_expression;
-        let mut current_action = current_action;
-
-        async move {
-            if !is_typing {
-                return;
-            }
-
-            let text = clean_text.read().clone();
+        spawn(async move {
             let mut current = String::new();
             let mut char_index = 0;
 
             for ch in text.chars() {
-                // Check if we should stop (user skipped)
+                // Check if we should stop (user skipped or new dialogue arrived)
                 if !*is_typing_signal.read() {
                     break;
                 }
@@ -346,10 +358,12 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
                 platform.sleep_ms(delay).await;
             }
 
-            // Mark as complete
-            is_typing_signal.set(false);
-            awaiting_signal.set(true);
-            current_action.set(None); // Clear action when done
-        }
+            // Mark as complete (only if we weren't interrupted)
+            if *is_typing_signal.read() {
+                is_typing_signal.set(false);
+                awaiting_signal.set(true);
+                current_action.set(None); // Clear action when done
+            }
+        });
     });
 }

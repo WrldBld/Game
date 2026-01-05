@@ -94,7 +94,7 @@ impl ConnectionState {
             server_url: Signal::new(None),
             engine_client: Signal::new(None),
             error_message: Signal::new(None),
-            comfyui_state: Signal::new("connected".to_string()),
+            comfyui_state: Signal::new("unknown".to_string()),
             comfyui_message: Signal::new(None),
             comfyui_retry_in_seconds: Signal::new(None),
         }
@@ -203,7 +203,7 @@ impl ConnectionState {
         self.engine_client.set(None);
         self.error_message.set(None);
         // Reset ComfyUI state on disconnect
-        self.comfyui_state.set("connected".to_string());
+        self.comfyui_state.set("unknown".to_string());
         self.comfyui_message.set(None);
         self.comfyui_retry_in_seconds.set(None);
     }

@@ -299,52 +299,65 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 9: Medium - Fix Player UI Bugs (Complexity: Medium)
 
 ### CR5-9.1 - Fix Typewriter Effect Reactivity
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/state/dialogue_state.rs`
 **Lines**: 273-355
 
 **Issue**: `use_future` captures state at creation, doesn't restart on new dialogue
 
 **Tasks**:
-- [ ] Restructure to watch for changes to dialogue content
-- [ ] Use `use_effect` with proper dependencies or `use_resource`
-- [ ] Ensure typewriter restarts when new dialogue arrives
+- [x] Restructure to watch for changes to dialogue content
+- [x] Use `use_effect` with proper dependencies or `use_resource`
+- [x] Ensure typewriter restarts when new dialogue arrives
+
+**Implementation Notes**:
+- Added `dialogue_version: Signal<u32>` counter that increments on new dialogue
+- Changed `use_future` to `use_effect` + `spawn` pattern
+- Effect re-runs when dialogue_version changes, restarting the typewriter
 
 ---
 
 ### CR5-9.2 - Fix OutcomeRegenerated Race Condition
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 **Lines**: 305-339
 
 **Issue**: Uses pre-computed index that could be stale
 
 **Tasks**:
-- [ ] Clone first, then find by request_id
-- [ ] Remove index-based lookup
+- [x] Clone first, then find by request_id
+- [x] Remove index-based lookup
+
+**Implementation Notes**:
+- Clone approvals first, then use `iter_mut().find()` by request_id
+- Eliminates race window between finding index and using it
 
 ---
 
 ### CR5-9.3 - Add Bounds to Unbounded Collections
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/state/game_state.rs`
 
 **Tasks**:
-- [ ] Add MAX_TIME_SUGGESTIONS constant (50)
-- [ ] Add bounds checking to `add_time_suggestion()`
-- [ ] Add MAX_NPC_MOODS constant (200)
-- [ ] Implement LRU eviction for npc_moods HashMap
+- [x] Add MAX_TIME_SUGGESTIONS constant (50)
+- [x] Add bounds checking to `add_time_suggestion()`
+- [x] Add MAX_NPC_MOODS constant (200)
+- [x] Implement LRU eviction for npc_moods HashMap
+
+**Implementation Notes**:
+- `add_time_suggestion()` removes oldest entries when at limit
+- `update_npc_mood()` removes arbitrary entry when HashMap is full
 
 ---
 
 ### CR5-9.4 - Fix ComfyUI State Default
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/state/connection_state.rs`
 **Lines**: 97, 206
 
 **Tasks**:
-- [ ] Change default from "connected" to "unknown"
-- [ ] Update clear() to set "unknown" instead of "connected"
+- [x] Change default from "connected" to "unknown"
+- [x] Update clear() to set "unknown" instead of "connected"
 
 ---
 
@@ -467,7 +480,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 6 | 2 | 2 | COMPLETE |
 | Phase 7 | 4 | 4 | COMPLETE |
 | Phase 8 | 3 | 2 | PARTIAL (CR5-8.3 deferred) |
-| Phase 9 | 4 | 0 | PENDING |
+| Phase 9 | 4 | 4 | COMPLETE |
 | Phase 10 | 3 | 0 | PENDING |
 | Phase 11 | 3 | 0 | PENDING |
 | Phase 12 | 3 | 0 | PENDING |
@@ -486,5 +499,6 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | 625ece6 | Phase 5 | Add game time operations and fix TTL checks |
 | 999ece0 | Phase 6 | Fix N+1 queries in staging and narrative repos |
 | fa30089 | Phase 7 | Fix domain model issues |
-| - | Phase 8 | Add forward compatibility variants (CR5-8.3 deferred) |
+| f83e3b4 | Phase 8 | Add forward compatibility variants (CR5-8.3 deferred) |
+| - | Phase 9 | Fix Player UI bugs |
 

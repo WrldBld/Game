@@ -301,36 +301,27 @@ pub fn handle_server_message(
             );
 
             // Update the matching pending approval's challenge outcomes in-place
-            // Find the index first and drop the read borrow
-            let idx = {
-                session_state
-                    .pending_approvals()
-                    .read()
-                    .iter()
-                    .position(|a| a.request_id == request_id)
-            };
-            if let Some(idx) = idx {
-                let mut approvals = session_state.pending_approvals().read().clone();
-                if let Some(approval) = approvals.get_mut(idx) {
-                    if let Some(challenge) = &mut approval.challenge_suggestion {
-                        if let Some(ref mut outcomes) = challenge.outcomes {
-                            // Map outcome_type string to the appropriate field
-                            // Store the flavor_text as the outcome description
-                            let outcome_text = new_outcome.flavor_text.clone();
-                            match outcome_type.as_str() {
-                                "success" => outcomes.success = Some(outcome_text),
-                                "failure" => outcomes.failure = Some(outcome_text),
-                                "critical_success" => {
-                                    outcomes.critical_success = Some(outcome_text)
-                                }
-                                "critical_failure" => {
-                                    outcomes.critical_failure = Some(outcome_text)
-                                }
-                                // "all" or unknown: update success/failure as a minimal default
-                                _ => {
-                                    outcomes.success = Some(outcome_text.clone());
-                                    outcomes.failure = Some(outcome_text);
-                                }
+            // Clone first, then find by request_id to avoid race condition with stale index
+            let mut approvals = session_state.pending_approvals().read().clone();
+            if let Some(approval) = approvals.iter_mut().find(|a| a.request_id == request_id) {
+                if let Some(challenge) = &mut approval.challenge_suggestion {
+                    if let Some(ref mut outcomes) = challenge.outcomes {
+                        // Map outcome_type string to the appropriate field
+                        // Store the flavor_text as the outcome description
+                        let outcome_text = new_outcome.flavor_text.clone();
+                        match outcome_type.as_str() {
+                            "success" => outcomes.success = Some(outcome_text),
+                            "failure" => outcomes.failure = Some(outcome_text),
+                            "critical_success" => {
+                                outcomes.critical_success = Some(outcome_text)
+                            }
+                            "critical_failure" => {
+                                outcomes.critical_failure = Some(outcome_text)
+                            }
+                            // "all" or unknown: update success/failure as a minimal default
+                            _ => {
+                                outcomes.success = Some(outcome_text.clone());
+                                outcomes.failure = Some(outcome_text);
                             }
                         }
                     }

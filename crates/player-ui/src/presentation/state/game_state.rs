@@ -6,6 +6,12 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Maximum number of pending time suggestions to store (oldest are evicted)
+const MAX_TIME_SUGGESTIONS: usize = 50;
+
+/// Maximum number of NPC mood entries to track (LRU eviction)
+const MAX_NPC_MOODS: usize = 200;
+
 use wrldbldr_player_app::application::dto::{
     CharacterData as SceneCharacterState, EntityChangedData, GameTime, InteractionData,
     NavigationData, NpcDispositionData, NpcPresenceData, RegionData as SceneRegionInfo,
@@ -416,9 +422,18 @@ impl GameState {
     }
 
     /// Update an NPC's current mood (from NpcMoodChanged event)
-    /// This is used for character expression/sprite display
+    /// This is used for character expression/sprite display.
+    /// Enforces MAX_NPC_MOODS limit by removing oldest entries when full.
     pub fn update_npc_mood(&mut self, npc_id: String, mood: String) {
-        self.npc_moods.write().insert(npc_id, mood);
+        let mut moods = self.npc_moods.write();
+        // If this is a new NPC and we're at the limit, remove an arbitrary entry
+        if !moods.contains_key(&npc_id) && moods.len() >= MAX_NPC_MOODS {
+            // Remove the first entry (arbitrary, but consistent)
+            if let Some(key_to_remove) = moods.keys().next().cloned() {
+                moods.remove(&key_to_remove);
+            }
+        }
+        moods.insert(npc_id, mood);
     }
 
     /// Get the current mood for an NPC (returns None if not set)
@@ -453,8 +468,14 @@ impl GameState {
     }
 
     /// Add a pending time suggestion (for DM approval)
+    /// Enforces MAX_TIME_SUGGESTIONS limit by removing oldest entries
     pub fn add_time_suggestion(&mut self, suggestion: TimeSuggestionData) {
-        self.pending_time_suggestions.write().push(suggestion);
+        let mut suggestions = self.pending_time_suggestions.write();
+        // Remove oldest suggestions if we're at the limit
+        while suggestions.len() >= MAX_TIME_SUGGESTIONS {
+            suggestions.remove(0);
+        }
+        suggestions.push(suggestion);
     }
 
     /// Remove a time suggestion by ID (after DM action)

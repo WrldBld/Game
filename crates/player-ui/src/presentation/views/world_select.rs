@@ -332,7 +332,7 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
                     | RuleSystemVariant::FateCore
                     | RuleSystemVariant::PoweredByApocalypse
                     | RuleSystemVariant::BladesInTheDark => "Narrative",
-                    RuleSystemVariant::Custom(_) => "Custom",
+                    RuleSystemVariant::Custom(_) | RuleSystemVariant::Unknown => "Custom",
                 };
                 let variant_str = format!("{:?}", variant);
 
