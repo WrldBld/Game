@@ -89,7 +89,7 @@ Plus: 15+ unimplemented features documented in system specs.
 ---
 
 ### CR6-1.6 - Duplicate AdHocOutcomes Type Definition
-**Severity**: CRITICAL
+**Severity**: CRITICAL (FIXED)
 **Files**: 
 - `crates/protocol/src/messages.rs:1157-1166`
 - `crates/domain/src/value_objects/ad_hoc_outcomes.rs:12-23`
@@ -97,8 +97,7 @@ Plus: 15+ unimplemented features documented in system specs.
 **Issue**: Identical type defined in both protocol and domain, creating maintenance burden and divergence risk.
 
 **Tasks**:
-- [ ] Protocol should import from domain OR
-- [ ] Add clear From/Into conversions
+- [x] Protocol now re-exports domain's AdHocOutcomes instead of defining its own
 
 ---
 
@@ -356,7 +355,7 @@ Plus: 15+ unimplemented features documented in system specs.
 
 | Phase | Items | Done | Status |
 |-------|-------|------|--------|
-| Phase 1 (Critical) | 6 | 0 | PENDING |
+| Phase 1 (Critical) | 6 | 5 | COMPLETE (1 was not a bug) |
 | Phase 2 (High) | 12 | 0 | PENDING |
 | Phase 3 (Medium) | 19 | 0 | PENDING |
 | Phase 4 (Low) | 14 | 0 | PENDING |

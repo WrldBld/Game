@@ -1150,23 +1150,9 @@ pub enum DiceInputType {
     Unknown,
 }
 
-/// Ad-hoc challenge outcomes for DM-created challenges (wire format)
-///
-/// This is the protocol/wire format. Domain conversion is handled in
-/// engine-adapters (challenge_converters.rs).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AdHocOutcomes {
-    pub success: String,
-    pub failure: String,
-    #[serde(default)]
-    pub critical_success: Option<String>,
-    #[serde(default)]
-    pub critical_failure: Option<String>,
-}
-
-// NOTE: From<AdHocOutcomes> conversions were moved to engine-adapters
-// (to_use_case_adhoc_outcomes function) as part of hexagonal architecture refactoring.
+// AdHocOutcomes is re-exported from domain to avoid duplication.
+// Previously had duplicate definition here - consolidated per CR6-1.6.
+pub use wrldbldr_domain::AdHocOutcomes;
 
 /// Outcome detail data for regenerated outcomes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
