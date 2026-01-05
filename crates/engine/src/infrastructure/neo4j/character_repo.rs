@@ -309,22 +309,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
     }
 
     async fn delete(&self, id: CharacterId) -> Result<(), RepoError> {
-        // First delete all Want nodes connected to this character
-        let delete_wants = query(
-            "MATCH (c:Character {id: $id})-[:HAS_WANT]->(w:Want)
-            DETACH DELETE w",
-        )
-        .param("id", id.to_string());
-
-        self.graph
-            .run(delete_wants)
-            .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Then delete the character itself (and all edges)
+        // Delete the character and all connected Want nodes in a single atomic query
+        // Using OPTIONAL MATCH ensures we don't fail if there are no wants
         let q = query(
             "MATCH (c:Character {id: $id})
-            DETACH DELETE c",
+            OPTIONAL MATCH (c)-[:HAS_WANT]->(w:Want)
+            DETACH DELETE w, c",
         )
         .param("id", id.to_string());
 

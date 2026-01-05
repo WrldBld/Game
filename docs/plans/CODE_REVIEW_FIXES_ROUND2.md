@@ -95,25 +95,25 @@
 ---
 
 ### CR2-2.4 - Neo4j Delete Without Transaction
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 **Issue**: `delete` runs two queries without transaction - orphaned data possible
 **Impact**: Database inconsistency on partial failure
 
 **Tasks**:
-- [ ] Combine into single atomic query with OPTIONAL MATCH
+- [x] Combine into single atomic query with OPTIONAL MATCH
 
 ---
 
 ### CR2-2.5 - Neo4j update_position Silent Failure
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/player_character_repo.rs`
 **Issue**: `update_position` silently fails if Location doesn't exist
 **Impact**: PC ends up with no location relationship
 
 **Tasks**:
-- [ ] Combine delete and create into single query
-- [ ] Return error if location not found
+- [x] Combine delete and create into single query
+- [x] Return error if location not found
 
 ---
 
@@ -259,8 +259,8 @@
 | CR2-2.1 | UI State clear_scene | COMPLETE | - |
 | CR2-2.2 | ResponseApproved handler | COMPLETE | - |
 | CR2-2.3 | StagingReady NPC names | COMPLETE | - |
-| CR2-2.4 | Neo4j delete transaction | PENDING | - |
-| CR2-2.5 | Neo4j update_position | PENDING | - |
+| CR2-2.4 | Neo4j delete transaction | COMPLETE | - |
+| CR2-2.5 | Neo4j update_position | COMPLETE | - |
 | CR2-2.6 | Domain enum forward compat | PENDING | - |
 | CR2-2.7 | Player-App type mismatch | PENDING | - |
 | CR2-3.1 | StagingReady clear approval | COMPLETE | - |

@@ -195,36 +195,42 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         location_id: LocationId,
         region_id: RegionId,
     ) -> Result<(), RepoError> {
-        // Delete old AT_LOCATION relationship first
-        let delete_q = query(
-            "MATCH (pc:PlayerCharacter {id: $id})-[r:AT_LOCATION]->()
-            DELETE r",
-        )
-        .param("id", id.to_string());
-
-        self.graph
-            .run(delete_q)
-            .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Create new AT_LOCATION relationship and update position fields
-        let create_q = query(
+        // Single atomic query: delete old relationship, create new one, and verify success
+        // Returns the PC id if successful (location exists), null otherwise
+        let q = query(
             "MATCH (pc:PlayerCharacter {id: $id})
             MATCH (l:Location {id: $location_id})
+            OPTIONAL MATCH (pc)-[old:AT_LOCATION]->()
+            DELETE old
             CREATE (pc)-[:AT_LOCATION]->(l)
             SET pc.current_location_id = $location_id,
                 pc.current_region_id = $region_id,
-                pc.last_active_at = $last_active_at",
+                pc.last_active_at = $last_active_at
+            RETURN pc.id AS updated_id",
         )
         .param("id", id.to_string())
         .param("location_id", location_id.to_string())
         .param("region_id", region_id.to_string())
         .param("last_active_at", self.clock.now().to_rfc3339());
 
-        self.graph
-            .run(create_q)
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Check if the update succeeded (PC and Location both exist)
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
+            return Err(RepoError::NotFound(format!(
+                "PlayerCharacter {} or Location {} not found",
+                id, location_id
+            )));
+        }
 
         Ok(())
     }
