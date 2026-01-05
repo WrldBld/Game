@@ -1,19 +1,32 @@
 //! Dialogue state management with typewriter effect
 //!
 //! Manages the current dialogue display including typewriter animation.
+//! Supports expression markers for the three-tier emotional model.
 
 use dioxus::prelude::*;
+use wrldbldr_domain::{parse_dialogue, DialogueMarker, ParsedDialogue};
 
 use crate::use_platform;
 use wrldbldr_player_app::application::dto::DialogueChoice;
+
+/// A marker with its trigger position in the clean text
+#[derive(Clone, Debug)]
+pub struct PositionedMarker {
+    /// Position in clean text where this marker triggers
+    pub clean_position: usize,
+    /// The original marker data
+    pub marker: DialogueMarker,
+}
 
 /// Dialogue state for the visual novel UI
 #[derive(Clone)]
 pub struct DialogueState {
     /// Current speaker name
     pub speaker_name: Signal<String>,
-    /// Full dialogue text (target for typewriter)
+    /// Full dialogue text (original with markers)
     pub full_text: Signal<String>,
+    /// Clean text (markers stripped, for display)
+    pub clean_text: Signal<String>,
     /// Currently displayed text (typewriter progress)
     pub displayed_text: Signal<String>,
     /// Whether typewriter is still animating
@@ -28,6 +41,18 @@ pub struct DialogueState {
     pub speaker_id: Signal<Option<String>>,
     /// Whether LLM is processing (show loading indicator)
     pub is_llm_processing: Signal<bool>,
+
+    // Expression system (Tier 3 of emotional model)
+    /// Current expression for the speaker (changes during typewriter)
+    pub current_expression: Signal<Option<String>>,
+    /// Current mood tag to display next to speaker name (Tier 2)
+    pub current_mood: Signal<Option<String>>,
+    /// Markers parsed from the dialogue, with clean text positions
+    pub positioned_markers: Signal<Vec<PositionedMarker>>,
+    /// Index of the next marker to trigger
+    pub next_marker_index: Signal<usize>,
+    /// Current action being performed (displayed as stage direction)
+    pub current_action: Signal<Option<String>>,
 }
 
 impl DialogueState {
@@ -36,6 +61,7 @@ impl DialogueState {
         Self {
             speaker_name: Signal::new(String::new()),
             full_text: Signal::new(String::new()),
+            clean_text: Signal::new(String::new()),
             displayed_text: Signal::new(String::new()),
             is_typing: Signal::new(false),
             choices: Signal::new(Vec::new()),
@@ -43,10 +69,17 @@ impl DialogueState {
             custom_input: Signal::new(String::new()),
             speaker_id: Signal::new(None),
             is_llm_processing: Signal::new(false),
+            current_expression: Signal::new(None),
+            current_mood: Signal::new(None),
+            positioned_markers: Signal::new(Vec::new()),
+            next_marker_index: Signal::new(0),
+            current_action: Signal::new(None),
         }
     }
 
     /// Apply a new dialogue response (starts typewriter animation)
+    ///
+    /// Parses expression markers from the text and prepares for typewriter animation.
     pub fn apply_dialogue(
         &mut self,
         speaker_id: String,
@@ -54,47 +87,103 @@ impl DialogueState {
         text: String,
         choices: Vec<DialogueChoice>,
     ) {
+        self.apply_dialogue_with_mood(speaker_id, speaker_name, text, choices, None, None);
+    }
+
+    /// Apply dialogue with initial mood and expression
+    ///
+    /// # Arguments
+    /// * `speaker_id` - ID of the speaking character
+    /// * `speaker_name` - Display name of the speaker
+    /// * `text` - Dialogue text (may contain expression markers)
+    /// * `choices` - Available dialogue choices
+    /// * `initial_mood` - NPC's current mood (Tier 2, shown as tag)
+    /// * `initial_expression` - Starting expression for the sprite
+    pub fn apply_dialogue_with_mood(
+        &mut self,
+        speaker_id: String,
+        speaker_name: String,
+        text: String,
+        choices: Vec<DialogueChoice>,
+        initial_mood: Option<String>,
+        initial_expression: Option<String>,
+    ) {
+        // Parse the dialogue to extract markers and clean text
+        let parsed = parse_dialogue(&text);
+        let positioned = calculate_marker_positions(&parsed);
+
         self.speaker_id.set(Some(speaker_id));
         self.speaker_name.set(speaker_name);
         self.full_text.set(text);
+        self.clean_text.set(parsed.clean_text);
         self.displayed_text.set(String::new());
         self.choices.set(choices);
         self.is_typing.set(true);
         self.awaiting_input.set(false);
         self.custom_input.set(String::new());
-        self.is_llm_processing.set(false); // Clear processing indicator when response arrives
+        self.is_llm_processing.set(false);
+
+        // Expression system
+        self.current_mood.set(initial_mood);
+        self.current_expression.set(initial_expression);
+        self.positioned_markers.set(positioned);
+        self.next_marker_index.set(0);
+        self.current_action.set(None);
     }
 
     /// Skip to the end of the typewriter animation
     pub fn skip_typewriter(&mut self) {
-        let full = self.full_text.read().clone();
-        self.displayed_text.set(full);
+        let clean = self.clean_text.read().clone();
+        self.displayed_text.set(clean);
         self.is_typing.set(false);
         self.awaiting_input.set(true);
-    }
 
-    /// Called when a character is typed (for manual typewriter control)
-    pub fn type_character(&mut self) {
-        let full = self.full_text.read();
-        let mut displayed = self.displayed_text.read().clone();
-
-        if displayed.len() < full.len() {
-            if let Some(next_char) = full.chars().nth(displayed.len()) {
-                displayed.push(next_char);
-                self.displayed_text.set(displayed);
+        // Apply all remaining markers
+        let markers = self.positioned_markers.read();
+        if let Some(last_marker) = markers.last() {
+            if let Some(expr) = &last_marker.marker.expression {
+                self.current_expression.set(Some(expr.clone()));
             }
-        } else {
-            // Finished typing
-            self.is_typing.set(false);
-            self.awaiting_input.set(true);
         }
+        self.current_action.set(None); // Clear action when skipping
     }
 
-    /// Check if typewriter is complete
+    /// Check and trigger any markers at the current position
+    ///
+    /// Called during typewriter animation to update expression/action.
+    /// Returns true if a marker was triggered.
+    pub fn check_markers(&mut self, current_position: usize) -> bool {
+        let markers = self.positioned_markers.read();
+        let mut next_idx = *self.next_marker_index.read();
+        let mut triggered = false;
+
+        while next_idx < markers.len() && markers[next_idx].clean_position <= current_position {
+            let marker = &markers[next_idx];
+
+            if let Some(expr) = &marker.marker.expression {
+                self.current_expression.set(Some(expr.clone()));
+            }
+
+            if let Some(action) = &marker.marker.action {
+                self.current_action.set(Some(action.clone()));
+            } else {
+                // Clear action when we hit a non-action marker
+                self.current_action.set(None);
+            }
+
+            next_idx += 1;
+            triggered = true;
+        }
+
+        self.next_marker_index.set(next_idx);
+        triggered
+    }
+
+    /// Check if typewriter is complete (based on clean text)
     pub fn is_typing_complete(&self) -> bool {
-        let full_len = self.full_text.read().len();
+        let clean_len = self.clean_text.read().len();
         let displayed_len = self.displayed_text.read().len();
-        displayed_len >= full_len
+        displayed_len >= clean_len
     }
 
     /// Get the delay for the next character based on punctuation
@@ -116,17 +205,23 @@ impl DialogueState {
         self.speaker_id.set(None);
         self.speaker_name.set(String::new());
         self.full_text.set(String::new());
+        self.clean_text.set(String::new());
         self.displayed_text.set(String::new());
         self.is_typing.set(false);
         self.choices.set(Vec::new());
         self.awaiting_input.set(false);
         self.custom_input.set(String::new());
         self.is_llm_processing.set(false);
+        self.current_expression.set(None);
+        self.current_mood.set(None);
+        self.positioned_markers.set(Vec::new());
+        self.next_marker_index.set(0);
+        self.current_action.set(None);
     }
 
     /// Check if there's active dialogue to display
     pub fn has_dialogue(&self) -> bool {
-        !self.full_text.read().is_empty()
+        !self.clean_text.read().is_empty()
     }
 
     /// Check if there are choices available
@@ -140,38 +235,72 @@ impl DialogueState {
     }
 }
 
+/// Calculate marker positions in the clean text
+///
+/// Markers have positions in the original text, but we need to know
+/// where they trigger relative to the clean text (what's being displayed).
+fn calculate_marker_positions(parsed: &ParsedDialogue) -> Vec<PositionedMarker> {
+    let mut positioned = Vec::new();
+    let mut offset_adjustment = 0;
+
+    for marker in &parsed.markers {
+        // The clean position is the original position minus all the marker text
+        // that came before this one
+        let clean_position = marker.start_offset.saturating_sub(offset_adjustment);
+
+        positioned.push(PositionedMarker {
+            clean_position,
+            marker: marker.clone(),
+        });
+
+        // Adjust offset for this marker's length
+        offset_adjustment += marker.len();
+    }
+
+    positioned
+}
+
 impl Default for DialogueState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Hook for running the typewriter effect
+/// Hook for running the typewriter effect with expression support
 ///
 /// Call this in a component to drive the typewriter animation.
-/// Returns true while typing is in progress.
+/// Updates expressions and actions as markers are encountered.
 pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     let platform = use_platform();
     let is_typing = *dialogue_state.is_typing.read();
-    let full_text = dialogue_state.full_text;
+    let clean_text = dialogue_state.clean_text;
     let displayed_text = dialogue_state.displayed_text;
     let is_typing_signal = dialogue_state.is_typing;
     let awaiting_signal = dialogue_state.awaiting_input;
+    let positioned_markers = dialogue_state.positioned_markers;
+    let next_marker_index = dialogue_state.next_marker_index;
+    let current_expression = dialogue_state.current_expression;
+    let current_action = dialogue_state.current_action;
 
     use_future(move || {
         let platform = platform.clone();
-        let full_text = full_text;
+        let clean_text = clean_text;
         let mut displayed_text = displayed_text;
         let mut is_typing_signal = is_typing_signal;
         let mut awaiting_signal = awaiting_signal;
+        let positioned_markers = positioned_markers;
+        let mut next_marker_index = next_marker_index;
+        let mut current_expression = current_expression;
+        let mut current_action = current_action;
 
         async move {
             if !is_typing {
                 return;
             }
 
-            let text = full_text.read().clone();
+            let text = clean_text.read().clone();
             let mut current = String::new();
+            let mut char_index = 0;
 
             for ch in text.chars() {
                 // Check if we should stop (user skipped)
@@ -179,8 +308,33 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
                     break;
                 }
 
+                // Check for markers at this position
+                {
+                    let markers = positioned_markers.read();
+                    let mut idx = *next_marker_index.read();
+
+                    while idx < markers.len() && markers[idx].clean_position <= char_index {
+                        let marker = &markers[idx];
+
+                        if let Some(expr) = &marker.marker.expression {
+                            current_expression.set(Some(expr.clone()));
+                        }
+
+                        if let Some(action) = &marker.marker.action {
+                            current_action.set(Some(action.clone()));
+                        } else {
+                            current_action.set(None);
+                        }
+
+                        idx += 1;
+                    }
+
+                    next_marker_index.set(idx);
+                }
+
                 current.push(ch);
                 displayed_text.set(current.clone());
+                char_index += 1;
 
                 // Variable delay based on punctuation
                 let delay = match ch {
@@ -195,6 +349,7 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
             // Mark as complete
             is_typing_signal.set(false);
             awaiting_signal.set(true);
+            current_action.set(None); // Clear action when done
         }
     });
 }

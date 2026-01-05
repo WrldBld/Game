@@ -1,6 +1,7 @@
 //! Dialogue box component for visual novel scenes
 //!
 //! Displays dialogue with speaker name, text, and choices.
+//! Supports the three-tier emotional model with mood tags and expression markers.
 
 use dioxus::prelude::*;
 
@@ -30,11 +31,20 @@ pub struct DialogueBoxProps {
     /// Whether NPC is currently thinking (LLM processing)
     #[props(default = false)]
     pub is_llm_processing: bool,
+
+    // Expression system (Tier 2 & 3 of emotional model)
+    /// Current mood of the speaker (Tier 2 - shown as tag next to name)
+    #[props(default)]
+    pub current_mood: Option<String>,
+    /// Current action being performed (shown as stage direction)
+    #[props(default)]
+    pub current_action: Option<String>,
 }
 
 /// Dialogue box component - displays dialogue with typewriter effect
 ///
 /// Uses `.vn-dialogue-box`, `.vn-character-name`, `.vn-dialogue-text` Tailwind classes.
+/// Supports mood tags and action stage directions from the three-tier emotional model.
 #[component]
 pub fn DialogueBox(props: DialogueBoxProps) -> Element {
     let has_speaker = !props.speaker_name.is_empty();
@@ -45,11 +55,20 @@ pub fn DialogueBox(props: DialogueBoxProps) -> Element {
         div {
             class: "vn-dialogue-box",
 
-            // Speaker name plate
+            // Speaker name plate with mood tag
             if has_speaker {
                 div {
-                    class: "vn-character-name",
-                    "{props.speaker_name}"
+                    class: "vn-character-name flex items-center gap-2",
+
+                    span { "{props.speaker_name}" }
+
+                    // Mood tag (Tier 2 of emotional model)
+                    if let Some(mood) = &props.current_mood {
+                        span {
+                            class: "text-xs px-2 py-0.5 rounded bg-amber-900/50 text-amber-200 font-normal",
+                            "*{mood}*"
+                        }
+                    }
                 }
             }
 
@@ -77,6 +96,14 @@ pub fn DialogueBox(props: DialogueBoxProps) -> Element {
                 } else {
                     p {
                         class: "vn-dialogue-text",
+
+                        // Current action as stage direction (italicized)
+                        if let Some(action) = &props.current_action {
+                            span {
+                                class: "italic text-gray-400 mr-1",
+                                "*{action}* "
+                            }
+                        }
 
                         "{props.dialogue_text}"
 
