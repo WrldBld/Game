@@ -5,9 +5,51 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use neo4rs::{Node, Row};
+use neo4rs::{Graph, Node, Query, Row};
 use uuid::Uuid;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
+
+use crate::infrastructure::ports::RepoError;
+
+// =============================================================================
+// Graph Extension Trait (Error Mapping)
+// =============================================================================
+
+/// Extension trait for Neo4j Graph with standardized error mapping to RepoError.
+///
+/// This trait reduces the common pattern of:
+/// ```ignore
+/// graph.run(query).await.map_err(|e| RepoError::Database(e.to_string()))?;
+/// ```
+///
+/// Usage (can be adopted incrementally):
+/// ```ignore
+/// use crate::infrastructure::neo4j::helpers::GraphExt;
+///
+/// graph.run_or_err(query).await?;
+/// ```
+///
+/// Note: `execute` is not wrapped because neo4rs 0.8 doesn't export
+/// `DetachedRowStream` publicly. Use the standard pattern for queries:
+/// ```ignore
+/// let mut result = graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+/// ```
+#[async_trait::async_trait]
+pub trait GraphExt {
+    /// Execute a query that doesn't return results (INSERT, UPDATE, DELETE).
+    ///
+    /// Maps neo4rs errors to `RepoError::Database`.
+    async fn run_or_err(&self, query: Query) -> Result<(), RepoError>;
+}
+
+#[async_trait::async_trait]
+impl GraphExt for Graph {
+    async fn run_or_err(&self, query: Query) -> Result<(), RepoError> {
+        self.run(query)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))
+    }
+}
 
 /// Extension trait for Neo4j Node to simplify common deserialization patterns.
 pub trait NodeExt {
@@ -219,7 +261,6 @@ where
 // Common Row-to-Entity Converters
 // =============================================================================
 
-use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{Item, ItemId, WorldId};
 
 /// Convert a Neo4j row containing an Item node (aliased as 'i') to an Item entity.

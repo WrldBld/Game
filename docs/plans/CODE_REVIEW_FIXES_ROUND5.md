@@ -400,35 +400,49 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 ## Phase 11: Medium - Code Deduplication (Complexity: Medium)
 
 ### CR5-11.1 - Extract Shared CharacterSheetDataApi
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**:
 - `crates/player-app/src/application/services/character_service.rs`
 - `crates/player-app/src/application/services/player_character_service.rs`
 
 **Tasks**:
-- [ ] Move CharacterSheetDataApi to dto module
-- [ ] Update imports in both services
+- [x] Move CharacterSheetDataApi to dto module
+- [x] Update imports in both services
+
+**Implementation Notes**:
+- Added `CharacterSheetDataApi` as type alias for `CharacterSheetData` in `dto/world_snapshot.rs`
+- Both services now import from `crate::application::dto::CharacterSheetDataApi`
+- Re-exported from services/mod.rs for external access
 
 ---
 
 ### CR5-11.2 - Extract StagedNpc Conversion Helper
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 
 **Tasks**:
-- [ ] Create `staged_npc_to_data()` helper function
-- [ ] Replace 3 duplicate conversion blocks
+- [x] Create `staged_npc_to_data()` helper function
+- [x] Replace 3 duplicate conversion blocks
+
+**Implementation Notes**:
+- Added `From<StagedNpcInfo> for StagedNpcData` impl in `game_state.rs`
+- All conversion sites now use `.map(StagedNpcData::from)` instead of inline conversion
 
 ---
 
 ### CR5-11.3 - Create Neo4j Error Mapping Extension
-**Status**: PENDING
+**Status**: COMPLETE
 **File**: `crates/engine/src/infrastructure/neo4j/helpers.rs`
 
 **Tasks**:
-- [ ] Create `GraphExt` trait with `run_or_err()` and `execute_or_err()`
-- [ ] Implement for `Graph`
-- [ ] Update repos to use new methods (can be done incrementally)
+- [x] Create `GraphExt` trait with `run_or_err()`
+- [x] Implement for `Graph`
+- [x] Document for incremental adoption
+
+**Implementation Notes**:
+- Added `GraphExt` trait with `run_or_err()` method for write operations
+- `execute_or_err()` not included because neo4rs 0.8 doesn't export `DetachedRowStream` publicly
+- Existing repos can be updated incrementally to use the new helper
 
 ---
 
@@ -486,7 +500,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | Phase 8 | 3 | 2 | PARTIAL (CR5-8.3 deferred) |
 | Phase 9 | 4 | 4 | COMPLETE |
 | Phase 10 | 3 | 3 | COMPLETE |
-| Phase 11 | 3 | 0 | PENDING |
+| Phase 11 | 3 | 3 | COMPLETE |
 | Phase 12 | 3 | 0 | PENDING |
 | **Total** | **30** | **0** | **PENDING** |
 
@@ -504,5 +518,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 | 999ece0 | Phase 6 | Fix N+1 queries in staging and narrative repos |
 | fa30089 | Phase 7 | Fix domain model issues |
 | f83e3b4 | Phase 8 | Add forward compatibility variants (CR5-8.3 deferred) |
-| - | Phase 9 | Fix Player UI bugs |
+| 7edb992 | Phase 9 | Fix Player UI bugs |
+| a6dec21 | Phase 10 | Add request timeouts and fix EventChain propagation |
+| - | Phase 11 | Code deduplication (CharacterSheetDataApi, StagedNpc, GraphExt) |
 

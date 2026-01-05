@@ -802,6 +802,9 @@ pub struct CharacterSheetData {
     pub values: std::collections::HashMap<String, FieldValue>,
 }
 
+/// API-facing character sheet data (same structure, explicit naming for service layer)
+pub type CharacterSheetDataApi = CharacterSheetData;
+
 /// A value stored for a field
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]

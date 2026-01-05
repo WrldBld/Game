@@ -820,46 +820,14 @@ pub fn handle_server_message(
             let previous = previous_staging.map(|p| PreviousStagingData {
                 staging_id: p.staging_id,
                 approved_at: p.approved_at,
-                npcs: p
-                    .npcs
-                    .into_iter()
-                    .map(|n| StagedNpcData {
-                        character_id: n.character_id,
-                        name: n.name,
-                        sprite_asset: n.sprite_asset,
-                        portrait_asset: n.portrait_asset,
-                        is_present: n.is_present,
-                        reasoning: n.reasoning,
-                        is_hidden_from_players: n.is_hidden_from_players,
-                    })
-                    .collect(),
+                npcs: p.npcs.into_iter().map(StagedNpcData::from).collect(),
             });
 
-            let rule_npcs: Vec<StagedNpcData> = rule_based_npcs
-                .into_iter()
-                .map(|n| StagedNpcData {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    reasoning: n.reasoning,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                })
-                .collect();
+            let rule_npcs: Vec<StagedNpcData> =
+                rule_based_npcs.into_iter().map(StagedNpcData::from).collect();
 
-            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
-                .into_iter()
-                .map(|n| StagedNpcData {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    reasoning: n.reasoning,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                })
-                .collect();
+            let llm_npcs: Vec<StagedNpcData> =
+                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
 
             let waiting: Vec<WaitingPcData> = waiting_pcs
                 .into_iter()
@@ -968,18 +936,8 @@ pub fn handle_server_message(
 
             // Update the LLM suggestions in the pending staging approval
             use crate::presentation::state::game_state::StagedNpcData;
-            let llm_npcs: Vec<StagedNpcData> = llm_based_npcs
-                .into_iter()
-                .map(|n| StagedNpcData {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    reasoning: n.reasoning,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                })
-                .collect();
+            let llm_npcs: Vec<StagedNpcData> =
+                llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
         }

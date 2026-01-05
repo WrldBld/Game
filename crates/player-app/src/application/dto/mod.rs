@@ -28,6 +28,8 @@ pub use world_snapshot::{
     ChallengeDifficulty,
     ChallengeOutcomes,
     ChallengeType,
+    // Character sheet data (shared API type)
+    CharacterSheetDataApi,
     CreateNarrativeEventRequest,
     DiceSystem,
     FieldType,

@@ -76,6 +76,20 @@ pub struct StagedNpcData {
     pub is_hidden_from_players: bool,
 }
 
+impl From<wrldbldr_player_app::application::dto::StagedNpcInfo> for StagedNpcData {
+    fn from(info: wrldbldr_player_app::application::dto::StagedNpcInfo) -> Self {
+        Self {
+            character_id: info.character_id,
+            name: info.name,
+            sprite_asset: info.sprite_asset,
+            portrait_asset: info.portrait_asset,
+            is_present: info.is_present,
+            reasoning: info.reasoning,
+            is_hidden_from_players: info.is_hidden_from_players,
+        }
+    }
+}
+
 /// Previous staging info for reference
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreviousStagingData {

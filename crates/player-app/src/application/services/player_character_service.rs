@@ -7,19 +7,11 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-use crate::application::dto::FieldValue;
+use crate::application::dto::CharacterSheetDataApi;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 use wrldbldr_protocol::RequestPayload;
-
-/// Character sheet data from API
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct CharacterSheetDataApi {
-    #[serde(default)]
-    pub values: HashMap<String, FieldValue>,
-}
 
 /// Full player character data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

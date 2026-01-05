@@ -5,13 +5,12 @@
 //! details from the presentation layer.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::application::dto::requests::{
     ChangeArchetypeRequest, CreateCharacterRequest, UpdateCharacterRequest,
 };
-use crate::application::dto::{FieldValue, InventoryItemData};
+use crate::application::dto::{CharacterSheetDataApi, InventoryItemData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use wrldbldr_player_ports::outbound::GameConnectionPort;
 use wrldbldr_protocol::RequestPayload;
@@ -22,13 +21,6 @@ pub struct CharacterSummary {
     pub id: String,
     pub name: String,
     pub archetype: Option<String>,
-}
-
-/// Character sheet data from API
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct CharacterSheetDataApi {
-    #[serde(default)]
-    pub values: HashMap<String, FieldValue>,
 }
 
 /// Full character data for create/edit forms via API
