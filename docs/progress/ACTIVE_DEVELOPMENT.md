@@ -150,24 +150,25 @@ All 14 system documentation files updated to use simplified architecture paths:
 
 ---
 
-### US-AST-010: Advanced Workflow Parameter Editor
+### US-AST-010: Advanced Workflow Parameter Editor - COMPLETE (2026-01-05)
 
 | Field | Value |
 |-------|-------|
-| **Status** | Not Started |
+| **Status** | Complete |
 | **Priority** | Low |
-| **Effort** | 2 days |
+| **Effort** | 1 day |
 | **System** | [Asset](../systems/asset-system.md) |
 
 **Description**: Edit ComfyUI workflow parameters in UI.
 
-**Implementation Notes**:
-- Engine: Complete (workflow config exists)
-- Player: Basic config exists
-- Add prompt mapping editor
-- Add locked inputs configuration
-- Add style reference detection display
-- Optional: Raw JSON viewer/editor
+**Implementation**:
+- Enhanced `WorkflowConfigEditor` component with:
+  - **Editable Prompt Mappings**: Add/remove mappings, change type (primary/negative)
+  - **Input Defaults with Lock Toggle**: Click lock icon to toggle, locked inputs shown in summary
+  - **Style Reference Detection**: Auto-detects IPAdapter/CLIPVision nodes
+  - **Raw JSON Viewer**: Shows workflow info and node counts
+- Save handler now passes locked inputs to engine
+- State management for edited mappings, defaults, and locked inputs
 
 ---
 
@@ -295,6 +296,7 @@ Remaining work includes:
 | US-LORE-001 | Lore System (CRUD, knowledge, UI) | 2026-01-05 |
 | US-VS-001 | Visual State System (states, rules, resolution) | 2026-01-05 |
 | US-NAR-009 | Visual Trigger Condition Builder | 2026-01-05 |
+| US-AST-010 | Advanced Workflow Parameter Editor | 2026-01-05 |
 
 ---
 
@@ -302,6 +304,7 @@ Remaining work includes:
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-AST-010 complete - Advanced Workflow Parameter Editor with editable mappings/locks |
 | 2026-01-05 | US-NAR-009 complete - Visual Trigger Condition Builder with 14 trigger types |
 | 2026-01-05 | Documentation updated - 14 system docs with new architecture file paths |
 | 2026-01-05 | Lore System complete - domain, repo, handlers, UI components |

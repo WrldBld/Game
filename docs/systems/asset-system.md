@@ -57,10 +57,11 @@ AI-generated art enhances immersion:
   - *Implementation*: DirectorGenerateModal, generate buttons on NPC panel
   - *Files*: `crates/player-ui/src/presentation/components/dm_panel/director_generate_modal.rs`
 
-### Pending
+- [x] **US-AST-010**: As a DM, I can edit workflow parameters in the UI
+  - *Implementation*: Enhanced WorkflowConfigEditor with editable mappings, lock toggles, style detection
+  - *Files*: `crates/player-ui/src/presentation/components/settings/workflow_config_editor.rs`
 
-- [ ] **US-AST-010**: As a DM, I can edit workflow parameters in the UI
-  - *Notes*: Workflow config editor exists but advanced editing limited
+### Pending
 
 ---
 
@@ -173,7 +174,7 @@ AI-generated art enhances immersion:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-AST-010 - basic workflow config exists)
+**Status**: ✅ Implemented (US-AST-010)
 
 ---
 
@@ -290,7 +291,7 @@ pub enum BatchStatus {
 | Asset Gallery UI | - | ✅ | Filter, context menu |
 | Generation Queue UI | - | ✅ | Progress, actions |
 | ComfyUI Banner | - | ✅ | Health indicator |
-| Workflow Editor | - | ✅ | Basic config |
+| Workflow Editor | - | ✅ | Full editor with mappings, locks, style detection |
 
 ---
 
@@ -334,4 +335,5 @@ pub enum BatchStatus {
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-AST-010 complete - Advanced Workflow Parameter Editor |
 | 2025-12-18 | Initial version extracted from MVP.md |

@@ -2,6 +2,12 @@
 //!
 //! Displays and allows editing of a configured workflow's settings,
 //! including prompt mappings, input defaults, and locked inputs.
+//!
+//! US-AST-010: Advanced Workflow Parameter Editor
+//! - Editable prompt mappings with add/remove
+//! - Locked inputs toggle section
+//! - Style reference (IPAdapter) detection
+//! - Raw JSON viewer
 
 use dioxus::prelude::*;
 
@@ -47,6 +53,10 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
     let mut is_saving = use_signal(|| false);
     // Track edits to defaults
     let mut edited_defaults: Signal<Vec<InputDefaultData>> = use_signal(Vec::new);
+    // Track edits to prompt mappings
+    let mut edited_mappings: Signal<Vec<PromptMappingData>> = use_signal(Vec::new);
+    // Track edits to locked inputs
+    let mut edited_locked: Signal<Vec<String>> = use_signal(Vec::new);
     // Track delete confirmation dialog visibility
     let mut show_delete_confirmation = use_signal(|| false);
     // Track if deleting
@@ -74,6 +84,8 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
             match svc.get_workflow_config(&slot).await {
                 Ok(Some(fetched_config)) => {
                     edited_defaults.set(fetched_config.input_defaults.clone());
+                    edited_mappings.set(fetched_config.prompt_mappings.clone());
+                    edited_locked.set(fetched_config.locked_inputs.clone());
                     config.set(Some(fetched_config));
                     is_loading.set(false);
                 }
@@ -95,6 +107,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
     let save_config = move |_| {
         let slot = slot_id_for_save.clone();
         let defaults = edited_defaults.read().clone();
+        let locked = edited_locked.read().clone();
         let current_config = config.read().clone();
         let svc = workflow_service_for_save.clone();
 
@@ -103,7 +116,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
             error.set(None);
 
             if current_config.is_some() {
-                match svc.update_workflow_defaults(&slot, defaults, None).await {
+                match svc.update_workflow_defaults(&slot, defaults, Some(locked)).await {
                     Ok(updated_config) => {
                         config.set(Some(updated_config));
                         tracing::info!("Workflow defaults saved successfully");
@@ -256,7 +269,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                 div {
                     class: "flex-1 overflow-y-auto p-4",
 
-                    // Prompt Mappings section
+                    // Prompt Mappings section (editable)
                     CollapsibleSection {
                         title: "Prompt Mappings",
                         is_expanded: *expanded_section.read() == "mappings",
@@ -271,23 +284,92 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                         div {
                             class: "flex flex-col gap-2",
 
-                            if cfg.prompt_mappings.is_empty() {
-                                div {
-                                    class: "text-gray-500 text-sm p-2",
-                                    "No prompt mappings configured"
-                                }
-                            } else {
-                                for mapping in cfg.prompt_mappings.iter() {
-                                    PromptMappingRow {
-                                        mapping: mapping.clone(),
-                                        inputs: cfg.analysis.text_inputs.clone(),
+                            p {
+                                class: "text-gray-500 text-xs mb-2",
+                                "Map entity descriptions to workflow text inputs for prompt injection."
+                            }
+
+                            // Existing mappings
+                            {
+                                let mappings = edited_mappings.read().clone();
+                                let text_inputs = cfg.analysis.text_inputs.clone();
+                                rsx! {
+                                    for (idx, mapping) in mappings.iter().enumerate() {
+                                        EditablePromptMappingRow {
+                                            key: "{idx}",
+                                            mapping: mapping.clone(),
+                                            inputs: text_inputs.clone(),
+                                            on_remove: {
+                                                move |_| {
+                                                    let mut current = edited_mappings.read().clone();
+                                                    if idx < current.len() {
+                                                        current.remove(idx);
+                                                        edited_mappings.set(current);
+                                                    }
+                                                }
+                                            },
+                                            on_change: {
+                                                move |new_mapping: PromptMappingData| {
+                                                    let mut current = edited_mappings.read().clone();
+                                                    if idx < current.len() {
+                                                        current[idx] = new_mapping;
+                                                        edited_mappings.set(current);
+                                                    }
+                                                }
+                                            },
+                                        }
                                     }
+                                }
+                            }
+
+                            // Add new mapping button
+                            {
+                                let text_inputs = cfg.analysis.text_inputs.clone();
+                                let has_unmapped = text_inputs.iter().any(|input| {
+                                    !edited_mappings.read().iter().any(|m| 
+                                        m.node_id == input.node_id && m.input_name == input.input_name
+                                    )
+                                });
+                                
+                                if has_unmapped {
+                                    rsx! {
+                                        button {
+                                            r#type: "button",
+                                            class: "mt-2 py-2 px-3 bg-blue-500 bg-opacity-20 text-blue-400 border border-blue-500 border-opacity-30 rounded-lg cursor-pointer text-sm hover:bg-opacity-30",
+                                            onclick: move |_| {
+                                                // Find first unmapped text input
+                                                if let Some(input) = text_inputs.iter().find(|input| {
+                                                    !edited_mappings.read().iter().any(|m| 
+                                                        m.node_id == input.node_id && m.input_name == input.input_name
+                                                    )
+                                                }) {
+                                                    let mut current = edited_mappings.read().clone();
+                                                    current.push(PromptMappingData {
+                                                        node_id: input.node_id.clone(),
+                                                        input_name: input.input_name.clone(),
+                                                        mapping_type: "primary".to_string(),
+                                                    });
+                                                    edited_mappings.set(current);
+                                                }
+                                            },
+                                            "+ Add Mapping"
+                                        }
+                                    }
+                                } else if edited_mappings.read().is_empty() {
+                                    rsx! {
+                                        div {
+                                            class: "text-gray-500 text-sm p-2",
+                                            "No text inputs available for prompt mapping"
+                                        }
+                                    }
+                                } else {
+                                    rsx! {}
                                 }
                             }
                         }
                     }
 
-                    // Input Defaults section
+                    // Input Defaults section with lock toggles
                     CollapsibleSection {
                         title: "Input Defaults",
                         is_expanded: *expanded_section.read() == "defaults",
@@ -302,23 +384,192 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                         div {
                             class: "flex flex-col gap-2",
 
+                            p {
+                                class: "text-gray-500 text-xs mb-2",
+                                "Set default values for workflow inputs. Lock inputs to prevent changes during generation."
+                            }
+
                             for input in cfg.analysis.inputs.iter() {
-                                InputDefaultRow {
-                                    input: input.clone(),
-                                    defaults: edited_defaults.read().clone(),
-                                    locked: cfg.locked_inputs.contains(&format!("{}:{}", input.node_id, input.input_name)),
-                                    on_change: move |new_value: InputDefaultData| {
-                                        let mut current = edited_defaults.read().clone();
-                                        // Find and update or add
-                                        if let Some(existing) = current.iter_mut().find(|d| {
-                                            d.node_id == new_value.node_id && d.input_name == new_value.input_name
-                                        }) {
-                                            existing.default_value = new_value.default_value;
-                                        } else {
-                                            current.push(new_value);
+                                {
+                                    let input_path = format!("{}:{}", input.node_id, input.input_name);
+                                    let is_locked = edited_locked.read().contains(&input_path);
+                                    let input_for_lock = input.clone();
+                                    rsx! {
+                                        InputDefaultRowWithLock {
+                                            input: input.clone(),
+                                            defaults: edited_defaults.read().clone(),
+                                            is_locked: is_locked,
+                                            on_change: move |new_value: InputDefaultData| {
+                                                let mut current = edited_defaults.read().clone();
+                                                if let Some(existing) = current.iter_mut().find(|d| {
+                                                    d.node_id == new_value.node_id && d.input_name == new_value.input_name
+                                                }) {
+                                                    existing.default_value = new_value.default_value;
+                                                } else {
+                                                    current.push(new_value);
+                                                }
+                                                edited_defaults.set(current);
+                                            },
+                                            on_lock_toggle: {
+                                                let path = format!("{}:{}", input_for_lock.node_id, input_for_lock.input_name);
+                                                move |_| {
+                                                    let mut current = edited_locked.read().clone();
+                                                    if current.contains(&path) {
+                                                        current.retain(|p| p != &path);
+                                                    } else {
+                                                        current.push(path.clone());
+                                                    }
+                                                    edited_locked.set(current);
+                                                }
+                                            },
                                         }
-                                        edited_defaults.set(current);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Locked Inputs Summary
+                    {
+                        let locked_count = edited_locked.read().len();
+                        if locked_count > 0 {
+                            rsx! {
+                                CollapsibleSection {
+                                    title: "Locked Inputs",
+                                    is_expanded: *expanded_section.read() == "locked",
+                                    on_toggle: move |_| {
+                                        if *expanded_section.read() == "locked" {
+                                            expanded_section.set("");
+                                        } else {
+                                            expanded_section.set("locked");
+                                        }
                                     },
+
+                                    div {
+                                        class: "flex flex-col gap-1",
+
+                                        p {
+                                            class: "text-gray-500 text-xs mb-2",
+                                            "These inputs will always use their default values and won't be shown in generation forms."
+                                        }
+
+                                        for path in edited_locked.read().iter() {
+                                            div {
+                                                class: "flex items-center justify-between py-1.5 px-2 bg-amber-500 bg-opacity-10 rounded-md border border-amber-500 border-opacity-20",
+                                                
+                                                div {
+                                                    class: "flex items-center gap-2",
+                                                    span { class: "text-amber-500 text-xs", "🔒" }
+                                                    span { class: "text-gray-300 text-sm font-mono", "{path}" }
+                                                }
+                                                
+                                                {
+                                                    let path_to_remove = path.clone();
+                                                    rsx! {
+                                                        button {
+                                                            r#type: "button",
+                                                            class: "text-gray-500 hover:text-red-400 text-sm px-1",
+                                                            onclick: move |_| {
+                                                                let mut current = edited_locked.read().clone();
+                                                                current.retain(|p| p != &path_to_remove);
+                                                                edited_locked.set(current);
+                                                            },
+                                                            "×"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            rsx! {}
+                        }
+                    }
+
+                    // Style Reference Detection section
+                    {
+                        // Detect style reference nodes based on node types in the analysis
+                        let style_nodes: Vec<&WorkflowInputData> = cfg.analysis.inputs.iter()
+                            .filter(|i| {
+                                let node_type = i.node_type.to_lowercase();
+                                node_type.contains("ipadapter") || 
+                                node_type.contains("clipvision") ||
+                                node_type.contains("prepimage")
+                            })
+                            .collect();
+                        
+                        if !style_nodes.is_empty() {
+                            rsx! {
+                                CollapsibleSection {
+                                    title: "Style Reference",
+                                    is_expanded: *expanded_section.read() == "style",
+                                    on_toggle: move |_| {
+                                        if *expanded_section.read() == "style" {
+                                            expanded_section.set("");
+                                        } else {
+                                            expanded_section.set("style");
+                                        }
+                                    },
+
+                                    div {
+                                        class: "flex flex-col gap-2",
+
+                                        div {
+                                            class: "flex items-center gap-2 py-2 px-3 bg-green-500 bg-opacity-10 rounded-lg border border-green-500 border-opacity-30",
+                                            
+                                            span { class: "text-green-400 text-lg", "✓" }
+                                            
+                                            div {
+                                                span { class: "text-green-400 text-sm font-medium", "Style reference nodes detected" }
+                                                p { class: "text-gray-400 text-xs mt-1", "This workflow supports style reference images via IPAdapter." }
+                                            }
+                                        }
+
+                                        div {
+                                            class: "text-gray-500 text-xs mt-2 mb-1",
+                                            "Detected nodes:"
+                                        }
+
+                                        for node in style_nodes.iter() {
+                                            div {
+                                                class: "flex items-center gap-2 py-1.5 px-2 bg-black bg-opacity-20 rounded-md",
+                                                
+                                                span { 
+                                                    class: "py-0.5 px-1.5 bg-purple-500 bg-opacity-30 text-purple-300 text-xs rounded",
+                                                    "{node.node_type}" 
+                                                }
+                                                
+                                                if let Some(title) = &node.node_title {
+                                                    span { class: "text-gray-400 text-sm", "{title}" }
+                                                }
+                                                
+                                                span { class: "text-gray-600 text-xs ml-auto", "Node {node.node_id}" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            rsx! {
+                                CollapsibleSection {
+                                    title: "Style Reference",
+                                    is_expanded: *expanded_section.read() == "style",
+                                    on_toggle: move |_| {
+                                        if *expanded_section.read() == "style" {
+                                            expanded_section.set("");
+                                        } else {
+                                            expanded_section.set("style");
+                                        }
+                                    },
+
+                                    div {
+                                        class: "py-2 px-3 bg-gray-700 bg-opacity-30 rounded-lg",
+                                        
+                                        p { class: "text-gray-400 text-sm", "No IPAdapter nodes detected" }
+                                        p { class: "text-gray-500 text-xs mt-1", "Add IPAdapter nodes to your workflow to enable style reference support." }
+                                    }
                                 }
                             }
                         }
@@ -342,6 +593,38 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                             InfoRow { label: "ID", value: cfg.id.clone() }
                             InfoRow { label: "Created", value: cfg.created_at.clone() }
                             InfoRow { label: "Updated", value: cfg.updated_at.clone() }
+                        }
+                    }
+
+                    // Raw JSON Viewer section
+                    CollapsibleSection {
+                        title: "Raw Workflow JSON",
+                        is_expanded: *expanded_section.read() == "json",
+                        on_toggle: move |_| {
+                            if *expanded_section.read() == "json" {
+                                expanded_section.set("");
+                            } else {
+                                expanded_section.set("json");
+                            }
+                        },
+
+                        div {
+                            class: "flex flex-col gap-2",
+
+                            p {
+                                class: "text-gray-500 text-xs",
+                                "The raw ComfyUI API workflow JSON. This is read-only."
+                            }
+
+                            div {
+                                class: "relative",
+
+                                pre {
+                                    class: "p-3 bg-dark-bg rounded-lg text-gray-400 text-xs font-mono overflow-x-auto max-h-[300px] overflow-y-auto border border-gray-700",
+                                    // Show node count summary since we don't have the full JSON
+                                    "{cfg.analysis.node_count} nodes, {cfg.analysis.inputs.len()} inputs"
+                                }
+                            }
                         }
                     }
                 }
@@ -591,6 +874,170 @@ fn InfoRow(label: &'static str, value: String) -> Element {
 
             span { class: "text-gray-500", "{label}" }
             span { class: "text-gray-400 font-mono text-xs", "{value}" }
+        }
+    }
+}
+
+/// Editable prompt mapping row component
+#[derive(Props, Clone, PartialEq)]
+struct EditablePromptMappingRowProps {
+    mapping: PromptMappingData,
+    inputs: Vec<WorkflowInputData>,
+    on_remove: EventHandler<()>,
+    on_change: EventHandler<PromptMappingData>,
+}
+
+#[component]
+fn EditablePromptMappingRow(props: EditablePromptMappingRowProps) -> Element {
+    let input_info = props
+        .inputs
+        .iter()
+        .find(|i| i.node_id == props.mapping.node_id && i.input_name == props.mapping.input_name);
+
+    let node_label = input_info
+        .and_then(|i| i.node_title.clone())
+        .unwrap_or_else(|| format!("Node {}", props.mapping.node_id));
+
+    let is_primary = props.mapping.mapping_type == "primary";
+    let mapping_for_type_change = props.mapping.clone();
+
+    rsx! {
+        div {
+            class: "flex items-center gap-3 p-2 bg-black bg-opacity-20 rounded-md",
+
+            // Type selector
+            select {
+                value: "{props.mapping.mapping_type}",
+                onchange: {
+                    move |e| {
+                        let mut new_mapping = mapping_for_type_change.clone();
+                        new_mapping.mapping_type = e.value();
+                        props.on_change.call(new_mapping);
+                    }
+                },
+                class: "py-1 px-2 bg-dark-bg border border-gray-700 rounded text-xs text-white cursor-pointer",
+
+                option { value: "primary", class: "bg-green-600", "Primary" }
+                option { value: "negative", class: "bg-red-600", "Negative" }
+            }
+
+            // Node info
+            div {
+                class: "flex-1",
+
+                span { class: "text-white text-sm", "{node_label}" }
+                span { class: "text-gray-500 text-xs ml-2", "→ {props.mapping.input_name}" }
+            }
+
+            // Type badge indicator
+            span {
+                class: if is_primary { "py-0.5 px-2 bg-green-500 text-white text-xs rounded uppercase" } else { "py-0.5 px-2 bg-red-500 text-white text-xs rounded uppercase" },
+                if is_primary { "+" } else { "−" }
+            }
+
+            // Remove button
+            button {
+                r#type: "button",
+                onclick: move |_| props.on_remove.call(()),
+                class: "text-gray-500 hover:text-red-400 text-lg px-1 bg-transparent border-none cursor-pointer",
+                "×"
+            }
+        }
+    }
+}
+
+/// Input default row with lock toggle
+#[derive(Props, Clone, PartialEq)]
+struct InputDefaultRowWithLockProps {
+    input: WorkflowInputData,
+    defaults: Vec<InputDefaultData>,
+    is_locked: bool,
+    on_change: EventHandler<InputDefaultData>,
+    on_lock_toggle: EventHandler<()>,
+}
+
+#[component]
+fn InputDefaultRowWithLock(props: InputDefaultRowWithLockProps) -> Element {
+    let current_default = props
+        .defaults
+        .iter()
+        .find(|d| d.node_id == props.input.node_id && d.input_name == props.input.input_name);
+
+    let display_value = current_default
+        .map(|d| format_json_value(&d.default_value))
+        .unwrap_or_else(|| format_json_value(&props.input.current_value));
+
+    let node_label = props
+        .input
+        .node_title
+        .clone()
+        .unwrap_or_else(|| format!("Node {}", props.input.node_id));
+
+    let input_for_change = props.input.clone();
+    let input_type_display = match props.input.input_type.as_str() {
+        "Text" | "text" => "txt",
+        "Integer" | "integer" => "int",
+        "Float" | "float" => "flt",
+        "Boolean" | "boolean" => "bool",
+        other => other,
+    };
+
+    rsx! {
+        div {
+            class: if props.is_locked { 
+                "flex items-center gap-2 p-2 bg-amber-500 bg-opacity-10 rounded-md border border-amber-500 border-opacity-20" 
+            } else { 
+                "flex items-center gap-2 p-2 bg-black bg-opacity-20 rounded-md" 
+            },
+
+            // Lock toggle button
+            button {
+                r#type: "button",
+                onclick: move |_| props.on_lock_toggle.call(()),
+                class: if props.is_locked {
+                    "text-amber-500 text-sm px-1 bg-transparent border-none cursor-pointer hover:text-amber-400"
+                } else {
+                    "text-gray-600 text-sm px-1 bg-transparent border-none cursor-pointer hover:text-amber-500"
+                },
+                title: if props.is_locked { "Click to unlock" } else { "Click to lock" },
+                if props.is_locked { "🔒" } else { "🔓" }
+            }
+
+            // Input info
+            div {
+                class: "flex-1 min-w-0",
+
+                div {
+                    class: "flex items-center gap-2",
+
+                    span {
+                        class: "text-gray-400 text-xs py-0.5 px-1.5 bg-gray-700 rounded",
+                        "{input_type_display}"
+                    }
+                    span { class: "text-white text-sm", "{props.input.input_name}" }
+                }
+
+                span { class: "text-gray-500 text-xs", "{node_label}" }
+            }
+
+            // Value input
+            input {
+                r#type: "text",
+                value: "{display_value}",
+                disabled: props.is_locked,
+                onchange: move |e| {
+                    props.on_change.call(InputDefaultData {
+                        node_id: input_for_change.node_id.clone(),
+                        input_name: input_for_change.input_name.clone(),
+                        default_value: parse_input_value(&e.value(), &input_for_change.input_type),
+                    });
+                },
+                class: if props.is_locked {
+                    "w-24 py-1.5 px-2 bg-gray-800 border border-gray-700 rounded-md text-gray-500 text-sm cursor-not-allowed"
+                } else {
+                    "w-24 py-1.5 px-2 bg-dark-bg border border-gray-700 rounded-md text-white text-sm"
+                },
+            }
         }
     }
 }
