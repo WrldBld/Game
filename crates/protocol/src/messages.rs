@@ -1144,6 +1144,7 @@ pub enum DiceInputType {
 /// This is the protocol/wire format. Domain conversion is handled in
 /// engine-adapters (challenge_converters.rs).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AdHocOutcomes {
     pub success: String,
     pub failure: String,

@@ -23,13 +23,13 @@
 ---
 
 ### CR2-1.2 - Protocol AdHocOutcomes Serde Mismatch
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/protocol/src/messages.rs`
 **Issue**: Protocol `AdHocOutcomes` missing `#[serde(rename_all = "camelCase")]`
 **Impact**: JSON field name mismatch with domain type
 
 **Tasks**:
-- [ ] Add `#[serde(rename_all = "camelCase")]` to protocol `AdHocOutcomes`
+- [x] Add `#[serde(rename_all = "camelCase")]` to protocol `AdHocOutcomes`
 
 ---
 
@@ -252,7 +252,7 @@
 | ID | Description | Status | Commit |
 |----|-------------|--------|--------|
 | CR2-1.1 | Protocol GameTimeConfig | COMPLETE | - |
-| CR2-1.2 | Protocol AdHocOutcomes | PENDING | - |
+| CR2-1.2 | Protocol AdHocOutcomes | COMPLETE | - |
 | CR2-1.3 | WebSocket Unknown Message | PENDING | - |
 | CR2-1.4 | Duplicate ConversationError | PENDING | - |
 | CR2-2.1 | UI State clear_scene | PENDING | - |
