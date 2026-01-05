@@ -149,7 +149,24 @@ impl StagingRepo for Neo4jStagingRepo {
 
     /// Save a pending staging for DM approval
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError> {
-        // Create the Staging node
+        // Serialize NPCs as JSON array for UNWIND
+        let npcs_data: Vec<serde_json::Value> = staging
+            .npcs
+            .iter()
+            .map(|npc| {
+                serde_json::json!({
+                    "character_id": npc.character_id.to_string(),
+                    "is_present": npc.is_present,
+                    "is_hidden_from_players": npc.is_hidden_from_players,
+                    "reasoning": npc.reasoning,
+                    "mood": npc.mood.to_string()
+                })
+            })
+            .collect();
+        let npcs_json = serde_json::to_string(&npcs_data)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+
+        // Create Staging node and all NPC edges atomically in a single query
         let q = query(
             "MATCH (r:Region {id: $region_id})
             CREATE (s:Staging {
@@ -165,7 +182,18 @@ impl StagingRepo for Neo4jStagingRepo {
                 dm_guidance: $dm_guidance,
                 is_active: $is_active
             })
-            CREATE (r)-[:HAS_STAGING]->(s)",
+            CREATE (r)-[:HAS_STAGING]->(s)
+            WITH s
+            UNWIND CASE WHEN $npcs_json = '[]' THEN [null] ELSE apoc.convert.fromJsonList($npcs_json) END AS npc_data
+            WITH s, npc_data WHERE npc_data IS NOT NULL
+            MATCH (c:Character {id: npc_data.character_id})
+            CREATE (s)-[:INCLUDES_NPC {
+                is_present: npc_data.is_present,
+                is_hidden_from_players: npc_data.is_hidden_from_players,
+                reasoning: npc_data.reasoning,
+                mood: npc_data.mood
+            }]->(c)
+            RETURN count(*) as created",
         )
         .param("id", staging.id.to_string())
         .param("region_id", staging.region_id.to_string())
@@ -177,31 +205,10 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("approved_by", staging.approved_by.clone())
         .param("source", staging.source.to_string())
         .param("dm_guidance", staging.dm_guidance.clone().unwrap_or_default())
-        .param("is_active", staging.is_active);
+        .param("is_active", staging.is_active)
+        .param("npcs_json", npcs_json);
 
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Create INCLUDES_NPC edges for each NPC
-        for npc in &staging.npcs {
-            let npc_q = query(
-                "MATCH (s:Staging {id: $staging_id})
-                MATCH (c:Character {id: $character_id})
-                CREATE (s)-[:INCLUDES_NPC {
-                    is_present: $is_present,
-                    is_hidden_from_players: $is_hidden_from_players,
-                    reasoning: $reasoning,
-                    mood: $mood
-                }]->(c)",
-            )
-            .param("staging_id", staging.id.to_string())
-            .param("character_id", npc.character_id.to_string())
-            .param("is_present", npc.is_present)
-            .param("is_hidden_from_players", npc.is_hidden_from_players)
-            .param("reasoning", npc.reasoning.clone())
-            .param("mood", npc.mood.to_string());
-
-            self.graph.run(npc_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        }
 
         Ok(())
     }

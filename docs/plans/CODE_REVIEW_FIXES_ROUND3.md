@@ -137,12 +137,13 @@ Authentication-related items are explicitly excluded per requirements.
 ---
 
 ### CR3-3.3 - Make Staging save_pending Atomic
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
 **Issue**: Creates Staging node, then loops for NPC edges.
 
 **Tasks**:
-- [ ] Use UNWIND for batch NPC edge creation
+- [x] Use UNWIND with APOC JSON parsing for batch NPC edge creation
+- [x] Combine staging creation and NPC edges into single atomic query
 
 ---
 
@@ -388,7 +389,7 @@ Authentication-related items are explicitly excluded per requirements.
 | CR3-2.4 | Scene custom conditions | COMPLETE | - |
 | CR3-3.1 | Scene save atomic | COMPLETE | - |
 | CR3-3.2 | Scene set_current atomic | COMPLETE | - |
-| CR3-3.3 | Staging save atomic | PENDING | - |
+| CR3-3.3 | Staging save atomic | COMPLETE | - |
 | CR3-3.4 | Silent failure checks | PENDING | - |
 | CR3-4.1 | Challenge delete | PENDING | - |
 | CR3-4.2 | Observation delete | PENDING | - |
