@@ -2798,11 +2798,26 @@ async fn handle_staging_approval(
                 let mut npcs_present = Vec::new();
                 for npc_info in &approved_npcs {
                     if npc_info.is_present {
+                        // Fetch character details for name and assets
+                        let (name, sprite_asset, portrait_asset) = if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
+                            let char_id = wrldbldr_domain::CharacterId::from_uuid(char_id);
+                            match state.app.entities.character.get(char_id).await {
+                                Ok(Some(character)) => (
+                                    character.name,
+                                    character.sprite_asset,
+                                    character.portrait_asset,
+                                ),
+                                _ => (String::new(), None, None),
+                            }
+                        } else {
+                            (String::new(), None, None)
+                        };
+                        
                         npcs_present.push(wrldbldr_protocol::NpcPresentInfo {
                             character_id: npc_info.character_id.clone(),
-                            name: String::new(), // Would need to fetch from character entity
-                            sprite_asset: None,
-                            portrait_asset: None,
+                            name,
+                            sprite_asset,
+                            portrait_asset,
                             is_hidden_from_players: npc_info.is_hidden_from_players,
                             mood: npc_info.mood.clone(),
                         });

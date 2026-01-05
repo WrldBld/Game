@@ -83,14 +83,14 @@
 ---
 
 ### CR2-2.3 - StagingReady Missing NPC Names
-**Status**: PENDING
+**Status**: COMPLETE
 **Files**: `crates/engine/src/api/websocket.rs`
 **Issue**: `StagingReady` broadcast sends empty NPC names
 **Impact**: Players see NPCs without names
 
 **Tasks**:
-- [ ] Fetch NPC details when building `StagingReady` response
-- [ ] Populate name, sprite_asset, portrait_asset from character entity
+- [x] Fetch NPC details when building `StagingReady` response
+- [x] Populate name, sprite_asset, portrait_asset from character entity
 
 ---
 
@@ -258,7 +258,7 @@
 | CR2-1.4 | Duplicate ConversationError | COMPLETE | - |
 | CR2-2.1 | UI State clear_scene | COMPLETE | - |
 | CR2-2.2 | ResponseApproved handler | COMPLETE | - |
-| CR2-2.3 | StagingReady NPC names | PENDING | - |
+| CR2-2.3 | StagingReady NPC names | COMPLETE | - |
 | CR2-2.4 | Neo4j delete transaction | PENDING | - |
 | CR2-2.5 | Neo4j update_position | PENDING | - |
 | CR2-2.6 | Domain enum forward compat | PENDING | - |
