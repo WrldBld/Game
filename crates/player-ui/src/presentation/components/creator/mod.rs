@@ -8,6 +8,7 @@ pub mod character_form;
 pub mod comfyui_banner;
 pub mod entity_browser;
 pub mod expression_config_editor;
+pub mod expression_sheet_modal;
 pub mod generation_queue;
 pub mod location_form;
 pub mod lore_form;
