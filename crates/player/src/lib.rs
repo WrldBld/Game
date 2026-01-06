@@ -10,11 +10,9 @@ pub mod session_types;
 pub mod state;
 pub mod ui;
 
-// Transitional root-level aliases for moved modules.
-// These allow `crate::outbound::...` and `crate::presentation::...` paths to keep compiling.
-pub mod outbound {
-    pub use crate::ports::outbound::*;
-}
+// Transitional root-level alias for moved modules.
+// Allows `crate::outbound::...` paths to keep compiling.
+pub use crate::ports::outbound as outbound;
 
 pub use ui::presentation;
 pub use ui::routes;

@@ -6,8 +6,8 @@
 //!
 //! ## Architecture Note
 //!
-//! The presentation layer only depends on the application layer (`wrldbldr-player-app`)
-//! and ports (`wrldbldr-player-ports`). It does not depend on adapter types.
+//! The presentation layer depends on application-level services and port traits.
+//! It should not depend directly on infrastructure adapter types.
 //!
 //! ## Service Types
 //!
@@ -203,11 +203,11 @@ pub fn use_actantial_service() -> Arc<ActantialService> {
     services.actantial.clone()
 }
 
+use crate::ports::outbound::PlatformPort;
 use crate::presentation::state::{
     BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
 };
 use anyhow::Result;
-use crate::ports::outbound::PlatformPort;
 
 /// Hydrate GenerationState from the Engine's unified generation queue endpoint.
 ///

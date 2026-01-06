@@ -161,46 +161,27 @@ WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only 
 │  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
 │  │              │                  │   │              │                  │     │
 │  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine                  │  │   │  │   player-ports            │  │     │
-│  │  │   entities/use_cases/api  │  │   │  │   Port trait definitions  │  │     │
+│  │  │   engine                  │  │   │  │   player                  │  │     │
+│  │  │   entities/use_cases/api  │  │   │  │   UI/app/infra (web+native)│  │     │
 │  │  │   infra behind port traits│  │   │  └───────────────────────────┘  │     │
 │  │  └───────────────────────────┘  │   │              │                  │     │
 │  │                                  │   │  ┌───────────────────────────┐  │     │
-│  │                                  │   │  │   player-app              │  │     │
-│  │                                  │   │  │   Client use cases        │  │     │
+│  │                                  │   │  │   player                  │  │     │
+│  │                                  │   │  │   UI/app/infra (web+native)│  │     │
 │  │                                  │   │  └───────────────────────────┘  │     │
-│  │                                  │   │              │                  │     │
-│  │                                  │   │  ┌───────────────────────────┐  │     │
-│  │                                  │   │  │   player-adapters         │  │     │
-│  │                                  │   │  │   WS client, storage      │  │     │
-│  │                                  │   │  └───────────────────────────┘  │     │
-│  │                                  │   │              │                  │     │
-│  │                                  │   │  ┌───────────────────────────┐  │     │
-│  │                                  │   │  │   player-ui               │  │     │
-│  │                                  │   │  │   Dioxus presentation     │  │     │
-│  │                                  │   │  └───────────────────────────┘  │     │
-│  │                                  │   │              │                  │     │
-│  │                                  │   │  ┌───────────────────────────┐  │     │
-│  │                                  │   │  │   player-runner           │  │     │
-│  │                                  │   │  │   WASM/desktop entrypoint │  │     │
-│  │                                  │   │  └───────────────────────────┘  │     │
-│  │                                  │   │              │                  │     │
+│  │                                  │   │                                 │     │
 │  └──────────────────────────────────┘   └─────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Crate Overview
 
-| Crate                      | Layer         | Purpose                                                        |
-| -------------------------- | ------------- | -------------------------------------------------------------- |
-| `wrldbldr-domain`          | Domain        | Pure business types (entities, value objects, typed IDs)       |
-| `wrldbldr-protocol`        | Shared Kernel | Wire-format types for Engine↔Player communication              |
-| `wrldbldr-engine`          | Engine        | Server-side code (entities/use_cases/api + infra behind ports) |
-| `wrldbldr-player-ports`    | Ports         | Player-side ports (transport/storage boundaries)               |
-| `wrldbldr-player-app`      | Application   | Player use cases and orchestration                             |
-| `wrldbldr-player-adapters` | Adapters      | WebSocket client + platform implementations                    |
-| `wrldbldr-player-ui`       | Presentation  | Dioxus components and routes                                   |
-| `wrldbldr-player-runner`   | Runner        | Client entry point (WASM/desktop)                              |
+| Crate               | Layer         | Purpose                                                        |
+| ------------------- | ------------- | -------------------------------------------------------------- |
+| `wrldbldr-domain`   | Domain        | Pure business types (entities, value objects, typed IDs)       |
+| `wrldbldr-protocol` | Shared Kernel | Wire-format types for Engine↔Player communication              |
+| `wrldbldr-engine`   | Engine        | Server-side code (entities/use_cases/api + infra behind ports) |
+| `wrldbldr-player`   | Player        | Client UI + application + infrastructure (web/WASM + desktop)  |
 
 ---
 
@@ -325,7 +306,7 @@ task desktop:dev   # Player desktop application
 See:
 
 - Engine contribution guide lives under [crates/engine/](crates/engine/)
-- [crates/player-runner/README.md](crates/player-runner/README.md) for Player contribution guide
+- [crates/player/README.md](crates/player/README.md) for Player contribution guide
 
 ---
 

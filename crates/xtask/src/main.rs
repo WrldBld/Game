@@ -991,7 +991,7 @@ fn check_app_does_not_depend_on_inbound_ports() -> anyhow::Result<()> {
     // So for now, we restrict this check to *services* only.
     let enforced_dirs = [
         workspace_root.join("crates/engine-app/src/application/services"),
-        workspace_root.join("crates/player-app/src/application/services"),
+        workspace_root.join("crates/player/src/application/services"),
     ];
 
     // Import patterns to flag:
@@ -1103,11 +1103,7 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
         workspace_root.join("crates/domain/src"),
         workspace_root.join("crates/protocol/src"),
         workspace_root.join("crates/engine/src"),
-        workspace_root.join("crates/player-app/src"),
-        workspace_root.join("crates/player-adapters/src"),
-        workspace_root.join("crates/player-ports/src"),
-        workspace_root.join("crates/player-ui/src"),
-        workspace_root.join("crates/player-runner/src"),
+        workspace_root.join("crates/player/src"),
     ];
 
     // Ban cross-crate re-export shims like: `pub use wrldbldr_*::...`
@@ -1510,7 +1506,7 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that player-app application layer doesn't import wrldbldr_protocol directly.
+/// Check that the player application layer doesn't import wrldbldr_protocol directly.
 ///
 /// The application layer (services, dto) should work with domain types or app-local DTOs,
 /// not protocol types.
@@ -1527,7 +1523,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    // Directories to check within player-app/src/application/
+    // Directories to check within player/src/application/
     let check_dirs = ["services", "dto"];
 
     // Patterns that indicate protocol usage
@@ -1565,7 +1561,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     let mut violations = Vec::new();
 
     for dir_name in check_dirs {
-        let dir = workspace_root.join(format!("crates/player-app/src/application/{}", dir_name));
+        let dir = workspace_root.join(format!("crates/player/src/application/{}", dir_name));
 
         if !dir.exists() {
             continue;
@@ -1607,7 +1603,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     }
 
     // Also check error.rs at application root (already in exempt list but handle explicitly)
-    let error_file = workspace_root.join("crates/player-app/src/application/error.rs");
+    let error_file = workspace_root.join("crates/player/src/application/error.rs");
     if error_file.exists() && !exempt_files.contains("error.rs") {
         let contents = std::fs::read_to_string(&error_file)
             .with_context(|| format!("reading {}", error_file.display()))?;
@@ -1631,20 +1627,17 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!(
-            "Player-app protocol isolation violations ({} files):",
-            violations.len()
-        );
+        eprintln!("Player protocol isolation violations ({} files):", violations.len());
         for v in &violations {
             eprintln!("  - {v}");
         }
-        anyhow::bail!("arch-check failed: player-app imports protocol types in non-exempt files");
+        anyhow::bail!("arch-check failed: player imports protocol types in non-exempt files");
     }
 
     Ok(())
 }
 
-/// Check that player-ports doesn't import wrldbldr_protocol directly (with Shared Kernel exceptions).
+/// Check that player ports don't import wrldbldr_protocol directly (with Shared Kernel exceptions).
 ///
 /// The ports layer defines interfaces and should generally use domain types, not protocol types.
 /// However, the Shared Kernel pattern allows specific port files to use protocol types when
@@ -1662,7 +1655,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    let ports_dir = workspace_root.join("crates/player-ports/src");
+    let ports_dir = workspace_root.join("crates/player/src/ports");
 
     if !ports_dir.exists() {
         return Ok(());
@@ -1732,7 +1725,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
             eprintln!("  - {v}");
         }
         anyhow::bail!(
-            "arch-check failed: player-ports imports protocol types in non-Shared-Kernel files"
+            "arch-check failed: player ports import protocol types in non-Shared-Kernel files"
         );
     }
 
@@ -1753,19 +1746,11 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
         .context("finding workspace root")?;
 
     // Directories to check for glob re-exports
-    // Note: domain-types, common, engine-dto, engine-composition have been merged
     let check_dirs = [
         workspace_root.join("crates/domain/src"),
         workspace_root.join("crates/protocol/src"),
-        workspace_root.join("crates/engine-ports/src"),
-        workspace_root.join("crates/engine-app/src"),
-        workspace_root.join("crates/engine-adapters/src"),
-        workspace_root.join("crates/engine-runner/src"),
-        workspace_root.join("crates/player-ports/src"),
-        workspace_root.join("crates/player-app/src"),
-        workspace_root.join("crates/player-adapters/src"),
-        workspace_root.join("crates/player-ui/src"),
-        workspace_root.join("crates/player-runner/src"),
+        workspace_root.join("crates/engine/src"),
+        workspace_root.join("crates/player/src"),
     ];
 
     // Pattern: `pub use something::*;` - captures glob re-exports
@@ -1838,7 +1823,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     //
     // Architecture Simplification (2026-01):
     // Engine is now a single crate (`wrldbldr-engine`).
-    // Player is still split (ports/app/adapters/ui/runner) for now.
+    // Player is now a single crate (`wrldbldr-player`).
     HashMap::from([
         // Domain layer: entities, value objects, types, common utilities
         // Zero internal dependencies (innermost layer)
@@ -1852,49 +1837,8 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
         ),
         (
-            "wrldbldr-player-ports",
+            "wrldbldr-player",
             HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
-        ),
-        // Application layer: services, use cases, handlers (player-side)
-        (
-            "wrldbldr-player-app",
-            HashSet::from([
-                "wrldbldr-domain",
-                "wrldbldr-protocol",
-                "wrldbldr-player-ports",
-                "wrldbldr-player-adapters", // dev-dependency for MockGameConnectionPort
-            ]),
-        ),
-        // Adapters layer: infrastructure implementations (player-side)
-        (
-            "wrldbldr-player-adapters",
-            HashSet::from([
-                "wrldbldr-player-app",
-                "wrldbldr-player-ports",
-                "wrldbldr-protocol",
-                "wrldbldr-domain",
-            ]),
-        ),
-        // Presentation layer
-        (
-            "wrldbldr-player-ui",
-            HashSet::from([
-                "wrldbldr-player-app",
-                "wrldbldr-player-ports",
-                "wrldbldr-player-adapters", // For Platform type in context
-                "wrldbldr-protocol",
-                "wrldbldr-domain",
-            ]),
-        ),
-        // Runner layer: composition roots
-        (
-            "wrldbldr-player-runner",
-            HashSet::from([
-                "wrldbldr-player-ui",
-                "wrldbldr-player-app",
-                "wrldbldr-player-ports",
-                "wrldbldr-player-adapters",
-            ]),
         ),
         ("xtask", HashSet::from([])),
     ])

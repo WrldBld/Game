@@ -1,6 +1,6 @@
+use crate::ports::outbound::PlatformPort;
 use dioxus::prelude::*;
 use std::sync::Arc;
-use crate::ports::outbound::PlatformPort;
 
 pub mod presentation;
 pub mod routes;
@@ -32,7 +32,7 @@ pub fn app() -> Element {
 
 #[component]
 fn AppRoot() -> Element {
-    // Provided by `wrldbldr-player-runner`.
+    // Provided by the composition root (see `crates/player/src/main.rs`).
     let shell = use_context::<ShellKind>();
 
     // These must be created inside an active Dioxus runtime.

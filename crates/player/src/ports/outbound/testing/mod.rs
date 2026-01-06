@@ -8,7 +8,7 @@
 //! Add to your Cargo.toml:
 //! ```toml
 //! [dev-dependencies]
-//! wrldbldr-player-ports = { workspace = true, features = ["testing"] }
+//! wrldbldr-player = { workspace = true, features = ["testing"] }
 //! ```
 //!
 //! Then import the mocks:

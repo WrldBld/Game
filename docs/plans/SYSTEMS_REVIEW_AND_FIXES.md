@@ -30,7 +30,7 @@ Purpose: Capture gaps found by reviewing `docs/systems/*` first, then auditing i
 
 ## Discoveries (Code →)
 
-- [crates/player-ui/src/presentation/components/dm_panel/location_staging.rs] Pre-staging location view exists, so staging docs “Status: Pending” is likely outdated. Implementation looks partial: `expires_in_hours` is hard-coded to `24.0` and there’s no explicit “Expired” state wired (only None/Pending/Active).
+- [crates/player/src/presentation/components/dm_panel/location_staging.rs] Pre-staging location view exists, so staging docs “Status: Pending” is likely outdated. Implementation looks partial: `expires_in_hours` is hard-coded to `24.0` and there’s no explicit “Expired” state wired (only None/Pending/Active).
 
 - Staging TTL semantics look consistent with docs: `EnterRegion` pulls `world_data.game_time.current()` and passes it through to staging resolution/expiry checks.
 

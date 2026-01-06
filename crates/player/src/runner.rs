@@ -88,6 +88,6 @@ fn load_player_css() -> String {
         .join("..")
         .join("..");
 
-    let css_path = repo_root.join("crates/player-ui/assets/css/output.css");
+    let css_path = repo_root.join("crates/player/assets/css/output.css");
     std::fs::read_to_string(css_path).unwrap_or_else(|_| FALLBACK_CSS.to_string())
 }

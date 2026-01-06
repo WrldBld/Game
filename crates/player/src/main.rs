@@ -25,7 +25,8 @@ fn main() {
     let platform = wrldbldr_player::infrastructure::platform::create_platform();
 
     // HTTP
-    let raw_api = std::sync::Arc::new(wrldbldr_player::infrastructure::http_client::ApiAdapter::new());
+    let raw_api =
+        std::sync::Arc::new(wrldbldr_player::infrastructure::http_client::ApiAdapter::new());
     let api = wrldbldr_player::application::api::Api::new(raw_api.clone());
 
     // Shell kind (desktop vs mobile layout)
@@ -58,9 +59,12 @@ fn main() {
     };
 
     // Engine WS URL
-    let ws_url = std::env::var("WRLDBLDR_ENGINE_WS_URL")
+    // Prefer the legacy env var used by docker/dev scripts; fall back to the newer name.
+    let ws_url = std::env::var("ENGINE_WS_URL")
+        .or_else(|_| std::env::var("WRLDBLDR_ENGINE_WS_URL"))
         .unwrap_or_else(|_| "ws://localhost:3000/ws".to_string());
-    let connection = wrldbldr_player::infrastructure::ConnectionFactory::create_game_connection(&ws_url);
+    let connection =
+        wrldbldr_player::infrastructure::ConnectionFactory::create_game_connection(&ws_url);
 
     // Launch Dioxus
     let mut builder = dioxus::LaunchBuilder::new();
@@ -76,7 +80,9 @@ fn main() {
     builder
         .with_context(std::sync::Arc::new(platform))
         .with_context(shell)
-        .with_context(wrldbldr_player::ui::presentation::Services::new(api, raw_api, connection))
+        .with_context(wrldbldr_player::ui::presentation::Services::new(
+            api, raw_api, connection,
+        ))
         .launch(wrldbldr_player::ui::app);
 }
 

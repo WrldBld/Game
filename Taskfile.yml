@@ -3,8 +3,7 @@ version: "3"
 
 vars:
   ENGINE_DIR: ./crates/engine
-  PLAYER_RUNNER_DIR: ./crates/player-runner
-  PLAYER_UI_DIR: ./crates/player-ui
+  PLAYER_DIR: ./crates/player
   PROTOCOL_DIR: ./crates/protocol
 
 env:
@@ -36,7 +35,7 @@ tasks:
     cmds:
       - task: css:build
       - dx serve --web --open
-    dir: "{{.PLAYER_RUNNER_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
       NEO4J_PASSWORD: wrldbldr123
@@ -46,7 +45,7 @@ tasks:
     cmds:
       - task: css:build
       - dx serve --web --open=false
-    dir: "{{.PLAYER_RUNNER_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
       NEO4J_PASSWORD: wrldbldr123
@@ -55,8 +54,8 @@ tasks:
     desc: Run the Player frontend in desktop mode
     cmds:
       - task: css:build
-      - cargo run -p wrldbldr-player-runner --bin wrldbldr-player
-    dir: "{{.PLAYER_RUNNER_DIR}}"
+      - cargo run -p wrldbldr-player --bin wrldbldr-player
+    dir: "{{.PLAYER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
 
@@ -87,11 +86,11 @@ tasks:
     desc: Build the Player frontend (native)
     cmds:
       - task: css:build
-      - cargo build -p wrldbldr-player-runner --bin wrldbldr-player
+      - cargo build -p wrldbldr-player --bin wrldbldr-player
 
   build:web:
     desc: Build the Player frontend for web/WASM
-    dir: "{{.PLAYER_RUNNER_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     cmds:
       - task: css:build
       - dx build --web --release
@@ -111,9 +110,9 @@ tasks:
       - cargo check -p wrldbldr-engine
 
   check:player:
-    desc: Check Player runner crate
+    desc: Check Player crate
     cmds:
-      - cargo check -p wrldbldr-player-runner
+      - cargo check -p wrldbldr-player
 
   check:protocol:
     desc: Check Protocol crate
@@ -131,9 +130,9 @@ tasks:
       - cargo test -p wrldbldr-engine
 
   test:player:
-    desc: Run Player runner tests
+    desc: Run Player tests
     cmds:
-      - cargo test -p wrldbldr-player-runner
+      - cargo test -p wrldbldr-player
 
   test:protocol:
     desc: Run Protocol tests
@@ -148,11 +147,6 @@ tasks:
     desc: Validate hexagonal architecture dependencies
     cmds:
       - cargo xtask arch-check
-
-  arch:inventories:
-    desc: Regenerate authoritative inventories in the master refactor plan
-    cmds:
-      - python3 scripts/refresh_hex_arch_inventories.py {{.CLI_ARGS}}
 
   # ===========================================================================
   # Code Quality
@@ -230,19 +224,19 @@ tasks:
 
   css:build:
     desc: Build Tailwind CSS
-    dir: "{{.PLAYER_UI_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     cmds:
       - npm run build:css
 
   css:watch:
     desc: Watch and rebuild Tailwind CSS
-    dir: "{{.PLAYER_UI_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     cmds:
       - npm run watch:css
 
   npm:install:
     desc: Install npm dependencies for Player UI
-    dir: "{{.PLAYER_UI_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     cmds:
       - npm install
 
@@ -291,7 +285,7 @@ tasks:
 
   clean:player:
     desc: Clean Player build artifacts (including dx dist)
-    dir: "{{.PLAYER_RUNNER_DIR}}"
+    dir: "{{.PLAYER_DIR}}"
     cmds:
       - cargo clean
       - rm -rf dist/

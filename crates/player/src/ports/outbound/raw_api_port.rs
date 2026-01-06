@@ -5,7 +5,7 @@
 //! be stored behind `Arc<dyn ...>`.
 //!
 //! `RawApiPort` is the object-safe boundary implemented by adapters.
-//! `wrldbldr-player-app` provides a typed wrapper that implements `ApiPort` on top.
+//! The application layer provides a typed wrapper that implements `ApiPort` on top.
 
 use serde_json::Value;
 
