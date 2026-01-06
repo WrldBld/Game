@@ -39,6 +39,13 @@ pub struct WsState {
     pub connections: Arc<ConnectionManager>,
     pub pending_time_suggestions:
         tokio::sync::RwLock<HashMap<Uuid, crate::use_cases::time::TimeSuggestion>>,
+    pub pending_staging_requests: tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PendingStagingRequest {
+    pub region_id: RegionId,
+    pub location_id: LocationId,
 }
 
 /// WebSocket upgrade handler - entry point for new connections.
@@ -636,6 +643,16 @@ async fn handle_move_to_region(
 
                     // Send StagingApprovalRequired to DMs
                     let request_id = Uuid::new_v4().to_string();
+                    {
+                        let mut guard = state.pending_staging_requests.write().await;
+                        guard.insert(
+                            request_id.clone(),
+                            PendingStagingRequest {
+                                region_id: result.region.id,
+                                location_id: result.region.location_id,
+                            },
+                        );
+                    }
                     let now = chrono::Utc::now();
 
                     // Get rule-based suggestions (NPCs that have relationships to this region)
@@ -3364,19 +3381,29 @@ async fn handle_staging_approval(
         return Some(e);
     }
 
-    // Parse request_id as region_id (the request_id is typically the region being staged)
-    let region_id = match parse_region_id(&request_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
+    // request_id is a correlation token; resolve it to a region_id.
+    let pending = {
+        let mut guard = state.pending_staging_requests.write().await;
+        guard.remove(&request_id)
     };
 
-    // Get region to find location_id (needed for setting location state)
-    let region = match state.app.entities.location.get_region(region_id).await {
-        Ok(Some(r)) => r,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    let (region_id, location_id) = if let Some(pending) = pending {
+        (pending.region_id, pending.location_id)
+    } else {
+        // Backward-compat: allow request_id to be the region_id.
+        let region_id = match parse_region_id(&request_id) {
+            Ok(id) => id,
+            Err(e) => return Some(e),
+        };
+
+        // Get region to find location_id (needed for setting location state)
+        let region = match state.app.entities.location.get_region(region_id).await {
+            Ok(Some(r)) => r,
+            Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
+            Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+        };
+        (region_id, region.location_id)
     };
-    let location_id = region.location_id;
 
     // Convert approved NPCs to CharacterIds
     let npc_ids: Vec<wrldbldr_domain::CharacterId> = approved_npcs
@@ -3472,7 +3499,7 @@ async fn handle_staging_approval(
 
                 // Broadcast StagingReady to all players in the world
                 let staging_ready = ServerMessage::StagingReady {
-                    region_id: request_id.clone(),
+                    region_id: region_id.to_string(),
                     npcs_present,
                     visual_state,
                 };
@@ -3507,10 +3534,20 @@ async fn handle_staging_regenerate(
         return Some(e);
     }
 
-    // Parse the request_id as a RegionId (it's the region being staged)
-    let region_id = match parse_region_id(&request_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
+    // request_id is a correlation token; resolve it to a region_id.
+    let pending = {
+        let guard = state.pending_staging_requests.read().await;
+        guard.get(&request_id).copied()
+    };
+
+    let region_id = if let Some(pending) = pending {
+        pending.region_id
+    } else {
+        // Backward-compat: allow request_id to be the region_id.
+        match parse_region_id(&request_id) {
+            Ok(id) => id,
+            Err(e) => return Some(e),
+        }
     };
 
     // Get region info for the LLM prompt
@@ -5612,6 +5649,7 @@ mod ws_integration_tests {
             app,
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -5893,6 +5931,7 @@ mod ws_integration_tests {
             app,
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -5954,16 +5993,21 @@ mod ws_integration_tests {
         .await;
 
         // DM gets staging approval request.
-        let _approval_required = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+        let approval_required = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
             matches!(m, ServerMessage::StagingApprovalRequired { .. })
         })
         .await;
+
+        let approval_request_id = match approval_required {
+            ServerMessage::StagingApprovalRequired { request_id, .. } => request_id,
+            other => panic!("expected StagingApprovalRequired, got: {:?}", other),
+        };
 
         // DM approves: one visible NPC + one hidden NPC.
         ws_send_client(
             &mut dm_ws,
             &ClientMessage::StagingApprovalResponse {
-                request_id: region_id.to_string(),
+                request_id: approval_request_id,
                 approved_npcs: vec![
                     wrldbldr_protocol::ApprovedNpcInfo {
                         character_id: visible_npc_id.to_string(),

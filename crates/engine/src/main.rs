@@ -78,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
         app: app.clone(),
         connections,
         pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
     // Spawn queue processor
