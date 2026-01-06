@@ -3382,6 +3382,7 @@ async fn handle_staging_approval(
     let npc_ids: Vec<wrldbldr_domain::CharacterId> = approved_npcs
         .iter()
         .filter(|npc| npc.is_present)
+        .filter(|npc| !npc.is_hidden_from_players)
         .filter_map(|npc| {
             Uuid::parse_str(&npc.character_id)
                 .ok()
@@ -3435,7 +3436,9 @@ async fn handle_staging_approval(
                 // Get NPC details for the response
                 let mut npcs_present = Vec::new();
                 for npc_info in &approved_npcs {
-                    if npc_info.is_present {
+                    // Never broadcast hidden NPCs to players (even though DMs also
+                    // receive world broadcasts).
+                    if npc_info.is_present && !npc_info.is_hidden_from_players {
                         // Fetch character details for name and assets
                         let (name, sprite_asset, portrait_asset) =
                             if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
@@ -5090,6 +5093,46 @@ mod ws_integration_tests {
         MockStagingRepo, MockWorldRepo,
     };
 
+    struct TestAppRepos {
+        world_repo: MockWorldRepo,
+        character_repo: MockCharacterRepo,
+        player_character_repo: MockPlayerCharacterRepo,
+        location_repo: MockLocationRepo,
+        scene_repo: MockSceneRepo,
+        challenge_repo: MockChallengeRepo,
+        narrative_repo: MockNarrativeRepo,
+        staging_repo: MockStagingRepo,
+        observation_repo: MockObservationRepo,
+        item_repo: MockItemRepo,
+        asset_repo: MockAssetRepo,
+        flag_repo: MockFlagRepo,
+        lore_repo: MockLoreRepo,
+        location_state_repo: MockLocationStateRepo,
+        region_state_repo: MockRegionStateRepo,
+    }
+
+    impl TestAppRepos {
+        fn new(world_repo: MockWorldRepo) -> Self {
+            Self {
+                world_repo,
+                character_repo: MockCharacterRepo::new(),
+                player_character_repo: MockPlayerCharacterRepo::new(),
+                location_repo: MockLocationRepo::new(),
+                scene_repo: MockSceneRepo::new(),
+                challenge_repo: MockChallengeRepo::new(),
+                narrative_repo: MockNarrativeRepo::new(),
+                staging_repo: MockStagingRepo::new(),
+                observation_repo: MockObservationRepo::new(),
+                item_repo: MockItemRepo::new(),
+                asset_repo: MockAssetRepo::new(),
+                flag_repo: MockFlagRepo::new(),
+                lore_repo: MockLoreRepo::new(),
+                location_state_repo: MockLocationStateRepo::new(),
+                region_state_repo: MockRegionStateRepo::new(),
+            }
+        }
+    }
+
     struct NoopQueue;
 
     #[async_trait::async_trait]
@@ -5216,31 +5259,29 @@ mod ws_integration_tests {
         }
     }
 
-    fn build_test_app(
-        world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo>,
-        now: DateTime<Utc>,
-    ) -> Arc<App> {
+    fn build_test_app(repos: TestAppRepos, now: DateTime<Utc>) -> Arc<App> {
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
         let random: Arc<dyn RandomPort> = Arc::new(FixedRandom);
         let queue: Arc<dyn QueuePort> = Arc::new(NoopQueue);
         let llm: Arc<dyn LlmPort> = Arc::new(NoopLlm);
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
 
-        // Repo mocks for unused entity modules.
-        let character_repo = Arc::new(MockCharacterRepo::new());
-        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
-        let location_repo = Arc::new(MockLocationRepo::new());
-        let scene_repo = Arc::new(MockSceneRepo::new());
-        let challenge_repo = Arc::new(MockChallengeRepo::new());
-        let narrative_repo = Arc::new(MockNarrativeRepo::new());
-        let staging_repo = Arc::new(MockStagingRepo::new());
-        let observation_repo = Arc::new(MockObservationRepo::new());
-        let item_repo = Arc::new(MockItemRepo::new());
-        let asset_repo = Arc::new(MockAssetRepo::new());
-        let flag_repo = Arc::new(MockFlagRepo::new());
-        let lore_repo = Arc::new(MockLoreRepo::new());
-        let location_state_repo = Arc::new(MockLocationStateRepo::new());
-        let region_state_repo = Arc::new(MockRegionStateRepo::new());
+        // Repo mocks.
+        let world_repo = Arc::new(repos.world_repo);
+        let character_repo = Arc::new(repos.character_repo);
+        let player_character_repo = Arc::new(repos.player_character_repo);
+        let location_repo = Arc::new(repos.location_repo);
+        let scene_repo = Arc::new(repos.scene_repo);
+        let challenge_repo = Arc::new(repos.challenge_repo);
+        let narrative_repo = Arc::new(repos.narrative_repo);
+        let staging_repo = Arc::new(repos.staging_repo);
+        let observation_repo = Arc::new(repos.observation_repo);
+        let item_repo = Arc::new(repos.item_repo);
+        let asset_repo = Arc::new(repos.asset_repo);
+        let flag_repo = Arc::new(repos.flag_repo);
+        let lore_repo = Arc::new(repos.lore_repo);
+        let location_state_repo = Arc::new(repos.location_state_repo);
+        let region_state_repo = Arc::new(repos.region_state_repo);
 
         // Entities
         let character = Arc::new(crate::entities::Character::new(character_repo.clone()));
@@ -5563,7 +5604,8 @@ mod ws_integration_tests {
 
         world_repo.expect_save().returning(|_world| Ok(()));
 
-        let app = build_test_app(Arc::new(world_repo), now);
+        let repos = TestAppRepos::new(world_repo);
+        let app = build_test_app(repos, now);
         let connections = Arc::new(ConnectionManager::new());
 
         let ws_state = Arc::new(WsState {
@@ -5673,6 +5715,297 @@ mod ws_integration_tests {
             spectator_broadcast,
             ServerMessage::GameTimeAdvanced { .. }
         ));
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready() {
+        use wrldbldr_domain::value_objects::CampbellArchetype;
+        use wrldbldr_domain::TimeMode;
+
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let visible_npc_id = CharacterId::new();
+        let hidden_npc_id = CharacterId::new();
+
+        // World (manual time, so movement doesn't generate time suggestions).
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+        world.set_time_mode(TimeMode::Manual, now);
+
+        // Domain fixtures.
+        let mut location = wrldbldr_domain::Location::new(
+            world_id,
+            "Test Location",
+            wrldbldr_domain::LocationType::Exterior,
+        );
+        location.id = location_id;
+
+        let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
+        region.id = region_id;
+
+        let mut pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
+        pc.id = pc_id;
+        pc.current_region_id = None; // initial spawn; skip connection validation
+
+        let mut visible_npc = wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
+        visible_npc.id = visible_npc_id;
+        let mut hidden_npc = wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
+        hidden_npc.id = hidden_npc_id;
+
+        // World repo: serve the world for both time + visual state resolution.
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let mut repos = TestAppRepos::new(world_repo);
+
+        // Movement needs PC + region + location.
+        let pc_for_get = pc.clone();
+        repos
+            .player_character_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        repos
+            .player_character_repo
+            .expect_get_inventory()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .player_character_repo
+            .expect_update_position()
+            .returning(|_, _, _| Ok(()));
+
+        let region_for_get = region.clone();
+        repos
+            .location_repo
+            .expect_get_region()
+            .returning(move |_| Ok(Some(region_for_get.clone())));
+
+        let location_for_get = location.clone();
+        repos
+            .location_repo
+            .expect_get_location()
+            .returning(move |_| Ok(Some(location_for_get.clone())));
+
+        // Unstaged region -> pending.
+        repos
+            .staging_repo
+            .expect_get_active_staging()
+            .returning(|_, _| Ok(None));
+
+        repos
+            .staging_repo
+            .expect_get_staged_npcs()
+            .returning(|_| Ok(vec![]));
+
+        // Narrative triggers: keep empty so we don't need deeper narrative deps.
+        repos
+            .narrative_repo
+            .expect_get_triggers_for_region()
+            .returning(|_, _| Ok(vec![]));
+
+        // Scene resolution: no scenes.
+        repos
+            .scene_repo
+            .expect_get_completed_scenes()
+            .returning(|_| Ok(vec![]));
+        repos
+            .scene_repo
+            .expect_list_for_region()
+            .returning(|_| Ok(vec![]));
+
+        // Observations + flags: empty.
+        repos
+            .observation_repo
+            .expect_get_observations()
+            .returning(|_| Ok(vec![]));
+        repos
+            .flag_repo
+            .expect_get_world_flags()
+            .returning(|_| Box::pin(async { Ok(vec![]) }));
+        repos
+            .flag_repo
+            .expect_get_pc_flags()
+            .returning(|_| Box::pin(async { Ok(vec![]) }));
+
+        // Visual state resolution: no states.
+        repos
+            .location_state_repo
+            .expect_list_for_location()
+            .returning(|_| Ok(vec![]));
+        repos
+            .region_state_repo
+            .expect_list_for_region()
+            .returning(|_| Ok(vec![]));
+        repos
+            .location_state_repo
+            .expect_get_active()
+            .returning(|_| Ok(None));
+        repos
+            .region_state_repo
+            .expect_get_active()
+            .returning(|_| Ok(None));
+
+        // Staging approval will stage only visible NPCs.
+        let region_id_for_stage = region_id;
+        let visible_npc_id_for_stage = visible_npc_id;
+        repos
+            .staging_repo
+            .expect_stage_npc()
+            .withf(move |r, c| *r == region_id_for_stage && *c == visible_npc_id_for_stage)
+            .returning(|_, _| Ok(()));
+
+        // Character details for StagingReady payload.
+        let visible_npc_for_get = visible_npc.clone();
+        let hidden_npc_for_get = hidden_npc.clone();
+        repos
+            .character_repo
+            .expect_get()
+            .returning(move |id| {
+                if id == visible_npc_for_get.id {
+                    Ok(Some(visible_npc_for_get.clone()))
+                } else if id == hidden_npc_for_get.id {
+                    Ok(Some(hidden_npc_for_get.clone()))
+                } else {
+                    Ok(None)
+                }
+            });
+
+        repos
+            .character_repo
+            .expect_get_npcs_for_region()
+            .returning(|_| Ok(vec![]));
+
+        let app = build_test_app(repos, now);
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+
+        let mut dm_ws = ws_connect(addr).await;
+        let mut player_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Player joins with PC.
+        ws_send_client(
+            &mut player_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Player,
+                pc_id: Some(*pc_id.as_uuid()),
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM receives UserJoined broadcast.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // Player moves into region with no active staging.
+        ws_send_client(
+            &mut player_ws,
+            &ClientMessage::MoveToRegion {
+                pc_id: pc_id.to_string(),
+                region_id: region_id.to_string(),
+            },
+        )
+        .await;
+
+        let _pending = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::StagingPending { .. })
+        })
+        .await;
+
+        // DM gets staging approval request.
+        let _approval_required = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::StagingApprovalRequired { .. })
+        })
+        .await;
+
+        // DM approves: one visible NPC + one hidden NPC.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::StagingApprovalResponse {
+                request_id: region_id.to_string(),
+                approved_npcs: vec![
+                    wrldbldr_protocol::ApprovedNpcInfo {
+                        character_id: visible_npc_id.to_string(),
+                        is_present: true,
+                        reasoning: None,
+                        is_hidden_from_players: false,
+                        mood: None,
+                    },
+                    wrldbldr_protocol::ApprovedNpcInfo {
+                        character_id: hidden_npc_id.to_string(),
+                        is_present: true,
+                        reasoning: None,
+                        is_hidden_from_players: true,
+                        mood: None,
+                    },
+                ],
+                ttl_hours: 24,
+                source: "test".to_string(),
+                location_state_id: None,
+                region_state_id: None,
+            },
+        )
+        .await;
+
+        // Player receives StagingReady broadcast, containing only visible NPC.
+        let staging_ready = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::StagingReady { .. })
+        })
+        .await;
+
+        match staging_ready {
+            ServerMessage::StagingReady {
+                region_id: got_region_id,
+                npcs_present,
+                ..
+            } => {
+                assert_eq!(got_region_id, region_id.to_string());
+                assert!(npcs_present.iter().any(|n| n.character_id == visible_npc_id.to_string()));
+                assert!(!npcs_present.iter().any(|n| n.character_id == hidden_npc_id.to_string()));
+            }
+            other => panic!("expected StagingReady, got: {:?}", other),
+        }
 
         server.abort();
     }
