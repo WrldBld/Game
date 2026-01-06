@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = [
+    "crates/domain",
+    "crates/protocol",
+    "crates/engine",
+    "crates/player",
+    "crates/xtask",
+]
 
 # Inherit package metadata across all crates
 [workspace.package]
@@ -19,11 +25,7 @@ wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }
 wrldbldr-engine = { path = "crates/engine", version = "0.1.0" }
 
 # Player crates (to be simplified in Phase 5)
-wrldbldr-player-ports = { path = "crates/player-ports", version = "0.1.0" }
-wrldbldr-player-app = { path = "crates/player-app", version = "0.1.0" }
-wrldbldr-player-adapters = { path = "crates/player-adapters", version = "0.1.0" }
-wrldbldr-player-ui = { path = "crates/player-ui", version = "0.1.0" }
-wrldbldr-player-runner = { path = "crates/player-runner", version = "0.1.0" }
+wrldbldr-player = { path = "crates/player", version = "0.1.0" }
 
 # Utilities
 xtask = { path = "crates/xtask", version = "0.1.0" }
