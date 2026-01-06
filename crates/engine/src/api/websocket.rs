@@ -3452,10 +3452,22 @@ async fn handle_staging_approval(
         };
         let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
 
-        let character = state.app.entities.character.get(character_id).await.ok().flatten();
+        let character = state
+            .app
+            .entities
+            .character
+            .get(character_id)
+            .await
+            .ok()
+            .flatten();
         let (name, sprite_asset, portrait_asset, default_mood) = match character {
             Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-            None => (String::new(), None, None, wrldbldr_domain::MoodState::default()),
+            None => (
+                String::new(),
+                None,
+                None,
+                wrldbldr_domain::MoodState::default(),
+            ),
         };
 
         let mood = npc_info
@@ -3724,10 +3736,22 @@ async fn handle_pre_stage_region(
             Err(_) => continue,
         };
         let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
-        let character = state.app.entities.character.get(character_id).await.ok().flatten();
+        let character = state
+            .app
+            .entities
+            .character
+            .get(character_id)
+            .await
+            .ok()
+            .flatten();
         let (name, sprite_asset, portrait_asset, default_mood) = match character {
             Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-            None => (String::new(), None, None, wrldbldr_domain::MoodState::default()),
+            None => (
+                String::new(),
+                None,
+                None,
+                wrldbldr_domain::MoodState::default(),
+            ),
         };
 
         let mood = npc_info
@@ -5230,7 +5254,12 @@ where
 mod ws_integration_tests {
     use super::*;
 
-    use std::{net::SocketAddr, sync::Arc, time::Duration};
+    use std::{
+        collections::HashMap as StdHashMap,
+        net::SocketAddr,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     use axum::routing::get;
     use chrono::{DateTime, Utc};
@@ -5416,11 +5445,141 @@ mod ws_integration_tests {
         }
     }
 
-    fn build_test_app(repos: TestAppRepos, now: DateTime<Utc>) -> Arc<App> {
+    #[derive(Default)]
+    struct RecordingApprovalQueueState {
+        approvals: StdHashMap<Uuid, wrldbldr_domain::ApprovalRequestData>,
+        completed: Vec<Uuid>,
+        failed: Vec<(Uuid, String)>,
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingApprovalQueue {
+        state: Arc<Mutex<RecordingApprovalQueueState>>,
+    }
+
+    impl RecordingApprovalQueue {
+        fn insert_approval(&self, id: Uuid, data: wrldbldr_domain::ApprovalRequestData) {
+            let mut guard = self.state.lock().unwrap();
+            guard.approvals.insert(id, data);
+        }
+
+        fn completed_contains(&self, id: Uuid) -> bool {
+            let guard = self.state.lock().unwrap();
+            guard.completed.contains(&id)
+        }
+
+        fn failed_contains(&self, id: Uuid) -> bool {
+            let guard = self.state.lock().unwrap();
+            guard.failed.iter().any(|(got, _)| *got == id)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl QueuePort for RecordingApprovalQueue {
+        async fn enqueue_player_action(
+            &self,
+            _data: &wrldbldr_domain::PlayerActionData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("not implemented".to_string()))
+        }
+
+        async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_llm_request(
+            &self,
+            _data: &wrldbldr_domain::LlmRequestData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("not implemented".to_string()))
+        }
+
+        async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_dm_approval(
+            &self,
+            _data: &wrldbldr_domain::ApprovalRequestData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("not implemented".to_string()))
+        }
+
+        async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_asset_generation(
+            &self,
+            _data: &wrldbldr_domain::AssetGenerationData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("not implemented".to_string()))
+        }
+
+        async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError> {
+            let mut guard = self.state.lock().unwrap();
+            guard.completed.push(id);
+            Ok(())
+        }
+
+        async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError> {
+            let mut guard = self.state.lock().unwrap();
+            guard.failed.push((id, error.to_string()));
+            Ok(())
+        }
+
+        async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+            Ok(0)
+        }
+
+        async fn get_approval_request(
+            &self,
+            id: Uuid,
+        ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+            let guard = self.state.lock().unwrap();
+            Ok(guard.approvals.get(&id).cloned())
+        }
+    }
+
+    struct FixedLlm {
+        content: String,
+    }
+
+    #[async_trait::async_trait]
+    impl LlmPort for FixedLlm {
+        async fn generate(
+            &self,
+            _request: crate::infrastructure::ports::LlmRequest,
+        ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
+            Ok(crate::infrastructure::ports::LlmResponse {
+                content: self.content.clone(),
+                tool_calls: vec![],
+                finish_reason: crate::infrastructure::ports::FinishReason::Stop,
+                usage: None,
+            })
+        }
+
+        async fn generate_with_tools(
+            &self,
+            request: crate::infrastructure::ports::LlmRequest,
+            _tools: Vec<crate::infrastructure::ports::ToolDefinition>,
+        ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
+            self.generate(request).await
+        }
+    }
+
+    fn build_test_app_with_ports(
+        repos: TestAppRepos,
+        now: DateTime<Utc>,
+        queue: Arc<dyn QueuePort>,
+        llm: Arc<dyn LlmPort>,
+    ) -> Arc<App> {
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
         let random: Arc<dyn RandomPort> = Arc::new(FixedRandom);
-        let queue: Arc<dyn QueuePort> = Arc::new(NoopQueue);
-        let llm: Arc<dyn LlmPort> = Arc::new(NoopLlm);
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
 
         // Repo mocks.
@@ -5668,6 +5827,10 @@ mod ws_integration_tests {
         })
     }
 
+    fn build_test_app(repos: TestAppRepos, now: DateTime<Utc>) -> Arc<App> {
+        build_test_app_with_ports(repos, now, Arc::new(NoopQueue), Arc::new(NoopLlm))
+    }
+
     async fn spawn_ws_server(state: Arc<WsState>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -5742,6 +5905,29 @@ mod ws_integration_tests {
         })
         .await
         .unwrap()
+    }
+
+    async fn ws_expect_no_message_matching<F>(
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        timeout: Duration,
+        mut predicate: F,
+    ) where
+        F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+    {
+        let result = tokio::time::timeout(timeout, async {
+            loop {
+                let msg = ws_recv_server(ws).await;
+                if predicate(&msg) {
+                    panic!("unexpected message: {:?}", msg);
+                }
+            }
+        })
+        .await;
+
+        // We only succeed if we timed out without seeing a matching message.
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -5878,7 +6064,8 @@ mod ws_integration_tests {
     }
 
     #[tokio::test]
-    async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready() {
+    async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready(
+    ) {
         use wrldbldr_domain::value_objects::CampbellArchetype;
         use wrldbldr_domain::TimeMode;
 
@@ -5907,13 +6094,16 @@ mod ws_integration_tests {
         let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
         region.id = region_id;
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
         pc.id = pc_id;
         pc.current_region_id = None; // initial spawn; skip connection validation
 
-        let mut visible_npc = wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
+        let mut visible_npc =
+            wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
         visible_npc.id = visible_npc_id;
-        let mut hidden_npc = wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
+        let mut hidden_npc =
+            wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
         hidden_npc.id = hidden_npc_id;
 
         // World repo: serve the world for both time + visual state resolution.
@@ -5955,6 +6145,16 @@ mod ws_integration_tests {
             .expect_get_location()
             .returning(move |_| Ok(Some(location_for_get.clone())));
 
+        repos
+            .location_repo
+            .expect_get_connections()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .location_repo
+            .expect_get_location_exits()
+            .returning(|_| Ok(vec![]));
+
         // Unstaged region -> pending.
         repos
             .staging_repo
@@ -5987,6 +6187,25 @@ mod ws_integration_tests {
             .observation_repo
             .expect_get_observations()
             .returning(|_| Ok(vec![]));
+
+        repos
+            .observation_repo
+            .expect_has_observed()
+            .returning(|_, _| Ok(false));
+
+        repos
+            .observation_repo
+            .expect_save_observation()
+            .returning(|_| Ok(()));
+
+        repos
+            .observation_repo
+            .expect_has_observed()
+            .returning(|_, _| Ok(false));
+        repos
+            .observation_repo
+            .expect_save_observation()
+            .returning(|_| Ok(()));
         repos
             .flag_repo
             .expect_get_world_flags()
@@ -6014,6 +6233,12 @@ mod ws_integration_tests {
             .expect_get_active()
             .returning(|_| Ok(None));
 
+        // Items in region: empty.
+        repos
+            .item_repo
+            .expect_list_in_region()
+            .returning(|_| Ok(vec![]));
+
         // Staging approval persists full per-NPC info (including hidden flags).
         let region_id_for_staging = region_id;
         let location_id_for_staging = location_id;
@@ -6028,22 +6253,16 @@ mod ws_integration_tests {
                     && s.location_id == location_id_for_staging
                     && s.world_id == world_id_for_staging
                     && s.ttl_hours == 24
-                    && s
-                        .npcs
-                        .iter()
-                        .any(|n| {
-                            n.character_id == visible_npc_id_for_staging
-                                && n.is_present
-                                && !n.is_hidden_from_players
-                        })
-                    && s
-                        .npcs
-                        .iter()
-                        .any(|n| {
-                            n.character_id == hidden_npc_id_for_staging
-                                && n.is_present
-                                && n.is_hidden_from_players
-                        })
+                    && s.npcs.iter().any(|n| {
+                        n.character_id == visible_npc_id_for_staging
+                            && n.is_present
+                            && !n.is_hidden_from_players
+                    })
+                    && s.npcs.iter().any(|n| {
+                        n.character_id == hidden_npc_id_for_staging
+                            && n.is_present
+                            && n.is_hidden_from_players
+                    })
             })
             .returning(|_| Ok(()));
 
@@ -6056,18 +6275,15 @@ mod ws_integration_tests {
         // Character details for StagingReady payload.
         let visible_npc_for_get = visible_npc.clone();
         let hidden_npc_for_get = hidden_npc.clone();
-        repos
-            .character_repo
-            .expect_get()
-            .returning(move |id| {
-                if id == visible_npc_for_get.id {
-                    Ok(Some(visible_npc_for_get.clone()))
-                } else if id == hidden_npc_for_get.id {
-                    Ok(Some(hidden_npc_for_get.clone()))
-                } else {
-                    Ok(None)
-                }
-            });
+        repos.character_repo.expect_get().returning(move |id| {
+            if id == visible_npc_for_get.id {
+                Ok(Some(visible_npc_for_get.clone()))
+            } else if id == hidden_npc_for_get.id {
+                Ok(Some(hidden_npc_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
         repos
             .character_repo
@@ -6195,10 +6411,893 @@ mod ws_integration_tests {
                 ..
             } => {
                 assert_eq!(got_region_id, region_id.to_string());
-                assert!(npcs_present.iter().any(|n| n.character_id == visible_npc_id.to_string()));
-                assert!(!npcs_present.iter().any(|n| n.character_id == hidden_npc_id.to_string()));
+                assert!(npcs_present
+                    .iter()
+                    .any(|n| n.character_id == visible_npc_id.to_string()));
+                assert!(!npcs_present
+                    .iter()
+                    .any(|n| n.character_id == hidden_npc_id.to_string()));
             }
             other => panic!("expected StagingReady, got: {:?}", other),
+        }
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_dialogue() {
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let repos = TestAppRepos::new(world_repo);
+
+        let queue = RecordingApprovalQueue::default();
+        let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
+
+        let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+
+        let mut dm_ws = ws_connect(addr).await;
+        let mut spectator_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Spectator joins (receives world broadcasts).
+        ws_send_client(
+            &mut spectator_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Spectator,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM receives UserJoined broadcast.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // Seed an approval request.
+        let approval_id = Uuid::new_v4();
+        let npc_id = CharacterId::new();
+        let proposed_dialogue = "Hello there".to_string();
+
+        queue.insert_approval(
+            approval_id,
+            wrldbldr_domain::ApprovalRequestData {
+                world_id,
+                source_action_id: Uuid::new_v4(),
+                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
+                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                pc_id: None,
+                npc_id: Some(npc_id),
+                npc_name: "NPC".to_string(),
+                proposed_dialogue: proposed_dialogue.clone(),
+                internal_reasoning: "".to_string(),
+                proposed_tools: vec![],
+                retry_count: 0,
+                challenge_suggestion: None,
+                narrative_event_suggestion: None,
+                challenge_outcome: None,
+                player_dialogue: None,
+                scene_id: None,
+                location_id: None,
+                game_time: None,
+                topics: vec![],
+            },
+        );
+
+        // DM accepts.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::ApprovalDecision {
+                request_id: approval_id.to_string(),
+                decision: wrldbldr_protocol::ApprovalDecision::Accept,
+            },
+        )
+        .await;
+
+        // DM sees ResponseApproved.
+        let dm_msg = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::ResponseApproved { .. })
+        })
+        .await;
+        match dm_msg {
+            ServerMessage::ResponseApproved {
+                npc_dialogue,
+                executed_tools,
+            } => {
+                assert_eq!(npc_dialogue, proposed_dialogue);
+                assert!(executed_tools.is_empty());
+            }
+            other => panic!("expected ResponseApproved, got: {:?}", other),
+        }
+
+        // World sees DialogueResponse.
+        let world_msg = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::DialogueResponse { .. })
+        })
+        .await;
+        match world_msg {
+            ServerMessage::DialogueResponse {
+                speaker_id, text, ..
+            } => {
+                assert_eq!(speaker_id, npc_id.to_string());
+                assert_eq!(text, proposed_dialogue);
+            }
+            other => panic!("expected DialogueResponse, got: {:?}", other),
+        }
+
+        assert!(queue.completed_contains(approval_id));
+        assert!(!queue.failed_contains(approval_id));
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broadcast_dialogue()
+    {
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let repos = TestAppRepos::new(world_repo);
+
+        let queue = RecordingApprovalQueue::default();
+        let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
+        let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+
+        let mut dm_ws = ws_connect(addr).await;
+        let mut spectator_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Spectator joins.
+        ws_send_client(
+            &mut spectator_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Spectator,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM receives UserJoined broadcast.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // Seed an approval request.
+        let approval_id = Uuid::new_v4();
+        let npc_id = CharacterId::new();
+        queue.insert_approval(
+            approval_id,
+            wrldbldr_domain::ApprovalRequestData {
+                world_id,
+                source_action_id: Uuid::new_v4(),
+                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
+                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                pc_id: None,
+                npc_id: Some(npc_id),
+                npc_name: "NPC".to_string(),
+                proposed_dialogue: "Hello".to_string(),
+                internal_reasoning: "".to_string(),
+                proposed_tools: vec![],
+                retry_count: 0,
+                challenge_suggestion: None,
+                narrative_event_suggestion: None,
+                challenge_outcome: None,
+                player_dialogue: None,
+                scene_id: None,
+                location_id: None,
+                game_time: None,
+                topics: vec![],
+            },
+        );
+
+        // DM rejects.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::ApprovalDecision {
+                request_id: approval_id.to_string(),
+                decision: wrldbldr_protocol::ApprovalDecision::Reject {
+                    feedback: "no".to_string(),
+                },
+            },
+        )
+        .await;
+
+        // Ensure no DialogueResponse is broadcast.
+        ws_expect_no_message_matching(&mut spectator_ws, Duration::from_millis(250), |m| {
+            matches!(m, ServerMessage::DialogueResponse { .. })
+        })
+        .await;
+
+        assert!(!queue.completed_contains(approval_id));
+        assert!(queue.failed_contains(approval_id));
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts_modified_dialogue(
+    ) {
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let repos = TestAppRepos::new(world_repo);
+
+        let queue = RecordingApprovalQueue::default();
+        let queue_port: Arc<dyn QueuePort> = Arc::new(queue.clone());
+        let app = build_test_app_with_ports(repos, now, queue_port, Arc::new(NoopLlm));
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+
+        let mut dm_ws = ws_connect(addr).await;
+        let mut spectator_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Spectator joins.
+        ws_send_client(
+            &mut spectator_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Spectator,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM receives UserJoined broadcast.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // Seed an approval request.
+        let approval_id = Uuid::new_v4();
+        let npc_id = CharacterId::new();
+        queue.insert_approval(
+            approval_id,
+            wrldbldr_domain::ApprovalRequestData {
+                world_id,
+                source_action_id: Uuid::new_v4(),
+                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
+                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                pc_id: None,
+                npc_id: Some(npc_id),
+                npc_name: "NPC".to_string(),
+                proposed_dialogue: "Original".to_string(),
+                internal_reasoning: "".to_string(),
+                proposed_tools: vec![],
+                retry_count: 0,
+                challenge_suggestion: None,
+                narrative_event_suggestion: None,
+                challenge_outcome: None,
+                player_dialogue: None,
+                scene_id: None,
+                location_id: None,
+                game_time: None,
+                topics: vec![],
+            },
+        );
+
+        let modified_dialogue = "Modified dialogue".to_string();
+        let approved_tools = vec!["tool_a".to_string(), "tool_b".to_string()];
+
+        // DM modifies.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::ApprovalDecision {
+                request_id: approval_id.to_string(),
+                decision: wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
+                    modified_dialogue: modified_dialogue.clone(),
+                    approved_tools: approved_tools.clone(),
+                    rejected_tools: vec![],
+                    item_recipients: std::collections::HashMap::new(),
+                },
+            },
+        )
+        .await;
+
+        let dm_msg = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::ResponseApproved { .. })
+        })
+        .await;
+        match dm_msg {
+            ServerMessage::ResponseApproved {
+                npc_dialogue,
+                executed_tools,
+            } => {
+                assert_eq!(npc_dialogue, modified_dialogue);
+                assert_eq!(executed_tools, approved_tools);
+            }
+            other => panic!("expected ResponseApproved, got: {:?}", other),
+        }
+
+        let world_msg = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::DialogueResponse { .. })
+        })
+        .await;
+        match world_msg {
+            ServerMessage::DialogueResponse { text, .. } => {
+                assert_eq!(text, modified_dialogue);
+            }
+            other => panic!("expected DialogueResponse, got: {:?}", other),
+        }
+
+        assert!(queue.completed_contains(approval_id));
+        assert!(!queue.failed_contains(approval_id));
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_without_staging_pending(
+    ) {
+        use wrldbldr_domain::value_objects::CampbellArchetype;
+        use wrldbldr_domain::TimeMode;
+
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+        world.set_time_mode(TimeMode::Manual, now);
+
+        let mut location = wrldbldr_domain::Location::new(
+            world_id,
+            "Test Location",
+            wrldbldr_domain::LocationType::Exterior,
+        );
+        location.id = location_id;
+
+        let mut region = wrldbldr_domain::Region::new(location_id, "Region");
+        region.id = region_id;
+
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
+        pc.id = pc_id;
+        pc.current_region_id = None;
+
+        let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero);
+        npc.id = npc_id;
+
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let mut repos = TestAppRepos::new(world_repo);
+
+        // Join+movement needs PC+region+location.
+        let pc_for_get = pc.clone();
+        repos
+            .player_character_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        repos
+            .player_character_repo
+            .expect_get_inventory()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .player_character_repo
+            .expect_update_position()
+            .returning(|_, _, _| Ok(()));
+
+        let region_for_get = region.clone();
+        repos
+            .location_repo
+            .expect_get_region()
+            .returning(move |_| Ok(Some(region_for_get.clone())));
+
+        let location_for_get = location.clone();
+        repos
+            .location_repo
+            .expect_get_location()
+            .returning(move |_| Ok(Some(location_for_get.clone())));
+
+        repos
+            .location_repo
+            .expect_get_connections()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .location_repo
+            .expect_get_location_exits()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .item_repo
+            .expect_list_in_region()
+            .returning(|_| Ok(vec![]));
+
+        // Narrative triggers/scene/flags/observations: empty.
+        repos
+            .narrative_repo
+            .expect_get_triggers_for_region()
+            .returning(|_, _| Ok(vec![]));
+        repos
+            .scene_repo
+            .expect_get_completed_scenes()
+            .returning(|_| Ok(vec![]));
+        repos
+            .scene_repo
+            .expect_list_for_region()
+            .returning(|_| Ok(vec![]));
+        repos
+            .observation_repo
+            .expect_get_observations()
+            .returning(|_| Ok(vec![]));
+        repos
+            .observation_repo
+            .expect_has_observed()
+            .returning(|_, _| Ok(false));
+        repos
+            .observation_repo
+            .expect_save_observation()
+            .returning(|_| Ok(()));
+        repos
+            .flag_repo
+            .expect_get_world_flags()
+            .returning(|_| Box::pin(async { Ok(vec![]) }));
+        repos
+            .flag_repo
+            .expect_get_pc_flags()
+            .returning(|_| Box::pin(async { Ok(vec![]) }));
+
+        // Visual state resolution: no states.
+        repos
+            .location_state_repo
+            .expect_list_for_location()
+            .returning(|_| Ok(vec![]));
+        repos
+            .region_state_repo
+            .expect_list_for_region()
+            .returning(|_| Ok(vec![]));
+        repos
+            .location_state_repo
+            .expect_get_active()
+            .returning(|_| Ok(None));
+        repos
+            .region_state_repo
+            .expect_get_active()
+            .returning(|_| Ok(None));
+
+        // Character details used by PreStageRegion.
+        let npc_for_get = npc.clone();
+        repos.character_repo.expect_get().returning(move |id| {
+            if id == npc_for_get.id {
+                Ok(Some(npc_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+
+        // Stage activation should influence subsequent get_active_staging.
+        #[derive(Default)]
+        struct SharedStaging {
+            pending: Option<wrldbldr_domain::Staging>,
+            activated: bool,
+        }
+
+        let shared = Arc::new(Mutex::new(SharedStaging::default()));
+
+        let shared_for_save = shared.clone();
+        repos
+            .staging_repo
+            .expect_save_pending_staging()
+            .returning(move |s| {
+                let mut guard = shared_for_save.lock().unwrap();
+                guard.pending = Some(s.clone());
+                Ok(())
+            });
+
+        let shared_for_activate = shared.clone();
+        repos
+            .staging_repo
+            .expect_activate_staging()
+            .withf(move |_id, r| *r == region_id)
+            .returning(move |_id, _region| {
+                let mut guard = shared_for_activate.lock().unwrap();
+                guard.activated = true;
+                Ok(())
+            });
+
+        let shared_for_get_active = shared.clone();
+        repos
+            .staging_repo
+            .expect_get_active_staging()
+            .returning(move |rid, _now| {
+                let guard = shared_for_get_active.lock().unwrap();
+                if guard.activated {
+                    Ok(guard.pending.clone().filter(|s| s.region_id == rid))
+                } else {
+                    Ok(None)
+                }
+            });
+
+        repos
+            .staging_repo
+            .expect_get_staged_npcs()
+            .returning(|_| Ok(vec![]));
+
+        repos
+            .character_repo
+            .expect_get_npcs_for_region()
+            .returning(|_| Ok(vec![]));
+
+        let app = build_test_app(repos, now);
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+        let mut dm_ws = ws_connect(addr).await;
+        let mut player_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Player joins with PC.
+        ws_send_client(
+            &mut player_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Player,
+                pc_id: Some(*pc_id.as_uuid()),
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM receives UserJoined broadcast.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // DM pre-stages the region.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::PreStageRegion {
+                region_id: region_id.to_string(),
+                npcs: vec![wrldbldr_protocol::ApprovedNpcInfo {
+                    character_id: npc_id.to_string(),
+                    is_present: true,
+                    reasoning: Some("pre-staged".to_string()),
+                    is_hidden_from_players: false,
+                    mood: None,
+                }],
+                ttl_hours: 24,
+                location_state_id: None,
+                region_state_id: None,
+            },
+        )
+        .await;
+
+        // Player moves into region and should immediately receive SceneChanged (not StagingPending).
+        ws_send_client(
+            &mut player_ws,
+            &ClientMessage::MoveToRegion {
+                pc_id: pc_id.to_string(),
+                region_id: region_id.to_string(),
+            },
+        )
+        .await;
+
+        let scene_changed = ws_expect_message(&mut player_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::SceneChanged { .. })
+        })
+        .await;
+        match scene_changed {
+            ServerMessage::SceneChanged { npcs_present, .. } => {
+                assert!(npcs_present
+                    .iter()
+                    .any(|n| n.character_id == npc_id.to_string()));
+            }
+            other => panic!("expected SceneChanged, got: {:?}", other),
+        }
+
+        // DM should not receive a staging approval request as a result of the move.
+        ws_expect_no_message_matching(&mut dm_ws, Duration::from_millis(250), |m| {
+            matches!(m, ServerMessage::StagingApprovalRequired { .. })
+        })
+        .await;
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_does_not_mutate_staging(
+    ) {
+        use crate::infrastructure::ports::{NpcRegionRelationType, NpcWithRegionInfo};
+
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let npc_id = CharacterId::new();
+
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+
+        let mut location = wrldbldr_domain::Location::new(
+            world_id,
+            "Test Location",
+            wrldbldr_domain::LocationType::Exterior,
+        );
+        location.id = location_id;
+
+        let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
+        region.id = region_id;
+
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+        world_repo.expect_save().returning(|_world| Ok(()));
+
+        let mut repos = TestAppRepos::new(world_repo);
+
+        let region_for_get = region.clone();
+        repos
+            .location_repo
+            .expect_get_region()
+            .returning(move |_| Ok(Some(region_for_get.clone())));
+
+        let location_for_get = location.clone();
+        repos
+            .location_repo
+            .expect_get_location()
+            .returning(move |_| Ok(Some(location_for_get.clone())));
+
+        // Candidates for LLM suggestions.
+        repos
+            .character_repo
+            .expect_get_npcs_for_region()
+            .returning(move |_| {
+                Ok(vec![NpcWithRegionInfo {
+                    character_id: npc_id,
+                    name: "Alice".to_string(),
+                    sprite_asset: None,
+                    portrait_asset: None,
+                    relationship_type: NpcRegionRelationType::Frequents,
+                    shift: None,
+                    frequency: Some("often".to_string()),
+                    time_of_day: None,
+                    reason: None,
+                    default_mood: wrldbldr_domain::MoodState::default(),
+                }])
+            });
+
+        // Regenerate should not touch staging persistence.
+        repos.staging_repo.expect_save_pending_staging().times(0);
+        repos.staging_repo.expect_activate_staging().times(0);
+
+        let llm = Arc::new(FixedLlm {
+            content: r#"[{"name":"Alice","reason":"She is here"}]"#.to_string(),
+        });
+
+        let app = build_test_app_with_ports(repos, now, Arc::new(NoopQueue), llm);
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        // Seed a pending staging request correlation.
+        let request_id = "req-123".to_string();
+        {
+            let mut guard = ws_state.pending_staging_requests.write().await;
+            guard.insert(
+                request_id.clone(),
+                PendingStagingRequest {
+                    region_id,
+                    location_id,
+                },
+            );
+        }
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+        let mut dm_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM requests regeneration.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::StagingRegenerateRequest {
+                request_id: request_id.clone(),
+                guidance: "more drama".to_string(),
+            },
+        )
+        .await;
+
+        let regenerated = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::StagingRegenerated { .. })
+        })
+        .await;
+
+        match regenerated {
+            ServerMessage::StagingRegenerated {
+                request_id: got_id,
+                llm_based_npcs,
+            } => {
+                assert_eq!(got_id, request_id);
+                assert_eq!(llm_based_npcs.len(), 1);
+                assert_eq!(llm_based_npcs[0].character_id, npc_id.to_string());
+                assert!(llm_based_npcs[0].reasoning.contains("[LLM]"));
+            }
+            other => panic!("expected StagingRegenerated, got: {:?}", other),
         }
 
         server.abort();

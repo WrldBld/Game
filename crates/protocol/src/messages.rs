@@ -1287,7 +1287,9 @@ pub struct NpcDispositionData {
 
 #[cfg(test)]
 mod serde_tests {
-    use super::{ApprovedNpcInfo, ClientMessage, NpcPresentInfo, ServerMessage, StagedNpcInfo, WaitingPcInfo};
+    use super::{
+        ApprovedNpcInfo, ClientMessage, NpcPresentInfo, ServerMessage, StagedNpcInfo, WaitingPcInfo,
+    };
 
     #[test]
     fn client_message_round_trip_move_to_region() {
@@ -1382,15 +1384,15 @@ mod serde_tests {
 
     #[test]
     fn unknown_client_message_deserializes_to_unknown() {
-        let decoded: ClientMessage = serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#)
-            .expect("deserialize");
+        let decoded: ClientMessage =
+            serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#).expect("deserialize");
         assert!(matches!(decoded, ClientMessage::Unknown));
     }
 
     #[test]
     fn unknown_server_message_deserializes_to_unknown() {
-        let decoded: ServerMessage = serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#)
-            .expect("deserialize");
+        let decoded: ServerMessage =
+            serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#).expect("deserialize");
         assert!(matches!(decoded, ServerMessage::Unknown));
     }
 }

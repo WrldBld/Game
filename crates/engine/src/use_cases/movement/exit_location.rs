@@ -6,7 +6,9 @@
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 
-use crate::entities::{Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, Staging, World};
+use crate::entities::{
+    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, Staging, World,
+};
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::SuggestTime;
 
@@ -130,7 +132,8 @@ impl ExitLocation {
             region.location_id,
             pc.world_id,
             current_game_time,
-        ).await?;
+        )
+        .await?;
 
         // 9. Update observation (only if staging ready)
         // Use game time for when the observation occurred in-game
@@ -151,7 +154,8 @@ impl ExitLocation {
             pc.name.clone(),
             "travel_location",
             &location.name,
-        ).await;
+        )
+        .await;
 
         // 12. Resolve scene for the arrival region
         let resolved_scene = resolve_scene_for_region(
@@ -163,7 +167,8 @@ impl ExitLocation {
             pc.world_id,
             region_id,
             &world_data.game_time,
-        ).await?;
+        )
+        .await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
@@ -221,10 +226,7 @@ impl ExitLocation {
         }
 
         // Fall back to first spawn point in location
-        let regions = self
-            .location
-            .list_regions_in_location(location_id)
-            .await?;
+        let regions = self.location.list_regions_in_location(location_id).await?;
 
         regions
             .into_iter()
@@ -280,9 +282,12 @@ mod tests {
         world_repo: MockWorldRepo,
         clock: Arc<dyn ClockPort>,
     ) -> super::ExitLocation {
-        let player_character = Arc::new(entities::PlayerCharacter::new(Arc::new(player_character_repo)));
+        let player_character = Arc::new(entities::PlayerCharacter::new(Arc::new(
+            player_character_repo,
+        )));
 
-        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> = Arc::new(location_repo);
+        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
+            Arc::new(location_repo);
         let location = Arc::new(entities::Location::new(location_repo.clone()));
 
         let staging = Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new())));
@@ -313,7 +318,10 @@ mod tests {
         let flag = Arc::new(entities::Flag::new(Arc::new(MockFlagRepo::new())));
 
         let world = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
-        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(world.clone(), clock));
+        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
+            world.clone(),
+            clock,
+        ));
 
         super::ExitLocation::new(
             player_character,
@@ -351,7 +359,10 @@ mod tests {
             .execute(pc_id, location_id, None)
             .await
             .unwrap_err();
-        assert!(matches!(err, super::ExitLocationError::PlayerCharacterNotFound));
+        assert!(matches!(
+            err,
+            super::ExitLocationError::PlayerCharacterNotFound
+        ));
     }
 
     #[tokio::test]
@@ -362,7 +373,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
         pc.id = pc_id;
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -393,7 +405,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_specified_arrival_region_is_not_in_location_then_returns_region_location_mismatch() {
+    async fn when_specified_arrival_region_is_not_in_location_then_returns_region_location_mismatch(
+    ) {
         let now = Utc::now();
         let world_id = WorldId::new();
         let pc_location_id = LocationId::new();
@@ -401,11 +414,13 @@ mod tests {
         let target_location_id = LocationId::new();
         let other_location_id = LocationId::new();
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
         pc.id = pc_id;
 
-        let mut location = wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-            .with_description("Desc");
+        let mut location =
+            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .with_description("Desc");
         location.id = target_location_id;
 
         let mut arrival_region = Region::new(other_location_id, "Arrival");
@@ -443,7 +458,10 @@ mod tests {
             .execute(pc_id, target_location_id, Some(arrival_region_id))
             .await
             .unwrap_err();
-        assert!(matches!(err, super::ExitLocationError::RegionLocationMismatch));
+        assert!(matches!(
+            err,
+            super::ExitLocationError::RegionLocationMismatch
+        ));
     }
 
     #[tokio::test]
@@ -454,11 +472,13 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
         pc.id = pc_id;
 
-        let mut location = wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-            .with_description("Desc");
+        let mut location =
+            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .with_description("Desc");
         location.id = target_location_id;
         location.default_region_id = None;
 
@@ -510,15 +530,17 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let target_location_id = LocationId::new();
-        let mut target_location = wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-            .with_description("Desc");
+        let mut target_location =
+            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .with_description("Desc");
         target_location.id = target_location_id;
 
         let mut arrival_region = Region::new(target_location_id, "Arrival");
         arrival_region.id = RegionId::new();
         let arrival_region_id = arrival_region.id;
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
         pc.id = pc_id;
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -531,7 +553,9 @@ mod tests {
 
         pc_repo
             .expect_update_position()
-            .withf(move |id, loc, reg| *id == pc_id && *loc == target_location_id && *reg == arrival_region_id)
+            .withf(move |id, loc, reg| {
+                *id == pc_id && *loc == target_location_id && *reg == arrival_region_id
+            })
             .returning(|_, _, _| Ok(()));
 
         let pc_for_get_2 = pc.clone();

@@ -93,17 +93,26 @@ impl StartConversation {
             .ok_or(ConversationError::NpcNotFound)?;
 
         // 3. Verify the NPC is in the same region as the PC
-        let pc_region_id = pc.current_region_id
+        let pc_region_id = pc
+            .current_region_id
             .ok_or(ConversationError::PlayerNotInRegion)?;
 
         // Get current game time for staging TTL check
-        let world_data = self.world.get(world_id).await?
+        let world_data = self
+            .world
+            .get(world_id)
+            .await?
             .ok_or(ConversationError::WorldNotFound)?;
         let current_game_time = world_data.game_time.current();
 
         // Check if NPC is staged in this region (with TTL check)
-        let staged_npcs = self.staging.resolve_for_region(pc_region_id, current_game_time).await?;
-        let npc_in_region = staged_npcs.iter().any(|staged| staged.character_id == npc_id);
+        let staged_npcs = self
+            .staging
+            .resolve_for_region(pc_region_id, current_game_time)
+            .await?;
+        let npc_in_region = staged_npcs
+            .iter()
+            .any(|staged| staged.character_id == npc_id);
 
         if !npc_in_region {
             return Err(ConversationError::NpcNotInRegion);
@@ -176,7 +185,7 @@ mod tests {
     use uuid::Uuid;
     use wrldbldr_domain::{
         ApprovalRequestData, AssetGenerationData, CampbellArchetype, Character, CharacterId,
-        LocationId, LlmRequestData, MoodState, PlayerActionData, PlayerCharacterId, RegionId,
+        LlmRequestData, LocationId, MoodState, PlayerActionData, PlayerCharacterId, RegionId,
         StagedNpc, Staging, StagingSource, WorldId,
     };
 
@@ -216,10 +225,7 @@ mod tests {
     #[async_trait]
     impl QueuePort for RecordingQueuePort {
         async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
-            self.player_actions
-                .lock()
-                .expect("lock")
-                .push(data.clone());
+            self.player_actions.lock().expect("lock").push(data.clone());
             Ok(self.enqueue_return_id)
         }
 
@@ -286,7 +292,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
         pc.id = pc_id;
         pc.current_region_id = Some(region_id);
 
@@ -369,7 +376,8 @@ mod tests {
         let player_id = "player".to_string();
         let initial_dialogue = "Hello".to_string();
 
-        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        let mut pc =
+            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
         pc.id = pc_id;
         pc.current_region_id = Some(region_id);
 

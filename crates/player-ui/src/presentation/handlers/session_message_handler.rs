@@ -567,7 +567,7 @@ pub fn handle_server_message(
 
             // Update selected PC in game state
             game_state.selected_pc_id.set(Some(pc_id.clone()));
-            
+
             // Clear NPC dispositions from previous PC (dispositions are PC-specific)
             game_state.clear_npc_dispositions();
 
@@ -1630,11 +1630,7 @@ mod tests {
         }
 
         fn storage_load(&self, key: &str) -> Option<String> {
-            self.storage
-                .lock()
-                .expect("storage lock")
-                .get(key)
-                .cloned()
+            self.storage.lock().expect("storage lock").get(key).cloned()
         }
 
         fn storage_remove(&self, key: &str) {
