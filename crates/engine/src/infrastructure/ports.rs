@@ -515,6 +515,7 @@ pub trait ItemRepo: Send + Sync {
     async fn remove_from_region(&self, item_id: ItemId) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait WorldRepo: Send + Sync {
     async fn get(&self, id: WorldId) -> Result<Option<World>, RepoError>;

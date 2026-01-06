@@ -243,3 +243,73 @@ pub fn build_time_advance_data(
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use chrono::Utc;
+    use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
+
+    use crate::entities;
+    use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    #[tokio::test]
+    async fn when_time_mode_auto_then_suggests_time_and_does_not_persist() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+
+        let mut time_config = GameTimeConfig::default();
+        time_config.mode = TimeMode::Auto;
+
+        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
+        domain_world.id = world_id;
+        domain_world.time_config = time_config;
+
+        let mut world_repo = MockWorldRepo::new();
+        let domain_world_for_get = domain_world.clone();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(move |_| Ok(Some(domain_world_for_get.clone())));
+        world_repo.expect_save().times(0);
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let suggest_time = super::SuggestTime::new(world_entity, clock);
+
+        let result = suggest_time
+            .execute(
+                world_id,
+                wrldbldr_domain::PlayerCharacterId::new(),
+                "PC".to_string(),
+                "challenge",
+                "Try to pick the lock".to_string(),
+            )
+            .await
+            .expect("SuggestTime should succeed");
+
+        let super::SuggestTimeResult::SuggestionCreated(suggestion) = result else {
+            panic!("expected SuggestionCreated");
+        };
+
+        assert_eq!(suggestion.world_id, world_id);
+        assert_eq!(suggestion.action_type, "challenge");
+        assert_eq!(suggestion.suggested_minutes, 10);
+        assert_eq!(suggestion.current_time, domain_world.game_time);
+        assert_eq!(
+            suggestion.resulting_time.day(),
+            domain_world.game_time.day(),
+            "time suggestion should not change day for small increments"
+        );
+        assert_ne!(suggestion.resulting_time.minute(), domain_world.game_time.minute());
+    }
+}
