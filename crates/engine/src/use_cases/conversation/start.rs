@@ -166,3 +166,313 @@ pub enum ConversationError {
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use uuid::Uuid;
+    use wrldbldr_domain::{
+        ApprovalRequestData, AssetGenerationData, CampbellArchetype, Character, CharacterId,
+        LocationId, LlmRequestData, MoodState, PlayerActionData, PlayerCharacterId, RegionId,
+        StagedNpc, Staging, StagingSource, WorldId,
+    };
+
+    use crate::entities;
+    use crate::infrastructure::ports::{
+        ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
+        MockWorldRepo, QueueError, QueueItem, QueuePort,
+    };
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    #[derive(Debug)]
+    struct RecordingQueuePort {
+        enqueue_return_id: Uuid,
+        player_actions: Mutex<Vec<PlayerActionData>>,
+    }
+
+    impl RecordingQueuePort {
+        fn new(enqueue_return_id: Uuid) -> Self {
+            Self {
+                enqueue_return_id,
+                player_actions: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn recorded_player_actions(&self) -> Vec<PlayerActionData> {
+            self.player_actions.lock().expect("lock").clone()
+        }
+    }
+
+    #[async_trait]
+    impl QueuePort for RecordingQueuePort {
+        async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
+            self.player_actions
+                .lock()
+                .expect("lock")
+                .push(data.clone());
+            Ok(self.enqueue_return_id)
+        }
+
+        async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
+            Ok(Uuid::new_v4())
+        }
+
+        async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_dm_approval(
+            &self,
+            _data: &ApprovalRequestData,
+        ) -> Result<Uuid, QueueError> {
+            Ok(Uuid::new_v4())
+        }
+
+        async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_asset_generation(
+            &self,
+            _data: &AssetGenerationData,
+        ) -> Result<Uuid, QueueError> {
+            Ok(Uuid::new_v4())
+        }
+
+        async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn mark_complete(&self, _id: Uuid) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn mark_failed(&self, _id: Uuid, _error: &str) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+            Ok(0)
+        }
+
+        async fn get_approval_request(
+            &self,
+            _id: Uuid,
+        ) -> Result<Option<ApprovalRequestData>, QueueError> {
+            Ok(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn when_npc_not_staged_then_returns_npc_not_in_region_and_does_not_enqueue() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+
+        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        pc.id = pc_id;
+        pc.current_region_id = Some(region_id);
+
+        let npc = {
+            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor);
+            c.id = npc_id;
+            c
+        };
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut character_repo = MockCharacterRepo::new();
+        let npc_for_get = npc.clone();
+        character_repo
+            .expect_get()
+            .withf(move |id| *id == npc_id)
+            .returning(move |_| Ok(Some(npc_for_get.clone())));
+        character_repo
+            .expect_get_disposition()
+            .returning(|_, _| Ok(None));
+
+        let mut world_repo = MockWorldRepo::new();
+        let mut world = wrldbldr_domain::World::new("W", "D", now);
+        world.id = world_id;
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+
+        let mut staging_repo = MockStagingRepo::new();
+        staging_repo
+            .expect_get_active_staging()
+            .withf(move |r, _| *r == region_id)
+            .returning(|_, _| Ok(None));
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let queue_id = Uuid::new_v4();
+        let queue = Arc::new(RecordingQueuePort::new(queue_id));
+
+        let use_case = super::StartConversation::new(
+            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
+            queue.clone(),
+            clock.clone(),
+        );
+
+        let err = use_case
+            .execute(
+                world_id,
+                pc_id,
+                npc_id,
+                "player".to_string(),
+                "Hello".to_string(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, super::ConversationError::NpcNotInRegion));
+        assert!(queue.recorded_player_actions().is_empty());
+    }
+
+    #[tokio::test]
+    async fn when_npc_staged_then_enqueues_speak_action_with_expected_payload() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let region_id = RegionId::new();
+        let pc_id = PlayerCharacterId::new();
+        let npc_id = CharacterId::new();
+
+        let player_id = "player".to_string();
+        let initial_dialogue = "Hello".to_string();
+
+        let mut pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        pc.id = pc_id;
+        pc.current_region_id = Some(region_id);
+
+        let npc = {
+            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor);
+            c.id = npc_id;
+            c
+        };
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut character_repo = MockCharacterRepo::new();
+        let npc_for_get = npc.clone();
+        character_repo
+            .expect_get()
+            .withf(move |id| *id == npc_id)
+            .returning(move |_| Ok(Some(npc_for_get.clone())));
+        character_repo
+            .expect_get_disposition()
+            .returning(|_, _| Ok(None));
+
+        let mut world_repo = MockWorldRepo::new();
+        let mut world = wrldbldr_domain::World::new("W", "D", now);
+        world.id = world_id;
+        let current_game_time = world.game_time.current();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+
+        let staged_npc = StagedNpc {
+            character_id: npc_id,
+            name: npc.name.clone(),
+            sprite_asset: None,
+            portrait_asset: None,
+            is_present: true,
+            is_hidden_from_players: false,
+            reasoning: "here".to_string(),
+            mood: MoodState::Calm,
+        };
+        let staging = Staging::new(
+            region_id,
+            location_id,
+            world_id,
+            current_game_time,
+            "dm",
+            StagingSource::DmCustomized,
+            6,
+            now,
+        )
+        .with_npcs(vec![staged_npc]);
+
+        let mut staging_repo = MockStagingRepo::new();
+        let staging_for_get = staging.clone();
+        staging_repo
+            .expect_get_active_staging()
+            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .returning(move |_, _| Ok(Some(staging_for_get.clone())));
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let queue_id = Uuid::new_v4();
+        let queue = Arc::new(RecordingQueuePort::new(queue_id));
+
+        let use_case = super::StartConversation::new(
+            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
+            queue.clone(),
+            clock.clone(),
+        );
+
+        let result = use_case
+            .execute(
+                world_id,
+                pc_id,
+                npc_id,
+                player_id.clone(),
+                initial_dialogue.clone(),
+            )
+            .await
+            .expect("StartConversation should succeed");
+
+        assert_eq!(result.action_queue_id, queue_id);
+        assert!(!result.conversation_id.is_nil());
+        assert_eq!(result.npc_name, "NPC".to_string());
+
+        let recorded = queue.recorded_player_actions();
+        assert_eq!(recorded.len(), 1);
+        let action = &recorded[0];
+        assert_eq!(action.world_id, world_id);
+        assert_eq!(action.player_id, player_id);
+        assert_eq!(action.pc_id, Some(pc_id));
+        assert_eq!(action.action_type, "speak".to_string());
+        assert_eq!(action.target, Some("NPC".to_string()));
+        assert_eq!(action.dialogue, Some(initial_dialogue));
+        assert_eq!(action.timestamp, now);
+    }
+}

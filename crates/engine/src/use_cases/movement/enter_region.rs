@@ -278,3 +278,324 @@ pub enum EnterRegionError {
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use chrono::Utc;
+    use wrldbldr_domain::{LocationId, PlayerCharacterId, Region, RegionConnection, RegionId, WorldId};
+
+    use crate::entities;
+    use crate::infrastructure::ports::{
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
+        MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
+        MockSceneRepo, MockStagingRepo, MockWorldRepo,
+    };
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    fn build_use_case(
+        player_character_repo: MockPlayerCharacterRepo,
+        location_repo: MockLocationRepo,
+        world_repo: MockWorldRepo,
+        clock: Arc<dyn ClockPort>,
+    ) -> super::EnterRegion {
+        let player_character = Arc::new(entities::PlayerCharacter::new(Arc::new(player_character_repo)));
+
+        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> = Arc::new(location_repo);
+        let location = Arc::new(entities::Location::new(location_repo.clone()));
+
+        let staging = Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new())));
+
+        let observation = Arc::new(entities::Observation::new(
+            Arc::new(MockObservationRepo::new()),
+            location_repo.clone(),
+            clock.clone(),
+        ));
+
+        let narrative = Arc::new(entities::Narrative::new(
+            Arc::new(MockNarrativeRepo::new()),
+            location_repo.clone(),
+            Arc::new(MockPlayerCharacterRepo::new()),
+            Arc::new(MockObservationRepo::new()),
+            Arc::new(MockChallengeRepo::new()),
+            Arc::new(MockFlagRepo::new()),
+            Arc::new(MockSceneRepo::new()),
+            clock.clone(),
+        ));
+
+        let scene = Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new())));
+        let inventory = Arc::new(entities::Inventory::new(
+            Arc::new(MockItemRepo::new()),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(MockPlayerCharacterRepo::new()),
+        ));
+        let flag = Arc::new(entities::Flag::new(Arc::new(MockFlagRepo::new())));
+
+        let world = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(world.clone(), clock));
+
+        super::EnterRegion::new(
+            player_character,
+            location,
+            staging,
+            observation,
+            narrative,
+            scene,
+            inventory,
+            flag,
+            world,
+            suggest_time,
+        )
+    }
+
+    #[tokio::test]
+    async fn when_pc_missing_then_returns_player_character_not_found() {
+        let pc_id = PlayerCharacterId::new();
+        let region_id = RegionId::new();
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(|_| Ok(None));
+
+        let use_case = build_use_case(
+            pc_repo,
+            MockLocationRepo::new(),
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(Utc::now())),
+        );
+
+        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::PlayerCharacterNotFound));
+    }
+
+    #[tokio::test]
+    async fn when_region_missing_then_returns_region_not_found() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+        let region_id = RegionId::new();
+
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == region_id)
+            .returning(|_| Ok(None));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::RegionNotFound));
+    }
+
+    #[tokio::test]
+    async fn when_region_in_different_location_then_returns_region_not_in_current_location() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let pc_location_id = LocationId::new();
+        let other_location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
+        let region = {
+            let mut r = Region::new(other_location_id, "Target");
+            r.id = RegionId::new();
+            r
+        };
+        let region_id = region.id;
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        let region_for_get = region.clone();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == region_id)
+            .returning(move |_| Ok(Some(region_for_get.clone())));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::RegionNotInCurrentLocation));
+    }
+
+    #[tokio::test]
+    async fn when_no_connection_then_returns_no_path_to_region() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+
+        let from_region_id = RegionId::new();
+        let to_region = {
+            let mut r = Region::new(location_id, "Target");
+            r.id = RegionId::new();
+            r
+        };
+        let to_region_id = to_region.id;
+
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_starting_region(from_region_id);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        let to_region_for_get = to_region.clone();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == to_region_id)
+            .returning(move |_| Ok(Some(to_region_for_get.clone())));
+        location_repo
+            .expect_get_connections()
+            .withf(move |id| *id == from_region_id)
+            .returning(|_| Ok(vec![]));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::NoPathToRegion));
+    }
+
+    #[tokio::test]
+    async fn when_connection_locked_then_returns_movement_blocked() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+
+        let from_region_id = RegionId::new();
+        let to_region = {
+            let mut r = Region::new(location_id, "Target");
+            r.id = RegionId::new();
+            r
+        };
+        let to_region_id = to_region.id;
+
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_starting_region(from_region_id);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        let to_region_for_get = to_region.clone();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == to_region_id)
+            .returning(move |_| Ok(Some(to_region_for_get.clone())));
+
+        let conn = RegionConnection::new(from_region_id, to_region_id).locked("Locked");
+        location_repo
+            .expect_get_connections()
+            .withf(move |id| *id == from_region_id)
+            .returning(move |_| Ok(vec![conn.clone()]));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            MockWorldRepo::new(),
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, to_region_id).await.unwrap_err();
+        let super::EnterRegionError::MovementBlocked(reason) = err else {
+            panic!("expected MovementBlocked");
+        };
+        assert_eq!(reason, "Locked".to_string());
+    }
+
+    #[tokio::test]
+    async fn when_world_missing_then_returns_world_not_found() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+        let location_id = LocationId::new();
+        let pc_id = PlayerCharacterId::new();
+
+        let region = {
+            let mut r = Region::new(location_id, "Target");
+            r.id = RegionId::new();
+            r
+        };
+        let region_id = region.id;
+
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+
+        let mut location_repo = MockLocationRepo::new();
+        let region_for_get = region.clone();
+        location_repo
+            .expect_get_region()
+            .withf(move |id| *id == region_id)
+            .returning(move |_| Ok(Some(region_for_get.clone())));
+
+        let mut world_repo = MockWorldRepo::new();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(|_| Ok(None));
+
+        let use_case = build_use_case(
+            pc_repo,
+            location_repo,
+            world_repo,
+            Arc::new(FixedClock(now)),
+        );
+
+        let err = use_case.execute(pc_id, region_id).await.unwrap_err();
+        assert!(matches!(err, super::EnterRegionError::WorldNotFound));
+    }
+}
