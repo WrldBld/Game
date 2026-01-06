@@ -1285,6 +1285,116 @@ pub struct NpcDispositionData {
     pub last_reason: Option<String>,
 }
 
+#[cfg(test)]
+mod serde_tests {
+    use super::{ApprovedNpcInfo, ClientMessage, NpcPresentInfo, ServerMessage, StagedNpcInfo, WaitingPcInfo};
+
+    #[test]
+    fn client_message_round_trip_move_to_region() {
+        let msg = ClientMessage::MoveToRegion {
+            pc_id: "pc".to_string(),
+            region_id: "region".to_string(),
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ClientMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn client_message_round_trip_staging_approval_response() {
+        let msg = ClientMessage::StagingApprovalResponse {
+            request_id: "req".to_string(),
+            approved_npcs: vec![ApprovedNpcInfo {
+                character_id: "npc".to_string(),
+                is_present: true,
+                reasoning: Some("because".to_string()),
+                is_hidden_from_players: true,
+                mood: Some("anxious".to_string()),
+            }],
+            ttl_hours: 6,
+            source: "custom".to_string(),
+            location_state_id: None,
+            region_state_id: Some("region_state".to_string()),
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ClientMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn server_message_round_trip_staging_ready() {
+        let msg = ServerMessage::StagingReady {
+            region_id: "region".to_string(),
+            npcs_present: vec![NpcPresentInfo {
+                character_id: "npc".to_string(),
+                name: "NPC".to_string(),
+                sprite_asset: None,
+                portrait_asset: None,
+                is_hidden_from_players: false,
+                mood: Some("calm".to_string()),
+            }],
+            visual_state: None,
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ServerMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn server_message_round_trip_staging_approval_required_with_defaults() {
+        let msg = ServerMessage::StagingApprovalRequired {
+            request_id: "req".to_string(),
+            region_id: "region".to_string(),
+            region_name: "Region".to_string(),
+            location_id: "location".to_string(),
+            location_name: "Location".to_string(),
+            game_time: crate::types::GameTime::new(3, 9, 15, true),
+            previous_staging: None,
+            rule_based_npcs: vec![StagedNpcInfo {
+                character_id: "npc".to_string(),
+                name: "NPC".to_string(),
+                sprite_asset: None,
+                portrait_asset: None,
+                is_present: true,
+                reasoning: "here".to_string(),
+                is_hidden_from_players: false,
+                mood: Some("calm".to_string()),
+            }],
+            llm_based_npcs: vec![],
+            default_ttl_hours: 3,
+            waiting_pcs: vec![WaitingPcInfo {
+                pc_id: "pc".to_string(),
+                pc_name: "PC".to_string(),
+                player_id: "player".to_string(),
+            }],
+            resolved_visual_state: None,
+            available_location_states: vec![],
+            available_region_states: vec![],
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ServerMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn unknown_client_message_deserializes_to_unknown() {
+        let decoded: ClientMessage = serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#)
+            .expect("deserialize");
+        assert!(matches!(decoded, ClientMessage::Unknown));
+    }
+
+    #[test]
+    fn unknown_server_message_deserializes_to_unknown() {
+        let decoded: ServerMessage = serde_json::from_str(r#"{"type":"BrandNewThing","foo":1}"#)
+            .expect("deserialize");
+        assert!(matches!(decoded, ServerMessage::Unknown));
+    }
+}
+
 // =============================================================================
 // Actantial Model Types (P1.5)
 // =============================================================================
