@@ -177,20 +177,38 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
         now,
     );
     staging.is_active = false;
-    staging.npcs = npc_ids
-        .iter()
-        .enumerate()
-        .map(|(i, id)| StagedNpc {
-            character_id: (*id).into(),
-            name: format!("NPC {i}"),
+    staging.npcs = vec![
+        StagedNpc {
+            character_id: npc_ids[0].into(),
+            name: "NPC 0".to_string(),
             sprite_asset: None,
             portrait_asset: None,
             is_present: true,
             is_hidden_from_players: false,
-            reasoning: "test".to_string(),
+            reasoning: "r0".to_string(),
             mood: MoodState::Calm,
-        })
-        .collect();
+        },
+        StagedNpc {
+            character_id: npc_ids[1].into(),
+            name: "NPC 1".to_string(),
+            sprite_asset: None,
+            portrait_asset: None,
+            is_present: true,
+            is_hidden_from_players: true,
+            reasoning: "r1".to_string(),
+            mood: MoodState::Nervous,
+        },
+        StagedNpc {
+            character_id: npc_ids[2].into(),
+            name: "NPC 2".to_string(),
+            sprite_asset: None,
+            portrait_asset: None,
+            is_present: false,
+            is_hidden_from_players: false,
+            reasoning: "r2".to_string(),
+            mood: MoodState::Happy,
+        },
+    ];
 
     repo.save_pending_staging(&staging)
         .await
@@ -199,14 +217,55 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
     let mut result = graph
         .execute(
             query(
-                "MATCH (s:Staging {id: $id})-[r:INCLUDES_NPC]->(:Character) RETURN COUNT(r) as cnt",
+                "MATCH (s:Staging {id: $id})-[r:INCLUDES_NPC]->(c:Character)\
+                 RETURN c.name as name,\
+                        r.is_present as is_present,\
+                        COALESCE(r.is_hidden_from_players, false) as hidden,\
+                        r.reasoning as reasoning,\
+                        r.mood as mood\
+                 ORDER BY name",
             )
             .param("id", staging.id.to_string()),
         )
         .await
-        .expect("query includes_npc count");
+        .expect("query includes_npc edges");
 
-    let row = result.next().await.expect("row read").expect("row");
-    let count: i64 = row.get("cnt").expect("cnt");
-    assert_eq!(count, 3);
+    let mut rows = Vec::new();
+    while let Some(row) = result.next().await.expect("row read") {
+        rows.push(row);
+    }
+    assert_eq!(rows.len(), 3);
+
+    let r0_name: String = rows[0].get("name").expect("name");
+    let r0_present: bool = rows[0].get("is_present").expect("is_present");
+    let r0_hidden: bool = rows[0].get("hidden").expect("hidden");
+    let r0_reasoning: String = rows[0].get("reasoning").expect("reasoning");
+    let r0_mood: String = rows[0].get("mood").expect("mood");
+    assert_eq!(r0_name, "NPC 0");
+    assert!(r0_present);
+    assert!(!r0_hidden);
+    assert_eq!(r0_reasoning, "r0");
+    assert_eq!(r0_mood, "calm");
+
+    let r1_name: String = rows[1].get("name").expect("name");
+    let r1_present: bool = rows[1].get("is_present").expect("is_present");
+    let r1_hidden: bool = rows[1].get("hidden").expect("hidden");
+    let r1_reasoning: String = rows[1].get("reasoning").expect("reasoning");
+    let r1_mood: String = rows[1].get("mood").expect("mood");
+    assert_eq!(r1_name, "NPC 1");
+    assert!(r1_present);
+    assert!(r1_hidden);
+    assert_eq!(r1_reasoning, "r1");
+    assert_eq!(r1_mood, "nervous");
+
+    let r2_name: String = rows[2].get("name").expect("name");
+    let r2_present: bool = rows[2].get("is_present").expect("is_present");
+    let r2_hidden: bool = rows[2].get("hidden").expect("hidden");
+    let r2_reasoning: String = rows[2].get("reasoning").expect("reasoning");
+    let r2_mood: String = rows[2].get("mood").expect("mood");
+    assert_eq!(r2_name, "NPC 2");
+    assert!(!r2_present);
+    assert!(!r2_hidden);
+    assert_eq!(r2_reasoning, "r2");
+    assert_eq!(r2_mood, "happy");
 }

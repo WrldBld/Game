@@ -11,7 +11,7 @@ use axum::{
     },
     response::Response,
 };
-use chrono::Timelike;
+use chrono::{Datelike, Timelike};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
     ChallengeId, CharacterId, ItemId, LocationId, MoodState, NarrativeEventId, PlayerCharacterId,
-    RegionId, WorldId,
+    RegionId, StagingSource, WorldId,
 };
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, ResponseResult, ServerMessage, WorldRole as ProtoWorldRole,
@@ -653,7 +653,18 @@ async fn handle_move_to_region(
                             },
                         );
                     }
-                    let now = chrono::Utc::now();
+                    let world_time = state
+                        .app
+                        .entities
+                        .world
+                        .get(result.pc.world_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|w| w.game_time)
+                        .unwrap_or_else(|| wrldbldr_domain::GameTime::new(chrono::Utc::now()));
+
+                    let now = world_time.current();
 
                     // Get rule-based suggestions (NPCs that have relationships to this region)
                     let rule_based_npcs =
@@ -686,10 +697,10 @@ async fn handle_move_to_region(
                         location_id: result.region.location_id.to_string(),
                         location_name: location_name.clone(),
                         game_time: wrldbldr_protocol::types::GameTime {
-                            day: 1,
+                            day: now.ordinal() as u32,
                             hour: now.hour() as u8,
                             minute: now.minute() as u8,
-                            is_paused: false,
+                            is_paused: world_time.is_paused(),
                         },
                         previous_staging: previous_staging.map(|s| {
                             wrldbldr_protocol::PreviousStagingInfo {
@@ -3361,13 +3372,25 @@ fn parse_modifier_from_formula(formula: &str) -> i32 {
 // Staging Handlers
 // =============================================================================
 
+fn parse_staging_source(source: &str) -> StagingSource {
+    match source.to_lowercase().as_str() {
+        "rule" | "rulebased" | "rule_based" => StagingSource::RuleBased,
+        "llm" | "llmbased" | "llm_based" => StagingSource::LlmBased,
+        "prestaged" | "pre_staged" | "prestage" | "pre_stage" => StagingSource::PreStaged,
+        "dm" | "dmcustomized" | "dm_customized" | "custom" | "customized" => {
+            StagingSource::DmCustomized
+        }
+        _ => StagingSource::DmCustomized,
+    }
+}
+
 async fn handle_staging_approval(
     state: &WsState,
     connection_id: Uuid,
     request_id: String,
     approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
-    _ttl_hours: i32,
-    _source: String,
+    ttl_hours: i32,
+    source: String,
     location_state_id: Option<String>,
     region_state_id: Option<String>,
 ) -> Option<ServerMessage> {
@@ -3405,117 +3428,161 @@ async fn handle_staging_approval(
         (region_id, region.location_id)
     };
 
-    // Convert approved NPCs to CharacterIds
-    let npc_ids: Vec<wrldbldr_domain::CharacterId> = approved_npcs
-        .iter()
-        .filter(|npc| npc.is_present)
-        .filter(|npc| !npc.is_hidden_from_players)
-        .filter_map(|npc| {
-            Uuid::parse_str(&npc.character_id)
-                .ok()
-                .map(wrldbldr_domain::CharacterId::from_uuid)
-        })
-        .collect();
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
+    };
 
-    // Execute staging approval use case
-    match state
+    // Use world game time (not wall clock) for staging TTL semantics.
+    let world = match state.app.entities.world.get(world_id).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    let current_game_time = world.game_time.current();
+    let approved_at = chrono::Utc::now();
+
+    // Build a full staging record so per-NPC properties (hidden/mood/reasoning)
+    // are persisted beyond the immediate broadcast.
+    let mut staged_npcs = Vec::new();
+    for npc_info in &approved_npcs {
+        let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
+            Ok(u) => u,
+            Err(_) => continue,
+        };
+        let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
+
+        let character = state.app.entities.character.get(character_id).await.ok().flatten();
+        let (name, sprite_asset, portrait_asset, default_mood) = match character {
+            Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
+            None => (String::new(), None, None, wrldbldr_domain::MoodState::default()),
+        };
+
+        let mood = npc_info
+            .mood
+            .as_deref()
+            .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
+            .unwrap_or(default_mood);
+
+        staged_npcs.push(wrldbldr_domain::StagedNpc {
+            character_id,
+            name,
+            sprite_asset,
+            portrait_asset,
+            is_present: npc_info.is_present,
+            is_hidden_from_players: npc_info.is_hidden_from_players,
+            reasoning: npc_info.reasoning.clone().unwrap_or_default(),
+            mood,
+        });
+    }
+
+    let staging = wrldbldr_domain::Staging::new(
+        region_id,
+        location_id,
+        world_id,
+        current_game_time,
+        conn_info.user_id.clone(),
+        parse_staging_source(&source),
+        ttl_hours,
+        approved_at,
+    )
+    .with_npcs(staged_npcs);
+
+    if let Err(e) = state.app.entities.staging.save_pending(&staging).await {
+        return Some(error_response("REPO_ERROR", &e.to_string()));
+    }
+
+    if let Err(e) = state
         .app
-        .use_cases
-        .approval
-        .approve_staging
-        .execute(region_id, npc_ids.clone())
+        .entities
+        .staging
+        .activate_staging(staging.id, region_id)
         .await
     {
-        Ok(_result) => {
-            // Store selected visual states if provided
-            if let Some(loc_state_str) = &location_state_id {
-                if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
-                    let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
-                    if let Err(e) = state
-                        .app
-                        .entities
-                        .location_state
-                        .set_active(location_id, loc_state_id)
-                        .await
-                    {
-                        tracing::warn!(error = %e, "Failed to set active location state");
-                    }
-                }
+        return Some(error_response("REPO_ERROR", &e.to_string()));
+    }
+
+    // Store selected visual states if provided
+    if let Some(loc_state_str) = &location_state_id {
+        if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
+            let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
+            if let Err(e) = state
+                .app
+                .entities
+                .location_state
+                .set_active(location_id, loc_state_id)
+                .await
+            {
+                tracing::warn!(error = %e, "Failed to set active location state");
             }
-
-            if let Some(reg_state_str) = &region_state_id {
-                if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
-                    let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
-                    if let Err(e) = state
-                        .app
-                        .entities
-                        .region_state
-                        .set_active(region_id, reg_state_id)
-                        .await
-                    {
-                        tracing::warn!(error = %e, "Failed to set active region state");
-                    }
-                }
-            }
-
-            // Get the world ID to broadcast staging ready
-            if let Some(world_id) = conn_info.world_id {
-                // Get NPC details for the response
-                let mut npcs_present = Vec::new();
-                for npc_info in &approved_npcs {
-                    // Never broadcast hidden NPCs to players (even though DMs also
-                    // receive world broadcasts).
-                    if npc_info.is_present && !npc_info.is_hidden_from_players {
-                        // Fetch character details for name and assets
-                        let (name, sprite_asset, portrait_asset) =
-                            if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
-                                let char_id = wrldbldr_domain::CharacterId::from_uuid(char_id);
-                                match state.app.entities.character.get(char_id).await {
-                                    Ok(Some(character)) => (
-                                        character.name,
-                                        character.sprite_asset,
-                                        character.portrait_asset,
-                                    ),
-                                    _ => (String::new(), None, None),
-                                }
-                            } else {
-                                (String::new(), None, None)
-                            };
-
-                        npcs_present.push(wrldbldr_protocol::NpcPresentInfo {
-                            character_id: npc_info.character_id.clone(),
-                            name,
-                            sprite_asset,
-                            portrait_asset,
-                            is_hidden_from_players: npc_info.is_hidden_from_players,
-                            mood: npc_info.mood.clone(),
-                        });
-                    }
-                }
-
-                // Fetch active visual states for the response
-                let visual_state =
-                    build_visual_state_for_staging(state, location_id, region_id).await;
-
-                // Broadcast StagingReady to all players in the world
-                let staging_ready = ServerMessage::StagingReady {
-                    region_id: region_id.to_string(),
-                    npcs_present,
-                    visual_state,
-                };
-                state
-                    .connections
-                    .broadcast_to_world(world_id, staging_ready)
-                    .await;
-            }
-
-            None // No direct response needed - we broadcasted
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Staging approval failed");
-            Some(error_response("STAGING_ERROR", &e.to_string()))
         }
     }
+
+    if let Some(reg_state_str) = &region_state_id {
+        if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
+            let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
+            if let Err(e) = state
+                .app
+                .entities
+                .region_state
+                .set_active(region_id, reg_state_id)
+                .await
+            {
+                tracing::warn!(error = %e, "Failed to set active region state");
+            }
+        }
+    }
+
+    // Get NPC details for the response (visible NPCs only)
+    let mut npcs_present = Vec::new();
+    for npc_info in &approved_npcs {
+        // Never broadcast hidden NPCs to players (even though DMs also
+        // receive world broadcasts).
+        if npc_info.is_present && !npc_info.is_hidden_from_players {
+            // Fetch character details for name and assets
+            let (name, sprite_asset, portrait_asset) =
+                if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
+                    let char_id = wrldbldr_domain::CharacterId::from_uuid(char_id);
+                    match state.app.entities.character.get(char_id).await {
+                        Ok(Some(character)) => (
+                            character.name,
+                            character.sprite_asset,
+                            character.portrait_asset,
+                        ),
+                        _ => (String::new(), None, None),
+                    }
+                } else {
+                    (String::new(), None, None)
+                };
+
+            npcs_present.push(wrldbldr_protocol::NpcPresentInfo {
+                character_id: npc_info.character_id.clone(),
+                name,
+                sprite_asset,
+                portrait_asset,
+                is_hidden_from_players: npc_info.is_hidden_from_players,
+                mood: npc_info.mood.clone(),
+            });
+        }
+    }
+
+    // Fetch active visual states for the response
+    let visual_state = build_visual_state_for_staging(state, location_id, region_id).await;
+
+    // Broadcast StagingReady to all players in the world
+    state
+        .connections
+        .broadcast_to_world(
+            world_id,
+            ServerMessage::StagingReady {
+                region_id: region_id.to_string(),
+                npcs_present,
+                visual_state,
+            },
+        )
+        .await;
+
+    None // No direct response needed - we broadcasted
 }
 
 async fn handle_staging_regenerate(
@@ -3609,7 +3676,7 @@ async fn handle_pre_stage_region(
     connection_id: Uuid,
     region_id: String,
     npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
-    _ttl_hours: i32,
+    ttl_hours: i32,
     _location_state_id: Option<String>,
     _region_state_id: Option<String>,
 ) -> Option<ServerMessage> {
@@ -3629,32 +3696,85 @@ async fn handle_pre_stage_region(
         Err(e) => return Some(e),
     };
 
-    // Convert approved NPCs to CharacterIds
-    let npc_ids: Vec<wrldbldr_domain::CharacterId> = npcs
-        .iter()
-        .filter(|npc| npc.is_present)
-        .filter_map(|npc| {
-            Uuid::parse_str(&npc.character_id)
-                .ok()
-                .map(wrldbldr_domain::CharacterId::from_uuid)
-        })
-        .collect();
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
+    };
 
-    // Execute staging
-    match state
+    // Determine location_id for this region.
+    let region = match state.app.entities.location.get_region(region_uuid).await {
+        Ok(Some(r)) => r,
+        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    let location_id = region.location_id;
+
+    let world = match state.app.entities.world.get(world_id).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
+    let current_game_time = world.game_time.current();
+    let approved_at = chrono::Utc::now();
+
+    let mut staged_npcs = Vec::new();
+    for npc_info in &npcs {
+        let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
+            Ok(u) => u,
+            Err(_) => continue,
+        };
+        let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
+        let character = state.app.entities.character.get(character_id).await.ok().flatten();
+        let (name, sprite_asset, portrait_asset, default_mood) = match character {
+            Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
+            None => (String::new(), None, None, wrldbldr_domain::MoodState::default()),
+        };
+
+        let mood = npc_info
+            .mood
+            .as_deref()
+            .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
+            .unwrap_or(default_mood);
+
+        staged_npcs.push(wrldbldr_domain::StagedNpc {
+            character_id,
+            name,
+            sprite_asset,
+            portrait_asset,
+            is_present: npc_info.is_present,
+            is_hidden_from_players: npc_info.is_hidden_from_players,
+            reasoning: npc_info.reasoning.clone().unwrap_or_default(),
+            mood,
+        });
+    }
+
+    let staging = wrldbldr_domain::Staging::new(
+        region_uuid,
+        location_id,
+        world_id,
+        current_game_time,
+        conn_info.user_id.clone(),
+        StagingSource::PreStaged,
+        ttl_hours,
+        approved_at,
+    )
+    .with_npcs(staged_npcs);
+
+    if let Err(e) = state.app.entities.staging.save_pending(&staging).await {
+        return Some(error_response("REPO_ERROR", &e.to_string()));
+    }
+
+    if let Err(e) = state
         .app
-        .use_cases
-        .approval
-        .approve_staging
-        .execute(region_uuid, npc_ids)
+        .entities
+        .staging
+        .activate_staging(staging.id, region_uuid)
         .await
     {
-        Ok(_) => None, // Success - no response needed for pre-staging
-        Err(e) => {
-            tracing::error!(error = %e, "Pre-staging failed");
-            Some(error_response("STAGING_ERROR", &e.to_string()))
-        }
+        return Some(error_response("REPO_ERROR", &e.to_string()));
     }
+
+    None
 }
 
 // =============================================================================
@@ -5894,13 +6014,43 @@ mod ws_integration_tests {
             .expect_get_active()
             .returning(|_| Ok(None));
 
-        // Staging approval will stage only visible NPCs.
-        let region_id_for_stage = region_id;
-        let visible_npc_id_for_stage = visible_npc_id;
+        // Staging approval persists full per-NPC info (including hidden flags).
+        let region_id_for_staging = region_id;
+        let location_id_for_staging = location_id;
+        let world_id_for_staging = world_id;
+        let visible_npc_id_for_staging = visible_npc_id;
+        let hidden_npc_id_for_staging = hidden_npc_id;
         repos
             .staging_repo
-            .expect_stage_npc()
-            .withf(move |r, c| *r == region_id_for_stage && *c == visible_npc_id_for_stage)
+            .expect_save_pending_staging()
+            .withf(move |s| {
+                s.region_id == region_id_for_staging
+                    && s.location_id == location_id_for_staging
+                    && s.world_id == world_id_for_staging
+                    && s.ttl_hours == 24
+                    && s
+                        .npcs
+                        .iter()
+                        .any(|n| {
+                            n.character_id == visible_npc_id_for_staging
+                                && n.is_present
+                                && !n.is_hidden_from_players
+                        })
+                    && s
+                        .npcs
+                        .iter()
+                        .any(|n| {
+                            n.character_id == hidden_npc_id_for_staging
+                                && n.is_present
+                                && n.is_hidden_from_players
+                        })
+            })
+            .returning(|_| Ok(()));
+
+        repos
+            .staging_repo
+            .expect_activate_staging()
+            .withf(move |_staging_id, r| *r == region_id)
             .returning(|_, _| Ok(()));
 
         // Character details for StagingReady payload.

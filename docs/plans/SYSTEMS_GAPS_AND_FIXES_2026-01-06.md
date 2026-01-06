@@ -17,7 +17,7 @@ Goal: a single checkbox-driven list of all discovered gaps (tests + implementati
   - Fix: broadcast `region_id` as region UUID string.
   - Tests: covered by the WS integration test above.
 
-- [ ] **Staging approval does not persist per-NPC properties**
+- [x] **Staging approval does not persist per-NPC properties**
   - Symptom: approval use case only stages NPC IDs (`stage_npc`), which (Neo4j impl) sets `is_hidden_from_players=false` and does not record `mood`/`reasoning` chosen at approval time.
   - Impact: hidden NPCs and DM-set moods/reasoning cannot survive beyond the broadcast; subsequent reads/joins can’t reconstruct them.
   - Fix direction:
@@ -26,7 +26,7 @@ Goal: a single checkbox-driven list of all discovered gaps (tests + implementati
   - Tests:
     - Repo/integration: approve staging with hidden/mood/reasoning and verify subsequent `get_active_staging/get_staged_npcs` returns correct flags.
 
-- [ ] **StagingApprovalRequired.game_time is real-time, not world game time**
+- [x] **StagingApprovalRequired.game_time is real-time, not world game time**
   - Symptom: uses `Utc::now()` to populate `game_time` fields.
   - Impact: DM decisions refer to wrong in-world time.
   - Fix: populate from `world.game_time.current()`.
