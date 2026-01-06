@@ -5062,6 +5062,600 @@ where
         .map_err(|_| error_response("INVALID_ID", error_msg))
 }
 
+// =============================================================================
+// WebSocket Integration Tests (Phase 3 Harness)
+// =============================================================================
+
+#[cfg(test)]
+mod ws_integration_tests {
+    use super::*;
+
+    use std::{net::SocketAddr, sync::Arc, time::Duration};
+
+    use axum::routing::get;
+    use chrono::{DateTime, Utc};
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+
+    use crate::app::{App, Entities, UseCases};
+    use crate::infrastructure::ports::{
+        ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
+        QueuePort, RandomPort,
+    };
+    use crate::infrastructure::ports::{
+        MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
+        MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo,
+        MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo,
+        MockStagingRepo, MockWorldRepo,
+    };
+
+    struct NoopQueue;
+
+    #[async_trait::async_trait]
+    impl QueuePort for NoopQueue {
+        async fn enqueue_player_action(
+            &self,
+            _data: &wrldbldr_domain::PlayerActionData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("noop".to_string()))
+        }
+
+        async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_llm_request(
+            &self,
+            _data: &wrldbldr_domain::LlmRequestData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("noop".to_string()))
+        }
+
+        async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_dm_approval(
+            &self,
+            _data: &wrldbldr_domain::ApprovalRequestData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("noop".to_string()))
+        }
+
+        async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn enqueue_asset_generation(
+            &self,
+            _data: &wrldbldr_domain::AssetGenerationData,
+        ) -> Result<Uuid, QueueError> {
+            Err(QueueError::Error("noop".to_string()))
+        }
+
+        async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
+            Ok(None)
+        }
+
+        async fn mark_complete(&self, _id: Uuid) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn mark_failed(&self, _id: Uuid, _error: &str) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
+            Ok(0)
+        }
+
+        async fn get_approval_request(
+            &self,
+            _id: Uuid,
+        ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+            Ok(None)
+        }
+    }
+
+    struct NoopLlm;
+
+    #[async_trait::async_trait]
+    impl LlmPort for NoopLlm {
+        async fn generate(
+            &self,
+            _request: crate::infrastructure::ports::LlmRequest,
+        ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
+            Err(LlmError::RequestFailed("noop".to_string()))
+        }
+
+        async fn generate_with_tools(
+            &self,
+            _request: crate::infrastructure::ports::LlmRequest,
+            _tools: Vec<crate::infrastructure::ports::ToolDefinition>,
+        ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
+            Err(LlmError::RequestFailed("noop".to_string()))
+        }
+    }
+
+    struct NoopImageGen;
+
+    #[async_trait::async_trait]
+    impl ImageGenPort for NoopImageGen {
+        async fn generate(
+            &self,
+            _request: crate::infrastructure::ports::ImageRequest,
+        ) -> Result<crate::infrastructure::ports::ImageResult, ImageGenError> {
+            Err(ImageGenError::Unavailable)
+        }
+
+        async fn check_health(&self) -> Result<bool, ImageGenError> {
+            Ok(false)
+        }
+    }
+
+    struct FixedClock {
+        now: DateTime<Utc>,
+    }
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> DateTime<Utc> {
+            self.now
+        }
+    }
+
+    struct FixedRandom;
+
+    impl RandomPort for FixedRandom {
+        fn gen_range(&self, _min: i32, _max: i32) -> i32 {
+            1
+        }
+
+        fn gen_uuid(&self) -> Uuid {
+            Uuid::nil()
+        }
+    }
+
+    fn build_test_app(world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo>, now: DateTime<Utc>) -> Arc<App> {
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
+        let random: Arc<dyn RandomPort> = Arc::new(FixedRandom);
+        let queue: Arc<dyn QueuePort> = Arc::new(NoopQueue);
+        let llm: Arc<dyn LlmPort> = Arc::new(NoopLlm);
+        let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
+
+        // Repo mocks for unused entity modules.
+        let character_repo = Arc::new(MockCharacterRepo::new());
+        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
+        let location_repo = Arc::new(MockLocationRepo::new());
+        let scene_repo = Arc::new(MockSceneRepo::new());
+        let challenge_repo = Arc::new(MockChallengeRepo::new());
+        let narrative_repo = Arc::new(MockNarrativeRepo::new());
+        let staging_repo = Arc::new(MockStagingRepo::new());
+        let observation_repo = Arc::new(MockObservationRepo::new());
+        let item_repo = Arc::new(MockItemRepo::new());
+        let asset_repo = Arc::new(MockAssetRepo::new());
+        let flag_repo = Arc::new(MockFlagRepo::new());
+        let lore_repo = Arc::new(MockLoreRepo::new());
+        let location_state_repo = Arc::new(MockLocationStateRepo::new());
+        let region_state_repo = Arc::new(MockRegionStateRepo::new());
+
+        // Entities
+        let character = Arc::new(crate::entities::Character::new(character_repo.clone()));
+        let player_character = Arc::new(crate::entities::PlayerCharacter::new(
+            player_character_repo.clone(),
+        ));
+        let location = Arc::new(crate::entities::Location::new(location_repo.clone()));
+        let scene = Arc::new(crate::entities::Scene::new(scene_repo.clone()));
+        let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
+        let narrative = Arc::new(crate::entities::Narrative::new(
+            narrative_repo.clone(),
+            location_repo.clone(),
+            player_character_repo.clone(),
+            observation_repo.clone(),
+            challenge_repo.clone(),
+            flag_repo.clone(),
+            scene_repo.clone(),
+            clock.clone(),
+        ));
+        let staging = Arc::new(crate::entities::Staging::new(staging_repo.clone()));
+        let observation = Arc::new(crate::entities::Observation::new(
+            observation_repo.clone(),
+            location_repo.clone(),
+            clock.clone(),
+        ));
+        let inventory = Arc::new(crate::entities::Inventory::new(
+            item_repo.clone(),
+            character_repo.clone(),
+            player_character_repo.clone(),
+        ));
+        let assets = Arc::new(crate::entities::Assets::new(asset_repo.clone(), image_gen));
+        let world = Arc::new(crate::entities::World::new(world_repo, clock.clone()));
+        let flag = Arc::new(crate::entities::Flag::new(flag_repo.clone()));
+        let lore = Arc::new(crate::entities::Lore::new(lore_repo.clone()));
+        let location_state = Arc::new(crate::entities::LocationStateEntity::new(
+            location_state_repo.clone(),
+        ));
+        let region_state = Arc::new(crate::entities::RegionStateEntity::new(region_state_repo));
+
+        let entities = Entities {
+            character: character.clone(),
+            player_character: player_character.clone(),
+            location: location.clone(),
+            scene: scene.clone(),
+            challenge: challenge.clone(),
+            narrative: narrative.clone(),
+            staging: staging.clone(),
+            observation: observation.clone(),
+            inventory: inventory.clone(),
+            assets: assets.clone(),
+            world: world.clone(),
+            flag: flag.clone(),
+            lore: lore.clone(),
+            location_state: location_state.clone(),
+            region_state: region_state.clone(),
+        };
+
+        // Use cases (not exercised by these tests, but required by App).
+        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
+            world.clone(),
+            clock.clone(),
+        ));
+
+        let movement = crate::use_cases::MovementUseCases::new(
+            Arc::new(crate::use_cases::movement::EnterRegion::new(
+                player_character.clone(),
+                location.clone(),
+                staging.clone(),
+                observation.clone(),
+                narrative.clone(),
+                scene.clone(),
+                inventory.clone(),
+                flag.clone(),
+                world.clone(),
+                suggest_time.clone(),
+            )),
+            Arc::new(crate::use_cases::movement::ExitLocation::new(
+                player_character.clone(),
+                location.clone(),
+                staging.clone(),
+                observation.clone(),
+                narrative.clone(),
+                scene.clone(),
+                inventory.clone(),
+                flag.clone(),
+                world.clone(),
+                suggest_time.clone(),
+            )),
+        );
+
+        let conversation = crate::use_cases::ConversationUseCases::new(
+            Arc::new(crate::use_cases::conversation::StartConversation::new(
+                character.clone(),
+                player_character.clone(),
+                staging.clone(),
+                scene.clone(),
+                world.clone(),
+                queue.clone(),
+                clock.clone(),
+            )),
+            Arc::new(crate::use_cases::conversation::ContinueConversation::new(
+                character.clone(),
+                player_character.clone(),
+                staging.clone(),
+                world.clone(),
+                queue.clone(),
+                clock.clone(),
+            )),
+            Arc::new(crate::use_cases::conversation::EndConversation::new(
+                character.clone(),
+                player_character.clone(),
+            )),
+        );
+
+        let challenge_uc = crate::use_cases::ChallengeUseCases::new(
+            Arc::new(crate::use_cases::challenge::RollChallenge::new(
+                challenge.clone(),
+                player_character.clone(),
+                queue.clone(),
+                random,
+                clock.clone(),
+            )),
+            Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
+                challenge.clone(),
+                inventory.clone(),
+                observation.clone(),
+                scene.clone(),
+                player_character.clone(),
+            )),
+        );
+
+        let approval = crate::use_cases::ApprovalUseCases::new(
+            Arc::new(crate::use_cases::approval::ApproveStaging::new(staging.clone())),
+            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone())),
+        );
+
+        let assets_uc = crate::use_cases::AssetUseCases::new(
+            Arc::new(crate::use_cases::assets::GenerateAsset::new(
+                assets.clone(),
+                queue.clone(),
+                clock.clone(),
+            )),
+            Arc::new(crate::use_cases::assets::GenerateExpressionSheet::new(
+                assets.clone(),
+                character.clone(),
+                queue.clone(),
+                clock.clone(),
+            )),
+        );
+
+        let world_uc = crate::use_cases::WorldUseCases::new(
+            Arc::new(crate::use_cases::world::ExportWorld::new(
+                world.clone(),
+                location.clone(),
+                character.clone(),
+                inventory.clone(),
+                narrative.clone(),
+            )),
+            Arc::new(crate::use_cases::world::ImportWorld::new(
+                world.clone(),
+                location.clone(),
+                character.clone(),
+                inventory.clone(),
+                narrative.clone(),
+            )),
+        );
+
+        let queues = crate::use_cases::QueueUseCases::new(
+            Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(
+                queue.clone(),
+                character.clone(),
+                player_character.clone(),
+                staging.clone(),
+            )),
+            Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(queue.clone(), llm.clone())),
+        );
+
+        let narrative_uc = crate::use_cases::NarrativeUseCases::new(Arc::new(
+            crate::use_cases::narrative::ExecuteEffects::new(
+                inventory.clone(),
+                challenge.clone(),
+                narrative.clone(),
+                character.clone(),
+                observation.clone(),
+                player_character.clone(),
+                scene.clone(),
+                flag.clone(),
+                clock.clone(),
+            ),
+        ));
+
+        let time_uc = crate::use_cases::TimeUseCases::new(suggest_time);
+
+        let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
+            crate::use_cases::visual_state::ResolveVisualState::new(
+                location_state.clone(),
+                region_state.clone(),
+                flag.clone(),
+            ),
+        ));
+
+        let use_cases = UseCases {
+            movement,
+            conversation,
+            challenge: challenge_uc,
+            approval,
+            assets: assets_uc,
+            world: world_uc,
+            queues,
+            narrative: narrative_uc,
+            time: time_uc,
+            visual_state: visual_state_uc,
+        };
+
+        Arc::new(App {
+            entities,
+            use_cases,
+            queue,
+            llm,
+        })
+    }
+
+    async fn spawn_ws_server(state: Arc<WsState>) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let router = axum::Router::new().route("/ws", get(ws_handler).with_state(state));
+
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+
+        (addr, handle)
+    }
+
+    async fn ws_connect(addr: SocketAddr) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+        let url = format!("ws://{}/ws", addr);
+        let (ws, _resp) = connect_async(url).await.unwrap();
+        ws
+    }
+
+    async fn ws_send_client(
+        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        msg: &wrldbldr_protocol::ClientMessage,
+    ) {
+        let json = serde_json::to_string(msg).unwrap();
+        ws.send(WsMessage::Text(json.into())).await.unwrap();
+    }
+
+    async fn ws_recv_server(
+        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    ) -> wrldbldr_protocol::ServerMessage {
+        loop {
+            let msg = ws.next().await.unwrap().unwrap();
+            match msg {
+                WsMessage::Text(text) => {
+                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                }
+                WsMessage::Binary(bin) => {
+                    let text = String::from_utf8(bin).unwrap();
+                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    async fn ws_expect_message<F>(
+        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        timeout: Duration,
+        mut predicate: F,
+    ) -> wrldbldr_protocol::ServerMessage
+    where
+        F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+    {
+        tokio::time::timeout(timeout, async {
+            loop {
+                let msg = ws_recv_server(ws).await;
+                if predicate(&msg) {
+                    return msg;
+                }
+            }
+        })
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
+        let now = chrono::Utc::now();
+
+        let world_id = WorldId::new();
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        world.id = world_id;
+
+        // World repo mock: always returns the same world and accepts saves.
+        let mut world_repo = MockWorldRepo::new();
+        let world_for_get = world.clone();
+        world_repo
+            .expect_get()
+            .returning(move |_| Ok(Some(world_for_get.clone())));
+
+        world_repo
+            .expect_save()
+            .returning(|_world| Ok(()));
+
+        let app = build_test_app(Arc::new(world_repo), now);
+        let connections = Arc::new(ConnectionManager::new());
+
+        let ws_state = Arc::new(WsState {
+            app,
+            connections,
+            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
+        });
+
+        let (addr, server) = spawn_ws_server(ws_state.clone()).await;
+
+        let mut dm_ws = ws_connect(addr).await;
+        let mut spectator_ws = ws_connect(addr).await;
+
+        // DM joins.
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Dm,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // Spectator joins (so we can assert broadcast reaches others too).
+        ws_send_client(
+            &mut spectator_ws,
+            &ClientMessage::JoinWorld {
+                world_id: *world_id.as_uuid(),
+                role: ProtoWorldRole::Spectator,
+                pc_id: None,
+                spectate_pc_id: None,
+            },
+        )
+        .await;
+
+        let _ = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::WorldJoined { .. })
+        })
+        .await;
+
+        // DM will receive a UserJoined broadcast for the spectator.
+        let _ = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::UserJoined { .. })
+        })
+        .await;
+
+        // Seed a pending time suggestion.
+        let suggestion_id = Uuid::new_v4();
+        let pc_id = PlayerCharacterId::new();
+
+        let current_time = world.game_time.clone();
+        let mut resulting_time = current_time.clone();
+        resulting_time.advance_minutes(15);
+
+        let suggestion = crate::use_cases::time::TimeSuggestion {
+            id: suggestion_id,
+            world_id,
+            pc_id,
+            pc_name: "PC".to_string(),
+            action_type: "travel_region".to_string(),
+            action_description: "to somewhere".to_string(),
+            suggested_minutes: 15,
+            current_time: current_time.clone(),
+            resulting_time: resulting_time.clone(),
+            period_change: None,
+        };
+
+        {
+            let mut guard = ws_state.pending_time_suggestions.write().await;
+            guard.insert(suggestion_id, suggestion);
+        }
+
+        // DM approves the suggestion (no direct response; only broadcast).
+        ws_send_client(
+            &mut dm_ws,
+            &ClientMessage::RespondToTimeSuggestion {
+                suggestion_id: suggestion_id.to_string(),
+                decision: wrldbldr_protocol::types::TimeSuggestionDecision::Approve,
+            },
+        )
+        .await;
+
+        let dm_broadcast = ws_expect_message(&mut dm_ws, Duration::from_secs(2), |m| {
+            matches!(m, ServerMessage::GameTimeAdvanced { .. })
+        })
+        .await;
+
+        let spectator_broadcast =
+            ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+                matches!(m, ServerMessage::GameTimeAdvanced { .. })
+            })
+            .await;
+
+        // Basic sanity: both received the same broadcast variant.
+        assert!(matches!(dm_broadcast, ServerMessage::GameTimeAdvanced { .. }));
+        assert!(matches!(
+            spectator_broadcast,
+            ServerMessage::GameTimeAdvanced { .. }
+        ));
+
+        server.abort();
+    }
+}
+
 /// Parse a player character ID from a string.
 fn parse_pc_id(id_str: &str) -> Result<PlayerCharacterId, ServerMessage> {
     parse_id(id_str, PlayerCharacterId::from_uuid, "Invalid PC ID format")

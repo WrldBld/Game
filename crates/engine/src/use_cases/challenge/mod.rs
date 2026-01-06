@@ -585,8 +585,7 @@ mod tests {
         // ---------------------------------------------------------------------
         let challenge_entity = Arc::new(entities::Challenge::new(Arc::new(challenge_repo)));
 
-        let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
-            Arc::new(pc_repo);
+        let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
         let inventory_entity = Arc::new(entities::Inventory::new(
             Arc::new(item_repo),
             Arc::new(character_repo),

@@ -402,6 +402,7 @@ pub trait NarrativeRepo: Send + Sync {
     ) -> Result<Vec<NarrativeEventId>, RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait StagingRepo: Send + Sync {
     async fn get_staged_npcs(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError>;
@@ -525,6 +526,7 @@ pub trait WorldRepo: Send + Sync {
     async fn delete(&self, id: WorldId) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait LoreRepo: Send + Sync {
     // CRUD
@@ -576,6 +578,7 @@ pub trait LoreRepo: Send + Sync {
     ) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait LocationStateRepo: Send + Sync {
     // CRUD
@@ -604,6 +607,7 @@ pub trait LocationStateRepo: Send + Sync {
     async fn clear_active(&self, location_id: LocationId) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait RegionStateRepo: Send + Sync {
     // CRUD
@@ -625,6 +629,7 @@ pub trait RegionStateRepo: Send + Sync {
     async fn clear_active(&self, region_id: RegionId) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait AssetRepo: Send + Sync {
     async fn get(&self, id: AssetId) -> Result<Option<GalleryAsset>, RepoError>;

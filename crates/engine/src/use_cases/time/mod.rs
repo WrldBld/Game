@@ -310,7 +310,10 @@ mod tests {
             domain_world.game_time.day(),
             "time suggestion should not change day for small increments"
         );
-        assert_ne!(suggestion.resulting_time.minute(), domain_world.game_time.minute());
+        assert_ne!(
+            suggestion.resulting_time.minute(),
+            domain_world.game_time.minute()
+        );
     }
 
     #[tokio::test]
