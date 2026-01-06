@@ -8,3 +8,6 @@ pub mod ollama;
 pub mod comfyui;
 pub mod queue;
 pub mod clock;
+
+#[cfg(test)]
+mod queue_integration_tests;

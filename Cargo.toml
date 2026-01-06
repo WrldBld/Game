@@ -51,6 +51,10 @@ async-trait = "0.1"
 # Testing
 mockall = "0.13"
 
+# Integration testing
+testcontainers = "0.16"
+tempfile = "3.14"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

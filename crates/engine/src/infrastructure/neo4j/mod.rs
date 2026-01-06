@@ -39,6 +39,9 @@ pub use lore_repo::Neo4jLoreRepo;
 pub use location_state_repo::Neo4jLocationStateRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
 
+#[cfg(test)]
+mod integration_tests;
+
 /// Create all Neo4j repositories from a graph connection.
 pub struct Neo4jRepositories {
     pub character: Arc<Neo4jCharacterRepo>,

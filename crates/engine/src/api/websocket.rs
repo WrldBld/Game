@@ -5216,7 +5216,10 @@ mod ws_integration_tests {
         }
     }
 
-    fn build_test_app(world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo>, now: DateTime<Utc>) -> Arc<App> {
+    fn build_test_app(
+        world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo>,
+        now: DateTime<Utc>,
+    ) -> Arc<App> {
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
         let random: Arc<dyn RandomPort> = Arc::new(FixedRandom);
         let queue: Arc<dyn QueuePort> = Arc::new(NoopQueue);
@@ -5370,8 +5373,12 @@ mod ws_integration_tests {
         );
 
         let approval = crate::use_cases::ApprovalUseCases::new(
-            Arc::new(crate::use_cases::approval::ApproveStaging::new(staging.clone())),
-            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone())),
+            Arc::new(crate::use_cases::approval::ApproveStaging::new(
+                staging.clone(),
+            )),
+            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+                queue.clone(),
+            )),
         );
 
         let assets_uc = crate::use_cases::AssetUseCases::new(
@@ -5412,7 +5419,10 @@ mod ws_integration_tests {
                 player_character.clone(),
                 staging.clone(),
             )),
-            Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(queue.clone(), llm.clone())),
+            Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
+                queue.clone(),
+                llm.clone(),
+            )),
         );
 
         let narrative_uc = crate::use_cases::NarrativeUseCases::new(Arc::new(
@@ -5473,14 +5483,19 @@ mod ws_integration_tests {
         (addr, handle)
     }
 
-    async fn ws_connect(addr: SocketAddr) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>> {
+    async fn ws_connect(
+        addr: SocketAddr,
+    ) -> tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>
+    {
         let url = format!("ws://{}/ws", addr);
         let (ws, _resp) = connect_async(url).await.unwrap();
         ws
     }
 
     async fn ws_send_client(
-        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
         msg: &wrldbldr_protocol::ClientMessage,
     ) {
         let json = serde_json::to_string(msg).unwrap();
@@ -5488,17 +5503,21 @@ mod ws_integration_tests {
     }
 
     async fn ws_recv_server(
-        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
     ) -> wrldbldr_protocol::ServerMessage {
         loop {
             let msg = ws.next().await.unwrap().unwrap();
             match msg {
                 WsMessage::Text(text) => {
-                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text)
+                        .unwrap();
                 }
                 WsMessage::Binary(bin) => {
                     let text = String::from_utf8(bin).unwrap();
-                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text)
+                        .unwrap();
                 }
                 _ => {}
             }
@@ -5506,7 +5525,9 @@ mod ws_integration_tests {
     }
 
     async fn ws_expect_message<F>(
-        ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        ws: &mut tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
         timeout: Duration,
         mut predicate: F,
     ) -> wrldbldr_protocol::ServerMessage
@@ -5540,9 +5561,7 @@ mod ws_integration_tests {
             .expect_get()
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        world_repo
-            .expect_save()
-            .returning(|_world| Ok(()));
+        world_repo.expect_save().returning(|_world| Ok(()));
 
         let app = build_test_app(Arc::new(world_repo), now);
         let connections = Arc::new(ConnectionManager::new());
@@ -5646,7 +5665,10 @@ mod ws_integration_tests {
             .await;
 
         // Basic sanity: both received the same broadcast variant.
-        assert!(matches!(dm_broadcast, ServerMessage::GameTimeAdvanced { .. }));
+        assert!(matches!(
+            dm_broadcast,
+            ServerMessage::GameTimeAdvanced { .. }
+        ));
         assert!(matches!(
             spectator_broadcast,
             ServerMessage::GameTimeAdvanced { .. }
