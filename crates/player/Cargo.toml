@@ -6,6 +6,10 @@ license.workspace = true
 authors.workspace = true
 description = "WrldBldr Player - unified client (UI + app + infrastructure)"
 
+[features]
+default = []
+testing = []
+
 [lints]
 workspace = true
 
@@ -26,6 +30,7 @@ futures-util = { workspace = true }
 futures-channel = { workspace = true }
 regex-lite = { workspace = true }
 url = { workspace = true }
+mockall = { workspace = true }
 
 # Dioxus (feature-selected per target)
 dioxus = { workspace = true }
