@@ -949,6 +949,7 @@ fn translate_entity_changed_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wrldbldr_protocol::types::{GameTime, TimeAdvanceData, TimeSuggestionData};
 
     #[test]
     fn test_translate_pong() {
@@ -984,6 +985,140 @@ mod tests {
                 assert_eq!(user_id, "user-123");
             }
             _ => panic!("Expected UserLeft event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_game_time_advanced() {
+        let previous_time = GameTime::new(1, 8, 0, true);
+        let new_time = GameTime::new(1, 9, 30, false);
+
+        let msg = ServerMessage::GameTimeAdvanced {
+            data: TimeAdvanceData {
+                previous_time,
+                new_time,
+                minutes_advanced: 90,
+                reason: "Travel".to_string(),
+                period_changed: true,
+                new_period: Some("morning".to_string()),
+            },
+        };
+
+        let event = translate(msg);
+        match event {
+            PlayerEvent::GameTimeAdvanced {
+                previous_time: prev,
+                new_time: next,
+                minutes_advanced,
+                reason,
+                period_changed,
+                new_period,
+            } => {
+                assert_eq!(prev, previous_time);
+                assert_eq!(next, new_time);
+                assert_eq!(minutes_advanced, 90);
+                assert_eq!(reason, "Travel");
+                assert!(period_changed);
+                assert_eq!(new_period.as_deref(), Some("morning"));
+            }
+            _ => panic!("Expected GameTimeAdvanced event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_time_suggestion() {
+        let current_time = GameTime::new(1, 10, 0, true);
+        let resulting_time = GameTime::new(1, 10, 10, true);
+
+        let msg = ServerMessage::TimeSuggestion {
+            data: TimeSuggestionData {
+                suggestion_id: "sug-1".to_string(),
+                pc_id: "pc-1".to_string(),
+                pc_name: "Alice".to_string(),
+                action_type: "conversation".to_string(),
+                action_description: "Talk to the merchant".to_string(),
+                suggested_minutes: 10,
+                current_time,
+                resulting_time,
+                period_change: None,
+            },
+        };
+
+        let event = translate(msg);
+        match event {
+            PlayerEvent::TimeSuggestion {
+                suggestion_id,
+                pc_id,
+                pc_name,
+                action_type,
+                action_description,
+                suggested_minutes,
+                current_time: cur,
+                resulting_time: res,
+                period_change,
+            } => {
+                assert_eq!(suggestion_id, "sug-1");
+                assert_eq!(pc_id, "pc-1");
+                assert_eq!(pc_name, "Alice");
+                assert_eq!(action_type, "conversation");
+                assert_eq!(action_description, "Talk to the merchant");
+                assert_eq!(suggested_minutes, 10);
+                assert_eq!(cur, current_time);
+                assert_eq!(res, resulting_time);
+                assert_eq!(period_change, None);
+            }
+            _ => panic!("Expected TimeSuggestion event"),
+        }
+    }
+
+    #[test]
+    fn test_translate_staging_pending_ready() {
+        let pending = ServerMessage::StagingPending {
+            region_id: "region-1".to_string(),
+            region_name: "Town".to_string(),
+        };
+
+        let event = translate(pending);
+        match event {
+            PlayerEvent::StagingPending {
+                region_id,
+                region_name,
+            } => {
+                assert_eq!(region_id, "region-1");
+                assert_eq!(region_name, "Town");
+            }
+            _ => panic!("Expected StagingPending event"),
+        }
+
+        let ready = ServerMessage::StagingReady {
+            region_id: "region-1".to_string(),
+            npcs_present: vec![wrldbldr_protocol::NpcPresentInfo {
+                character_id: "npc-1".to_string(),
+                name: "Bob".to_string(),
+                sprite_asset: Some("/sprite.png".to_string()),
+                portrait_asset: None,
+                is_hidden_from_players: false,
+                mood: Some("calm".to_string()),
+            }],
+            visual_state: None,
+        };
+
+        let event = translate(ready);
+        match event {
+            PlayerEvent::StagingReady {
+                region_id,
+                npcs_present,
+                visual_state,
+            } => {
+                assert_eq!(region_id, "region-1");
+                assert_eq!(visual_state, None);
+                assert_eq!(npcs_present.len(), 1);
+                assert_eq!(npcs_present[0].character_id, "npc-1");
+                assert_eq!(npcs_present[0].name, "Bob");
+                assert_eq!(npcs_present[0].sprite_asset.as_deref(), Some("/sprite.png"));
+                assert_eq!(npcs_present[0].mood.as_deref(), Some("calm"));
+            }
+            _ => panic!("Expected StagingReady event"),
         }
     }
 }

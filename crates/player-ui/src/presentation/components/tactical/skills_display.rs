@@ -178,7 +178,7 @@ pub fn SkillsDisplay(props: SkillsDisplayProps) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dioxus_core::NoOpMutations;
+    use dioxus::dioxus_core::NoOpMutations;
 
     #[test]
     fn skills_display_smoke_renders() {

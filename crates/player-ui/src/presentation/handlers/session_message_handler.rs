@@ -1574,3 +1574,274 @@ pub fn handle_server_message(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dioxus::dioxus_core::NoOpMutations;
+    use dioxus::prelude::*;
+    use std::{
+        collections::HashMap,
+        future::Future,
+        pin::Pin,
+        sync::{Arc, Mutex},
+    };
+    use wrldbldr_player_ports::outbound::{GameConnectionPort, PlatformPort};
+    use wrldbldr_protocol::types::GameTime;
+
+    struct TestPlatform {
+        storage: Mutex<HashMap<String, String>>,
+    }
+
+    impl TestPlatform {
+        fn new() -> Self {
+            Self {
+                storage: Mutex::new(HashMap::new()),
+            }
+        }
+    }
+
+    impl PlatformPort for TestPlatform {
+        fn now_unix_secs(&self) -> u64 {
+            1_700_000_000
+        }
+
+        fn now_millis(&self) -> u64 {
+            1_700_000_000_000
+        }
+
+        fn sleep_ms(&self, _ms: u64) -> Pin<Box<dyn Future<Output = ()> + 'static>> {
+            Box::pin(async move {})
+        }
+
+        fn random_f64(&self) -> f64 {
+            0.5
+        }
+
+        fn random_range(&self, min: i32, _max: i32) -> i32 {
+            min
+        }
+
+        fn storage_save(&self, key: &str, value: &str) {
+            self.storage
+                .lock()
+                .expect("storage lock")
+                .insert(key.to_string(), value.to_string());
+        }
+
+        fn storage_load(&self, key: &str) -> Option<String> {
+            self.storage
+                .lock()
+                .expect("storage lock")
+                .get(key)
+                .cloned()
+        }
+
+        fn storage_remove(&self, key: &str) {
+            self.storage.lock().expect("storage lock").remove(key);
+        }
+
+        fn get_user_id(&self) -> String {
+            "test-user".to_string()
+        }
+
+        fn log_info(&self, _msg: &str) {}
+        fn log_error(&self, _msg: &str) {}
+        fn log_debug(&self, _msg: &str) {}
+        fn log_warn(&self, _msg: &str) {}
+
+        fn set_page_title(&self, _title: &str) {}
+
+        fn configure_engine_url(&self, _ws_url: &str) {}
+
+        fn ws_to_http(&self, ws_url: &str) -> String {
+            ws_url.to_string()
+        }
+
+        fn create_game_connection(&self, _server_url: &str) -> Arc<dyn GameConnectionPort> {
+            panic!("create_game_connection should not be called in these unit tests")
+        }
+    }
+
+    #[test]
+    fn handle_game_time_advanced_updates_game_time() {
+        #[component]
+        fn App() -> Element {
+            let platform: Arc<dyn PlatformPort> = Arc::new(TestPlatform::new());
+
+            let mut session_state = SessionState::new();
+            let mut game_state = GameState::new();
+            let mut dialogue_state = DialogueState::new();
+            let mut generation_state = GenerationState::new();
+            let mut lore_state = LoreState::new();
+
+            let previous_time = GameTime::new(1, 8, 0, true);
+            let new_time = GameTime::new(1, 9, 0, false);
+
+            handle_server_message(
+                PlayerEvent::GameTimeAdvanced {
+                    previous_time,
+                    new_time,
+                    minutes_advanced: 60,
+                    reason: "Travel".to_string(),
+                    period_changed: false,
+                    new_period: None,
+                },
+                &mut session_state,
+                &mut game_state,
+                &mut dialogue_state,
+                &mut generation_state,
+                &mut lore_state,
+                platform.as_ref(),
+            );
+
+            assert_eq!(*game_state.game_time.read(), Some(new_time));
+            rsx! { div {} }
+        }
+
+        let mut dom = VirtualDom::new(App);
+        let mut muts = NoOpMutations;
+        dom.rebuild(&mut muts);
+    }
+
+    #[test]
+    fn handle_time_suggestion_adds_pending_suggestion() {
+        #[component]
+        fn App() -> Element {
+            let platform: Arc<dyn PlatformPort> = Arc::new(TestPlatform::new());
+
+            let mut session_state = SessionState::new();
+            let mut game_state = GameState::new();
+            let mut dialogue_state = DialogueState::new();
+            let mut generation_state = GenerationState::new();
+            let mut lore_state = LoreState::new();
+
+            let current_time = GameTime::new(1, 10, 0, true);
+            let resulting_time = GameTime::new(1, 10, 10, true);
+
+            handle_server_message(
+                PlayerEvent::TimeSuggestion {
+                    suggestion_id: "sug-1".to_string(),
+                    pc_id: "pc-1".to_string(),
+                    pc_name: "Alice".to_string(),
+                    action_type: "conversation".to_string(),
+                    action_description: "Talk".to_string(),
+                    suggested_minutes: 10,
+                    current_time,
+                    resulting_time,
+                    period_change: None,
+                },
+                &mut session_state,
+                &mut game_state,
+                &mut dialogue_state,
+                &mut generation_state,
+                &mut lore_state,
+                platform.as_ref(),
+            );
+
+            let suggestions = game_state.pending_time_suggestions.read();
+            assert_eq!(suggestions.len(), 1);
+            assert_eq!(suggestions[0].suggestion_id, "sug-1");
+            assert_eq!(suggestions[0].pc_name, "Alice");
+            assert_eq!(suggestions[0].suggested_minutes, 10);
+            assert_eq!(suggestions[0].current_time, current_time);
+            assert_eq!(suggestions[0].resulting_time, resulting_time);
+
+            rsx! { div {} }
+        }
+
+        let mut dom = VirtualDom::new(App);
+        let mut muts = NoOpMutations;
+        dom.rebuild(&mut muts);
+    }
+
+    #[test]
+    fn handle_staging_pending_then_ready_updates_state() {
+        #[component]
+        fn App() -> Element {
+            let platform: Arc<dyn PlatformPort> = Arc::new(TestPlatform::new());
+
+            let mut session_state = SessionState::new();
+            let mut game_state = GameState::new();
+            let mut dialogue_state = DialogueState::new();
+            let mut generation_state = GenerationState::new();
+            let mut lore_state = LoreState::new();
+
+            let region_id = "region-1".to_string();
+
+            handle_server_message(
+                PlayerEvent::StagingPending {
+                    region_id: region_id.clone(),
+                    region_name: "Town".to_string(),
+                },
+                &mut session_state,
+                &mut game_state,
+                &mut dialogue_state,
+                &mut generation_state,
+                &mut lore_state,
+                platform.as_ref(),
+            );
+
+            assert!(game_state.staging_pending.read().is_some());
+            assert_eq!(
+                game_state.get_region_staging_status(&region_id),
+                RegionStagingStatus::Pending
+            );
+
+            handle_server_message(
+                PlayerEvent::StagingReady {
+                    region_id: region_id.clone(),
+                    npcs_present: vec![
+                        wrldbldr_player_ports::outbound::player_events::NpcPresentInfo {
+                            character_id: "npc-1".to_string(),
+                            name: "Bob".to_string(),
+                            sprite_asset: Some("/sprite.png".to_string()),
+                            portrait_asset: None,
+                            is_hidden_from_players: false,
+                            mood: None,
+                        },
+                        wrldbldr_player_ports::outbound::player_events::NpcPresentInfo {
+                            character_id: "npc-2".to_string(),
+                            name: "Eve".to_string(),
+                            sprite_asset: None,
+                            portrait_asset: Some("/portrait.png".to_string()),
+                            is_hidden_from_players: false,
+                            mood: None,
+                        },
+                    ],
+                    visual_state: None,
+                },
+                &mut session_state,
+                &mut game_state,
+                &mut dialogue_state,
+                &mut generation_state,
+                &mut lore_state,
+                platform.as_ref(),
+            );
+
+            assert!(game_state.staging_pending.read().is_none());
+
+            match game_state.get_region_staging_status(&region_id) {
+                RegionStagingStatus::Active {
+                    staging_id,
+                    npc_names,
+                } => {
+                    assert_eq!(staging_id, "");
+                    assert_eq!(npc_names, vec!["Bob".to_string(), "Eve".to_string()]);
+                }
+                other => panic!("Expected Active status, got: {other:?}"),
+            }
+
+            let npcs = game_state.npcs_present.read();
+            assert_eq!(npcs.len(), 2);
+            assert_eq!(npcs[0].name, "Bob");
+            assert_eq!(npcs[1].name, "Eve");
+
+            rsx! { div {} }
+        }
+
+        let mut dom = VirtualDom::new(App);
+        let mut muts = NoOpMutations;
+        dom.rebuild(&mut muts);
+    }
+}
