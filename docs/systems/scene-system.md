@@ -168,7 +168,7 @@ The visual novel format provides:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-SCN-009 - SceneCondition enum exists, evaluation not implemented)
+**Status**: ⏳ Pending (Editor UI. Engine evaluates built-in conditions; `Custom` is treated as unmet.)
 
 ---
 

@@ -200,7 +200,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (basic) (`crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`)
 
 ### Pre-Staging Editor Modal
 
@@ -239,7 +239,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (basic) (`crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`)
 
 ### Location Settings (TTL Configuration)
 
@@ -304,7 +304,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (`crates/player-ui/src/presentation/views/pc_view.rs`)
 
 ---
 
