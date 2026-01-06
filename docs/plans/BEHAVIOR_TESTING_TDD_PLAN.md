@@ -41,6 +41,115 @@ Create a small `test_support` module (engine + player) to reduce boilerplate:
 
 This keeps tests readable and minimizes copy/paste.
 
+## Execution Phases (How We’ll Run This Plan)
+
+This plan is intentionally executed in **small, verifiable phases**.
+
+Principles:
+
+- Each phase produces at least **one new regression/behavior guarantee**.
+- Prefer **use-case/entity boundary tests first**, then add **integration tests** once we have a harness.
+- **Commit at the end of each phase** (so we can bisect failures and keep PRs reviewable).
+
+### Phase 0 — Baseline snapshot (completed)
+
+Deliverables:
+
+- Repository is clean and a baseline commit exists for the already-completed CR6 work.
+
+Exit criteria:
+
+- `cargo test -p wrldbldr-engine --lib` passes.
+
+### Phase 1 — First TDD footholds (completed)
+
+Deliverables:
+
+- A small number of port traits are mockable (`mockall`) where it provides leverage.
+- At least one high-signal behavior test exists for a previously-fixed bug.
+
+Exit criteria:
+
+- Engine library tests pass and the new behavior test guards a real failure mode.
+
+### Phase 2 — Test support + more behavior tests (in progress)
+
+Goal: expand use-case/entity behavior coverage across the highest-risk systems without needing real Neo4j/WS.
+
+Deliverables:
+
+- Minimal `engine` test helpers (only if they reduce duplication meaningfully).
+- Additional use-case/entity behavior tests:
+  - Game time suggestion behavior (manual/no-cost/auto-as-suggested)
+  - Narrative trigger wiring is world-scoped at the port boundary
+
+Exit criteria:
+
+- Engine library tests pass.
+- New tests fail if the regression reappears (e.g., dropping `world_id` from trigger calls).
+
+### Phase 3 — WebSocket integration harness
+
+Goal: enable end-to-end protocol tests without requiring production wiring.
+
+Deliverables:
+
+- A test harness that can:
+  - spin up an Axum router with the `/ws` route
+  - connect 1–2 WebSocket clients
+  - send/receive protocol messages deterministically
+- At least one end-to-end approval-flow test (time suggestion approval or challenge approval).
+
+Exit criteria:
+
+- Harness runs in CI/local without manual setup.
+- One happy-path test proves a DM-only decision produces a world broadcast.
+
+### Phase 4 — Persistence integration tests (Neo4j + SQLite)
+
+Goal: lock down query correctness/performance risks and persistence behavior.
+
+Deliverables:
+
+- Neo4j repo integration tests for:
+  - narrative trigger fallback is **world-scoped** and **bounded**
+  - staging pending save is **batched** (no N+1)
+- SQLite queue integration tests for DM approval persistence and recovery.
+
+Exit criteria:
+
+- Tests run using testcontainers (or an equivalent local-only approach).
+- Regression tests cover the historical perf/correctness issues.
+
+### Phase 5 — Player behavior tests (reducers / message handling)
+
+Goal: ensure player state updates correctly in response to server messages.
+
+Deliverables:
+
+- Tests that validate player state transitions for:
+  - time suggestion arrival
+  - game time advanced broadcast
+  - staging pending/approved
+
+Exit criteria:
+
+- Message handling logic can change safely without UI snapshots.
+
+### Phase 6 — Coverage expansion (system-by-system)
+
+Goal: add 1–2 behavior tests per system’s “critical flows”.
+
+Deliverables:
+
+- Each system has at least:
+  - 1 use-case/entity behavior test
+  - 1 integration test (WS or persistence) for the main happy path
+
+Exit criteria:
+
+- New bugs in core systems are more likely to break a test than ship silently.
+
 ## What To Test (By System)
 
 Below, each section lists:

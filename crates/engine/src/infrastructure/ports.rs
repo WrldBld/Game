@@ -337,6 +337,7 @@ pub trait ChallengeRepo: Send + Sync {
     ) -> Result<Vec<ChallengeId>, RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait NarrativeRepo: Send + Sync {
     // Events
@@ -883,6 +884,7 @@ pub trait QueuePort: Send + Sync {
 
 /// Repository for game flags (used in scene conditions and narrative triggers).
 #[async_trait]
+#[cfg_attr(test, mockall::automock)]
 pub trait FlagRepo: Send + Sync {
     /// Get all set flags for a world (world-scoped flags).
     async fn get_world_flags(&self, world_id: WorldId) -> Result<Vec<String>, RepoError>;

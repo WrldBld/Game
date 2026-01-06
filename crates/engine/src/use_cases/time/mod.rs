@@ -312,4 +312,80 @@ mod tests {
         );
         assert_ne!(suggestion.resulting_time.minute(), domain_world.game_time.minute());
     }
+
+    #[tokio::test]
+    async fn when_time_mode_manual_then_returns_manual_mode_and_does_not_persist() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+
+        let mut time_config = GameTimeConfig::default();
+        time_config.mode = TimeMode::Manual;
+
+        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
+        domain_world.id = world_id;
+        domain_world.time_config = time_config;
+
+        let mut world_repo = MockWorldRepo::new();
+        let domain_world_for_get = domain_world.clone();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(move |_| Ok(Some(domain_world_for_get.clone())));
+        world_repo.expect_save().times(0);
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let suggest_time = super::SuggestTime::new(world_entity, clock);
+
+        let result = suggest_time
+            .execute(
+                world_id,
+                wrldbldr_domain::PlayerCharacterId::new(),
+                "PC".to_string(),
+                "challenge",
+                "Try to pick the lock".to_string(),
+            )
+            .await
+            .expect("SuggestTime should succeed");
+
+        assert!(matches!(result, super::SuggestTimeResult::ManualMode));
+    }
+
+    #[tokio::test]
+    async fn when_action_has_no_cost_then_returns_no_cost_and_does_not_persist() {
+        let now = Utc::now();
+        let world_id = WorldId::new();
+
+        // Default config cost for unknown action types is 0.
+        let domain_world = {
+            let mut w = wrldbldr_domain::World::new("World", "Desc", now);
+            w.id = world_id;
+            w
+        };
+
+        let mut world_repo = MockWorldRepo::new();
+        let domain_world_for_get = domain_world.clone();
+        world_repo
+            .expect_get()
+            .withf(move |id| *id == world_id)
+            .returning(move |_| Ok(Some(domain_world_for_get.clone())));
+        world_repo.expect_save().times(0);
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let suggest_time = super::SuggestTime::new(world_entity, clock);
+
+        let result = suggest_time
+            .execute(
+                world_id,
+                wrldbldr_domain::PlayerCharacterId::new(),
+                "PC".to_string(),
+                "unknown_action_type",
+                "Whatever".to_string(),
+            )
+            .await
+            .expect("SuggestTime should succeed");
+
+        assert!(matches!(result, super::SuggestTimeResult::NoCost));
+    }
 }

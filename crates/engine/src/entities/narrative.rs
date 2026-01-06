@@ -27,6 +27,65 @@ pub struct Narrative {
     clock: Arc<dyn ClockPort>,
 }
 
+#[cfg(test)]
+mod trigger_tests {
+    use std::sync::Arc;
+
+    use chrono::Utc;
+    use wrldbldr_domain::{RegionId, WorldId};
+
+    use crate::infrastructure::ports::{
+        ClockPort, MockChallengeRepo, MockFlagRepo, MockLocationRepo, MockNarrativeRepo,
+        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+    };
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    #[tokio::test]
+    async fn when_get_triggers_for_region_then_world_id_is_passed_to_repo() {
+        let world_id = WorldId::new();
+        let region_id = RegionId::new();
+        let now = Utc::now();
+
+        let mut narrative_repo = MockNarrativeRepo::new();
+        narrative_repo
+            .expect_get_triggers_for_region()
+            .withf(move |w, r| *w == world_id && *r == region_id)
+            .returning(|_, _| Ok(vec![]));
+
+        let location_repo = MockLocationRepo::new();
+        let player_character_repo = MockPlayerCharacterRepo::new();
+        let observation_repo = MockObservationRepo::new();
+        let challenge_repo = MockChallengeRepo::new();
+        let flag_repo = MockFlagRepo::new();
+        let scene_repo = MockSceneRepo::new();
+
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+
+        let narrative = super::Narrative::new(
+            Arc::new(narrative_repo),
+            Arc::new(location_repo),
+            Arc::new(player_character_repo),
+            Arc::new(observation_repo),
+            Arc::new(challenge_repo),
+            Arc::new(flag_repo),
+            Arc::new(scene_repo),
+            clock,
+        );
+
+        narrative
+            .get_triggers_for_region(world_id, region_id)
+            .await
+            .expect("get_triggers_for_region should succeed");
+    }
+}
+
 impl Narrative {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
