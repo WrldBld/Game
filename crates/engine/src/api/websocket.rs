@@ -5247,11 +5247,19 @@ where
 }
 
 // =============================================================================
-// WebSocket Integration Tests (Phase 3 Harness)
+// WebSocket Integration Tests
 // =============================================================================
 
 #[cfg(test)]
-mod ws_integration_tests {
+mod test_support;
+
+#[cfg(test)]
+mod ws_integration_tests;
+
+// Legacy inline suite considers module-private items in this file.
+// Kept temporarily behind cfg(any()) to avoid a very large deletion patch.
+#[cfg(any())]
+mod ws_integration_tests_inline {
     use super::*;
 
     use std::{
